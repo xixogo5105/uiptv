@@ -799,7 +799,12 @@ class EmbeddedPlayerActivity : Activity() {
             channelId = intent.getStringExtra(NativePlayerActivity.EXTRA_CHANNEL_ID).orEmpty(),
             title = intent.getStringExtra(NativePlayerActivity.EXTRA_TITLE).orEmpty(),
             url = intent.getStringExtra(NativePlayerActivity.EXTRA_URL).orEmpty(),
-            logo = intent.getStringExtra(NativePlayerActivity.EXTRA_LOGO).orEmpty()
+            logo = intent.getStringExtra(NativePlayerActivity.EXTRA_LOGO).orEmpty(),
+            seriesId = intent.getStringExtra(NativePlayerActivity.EXTRA_SERIES_ID).orEmpty(),
+            seriesTitle = intent.getStringExtra(NativePlayerActivity.EXTRA_SERIES_TITLE).orEmpty(),
+            episodeId = intent.getStringExtra(NativePlayerActivity.EXTRA_EPISODE_ID).orEmpty(),
+            season = intent.getStringExtra(NativePlayerActivity.EXTRA_SEASON).orEmpty(),
+            episodeNumber = intent.getStringExtra(NativePlayerActivity.EXTRA_EPISODE_NUMBER).orEmpty()
         )
     }
 

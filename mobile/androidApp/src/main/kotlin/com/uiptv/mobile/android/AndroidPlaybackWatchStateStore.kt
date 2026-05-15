@@ -42,6 +42,10 @@ class AndroidPlaybackWatchStateStore(
         if (target.accountId <= 0 || target.channelId.isBlank()) {
             return
         }
+        if (target.episodeId.isNotBlank() || target.seriesId.isNotBlank()) {
+            markSeriesEpisodeOpened(target)
+            return
+        }
         val db = databaseHelper.writableDatabase
         val values = ContentValues().apply {
             put("categoryDbId", target.categoryRowId.toString())
@@ -62,5 +66,49 @@ class AndroidPlaybackWatchStateStore(
             values.put("seriesId", target.channelId)
             db.insert("SeriesWatchingNowSnapshot", null, values)
         }
+    }
+
+    private fun markSeriesEpisodeOpened(target: PlaybackTarget) {
+        if (target.seriesId.isBlank()) {
+            return
+        }
+        val seriesId = target.seriesId
+        val episodeId = target.episodeId.ifBlank { target.channelId }
+        val db = databaseHelper.writableDatabase
+        val updatedAt = epochSeconds()
+        val values = ContentValues().apply {
+            put("mode", "series")
+            put("episodeId", episodeId)
+            put("episodeName", target.title)
+            put("season", target.season)
+            put("episodeNum", target.episodeNumber.toIntOrNull() ?: 0)
+            put("updatedAt", updatedAt)
+            put("source", "android")
+        }
+        val updated = db.update(
+            "SeriesWatchState",
+            values,
+            "accountId = ? AND categoryId = ? AND seriesId = ?",
+            arrayOf(target.accountId.toString(), target.categoryProviderId, seriesId)
+        )
+        if (updated == 0) {
+            values.put("accountId", target.accountId.toString())
+            values.put("categoryId", target.categoryProviderId)
+            values.put("seriesId", seriesId)
+            db.insert("SeriesWatchState", null, values)
+        }
+        val snapshotValues = ContentValues().apply {
+            put("categoryDbId", target.categoryRowId.toString())
+            if (target.seriesTitle.isNotBlank()) {
+                put("seriesTitle", target.seriesTitle)
+            }
+            put("updatedAt", updatedAt)
+        }
+        db.update(
+            "SeriesWatchingNowSnapshot",
+            snapshotValues,
+            "accountId = ? AND categoryId = ? AND seriesId = ?",
+            arrayOf(target.accountId.toString(), target.categoryProviderId, seriesId)
+        )
     }
 }

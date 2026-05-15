@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.BackHandler
@@ -31,15 +32,18 @@ import androidx.compose.ui.unit.dp
 import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
 import com.uiptv.mobile.shared.browse.AndroidSQLiteBrowseRepository
 import com.uiptv.mobile.shared.cache.AndroidCacheRefreshScheduler
+import com.uiptv.mobile.shared.db.AndroidDatabaseBackupManager
 import com.uiptv.mobile.shared.db.AndroidLocalDataResetter
 import com.uiptv.mobile.shared.db.AndroidSQLiteSnapshotSyncApplier
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlayerChoice
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import com.uiptv.mobile.shared.settings.AndroidSQLiteFilterSettingsRepository
+import com.uiptv.mobile.shared.settings.MobileBackupArchive
 import com.uiptv.mobile.shared.sync.AndroidRemoteSyncClient
 import com.uiptv.mobile.shared.sync.AndroidRemoteSyncPullService
 import com.uiptv.mobile.shared.ui.AccountUiActions
+import com.uiptv.mobile.shared.ui.BackupRestoreUiActions
 import com.uiptv.mobile.shared.ui.BrowseUiActions
 import com.uiptv.mobile.shared.ui.DefaultPlayerIcon
 import com.uiptv.mobile.shared.ui.FilterUiActions
@@ -56,6 +60,7 @@ class MainActivity : ComponentActivity() {
         val accountRepository = AndroidSQLiteAccountRepository(databaseHelper)
         val browseRepository = AndroidSQLiteBrowseRepository(databaseHelper)
         val filterRepository = AndroidSQLiteFilterSettingsRepository(databaseHelper)
+        val backupManager = AndroidDatabaseBackupManager(this, databaseHelper)
         val cacheScheduler = AndroidCacheRefreshScheduler(this)
         val localDataResetter = AndroidLocalDataResetter(databaseHelper)
         val playbackCoordinator = AndroidPlaybackCoordinator(this, preferences, databaseHelper)
@@ -67,6 +72,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var pendingLocalPlaylistSelection by remember { mutableStateOf<((String) -> Unit)?>(null) }
+            var pendingBackupSelection by remember { mutableStateOf<((String?) -> Unit)?>(null) }
+            var pendingRestoreSelection by remember { mutableStateOf<((String?) -> Unit)?>(null) }
             val localPlaylistLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.OpenDocument()
             ) { uri ->
@@ -80,6 +87,18 @@ class MainActivity : ComponentActivity() {
                     pendingLocalPlaylistSelection?.invoke(uri.toString())
                 }
                 pendingLocalPlaylistSelection = null
+            }
+            val backupLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.CreateDocument(MobileBackupArchive.MIME_TYPE)
+            ) { uri: Uri? ->
+                pendingBackupSelection?.invoke(uri?.toString())
+                pendingBackupSelection = null
+            }
+            val restoreLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.OpenDocument()
+            ) { uri: Uri? ->
+                pendingRestoreSelection?.invoke(uri?.toString())
+                pendingRestoreSelection = null
             }
 
             UiptvMobileApp(
@@ -106,7 +125,9 @@ class MainActivity : ComponentActivity() {
                     listBookmarks = browseRepository::listBookmarks,
                     toggleBookmark = browseRepository::toggleBookmark,
                     removeBookmark = browseRepository::removeBookmark,
-                    listWatchingNow = browseRepository::listWatchingNow
+                    listWatchingNow = browseRepository::listWatchingNow,
+                    listWatchingNowEpisodes = browseRepository::listWatchingNowEpisodes,
+                    removeWatchingNow = browseRepository::removeWatchingNow
                 ),
                 playbackActions = PlaybackUiActions(
                     loadPlayerPreference = playbackCoordinator::loadPlayerPreference,
@@ -114,6 +135,7 @@ class MainActivity : ComponentActivity() {
                     playBrowseItem = playbackCoordinator::playBrowseItem,
                     playBookmark = playbackCoordinator::playBookmark,
                     playWatchingNow = playbackCoordinator::playWatchingNow,
+                    playWatchingNowEpisode = playbackCoordinator::playWatchingNowEpisode,
                     openPlayerInstall = playbackCoordinator::openPlayerInstall,
                     savePlayerPreference = playbackCoordinator::savePlayerPreference,
                     clearPlayerPreference = playbackCoordinator::clearPlayerPreference
@@ -123,6 +145,10 @@ class MainActivity : ComponentActivity() {
                     save = filterRepository::save,
                     setPaused = filterRepository::setPaused,
                     setEnableThumbnails = filterRepository::setEnableThumbnails
+                ),
+                backupRestoreActions = BackupRestoreUiActions(
+                    backupToUri = backupManager::backupToUri,
+                    restoreFromUri = backupManager::restoreFromUri
                 ),
                 logoRenderer = { logoUrl, description, modifier ->
                     RemoteLogoImage(logoUrl, description, modifier)
@@ -139,6 +165,20 @@ class MainActivity : ComponentActivity() {
                             "audio/mpegurl",
                             "audio/x-mpegurl",
                             "text/plain",
+                            "*/*"
+                        )
+                    )
+                },
+                backupFileCreator = { suggestedName, onSelected ->
+                    pendingBackupSelection = onSelected
+                    backupLauncher.launch(suggestedName)
+                },
+                restoreFilePicker = { onSelected ->
+                    pendingRestoreSelection = onSelected
+                    restoreLauncher.launch(
+                        arrayOf(
+                            MobileBackupArchive.MIME_TYPE,
+                            "application/octet-stream",
                             "*/*"
                         )
                     )

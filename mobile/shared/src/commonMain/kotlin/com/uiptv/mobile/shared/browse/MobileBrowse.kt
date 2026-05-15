@@ -86,7 +86,31 @@ data class MobileWatchingNowItem(
     val subtitle: String,
     val command: String = "",
     val logo: String = "",
-    val updatedAtEpochSeconds: Long = 0
+    val updatedAtEpochSeconds: Long = 0,
+    val categoryProviderId: String = "",
+    val categoryRowId: Long = 0,
+    val contentId: String = ""
+)
+
+data class MobileWatchingNowEpisode(
+    val rowId: Long,
+    val parentRowId: Long,
+    val accountId: Long,
+    val accountName: String,
+    val seriesId: String,
+    val seriesTitle: String,
+    val categoryProviderId: String,
+    val categoryRowId: Long,
+    val episodeId: String,
+    val title: String,
+    val season: String = "",
+    val episodeNumber: String = "",
+    val command: String = "",
+    val logo: String = "",
+    val plot: String = "",
+    val releaseDate: String = "",
+    val rating: String = "",
+    val duration: String = ""
 )
 
 interface BrowseRepository {
@@ -106,4 +130,8 @@ interface BrowseRepository {
     suspend fun removeBookmark(bookmarkId: Long)
 
     suspend fun listWatchingNow(query: String): List<MobileWatchingNowItem>
+
+    suspend fun listWatchingNowEpisodes(item: MobileWatchingNowItem): List<MobileWatchingNowEpisode>
+
+    suspend fun removeWatchingNow(item: MobileWatchingNowItem)
 }

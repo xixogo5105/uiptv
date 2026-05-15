@@ -68,4 +68,5 @@ dependencies {
     implementation(libs.libvlc.all)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.kotlinx.coroutines.core)
 }

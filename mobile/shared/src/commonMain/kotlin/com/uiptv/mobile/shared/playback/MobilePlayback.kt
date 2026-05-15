@@ -30,7 +30,12 @@ data class PlaybackTarget(
     val drmLicenseUrl: String = "",
     val clearKeysJson: String = "",
     val inputstreamAddon: String = "",
-    val manifestType: String = ""
+    val manifestType: String = "",
+    val seriesId: String = "",
+    val seriesTitle: String = "",
+    val episodeId: String = "",
+    val season: String = "",
+    val episodeNumber: String = ""
 )
 
 fun extractPlayableStreamUrl(raw: String): String {

@@ -43,6 +43,8 @@ class MobilePlaybackTest {
         assertEquals("", target.clearKeysJson)
         assertEquals("", target.inputstreamAddon)
         assertEquals("", target.manifestType)
+        assertEquals("", target.seriesId)
+        assertEquals("", target.episodeId)
     }
 
     @Test

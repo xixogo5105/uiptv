@@ -13,6 +13,7 @@ import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.browse.MobileBookmark
 import com.uiptv.mobile.shared.browse.MobileBrowseItem
+import com.uiptv.mobile.shared.browse.MobileWatchingNowEpisode
 import com.uiptv.mobile.shared.browse.MobileWatchingNowItem
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlaybackLaunchResult
@@ -157,6 +158,28 @@ class AndroidPlaybackCoordinator(
             result
         }
 
+    suspend fun playWatchingNowEpisode(
+        episode: MobileWatchingNowEpisode,
+        player: AndroidPlayerPreference,
+        remember: Boolean
+    ): PlaybackLaunchResult = withContext(Dispatchers.IO) {
+        val target = episode.toPlaybackTarget()
+        val result = if (episode.command.isBlank()) {
+            PlaybackLaunchResult(false, "No playable URL is cached for ${episode.title}.")
+        } else {
+            launch(target, player)
+        }
+        if (result.launched) {
+            if (remember) {
+                preferences.savePlayerPreference(PlayerPreference(player, player.resolvePreferredPackageName(), true))
+            }
+            if (!player.usesNativeActivity()) {
+                watchStateStore.markOpened(target.resolved())
+            }
+        }
+        result
+    }
+
     private suspend fun launch(target: PlaybackTarget, player: AndroidPlayerPreference): PlaybackLaunchResult {
         val playableTarget = resolvePlayableTarget(target)
         if (!playableTarget.url.isPlayableNetworkUrl()) {
@@ -208,6 +231,11 @@ class AndroidPlaybackCoordinator(
             .putExtra(NativePlayerActivity.EXTRA_CATEGORY_ROW_ID, target.categoryRowId)
             .putExtra(NativePlayerActivity.EXTRA_CHANNEL_ID, target.channelId)
             .putExtra(NativePlayerActivity.EXTRA_LOGO, target.logo)
+            .putExtra(NativePlayerActivity.EXTRA_SERIES_ID, target.seriesId)
+            .putExtra(NativePlayerActivity.EXTRA_SERIES_TITLE, target.seriesTitle)
+            .putExtra(NativePlayerActivity.EXTRA_EPISODE_ID, target.episodeId)
+            .putExtra(NativePlayerActivity.EXTRA_SEASON, target.season)
+            .putExtra(NativePlayerActivity.EXTRA_EPISODE_NUMBER, target.episodeNumber)
 
     private fun launchExternal(target: PlaybackTarget, player: AndroidPlayerPreference): PlaybackLaunchResult {
         val packageName = player.resolvePreferredPackageName()
@@ -493,12 +521,30 @@ class AndroidPlaybackCoordinator(
             accountId = accountId,
             accountName = accountName,
             mode = mode,
-            categoryProviderId = "",
-            categoryRowId = 0,
-            channelId = rowId.toString(),
+            categoryProviderId = categoryProviderId,
+            categoryRowId = categoryRowId,
+            channelId = contentId.ifBlank { rowId.toString() },
             title = title,
             url = command,
             logo = logo
+        )
+
+    private fun MobileWatchingNowEpisode.toPlaybackTarget(): PlaybackTarget =
+        PlaybackTarget(
+            accountId = accountId,
+            accountName = accountName,
+            mode = BrowseMode.SERIES,
+            categoryProviderId = categoryProviderId,
+            categoryRowId = categoryRowId,
+            channelId = episodeId,
+            title = title,
+            url = command,
+            logo = logo,
+            seriesId = seriesId,
+            seriesTitle = seriesTitle,
+            episodeId = episodeId,
+            season = season,
+            episodeNumber = episodeNumber
         )
 
     private fun AndroidPlayerPreference.packageName(): String =

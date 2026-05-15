@@ -85,6 +85,32 @@ class MobileBrowseTest {
         assertEquals("", bookmark.logo)
         assertEquals(0, category.itemCount)
         assertEquals("", watchingNow.command)
+        assertEquals("", watchingNow.contentId)
         assertFalse(watchingNow.updatedAtEpochSeconds > 0)
+    }
+
+    @Test
+    fun watchingNowEpisodeCarriesSeriesAndPlaybackMetadata() {
+        val episode = MobileWatchingNowEpisode(
+            rowId = 0,
+            parentRowId = 2,
+            accountId = 3,
+            accountName = "Demo",
+            seriesId = "series-1",
+            seriesTitle = "Demo Show",
+            categoryProviderId = "cat-1",
+            categoryRowId = 9,
+            episodeId = "episode-1",
+            title = "Pilot",
+            season = "1",
+            episodeNumber = "1",
+            command = "http://stream.test/episode.m3u8",
+            logo = "http://image.test/episode.jpg"
+        )
+
+        assertEquals("series-1", episode.seriesId)
+        assertEquals("episode-1", episode.episodeId)
+        assertEquals("http://stream.test/episode.m3u8", episode.command)
+        assertEquals(9, episode.categoryRowId)
     }
 }

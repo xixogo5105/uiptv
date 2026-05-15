@@ -109,6 +109,7 @@ import com.uiptv.mobile.shared.browse.MobileBookmarkCategory
 import com.uiptv.mobile.shared.browse.MobileBrowseCategory
 import com.uiptv.mobile.shared.browse.MobileBrowseItem
 import com.uiptv.mobile.shared.browse.MobileBrowseSnapshot
+import com.uiptv.mobile.shared.browse.MobileWatchingNowEpisode
 import com.uiptv.mobile.shared.browse.MobileWatchingNowItem
 import com.uiptv.mobile.shared.cache.CacheRefreshAction
 import com.uiptv.mobile.shared.cache.CacheRefreshJobRequest
@@ -119,6 +120,8 @@ import com.uiptv.mobile.shared.playback.PlayerChoice
 import com.uiptv.mobile.shared.settings.AndroidPlayerPreference
 import com.uiptv.mobile.shared.settings.AndroidPreferenceSnapshot
 import com.uiptv.mobile.shared.settings.AndroidFilterSettings
+import com.uiptv.mobile.shared.settings.BackupRestoreResult
+import com.uiptv.mobile.shared.settings.MobileBackupArchive
 import com.uiptv.mobile.shared.settings.PlayerPreference
 import com.uiptv.mobile.shared.sync.RemoteSyncProgress
 import com.uiptv.mobile.shared.sync.RemoteSyncProgressStep
@@ -127,6 +130,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 typealias LocalPlaylistPicker = (onSelected: (String) -> Unit) -> Unit
+typealias BackupFileCreator = (suggestedName: String, onSelected: (String?) -> Unit) -> Unit
+typealias RestoreFilePicker = (onSelected: (String?) -> Unit) -> Unit
 typealias LogoRenderer = @Composable (String, String, Modifier) -> Unit
 typealias PlayerIconRenderer = @Composable (PlayerChoice, Modifier) -> Unit
 
@@ -238,7 +243,10 @@ fun UiptvMobileApp(
     browseActions: BrowseUiActions = BrowseUiActions.preview(),
     playbackActions: PlaybackUiActions = PlaybackUiActions.preview(),
     filterActions: FilterUiActions = FilterUiActions.preview(),
+    backupRestoreActions: BackupRestoreUiActions = BackupRestoreUiActions.preview(),
     localPlaylistPicker: LocalPlaylistPicker? = null,
+    backupFileCreator: BackupFileCreator? = null,
+    restoreFilePicker: RestoreFilePicker? = null,
     logoRenderer: LogoRenderer = { _, _, _ -> },
     playerIconRenderer: PlayerIconRenderer = { choice, modifier -> DefaultPlayerIcon(choice, modifier) },
     backHandler: @Composable (enabled: Boolean, onBack: () -> Unit) -> Unit = { _, _ -> }
@@ -276,7 +284,10 @@ fun UiptvMobileApp(
                     browseActions = browseActions,
                     playbackActions = playbackActions,
                     filterActions = filterActions,
+                    backupRestoreActions = backupRestoreActions,
                     localPlaylistPicker = localPlaylistPicker,
+                    backupFileCreator = backupFileCreator,
+                    restoreFilePicker = restoreFilePicker,
                     selectedBrowseAccount = selectedBrowseAccount,
                     showThumbnails = showThumbnails,
                     logoRenderer = logoRenderer,
@@ -304,7 +315,10 @@ private fun CurrentTab(
     browseActions: BrowseUiActions,
     playbackActions: PlaybackUiActions,
     filterActions: FilterUiActions,
+    backupRestoreActions: BackupRestoreUiActions,
     localPlaylistPicker: LocalPlaylistPicker?,
+    backupFileCreator: BackupFileCreator?,
+    restoreFilePicker: RestoreFilePicker?,
     selectedBrowseAccount: MobileAccount?,
     showThumbnails: Boolean,
     logoRenderer: LogoRenderer,
@@ -349,7 +363,17 @@ private fun CurrentTab(
                 WatchingNowScreen(browseActions, playbackActions, showThumbnails, logoRenderer, playerIconRenderer, Modifier.fillMaxSize())
             }
             3 -> {
-                RemoteSyncScreen(syncActions, playbackActions, filterActions, onThumbnailSettingChanged, playerIconRenderer, Modifier.fillMaxSize())
+                RemoteSyncScreen(
+                    syncActions,
+                    playbackActions,
+                    filterActions,
+                    backupRestoreActions,
+                    backupFileCreator,
+                    restoreFilePicker,
+                    onThumbnailSettingChanged,
+                    playerIconRenderer,
+                    Modifier.fillMaxSize()
+                )
             }
         }
     }
@@ -834,6 +858,7 @@ private fun ChannelsScreen(
                         is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
                         is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
                         is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
+                        is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
                     }
                 }
                     .onSuccess { statusText = it.message }
@@ -1236,6 +1261,7 @@ private fun BookmarksScreen(
                         is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
                         is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
                         is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
+                        is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
                     }
                 }
                     .onSuccess { statusText = it.message }
@@ -1318,6 +1344,8 @@ private fun WatchingNowScreen(
     var running by remember { mutableStateOf(false) }
     var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
     var playerChoices by remember { mutableStateOf<List<PlayerChoice>>(emptyList()) }
+    var selectedSeries by remember { mutableStateOf<MobileWatchingNowItem?>(null) }
+    var seriesEpisodes by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
 
     fun reload() {
         scope.launch {
@@ -1332,8 +1360,120 @@ private fun WatchingNowScreen(
         }
     }
 
+    fun play(pending: PendingPlayback) {
+        scope.launch {
+            running = true
+            val preference = playbackActions.loadPlayerPreference()
+            if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
+                runCatching {
+                    when (pending) {
+                        is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, preference.selectedPlayer, false)
+                        is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, preference.selectedPlayer, false)
+                        is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, preference.selectedPlayer, false)
+                        is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, preference.selectedPlayer, false)
+                    }
+                }
+                    .onSuccess { statusText = it.message }
+                    .onFailure { statusText = it.message ?: "Unable to resume" }
+            } else {
+                playerChoices = playbackActions.playerChoices()
+                pendingPlayback = pending
+            }
+            running = false
+        }
+    }
+
+    fun openWatchingNow(item: MobileWatchingNowItem) {
+        if (item.mode != BrowseMode.SERIES) {
+            play(PendingPlayback.Watching(item))
+            return
+        }
+        scope.launch {
+            running = true
+            runCatching { browseActions.listWatchingNowEpisodes(item) }
+                .onSuccess {
+                    selectedSeries = item
+                    seriesEpisodes = it
+                    statusText = if (it.isEmpty()) "No cached episodes for ${item.title}" else "${it.size} cached episodes"
+                }
+                .onFailure { statusText = it.message ?: "Unable to open series" }
+            running = false
+        }
+    }
+
+    fun removeWatchingNow(item: MobileWatchingNowItem) {
+        scope.launch {
+            running = true
+            runCatching { browseActions.removeWatchingNow(item) }
+                .onSuccess {
+                    items = items.filterNot { it.mode == item.mode && it.rowId == item.rowId }
+                    if (selectedSeries?.rowId == item.rowId && selectedSeries?.mode == item.mode) {
+                        selectedSeries = null
+                        seriesEpisodes = emptyList()
+                    }
+                    statusText = "Removed ${item.title}"
+                }
+                .onFailure { statusText = it.message ?: "Unable to remove item" }
+            running = false
+        }
+    }
+
     LaunchedEffect(browseActions) {
         reload()
+    }
+
+    val series = selectedSeries
+    if (series != null) {
+        WatchingNowSeriesDetail(
+            series = series,
+            episodes = seriesEpisodes,
+            running = running,
+            statusText = statusText,
+            showThumbnail = showThumbnails,
+            logoRenderer = logoRenderer,
+            onBack = {
+                selectedSeries = null
+                seriesEpisodes = emptyList()
+            },
+            onPlayEpisode = { episode -> play(PendingPlayback.WatchingEpisode(episode)) },
+            onRemoveSeries = { removeWatchingNow(series) },
+            modifier = modifier
+        )
+        PlaybackPickerDialog(
+            pendingPlayback = pendingPlayback,
+            playerChoices = playerChoices,
+            playerIconRenderer = playerIconRenderer,
+            onDismiss = { pendingPlayback = null },
+            onInstall = { choice ->
+                pendingPlayback = null
+                scope.launch {
+                    running = true
+                    runCatching { playbackActions.openPlayerInstall(choice) }
+                        .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
+                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                    running = false
+                }
+            },
+            onSelect = { player, remember ->
+                val pending = pendingPlayback ?: return@PlaybackPickerDialog
+                pendingPlayback = null
+                scope.launch {
+                    running = true
+                    runCatching {
+                        when (pending) {
+                            is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
+                            is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
+                            is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
+                            is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
+                        }
+                    }
+                        .onSuccess { statusText = it.message }
+                        .onFailure { statusText = it.message ?: "Unable to resume" }
+                    running = false
+                }
+            }
+        )
+        return
     }
 
     LazyColumn(
@@ -1368,21 +1508,8 @@ private fun WatchingNowScreen(
                 item = item,
                 showThumbnail = showThumbnails,
                 logoRenderer = logoRenderer,
-                onPlay = {
-                    scope.launch {
-                        running = true
-                        val preference = playbackActions.loadPlayerPreference()
-                        if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
-                            runCatching { playbackActions.playWatchingNow(item, preference.selectedPlayer, false) }
-                                .onSuccess { statusText = it.message }
-                                .onFailure { statusText = it.message ?: "Unable to resume" }
-                        } else {
-                            playerChoices = playbackActions.playerChoices()
-                            pendingPlayback = PendingPlayback.Watching(item)
-                        }
-                        running = false
-                    }
-                }
+                onOpen = { openWatchingNow(item) },
+                onRemove = { removeWatchingNow(item) }
             )
         }
         item {
@@ -1418,6 +1545,7 @@ private fun WatchingNowScreen(
                         is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
                         is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
                         is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
+                        is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
                     }
                 }
                     .onSuccess { statusText = it.message }
@@ -1433,13 +1561,14 @@ private fun WatchingNowRow(
     item: MobileWatchingNowItem,
     showThumbnail: Boolean,
     logoRenderer: LogoRenderer,
-    onPlay: () -> Unit
+    onOpen: () -> Unit,
+    onRemove: () -> Unit
 ) {
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 64.dp)
-            .clickable(enabled = item.command.isNotBlank(), onClick = onPlay),
+            .clickable(enabled = item.mode == BrowseMode.SERIES || item.command.isNotBlank(), onClick = onOpen),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
     ) {
@@ -1455,11 +1584,139 @@ private fun WatchingNowRow(
                 )
             },
             headlineContent = {
-                Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FavouriteStar(
+                        selected = true,
+                        contentDescription = "Remove watching now ${item.title}",
+                        compact = true,
+                        onClick = onRemove
+                    )
+                    Text(
+                        item.title,
+                        modifier = Modifier.weight(1f),
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             },
             supportingContent = {
                 Text(
                     "${item.mode.displayLabel()} - ${item.subtitle}",
+                    color = DeepNightMutedText,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        )
+    }
+}
+
+@Composable
+private fun WatchingNowSeriesDetail(
+    series: MobileWatchingNowItem,
+    episodes: List<MobileWatchingNowEpisode>,
+    running: Boolean,
+    statusText: String,
+    showThumbnail: Boolean,
+    logoRenderer: LogoRenderer,
+    onBack: () -> Unit,
+    onPlayEpisode: (MobileWatchingNowEpisode) -> Unit,
+    onRemoveSeries: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(onClick = onBack) {
+                    Text("Back")
+                }
+                Text(
+                    series.title,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                FavouriteStar(
+                    selected = true,
+                    contentDescription = "Remove watching now ${series.title}",
+                    compact = true,
+                    onClick = onRemoveSeries
+                )
+            }
+        }
+        if (episodes.isEmpty()) {
+            item {
+                EmptyState(
+                    title = "No cached episodes",
+                    detail = "Refresh this account on desktop or Android to cache episode links."
+                )
+            }
+        }
+        items(episodes, key = { "${it.parentRowId}-${it.episodeId}-${it.rowId}" }) { episode ->
+            WatchingNowEpisodeRow(
+                episode = episode,
+                showThumbnail = showThumbnail,
+                logoRenderer = logoRenderer,
+                onPlay = { onPlayEpisode(episode) }
+            )
+        }
+        item {
+            if (running) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun WatchingNowEpisodeRow(
+    episode: MobileWatchingNowEpisode,
+    showThumbnail: Boolean,
+    logoRenderer: LogoRenderer,
+    onPlay: () -> Unit
+) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 64.dp)
+            .clickable(enabled = episode.command.isNotBlank(), onClick = onPlay),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
+    ) {
+        ListItem(
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            leadingContent = {
+                ChannelLogo(
+                    label = episode.title.take(2).uppercase(),
+                    logo = episode.logo,
+                    showThumbnail = showThumbnail,
+                    contentDescription = "Logo ${episode.title}",
+                    logoRenderer = logoRenderer
+                )
+            },
+            headlineContent = {
+                Text(episode.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            },
+            supportingContent = {
+                Text(
+                    listOf(
+                        episode.season.takeIf { it.isNotBlank() }?.let { "S$it" },
+                        episode.episodeNumber.takeIf { it.isNotBlank() }?.let { "E$it" },
+                        episode.duration.takeIf { it.isNotBlank() }
+                    ).filterNotNull().joinToString(" - ").ifBlank { episode.seriesTitle },
                     color = DeepNightMutedText,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -1732,6 +1989,9 @@ private fun RemoteSyncScreen(
     syncActions: RemoteSyncUiActions,
     playbackActions: PlaybackUiActions,
     filterActions: FilterUiActions,
+    backupRestoreActions: BackupRestoreUiActions,
+    backupFileCreator: BackupFileCreator?,
+    restoreFilePicker: RestoreFilePicker?,
     onThumbnailSettingChanged: (Boolean) -> Unit,
     playerIconRenderer: PlayerIconRenderer,
     modifier: Modifier = Modifier
@@ -1752,6 +2012,7 @@ private fun RemoteSyncScreen(
     var categoryFilterText by remember { mutableStateOf("") }
     var channelFilterText by remember { mutableStateOf("") }
     var filterEditorVisible by remember { mutableStateOf(false) }
+    var confirmRestore by remember { mutableStateOf(false) }
 
     LaunchedEffect(syncActions) {
         val snapshot = syncActions.loadPreferences()
@@ -1790,6 +2051,53 @@ private fun RemoteSyncScreen(
         onThumbnailSettingChanged(loadedFilters.enableThumbnails)
         categoryFilterText = loadedFilters.categoryFilters
         channelFilterText = loadedFilters.channelFilters
+    }
+
+    fun launchBackup() {
+        val creator = backupFileCreator
+        if (creator == null) {
+            statusText = "Backup destination picker is unavailable."
+            return
+        }
+        creator(MobileBackupArchive.defaultFileName(System.currentTimeMillis() / 1000L)) { uri ->
+            if (uri.isNullOrBlank()) {
+                statusText = "Backup cancelled"
+                return@creator
+            }
+            scope.launch {
+                running = true
+                statusText = "Creating backup"
+                runCatching { backupRestoreActions.backupToUri(uri) }
+                    .onSuccess { statusText = it.message }
+                    .onFailure { statusText = it.message ?: "Backup failed" }
+                running = false
+            }
+        }
+    }
+
+    fun launchRestore() {
+        val picker = restoreFilePicker
+        if (picker == null) {
+            statusText = "Restore file picker is unavailable."
+            return
+        }
+        picker { uri ->
+            if (uri.isNullOrBlank()) {
+                statusText = "Restore cancelled"
+                return@picker
+            }
+            scope.launch {
+                running = true
+                statusText = "Restoring backup"
+                runCatching { backupRestoreActions.restoreFromUri(uri) }
+                    .onSuccess {
+                        reloadFiltersFromDatabase()
+                        statusText = it.message
+                    }
+                    .onFailure { statusText = it.message ?: "Restore failed" }
+                running = false
+            }
+        }
     }
 
     val selectedPlayerChoice = remember(selectedPlayer, playerChoices) {
@@ -1885,6 +2193,35 @@ private fun RemoteSyncScreen(
         }
         Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodyMedium)
         Text(lastSyncText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
+        Text("Backup & Restore", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp),
+            color = DeepNightSurfaceHigh,
+            contentColor = DeepNightText
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        modifier = Modifier.weight(1f).semantics { contentDescription = "Back up mobile data" },
+                        enabled = !running,
+                        onClick = ::launchBackup
+                    ) {
+                        Text("Back up")
+                    }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f).semantics { contentDescription = "Restore mobile data" },
+                        enabled = !running,
+                        onClick = { confirmRestore = true }
+                    ) {
+                        Text("Restore")
+                    }
+                }
+            }
+        }
         Text("Appearance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
@@ -2108,6 +2445,31 @@ private fun RemoteSyncScreen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmReset = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (confirmRestore) {
+        AlertDialog(
+            onDismissRequest = { confirmRestore = false },
+            title = { Text("Restore backup?") },
+            text = {
+                Text("This replaces all mobile data with the selected backup, including accounts, configuration, bookmarks, cache, and link tables.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRestore = false
+                        launchRestore()
+                    }
+                ) {
+                    Text("Restore")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRestore = false }) {
                     Text("Cancel")
                 }
             }
@@ -3027,6 +3389,19 @@ data class RemoteSyncUiActions(
     }
 }
 
+data class BackupRestoreUiActions(
+    val backupToUri: suspend (String) -> BackupRestoreResult,
+    val restoreFromUri: suspend (String) -> BackupRestoreResult
+) {
+    companion object {
+        fun preview(): BackupRestoreUiActions =
+            BackupRestoreUiActions(
+                backupToUri = { BackupRestoreResult("Preview backup created") },
+                restoreFromUri = { BackupRestoreResult("Preview backup restored") }
+            )
+    }
+}
+
 data class BrowseUiActions(
     val loadBrowse: suspend (
         accountId: Long?,
@@ -3038,7 +3413,9 @@ data class BrowseUiActions(
     val listBookmarks: suspend (String, String?) -> List<MobileBookmark>,
     val toggleBookmark: suspend (MobileBrowseItem) -> Boolean,
     val removeBookmark: suspend (Long) -> Unit,
-    val listWatchingNow: suspend (String) -> List<MobileWatchingNowItem>
+    val listWatchingNow: suspend (String) -> List<MobileWatchingNowItem>,
+    val listWatchingNowEpisodes: suspend (MobileWatchingNowItem) -> List<MobileWatchingNowEpisode>,
+    val removeWatchingNow: suspend (MobileWatchingNowItem) -> Unit
 ) {
     companion object {
         fun preview(): BrowseUiActions {
@@ -3091,7 +3468,9 @@ data class BrowseUiActions(
                 removeBookmark = {},
                 listWatchingNow = {
                     listOf(MobileWatchingNowItem(1, 1, "Demo", BrowseMode.VOD, "Demo Movie", "Demo", updatedAtEpochSeconds = 1))
-                }
+                },
+                listWatchingNowEpisodes = { emptyList() },
+                removeWatchingNow = {}
             )
         }
     }
@@ -3103,6 +3482,7 @@ data class PlaybackUiActions(
     val playBrowseItem: suspend (MobileBrowseItem, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
     val playBookmark: suspend (MobileBookmark, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
     val playWatchingNow: suspend (MobileWatchingNowItem, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
+    val playWatchingNowEpisode: suspend (MobileWatchingNowEpisode, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
     val openPlayerInstall: suspend (PlayerChoice) -> Unit,
     val savePlayerPreference: suspend (AndroidPlayerPreference) -> Unit,
     val clearPlayerPreference: suspend () -> Unit
@@ -3120,6 +3500,7 @@ data class PlaybackUiActions(
                 playBrowseItem = { item, _, _ -> PlaybackLaunchResult(true, "Opening ${item.name}") },
                 playBookmark = { bookmark, _, _ -> PlaybackLaunchResult(true, "Opening ${bookmark.channelName}") },
                 playWatchingNow = { item, _, _ -> PlaybackLaunchResult(true, "Opening ${item.title}") },
+                playWatchingNowEpisode = { episode, _, _ -> PlaybackLaunchResult(true, "Opening ${episode.title}") },
                 openPlayerInstall = {},
                 savePlayerPreference = {},
                 clearPlayerPreference = {}
@@ -3331,6 +3712,7 @@ private sealed interface PendingPlayback {
     data class Browse(val item: MobileBrowseItem) : PendingPlayback
     data class Bookmark(val bookmark: MobileBookmark) : PendingPlayback
     data class Watching(val item: MobileWatchingNowItem) : PendingPlayback
+    data class WatchingEpisode(val episode: MobileWatchingNowEpisode) : PendingPlayback
 }
 
 private fun CacheRefreshJobState.isActive(): Boolean =

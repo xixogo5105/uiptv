@@ -106,7 +106,12 @@ class NativePlayerActivity : Activity() {
             channelId = intent.getStringExtra(EXTRA_CHANNEL_ID).orEmpty(),
             title = intent.getStringExtra(EXTRA_TITLE).orEmpty(),
             url = intent.getStringExtra(EXTRA_URL).orEmpty(),
-            logo = intent.getStringExtra(EXTRA_LOGO).orEmpty()
+            logo = intent.getStringExtra(EXTRA_LOGO).orEmpty(),
+            seriesId = intent.getStringExtra(EXTRA_SERIES_ID).orEmpty(),
+            seriesTitle = intent.getStringExtra(EXTRA_SERIES_TITLE).orEmpty(),
+            episodeId = intent.getStringExtra(EXTRA_EPISODE_ID).orEmpty(),
+            season = intent.getStringExtra(EXTRA_SEASON).orEmpty(),
+            episodeNumber = intent.getStringExtra(EXTRA_EPISODE_NUMBER).orEmpty()
         )
     }
 
@@ -139,5 +144,10 @@ class NativePlayerActivity : Activity() {
         const val EXTRA_CATEGORY_ROW_ID = "category_row_id"
         const val EXTRA_CHANNEL_ID = "channel_id"
         const val EXTRA_LOGO = "logo"
+        const val EXTRA_SERIES_ID = "series_id"
+        const val EXTRA_SERIES_TITLE = "series_title"
+        const val EXTRA_EPISODE_ID = "episode_id"
+        const val EXTRA_SEASON = "season"
+        const val EXTRA_EPISODE_NUMBER = "episode_number"
     }
 }

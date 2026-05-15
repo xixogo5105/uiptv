@@ -7,6 +7,7 @@ import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 
 class AndroidSQLiteBrowseRepository(
@@ -325,6 +326,52 @@ class AndroidSQLiteBrowseRepository(
             .sortedByDescending { it.updatedAtEpochSeconds }
     }
 
+    override suspend fun listWatchingNowEpisodes(item: MobileWatchingNowItem): List<MobileWatchingNowEpisode> = withContext(Dispatchers.IO) {
+        if (item.mode != BrowseMode.SERIES) {
+            return@withContext emptyList()
+        }
+        val db = databaseHelper.readableDatabase
+        db.rawQuery(
+            """
+            SELECT s.id, CAST(s.accountId AS INTEGER) AS accountId, acc.accountName, s.categoryId,
+                s.categoryDbId, s.seriesId, s.seriesTitle, s.episodesJson
+            FROM SeriesWatchingNowSnapshot s
+            LEFT JOIN Account acc ON CAST(s.accountId AS INTEGER) = acc.id
+            WHERE s.id = ?
+            LIMIT 1
+            """.trimIndent(),
+            arrayOf(item.rowId.toString())
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) {
+                emptyList()
+            } else {
+                cursor.toWatchingNowEpisodes()
+            }
+        }
+    }
+
+    override suspend fun removeWatchingNow(item: MobileWatchingNowItem): Unit = withContext(Dispatchers.IO) {
+        val db = databaseHelper.writableDatabase
+        when (item.mode) {
+            BrowseMode.VOD -> {
+                db.delete("VodWatchState", "id = ?", arrayOf(item.rowId.toString()))
+            }
+            BrowseMode.SERIES -> {
+                val details = db.rawQuery(
+                    "SELECT accountId, seriesId FROM SeriesWatchingNowSnapshot WHERE id = ? LIMIT 1",
+                    arrayOf(item.rowId.toString())
+                ).use { cursor ->
+                    if (cursor.moveToFirst()) cursor.string("accountId") to cursor.string("seriesId") else item.accountId.toString() to item.contentId
+                }
+                db.delete("SeriesWatchingNowSnapshot", "id = ?", arrayOf(item.rowId.toString()))
+                if (details.first.isNotBlank() && details.second.isNotBlank()) {
+                    db.delete("SeriesWatchState", "accountId = ? AND seriesId = ?", arrayOf(details.first, details.second))
+                }
+            }
+            BrowseMode.LIVE -> Unit
+        }
+    }
+
     private fun loadAccounts(db: SQLiteDatabase): List<BrowseAccountOption> =
         db.rawQuery(
             """
@@ -553,7 +600,7 @@ class AndroidSQLiteBrowseRepository(
         db.rawQuery(
             """
             SELECT v.id, CAST(v.accountId AS INTEGER) AS accountId, acc.accountName, v.vodName,
-                v.categoryId, v.vodCmd, v.vodLogo, v.updatedAt
+                v.categoryId, v.vodId, v.vodCmd, v.vodLogo, v.updatedAt
             FROM VodWatchState v
             LEFT JOIN Account acc ON CAST(v.accountId AS INTEGER) = acc.id
             ORDER BY v.updatedAt DESC
@@ -572,7 +619,9 @@ class AndroidSQLiteBrowseRepository(
                             subtitle = cursor.string("accountName"),
                             command = cursor.string("vodCmd"),
                             logo = cursor.string("vodLogo"),
-                            updatedAtEpochSeconds = cursor.long("updatedAt")
+                            updatedAtEpochSeconds = cursor.long("updatedAt"),
+                            categoryProviderId = cursor.string("categoryId"),
+                            contentId = cursor.string("vodId")
                         )
                     )
                 }
@@ -583,7 +632,7 @@ class AndroidSQLiteBrowseRepository(
         db.rawQuery(
             """
             SELECT s.id, CAST(s.accountId AS INTEGER) AS accountId, acc.accountName, s.seriesTitle,
-                s.categoryId, s.seriesPoster, s.updatedAt
+                s.categoryId, s.categoryDbId, s.seriesId, s.seriesPoster, s.updatedAt
             FROM SeriesWatchingNowSnapshot s
             LEFT JOIN Account acc ON CAST(s.accountId AS INTEGER) = acc.id
             ORDER BY s.updatedAt DESC
@@ -601,12 +650,66 @@ class AndroidSQLiteBrowseRepository(
                             title = cursor.string("seriesTitle").ifBlank { "Untitled Series" },
                             subtitle = cursor.string("accountName"),
                             logo = cursor.string("seriesPoster"),
-                            updatedAtEpochSeconds = cursor.long("updatedAt")
+                            updatedAtEpochSeconds = cursor.long("updatedAt"),
+                            categoryProviderId = cursor.string("categoryId"),
+                            categoryRowId = cursor.string("categoryDbId").toLongOrNull() ?: 0,
+                            contentId = cursor.string("seriesId")
                         )
                     )
                 }
             }
         }
+
+    private fun Cursor.toWatchingNowEpisodes(): List<MobileWatchingNowEpisode> {
+        val parentRowId = long("id")
+        val accountId = long("accountId")
+        val accountName = string("accountName")
+        val categoryProviderId = string("categoryId")
+        val categoryRowId = string("categoryDbId").toLongOrNull() ?: 0
+        val seriesId = string("seriesId")
+        val seriesTitle = string("seriesTitle").ifBlank { "Untitled Series" }
+        val payload = string("episodesJson")
+        if (payload.isBlank()) {
+            return emptyList()
+        }
+        return runCatching {
+            val array = JSONArray(payload)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val channel = array.optJSONObject(index)
+                        ?: runCatching { JSONObject(array.optString(index)) }.getOrNull()
+                        ?: continue
+                    val episodeId = channel.optString("channelId").ifBlank { channel.optString("id") }
+                    add(
+                        MobileWatchingNowEpisode(
+                            rowId = index.toLong(),
+                            parentRowId = parentRowId,
+                            accountId = accountId,
+                            accountName = accountName,
+                            seriesId = seriesId,
+                            seriesTitle = seriesTitle,
+                            categoryProviderId = categoryProviderId,
+                            categoryRowId = categoryRowId,
+                            episodeId = episodeId,
+                            title = channel.optString("name").ifBlank { channel.optString("title").ifBlank { episodeId } },
+                            season = channel.optString("season"),
+                            episodeNumber = channel.optString("episodeNum"),
+                            command = channel.optString("cmd"),
+                            logo = channel.optString("logo"),
+                            plot = channel.optString("description"),
+                            releaseDate = channel.optString("releaseDate"),
+                            rating = channel.optString("rating"),
+                            duration = channel.optString("duration")
+                        )
+                    )
+                }
+            }.sortedWith(
+                compareBy<MobileWatchingNowEpisode> { it.season.toIntOrNull() ?: Int.MAX_VALUE }
+                    .thenBy { it.episodeNumber.toIntOrNull() ?: Int.MAX_VALUE }
+                    .thenBy { it.title.lowercase() }
+            )
+        }.getOrDefault(emptyList())
+    }
 
     private fun findBookmarkId(db: SQLiteDatabase, accountName: String, channelId: String, mode: BrowseMode): Long? =
         db.rawQuery(
