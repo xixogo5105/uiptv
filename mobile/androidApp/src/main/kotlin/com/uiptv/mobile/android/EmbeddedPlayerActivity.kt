@@ -93,8 +93,8 @@ class EmbeddedPlayerActivity : Activity() {
     private var startupVolumeFallbackApplied = false
     private var touchStartX = 0f
     private var touchStartY = 0f
-    private var twoFingerStartX = 0f
-    private var twoFingerStartY = 0f
+    private var twoFingerStartSpanX = 0f
+    private var twoFingerStartSpanY = 0f
     private var initialBrightness = DefaultBrightness
     private var initialVolume = 0
     private var activeGesture = PlayerGesture.None
@@ -349,12 +349,7 @@ class EmbeddedPlayerActivity : Activity() {
 
             MotionEvent.ACTION_POINTER_DOWN -> {
                 if (event.pointerCount >= 2) {
-                    twoFingerStartX = twoFingerCenterX(event)
-                    twoFingerStartY = twoFingerCenterY(event)
-                    activeGesture = PlayerGesture.Zoom
-                    controlsOverlay.visibility = View.GONE
-                    controlsVisible = false
-                    overlayHandler.removeCallbacks(hideControlsRunnable)
+                    startTwoFingerZoomGesture(event)
                 }
                 return true
             }
@@ -365,11 +360,7 @@ class EmbeddedPlayerActivity : Activity() {
                     return true
                 }
                 if (event.pointerCount >= 2) {
-                    twoFingerStartX = twoFingerCenterX(event)
-                    twoFingerStartY = twoFingerCenterY(event)
-                    activeGesture = PlayerGesture.Zoom
-                    controlsOverlay.visibility = View.GONE
-                    controlsVisible = false
+                    startTwoFingerZoomGesture(event)
                     return true
                 }
                 val dx = event.x - touchStartX
@@ -413,31 +404,43 @@ class EmbeddedPlayerActivity : Activity() {
         return true
     }
 
+    private fun startTwoFingerZoomGesture(event: MotionEvent) {
+        twoFingerStartSpanX = twoFingerSpanX(event)
+        twoFingerStartSpanY = twoFingerSpanY(event)
+        activeGesture = PlayerGesture.Zoom
+        controlsOverlay.visibility = View.GONE
+        controlsVisible = false
+        overlayHandler.removeCallbacks(hideControlsRunnable)
+    }
+
     private fun handleTwoFingerZoomGesture(event: MotionEvent) {
         if (event.pointerCount < 2) {
             return
         }
-        val centerX = twoFingerCenterX(event)
-        val centerY = twoFingerCenterY(event)
-        val dx = centerX - twoFingerStartX
-        val dy = centerY - twoFingerStartY
-        if (abs(dx) < dp(TwoFingerZoomSlopDp) || abs(dx) <= abs(dy)) {
+        val spanX = twoFingerSpanX(event)
+        val spanY = twoFingerSpanY(event)
+        val spanDeltaX = spanX - twoFingerStartSpanX
+        val spanDeltaY = spanY - twoFingerStartSpanY
+        if (abs(spanDeltaX) < dp(TwoFingerZoomSlopDp) || abs(spanDeltaX) < abs(spanDeltaY)) {
             return
         }
-        if (dx > 0f) {
-            applyZoomMode(FillZoomModeIndex)
+        val targetZoomMode = if (spanDeltaX > 0f) {
+            FillZoomModeIndex
         } else {
-            applyZoomMode(DefaultZoomModeIndex)
+            DefaultZoomModeIndex
         }
-        twoFingerStartX = centerX
-        twoFingerStartY = centerY
+        if (zoomModeIndex != targetZoomMode) {
+            applyZoomMode(targetZoomMode)
+        }
+        twoFingerStartSpanX = spanX
+        twoFingerStartSpanY = spanY
     }
 
-    private fun twoFingerCenterX(event: MotionEvent): Float =
-        (event.getX(0) + event.getX(1)) / 2f
+    private fun twoFingerSpanX(event: MotionEvent): Float =
+        abs(event.getX(0) - event.getX(1))
 
-    private fun twoFingerCenterY(event: MotionEvent): Float =
-        (event.getY(0) + event.getY(1)) / 2f
+    private fun twoFingerSpanY(event: MotionEvent): Float =
+        abs(event.getY(0) - event.getY(1))
 
     private fun createControlsOverlay(): LinearLayout {
         val title = TextView(this).apply {
