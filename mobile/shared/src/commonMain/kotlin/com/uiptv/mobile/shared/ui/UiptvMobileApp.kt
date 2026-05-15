@@ -92,6 +92,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1541,11 +1542,19 @@ private fun PlayerChoiceTile(
         contentColor = contentColor
     ) {
         Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 8.dp, vertical = 7.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                playerIconRenderer(choice, Modifier.size(36.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                playerIconRenderer(choice, Modifier.size(46.dp))
                 if (selected) {
                     Icon(
                         Icons.Outlined.CheckCircle,
@@ -1559,11 +1568,13 @@ private fun PlayerChoiceTile(
             }
             Text(
                 choice.label,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelSmall,
                 color = contentColor,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                lineHeight = 11.sp
             )
         }
     }
@@ -1580,11 +1591,11 @@ fun DefaultPlayerIcon(choice: PlayerChoice, modifier: Modifier) {
         Box(contentAlignment = Alignment.Center) {
             when (choice.player) {
                 AndroidPlayerPreference.EMBEDDED_PLAYER ->
-                    Icon(Icons.Outlined.PlayCircle, contentDescription = null, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Outlined.PlayCircle, contentDescription = null, modifier = Modifier.size(28.dp))
                 AndroidPlayerPreference.NATIVE ->
-                    Icon(Icons.Outlined.Android, contentDescription = null, modifier = Modifier.size(21.dp))
+                    Icon(Icons.Outlined.Android, contentDescription = null, modifier = Modifier.size(27.dp))
                 AndroidPlayerPreference.ASK_EVERY_TIME ->
-                    Icon(Icons.Outlined.MoreVert, contentDescription = null, modifier = Modifier.size(21.dp))
+                    Icon(Icons.Outlined.MoreVert, contentDescription = null, modifier = Modifier.size(27.dp))
                 else ->
                     Text(
                         choice.player.playerBadge(),
@@ -3021,7 +3032,7 @@ data class PlaybackUiActions(
                 loadPlayerPreference = { PlayerPreference() },
                 playerChoices = {
                     listOf(
-                        PlayerChoice(AndroidPlayerPreference.EMBEDDED_PLAYER, "Embedded Player"),
+                        PlayerChoice(AndroidPlayerPreference.EMBEDDED_PLAYER, "Embedded"),
                         PlayerChoice(AndroidPlayerPreference.NATIVE, "Android Media")
                     )
                 },
@@ -3169,7 +3180,7 @@ private fun MobileBrowseItem.subtitle(): String =
 private fun AndroidPlayerPreference.playerLabel(): String =
     when (this) {
         AndroidPlayerPreference.ASK_EVERY_TIME -> "Ask Every Time"
-        AndroidPlayerPreference.EMBEDDED_PLAYER -> "Embedded Player"
+        AndroidPlayerPreference.EMBEDDED_PLAYER -> "Embedded"
         AndroidPlayerPreference.NATIVE -> "Android Media"
         AndroidPlayerPreference.VLC -> "VLC"
         AndroidPlayerPreference.MX_PLAYER_PRO,

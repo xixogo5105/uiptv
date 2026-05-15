@@ -84,7 +84,7 @@ class AndroidPlaybackCoordinator(
             else -> MX_PLAYER_FREE_PACKAGE
         }
         listOf(
-            PlayerChoice(AndroidPlayerPreference.EMBEDDED_PLAYER, "Embedded Player", true),
+            PlayerChoice(AndroidPlayerPreference.EMBEDDED_PLAYER, "Embedded", true),
             PlayerChoice(AndroidPlayerPreference.NATIVE, "Android Media", true),
             PlayerChoice(AndroidPlayerPreference.VLC, "VLC", isInstalled(VLC_PACKAGE), VLC_PACKAGE, VLC_STORE_URL),
             PlayerChoice(mxPlayer, "MX Player", mxInstalled, mxPackage, MX_PLAYER_STORE_URL),
@@ -534,7 +534,7 @@ class AndroidPlaybackCoordinator(
     private fun AndroidPlayerPreference.displayLabel(): String =
         when (this) {
             AndroidPlayerPreference.ASK_EVERY_TIME -> "Player picker"
-            AndroidPlayerPreference.EMBEDDED_PLAYER -> "Embedded Player"
+            AndroidPlayerPreference.EMBEDDED_PLAYER -> "Embedded"
             AndroidPlayerPreference.NATIVE -> "Android Media"
             AndroidPlayerPreference.VLC -> "VLC"
             AndroidPlayerPreference.MX_PLAYER_PRO,
