@@ -13,20 +13,60 @@ This is the Android-first Kotlin Multiplatform workspace for UIPTV mobile.
 - `ANDROID_HOME` set, or `sdk.dir=/path/to/android/sdk` in `mobile/local.properties`.
 - Xcode command-line tools are required only for iOS framework linking. iOS targets are deferred and only enabled automatically when `xcrun xcodebuild -version` works, or explicitly with `-Puiptv.enableIosTargets=true`.
 
-## Useful Commands
+## Compile And Test
+
+Run all mobile commands from the `mobile/` directory.
+
+Check shared Kotlin code, coverage, Android compilation, APK packaging, and Android test compilation:
+
+```bash
+./gradlew :shared:allTests :shared:koverVerify :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
+```
+
+Build a debug APK only:
+
+```bash
+./gradlew :androidApp:assembleDebug
+```
+
+Build a release APK:
+
+```bash
+./gradlew :androidApp:assembleRelease
+```
+
+Run instrumented Android tests on an attached device or emulator:
+
+```bash
+./gradlew :androidApp:connectedDebugAndroidTest
+```
+
+Build the shared metadata classes without packaging an APK:
 
 ```bash
 ./gradlew :shared:metadataCommonMainClasses
-./gradlew :shared:allTests
-./gradlew :androidApp:assembleDebug
-./gradlew :androidApp:assembleRelease
-./gradlew :androidApp:compileDebugAndroidTestKotlin
-./gradlew :androidApp:connectedDebugAndroidTest
+```
+
+Build the deferred iOS simulator framework on macOS:
+
+```bash
 ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64 -Puiptv.enableIosTargets=true
 ```
 
-The Android APK output will be under `androidApp/build/outputs/apk/debug/` after `assembleDebug`.
-The connected Android test task requires a running emulator or attached device.
+## APK Outputs
+
+The Android APK output is written under:
+
+- Debug APK: `androidApp/build/outputs/apk/debug/androidApp-debug.apk`
+- Release APK: `androidApp/build/outputs/apk/release/androidApp-release.apk`
+
+The current Gradle configuration does not enable ABI splits, so `assembleDebug` and `assembleRelease` produce one universal APK. That APK includes all native libraries provided by dependencies, including `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64`, and is the safest artifact for phones, tablets, and emulators.
+
+A separate APK per CPU architecture is not required unless we choose to reduce download size. If we decide that x86-only Android devices and x86 emulators are not a target, we can later filter or split the native libraries to ARM-only APKs. Until then, the universal APK is larger but more compatible.
+
+## CI Build
+
+`.github/workflows/mobile.yml` runs the mobile checks on every push and pull request. It builds the debug APK and uploads it as a workflow artifact named `uiptv-mobile-debug-apk`.
 
 ## User And Release Docs
 
