@@ -596,119 +596,134 @@ private fun ChannelsScreen(
         },
         gesturesEnabled = true
     ) {
-        Scaffold(
-            modifier = modifier.fillMaxSize(),
-            containerColor = DeepNightBackground,
-            topBar = {
-                CenterAlignedTopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = DeepNightSurface,
-                        titleContentColor = DeepNightText,
-                        navigationIconContentColor = DeepNightPrimary,
-                        actionIconContentColor = DeepNightPrimary
-                    ),
-                    navigationIcon = {
-                        IconButton(
-                            modifier = Modifier.semantics { contentDescription = "Open categories" },
-                            onClick = { scope.launch { drawerState.open() } }
-                        ) {
-                            Text("≡", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    title = {
-                        UserPill(providerName = selectedAccountName)
-                    },
-                    actions = {
-                        IconButton(
-                            modifier = Modifier.semantics { contentDescription = "Search channels" },
-                            onClick = { searchVisible = !searchVisible }
-                        ) {
-                            Text(if (searchVisible) "X" else "⌕", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        }
+        BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+            val compactChrome = maxWidth > maxHeight
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                containerColor = DeepNightBackground,
+                topBar = {
+                    if (!compactChrome) {
+                        CenterAlignedTopAppBar(
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = DeepNightSurface,
+                                titleContentColor = DeepNightText,
+                                navigationIconContentColor = DeepNightPrimary,
+                                actionIconContentColor = DeepNightPrimary
+                            ),
+                            navigationIcon = {
+                                IconButton(
+                                    modifier = Modifier.semantics { contentDescription = "Open categories" },
+                                    onClick = { scope.launch { drawerState.open() } }
+                                ) {
+                                    Text("≡", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                                }
+                            },
+                            title = {
+                                UserPill(providerName = selectedAccountName)
+                            },
+                            actions = {
+                                IconButton(
+                                    modifier = Modifier.semantics { contentDescription = "Search channels" },
+                                    onClick = { searchVisible = !searchVisible }
+                                ) {
+                                    Text(if (searchVisible) "X" else "⌕", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        )
                     }
-                )
-            }
-        ) { padding ->
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                val compactChrome = maxWidth > maxHeight
-                val contentPadding = if (compactChrome) 6.dp else 12.dp
-                val verticalGap = if (compactChrome) 6.dp else 10.dp
+                }
+            ) { padding ->
+                val contentPadding = if (compactChrome) 4.dp else 12.dp
+                val verticalGap = if (compactChrome) 4.dp else 10.dp
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .padding(padding)
                         .padding(contentPadding),
                     verticalArrangement = Arrangement.spacedBy(verticalGap)
                 ) {
-                if (compactChrome) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (onBackToAccounts != null) {
+                    if (compactChrome) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             item {
-                                TextButton(
-                                    modifier = Modifier.semantics { contentDescription = "Back to account list" },
-                                    onClick = onBackToAccounts
-                                ) {
-                                    Text("Accounts")
+                                CompactToolbarAction("≡", "Open categories") {
+                                    scope.launch { drawerState.open() }
                                 }
                             }
-                        }
-                        if (showAccountSelector) {
-                            items(snapshot.accounts, key = { it.id }) { account ->
-                                FilterChip(
-                                    selected = snapshot.selectedAccountId == account.id,
-                                    onClick = {
-                                        selectedCategoryRowId = null
-                                        channelQuery = ""
-                                        val nextMode = if (mode in account.type.browseModesForAccount()) mode else BrowseMode.LIVE
-                                        mode = nextMode
-                                        reload(account.id, null, "", nextMode)
-                                    },
-                                    label = { Text(account.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                )
-                            }
-                        }
-                        if (visibleModes.size > 1) {
-                            items(visibleModes, key = { it.name }) { entry ->
-                                FilterChip(
-                                    selected = mode == entry,
-                                    onClick = {
-                                        mode = entry
-                                        selectedCategoryRowId = null
-                                        channelQuery = ""
-                                        reload(snapshot.selectedAccountId, null, "", entry)
-                                    },
-                                    label = { Text(entry.displayLabel()) }
-                                )
-                            }
-                        }
-                        item {
-                            FilterChip(
-                                selected = selectedCategoryRowId == null,
-                                onClick = {
-                                    selectedCategoryRowId = null
-                                    channelQuery = ""
-                                    reload(snapshot.selectedAccountId, null, "")
-                                },
-                                label = { Text("All") }
-                            )
-                        }
-                        item {
-                            FilterChip(
-                                selected = selectedCategoryRowId != null,
-                                onClick = { scope.launch { drawerState.open() } },
-                                label = {
-                                    Text(
-                                        selectedCategory?.title ?: "Categories",
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                            if (!showAccountSelector) {
+                                item {
+                                    UserPill(
+                                        providerName = selectedAccountName,
+                                        modifier = Modifier.width(148.dp),
+                                        compact = true
                                     )
                                 }
-                            )
+                            }
+                            item {
+                                CompactToolbarAction(if (searchVisible) "X" else "⌕", "Search channels") {
+                                    searchVisible = !searchVisible
+                                }
+                            }
+                            if (onBackToAccounts != null) {
+                                item {
+                                    CompactToolbarAction("Accounts", "Back to account list") {
+                                        onBackToAccounts()
+                                    }
+                                }
+                            }
+                            if (showAccountSelector) {
+                                items(snapshot.accounts, key = { it.id }) { account ->
+                                    FilterChip(
+                                        selected = snapshot.selectedAccountId == account.id,
+                                        onClick = {
+                                            selectedCategoryRowId = null
+                                            channelQuery = ""
+                                            val nextMode = if (mode in account.type.browseModesForAccount()) mode else BrowseMode.LIVE
+                                            mode = nextMode
+                                            reload(account.id, null, "", nextMode)
+                                        },
+                                        label = { Text(account.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                    )
+                                }
+                            }
+                            if (visibleModes.size > 1) {
+                                items(visibleModes, key = { it.name }) { entry ->
+                                    FilterChip(
+                                        selected = mode == entry,
+                                        onClick = {
+                                            mode = entry
+                                            selectedCategoryRowId = null
+                                            channelQuery = ""
+                                            reload(snapshot.selectedAccountId, null, "", entry)
+                                        },
+                                        label = { Text(entry.displayLabel()) }
+                                    )
+                                }
+                            }
+                            item {
+                                FilterChip(
+                                    selected = selectedCategoryRowId == null,
+                                    onClick = {
+                                        selectedCategoryRowId = null
+                                        channelQuery = ""
+                                        reload(snapshot.selectedAccountId, null, "")
+                                    },
+                                    label = { Text("All") }
+                                )
+                            }
+                            item {
+                                FilterChip(
+                                    selected = selectedCategoryRowId != null,
+                                    onClick = { scope.launch { drawerState.open() } },
+                                    label = {
+                                        Text(
+                                            selectedCategory?.title ?: "Categories",
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                )
+                            }
                         }
-                    }
                 } else {
                     if (showAccountSelector) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2105,21 +2120,31 @@ fun DefaultPlayerIcon(choice: PlayerChoice, modifier: Modifier) {
 }
 
 @Composable
-private fun UserPill(providerName: String) {
+private fun UserPill(
+    providerName: String,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false
+) {
     Surface(
+        modifier = modifier,
         shape = RoundedCornerShape(999.dp),
         color = DeepNightSurfaceHigh,
         contentColor = DeepNightText
     ) {
         Row(
-            modifier = Modifier.padding(start = 4.dp, top = 4.dp, end = 12.dp, bottom = 4.dp),
+            modifier = Modifier.padding(
+                start = if (compact) 3.dp else 4.dp,
+                top = if (compact) 3.dp else 4.dp,
+                end = if (compact) 8.dp else 12.dp,
+                bottom = if (compact) 3.dp else 4.dp
+            ),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)
         ) {
             Surface(
                 modifier = Modifier
-                    .width(28.dp)
-                    .height(28.dp),
+                    .width(if (compact) 20.dp else 28.dp)
+                    .height(if (compact) 20.dp else 28.dp),
                 shape = CircleShape,
                 color = DeepNightAccent,
                 contentColor = MaterialTheme.colorScheme.onSecondary
@@ -2127,14 +2152,14 @@ private fun UserPill(providerName: String) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
                         providerName.trim().take(1).ifBlank { "U" }.uppercase(),
-                        style = MaterialTheme.typography.labelMedium,
+                        style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
             Text(
                 providerName,
-                style = MaterialTheme.typography.labelLarge,
+                style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
