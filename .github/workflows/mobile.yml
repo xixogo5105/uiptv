@@ -28,4 +28,4 @@ jobs:
 
       - name: Run Android checks
         working-directory: mobile
-        run: ./gradlew :shared:allTests :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
+        run: ./gradlew :shared:allTests :shared:koverVerify :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin

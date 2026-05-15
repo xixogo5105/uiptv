@@ -652,17 +652,18 @@ class EmbeddedPlayerActivity : Activity() {
     private fun currentVideoTrackDetails(): VideoTrackDetails? {
         val player = mediaPlayer ?: return null
         val media = runCatching { player.media }.getOrNull()
-        val selectedTrackId = selectedVideoTrackId.takeIf { it != UnknownTrackId }
-            ?: runCatching { player.videoTrack }.getOrNull()?.takeIf { it != UnknownTrackId }
-        if (media != null && selectedTrackId != null) {
-            findVideoTrackById(media, selectedTrackId)?.let { return it }
-        }
         runCatching { player.currentVideoTrack }
             .getOrNull()
             ?.toVideoTrackDetails()
             ?.takeIf { it.hasUsefulInfo() }
             ?.let { return it }
-        return media?.let { firstUsefulVideoTrack(it) }
+
+        val selectedTrackId = selectedVideoTrackId.takeIf { it != UnknownTrackId }
+            ?: runCatching { player.videoTrack }.getOrNull()?.takeIf { it != UnknownTrackId }
+        if (media != null && selectedTrackId != null) {
+            findVideoTrackById(media, selectedTrackId)?.let { return it }
+        }
+        return media?.let { bestUsefulVideoTrack(it) }
     }
 
     private fun findVideoTrackById(media: IMedia, trackId: Int): VideoTrackDetails? =
@@ -676,18 +677,19 @@ class EmbeddedPlayerActivity : Activity() {
             null
         }.getOrNull()
 
-    private fun firstUsefulVideoTrack(media: IMedia): VideoTrackDetails? =
+    private fun bestUsefulVideoTrack(media: IMedia): VideoTrackDetails? =
         runCatching {
+            var bestTrack: VideoTrackDetails? = null
             for (index in 0 until media.trackCount) {
                 val track = media.getTrack(index)
                 if (track is IMedia.VideoTrack) {
                     val details = track.toVideoTrackDetails()
-                    if (details.hasUsefulInfo()) {
-                        return@runCatching details
+                    if (details.hasUsefulInfo() && (bestTrack == null || details.area > bestTrack.area)) {
+                        bestTrack = details
                     }
                 }
             }
-            null
+            bestTrack
         }.getOrNull()
 
     private fun IMedia.VideoTrack.toVideoTrackDetails(): VideoTrackDetails {

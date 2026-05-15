@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,6 +60,7 @@ import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.Icons
@@ -76,6 +78,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -83,6 +86,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -126,32 +130,105 @@ typealias LocalPlaylistPicker = (onSelected: (String) -> Unit) -> Unit
 typealias LogoRenderer = @Composable (String, String, Modifier) -> Unit
 typealias PlayerIconRenderer = @Composable (PlayerChoice, Modifier) -> Unit
 
-private val DeepNightPrimary = Color(0xFFD1E4FF)
-private val DeepNightSurface = Color(0xFF1B1F23)
-private val DeepNightSurfaceHigh = Color(0xFF22282E)
-private val DeepNightSurfaceHighest = Color(0xFF2A3138)
-private val DeepNightAccent = Color(0xFF4FD8EB)
-private val DeepNightText = Color(0xFFF4F7FA)
-private val DeepNightMutedText = Color(0xFFAEB8C2)
+private val DeepNightPrimaryBase = Color(0xFFD1E4FF)
+private val DeepNightSurfaceBase = Color(0xFF1B1F23)
+private val DeepNightSurfaceHighBase = Color(0xFF22282E)
+private val DeepNightSurfaceHighestBase = Color(0xFF2A3138)
+private val DeepNightAccentBase = Color(0xFF4FD8EB)
+private val DeepNightTextBase = Color(0xFFF4F7FA)
+private val DeepNightMutedTextBase = Color(0xFFAEB8C2)
+private val DeepNightBackgroundBase = Color(0xFF0F1216)
+
+private data class UiptvPalette(
+    val primary: Color,
+    val surface: Color,
+    val surfaceHigh: Color,
+    val surfaceHighest: Color,
+    val accent: Color,
+    val text: Color,
+    val mutedText: Color,
+    val background: Color
+)
+
+private val DarkUiptvPalette = UiptvPalette(
+    primary = DeepNightPrimaryBase,
+    surface = DeepNightSurfaceBase,
+    surfaceHigh = DeepNightSurfaceHighBase,
+    surfaceHighest = DeepNightSurfaceHighestBase,
+    accent = DeepNightAccentBase,
+    text = DeepNightTextBase,
+    mutedText = DeepNightMutedTextBase,
+    background = DeepNightBackgroundBase
+)
+
+private val LightUiptvPalette = UiptvPalette(
+    primary = Color(0xFF17456A),
+    surface = Color(0xFFF7FAFD),
+    surfaceHigh = Color(0xFFEAF1F7),
+    surfaceHighest = Color(0xFFDDE7F0),
+    accent = Color(0xFF007D8D),
+    text = Color(0xFF111820),
+    mutedText = Color(0xFF52616E),
+    background = Color(0xFFFFFFFF)
+)
+
+private val LocalUiptvPalette = staticCompositionLocalOf { DarkUiptvPalette }
+
+private val DeepNightPrimary: Color
+    @Composable get() = LocalUiptvPalette.current.primary
+private val DeepNightSurface: Color
+    @Composable get() = LocalUiptvPalette.current.surface
+private val DeepNightSurfaceHigh: Color
+    @Composable get() = LocalUiptvPalette.current.surfaceHigh
+private val DeepNightSurfaceHighest: Color
+    @Composable get() = LocalUiptvPalette.current.surfaceHighest
+private val DeepNightAccent: Color
+    @Composable get() = LocalUiptvPalette.current.accent
+private val DeepNightText: Color
+    @Composable get() = LocalUiptvPalette.current.text
+private val DeepNightMutedText: Color
+    @Composable get() = LocalUiptvPalette.current.mutedText
+private val DeepNightBackground: Color
+    @Composable get() = LocalUiptvPalette.current.background
 
 private val UiptvDarkColorScheme = darkColorScheme(
-    primary = DeepNightPrimary,
+    primary = DeepNightPrimaryBase,
     onPrimary = Color(0xFF07151E),
     primaryContainer = Color(0xFF24384C),
     onPrimaryContainer = Color(0xFFEAF3FF),
-    secondary = DeepNightAccent,
+    secondary = DeepNightAccentBase,
     onSecondary = Color(0xFF001F25),
     tertiary = Color(0xFFFFD54F),
     onTertiary = Color(0xFF221A00),
-    background = Color(0xFF0F1216),
-    onBackground = DeepNightText,
-    surface = DeepNightSurface,
-    onSurface = DeepNightText,
-    surfaceVariant = DeepNightSurfaceHigh,
-    onSurfaceVariant = DeepNightMutedText,
+    background = DeepNightBackgroundBase,
+    onBackground = DeepNightTextBase,
+    surface = DeepNightSurfaceBase,
+    onSurface = DeepNightTextBase,
+    surfaceVariant = DeepNightSurfaceHighBase,
+    onSurfaceVariant = DeepNightMutedTextBase,
     outline = Color(0xFF60707D),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005)
+)
+
+private val UiptvLightColorScheme = lightColorScheme(
+    primary = LightUiptvPalette.primary,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFCFE5F7),
+    onPrimaryContainer = Color(0xFF001D31),
+    secondary = LightUiptvPalette.accent,
+    onSecondary = Color.White,
+    tertiary = Color(0xFF775C00),
+    onTertiary = Color.White,
+    background = LightUiptvPalette.background,
+    onBackground = LightUiptvPalette.text,
+    surface = LightUiptvPalette.surface,
+    onSurface = LightUiptvPalette.text,
+    surfaceVariant = LightUiptvPalette.surfaceHigh,
+    onSurfaceVariant = LightUiptvPalette.mutedText,
+    outline = Color(0xFF6D7B87),
+    error = Color(0xFFBA1A1A),
+    onError = Color.White
 )
 
 @Composable
@@ -183,34 +260,38 @@ fun UiptvMobileApp(
             .onSuccess { showThumbnails = it.enableThumbnails }
     }
 
-    MaterialTheme(colorScheme = UiptvDarkColorScheme) {
-        Scaffold(
-            containerColor = Color(0xFF0F1216),
-            contentColor = DeepNightText,
-            bottomBar = { AppTabs(selectedTab = selectedTab, onSelect = ::selectTab) }
-        ) { padding ->
-            CurrentTab(
-                selectedTab = selectedTab,
-                syncActions = syncActions,
-                accountActions = accountActions,
-                browseActions = browseActions,
-                playbackActions = playbackActions,
-                filterActions = filterActions,
-                localPlaylistPicker = localPlaylistPicker,
-                selectedBrowseAccount = selectedBrowseAccount,
-                showThumbnails = showThumbnails,
-                logoRenderer = logoRenderer,
-                playerIconRenderer = playerIconRenderer,
-                onOpenAccountChannels = { account ->
-                    selectedBrowseAccount = account
-                },
-                onCloseAccountChannels = { selectedBrowseAccount = null },
-                onThumbnailSettingChanged = { showThumbnails = it },
-                backHandler = backHandler,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            )
+    val useDarkTheme = isSystemInDarkTheme()
+    val palette = if (useDarkTheme) DarkUiptvPalette else LightUiptvPalette
+    CompositionLocalProvider(LocalUiptvPalette provides palette) {
+        MaterialTheme(colorScheme = if (useDarkTheme) UiptvDarkColorScheme else UiptvLightColorScheme) {
+            Scaffold(
+                containerColor = palette.background,
+                contentColor = palette.text,
+                bottomBar = { AppTabs(selectedTab = selectedTab, onSelect = ::selectTab) }
+            ) { padding ->
+                CurrentTab(
+                    selectedTab = selectedTab,
+                    syncActions = syncActions,
+                    accountActions = accountActions,
+                    browseActions = browseActions,
+                    playbackActions = playbackActions,
+                    filterActions = filterActions,
+                    localPlaylistPicker = localPlaylistPicker,
+                    selectedBrowseAccount = selectedBrowseAccount,
+                    showThumbnails = showThumbnails,
+                    logoRenderer = logoRenderer,
+                    playerIconRenderer = playerIconRenderer,
+                    onOpenAccountChannels = { account ->
+                        selectedBrowseAccount = account
+                    },
+                    onCloseAccountChannels = { selectedBrowseAccount = null },
+                    onThumbnailSettingChanged = { showThumbnails = it },
+                    backHandler = backHandler,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                )
+            }
         }
     }
 }
@@ -411,7 +492,7 @@ private fun ChannelsScreen(
     ) {
         Scaffold(
             modifier = modifier.fillMaxSize(),
-            containerColor = Color(0xFF0F1216),
+            containerColor = DeepNightBackground,
             topBar = {
                 CenterAlignedTopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -769,11 +850,11 @@ private fun CompactToolbarAction(label: String, description: String, onClick: ()
         text = label,
         modifier = Modifier
             .defaultMinSize(minHeight = 40.dp)
-            .background(Color(0xFF24313C))
+            .background(DeepNightSurfaceHighest)
             .clickable(onClick = onClick)
             .semantics { contentDescription = description }
             .padding(horizontal = 8.dp, vertical = 10.dp),
-        color = Color(0xFFF4F7FA),
+        color = DeepNightText,
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1
@@ -786,11 +867,11 @@ private fun CompactModeChip(label: String, selected: Boolean, onClick: () -> Uni
         text = label,
         modifier = Modifier
             .defaultMinSize(minHeight = 40.dp)
-            .background(if (selected) Color(0xFF8FD7FF) else Color(0xFF24313C))
+            .background(if (selected) DeepNightPrimary else DeepNightSurfaceHighest)
             .clickable(enabled = !selected, onClick = onClick)
             .semantics { contentDescription = "Show $label channels" }
             .padding(horizontal = 7.dp, vertical = 10.dp),
-        color = if (selected) Color(0xFF101418) else Color(0xFFF4F7FA),
+        color = if (selected) MaterialTheme.colorScheme.onPrimary else DeepNightText,
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1
@@ -803,11 +884,11 @@ private fun SelectableChip(label: String, selected: Boolean, description: String
         text = label,
         modifier = Modifier
             .defaultMinSize(minHeight = 40.dp)
-            .background(if (selected) Color(0xFFEAF7FF) else Color(0xFF24313C))
+            .background(if (selected) DeepNightPrimary else DeepNightSurfaceHighest)
             .clickable(onClick = onClick)
             .semantics { contentDescription = description }
             .padding(horizontal = 12.dp, vertical = 10.dp),
-        color = if (selected) Color(0xFF101418) else Color(0xFFF4F7FA),
+        color = if (selected) MaterialTheme.colorScheme.onPrimary else DeepNightText,
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
@@ -821,7 +902,7 @@ private fun CategoryListRow(category: MobileBrowseCategory, onClick: () -> Unit)
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 56.dp)
-            .background(Color(0xFF172029))
+            .background(DeepNightSurfaceHigh)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -836,7 +917,7 @@ private fun CategoryListRow(category: MobileBrowseCategory, onClick: () -> Unit)
             )
             Text(
                 "${category.itemCount} items",
-                color = Color(0xFFAEB8C2),
+                color = DeepNightMutedText,
                 style = MaterialTheme.typography.bodySmall
             )
         }
@@ -879,7 +960,7 @@ private fun CategoryPill(name: String, selected: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 44.dp)
-            .background(if (selected) Color(0xFF2E5C75) else Color(0xFF202A33))
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else DeepNightSurfaceHigh)
             .padding(horizontal = 6.dp),
         contentAlignment = Alignment.CenterStart
     ) {
@@ -1000,7 +1081,7 @@ private fun FavouriteStar(
             .clickable(onClick = onClick)
             .semantics { this.contentDescription = contentDescription }
             .padding(horizontal = if (compact) 4.dp else 10.dp, vertical = if (compact) 2.dp else 6.dp),
-        color = if (selected) Color(0xFFFFD54F) else Color(0xFFF4F7FA),
+        color = if (selected) Color(0xFFFFD54F) else DeepNightText,
         fontSize = if (compact) 22.sp else 28.sp,
         fontWeight = FontWeight.Bold,
         maxLines = 1
@@ -1126,7 +1207,7 @@ private fun BookmarksScreen(
             if (running) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
-            Text(statusText, color = Color(0xFFAEB8C2), style = MaterialTheme.typography.bodySmall)
+            Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
         }
     }
 
@@ -1308,7 +1389,7 @@ private fun WatchingNowScreen(
             if (running) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
-            Text(statusText, color = Color(0xFFAEB8C2), style = MaterialTheme.typography.bodySmall)
+            Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
         }
     }
 
@@ -1529,7 +1610,7 @@ private fun PlayerChoiceTile(
         else -> DeepNightSurfaceHigh
     }
     val contentColor = when {
-        selected -> Color(0xFF07151E)
+        selected -> MaterialTheme.colorScheme.onPrimary
         else -> DeepNightText
     }
     Surface(
@@ -1562,7 +1643,7 @@ private fun PlayerChoiceTile(
                         modifier = Modifier
                             .size(20.dp)
                             .align(Alignment.TopEnd),
-                        tint = Color(0xFF07151E)
+                        tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             }
@@ -1626,7 +1707,7 @@ private fun UserPill(providerName: String) {
                     .height(28.dp),
                 shape = CircleShape,
                 color = DeepNightAccent,
-                contentColor = Color(0xFF001F25)
+                contentColor = MaterialTheme.colorScheme.onSecondary
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
@@ -1802,8 +1883,8 @@ private fun RemoteSyncScreen(
         if (verificationCode.isNotBlank()) {
             Text("Code $verificationCode", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
-        Text(statusText, color = Color(0xFFAEB8C2), style = MaterialTheme.typography.bodyMedium)
-        Text(lastSyncText, color = Color(0xFFAEB8C2), style = MaterialTheme.typography.bodySmall)
+        Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodyMedium)
+        Text(lastSyncText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
         Text("Appearance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
@@ -1859,7 +1940,7 @@ private fun RemoteSyncScreen(
             } else {
                 "Current state: filtering is active. Matching categories and channels are hidden."
             },
-            color = Color(0xFFAEB8C2),
+            color = DeepNightMutedText,
             style = MaterialTheme.typography.bodySmall
         )
         Row(
@@ -1901,7 +1982,7 @@ private fun RemoteSyncScreen(
         }
         Text(
             "Loaded filters: ${filters.categoryFilters.filterTermCount()} category terms, ${filters.channelFilters.filterTermCount()} channel terms.",
-            color = Color(0xFFAEB8C2),
+            color = DeepNightMutedText,
             style = MaterialTheme.typography.bodySmall
         )
         if (filterEditorVisible) {
@@ -2283,7 +2364,7 @@ private fun AccountsScreen(
                 if (running) {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
-                Text(statusText, color = Color(0xFFAEB8C2), style = MaterialTheme.typography.bodySmall)
+                Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -2411,7 +2492,7 @@ private fun AccountRow(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 64.dp)
-            .background(Color(0xFF172029))
+            .background(DeepNightSurfaceHigh)
             .clickable(onClick = onOpen)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -2437,7 +2518,7 @@ private fun AccountRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Text(account.type.displayName, color = Color(0xFFAEB8C2), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(account.type.displayName, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Box {
             IconButton(
@@ -2524,11 +2605,11 @@ private fun CacheRefreshDialog(
                 }
                 Text(
                     cacheSummaryHeader(job.message).ifBlank { "Waiting for cache refresh status." },
-                    color = Color(0xFFAEB8C2),
+                    color = DeepNightMutedText,
                     style = MaterialTheme.typography.bodyMedium
                 )
                 summaryLines.forEach { line ->
-                    Text(line, color = Color(0xFFF4F7FA), style = MaterialTheme.typography.bodySmall)
+                    Text(line, color = DeepNightText, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
@@ -2570,7 +2651,7 @@ private fun CacheRefreshProgressScreen(
                 Text("Refresh All", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
                     "${job.status.label()} $progress%",
-                    color = Color(0xFFAEB8C2),
+                    color = DeepNightMutedText,
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
@@ -2594,7 +2675,7 @@ private fun CacheRefreshProgressScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            color = Color(0xFF101418),
+            color = DeepNightSurface,
             shape = RoundedCornerShape(8.dp)
         ) {
             LazyColumn(
@@ -2607,7 +2688,7 @@ private fun CacheRefreshProgressScreen(
                         color = if (line.startsWith("Accounts failed:") && !line.endsWith("None")) {
                             Color(0xFFFFB4AB)
                         } else {
-                            Color(0xFFF4F7FA)
+                            DeepNightText
                         },
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace
@@ -2626,7 +2707,7 @@ private fun AccountFeedbackDialog(feedback: AccountFeedback, onDismiss: () -> Un
         text = {
             Text(
                 feedback.message,
-                color = if (feedback.success) Color(0xFFAEB8C2) else Color(0xFFFFB4AB)
+                color = if (feedback.success) DeepNightMutedText else Color(0xFFFFB4AB)
             )
         },
         confirmButton = {
@@ -2691,7 +2772,7 @@ private fun AccountEditor(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF172029))
+            .background(DeepNightSurfaceHigh)
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -2805,20 +2886,20 @@ private fun AccountTextField(label: String, value: String, onValueChange: (Strin
 @Composable
 private fun darkTextFieldColors(): TextFieldColors =
     OutlinedTextFieldDefaults.colors(
-        focusedTextColor = Color(0xFFF4F7FA),
-        unfocusedTextColor = Color(0xFFF4F7FA),
-        disabledTextColor = Color(0xFF7D8790),
+        focusedTextColor = DeepNightText,
+        unfocusedTextColor = DeepNightText,
+        disabledTextColor = DeepNightMutedText,
         errorTextColor = Color(0xFFFFD6D6),
-        cursorColor = Color(0xFF8FD7FF),
-        focusedLabelColor = Color(0xFF8FD7FF),
-        unfocusedLabelColor = Color(0xFFAEB8C2),
-        disabledLabelColor = Color(0xFF7D8790),
+        cursorColor = DeepNightAccent,
+        focusedLabelColor = DeepNightAccent,
+        unfocusedLabelColor = DeepNightMutedText,
+        disabledLabelColor = DeepNightMutedText,
         errorLabelColor = Color(0xFFFFB4AB),
-        focusedPlaceholderColor = Color(0xFF7D8790),
-        unfocusedPlaceholderColor = Color(0xFF7D8790),
-        focusedBorderColor = Color(0xFF8FD7FF),
-        unfocusedBorderColor = Color(0xFF60707D),
-        disabledBorderColor = Color(0xFF39444D),
+        focusedPlaceholderColor = DeepNightMutedText,
+        unfocusedPlaceholderColor = DeepNightMutedText,
+        focusedBorderColor = DeepNightAccent,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+        disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
         errorBorderColor = Color(0xFFFFB4AB),
         focusedContainerColor = Color.Transparent,
         unfocusedContainerColor = Color.Transparent,
@@ -2866,7 +2947,7 @@ private fun AppTabs(selectedTab: Int, onSelect: (Int) -> Unit) {
                                 .width(36.dp)
                                 .height(24.dp),
                             shape = RoundedCornerShape(999.dp),
-                            color = if (selected) Color(0xFF4C415F) else Color.Transparent,
+                            color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                             contentColor = if (selected) DeepNightPrimary else DeepNightMutedText
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -2909,13 +2990,13 @@ private fun EmptyState(title: String, detail: String, modifier: Modifier = Modif
         modifier = modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 96.dp)
-            .background(Color(0xFF172029))
+            .background(DeepNightSurfaceHigh)
             .padding(14.dp),
         verticalArrangement = Arrangement.Center
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
-        Text(detail, color = Color(0xFFAEB8C2), style = MaterialTheme.typography.bodySmall)
+        Text(detail, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -3208,7 +3289,7 @@ private fun AndroidPlayerPreference.playerBadge(): String =
 private fun AndroidPlayerPreference.playerIconColor(): Color =
     when (this) {
         AndroidPlayerPreference.ASK_EVERY_TIME -> Color(0xFF374151)
-        AndroidPlayerPreference.EMBEDDED_PLAYER -> DeepNightAccent
+        AndroidPlayerPreference.EMBEDDED_PLAYER -> DeepNightAccentBase
         AndroidPlayerPreference.NATIVE -> Color(0xFF3DDC84)
         AndroidPlayerPreference.VLC -> Color(0xFFFF9800)
         AndroidPlayerPreference.MX_PLAYER_PRO,

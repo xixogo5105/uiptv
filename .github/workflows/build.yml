@@ -76,6 +76,13 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Run mobile tests and coverage
+        working-directory: mobile
+        run: ./gradlew :shared:testAndroidHostTest :shared:koverXmlReport :shared:koverVerify
+
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
