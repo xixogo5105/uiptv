@@ -65,6 +65,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Bookmarks
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayCircle
@@ -121,6 +122,7 @@ import kotlinx.coroutines.launch
 
 typealias LocalPlaylistPicker = (onSelected: (String) -> Unit) -> Unit
 typealias LogoRenderer = @Composable (String, String, Modifier) -> Unit
+typealias PlayerIconRenderer = @Composable (PlayerChoice, Modifier) -> Unit
 
 private val DeepNightPrimary = Color(0xFFD1E4FF)
 private val DeepNightSurface = Color(0xFF1B1F23)
@@ -159,6 +161,7 @@ fun UiptvMobileApp(
     filterActions: FilterUiActions = FilterUiActions.preview(),
     localPlaylistPicker: LocalPlaylistPicker? = null,
     logoRenderer: LogoRenderer = { _, _, _ -> },
+    playerIconRenderer: PlayerIconRenderer = { choice, modifier -> DefaultPlayerIcon(choice, modifier) },
     backHandler: @Composable (enabled: Boolean, onBack: () -> Unit) -> Unit = { _, _ -> }
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -195,6 +198,7 @@ fun UiptvMobileApp(
                 selectedBrowseAccount = selectedBrowseAccount,
                 showThumbnails = showThumbnails,
                 logoRenderer = logoRenderer,
+                playerIconRenderer = playerIconRenderer,
                 onOpenAccountChannels = { account ->
                     selectedBrowseAccount = account
                 },
@@ -221,6 +225,7 @@ private fun CurrentTab(
     selectedBrowseAccount: MobileAccount?,
     showThumbnails: Boolean,
     logoRenderer: LogoRenderer,
+    playerIconRenderer: PlayerIconRenderer,
     onOpenAccountChannels: (MobileAccount) -> Unit,
     onCloseAccountChannels: () -> Unit,
     onThumbnailSettingChanged: (Boolean) -> Unit,
@@ -234,7 +239,7 @@ private fun CurrentTab(
     ) { (tab, hasBrowseAccount) ->
         when (tab) {
             0 -> {
-                BookmarksScreen(browseActions, playbackActions, showThumbnails, logoRenderer, Modifier.fillMaxSize())
+                BookmarksScreen(browseActions, playbackActions, showThumbnails, logoRenderer, playerIconRenderer, Modifier.fillMaxSize())
             }
             1 -> {
                 val account = selectedBrowseAccount.takeIf { hasBrowseAccount }
@@ -251,16 +256,17 @@ private fun CurrentTab(
                         onBackToAccounts = onCloseAccountChannels,
                         showThumbnails = showThumbnails,
                         logoRenderer = logoRenderer,
+                        playerIconRenderer = playerIconRenderer,
                         backHandler = backHandler,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
             }
             2 -> {
-                WatchingNowScreen(browseActions, playbackActions, showThumbnails, logoRenderer, Modifier.fillMaxSize())
+                WatchingNowScreen(browseActions, playbackActions, showThumbnails, logoRenderer, playerIconRenderer, Modifier.fillMaxSize())
             }
             3 -> {
-                RemoteSyncScreen(syncActions, playbackActions, filterActions, onThumbnailSettingChanged, Modifier.fillMaxSize())
+                RemoteSyncScreen(syncActions, playbackActions, filterActions, onThumbnailSettingChanged, playerIconRenderer, Modifier.fillMaxSize())
             }
         }
     }
@@ -277,6 +283,7 @@ private fun ChannelsScreen(
     onBackToAccounts: (() -> Unit)? = null,
     showThumbnails: Boolean = false,
     logoRenderer: LogoRenderer = { _, _, _ -> },
+    playerIconRenderer: PlayerIconRenderer = { choice, modifier -> DefaultPlayerIcon(choice, modifier) },
     backHandler: @Composable (enabled: Boolean, onBack: () -> Unit) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
@@ -722,7 +729,18 @@ private fun ChannelsScreen(
     PlaybackPickerDialog(
         pendingPlayback = pendingPlayback,
         playerChoices = playerChoices,
+        playerIconRenderer = playerIconRenderer,
         onDismiss = { pendingPlayback = null },
+        onInstall = { choice ->
+            pendingPlayback = null
+            scope.launch {
+                running = true
+                runCatching { playbackActions.openPlayerInstall(choice) }
+                    .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
+                    .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                running = false
+            }
+        },
         onSelect = { player, remember ->
             val pending = pendingPlayback ?: return@PlaybackPickerDialog
             pendingPlayback = null
@@ -993,6 +1011,7 @@ private fun BookmarksScreen(
     playbackActions: PlaybackUiActions,
     showThumbnails: Boolean,
     logoRenderer: LogoRenderer,
+    playerIconRenderer: PlayerIconRenderer,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -1112,7 +1131,18 @@ private fun BookmarksScreen(
     PlaybackPickerDialog(
         pendingPlayback = pendingPlayback,
         playerChoices = playerChoices,
+        playerIconRenderer = playerIconRenderer,
         onDismiss = { pendingPlayback = null },
+        onInstall = { choice ->
+            pendingPlayback = null
+            scope.launch {
+                running = true
+                runCatching { playbackActions.openPlayerInstall(choice) }
+                    .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
+                    .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                running = false
+            }
+        },
         onSelect = { player, remember ->
             val pending = pendingPlayback ?: return@PlaybackPickerDialog
             pendingPlayback = null
@@ -1195,6 +1225,7 @@ private fun WatchingNowScreen(
     playbackActions: PlaybackUiActions,
     showThumbnails: Boolean,
     logoRenderer: LogoRenderer,
+    playerIconRenderer: PlayerIconRenderer,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -1282,7 +1313,18 @@ private fun WatchingNowScreen(
     PlaybackPickerDialog(
         pendingPlayback = pendingPlayback,
         playerChoices = playerChoices,
+        playerIconRenderer = playerIconRenderer,
         onDismiss = { pendingPlayback = null },
+        onInstall = { choice ->
+            pendingPlayback = null
+            scope.launch {
+                running = true
+                runCatching { playbackActions.openPlayerInstall(choice) }
+                    .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
+                    .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                running = false
+            }
+        },
         onSelect = { player, remember ->
             val pending = pendingPlayback ?: return@PlaybackPickerDialog
             pendingPlayback = null
@@ -1348,7 +1390,9 @@ private fun WatchingNowRow(
 private fun PlaybackPickerDialog(
     pendingPlayback: PendingPlayback?,
     playerChoices: List<PlayerChoice>,
+    playerIconRenderer: PlayerIconRenderer,
     onDismiss: () -> Unit,
+    onInstall: (PlayerChoice) -> Unit,
     onSelect: (AndroidPlayerPreference, Boolean) -> Unit
 ) {
     if (pendingPlayback == null) {
@@ -1372,7 +1416,14 @@ private fun PlaybackPickerDialog(
             PlayerChoiceGrid(
                 choices = playerChoices,
                 selectedPlayer = null,
-                onSelect = { choice -> onSelect(choice.player, rememberChoice) }
+                playerIconRenderer = playerIconRenderer,
+                onSelect = { choice ->
+                    if (choice.opensInstallFlow()) {
+                        onInstall(choice)
+                    } else {
+                        onSelect(choice.player, rememberChoice)
+                    }
+                }
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
@@ -1395,7 +1446,9 @@ private fun PlayerSelectionSheet(
     title: String,
     choices: List<PlayerChoice>,
     selectedPlayer: AndroidPlayerPreference?,
+    playerIconRenderer: PlayerIconRenderer,
     onDismiss: () -> Unit,
+    onInstall: (PlayerChoice) -> Unit,
     onSelect: (PlayerChoice) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState()
@@ -1415,7 +1468,14 @@ private fun PlayerSelectionSheet(
             PlayerChoiceGrid(
                 choices = choices,
                 selectedPlayer = selectedPlayer,
-                onSelect = onSelect
+                playerIconRenderer = playerIconRenderer,
+                onSelect = { choice ->
+                    if (choice.opensInstallFlow()) {
+                        onInstall(choice)
+                    } else {
+                        onSelect(choice)
+                    }
+                }
             )
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
@@ -1429,6 +1489,7 @@ private fun PlayerSelectionSheet(
 private fun PlayerChoiceGrid(
     choices: List<PlayerChoice>,
     selectedPlayer: AndroidPlayerPreference?,
+    playerIconRenderer: PlayerIconRenderer,
     onSelect: (PlayerChoice) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1437,7 +1498,8 @@ private fun PlayerChoiceGrid(
                 rowChoices.forEach { choice ->
                     PlayerChoiceTile(
                         choice = choice,
-                        selected = choice.player == selectedPlayer,
+                        selected = choice.matchesSelected(selectedPlayer),
+                        playerIconRenderer = playerIconRenderer,
                         modifier = Modifier.weight(1f),
                         onSelect = { onSelect(choice) }
                     )
@@ -1454,24 +1516,22 @@ private fun PlayerChoiceGrid(
 private fun PlayerChoiceTile(
     choice: PlayerChoice,
     selected: Boolean,
+    playerIconRenderer: PlayerIconRenderer,
     modifier: Modifier = Modifier,
     onSelect: () -> Unit
 ) {
-    val enabled = choice.installed
     val containerColor = when {
         selected -> DeepNightPrimary
-        enabled -> DeepNightSurfaceHigh
-        else -> Color(0xFF15191D)
+        else -> DeepNightSurfaceHigh
     }
     val contentColor = when {
         selected -> Color(0xFF07151E)
-        enabled -> DeepNightText
-        else -> DeepNightMutedText
+        else -> DeepNightText
     }
     Surface(
         modifier = modifier
             .height(104.dp)
-            .clickable(enabled = enabled, onClick = onSelect)
+            .clickable(onClick = onSelect)
             .semantics { contentDescription = "Select ${choice.label}" },
         shape = RoundedCornerShape(12.dp),
         color = containerColor,
@@ -1481,32 +1541,50 @@ private fun PlayerChoiceTile(
             modifier = Modifier.padding(10.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Surface(
-                modifier = Modifier.size(34.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = if (selected) Color(0xFF07151E) else if (enabled) DeepNightAccent else DeepNightSurfaceHighest,
-                contentColor = if (selected) DeepNightPrimary else if (enabled) Color(0xFF001F25) else DeepNightMutedText
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (choice.player == AndroidPlayerPreference.EMBEDDED_PLAYER) {
-                        Icon(Icons.Outlined.PlayCircle, contentDescription = null, modifier = Modifier.size(20.dp))
-                    } else {
-                        Text(choice.player.playerBadge(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, maxLines = 1)
-                    }
+                playerIconRenderer(choice, Modifier.size(42.dp))
+                if (selected) {
+                    Icon(
+                        Icons.Outlined.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = Color(0xFF07151E)
+                    )
                 }
             }
-            Column {
-                Text(choice.label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                choice.label,
+                style = MaterialTheme.typography.labelLarge,
+                color = contentColor,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun DefaultPlayerIcon(choice: PlayerChoice, modifier: Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = choice.player.playerIconColor(),
+        contentColor = choice.player.playerIconContentColor()
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (choice.player == AndroidPlayerPreference.EMBEDDED_PLAYER) {
+                Icon(Icons.Outlined.PlayCircle, contentDescription = null, modifier = Modifier.size(22.dp))
+            } else {
                 Text(
-                    when {
-                        selected -> "Selected"
-                        enabled -> choice.player.playerKindLabel()
-                        else -> "Unavailable"
-                    },
-                    color = if (selected) Color(0xFF24313C) else DeepNightMutedText,
+                    choice.player.playerBadge(),
                     style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
                 )
             }
         }
@@ -1557,6 +1635,7 @@ private fun RemoteSyncScreen(
     playbackActions: PlaybackUiActions,
     filterActions: FilterUiActions,
     onThumbnailSettingChanged: (Boolean) -> Unit,
+    playerIconRenderer: PlayerIconRenderer,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -1613,6 +1692,12 @@ private fun RemoteSyncScreen(
         onThumbnailSettingChanged(loadedFilters.enableThumbnails)
         categoryFilterText = loadedFilters.categoryFilters
         channelFilterText = loadedFilters.channelFilters
+    }
+
+    val selectedPlayerChoice = remember(selectedPlayer, playerChoices) {
+        (listOf(PlayerChoice(AndroidPlayerPreference.ASK_EVERY_TIME, "Ask")) + playerChoices)
+            .firstOrNull { it.matchesSelected(selectedPlayer) }
+            ?: PlayerChoice(selectedPlayer, selectedPlayer.playerLabel())
     }
 
     Column(
@@ -1738,20 +1823,7 @@ private fun RemoteSyncScreen(
                 modifier = Modifier.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    modifier = Modifier.size(40.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = DeepNightAccent,
-                    contentColor = Color(0xFF001F25)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (selectedPlayer == AndroidPlayerPreference.EMBEDDED_PLAYER) {
-                            Icon(Icons.Outlined.PlayCircle, contentDescription = null, modifier = Modifier.size(22.dp))
-                        } else {
-                            Text(selectedPlayer.playerBadge(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
+                playerIconRenderer(selectedPlayerChoice, Modifier.size(40.dp))
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -1871,7 +1943,18 @@ private fun RemoteSyncScreen(
             title = "Default Player",
             choices = listOf(PlayerChoice(AndroidPlayerPreference.ASK_EVERY_TIME, "Ask")) + playerChoices,
             selectedPlayer = selectedPlayer,
+            playerIconRenderer = playerIconRenderer,
             onDismiss = { playerSelectorVisible = false },
+            onInstall = { choice ->
+                playerSelectorVisible = false
+                scope.launch {
+                    running = true
+                    runCatching { playbackActions.openPlayerInstall(choice) }
+                        .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
+                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                    running = false
+                }
+            },
             onSelect = { choice ->
                 scope.launch {
                     running = true
@@ -2913,6 +2996,7 @@ data class PlaybackUiActions(
     val playBrowseItem: suspend (MobileBrowseItem, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
     val playBookmark: suspend (MobileBookmark, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
     val playWatchingNow: suspend (MobileWatchingNowItem, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
+    val openPlayerInstall: suspend (PlayerChoice) -> Unit,
     val savePlayerPreference: suspend (AndroidPlayerPreference) -> Unit,
     val clearPlayerPreference: suspend () -> Unit
 ) {
@@ -2930,6 +3014,7 @@ data class PlaybackUiActions(
                 playBrowseItem = { item, _, _ -> PlaybackLaunchResult(true, "Opening ${item.name}") },
                 playBookmark = { bookmark, _, _ -> PlaybackLaunchResult(true, "Opening ${bookmark.channelName}") },
                 playWatchingNow = { item, _, _ -> PlaybackLaunchResult(true, "Opening ${item.title}") },
+                openPlayerInstall = {},
                 savePlayerPreference = {},
                 clearPlayerPreference = {}
             )
@@ -3069,16 +3154,16 @@ private fun MobileBrowseItem.subtitle(): String =
 
 private fun AndroidPlayerPreference.playerLabel(): String =
     when (this) {
-        AndroidPlayerPreference.ASK_EVERY_TIME -> "ask every time"
+        AndroidPlayerPreference.ASK_EVERY_TIME -> "Ask Every Time"
         AndroidPlayerPreference.EMBEDDED_PLAYER -> "Embedded Player"
         AndroidPlayerPreference.NATIVE -> "Android Media"
         AndroidPlayerPreference.VLC -> "VLC"
-        AndroidPlayerPreference.MX_PLAYER_PRO -> "MX Player Pro"
-        AndroidPlayerPreference.MX_PLAYER_FREE -> "MX Player Free"
+        AndroidPlayerPreference.MX_PLAYER_PRO,
+        AndroidPlayerPreference.MX_PLAYER_FREE -> "MX Player"
         AndroidPlayerPreference.KODI -> "Kodi"
         AndroidPlayerPreference.JUST_PLAYER -> "Just Player"
         AndroidPlayerPreference.XPLAYER -> "XPlayer"
-        AndroidPlayerPreference.SYSTEM_CHOOSER -> "System chooser"
+        AndroidPlayerPreference.SYSTEM_CHOOSER -> "System Chooser"
     }
 
 private fun AndroidPlayerPreference.playerBadge(): String =
@@ -3095,18 +3180,45 @@ private fun AndroidPlayerPreference.playerBadge(): String =
         AndroidPlayerPreference.SYSTEM_CHOOSER -> "SYS"
     }
 
-private fun AndroidPlayerPreference.playerKindLabel(): String =
+private fun AndroidPlayerPreference.playerIconColor(): Color =
     when (this) {
-        AndroidPlayerPreference.ASK_EVERY_TIME -> "Prompt"
+        AndroidPlayerPreference.ASK_EVERY_TIME -> Color(0xFF374151)
+        AndroidPlayerPreference.EMBEDDED_PLAYER -> DeepNightAccent
+        AndroidPlayerPreference.NATIVE -> Color(0xFF7DD3FC)
+        AndroidPlayerPreference.VLC -> Color(0xFFFF9800)
+        AndroidPlayerPreference.MX_PLAYER_PRO,
+        AndroidPlayerPreference.MX_PLAYER_FREE -> Color(0xFF2563EB)
+        AndroidPlayerPreference.KODI -> Color(0xFF2F9ED8)
+        AndroidPlayerPreference.JUST_PLAYER -> Color(0xFF111827)
+        AndroidPlayerPreference.XPLAYER -> Color(0xFFE11D48)
+        AndroidPlayerPreference.SYSTEM_CHOOSER -> Color(0xFF64748B)
+    }
+
+private fun AndroidPlayerPreference.playerIconContentColor(): Color =
+    when (this) {
+        AndroidPlayerPreference.EMBEDDED_PLAYER,
+        AndroidPlayerPreference.NATIVE -> Color(0xFF001F25)
+        else -> Color.White
+    }
+
+private fun PlayerChoice.opensInstallFlow(): Boolean =
+    !installed && storeUrl.isNotBlank()
+
+private fun PlayerChoice.matchesSelected(selectedPlayer: AndroidPlayerPreference?): Boolean =
+    selectedPlayer != null && (player == selectedPlayer || (player.isMxPlayer() && selectedPlayer.isMxPlayer()))
+
+private fun AndroidPlayerPreference.isMxPlayer(): Boolean =
+    when (this) {
+        AndroidPlayerPreference.MX_PLAYER_PRO,
+        AndroidPlayerPreference.MX_PLAYER_FREE -> true
+        AndroidPlayerPreference.VLC,
+        AndroidPlayerPreference.ASK_EVERY_TIME,
         AndroidPlayerPreference.EMBEDDED_PLAYER,
         AndroidPlayerPreference.NATIVE,
-        AndroidPlayerPreference.SYSTEM_CHOOSER -> "Built in"
-        AndroidPlayerPreference.VLC,
-        AndroidPlayerPreference.MX_PLAYER_PRO,
-        AndroidPlayerPreference.MX_PLAYER_FREE,
         AndroidPlayerPreference.KODI,
         AndroidPlayerPreference.JUST_PLAYER,
-        AndroidPlayerPreference.XPLAYER -> "External"
+        AndroidPlayerPreference.XPLAYER,
+        AndroidPlayerPreference.SYSTEM_CHOOSER -> false
     }
 
 private sealed interface PendingPlayback {

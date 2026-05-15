@@ -38,6 +38,20 @@ class AndroidPlaybackCoordinator(
     private val watchStateStore: AndroidPlaybackWatchStateStore = AndroidPlaybackWatchStateStore(databaseHelper, epochSeconds),
     private val activityStarter: (Intent) -> Unit = { intent -> context.startActivity(intent) }
 ) {
+    companion object {
+        private const val VLC_PACKAGE = "org.videolan.vlc"
+        private const val MX_PLAYER_PRO_PACKAGE = "com.mxtech.videoplayer.pro"
+        private const val MX_PLAYER_FREE_PACKAGE = "com.mxtech.videoplayer.ad"
+        private const val KODI_PACKAGE = "org.xbmc.kodi"
+        private const val JUST_PLAYER_PACKAGE = "com.brouken.player"
+        private const val XPLAYER_PACKAGE = "video.player.videoplayer"
+
+        private const val VLC_STORE_URL = "https://play.google.com/store/apps/details?id=org.videolan.vlc"
+        private const val MX_PLAYER_STORE_URL = "https://play.google.com/store/apps/details?id=com.mxtech.videoplayer.ad"
+        private const val JUST_PLAYER_STORE_URL = "https://play.google.com/store/apps/details?id=com.brouken.player"
+        private const val XPLAYER_STORE_URL = "https://play.google.com/store/apps/details?id=video.player.videoplayer"
+    }
+
     suspend fun loadPlayerPreference(): PlayerPreference =
         preferences.load().playerPreference
 
@@ -50,22 +64,57 @@ class AndroidPlaybackCoordinator(
             if (player == AndroidPlayerPreference.ASK_EVERY_TIME) {
                 PlayerPreference(AndroidPlayerPreference.ASK_EVERY_TIME, "", false)
             } else {
-                PlayerPreference(player, player.packageName(), true)
+                PlayerPreference(player, player.resolvePreferredPackageName(), true)
             }
         )
     }
 
     suspend fun playerChoices(): List<PlayerChoice> = withContext(Dispatchers.IO) {
+        val mxProInstalled = isInstalled(MX_PLAYER_PRO_PACKAGE)
+        val mxFreeInstalled = isInstalled(MX_PLAYER_FREE_PACKAGE)
+        val mxInstalled = mxProInstalled || mxFreeInstalled
+        val mxPlayer = if (mxProInstalled) {
+            AndroidPlayerPreference.MX_PLAYER_PRO
+        } else {
+            AndroidPlayerPreference.MX_PLAYER_FREE
+        }
+        val mxPackage = when {
+            mxProInstalled -> MX_PLAYER_PRO_PACKAGE
+            mxFreeInstalled -> MX_PLAYER_FREE_PACKAGE
+            else -> MX_PLAYER_FREE_PACKAGE
+        }
         listOf(
             PlayerChoice(AndroidPlayerPreference.EMBEDDED_PLAYER, "Embedded Player", true),
             PlayerChoice(AndroidPlayerPreference.NATIVE, "Android Media", true),
-            PlayerChoice(AndroidPlayerPreference.VLC, "VLC", isInstalled("org.videolan.vlc")),
-            PlayerChoice(AndroidPlayerPreference.MX_PLAYER_PRO, "MX Pro", isInstalled("com.mxtech.videoplayer.pro")),
-            PlayerChoice(AndroidPlayerPreference.MX_PLAYER_FREE, "MX Free", isInstalled("com.mxtech.videoplayer.ad")),
-            PlayerChoice(AndroidPlayerPreference.KODI, "Kodi", isInstalled("org.xbmc.kodi")),
-            PlayerChoice(AndroidPlayerPreference.JUST_PLAYER, "Just Player", isInstalled("com.brouken.player")),
-            PlayerChoice(AndroidPlayerPreference.XPLAYER, "XPlayer", isInstalled("video.player.videoplayer")),
+            PlayerChoice(AndroidPlayerPreference.VLC, "VLC", isInstalled(VLC_PACKAGE), VLC_PACKAGE, VLC_STORE_URL),
+            PlayerChoice(mxPlayer, "MX Player", mxInstalled, mxPackage, MX_PLAYER_STORE_URL),
+            PlayerChoice(AndroidPlayerPreference.JUST_PLAYER, "Just Player", isInstalled(JUST_PLAYER_PACKAGE), JUST_PLAYER_PACKAGE, JUST_PLAYER_STORE_URL),
+            PlayerChoice(AndroidPlayerPreference.XPLAYER, "XPlayer", isInstalled(XPLAYER_PACKAGE), XPLAYER_PACKAGE, XPLAYER_STORE_URL),
             PlayerChoice(AndroidPlayerPreference.SYSTEM_CHOOSER, "System", true)
+        )
+    }
+
+    suspend fun openPlayerInstall(choice: PlayerChoice) = withContext(Dispatchers.Main) {
+        val packageName = choice.packageName.ifBlank { choice.player.packageName() }
+        val storeUrl = choice.storeUrl.ifBlank {
+            packageName.takeIf { it.isNotBlank() }?.let { "https://play.google.com/store/apps/details?id=$it" }.orEmpty()
+        }
+        if (packageName.isBlank() && storeUrl.isBlank()) {
+            return@withContext
+        }
+
+        val marketIntent = packageName.takeIf { it.isNotBlank() }?.let {
+            Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$it"))
+                .setPackage("com.android.vending")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (marketIntent != null && runCatching { activityStarter(marketIntent) }.isSuccess) {
+            return@withContext
+        }
+
+        activityStarter(
+            Intent(Intent.ACTION_VIEW, Uri.parse(storeUrl))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
     }
 
@@ -78,7 +127,7 @@ class AndroidPlaybackCoordinator(
         val result = launch(target, player)
         if (result.launched) {
             if (remember) {
-                preferences.savePlayerPreference(PlayerPreference(player, player.packageName(), true))
+                preferences.savePlayerPreference(PlayerPreference(player, player.resolvePreferredPackageName(), true))
             }
             if (!player.usesNativeActivity()) {
                 watchStateStore.markOpened(target.resolved())
@@ -91,7 +140,7 @@ class AndroidPlaybackCoordinator(
         withContext(Dispatchers.IO) {
             val result = launch(bookmark.toPlaybackTarget(), player)
             if (result.launched && remember) {
-                preferences.savePlayerPreference(PlayerPreference(player, player.packageName(), true))
+                preferences.savePlayerPreference(PlayerPreference(player, player.resolvePreferredPackageName(), true))
             }
             result
         }
@@ -104,7 +153,7 @@ class AndroidPlaybackCoordinator(
                 launch(item.toPlaybackTarget(), player)
             }
             if (result.launched && remember) {
-                preferences.savePlayerPreference(PlayerPreference(player, player.packageName(), true))
+                preferences.savePlayerPreference(PlayerPreference(player, player.resolvePreferredPackageName(), true))
             }
             result
         }
@@ -162,7 +211,7 @@ class AndroidPlaybackCoordinator(
             .putExtra(NativePlayerActivity.EXTRA_LOGO, target.logo)
 
     private fun launchExternal(target: PlaybackTarget, player: AndroidPlayerPreference): PlaybackLaunchResult {
-        val packageName = player.packageName()
+        val packageName = player.resolvePreferredPackageName()
         if (packageName.isBlank() || !isInstalled(packageName)) {
             return PlaybackLaunchResult(false, "${player.displayLabel()} is not installed.")
         }
@@ -455,16 +504,27 @@ class AndroidPlaybackCoordinator(
 
     private fun AndroidPlayerPreference.packageName(): String =
         when (this) {
-            AndroidPlayerPreference.VLC -> "org.videolan.vlc"
-            AndroidPlayerPreference.MX_PLAYER_PRO -> "com.mxtech.videoplayer.pro"
-            AndroidPlayerPreference.MX_PLAYER_FREE -> "com.mxtech.videoplayer.ad"
-            AndroidPlayerPreference.KODI -> "org.xbmc.kodi"
-            AndroidPlayerPreference.JUST_PLAYER -> "com.brouken.player"
-            AndroidPlayerPreference.XPLAYER -> "video.player.videoplayer"
+            AndroidPlayerPreference.VLC -> VLC_PACKAGE
+            AndroidPlayerPreference.MX_PLAYER_PRO -> MX_PLAYER_PRO_PACKAGE
+            AndroidPlayerPreference.MX_PLAYER_FREE -> MX_PLAYER_FREE_PACKAGE
+            AndroidPlayerPreference.KODI -> KODI_PACKAGE
+            AndroidPlayerPreference.JUST_PLAYER -> JUST_PLAYER_PACKAGE
+            AndroidPlayerPreference.XPLAYER -> XPLAYER_PACKAGE
             AndroidPlayerPreference.EMBEDDED_PLAYER,
             AndroidPlayerPreference.NATIVE,
             AndroidPlayerPreference.SYSTEM_CHOOSER,
             AndroidPlayerPreference.ASK_EVERY_TIME -> ""
+        }
+
+    private fun AndroidPlayerPreference.resolvePreferredPackageName(): String =
+        when (this) {
+            AndroidPlayerPreference.MX_PLAYER_PRO,
+            AndroidPlayerPreference.MX_PLAYER_FREE -> when {
+                isInstalled(MX_PLAYER_PRO_PACKAGE) -> MX_PLAYER_PRO_PACKAGE
+                isInstalled(MX_PLAYER_FREE_PACKAGE) -> MX_PLAYER_FREE_PACKAGE
+                else -> MX_PLAYER_FREE_PACKAGE
+            }
+            else -> packageName()
         }
 
     private fun AndroidPlayerPreference.usesNativeActivity(): Boolean =
@@ -478,8 +538,8 @@ class AndroidPlaybackCoordinator(
             AndroidPlayerPreference.EMBEDDED_PLAYER -> "Embedded Player"
             AndroidPlayerPreference.NATIVE -> "Android Media"
             AndroidPlayerPreference.VLC -> "VLC"
-            AndroidPlayerPreference.MX_PLAYER_PRO -> "MX Player Pro"
-            AndroidPlayerPreference.MX_PLAYER_FREE -> "MX Player Free"
+            AndroidPlayerPreference.MX_PLAYER_PRO,
+            AndroidPlayerPreference.MX_PLAYER_FREE -> "MX Player"
             AndroidPlayerPreference.KODI -> "Kodi"
             AndroidPlayerPreference.JUST_PLAYER -> "Just Player"
             AndroidPlayerPreference.XPLAYER -> "XPlayer"

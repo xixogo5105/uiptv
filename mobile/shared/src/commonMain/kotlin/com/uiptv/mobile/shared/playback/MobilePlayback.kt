@@ -11,7 +11,9 @@ data class PlaybackLaunchResult(
 data class PlayerChoice(
     val player: AndroidPlayerPreference,
     val label: String,
-    val installed: Boolean = true
+    val installed: Boolean = true,
+    val packageName: String = "",
+    val storeUrl: String = ""
 )
 
 data class PlaybackTarget(
