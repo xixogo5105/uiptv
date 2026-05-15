@@ -259,9 +259,7 @@ fun UiptvMobileApp(
     var showThumbnails by remember { mutableStateOf(false) }
     fun selectTab(index: Int) {
         selectedTab = index
-        if (index != 1) {
-            selectedBrowseAccount = null
-        }
+        selectedBrowseAccount = null
     }
     backHandler(selectedBrowseAccount != null) {
         selectedBrowseAccount = null
@@ -443,6 +441,12 @@ private fun ChannelsScreen(
     val selectedAccountType = requestedAccountType
         ?: snapshot.accounts.firstOrNull { it.id == snapshot.selectedAccountId }?.type
     val visibleModes = remember(selectedAccountType) { selectedAccountType.browseModesForAccount() }
+    val showingChannelList = selectedCategoryRowId != null
+    fun backToCategories() {
+        selectedCategoryRowId = null
+        channelQuery = ""
+        reload(snapshot.selectedAccountId, null, "", mode)
+    }
     LaunchedEffect(browseActions, requestedAccountId, selectedAccountType) {
         val activeMode = if (mode in visibleModes) mode else BrowseMode.LIVE
         mode = activeMode
@@ -531,9 +535,7 @@ private fun ChannelsScreen(
         return
     }
     backHandler(selectedCategoryRowId != null) {
-        selectedCategoryRowId = null
-        channelQuery = ""
-        reload(snapshot.selectedAccountId, null, "")
+        backToCategories()
     }
 
     ModalNavigationDrawer(
@@ -612,14 +614,28 @@ private fun ChannelsScreen(
                             ),
                             navigationIcon = {
                                 IconButton(
-                                    modifier = Modifier.semantics { contentDescription = "Open categories" },
-                                    onClick = { scope.launch { drawerState.open() } }
+                                    modifier = Modifier.semantics {
+                                        contentDescription = if (showingChannelList) "Back to categories" else "Open categories"
+                                    },
+                                    onClick = {
+                                        if (showingChannelList) {
+                                            backToCategories()
+                                        } else {
+                                            scope.launch { drawerState.open() }
+                                        }
+                                    }
                                 ) {
-                                    Text("≡", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (showingChannelList) "←" else "≡", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                                 }
                             },
                             title = {
-                                UserPill(providerName = selectedAccountName)
+                                Text(
+                                    selectedCategory?.title ?: "${mode.displayLabel()} Categories",
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             },
                             actions = {
                                 IconButton(
@@ -645,29 +661,19 @@ private fun ChannelsScreen(
                     if (compactChrome) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             item {
-                                CompactToolbarAction("≡", "Open categories") {
-                                    scope.launch { drawerState.open() }
-                                }
-                            }
-                            if (!showAccountSelector) {
-                                item {
-                                    UserPill(
-                                        providerName = selectedAccountName,
-                                        modifier = Modifier.width(148.dp),
-                                        compact = true
-                                    )
+                                if (showingChannelList) {
+                                    CompactToolbarAction("←", "Back to categories") {
+                                        backToCategories()
+                                    }
+                                } else {
+                                    CompactToolbarAction("≡", "Open categories") {
+                                        scope.launch { drawerState.open() }
+                                    }
                                 }
                             }
                             item {
                                 CompactToolbarAction(if (searchVisible) "X" else "⌕", "Search channels") {
                                     searchVisible = !searchVisible
-                                }
-                            }
-                            if (onBackToAccounts != null) {
-                                item {
-                                    CompactToolbarAction("Accounts", "Back to account list") {
-                                        onBackToAccounts()
-                                    }
                                 }
                             }
                             if (showAccountSelector) {
@@ -685,7 +691,7 @@ private fun ChannelsScreen(
                                     )
                                 }
                             }
-                            if (visibleModes.size > 1) {
+                            if (!showingChannelList && visibleModes.size > 1) {
                                 items(visibleModes, key = { it.name }) { entry ->
                                     FilterChip(
                                         selected = mode == entry,
@@ -698,30 +704,6 @@ private fun ChannelsScreen(
                                         label = { Text(entry.displayLabel()) }
                                     )
                                 }
-                            }
-                            item {
-                                FilterChip(
-                                    selected = selectedCategoryRowId == null,
-                                    onClick = {
-                                        selectedCategoryRowId = null
-                                        channelQuery = ""
-                                        reload(snapshot.selectedAccountId, null, "")
-                                    },
-                                    label = { Text("All") }
-                                )
-                            }
-                            item {
-                                FilterChip(
-                                    selected = selectedCategoryRowId != null,
-                                    onClick = { scope.launch { drawerState.open() } },
-                                    label = {
-                                        Text(
-                                            selectedCategory?.title ?: "Categories",
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                )
                             }
                         }
                 } else {
@@ -742,15 +724,7 @@ private fun ChannelsScreen(
                             }
                         }
                     }
-                    if (onBackToAccounts != null) {
-                        TextButton(
-                            modifier = Modifier.semantics { contentDescription = "Back to account list" },
-                            onClick = onBackToAccounts
-                        ) {
-                            Text("Accounts")
-                        }
-                    }
-                    if (visibleModes.size > 1) {
+                    if (!showingChannelList && visibleModes.size > 1) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(visibleModes, key = { it.name }) { entry ->
                                 FilterChip(
@@ -764,43 +738,6 @@ private fun ChannelsScreen(
                                     label = { Text(entry.displayLabel()) }
                                 )
                             }
-                        }
-                    }
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        item {
-                            FilterChip(
-                                selected = selectedCategoryRowId == null,
-                                onClick = {
-                                    selectedCategoryRowId = null
-                                    channelQuery = ""
-                                    reload(snapshot.selectedAccountId, null, "")
-                                },
-                                label = { Text("All categories") }
-                            )
-                        }
-                        items(visibleCategories.take(18), key = { it.rowId }) { category ->
-                            FilterChip(
-                                selected = category.rowId == selectedCategoryRowId,
-                                onClick = {
-                                    selectedCategoryRowId = category.rowId
-                                    channelQuery = ""
-                                    reload(snapshot.selectedAccountId, category.rowId, "")
-                                },
-                                label = {
-                                    Text(
-                                        category.title,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            )
-                        }
-                        item {
-                            FilterChip(
-                                selected = false,
-                                onClick = { scope.launch { drawerState.open() } },
-                                label = { Text("More") }
-                            )
                         }
                     }
                 }
