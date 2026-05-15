@@ -33,6 +33,7 @@
         <sonar.exclusions>.github/**</sonar.exclusions>
         <sonar.coverage.jacoco.xmlReportPaths>
             ${maven.multiModuleProjectDirectory}/coverage-aggregate/target/site/jacoco-aggregate/jacoco.xml,
+            ${maven.multiModuleProjectDirectory}/uiptv-shared/target/site/jacoco/jacoco.xml,
             ${maven.multiModuleProjectDirectory}/javafx-app/target/site/jacoco/jacoco.xml,
             ${maven.multiModuleProjectDirectory}/mobile/shared/build/reports/kover/report.xml
         </sonar.coverage.jacoco.xmlReportPaths>

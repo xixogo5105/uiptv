@@ -75,11 +75,12 @@ class StaticAssetHttpServersTest {
         if ("api-server".equals(repositoryRoot.getFileName().toString())) {
             repositoryRoot = repositoryRoot.getParent();
         }
-        try (UserDirScope ignored = UserDirScope.open(repositoryRoot)) {
+        try (UserDirScope userDirScope = UserDirScope.open(repositoryRoot)) {
             HttpSpaHtmlServer handler = new HttpSpaHtmlServer("myflix.html");
             TestHttpExchange exchange = new TestHttpExchange("/myflix.html", "GET");
             handler.handle(exchange);
 
+            assertEquals(repositoryRoot.toString(), userDirScope.currentUserDir());
             assertEquals(200, exchange.getResponseCode());
             assertTrue(exchange.getResponseBodyText().toLowerCase().contains("<html"));
         }
@@ -110,6 +111,10 @@ class StaticAssetHttpServersTest {
 
         static UserDirScope open(Path userDir) {
             return new UserDirScope(userDir);
+        }
+
+        String currentUserDir() {
+            return System.getProperty("user.dir");
         }
 
         @Override

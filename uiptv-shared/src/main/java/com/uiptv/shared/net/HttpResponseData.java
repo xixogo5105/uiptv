@@ -23,11 +23,14 @@ public record HttpResponseData(int statusCode,
 
     @Override
     public boolean equals(Object other) {
-        return other instanceof HttpResponseData that
-                && statusCode == that.statusCode
-                && Objects.equals(headers, that.headers)
-                && Arrays.equals(body, that.body)
-                && Objects.equals(finalUrl, that.finalUrl);
+        return other instanceof HttpResponseData(int thatStatusCode,
+                                                 Map<String, String> thatHeaders,
+                                                 byte[] thatBody,
+                                                 String thatFinalUrl)
+                && statusCode == thatStatusCode
+                && Objects.equals(headers, thatHeaders)
+                && Arrays.equals(body, thatBody)
+                && Objects.equals(finalUrl, thatFinalUrl);
     }
 
     @Override

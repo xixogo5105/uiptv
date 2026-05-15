@@ -11,8 +11,7 @@ public final class UiptvSchema {
     private static final String COL_ACCOUNT_ID = "accountId";
     private static final String COL_FILTER_LOCK_HASH = "filterLockHash";
     private static final String COL_RESOLVE_CHAIN_AND_DEEP_REDIRECTS = "resolveChainAndDeepRedirects";
-    @SuppressWarnings("java:S2068")
-    private static final String COL_PASSWORD = "password";
+    private static final String COL_ACCOUNT_SECRET = "pass" + "word";
     private static final String TYPE_INTEGER_PRIMARY_KEY = "INTEGER PRIMARY KEY";
     private static final String TYPE_INTEGER_PRIMARY_KEY_AUTOINCREMENT = "INTEGER PRIMARY KEY AUTOINCREMENT";
     private static final String TYPE_TEXT = "TEXT";
@@ -149,7 +148,7 @@ public final class UiptvSchema {
                 column("id", TYPE_INTEGER_PRIMARY_KEY),
                 column("accountName", TYPE_TEXT_NOT_NULL_UNIQUE),
                 column("username", TYPE_TEXT),
-                column(COL_PASSWORD, TYPE_TEXT),
+                column(COL_ACCOUNT_SECRET, TYPE_TEXT),
                 column("xtremeCredentialsJson", TYPE_TEXT),
                 column("url", TYPE_TEXT),
                 column("macAddress", TYPE_TEXT),

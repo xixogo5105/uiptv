@@ -25,13 +25,18 @@ public record HttpRequestData(String url,
 
     @Override
     public boolean equals(Object other) {
-        return other instanceof HttpRequestData that
-                && followRedirects == that.followRedirects
-                && timeoutSeconds == that.timeoutSeconds
-                && Objects.equals(url, that.url)
-                && Objects.equals(method, that.method)
-                && Objects.equals(headers, that.headers)
-                && Arrays.equals(body, that.body);
+        return other instanceof HttpRequestData(String thatUrl,
+                                                String thatMethod,
+                                                Map<String, String> thatHeaders,
+                                                byte[] thatBody,
+                                                boolean thatFollowRedirects,
+                                                int thatTimeoutSeconds)
+                && followRedirects == thatFollowRedirects
+                && timeoutSeconds == thatTimeoutSeconds
+                && Objects.equals(url, thatUrl)
+                && Objects.equals(method, thatMethod)
+                && Objects.equals(headers, thatHeaders)
+                && Arrays.equals(body, thatBody);
     }
 
     @Override
