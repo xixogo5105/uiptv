@@ -103,6 +103,7 @@ class HttpRemoteSyncServersTest {
             TestHttpExchange sql = new TestHttpExchange("/remote-sync/upload?sessionId=sql", "PUT", "payload");
             new HttpRemoteSyncUploadServer().handle(sql);
             assertEquals(500, sql.getResponseCode());
+            assertEquals("Remote database sync failed.", new JSONObject(sql.getResponseBodyText()).getString("message"));
 
             TestHttpExchange post = new TestHttpExchange("/remote-sync/upload", "POST");
             new HttpRemoteSyncUploadServer().handle(post);

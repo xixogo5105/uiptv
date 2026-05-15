@@ -2,6 +2,7 @@ package com.uiptv.service.remotesync;
 
 import com.uiptv.db.SQLConnection;
 import com.uiptv.service.DatabaseSyncService;
+import com.uiptv.util.AppLog;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -13,6 +14,8 @@ import java.time.Duration;
 public class RemoteSyncClientService {
     private static final Duration POLL_DELAY = Duration.ofSeconds(1);
     private static final Duration STATUS_TIMEOUT = Duration.ofMinutes(3);
+    private static final String REMOTE_SYNC_COMPLETED_MESSAGE = "Remote database sync completed.";
+    private static final String REMOTE_SYNC_FAILED_MESSAGE = "Remote database sync failed.";
 
     private final RemoteSyncHttpClient httpClient;
     private final DatabaseSnapshotService snapshotService;
@@ -82,11 +85,15 @@ public class RemoteSyncClientService {
                     null
             );
             notifyProgress(progressListener, RemoteSyncProgressStep.COMPLETING_REMOTE, null);
-            httpClient.completeSession(baseUrl, session.sessionId(), true, "Remote database sync completed.");
+            httpClient.completeSession(baseUrl, session.sessionId(), true, REMOTE_SYNC_COMPLETED_MESSAGE);
             notifyProgress(progressListener, RemoteSyncProgressStep.FINISHED, null);
-            return new RemoteSyncExecutionResult(report, "Remote database sync completed.");
+            return new RemoteSyncExecutionResult(report, REMOTE_SYNC_COMPLETED_MESSAGE);
         } catch (IOException | SQLException ex) {
-            httpClient.completeSession(baseUrl, session.sessionId(), false, ex.getMessage());
+            AppLog.addErrorLog(
+                    RemoteSyncClientService.class,
+                    "Remote database sync failed while applying downloaded snapshot: " + ex.getMessage()
+            );
+            httpClient.completeSession(baseUrl, session.sessionId(), false, REMOTE_SYNC_FAILED_MESSAGE);
             throw ex;
         } finally {
             Files.deleteIfExists(downloadedSnapshot);

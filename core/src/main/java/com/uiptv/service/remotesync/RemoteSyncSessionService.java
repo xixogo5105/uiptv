@@ -3,6 +3,7 @@ package com.uiptv.service.remotesync;
 import com.uiptv.db.SQLConnection;
 import com.uiptv.service.AppDataRefreshService;
 import com.uiptv.service.DatabaseSyncService;
+import com.uiptv.util.AppLog;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,6 +24,7 @@ public class RemoteSyncSessionService {
     private static final Duration APPROVAL_TTL = Duration.ofMinutes(2);
     private static final Duration TRANSFER_TTL = Duration.ofMinutes(10);
     private static final String REMOTE_SYNC_COMPLETED_MESSAGE = "Remote database sync completed.";
+    private static final String REMOTE_SYNC_FAILED_MESSAGE = "Remote database sync failed.";
 
     private final Map<String, SessionState> sessions = new ConcurrentHashMap<>();
     private final DatabaseSnapshotService snapshotService;
@@ -107,8 +109,12 @@ public class RemoteSyncSessionService {
             notifier.get().showInfo("remoteSyncRemoteCompletedMessage");
             return new RemoteSyncExecutionResult(report, REMOTE_SYNC_COMPLETED_MESSAGE);
         } catch (SQLException ex) {
+            AppLog.addErrorLog(
+                    RemoteSyncSessionService.class,
+                    "Remote database sync failed while accepting upload: " + ex.getMessage()
+            );
             synchronized (session) {
-                session.fail(ex.getMessage());
+                session.fail(REMOTE_SYNC_FAILED_MESSAGE);
             }
             notifier.get().showError("remoteSyncRemoteFailedMessage");
             throw ex;
@@ -135,7 +141,7 @@ public class RemoteSyncSessionService {
                 session.complete(blankToFallback(message, REMOTE_SYNC_COMPLETED_MESSAGE));
                 notifier.get().showInfo("remoteSyncRemoteCompletedMessage");
             } else {
-                session.fail(blankToFallback(message, "Remote database sync failed."));
+                session.fail(blankToFallback(message, REMOTE_SYNC_FAILED_MESSAGE));
                 notifier.get().showError("remoteSyncRemoteFailedMessage");
             }
             cleanupSnapshot(session);

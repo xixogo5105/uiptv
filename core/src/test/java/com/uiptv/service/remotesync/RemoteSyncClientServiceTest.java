@@ -50,7 +50,11 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
                 "done"
         );
 
-        RemoteSyncClientService service = new RemoteSyncClientService(httpClient, new DatabaseSnapshotService(), DatabaseSyncService.getInstance());
+        RemoteSyncClientService service = new RemoteSyncClientService(
+                httpClient,
+                new DatabaseSnapshotService(),
+                DatabaseSyncService.getInstance()
+        );
         List<RemoteSyncProgressStep> progressSteps = new ArrayList<>();
         RemoteSyncExecutionResult result = service.exportToRemote(
                 "127.0.0.1",
@@ -118,6 +122,50 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         assertTrue(httpClient.completedSuccess);
     }
 
+    @Test
+    void importFromRemote_reportsGenericFailureToRemoteWhenLocalSyncFails() throws Exception {
+        Path invalidRemoteSnapshot = tempDir.resolve("invalid-remote-source.db");
+        Files.writeString(invalidRemoteSnapshot, "not a sqlite database");
+
+        FakeRemoteSyncHttpClient httpClient = new FakeRemoteSyncHttpClient();
+        httpClient.nextCreatedState = new RemoteSyncSessionState(
+                "session-3",
+                RemoteSyncDirection.IMPORT_FROM_REMOTE,
+                RemoteSyncStatus.PENDING_APPROVAL,
+                "1111",
+                "machine-a",
+                "10.0.0.9",
+                new RemoteSyncOptions(true, true),
+                "Awaiting approval."
+        );
+        httpClient.statusResponses.add(httpClient.nextCreatedState);
+        httpClient.statusResponses.add(new RemoteSyncSessionState(
+                "session-3",
+                RemoteSyncDirection.IMPORT_FROM_REMOTE,
+                RemoteSyncStatus.READY_FOR_DOWNLOAD,
+                "1111",
+                "machine-a",
+                "10.0.0.9",
+                new RemoteSyncOptions(true, true),
+                "Ready."
+        ));
+        httpClient.downloadSource = invalidRemoteSnapshot;
+
+        RemoteSyncClientService service = new RemoteSyncClientService(httpClient, new DatabaseSnapshotService(), DatabaseSyncService.getInstance());
+        Exception failure = assertThrows(Exception.class, () -> service.importFromRemote(
+                "127.0.0.1",
+                8888,
+                new RemoteSyncOptions(true, true),
+                (step, detail) -> {
+                }
+        ));
+
+        assertEquals("session-3", httpClient.completedSessionId);
+        assertFalse(httpClient.completedSuccess);
+        assertEquals("Remote database sync failed.", httpClient.completedMessage);
+        assertNotEquals(failure.getMessage(), httpClient.completedMessage);
+    }
+
     private void initializeDatabase(Path path) throws Exception {
         withDatabase(path, () -> ConfigurationService.getInstance().read());
     }
@@ -173,6 +221,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         private Path lastUploadedSnapshot;
         private String completedSessionId;
         private boolean completedSuccess;
+        private String completedMessage;
 
         @Override
         public void checkHealth(String baseUrl) {
@@ -208,6 +257,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         public void completeSession(String baseUrl, String sessionId, boolean success, String message) {
             completedSessionId = sessionId;
             completedSuccess = success;
+            completedMessage = message;
         }
     }
 }

@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.application.RemoteSyncApplicationService;
 import com.uiptv.service.remotesync.RemoteSyncJson;
+import com.uiptv.util.AppLog;
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -13,6 +14,8 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.ServerUtils.writeJsonResponse;
 
 public class HttpRemoteSyncUploadServer implements HttpHandler {
+    private static final String REMOTE_SYNC_FAILED_MESSAGE = "Remote database sync failed.";
+
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         if (!"PUT".equalsIgnoreCase(exchange.getRequestMethod())) {
@@ -27,7 +30,8 @@ public class HttpRemoteSyncUploadServer implements HttpHandler {
         } catch (IllegalArgumentException | IllegalStateException ex) {
             writeJsonResponse(exchange, 400, new JSONObject().put("message", ex.getMessage()).toString());
         } catch (SQLException ex) {
-            writeJsonResponse(exchange, 500, new JSONObject().put("message", ex.getMessage()).toString());
+            AppLog.addErrorLog(HttpRemoteSyncUploadServer.class, "Remote sync upload failed: " + ex.getMessage());
+            writeJsonResponse(exchange, 500, new JSONObject().put("message", REMOTE_SYNC_FAILED_MESSAGE).toString());
         }
     }
 }

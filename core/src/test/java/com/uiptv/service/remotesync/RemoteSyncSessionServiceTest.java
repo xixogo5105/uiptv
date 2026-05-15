@@ -88,6 +88,48 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
     }
 
     @Test
+    void exportSession_acceptUploadStoresGenericFailureMessage() throws Exception {
+        Path remoteDb = tempDir.resolve("remote-failure.db");
+        initializeDatabase(remoteDb);
+
+        RecordingNotifier notifier = new RecordingNotifier();
+        RemoteSyncSessionService service = new RemoteSyncSessionService(
+                snapshotService,
+                DatabaseSyncService.getInstance(),
+                Clock.systemUTC(),
+                (request, decisionConsumer) -> decisionConsumer.accept(true),
+                notifier
+        );
+
+        String sessionId = withDatabase(remoteDb, () -> service.createSession(
+                new RemoteSyncRequest(
+                        RemoteSyncDirection.EXPORT_TO_REMOTE,
+                        "2222",
+                        "machine-a",
+                        new RemoteSyncOptions(true, false)
+                ),
+                "10.0.0.8"
+        ).sessionId());
+
+        Path invalidSnapshot = tempDir.resolve("invalid-upload.db");
+        Files.writeString(invalidSnapshot, "not a sqlite database");
+
+        SQLException failure;
+        try (InputStream snapshotStream = Files.newInputStream(invalidSnapshot)) {
+            failure = assertThrows(
+                    SQLException.class,
+                    () -> withDatabase(remoteDb, () -> service.acceptUpload(sessionId, snapshotStream))
+            );
+        }
+
+        RemoteSyncSessionState failed = service.getSessionState(sessionId);
+        assertEquals(RemoteSyncStatus.FAILED, failed.status());
+        assertEquals("Remote database sync failed.", failed.message());
+        assertNotEquals(failure.getMessage(), failed.message());
+        assertTrue(notifier.infoMessages.contains("remoteSyncRemoteFailedMessage"));
+    }
+
+    @Test
     void importSession_preparesDownloadSnapshot_andCompletionCleansUp() throws Exception {
         Path remoteDb = tempDir.resolve("remote-import.db");
         Path targetDb = tempDir.resolve("import-target.db");
