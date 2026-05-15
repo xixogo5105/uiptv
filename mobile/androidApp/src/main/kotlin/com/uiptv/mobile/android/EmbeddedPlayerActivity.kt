@@ -610,13 +610,13 @@ class EmbeddedPlayerActivity : Activity() {
     }
 
     private fun buildStreamInfoLabel(): String {
-        val track = currentVideoTrack()
-        val resolution = if (track != null && track.width > 0 && track.height > 0) {
-            "${track.width}x${track.height}"
+        val video = currentVideoTrackDetails()
+        val resolution = if (video != null) {
+            video.resolutionLabel()
         } else {
             "Resolution pending"
         }
-        val codec = track?.codec
+        val codec = video?.codec
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             ?.uppercase()
@@ -624,22 +624,42 @@ class EmbeddedPlayerActivity : Activity() {
         return "$resolution | $codec | ${decoderModeLabel()}"
     }
 
-    private fun currentVideoTrack(): IMedia.VideoTrack? {
+    private fun currentVideoTrackDetails(): VideoTrackDetails? {
         val player = mediaPlayer ?: return null
         runCatching { player.currentVideoTrack }
             .getOrNull()
-            ?.takeIf { it.width > 0 || it.height > 0 || it.codec.isNotBlank() }
+            ?.toVideoTrackDetails()
+            ?.takeIf { it.hasUsefulInfo() }
             ?.let { return it }
         val media = runCatching { player.media }.getOrNull() ?: return null
         return runCatching {
+            var bestTrack: VideoTrackDetails? = null
             for (index in 0 until media.trackCount) {
                 val track = media.getTrack(index)
-                if (track is IMedia.VideoTrack && (track.width > 0 || track.height > 0 || track.codec.isNotBlank())) {
-                    return@runCatching track
+                if (track is IMedia.VideoTrack) {
+                    val details = track.toVideoTrackDetails()
+                    if (details.hasUsefulInfo() && (bestTrack == null || details.area > bestTrack.area)) {
+                        bestTrack = details
+                    }
                 }
             }
-            null
+            bestTrack
         }.getOrNull()
+    }
+
+    private fun IMedia.VideoTrack.toVideoTrackDetails(): VideoTrackDetails {
+        val sampleAspectRatio = if (sarNum > 0 && sarDen > 0) {
+            sarNum.toFloat() / sarDen.toFloat()
+        } else {
+            1f
+        }
+        val adjustedWidth = (width * sampleAspectRatio).roundToInt().coerceAtLeast(1)
+        val rotated = orientation == VideoOrientationLeftBottom || orientation == VideoOrientationRightTop
+        return if (rotated) {
+            VideoTrackDetails(displayWidth = height, displayHeight = adjustedWidth, codec = codec)
+        } else {
+            VideoTrackDetails(displayWidth = adjustedWidth, displayHeight = height, codec = codec)
+        }
     }
 
     private fun decoderModeLabel(): String {
@@ -751,6 +771,31 @@ class EmbeddedPlayerActivity : Activity() {
         val scaleType: MediaPlayer.ScaleType
     )
 
+    private data class VideoTrackDetails(
+        val displayWidth: Int,
+        val displayHeight: Int,
+        val codec: String
+    ) {
+        val area: Int = displayWidth.coerceAtLeast(0) * displayHeight.coerceAtLeast(0)
+
+        fun hasUsefulInfo(): Boolean =
+            displayWidth > 0 || displayHeight > 0 || codec.isNotBlank()
+
+        fun resolutionLabel(): String =
+            if (displayWidth > 0 && displayHeight > 0) {
+                val tier = when {
+                    displayWidth >= 3800 || displayHeight >= 2100 -> " 4K"
+                    displayWidth >= 2500 || displayHeight >= 1400 -> " QHD"
+                    displayWidth >= 1900 || displayHeight >= 1000 -> " FHD"
+                    displayWidth >= 1200 || displayHeight >= 700 -> " HD"
+                    else -> ""
+                }
+                "$displayWidth x $displayHeight$tier"
+            } else {
+                "Resolution pending"
+            }
+    }
+
     private enum class PlayerGesture {
         None,
         Brightness,
@@ -769,6 +814,8 @@ class EmbeddedPlayerActivity : Activity() {
         private const val MinimumBrightness = 0.05f
         private const val GestureSlopPx = 18f
         private const val TapSlopPx = 14f
+        private const val VideoOrientationLeftBottom = 1
+        private const val VideoOrientationRightTop = 3
         private const val LiveTimeLabel = "Live"
         private const val PlayIcon = "\u25B6"
         private const val PauseIcon = "\u23F8"

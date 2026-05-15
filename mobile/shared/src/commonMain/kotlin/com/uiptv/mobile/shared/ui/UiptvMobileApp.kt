@@ -63,11 +63,15 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Bookmarks
+import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -1937,7 +1941,8 @@ private fun AccountsScreen(
     var accountFeedback by remember { mutableStateOf<AccountFeedback?>(null) }
     var pendingDelete by remember { mutableStateOf<MobileAccount?>(null) }
     var editorVisible by remember { mutableStateOf(false) }
-    var pinFilter by remember { mutableStateOf(AccountPinFilter.ALL) }
+    var accountFilter by remember { mutableStateOf(AccountFilter.ALL) }
+    var actionsMenuExpanded by remember { mutableStateOf(false) }
 
     fun reload() {
         scope.launch {
@@ -2027,74 +2032,106 @@ private fun AccountsScreen(
         ) {
             item {
                 Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
-                        modifier = Modifier.semantics { contentDescription = "Create new account" },
-                        onClick = {
-                            editing = MobileAccount()
-                            selectedType = MobileAccountType.STALKER_PORTAL
-                            statusText = "New account"
-                            editorVisible = true
+                    LazyRow(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(AccountFilter.entries, key = { it.name }) { filter ->
+                            FilterChip(
+                                selected = accountFilter == filter,
+                                onClick = { accountFilter = filter },
+                                leadingIcon = if (filter == AccountFilter.PINNED) {
+                                    {
+                                        Icon(
+                                            Icons.Outlined.PushPin,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                                label = { Text(filter.label) }
+                            )
                         }
-                    ) {
-                        Text("New")
                     }
-                    Button(
-                        modifier = Modifier.semantics { contentDescription = "Reload accounts" },
-                        enabled = !running,
-                        onClick = { reload() }
-                    ) {
-                        Text("Reload")
-                    }
-                    Button(
-                        modifier = Modifier.semantics { contentDescription = "Clear all cached channels" },
-                        enabled = !running,
-                        onClick = {
-                            enqueueCacheJob(CacheRefreshJobRequest(CacheRefreshAction.CLEAR_ALL_CACHE), "Queued clear all cache")
+                    Box {
+                        IconButton(
+                            modifier = Modifier.semantics { contentDescription = "Account page actions" },
+                            enabled = !running,
+                            onClick = { actionsMenuExpanded = true }
+                        ) {
+                            Icon(Icons.Outlined.MoreVert, contentDescription = null)
                         }
-                    ) {
-                        Text("Clear All")
-                    }
-                    Button(
-                        modifier = Modifier.semantics { contentDescription = "Refresh all account caches" },
-                        enabled = !running,
-                        onClick = {
-                            enqueueCacheJob(CacheRefreshJobRequest(CacheRefreshAction.REFRESH_ALL), "Queued refresh all")
-                        }
-                    ) {
-                        Text("Refresh All")
-                    }
-                    AccountPinFilter.entries.forEach { filter ->
-                        FilterChip(
-                            selected = pinFilter == filter,
-                            onClick = { pinFilter = filter },
-                            leadingIcon = if (filter == AccountPinFilter.PINNED) {
-                                {
-                                    Icon(
-                                        Icons.Outlined.PushPin,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
+                        DropdownMenu(
+                            expanded = actionsMenuExpanded,
+                            onDismissRequest = { actionsMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                leadingIcon = {
+                                    Icon(Icons.Outlined.Add, contentDescription = null)
+                                },
+                                text = { Text("New account") },
+                                onClick = {
+                                    actionsMenuExpanded = false
+                                    editing = MobileAccount()
+                                    selectedType = MobileAccountType.STALKER_PORTAL
+                                    statusText = "New account"
+                                    editorVisible = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                leadingIcon = {
+                                    Icon(Icons.Outlined.Refresh, contentDescription = null)
+                                },
+                                text = { Text("Reload accounts") },
+                                onClick = {
+                                    actionsMenuExpanded = false
+                                    reload()
+                                }
+                            )
+                            DropdownMenuItem(
+                                leadingIcon = {
+                                    Icon(Icons.Outlined.DeleteSweep, contentDescription = null)
+                                },
+                                text = { Text("Clear all cache") },
+                                onClick = {
+                                    actionsMenuExpanded = false
+                                    enqueueCacheJob(
+                                        CacheRefreshJobRequest(CacheRefreshAction.CLEAR_ALL_CACHE),
+                                        "Queued clear all cache"
                                     )
                                 }
-                            } else {
-                                null
-                            },
-                            label = { Text(filter.label) }
-                        )
+                            )
+                            DropdownMenuItem(
+                                leadingIcon = {
+                                    Icon(Icons.Outlined.Sync, contentDescription = null)
+                                },
+                                text = { Text("Refresh all caches") },
+                                onClick = {
+                                    actionsMenuExpanded = false
+                                    enqueueCacheJob(
+                                        CacheRefreshJobRequest(CacheRefreshAction.REFRESH_ALL),
+                                        "Queued refresh all"
+                                    )
+                                }
+                            )
+                        }
                     }
                 }
             }
-            val visibleAccounts = accounts.filter(pinFilter::matches)
+            val visibleAccounts = accounts.filter(accountFilter::matches)
             if (visibleAccounts.isEmpty()) {
                 item {
                     EmptyState(
-                        title = if (accounts.isEmpty()) "No accounts" else "No ${pinFilter.emptyLabel} accounts",
+                        title = if (accounts.isEmpty()) "No accounts" else "No ${accountFilter.emptyLabel} accounts",
                         detail = if (accounts.isEmpty()) {
                             "Create an account here or pull accounts from desktop sync."
                         } else {
-                            "Change the account filter or edit an account pin setting."
+                            "Change the account filter or edit account details."
                         }
                     )
                 }
@@ -2998,16 +3035,20 @@ private fun MobileAccountType?.browseModesForAccount(): List<BrowseMode> =
         else -> listOf(BrowseMode.LIVE)
     }
 
-private enum class AccountPinFilter(val label: String, val emptyLabel: String) {
+private enum class AccountFilter(val label: String, val emptyLabel: String) {
     ALL("All", ""),
     PINNED("Pinned", "pinned"),
-    UNPINNED("Unpinned", "unpinned");
+    STALKER("Stalker", "stalker"),
+    XTREME("Xtreme", "xtreme"),
+    M3U("M3U", "m3u");
 
     fun matches(account: MobileAccount): Boolean =
         when (this) {
             ALL -> true
             PINNED -> account.pinToTop
-            UNPINNED -> !account.pinToTop
+            STALKER -> account.type == MobileAccountType.STALKER_PORTAL
+            XTREME -> account.type == MobileAccountType.XTREME_API
+            M3U -> account.type == MobileAccountType.M3U8_URL || account.type == MobileAccountType.M3U8_LOCAL
         }
 }
 
