@@ -93,6 +93,8 @@ class EmbeddedPlayerActivity : Activity() {
     private var startupVolumeFallbackApplied = false
     private var touchStartX = 0f
     private var touchStartY = 0f
+    private var twoFingerStartX = 0f
+    private var twoFingerStartY = 0f
     private var initialBrightness = DefaultBrightness
     private var initialVolume = 0
     private var activeGesture = PlayerGesture.None
@@ -345,7 +347,31 @@ class EmbeddedPlayerActivity : Activity() {
                 return true
             }
 
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (event.pointerCount >= 2) {
+                    twoFingerStartX = twoFingerCenterX(event)
+                    twoFingerStartY = twoFingerCenterY(event)
+                    activeGesture = PlayerGesture.Zoom
+                    controlsOverlay.visibility = View.GONE
+                    controlsVisible = false
+                    overlayHandler.removeCallbacks(hideControlsRunnable)
+                }
+                return true
+            }
+
             MotionEvent.ACTION_MOVE -> {
+                if (activeGesture == PlayerGesture.Zoom) {
+                    handleTwoFingerZoomGesture(event)
+                    return true
+                }
+                if (event.pointerCount >= 2) {
+                    twoFingerStartX = twoFingerCenterX(event)
+                    twoFingerStartY = twoFingerCenterY(event)
+                    activeGesture = PlayerGesture.Zoom
+                    controlsOverlay.visibility = View.GONE
+                    controlsVisible = false
+                    return true
+                }
                 val dx = event.x - touchStartX
                 val dy = event.y - touchStartY
                 if (activeGesture == PlayerGesture.None) {
@@ -364,6 +390,7 @@ class EmbeddedPlayerActivity : Activity() {
                 when (activeGesture) {
                     PlayerGesture.Brightness -> setBrightness(initialBrightness + delta)
                     PlayerGesture.Volume -> setVolumeLevel(initialVolume + (delta * maxMusicVolume()).roundToInt())
+                    PlayerGesture.Zoom -> Unit
                     PlayerGesture.None -> Unit
                 }
                 return true
@@ -385,6 +412,32 @@ class EmbeddedPlayerActivity : Activity() {
         }
         return true
     }
+
+    private fun handleTwoFingerZoomGesture(event: MotionEvent) {
+        if (event.pointerCount < 2) {
+            return
+        }
+        val centerX = twoFingerCenterX(event)
+        val centerY = twoFingerCenterY(event)
+        val dx = centerX - twoFingerStartX
+        val dy = centerY - twoFingerStartY
+        if (abs(dx) < dp(TwoFingerZoomSlopDp) || abs(dx) <= abs(dy)) {
+            return
+        }
+        if (dx > 0f) {
+            applyZoomMode(FillZoomModeIndex)
+        } else {
+            applyZoomMode(DefaultZoomModeIndex)
+        }
+        twoFingerStartX = centerX
+        twoFingerStartY = centerY
+    }
+
+    private fun twoFingerCenterX(event: MotionEvent): Float =
+        (event.getX(0) + event.getX(1)) / 2f
+
+    private fun twoFingerCenterY(event: MotionEvent): Float =
+        (event.getY(0) + event.getY(1)) / 2f
 
     private fun createControlsOverlay(): LinearLayout {
         val title = TextView(this).apply {
@@ -807,7 +860,11 @@ class EmbeddedPlayerActivity : Activity() {
     }
 
     private fun cycleZoomMode() {
-        zoomModeIndex = (zoomModeIndex + 1) % zoomModes.size
+        applyZoomMode((zoomModeIndex + 1) % zoomModes.size)
+    }
+
+    private fun applyZoomMode(index: Int) {
+        zoomModeIndex = index.coerceIn(zoomModes.indices)
         val mode = zoomModes[zoomModeIndex]
         mediaPlayer?.setVideoScale(mode.scaleType)
         zoomButton.text = mode.label
@@ -1062,10 +1119,13 @@ class EmbeddedPlayerActivity : Activity() {
     private enum class PlayerGesture {
         None,
         Brightness,
-        Volume
+        Volume,
+        Zoom
     }
 
     private companion object {
+        private const val DefaultZoomModeIndex = 0
+        private const val FillZoomModeIndex = 1
         private const val ControlsAutoHideMs = 3_500L
         private const val GestureFeedbackMs = 900L
         private const val ProgressUpdateMs = 1_000L
@@ -1085,6 +1145,7 @@ class EmbeddedPlayerActivity : Activity() {
         private const val DefaultBrightness = 0.50f
         private const val MinimumBrightness = 0.05f
         private const val GestureSlopPx = 18f
+        private const val TwoFingerZoomSlopDp = 56
         private const val TapSlopPx = 14f
         private const val UnknownTrackId = -1
         private const val VideoOrientationLeftBottom = 1
