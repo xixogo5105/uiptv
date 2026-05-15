@@ -40,7 +40,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
@@ -52,9 +51,6 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -66,7 +62,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
@@ -430,7 +425,6 @@ private fun ChannelsScreen(
     var browseSeriesEpisodes by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
     var pendingEpisodeMenu by remember { mutableStateOf<MobileWatchingNowEpisode?>(null) }
     var searchVisible by remember { mutableStateOf(false) }
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
 
     fun reload(
         accountId: Long? = requestedAccountId ?: snapshot.selectedAccountId,
@@ -488,6 +482,8 @@ private fun ChannelsScreen(
     val visibleCategories = snapshot.categories.filter { category ->
         categoryQuery.isBlank() || category.title.contains(categoryQuery.trim(), ignoreCase = true)
     }
+    val currentTitle = selectedCategory?.title ?: "${mode.displayLabel()} Categories"
+    val screenTitle = "$selectedAccountName - $currentTitle"
     val browseSeries = selectedBrowseSeries
     if (browseSeries != null) {
         backHandler(true) {
@@ -673,66 +669,6 @@ private fun ChannelsScreen(
         backToCategories()
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = DeepNightSurface,
-                drawerContentColor = DeepNightText
-            ) {
-                Text(
-                    "Categories",
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                OutlinedTextField(
-                    value = categoryQuery,
-                    onValueChange = { categoryQuery = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    singleLine = true,
-                    label = { Text("Search categories") },
-                    colors = darkTextFieldColors()
-                )
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (visibleCategories.isEmpty()) {
-                        item {
-                            EmptyState(
-                                title = if (snapshot.categories.isEmpty()) "No ${mode.displayLabel()} categories" else "No categories match",
-                                detail = if (snapshot.categories.isEmpty()) "Refresh this account cache after adding or syncing it." else "Try a shorter search term."
-                            )
-                        }
-                    }
-                    items(visibleCategories, key = { it.rowId }) { category ->
-                        NavigationDrawerItem(
-                            label = {
-                                Text(
-                                    "${category.title}  ${category.itemCount}",
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            },
-                            selected = category.rowId == selectedCategoryRowId,
-                            onClick = {
-                                selectedCategoryRowId = category.rowId
-                                channelQuery = ""
-                                reload(snapshot.selectedAccountId, category.rowId, "")
-                                scope.launch { drawerState.close() }
-                            }
-                        )
-                    }
-                }
-            }
-        },
-        gesturesEnabled = true
-    ) {
         BoxWithConstraints(modifier = modifier.fillMaxSize()) {
             val compactChrome = maxWidth > maxHeight
             Scaffold(
@@ -748,24 +684,26 @@ private fun ChannelsScreen(
                                 actionIconContentColor = DeepNightPrimary
                             ),
                             navigationIcon = {
-                                IconButton(
-                                    modifier = Modifier.semantics {
-                                        contentDescription = if (showingChannelList) "Back to categories" else "Open categories"
-                                    },
-                                    onClick = {
-                                        if (showingChannelList) {
-                                            backToCategories()
-                                        } else {
-                                            scope.launch { drawerState.open() }
+                                if (showingChannelList || onBackToAccounts != null) {
+                                    IconButton(
+                                        modifier = Modifier.semantics {
+                                            contentDescription = if (showingChannelList) "Back to categories" else "Back to accounts"
+                                        },
+                                        onClick = {
+                                            if (showingChannelList) {
+                                                backToCategories()
+                                            } else {
+                                                onBackToAccounts?.invoke()
+                                            }
                                         }
+                                    ) {
+                                        Text("←", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                                     }
-                                ) {
-                                    Text(if (showingChannelList) "←" else "≡", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                                 }
                             },
                             title = {
                                 Text(
-                                    selectedCategory?.title ?: "${mode.displayLabel()} Categories",
+                                    screenTitle,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     style = MaterialTheme.typography.titleMedium,
@@ -773,8 +711,9 @@ private fun ChannelsScreen(
                                 )
                             },
                             actions = {
+                                val searchDescription = if (selectedCategoryRowId == null) "Search categories" else "Search channels"
                                 IconButton(
-                                    modifier = Modifier.semantics { contentDescription = "Search channels" },
+                                    modifier = Modifier.semantics { contentDescription = searchDescription },
                                     onClick = { searchVisible = !searchVisible }
                                 ) {
                                     Text(if (searchVisible) "X" else "⌕", fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -795,15 +734,22 @@ private fun ChannelsScreen(
                 ) {
                     if (compactChrome) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (showingChannelList) {
+                            if (showingChannelList || onBackToAccounts != null) {
                                 item {
-                                    CompactChromeIcon("←", "Back to categories") {
-                                        backToCategories()
+                                    CompactChromeIcon("←", if (showingChannelList) "Back to categories" else "Back to accounts") {
+                                        if (showingChannelList) {
+                                            backToCategories()
+                                        } else {
+                                            onBackToAccounts?.invoke()
+                                        }
                                     }
                                 }
                             }
                             item {
-                                CompactChromeIcon(if (searchVisible) "X" else "⌕", "Search channels") {
+                                CompactChromeIcon(
+                                    if (searchVisible) "X" else "⌕",
+                                    if (selectedCategoryRowId == null) "Search categories" else "Search channels"
+                                ) {
                                     searchVisible = !searchVisible
                                 }
                             }
@@ -1011,7 +957,6 @@ private fun ChannelsScreen(
                 }
             }
         }
-    }
     }
 
     PlaybackPickerDialog(
@@ -3219,6 +3164,8 @@ private fun AccountsScreen(
     var pendingDelete by remember { mutableStateOf<MobileAccount?>(null) }
     var editorVisible by remember { mutableStateOf(false) }
     var accountFilter by remember { mutableStateOf(AccountFilter.ALL) }
+    var accountSearchVisible by remember { mutableStateOf(false) }
+    var accountSearchQuery by remember { mutableStateOf("") }
     var actionsMenuExpanded by remember { mutableStateOf(false) }
 
     fun reload() {
@@ -3335,6 +3282,13 @@ private fun AccountsScreen(
                             )
                         }
                     }
+                    IconButton(
+                        modifier = Modifier.semantics { contentDescription = "Search accounts" },
+                        enabled = !running,
+                        onClick = { accountSearchVisible = !accountSearchVisible }
+                    ) {
+                        Icon(Icons.Outlined.Search, contentDescription = null)
+                    }
                     Box {
                         IconButton(
                             modifier = Modifier.semantics { contentDescription = "Account page actions" },
@@ -3400,13 +3354,41 @@ private fun AccountsScreen(
                     }
                 }
             }
-            val visibleAccounts = accounts.filter(accountFilter::matches)
+            if (accountSearchVisible) {
+                item {
+                    OutlinedTextField(
+                        value = accountSearchQuery,
+                        onValueChange = { accountSearchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Search accounts") },
+                        colors = darkTextFieldColors()
+                    )
+                }
+            }
+            val visibleAccounts = accounts
+                .filter(accountFilter::matches)
+                .filter { account ->
+                    val query = if (accountSearchVisible) accountSearchQuery.trim() else ""
+                    query.isBlank() ||
+                        account.accountName.contains(query, ignoreCase = true) ||
+                        account.url.contains(query, ignoreCase = true) ||
+                        account.username.contains(query, ignoreCase = true) ||
+                        account.macAddress.contains(query, ignoreCase = true)
+                }
             if (visibleAccounts.isEmpty()) {
+                val searchingAccounts = accountSearchVisible && accountSearchQuery.isNotBlank()
                 item {
                     EmptyState(
-                        title = if (accounts.isEmpty()) "No accounts" else "No ${accountFilter.emptyLabel} accounts",
+                        title = when {
+                            accounts.isEmpty() -> "No accounts"
+                            searchingAccounts -> "No account matches"
+                            else -> "No ${accountFilter.emptyLabel} accounts"
+                        },
                         detail = if (accounts.isEmpty()) {
                             "Create an account here or pull accounts from desktop sync."
+                        } else if (searchingAccounts) {
+                            "Try a shorter search term."
                         } else {
                             "Change the account filter or edit account details."
                         }
