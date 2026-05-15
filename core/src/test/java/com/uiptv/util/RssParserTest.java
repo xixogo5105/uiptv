@@ -10,6 +10,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,8 +33,15 @@ class RssParserTest {
             feedReader.when(() -> RssFeedReader.getItems("rss://feed")).thenReturn(List.of(
                     new RssFeedReader.RssItem("Title One", "https://stream.test/one.mp4", "desc")
             ));
+            Locale originalLocale = Locale.getDefault();
+            Locale.setDefault(Locale.forLanguageTag("ar-SA"));
 
-            List<PlaylistEntry> entries = RssParser.parse("rss://feed");
+            List<PlaylistEntry> entries;
+            try {
+                entries = RssParser.parse("rss://feed");
+            } finally {
+                Locale.setDefault(originalLocale);
+            }
 
             assertEquals(1, entries.size());
             assertEquals("Title One", entries.getFirst().getTitle());

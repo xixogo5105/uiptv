@@ -9,6 +9,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
@@ -26,7 +27,7 @@ public class RssParser {
         List<PlaylistEntry> playlistEntries = new ArrayList<>();
         try {
             for (RssFeedReader.RssItem item : RssFeedReader.getItems(rssUrl)) {
-                String lUUID = String.format("%040d", new BigInteger(UUID.randomUUID().toString().replace("-", ""), 16));
+                String lUUID = String.format(Locale.ROOT, "%040d", new BigInteger(UUID.randomUUID().toString().replace("-", ""), 16));
 
                 String title = StringUtils.safeUtf(item.getTitle());
                 playlistEntries.add(new PlaylistEntry(

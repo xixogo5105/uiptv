@@ -52,6 +52,8 @@ public final class I18n {
 
     private static final Object LOCK = new Object();
     private static final Pattern TOKEN_ARTIFACT_PATTERN = Pattern.compile("(?:__\\s*T\\s*K\\d+_+|__\\d+__|ForTK\\d+__)");
+    private static final ResourceBundle.Control NO_FALLBACK_CONTROL =
+            ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_DEFAULT);
     
     private static Locale currentLocale = Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG);
     private static ResourceBundle bundle = loadBundle(currentLocale);
@@ -200,7 +202,11 @@ public final class I18n {
                 return bundle.getString(key);
             }
             try {
-                ResourceBundle fallbackBundle = ResourceBundle.getBundle(BUNDLE_BASE_NAME, Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG), I18n.class.getClassLoader());
+                ResourceBundle fallbackBundle = ResourceBundle.getBundle(
+                        BUNDLE_BASE_NAME,
+                        Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG),
+                        I18n.class.getClassLoader(),
+                        NO_FALLBACK_CONTROL);
                 if (fallbackBundle != null && fallbackBundle.containsKey(key)) {
                     return fallbackBundle.getString(key);
                 }
@@ -254,13 +260,16 @@ public final class I18n {
 
     private static ResourceBundle loadBundle(Locale locale) {
         try {
-            return ResourceBundle.getBundle(BUNDLE_BASE_NAME, locale, I18n.class.getClassLoader());
+            return ResourceBundle.getBundle(BUNDLE_BASE_NAME, locale, I18n.class.getClassLoader(), NO_FALLBACK_CONTROL);
         } catch (MissingResourceException _) {
             try {
-                return ResourceBundle.getBundle(BUNDLE_BASE_NAME, locale);
+                return ResourceBundle.getBundle(BUNDLE_BASE_NAME, locale, NO_FALLBACK_CONTROL);
             } catch (MissingResourceException _) {
                 try {
-                    return ResourceBundle.getBundle(BUNDLE_BASE_NAME, Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG));
+                    return ResourceBundle.getBundle(
+                            BUNDLE_BASE_NAME,
+                            Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG),
+                            NO_FALLBACK_CONTROL);
                 } catch (MissingResourceException _) {
                     return null;
                 }
