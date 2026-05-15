@@ -3,6 +3,7 @@ package com.uiptv.mobile.android
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -20,6 +21,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
 import com.uiptv.mobile.shared.browse.BrowseMode
@@ -40,6 +42,7 @@ class EmbeddedPlayerActivity : Activity() {
     private lateinit var videoLayout: VLCVideoLayout
     private lateinit var controlsOverlay: LinearLayout
     private lateinit var feedbackView: TextView
+    private lateinit var loadingSpinner: ProgressBar
     private lateinit var messageView: TextView
     private lateinit var playPauseButton: TextView
     private lateinit var progressSeekBar: SeekBar
@@ -109,6 +112,11 @@ class EmbeddedPlayerActivity : Activity() {
             gravity = Gravity.CENTER
             visibility = View.GONE
         }
+        loadingSpinner = ProgressBar(this, null, android.R.attr.progressBarStyleLarge).apply {
+            isIndeterminate = true
+            indeterminateTintList = ColorStateList.valueOf(Color.rgb(79, 216, 235))
+            visibility = View.GONE
+        }
         controlsOverlay = createControlsOverlay()
         rootLayout = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
@@ -123,6 +131,10 @@ class EmbeddedPlayerActivity : Activity() {
             addView(
                 feedbackView,
                 FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
+            )
+            addView(
+                loadingSpinner,
+                FrameLayout.LayoutParams(dp(58), dp(58), Gravity.CENTER)
             )
             addView(
                 messageView,
@@ -150,9 +162,23 @@ class EmbeddedPlayerActivity : Activity() {
         val createdPlayer = MediaPlayer(createdLibVlc).apply {
             setEventListener { event ->
                 when (event.type) {
+                    MediaPlayer.Event.Opening -> {
+                        runOnUiThread { showLoading() }
+                    }
+                    MediaPlayer.Event.Buffering -> {
+                        val buffering = event.buffering
+                        runOnUiThread {
+                            if (buffering < 100f) {
+                                showLoading()
+                            } else if (isPlaying) {
+                                hideLoading()
+                            }
+                        }
+                    }
                     MediaPlayer.Event.Playing -> {
                         playbackStarted = true
                         runOnUiThread {
+                            hideLoading()
                             messageView.visibility = View.GONE
                             updatePlayPauseButton()
                         }
@@ -160,10 +186,16 @@ class EmbeddedPlayerActivity : Activity() {
                     MediaPlayer.Event.Paused,
                     MediaPlayer.Event.Stopped,
                     MediaPlayer.Event.EndReached -> {
-                        runOnUiThread { updatePlayPauseButton() }
+                        runOnUiThread {
+                            hideLoading()
+                            updatePlayPauseButton()
+                        }
                     }
                     MediaPlayer.Event.EncounteredError -> {
-                        runOnUiThread { showMessage("Embedded player could not open this stream.") }
+                        runOnUiThread {
+                            hideLoading()
+                            showMessage("Embedded player could not open this stream.")
+                        }
                     }
                 }
             }
@@ -231,6 +263,7 @@ class EmbeddedPlayerActivity : Activity() {
             createdPlayer.attachViews(videoLayout, null, false, false)
             attached = true
         }
+        showLoading()
         val media = Media(createdLibVlc, Uri.parse(streamUrl)).apply {
             setHWDecoderEnabled(true, false)
             addOption(":http-reconnect")
@@ -548,6 +581,18 @@ class EmbeddedPlayerActivity : Activity() {
         feedbackView.visibility = View.VISIBLE
         overlayHandler.removeCallbacks(hideFeedbackRunnable)
         overlayHandler.postDelayed(hideFeedbackRunnable, durationMs)
+    }
+
+    private fun showLoading() {
+        if (::loadingSpinner.isInitialized) {
+            loadingSpinner.visibility = View.VISIBLE
+        }
+    }
+
+    private fun hideLoading() {
+        if (::loadingSpinner.isInitialized) {
+            loadingSpinner.visibility = View.GONE
+        }
     }
 
     private fun roundedBackground(color: Int, radius: Int, strokeColor: Int? = null): GradientDrawable =
