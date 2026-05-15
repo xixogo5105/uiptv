@@ -329,6 +329,7 @@ class AndroidSQLiteBrowseRepository(
         val items = loadVodWatchingNow(db) + loadSeriesWatchingNow(db)
         val normalizedQuery = query.trim()
         items
+            .distinctBy { it.watchingNowIdentityKey() }
             .filter {
                 normalizedQuery.isBlank() ||
                     it.title.contains(normalizedQuery, ignoreCase = true) ||
@@ -821,7 +822,7 @@ class AndroidSQLiteBrowseRepository(
         }
         val watchStateKeys = fromWatchState.map { "${it.accountId}|${it.categoryProviderId}|${it.contentId}" }.toSet()
         val snapshotOnly = loadSeriesSnapshotWatchingNowRows(db, watchStateKeys)
-        return fromWatchState + snapshotOnly
+        return (fromWatchState + snapshotOnly).distinctBy { it.watchingNowIdentityKey() }
     }
 
     private fun loadSeriesSnapshotWatchingNowRows(
@@ -1396,6 +1397,11 @@ class AndroidSQLiteBrowseRepository(
 
     private fun firstNonBlank(vararg values: String): String =
         values.firstOrNull { it.isNotBlank() }?.trim().orEmpty()
+
+    private fun MobileWatchingNowItem.watchingNowIdentityKey(): String {
+        val contentKey = contentId.ifBlank { rowId.toString() }
+        return "${mode.name}|$accountId|$categoryProviderId|$contentKey"
+    }
 
     private fun Cursor.string(column: String): String {
         val index = getColumnIndexOrThrow(column)

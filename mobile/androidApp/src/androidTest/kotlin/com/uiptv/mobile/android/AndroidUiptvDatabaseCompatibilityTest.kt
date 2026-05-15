@@ -355,6 +355,7 @@ class AndroidUiptvDatabaseCompatibilityTest {
         db.execSQL("INSERT INTO Channel(id, channelId, categoryId, name, number, cmd, hd) VALUES(1202, 'n1', '1102', 'News One HD', '1', 'https://stream.test/news', 1)")
         db.execSQL("INSERT INTO VodWatchState(id, accountId, categoryId, vodId, vodName, vodCmd, vodLogo, updatedAt) VALUES(1301, ?, 'movies', 'm1', 'Resume Movie', 'https://stream.test/movie', '', 99)", arrayOf(accountId.toString()))
         db.execSQL("INSERT INTO SeriesWatchingNowSnapshot(id, accountId, categoryId, seriesId, seriesTitle, seriesPoster, updatedAt) VALUES(1401, ?, 'series', 's1', 'Resume Series', '', 100)", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesWatchingNowSnapshot(id, accountId, categoryId, seriesId, seriesTitle, seriesPoster, updatedAt) VALUES(1402, ?, 'series', 's1', 'Resume Series Duplicate', '', 98)", arrayOf(accountId.toString()))
 
         val repository = AndroidSQLiteBrowseRepository(helper)
         val snapshot = repository.loadBrowse(accountId, BrowseMode.LIVE, 1102, "News")

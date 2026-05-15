@@ -1593,7 +1593,7 @@ private fun WatchingNowScreen(
                 )
             }
         }
-        items(items, key = { "${it.mode}-${it.rowId}" }) { item ->
+        items(items, key = { it.stableWatchingNowKey() }) { item ->
             WatchingNowRow(
                 item = item,
                 showThumbnail = showThumbnails,
@@ -3747,6 +3747,11 @@ private fun MobileBrowseItem.toWatchingNowSeriesItem(): MobileWatchingNowItem =
         categoryRowId = categoryRowId,
         contentId = channelId
     )
+
+private fun MobileWatchingNowItem.stableWatchingNowKey(): String {
+    val contentKey = contentId.ifBlank { rowId.toString() }
+    return "${mode.name}-$accountId-$categoryProviderId-$contentKey-$rowId"
+}
 
 private fun AndroidPlayerPreference.playerLabel(): String =
     when (this) {
