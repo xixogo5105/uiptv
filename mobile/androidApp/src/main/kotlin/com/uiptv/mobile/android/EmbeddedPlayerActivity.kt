@@ -70,6 +70,7 @@ class EmbeddedPlayerActivity : Activity() {
         }
     }
     private var playbackStarted = false
+    private var streamLoadInProgress = false
     private var attached = false
     private var controlsVisible = false
     private var userSeeking = false
@@ -144,11 +145,6 @@ class EmbeddedPlayerActivity : Activity() {
         setContentView(rootLayout)
         enterImmersiveMode()
 
-        showFeedback(
-            "Swipe left side for brightness, right side for volume",
-            FeedbackDurationMs
-        )
-
         val options = arrayListOf(
             "--http-reconnect",
             "--network-caching=1500",
@@ -163,37 +159,42 @@ class EmbeddedPlayerActivity : Activity() {
             setEventListener { event ->
                 when (event.type) {
                     MediaPlayer.Event.Opening -> {
-                        runOnUiThread { showLoading() }
+                        runOnUiThread { keepLoadingVisible() }
                     }
                     MediaPlayer.Event.Buffering -> {
-                        val buffering = event.buffering
-                        runOnUiThread {
-                            if (buffering < 100f) {
-                                showLoading()
-                            } else if (isPlaying) {
-                                hideLoading()
-                            }
-                        }
+                        runOnUiThread { keepLoadingVisible() }
                     }
                     MediaPlayer.Event.Playing -> {
                         playbackStarted = true
                         runOnUiThread {
-                            hideLoading()
+                            keepLoadingVisible()
                             messageView.visibility = View.GONE
                             updatePlayPauseButton()
                         }
+                    }
+                    MediaPlayer.Event.Vout -> {
+                        runOnUiThread {
+                            if (event.voutCount > 0) {
+                                completeStreamLoading()
+                            } else {
+                                keepLoadingVisible()
+                            }
+                        }
+                    }
+                    MediaPlayer.Event.TimeChanged -> {
+                        runOnUiThread { completeStreamLoadingIfClockStarted(event.timeChanged) }
                     }
                     MediaPlayer.Event.Paused,
                     MediaPlayer.Event.Stopped,
                     MediaPlayer.Event.EndReached -> {
                         runOnUiThread {
-                            hideLoading()
+                            completeStreamLoading()
                             updatePlayPauseButton()
                         }
                     }
                     MediaPlayer.Event.EncounteredError -> {
                         runOnUiThread {
-                            hideLoading()
+                            completeStreamLoading()
                             showMessage("Embedded player could not open this stream.")
                         }
                     }
@@ -263,7 +264,7 @@ class EmbeddedPlayerActivity : Activity() {
             createdPlayer.attachViews(videoLayout, null, false, false)
             attached = true
         }
-        showLoading()
+        beginStreamLoading()
         val media = Media(createdLibVlc, Uri.parse(streamUrl)).apply {
             setHWDecoderEnabled(true, false)
             addOption(":http-reconnect")
@@ -477,6 +478,7 @@ class EmbeddedPlayerActivity : Activity() {
         }
         val length = player.length
         val current = player.time.coerceAtLeast(0L)
+        completeStreamLoadingIfClockStarted(current)
         if (length > 0L) {
             progressSeekBar.isEnabled = true
             if (!userSeeking) {
@@ -583,6 +585,28 @@ class EmbeddedPlayerActivity : Activity() {
         overlayHandler.postDelayed(hideFeedbackRunnable, durationMs)
     }
 
+    private fun beginStreamLoading() {
+        streamLoadInProgress = true
+        showLoading()
+    }
+
+    private fun keepLoadingVisible() {
+        if (streamLoadInProgress) {
+            showLoading()
+        }
+    }
+
+    private fun completeStreamLoadingIfClockStarted(timeMs: Long) {
+        if (streamLoadInProgress && timeMs > 0L) {
+            completeStreamLoading()
+        }
+    }
+
+    private fun completeStreamLoading() {
+        streamLoadInProgress = false
+        hideLoading()
+    }
+
     private fun showLoading() {
         if (::loadingSpinner.isInitialized) {
             loadingSpinner.visibility = View.VISIBLE
@@ -660,7 +684,6 @@ class EmbeddedPlayerActivity : Activity() {
     private companion object {
         private const val ControlsAutoHideMs = 3_500L
         private const val GestureFeedbackMs = 900L
-        private const val FeedbackDurationMs = 2_200L
         private const val ProgressUpdateMs = 1_000L
         private const val ProgressBarMax = 1_000
         private const val SeekStepSeconds = 15
