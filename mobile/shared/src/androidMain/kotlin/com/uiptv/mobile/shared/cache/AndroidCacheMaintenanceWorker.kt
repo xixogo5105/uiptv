@@ -228,44 +228,64 @@ class AndroidCacheMaintenanceWorker(
             CacheRefreshAction.REFRESH_ALL -> {
                 val accounts = repository.listAccounts()
                     .filter { it.canRefreshCache }
-                var refreshed = 0
-                var skipped = 0
-                var failed = 0
-                val accountLogs = mutableListOf<String>()
+                val passedAccounts = mutableListOf<String>()
+                val skippedAccounts = mutableListOf<String>()
+                val failedAccounts = mutableListOf<String>()
                 for ((index, account) in accounts.withIndex()) {
                     if (isStopped) {
-                        skipped += accounts.size - index
-                        accountLogs += "Stopped before ${account.accountName}."
+                        skippedAccounts += accounts.drop(index).map { it.accountName }
                         break
                     }
                     setProgress(
                         workDataOf(
                             KEY_STATUS to CacheRefreshJobStatus.RUNNING.name,
                             KEY_PROGRESS to (10 + (index * 80 / accounts.size.coerceAtLeast(1))),
-                            KEY_MESSAGE to "Refreshing ${account.accountName}."
+                            KEY_MESSAGE to buildRefreshAllMessage(
+                                totalAccounts = accounts.size,
+                                currentAccount = account.accountName,
+                                passedAccounts = passedAccounts,
+                                skippedAccounts = skippedAccounts,
+                                failedAccounts = failedAccounts,
+                                complete = false
+                            )
                         )
                     )
                     val result = refreshAccount(account, m3uReloader, xtremeReloader, stalkerReloader)
-                    accountLogs += "${account.accountName}: ${result.status.name.lowercase()} - ${result.message}"
                     when (result.status) {
-                        CacheRefreshJobStatus.SUCCEEDED -> refreshed++
-                        CacheRefreshJobStatus.SKIPPED -> skipped++
-                        CacheRefreshJobStatus.FAILED -> failed++
+                        CacheRefreshJobStatus.SUCCEEDED -> passedAccounts += account.accountName
+                        CacheRefreshJobStatus.SKIPPED -> skippedAccounts += account.accountName
+                        CacheRefreshJobStatus.FAILED -> failedAccounts += account.accountName
                         CacheRefreshJobStatus.QUEUED,
                         CacheRefreshJobStatus.RUNNING -> Unit
                     }
+                    setProgress(
+                        workDataOf(
+                            KEY_STATUS to CacheRefreshJobStatus.RUNNING.name,
+                            KEY_PROGRESS to (10 + (((index + 1) * 80) / accounts.size.coerceAtLeast(1))),
+                            KEY_MESSAGE to buildRefreshAllMessage(
+                                totalAccounts = accounts.size,
+                                currentAccount = null,
+                                passedAccounts = passedAccounts,
+                                skippedAccounts = skippedAccounts,
+                                failedAccounts = failedAccounts,
+                                complete = false
+                            )
+                        )
+                    )
                 }
+                val terminalStatus = if (isStopped) CacheRefreshJobStatus.SKIPPED else CacheRefreshJobStatus.SUCCEEDED
                 Result.success(
                     workDataOf(
-                        KEY_STATUS to CacheRefreshJobStatus.SUCCEEDED.name,
+                        KEY_STATUS to terminalStatus.name,
                         KEY_PROGRESS to 100,
-                        KEY_MESSAGE to buildString {
-                            append("Refresh complete: $refreshed refreshed, $skipped skipped, $failed failed.")
-                            if (accountLogs.isNotEmpty()) {
-                                append(" | ")
-                                append(accountLogs.joinToString(" | "))
-                            }
-                        }
+                        KEY_MESSAGE to buildRefreshAllMessage(
+                            totalAccounts = accounts.size,
+                            currentAccount = null,
+                            passedAccounts = passedAccounts,
+                            skippedAccounts = skippedAccounts,
+                            failedAccounts = failedAccounts,
+                            complete = true
+                        )
                     )
                 )
             }
@@ -316,6 +336,39 @@ class AndroidCacheMaintenanceWorker(
             KEY_PROGRESS to progress,
             KEY_MESSAGE to message
         )
+
+    private fun buildRefreshAllMessage(
+        totalAccounts: Int,
+        currentAccount: String?,
+        passedAccounts: List<String>,
+        skippedAccounts: List<String>,
+        failedAccounts: List<String>,
+        complete: Boolean
+    ): String {
+        val processed = passedAccounts.size + skippedAccounts.size + failedAccounts.size
+        return buildString {
+            if (complete) {
+                append("Refresh all complete: ${passedAccounts.size} passed, ${skippedAccounts.size} skipped, ${failedAccounts.size} failed.")
+            } else {
+                append("Refresh all running: $processed/$totalAccounts accounts checked.")
+            }
+            if (!currentAccount.isNullOrBlank()) {
+                append('\n').append("Current account: ").append(currentAccount)
+            }
+            append('\n').append("Accounts passed: ").append(passedAccounts.formatAccountList())
+            append('\n').append("Accounts skipped: ").append(skippedAccounts.formatAccountList())
+            append('\n').append("Accounts failed: ").append(failedAccounts.formatAccountList())
+        }
+    }
+
+    private fun List<String>.formatAccountList(maxShown: Int = 40): String {
+        if (isEmpty()) {
+            return "None"
+        }
+        val shown = take(maxShown)
+        val suffix = if (size > shown.size) ", and ${size - shown.size} more" else ""
+        return shown.joinToString(", ") + suffix
+    }
 }
 
 const val KEY_ACTION = "action"

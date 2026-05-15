@@ -62,6 +62,7 @@ class AndroidUiptvDatabaseCompatibilityTest {
             }
 
         assertEquals(expectedMigrationCount, db.countRows("schema_migrations", "status = 'success'"))
+        assertEquals(UiptvSyncSchema.configurationColumns.toSet(), db.tableColumns("Configuration").toSet())
         assertTrue(db.tableColumns("Configuration").containsAll(UiptvSyncSchema.androidPortableConfigurationColumns))
     }
 
@@ -75,19 +76,24 @@ class AndroidUiptvDatabaseCompatibilityTest {
                 source.execSQL("CREATE TABLE Bookmark(id INTEGER PRIMARY KEY, accountName TEXT, channelId TEXT, channelName TEXT)")
                 source.execSQL("CREATE TABLE BookmarkCategory(id INTEGER PRIMARY KEY, name TEXT)")
                 source.execSQL("CREATE TABLE BookmarkOrder(id INTEGER PRIMARY KEY, bookmark_db_id TEXT, category_id TEXT, display_order INTEGER)")
+                source.execSQL("CREATE TABLE Configuration(id INTEGER PRIMARY KEY, defaultPlayerPath TEXT, embeddedPlayer TEXT, filterCategoriesList TEXT, filterChannelsList TEXT, pauseFiltering TEXT, cacheExpiryDays TEXT, enableThumbnails TEXT, publishedM3uCategoryMode TEXT, filterLockUnlockDurationMinutes TEXT)")
                 source.execSQL("INSERT INTO Account(id, accountName, type, futureDesktopColumn) VALUES(7, 'Desktop Account', 'M3U8_URL', 'ignored')")
                 source.execSQL("INSERT INTO AccountInfo(id, accountId, expireDate) VALUES(8, '7', '1893456000')")
                 source.execSQL("INSERT INTO Bookmark(id, accountName, channelId, channelName) VALUES(9, 'Desktop Account', 'c1', 'News One')")
                 source.execSQL("INSERT INTO BookmarkCategory(id, name) VALUES(10, 'News')")
                 source.execSQL("INSERT INTO BookmarkOrder(id, bookmark_db_id, category_id, display_order) VALUES(11, '9', '10', 1)")
+                source.execSQL("INSERT INTO Configuration(id, defaultPlayerPath, embeddedPlayer, filterCategoriesList, filterChannelsList, pauseFiltering, cacheExpiryDays, enableThumbnails, publishedM3uCategoryMode, filterLockUnlockDurationMinutes) VALUES(1, '/desktop/player', '1', 'sports,news', 'kids', '1', '9', '1', 'ALL', '30')")
             }
+            helper.writableDatabase.execSQL("INSERT INTO Configuration(id, defaultPlayerPath, embeddedPlayer, enableThumbnails) VALUES(1, 'mobile-player', '0', '0')")
 
             val report = AndroidSQLiteSnapshotSyncApplier(helper, context.cacheDir).apply(snapshot)
             val target = helper.writableDatabase
 
-            assertEquals(5, report.totalRowsSynced)
+            assertEquals(6, report.totalRowsSynced)
             assertEquals(1, target.countRows("Account", "id = 7 AND accountName = 'Desktop Account' AND type = 'M3U8_URL'"))
             assertEquals(1, target.countRows("Bookmark", "id = 9 AND channelName = 'News One'"))
+            assertEquals(1, target.countRows("Configuration", "filterCategoriesList = 'sports,news' AND filterChannelsList = 'kids' AND pauseFiltering = '1' AND cacheExpiryDays = '9' AND enableThumbnails = '1' AND publishedM3uCategoryMode = 'ALL' AND filterLockUnlockDurationMinutes = '30'"))
+            assertEquals(1, target.countRows("Configuration", "defaultPlayerPath = 'mobile-player' AND embeddedPlayer = '0'"))
             assertFalse(target.tableColumns("Account").contains("futureDesktopColumn"))
         } finally {
             snapshot.delete()
@@ -329,6 +335,16 @@ class AndroidUiptvDatabaseCompatibilityTest {
         assertEquals("https://stream.test/vod-1.m3u8", helper.writableDatabase.singleString("VodWatchState", "vodCmd", "accountId = '$accountId' AND vodId = 'vod-1'"))
         assertEquals(1, helper.writableDatabase.countRows("SeriesWatchingNowSnapshot", "accountId = '$accountId' AND seriesId = 'series-1'"))
 
+        val embeddedResult = coordinator.playBrowseItem(
+            playbackItem(accountId, BrowseMode.VOD, "vod-cat", "vod-embedded", "Embedded Movie"),
+            AndroidPlayerPreference.EMBEDDED_PLAYER,
+            remember = false
+        )
+
+        assertTrue(embeddedResult.launched)
+        assertEquals(0, helper.writableDatabase.countRows("VodWatchState", "accountId = '$accountId' AND vodId = 'vod-embedded'"))
+        assertEquals(EmbeddedPlayerActivity::class.java.name, startedIntents.last().component?.className)
+
         val nativeResult = coordinator.playBrowseItem(
             playbackItem(accountId, BrowseMode.VOD, "vod-cat", "vod-native", "Native Movie"),
             AndroidPlayerPreference.NATIVE,
@@ -388,7 +404,7 @@ class AndroidUiptvDatabaseCompatibilityTest {
 
         coordinator.clearPlayerPreference()
 
-        assertEquals(AndroidPlayerPreference.ASK_EVERY_TIME, coordinator.loadPlayerPreference().selectedPlayer)
+        assertEquals(AndroidPlayerPreference.EMBEDDED_PLAYER, coordinator.loadPlayerPreference().selectedPlayer)
     }
 
     private fun SQLiteDatabase.tableExists(table: String): Boolean {

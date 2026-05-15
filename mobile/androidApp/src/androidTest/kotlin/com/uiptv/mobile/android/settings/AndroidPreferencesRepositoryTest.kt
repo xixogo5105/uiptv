@@ -34,6 +34,10 @@ class AndroidPreferencesRepositoryTest {
     @Test
     fun storesRemoteEndpointAndPlayerPreferenceOutsideSharedDatabase() = runBlocking {
         val repository = AndroidDataStorePreferencesRepository(context)
+        val defaults = repository.load()
+
+        assertEquals(AndroidPlayerPreference.EMBEDDED_PLAYER, defaults.playerPreference.selectedPlayer)
+        assertEquals(true, defaults.playerPreference.rememberForFutureStreams)
 
         repository.saveRemoteEndpoint("192.168.1.20", 8888)
         repository.savePlayerPreference(

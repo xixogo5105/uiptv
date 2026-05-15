@@ -48,7 +48,7 @@ class AndroidPlaybackCoordinator(
     suspend fun savePlayerPreference(player: AndroidPlayerPreference) {
         preferences.savePlayerPreference(
             if (player == AndroidPlayerPreference.ASK_EVERY_TIME) {
-                PlayerPreference()
+                PlayerPreference(AndroidPlayerPreference.ASK_EVERY_TIME, "", false)
             } else {
                 PlayerPreference(player, player.packageName(), true)
             }
@@ -57,7 +57,8 @@ class AndroidPlaybackCoordinator(
 
     suspend fun playerChoices(): List<PlayerChoice> = withContext(Dispatchers.IO) {
         listOf(
-            PlayerChoice(AndroidPlayerPreference.NATIVE, "Native", true),
+            PlayerChoice(AndroidPlayerPreference.EMBEDDED_PLAYER, "Embedded Player", true),
+            PlayerChoice(AndroidPlayerPreference.NATIVE, "Android Media", true),
             PlayerChoice(AndroidPlayerPreference.VLC, "VLC", isInstalled("org.videolan.vlc")),
             PlayerChoice(AndroidPlayerPreference.MX_PLAYER_PRO, "MX Pro", isInstalled("com.mxtech.videoplayer.pro")),
             PlayerChoice(AndroidPlayerPreference.MX_PLAYER_FREE, "MX Free", isInstalled("com.mxtech.videoplayer.ad")),
@@ -117,20 +118,9 @@ class AndroidPlaybackCoordinator(
             return PlaybackLaunchResult(false, "Native player cannot open this DRM or inputstream metadata yet. Use an external player.")
         }
         val intent = when (player) {
+            AndroidPlayerPreference.EMBEDDED_PLAYER -> embeddedPlayerIntent(playableTarget)
             AndroidPlayerPreference.NATIVE,
-            AndroidPlayerPreference.ASK_EVERY_TIME -> Intent(context, NativePlayerActivity::class.java)
-                .putExtra(NativePlayerActivity.EXTRA_URL, playableTarget.url)
-                .putExtra(NativePlayerActivity.EXTRA_TITLE, playableTarget.title)
-                .putExtra(NativePlayerActivity.EXTRA_MIME_TYPE, playableTarget.mimeType())
-                .putExtra(NativePlayerActivity.EXTRA_DRM_TYPE, playableTarget.drmType)
-                .putExtra(NativePlayerActivity.EXTRA_DRM_LICENSE_URL, playableTarget.drmLicenseUrl)
-                .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_ID, playableTarget.accountId)
-                .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_NAME, playableTarget.accountName)
-                .putExtra(NativePlayerActivity.EXTRA_MODE, playableTarget.mode.name)
-                .putExtra(NativePlayerActivity.EXTRA_CATEGORY_PROVIDER_ID, playableTarget.categoryProviderId)
-                .putExtra(NativePlayerActivity.EXTRA_CATEGORY_ROW_ID, playableTarget.categoryRowId)
-                .putExtra(NativePlayerActivity.EXTRA_CHANNEL_ID, playableTarget.channelId)
-                .putExtra(NativePlayerActivity.EXTRA_LOGO, playableTarget.logo)
+            AndroidPlayerPreference.ASK_EVERY_TIME -> nativePlayerIntent(playableTarget)
             AndroidPlayerPreference.SYSTEM_CHOOSER -> Intent.createChooser(viewIntent(playableTarget, null), "Open stream")
             AndroidPlayerPreference.VLC,
             AndroidPlayerPreference.MX_PLAYER_PRO,
@@ -149,6 +139,27 @@ class AndroidPlaybackCoordinator(
             PlaybackLaunchResult(false, ex.message ?: "Unable to open stream.")
         }
     }
+
+    private fun embeddedPlayerIntent(target: PlaybackTarget): Intent =
+        playbackIntent(target, EmbeddedPlayerActivity::class.java)
+
+    private fun nativePlayerIntent(target: PlaybackTarget): Intent =
+        playbackIntent(target, NativePlayerActivity::class.java)
+
+    private fun playbackIntent(target: PlaybackTarget, activityClass: Class<*>): Intent =
+        Intent(context, activityClass)
+            .putExtra(NativePlayerActivity.EXTRA_URL, target.url)
+            .putExtra(NativePlayerActivity.EXTRA_TITLE, target.title)
+            .putExtra(NativePlayerActivity.EXTRA_MIME_TYPE, target.mimeType())
+            .putExtra(NativePlayerActivity.EXTRA_DRM_TYPE, target.drmType)
+            .putExtra(NativePlayerActivity.EXTRA_DRM_LICENSE_URL, target.drmLicenseUrl)
+            .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_ID, target.accountId)
+            .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_NAME, target.accountName)
+            .putExtra(NativePlayerActivity.EXTRA_MODE, target.mode.name)
+            .putExtra(NativePlayerActivity.EXTRA_CATEGORY_PROVIDER_ID, target.categoryProviderId)
+            .putExtra(NativePlayerActivity.EXTRA_CATEGORY_ROW_ID, target.categoryRowId)
+            .putExtra(NativePlayerActivity.EXTRA_CHANNEL_ID, target.channelId)
+            .putExtra(NativePlayerActivity.EXTRA_LOGO, target.logo)
 
     private fun launchExternal(target: PlaybackTarget, player: AndroidPlayerPreference): PlaybackLaunchResult {
         val packageName = player.packageName()
@@ -450,18 +461,22 @@ class AndroidPlaybackCoordinator(
             AndroidPlayerPreference.KODI -> "org.xbmc.kodi"
             AndroidPlayerPreference.JUST_PLAYER -> "com.brouken.player"
             AndroidPlayerPreference.XPLAYER -> "video.player.videoplayer"
+            AndroidPlayerPreference.EMBEDDED_PLAYER,
             AndroidPlayerPreference.NATIVE,
             AndroidPlayerPreference.SYSTEM_CHOOSER,
             AndroidPlayerPreference.ASK_EVERY_TIME -> ""
         }
 
     private fun AndroidPlayerPreference.usesNativeActivity(): Boolean =
-        this == AndroidPlayerPreference.NATIVE || this == AndroidPlayerPreference.ASK_EVERY_TIME
+        this == AndroidPlayerPreference.NATIVE ||
+            this == AndroidPlayerPreference.EMBEDDED_PLAYER ||
+            this == AndroidPlayerPreference.ASK_EVERY_TIME
 
     private fun AndroidPlayerPreference.displayLabel(): String =
         when (this) {
             AndroidPlayerPreference.ASK_EVERY_TIME -> "Player picker"
-            AndroidPlayerPreference.NATIVE -> "Native"
+            AndroidPlayerPreference.EMBEDDED_PLAYER -> "Embedded Player"
+            AndroidPlayerPreference.NATIVE -> "Android Media"
             AndroidPlayerPreference.VLC -> "VLC"
             AndroidPlayerPreference.MX_PLAYER_PRO -> "MX Player Pro"
             AndroidPlayerPreference.MX_PLAYER_FREE -> "MX Player Free"

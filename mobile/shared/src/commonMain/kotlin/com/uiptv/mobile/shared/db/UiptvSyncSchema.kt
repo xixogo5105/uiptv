@@ -46,14 +46,6 @@ object UiptvSyncSchema {
         "PublishedM3uChannelSelection"
     )
 
-    val androidPortableConfigurationColumns: Set<String> = setOf(
-        "cacheExpiryDays",
-        "enableThumbnails",
-        "languageLocale",
-        "tmdbReadAccessToken",
-        "resolveChainAndDeepRedirects"
-    )
-
     val androidNeverSyncConfigurationColumns: Set<String> = setOf(
         "playerPath1",
         "playerPath2",
@@ -72,6 +64,42 @@ object UiptvSyncSchema {
         "enableVlcHttpUserAgent",
         "enableVlcHttpForwardCookies"
     )
+
+    val configurationColumns: List<String> = listOf(
+        "id",
+        "playerPath1",
+        "playerPath2",
+        "playerPath3",
+        "defaultPlayerPath",
+        "filterCategoriesList",
+        "filterChannelsList",
+        "pauseFiltering",
+        "darkTheme",
+        "serverPort",
+        "embeddedPlayer",
+        "enableFfmpegTranscoding",
+        "cacheExpiryDays",
+        "enableThumbnails",
+        "wideView",
+        "languageLocale",
+        "tmdbReadAccessToken",
+        "filterLockHash",
+        "uiZoomPercent",
+        "enableLitePlayerFfmpeg",
+        "autoRunServerOnStartup",
+        "vlcNetworkCachingMs",
+        "vlcLiveCachingMs",
+        "publishedM3uCategoryMode",
+        "enableVlcHttpUserAgent",
+        "enableVlcHttpForwardCookies",
+        "resolveChainAndDeepRedirects",
+        "filterLockUnlockDurationMinutes"
+    )
+
+    val androidPortableConfigurationColumns: Set<String> =
+        configurationColumns
+            .filterNot { it == "id" || it in androidNeverSyncConfigurationColumns }
+            .toSet()
 
     fun commonSyncColumns(sourceColumns: List<String>, targetColumns: List<String>): List<String> {
         val targetColumnSet = targetColumns.toSet()

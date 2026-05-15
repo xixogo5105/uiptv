@@ -29,6 +29,13 @@ enum class ConfigurationSyncProfile {
     ANDROID_PORTABLE
 }
 
+fun androidPortablePullOptions(): RemoteSyncOptions =
+    RemoteSyncOptions(
+        syncConfiguration = true,
+        syncExternalPlayerPaths = false,
+        configurationProfile = ConfigurationSyncProfile.ANDROID_PORTABLE
+    )
+
 data class RemoteSyncRequest(
     val direction: RemoteSyncDirection = RemoteSyncDirection.IMPORT_FROM_REMOTE,
     val verificationCode: String,
@@ -93,10 +100,7 @@ class PullFromDesktopSyncUseCase(
             request = RemoteSyncRequest(
                 direction = RemoteSyncDirection.IMPORT_FROM_REMOTE,
                 verificationCode = verificationCode,
-                options = RemoteSyncOptions(
-                    syncConfiguration = false,
-                    syncExternalPlayerPaths = false
-                )
+                options = androidPortablePullOptions()
             )
         )
     }

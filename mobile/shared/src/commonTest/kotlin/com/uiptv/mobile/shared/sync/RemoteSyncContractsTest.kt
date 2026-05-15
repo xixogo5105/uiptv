@@ -11,13 +11,20 @@ import kotlinx.coroutines.runBlocking
 
 class RemoteSyncContractsTest {
     @Test
-    fun androidPullRequestUsesImportDirectionAndSkipsConfiguration() {
+    fun androidPortablePullOptionsSyncConfigurationWithoutPlayerPaths() {
+        val options = androidPortablePullOptions()
+
+        assertTrue(options.syncConfiguration)
+        assertFalse(options.syncExternalPlayerPaths)
+        assertEquals(ConfigurationSyncProfile.ANDROID_PORTABLE, options.configurationProfile)
+    }
+
+    @Test
+    fun androidPullRequestUsesImportDirectionByDefault() {
         val request = RemoteSyncRequest(verificationCode = "1234")
 
         assertEquals(RemoteSyncDirection.IMPORT_FROM_REMOTE, request.direction)
         assertEquals("UIPTV Android", request.requesterName)
-        assertFalse(request.options.syncConfiguration)
-        assertFalse(request.options.syncExternalPlayerPaths)
     }
 
     @Test
@@ -50,8 +57,9 @@ class RemoteSyncContractsTest {
 
         assertEquals(listOf("health", "request", "status", "download", "complete:true"), client.calls)
         assertEquals(RemoteSyncDirection.IMPORT_FROM_REMOTE, client.lastRequest?.direction)
-        assertFalse(client.lastRequest?.options?.syncConfiguration ?: true)
+        assertTrue(client.lastRequest?.options?.syncConfiguration ?: false)
         assertFalse(client.lastRequest?.options?.syncExternalPlayerPaths ?: true)
+        assertEquals(ConfigurationSyncProfile.ANDROID_PORTABLE, client.lastRequest?.options?.configurationProfile)
         assertEquals("snapshot", applier.lastSnapshot?.decodeToString())
         assertEquals(2, result.report.totalRowsSynced)
         assertEquals(RemoteSyncProgressStep.FINISHED, progressSteps.last())

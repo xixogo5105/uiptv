@@ -13,6 +13,7 @@ public final class RemoteSyncJson {
     private static final String REQUESTER_NAME = "requesterName";
     private static final String SYNC_CONFIGURATION = "syncConfiguration";
     private static final String SYNC_EXTERNAL_PLAYER_PATHS = "syncExternalPlayerPaths";
+    private static final String CONFIGURATION_PROFILE = "configurationProfile";
     private static final String MESSAGE = "message";
 
     private RemoteSyncJson() {
@@ -24,7 +25,8 @@ public final class RemoteSyncJson {
                 .put(VERIFICATION_CODE, request.verificationCode())
                 .put(REQUESTER_NAME, request.requesterName())
                 .put(SYNC_CONFIGURATION, request.options().syncConfiguration())
-                .put(SYNC_EXTERNAL_PLAYER_PATHS, request.options().syncExternalPlayerPaths());
+                .put(SYNC_EXTERNAL_PLAYER_PATHS, request.options().syncExternalPlayerPaths())
+                .put(CONFIGURATION_PROFILE, request.options().configurationProfile().name());
     }
 
     public static RemoteSyncRequest toRequest(JSONObject json) {
@@ -34,7 +36,8 @@ public final class RemoteSyncJson {
                 json.optString(REQUESTER_NAME, ""),
                 new RemoteSyncOptions(
                         json.optBoolean(SYNC_CONFIGURATION, false),
-                        json.optBoolean(SYNC_EXTERNAL_PLAYER_PATHS, false)
+                        json.optBoolean(SYNC_EXTERNAL_PLAYER_PATHS, false),
+                        parseConfigurationProfile(json.optString(CONFIGURATION_PROFILE, ""))
                 )
         );
     }
@@ -49,6 +52,7 @@ public final class RemoteSyncJson {
                 .put("requesterAddress", state.requesterAddress())
                 .put(SYNC_CONFIGURATION, state.options().syncConfiguration())
                 .put(SYNC_EXTERNAL_PLAYER_PATHS, state.options().syncExternalPlayerPaths())
+                .put(CONFIGURATION_PROFILE, state.options().configurationProfile().name())
                 .put(MESSAGE, state.message());
     }
 
@@ -62,7 +66,8 @@ public final class RemoteSyncJson {
                 json.optString("requesterAddress", ""),
                 new RemoteSyncOptions(
                         json.optBoolean(SYNC_CONFIGURATION, false),
-                        json.optBoolean(SYNC_EXTERNAL_PLAYER_PATHS, false)
+                        json.optBoolean(SYNC_EXTERNAL_PLAYER_PATHS, false),
+                        parseConfigurationProfile(json.optString(CONFIGURATION_PROFILE, ""))
                 ),
                 json.optString(MESSAGE, "")
         );
@@ -114,5 +119,16 @@ public final class RemoteSyncJson {
                 reportJson.optBoolean("externalPlayerPathsIncluded", false)
         );
         return new RemoteSyncExecutionResult(report, json.optString(MESSAGE, ""));
+    }
+
+    private static ConfigurationSyncProfile parseConfigurationProfile(String value) {
+        if (value == null || value.isBlank()) {
+            return ConfigurationSyncProfile.DESKTOP_FULL;
+        }
+        try {
+            return ConfigurationSyncProfile.valueOf(value);
+        } catch (IllegalArgumentException _) {
+            return ConfigurationSyncProfile.DESKTOP_FULL;
+        }
     }
 }

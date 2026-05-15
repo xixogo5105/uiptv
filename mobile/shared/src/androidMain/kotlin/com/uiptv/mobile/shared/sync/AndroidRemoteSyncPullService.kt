@@ -61,10 +61,7 @@ class AndroidRemoteSyncPullService(
                 request = RemoteSyncRequest(
                     direction = RemoteSyncDirection.IMPORT_FROM_REMOTE,
                     verificationCode = verificationCode,
-                    options = RemoteSyncOptions(
-                        syncConfiguration = false,
-                        syncExternalPlayerPaths = false
-                    )
+                    options = androidPortablePullOptions()
                 )
             )
             sessionId = session.sessionId

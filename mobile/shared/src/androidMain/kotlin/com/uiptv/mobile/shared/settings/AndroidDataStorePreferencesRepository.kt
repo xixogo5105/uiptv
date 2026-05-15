@@ -20,7 +20,7 @@ class AndroidDataStorePreferencesRepository(
         val values = dataStore.data.first()
         val playerType = values[PLAYER_TYPE]
             ?.let { runCatching { AndroidPlayerPreference.valueOf(it) }.getOrNull() }
-            ?: AndroidPlayerPreference.ASK_EVERY_TIME
+            ?: AndroidPlayerPreference.EMBEDDED_PLAYER
 
         return AndroidPreferenceSnapshot(
             remoteEndpoint = RemoteEndpointPreference(
@@ -31,7 +31,7 @@ class AndroidDataStorePreferencesRepository(
             playerPreference = PlayerPreference(
                 selectedPlayer = playerType,
                 packageName = values[PLAYER_PACKAGE].orEmpty(),
-                rememberForFutureStreams = values[PLAYER_REMEMBER] ?: false
+                rememberForFutureStreams = values[PLAYER_REMEMBER] ?: true
             ),
             firstRunCompleted = values[FIRST_RUN_COMPLETED] ?: false
         )

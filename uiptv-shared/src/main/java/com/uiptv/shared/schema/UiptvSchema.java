@@ -34,14 +34,6 @@ public final class UiptvSchema {
 
     public static final Set<String> CONFIGURATION_SYNC_EXCLUDED_COLUMNS = Set.of("filterLockHash");
 
-    public static final Set<String> ANDROID_PORTABLE_CONFIGURATION_COLUMNS = Set.of(
-            "cacheExpiryDays",
-            "enableThumbnails",
-            "languageLocale",
-            "tmdbReadAccessToken",
-            "resolveChainAndDeepRedirects"
-    );
-
     public static final Set<String> ANDROID_LOCAL_CONFIGURATION_COLUMNS = Set.of(
             "playerPath1",
             "playerPath2",
@@ -63,12 +55,37 @@ public final class UiptvSchema {
 
     public static final Set<String> ANDROID_NEVER_SYNC_CONFIGURATION_COLUMNS = ANDROID_LOCAL_CONFIGURATION_COLUMNS;
 
+    public static final Set<String> ANDROID_PORTABLE_CONFIGURATION_COLUMNS = Set.of(
+            "filterCategoriesList",
+            "filterChannelsList",
+            "pauseFiltering",
+            "cacheExpiryDays",
+            "enableThumbnails",
+            "wideView",
+            "languageLocale",
+            "tmdbReadAccessToken",
+            "publishedM3uCategoryMode",
+            "resolveChainAndDeepRedirects",
+            "filterLockUnlockDurationMinutes"
+    );
+
     public static final List<UiptvTable> ANDROID_PULL_SYNC_TABLE_ORDER = List.of(
             UiptvTable.ACCOUNT,
             UiptvTable.ACCOUNT_INFO,
             UiptvTable.BOOKMARK,
             UiptvTable.BOOKMARK_CATEGORY,
-            UiptvTable.BOOKMARK_ORDER
+            UiptvTable.BOOKMARK_ORDER,
+            UiptvTable.CATEGORY,
+            UiptvTable.CHANNEL,
+            UiptvTable.VOD_CATEGORY,
+            UiptvTable.VOD_CHANNEL,
+            UiptvTable.VOD_WATCH_STATE,
+            UiptvTable.SERIES_CATEGORY,
+            UiptvTable.SERIES_CHANNEL,
+            UiptvTable.SERIES_EPISODE,
+            UiptvTable.SERIES_WATCH_STATE,
+            UiptvTable.SERIES_WATCHING_NOW_SNAPSHOT,
+            UiptvTable.CONFIGURATION
     );
 
     private UiptvSchema() {

@@ -54,11 +54,52 @@ class UiptvSyncSchemaTest {
 
     @Test
     fun portableConfigurationDoesNotIncludeDesktopPlayerOrServerSettings() {
+        assertEquals(
+            listOf(
+                "id",
+                "playerPath1",
+                "playerPath2",
+                "playerPath3",
+                "defaultPlayerPath",
+                "filterCategoriesList",
+                "filterChannelsList",
+                "pauseFiltering",
+                "darkTheme",
+                "serverPort",
+                "embeddedPlayer",
+                "enableFfmpegTranscoding",
+                "cacheExpiryDays",
+                "enableThumbnails",
+                "wideView",
+                "languageLocale",
+                "tmdbReadAccessToken",
+                "filterLockHash",
+                "uiZoomPercent",
+                "enableLitePlayerFfmpeg",
+                "autoRunServerOnStartup",
+                "vlcNetworkCachingMs",
+                "vlcLiveCachingMs",
+                "publishedM3uCategoryMode",
+                "enableVlcHttpUserAgent",
+                "enableVlcHttpForwardCookies",
+                "resolveChainAndDeepRedirects",
+                "filterLockUnlockDurationMinutes"
+            ),
+            UiptvSyncSchema.configurationColumns
+        )
+        assertTrue("filterCategoriesList" in UiptvSyncSchema.androidPortableConfigurationColumns)
+        assertTrue("filterChannelsList" in UiptvSyncSchema.androidPortableConfigurationColumns)
+        assertTrue("pauseFiltering" in UiptvSyncSchema.androidPortableConfigurationColumns)
         assertTrue("cacheExpiryDays" in UiptvSyncSchema.androidPortableConfigurationColumns)
         assertTrue("enableThumbnails" in UiptvSyncSchema.androidPortableConfigurationColumns)
+        assertTrue("wideView" in UiptvSyncSchema.androidPortableConfigurationColumns)
+        assertTrue("publishedM3uCategoryMode" in UiptvSyncSchema.androidPortableConfigurationColumns)
+        assertTrue("filterLockUnlockDurationMinutes" in UiptvSyncSchema.androidPortableConfigurationColumns)
         assertTrue("defaultPlayerPath" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
+        assertTrue("embeddedPlayer" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
         assertTrue("serverPort" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
         assertFalse("defaultPlayerPath" in UiptvSyncSchema.androidPortableConfigurationColumns)
+        assertFalse("embeddedPlayer" in UiptvSyncSchema.androidPortableConfigurationColumns)
         assertFalse("serverPort" in UiptvSyncSchema.androidPortableConfigurationColumns)
     }
 

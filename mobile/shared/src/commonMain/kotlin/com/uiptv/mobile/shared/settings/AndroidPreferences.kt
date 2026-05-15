@@ -8,6 +8,7 @@ data class RemoteEndpointPreference(
 
 enum class AndroidPlayerPreference {
     ASK_EVERY_TIME,
+    EMBEDDED_PLAYER,
     NATIVE,
     VLC,
     MX_PLAYER_PRO,
@@ -19,9 +20,9 @@ enum class AndroidPlayerPreference {
 }
 
 data class PlayerPreference(
-    val selectedPlayer: AndroidPlayerPreference = AndroidPlayerPreference.ASK_EVERY_TIME,
+    val selectedPlayer: AndroidPlayerPreference = AndroidPlayerPreference.EMBEDDED_PLAYER,
     val packageName: String = "",
-    val rememberForFutureStreams: Boolean = false
+    val rememberForFutureStreams: Boolean = true
 )
 
 data class AndroidPreferenceSnapshot(

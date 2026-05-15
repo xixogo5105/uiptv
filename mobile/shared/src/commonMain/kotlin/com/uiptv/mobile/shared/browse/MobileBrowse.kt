@@ -1,5 +1,7 @@
 package com.uiptv.mobile.shared.browse
 
+import com.uiptv.mobile.shared.accounts.MobileAccountType
+
 enum class BrowseMode(val label: String) {
     LIVE("Live"),
     VOD("VOD"),
@@ -47,7 +49,8 @@ data class MobileBrowseSnapshot(
 
 data class BrowseAccountOption(
     val id: Long,
-    val name: String
+    val name: String,
+    val type: MobileAccountType? = null
 )
 
 data class MobileBookmark(

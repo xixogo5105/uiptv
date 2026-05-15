@@ -3,9 +3,11 @@ package com.uiptv.mobile.shared.browse
 import android.content.ContentValues
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 class AndroidSQLiteBrowseRepository(
     private val databaseHelper: AndroidUiptvDatabaseHelper
@@ -73,7 +75,10 @@ class AndroidSQLiteBrowseRepository(
 
     override suspend fun listBookmarks(query: String, bookmarkCategoryId: String?): List<MobileBookmark> = withContext(Dispatchers.IO) {
         val db = databaseHelper.writableDatabase
-        val logoSelect = if (columnExists(db, "Bookmark", "logo")) "bm.logo" else "'' AS logo"
+        val logoSelect = if (columnExists(db, "Bookmark", "logo")) "bm.logo AS bookmarkLogo" else "'' AS bookmarkLogo"
+        val channelJsonSelect = if (columnExists(db, "Bookmark", "channelJson")) "bm.channelJson" else "'' AS channelJson"
+        val vodJsonSelect = if (columnExists(db, "Bookmark", "vodJson")) "bm.vodJson" else "'' AS vodJson"
+        val seriesJsonSelect = if (columnExists(db, "Bookmark", "seriesJson")) "bm.seriesJson" else "'' AS seriesJson"
         val args = mutableListOf<String>()
         val whereParts = mutableListOf<String>()
         if (!bookmarkCategoryId.isNullOrBlank()) {
@@ -92,7 +97,160 @@ class AndroidSQLiteBrowseRepository(
             """
             SELECT bm.id, COALESCE(acc.id, 0) AS accountId, bm.accountName, bm.categoryId, bm.categoryTitle,
                 bm.channelId, bm.channelName, bm.cmd, bm.accountAction, $logoSelect,
-                bm.drmType, bm.drmLicenseUrl, bm.clearKeysJson, bm.inputstreamaddon, bm.manifestType
+                bm.drmType AS bookmarkDrmType, bm.drmLicenseUrl AS bookmarkDrmLicenseUrl,
+                bm.clearKeysJson AS bookmarkClearKeysJson, bm.inputstreamaddon AS bookmarkInputstreamaddon,
+                bm.manifestType AS bookmarkManifestType,
+                $channelJsonSelect, $vodJsonSelect, $seriesJsonSelect,
+                (
+                    SELECT ch.logo
+                    FROM Channel ch
+                    JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
+                    WHERE CAST(cat.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND ch.channelId = bm.channelId
+                        AND COALESCE(ch.logo, '') <> ''
+                    LIMIT 1
+                ) AS liveLogo,
+                (
+                    SELECT ch.drmType
+                    FROM Channel ch
+                    JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
+                    WHERE CAST(cat.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND ch.channelId = bm.channelId
+                        AND COALESCE(ch.drmType, '') <> ''
+                    LIMIT 1
+                ) AS liveDrmType,
+                (
+                    SELECT ch.drmLicenseUrl
+                    FROM Channel ch
+                    JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
+                    WHERE CAST(cat.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND ch.channelId = bm.channelId
+                        AND COALESCE(ch.drmLicenseUrl, '') <> ''
+                    LIMIT 1
+                ) AS liveDrmLicenseUrl,
+                (
+                    SELECT ch.clearKeysJson
+                    FROM Channel ch
+                    JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
+                    WHERE CAST(cat.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND ch.channelId = bm.channelId
+                        AND COALESCE(ch.clearKeysJson, '') <> ''
+                    LIMIT 1
+                ) AS liveClearKeysJson,
+                (
+                    SELECT ch.inputstreamaddon
+                    FROM Channel ch
+                    JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
+                    WHERE CAST(cat.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND ch.channelId = bm.channelId
+                        AND COALESCE(ch.inputstreamaddon, '') <> ''
+                    LIMIT 1
+                ) AS liveInputstreamaddon,
+                (
+                    SELECT ch.manifestType
+                    FROM Channel ch
+                    JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
+                    WHERE CAST(cat.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND ch.channelId = bm.channelId
+                        AND COALESCE(ch.manifestType, '') <> ''
+                    LIMIT 1
+                ) AS liveManifestType,
+                (
+                    SELECT vc.logo
+                    FROM VodChannel vc
+                    WHERE CAST(vc.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND vc.channelId = bm.channelId
+                        AND COALESCE(vc.logo, '') <> ''
+                    LIMIT 1
+                ) AS vodLogo,
+                (
+                    SELECT vc.drmType
+                    FROM VodChannel vc
+                    WHERE CAST(vc.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND vc.channelId = bm.channelId
+                        AND COALESCE(vc.drmType, '') <> ''
+                    LIMIT 1
+                ) AS vodDrmType,
+                (
+                    SELECT vc.drmLicenseUrl
+                    FROM VodChannel vc
+                    WHERE CAST(vc.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND vc.channelId = bm.channelId
+                        AND COALESCE(vc.drmLicenseUrl, '') <> ''
+                    LIMIT 1
+                ) AS vodDrmLicenseUrl,
+                (
+                    SELECT vc.clearKeysJson
+                    FROM VodChannel vc
+                    WHERE CAST(vc.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND vc.channelId = bm.channelId
+                        AND COALESCE(vc.clearKeysJson, '') <> ''
+                    LIMIT 1
+                ) AS vodClearKeysJson,
+                (
+                    SELECT vc.inputstreamaddon
+                    FROM VodChannel vc
+                    WHERE CAST(vc.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND vc.channelId = bm.channelId
+                        AND COALESCE(vc.inputstreamaddon, '') <> ''
+                    LIMIT 1
+                ) AS vodInputstreamaddon,
+                (
+                    SELECT vc.manifestType
+                    FROM VodChannel vc
+                    WHERE CAST(vc.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND vc.channelId = bm.channelId
+                        AND COALESCE(vc.manifestType, '') <> ''
+                    LIMIT 1
+                ) AS vodManifestType,
+                (
+                    SELECT sc.logo
+                    FROM SeriesChannel sc
+                    WHERE CAST(sc.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND sc.channelId = bm.channelId
+                        AND COALESCE(sc.logo, '') <> ''
+                    LIMIT 1
+                ) AS seriesLogo,
+                (
+                    SELECT sc.drmType
+                    FROM SeriesChannel sc
+                    WHERE CAST(sc.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND sc.channelId = bm.channelId
+                        AND COALESCE(sc.drmType, '') <> ''
+                    LIMIT 1
+                ) AS seriesDrmType,
+                (
+                    SELECT sc.drmLicenseUrl
+                    FROM SeriesChannel sc
+                    WHERE CAST(sc.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND sc.channelId = bm.channelId
+                        AND COALESCE(sc.drmLicenseUrl, '') <> ''
+                    LIMIT 1
+                ) AS seriesDrmLicenseUrl,
+                (
+                    SELECT sc.clearKeysJson
+                    FROM SeriesChannel sc
+                    WHERE CAST(sc.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND sc.channelId = bm.channelId
+                        AND COALESCE(sc.clearKeysJson, '') <> ''
+                    LIMIT 1
+                ) AS seriesClearKeysJson,
+                (
+                    SELECT sc.inputstreamaddon
+                    FROM SeriesChannel sc
+                    WHERE CAST(sc.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND sc.channelId = bm.channelId
+                        AND COALESCE(sc.inputstreamaddon, '') <> ''
+                    LIMIT 1
+                ) AS seriesInputstreamaddon,
+                (
+                    SELECT sc.manifestType
+                    FROM SeriesChannel sc
+                    WHERE CAST(sc.accountId AS INTEGER) = COALESCE(acc.id, 0)
+                        AND sc.channelId = bm.channelId
+                        AND COALESCE(sc.manifestType, '') <> ''
+                    LIMIT 1
+                ) AS seriesManifestType
             FROM Bookmark bm
             LEFT JOIN Account acc ON acc.accountName = bm.accountName
             LEFT JOIN BookmarkOrder bo ON bo.bookmark_db_id = CAST(bm.id AS TEXT)
@@ -170,7 +328,7 @@ class AndroidSQLiteBrowseRepository(
     private fun loadAccounts(db: SQLiteDatabase): List<BrowseAccountOption> =
         db.rawQuery(
             """
-            SELECT id, accountName
+            SELECT id, accountName, type
             FROM Account
             ORDER BY CASE WHEN LOWER(COALESCE(pinToTop, '0')) IN ('1', 'true', 'yes') THEN 1 ELSE 0 END DESC,
                 accountName COLLATE NOCASE
@@ -179,7 +337,13 @@ class AndroidSQLiteBrowseRepository(
         ).use { cursor ->
             buildList {
                 while (cursor.moveToNext()) {
-                    add(BrowseAccountOption(cursor.long("id"), cursor.string("accountName")))
+                    add(
+                        BrowseAccountOption(
+                            id = cursor.long("id"),
+                            name = cursor.string("accountName"),
+                            type = cursor.string("type").toMobileAccountTypeOrNull()
+                        )
+                    )
                 }
             }
         }
@@ -479,8 +643,10 @@ class AndroidSQLiteBrowseRepository(
             isBookmarked = !isNull(getColumnIndexOrThrow("bookmarkId"))
         )
 
-    private fun Cursor.toBookmark(): MobileBookmark =
-        MobileBookmark(
+    private fun Cursor.toBookmark(): MobileBookmark {
+        val mode = string("accountAction").toBrowseMode()
+        val renderData = resolvedBookmarkRenderData(mode)
+        return MobileBookmark(
             rowId = long("id"),
             accountId = long("accountId"),
             accountName = string("accountName"),
@@ -489,14 +655,140 @@ class AndroidSQLiteBrowseRepository(
             channelId = string("channelId"),
             channelName = string("channelName"),
             command = string("cmd"),
-            mode = string("accountAction").toBrowseMode(),
-            logo = string("logo"),
-            drmType = string("drmType"),
-            drmLicenseUrl = string("drmLicenseUrl"),
-            clearKeysJson = string("clearKeysJson"),
-            inputstreamAddon = string("inputstreamaddon"),
-            manifestType = string("manifestType")
+            mode = mode,
+            logo = renderData.logo,
+            drmType = renderData.drmType,
+            drmLicenseUrl = renderData.drmLicenseUrl,
+            clearKeysJson = renderData.clearKeysJson,
+            inputstreamAddon = renderData.inputstreamaddon,
+            manifestType = renderData.manifestType
         )
+    }
+
+    private fun Cursor.resolvedBookmarkRenderData(mode: BrowseMode): BookmarkRenderData {
+        val data = BookmarkRenderData(
+            logo = string("bookmarkLogo"),
+            drmType = string("bookmarkDrmType"),
+            drmLicenseUrl = string("bookmarkDrmLicenseUrl"),
+            clearKeysJson = string("bookmarkClearKeysJson"),
+            inputstreamaddon = string("bookmarkInputstreamaddon"),
+            manifestType = string("bookmarkManifestType")
+        )
+        data.mergeChannelJson(string("channelJson"))
+        data.mergeChannelJson(string("vodJson"))
+        data.mergeSeriesJson(string("seriesJson"))
+        data.mergeCachedFallback(this, mode)
+        return data
+    }
+
+    private fun BookmarkRenderData.mergeCachedFallback(cursor: Cursor, mode: BrowseMode) {
+        val prefix = when (mode) {
+            BrowseMode.LIVE -> "live"
+            BrowseMode.VOD -> "vod"
+            BrowseMode.SERIES -> "series"
+        }
+        fillMissing(
+            logo = cursor.string("${prefix}Logo"),
+            drmType = cursor.string("${prefix}DrmType"),
+            drmLicenseUrl = cursor.string("${prefix}DrmLicenseUrl"),
+            clearKeysJson = cursor.string("${prefix}ClearKeysJson"),
+            inputstreamaddon = cursor.string("${prefix}Inputstreamaddon"),
+            manifestType = cursor.string("${prefix}ManifestType")
+        )
+    }
+
+    private fun BookmarkRenderData.mergeChannelJson(json: String) {
+        val payload = jsonObjectOrNull(json) ?: return
+        fillMissing(
+            logo = payload.cleanString("logo"),
+            drmType = payload.cleanString("drmType"),
+            drmLicenseUrl = payload.cleanString("drmLicenseUrl"),
+            clearKeysJson = payload.cleanString("clearKeysJson"),
+            inputstreamaddon = payload.cleanString("inputstreamaddon"),
+            manifestType = payload.cleanString("manifestType")
+        )
+    }
+
+    private fun BookmarkRenderData.mergeSeriesJson(json: String) {
+        val payload = jsonObjectOrNull(json) ?: return
+        val info = payload.optJSONObject("info")
+        fillMissing(
+            logo = info?.firstCleanString(
+                "movieImage",
+                "movie_image",
+                "thumbnail",
+                "still_path",
+                "cover_big",
+                "cover",
+                "screenshot_uri",
+                "stream_icon",
+                "image",
+                "poster"
+            ).orEmpty().ifBlank {
+                payload.firstCleanString(
+                    "movie_image",
+                    "thumbnail",
+                    "still_path",
+                    "cover_big",
+                    "cover",
+                    "screenshot_uri",
+                    "stream_icon",
+                    "image",
+                    "poster"
+                )
+            }
+        )
+    }
+
+    private fun jsonObjectOrNull(json: String): JSONObject? =
+        if (json.isBlank()) null else runCatching { JSONObject(json) }.getOrNull()
+
+    private fun JSONObject.firstCleanString(vararg keys: String): String {
+        for (key in keys) {
+            val value = cleanString(key)
+            if (value.isNotBlank()) {
+                return value
+            }
+        }
+        return ""
+    }
+
+    private fun JSONObject.cleanString(key: String): String {
+        if (!has(key) || isNull(key)) {
+            return ""
+        }
+        val value = optString(key).trim()
+        return if (value.isBlank() || value.equals("null", ignoreCase = true) || value.equals("n/a", ignoreCase = true)) {
+            ""
+        } else {
+            value
+        }
+    }
+
+    private data class BookmarkRenderData(
+        var logo: String = "",
+        var drmType: String = "",
+        var drmLicenseUrl: String = "",
+        var clearKeysJson: String = "",
+        var inputstreamaddon: String = "",
+        var manifestType: String = ""
+    ) {
+        fun fillMissing(
+            logo: String = "",
+            drmType: String = "",
+            drmLicenseUrl: String = "",
+            clearKeysJson: String = "",
+            inputstreamaddon: String = "",
+            manifestType: String = ""
+        ) {
+            if (this.logo.isBlank()) this.logo = logo
+            if (this.drmType.isBlank()) this.drmType = drmType
+            if (this.drmLicenseUrl.isBlank()) this.drmLicenseUrl = drmLicenseUrl
+            if (this.clearKeysJson.isBlank()) this.clearKeysJson = clearKeysJson
+            if (this.inputstreamaddon.isBlank()) this.inputstreamaddon = inputstreamaddon
+            if (this.manifestType.isBlank()) this.manifestType = manifestType
+        }
+    }
 
     private fun BrowseMode.accountAction(): String =
         when (this) {
@@ -516,6 +808,9 @@ class AndroidSQLiteBrowseRepository(
         val index = getColumnIndexOrThrow(column)
         return if (isNull(index)) "" else getString(index).orEmpty()
     }
+
+    private fun String.toMobileAccountTypeOrNull(): MobileAccountType? =
+        runCatching { MobileAccountType.valueOf(this) }.getOrNull()
 
     private fun Cursor.long(column: String): Long {
         val index = getColumnIndexOrThrow(column)

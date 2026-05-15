@@ -65,6 +65,9 @@ class AndroidSQLiteSnapshotSyncApplier(
 
     private fun syncTable(source: SQLiteDatabase, target: SQLiteDatabase, table: String): Int {
         val sourceColumns = tableColumns(source, table)
+        if (sourceColumns.isEmpty()) {
+            return 0
+        }
         val targetColumns = tableColumns(target, table)
         val commonColumns = UiptvSyncSchema.commonSyncColumns(sourceColumns, targetColumns)
         require(commonColumns.isNotEmpty()) { "No common columns found for table $table" }
@@ -97,38 +100,55 @@ class AndroidSQLiteSnapshotSyncApplier(
 
     private fun syncFilterConfiguration(source: SQLiteDatabase, target: SQLiteDatabase): Int {
         val sourceColumns = tableColumns(source, "Configuration")
-        if ("filterCategoriesList" !in sourceColumns && "filterChannelsList" !in sourceColumns && "enableThumbnails" !in sourceColumns) {
+        val targetColumns = tableColumns(target, "Configuration")
+        val commonColumns = UiptvSyncSchema.commonSyncColumns(sourceColumns, targetColumns)
+            .filterNot { it == "id" || it in UiptvSyncSchema.androidNeverSyncConfigurationColumns }
+        if (commonColumns.isEmpty()) {
             return 0
         }
-        val selectColumns = listOf("filterCategoriesList", "filterChannelsList", "enableThumbnails")
-            .filter { it in sourceColumns }
-            .joinToString(", ") { quoteIdentifier(it) }
-        source.rawQuery("SELECT $selectColumns FROM Configuration LIMIT 1", null).use { cursor ->
+        val selectColumns = commonColumns.joinToString(", ") { quoteIdentifier(it) }
+        source.rawQuery("SELECT $selectColumns FROM Configuration ORDER BY id LIMIT 1", null).use { cursor ->
             if (!cursor.moveToFirst()) {
                 return 0
             }
-            val values = ContentValues().apply {
-                put("id", targetConfigurationId(target))
-                if ("filterCategoriesList" in sourceColumns) {
-                    put("filterCategoriesList", cursor.stringOrBlank("filterCategoriesList"))
-                }
-                if ("filterChannelsList" in sourceColumns) {
-                    put("filterChannelsList", cursor.stringOrBlank("filterChannelsList"))
-                }
-                if ("enableThumbnails" in sourceColumns) {
-                    put("enableThumbnails", cursor.stringOrBlank("enableThumbnails").ifBlank { "0" })
-                }
-                put("pauseFiltering", "0")
+            val values = ContentValues(commonColumns.size)
+            commonColumns.forEachIndexed { index, column ->
+                values.putCursorValue(column, cursor, index)
             }
-            target.insertWithOnConflict("Configuration", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+            val targetId = ensureConfigurationRow(target)
+            val updatedRows = target.update(
+                "Configuration",
+                values,
+                "id = ?",
+                arrayOf(targetId.toString())
+            )
+            if (updatedRows == 0) {
+                values.put("id", targetId)
+                target.insertWithOnConflict("Configuration", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+            }
             return 1
         }
     }
 
-    private fun targetConfigurationId(db: SQLiteDatabase): Long =
+    private fun ensureConfigurationRow(db: SQLiteDatabase): Long {
         db.rawQuery("SELECT id FROM Configuration ORDER BY id LIMIT 1", null).use { cursor ->
-            if (cursor.moveToFirst()) cursor.getLong(0) else 1L
+            if (cursor.moveToFirst()) {
+                return cursor.getLong(0)
+            }
         }
+        return db.insertWithOnConflict(
+            "Configuration",
+            null,
+            ContentValues().apply {
+                put("id", 1L)
+                put("filterCategoriesList", "")
+                put("filterChannelsList", "")
+                put("pauseFiltering", "0")
+                put("enableThumbnails", "0")
+            },
+            SQLiteDatabase.CONFLICT_REPLACE
+        ).takeIf { it > 0 } ?: 1L
+    }
 
     private fun removeUnsupportedSyncedAccounts(db: SQLiteDatabase) {
         val rssAccountIds = mutableListOf<String>()
@@ -184,11 +204,6 @@ class AndroidSQLiteSnapshotSyncApplier(
             Cursor.FIELD_TYPE_BLOB -> put(column, cursor.getBlob(index))
             else -> put(column, cursor.getString(index))
         }
-    }
-
-    private fun Cursor.stringOrBlank(column: String): String {
-        val index = getColumnIndex(column)
-        return if (index < 0 || isNull(index)) "" else getString(index).orEmpty()
     }
 
     private fun quoteIdentifier(identifier: String): String =

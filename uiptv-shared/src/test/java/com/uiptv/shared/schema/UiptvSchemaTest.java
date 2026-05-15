@@ -21,11 +21,48 @@ class UiptvSchemaTest {
 
     @Test
     void androidPortableConfigurationExcludesDesktopPlayerAndServerSettings() {
+        assertTrue(UiptvSchema.ANDROID_PORTABLE_CONFIGURATION_COLUMNS.contains("filterCategoriesList"));
+        assertTrue(UiptvSchema.ANDROID_PORTABLE_CONFIGURATION_COLUMNS.contains("filterChannelsList"));
+        assertTrue(UiptvSchema.ANDROID_PORTABLE_CONFIGURATION_COLUMNS.contains("pauseFiltering"));
         assertTrue(UiptvSchema.ANDROID_PORTABLE_CONFIGURATION_COLUMNS.contains("cacheExpiryDays"));
         assertTrue(UiptvSchema.ANDROID_PORTABLE_CONFIGURATION_COLUMNS.contains("enableThumbnails"));
+        assertTrue(UiptvSchema.ANDROID_PORTABLE_CONFIGURATION_COLUMNS.contains("wideView"));
+        assertTrue(UiptvSchema.ANDROID_PORTABLE_CONFIGURATION_COLUMNS.contains("publishedM3uCategoryMode"));
+        assertTrue(UiptvSchema.ANDROID_PORTABLE_CONFIGURATION_COLUMNS.contains("filterLockUnlockDurationMinutes"));
         assertFalse(UiptvSchema.ANDROID_PORTABLE_CONFIGURATION_COLUMNS.contains("defaultPlayerPath"));
+        assertFalse(UiptvSchema.ANDROID_PORTABLE_CONFIGURATION_COLUMNS.contains("embeddedPlayer"));
         assertTrue(UiptvSchema.ANDROID_LOCAL_CONFIGURATION_COLUMNS.contains("defaultPlayerPath"));
+        assertTrue(UiptvSchema.ANDROID_LOCAL_CONFIGURATION_COLUMNS.contains("embeddedPlayer"));
         assertTrue(UiptvSchema.ANDROID_LOCAL_CONFIGURATION_COLUMNS.contains("serverPort"));
+    }
+
+    @Test
+    void androidPullSyncTableOrderIncludesBrowsingBookmarksAndConfiguration() {
+        Set<String> names = UiptvSchema.ANDROID_PULL_SYNC_TABLE_ORDER.stream()
+                .map(UiptvTable::tableName)
+                .collect(Collectors.toSet());
+
+        assertEquals(
+                Set.of(
+                        "Account",
+                        "AccountInfo",
+                        "Bookmark",
+                        "BookmarkCategory",
+                        "BookmarkOrder",
+                        "Category",
+                        "Channel",
+                        "VodCategory",
+                        "VodChannel",
+                        "VodWatchState",
+                        "SeriesCategory",
+                        "SeriesChannel",
+                        "SeriesEpisode",
+                        "SeriesWatchState",
+                        "SeriesWatchingNowSnapshot",
+                        "Configuration"
+                ),
+                names
+        );
     }
 
     @Test

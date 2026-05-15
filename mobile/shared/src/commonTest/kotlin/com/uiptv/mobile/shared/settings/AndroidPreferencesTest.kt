@@ -2,10 +2,19 @@ package com.uiptv.mobile.shared.settings
 
 import com.uiptv.mobile.shared.db.UiptvSyncSchema
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AndroidPreferencesTest {
+    @Test
+    fun embeddedPlayerIsDefaultAndroidPlayer() {
+        val preference = PlayerPreference()
+
+        assertEquals(AndroidPlayerPreference.EMBEDDED_PLAYER, preference.selectedPlayer)
+        assertTrue(preference.rememberForFutureStreams)
+    }
+
     @Test
     fun playerPreferenceIsAndroidOnlyData() {
         assertTrue(AndroidOnlyPreferenceKeys.PLAYER_TYPE in AndroidOnlyPreferenceKeys.all)
