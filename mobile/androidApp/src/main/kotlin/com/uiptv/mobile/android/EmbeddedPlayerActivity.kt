@@ -7,8 +7,11 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -51,6 +54,7 @@ class EmbeddedPlayerActivity : Activity() {
     private lateinit var streamInfoLabel: TextView
     private lateinit var timeLabel: TextView
     private lateinit var zoomButton: TextView
+    private lateinit var repeatButton: TextView
     private val overlayHandler = Handler(Looper.getMainLooper())
     private val zoomModes = listOf(
         ZoomMode("Default", MediaPlayer.ScaleType.SURFACE_BEST_FIT),
@@ -78,6 +82,14 @@ class EmbeddedPlayerActivity : Activity() {
     private var attached = false
     private var controlsVisible = false
     private var userSeeking = false
+    private var repeatEnabled = false
+    private var reconnectScheduled = false
+    private var stoppingForLifecycle = false
+    private var reconnectAttempt = 0
+    private var audioStateRequestVersion = 0L
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var reconnectRunnable: Runnable? = null
+    private var startupVolumeFallbackApplied = false
     private var touchStartX = 0f
     private var touchStartY = 0f
     private var initialBrightness = DefaultBrightness
@@ -94,6 +106,7 @@ class EmbeddedPlayerActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN)
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        volumeControlStream = AudioManager.STREAM_MUSIC
 
         if (intent.getStringExtra(NativePlayerActivity.EXTRA_URL).orEmpty().isBlank()) {
             finish()
@@ -171,7 +184,10 @@ class EmbeddedPlayerActivity : Activity() {
                     }
                     MediaPlayer.Event.Playing -> {
                         playbackStarted = true
+                        reconnectAttempt = 0
+                        reconnectScheduled = false
                         runOnUiThread {
+                            syncAudioStateAtStartup()
                             keepLoadingVisible()
                             messageView.visibility = View.GONE
                             updatePlayPauseButton()
@@ -199,18 +215,26 @@ class EmbeddedPlayerActivity : Activity() {
                     MediaPlayer.Event.ESSelected -> {
                         runOnUiThread { handleElementaryStreamChanged(event) }
                     }
-                    MediaPlayer.Event.Paused,
-                    MediaPlayer.Event.Stopped,
-                    MediaPlayer.Event.EndReached -> {
+                    MediaPlayer.Event.Paused -> {
                         runOnUiThread {
                             completeStreamLoading()
                             updatePlayPauseButton()
                         }
                     }
+                    MediaPlayer.Event.Stopped,
+                    MediaPlayer.Event.EndReached -> {
+                        runOnUiThread {
+                            completeStreamLoading()
+                            updatePlayPauseButton()
+                            scheduleReconnectIfNeeded("Stream stopped")
+                        }
+                    }
                     MediaPlayer.Event.EncounteredError -> {
                         runOnUiThread {
                             completeStreamLoading()
-                            showMessage("Embedded player could not open this stream.")
+                            if (!scheduleReconnectIfNeeded("Stream error")) {
+                                showMessage("Embedded player could not open this stream.")
+                            }
                         }
                     }
                 }
@@ -227,11 +251,14 @@ class EmbeddedPlayerActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
+        stoppingForLifecycle = false
         startPlayback()
         startProgressUpdates()
     }
 
     override fun onStop() {
+        stoppingForLifecycle = true
+        cancelReconnect()
         overlayHandler.removeCallbacks(updateProgressRunnable)
         mediaPlayer?.runCatchingStop()
         if (attached) {
@@ -254,6 +281,7 @@ class EmbeddedPlayerActivity : Activity() {
         }
         mediaPlayer?.release()
         mediaPlayer = null
+        abandonAudioFocus()
         libVlc?.release()
         libVlc = null
         overlayHandler.removeCallbacksAndMessages(null)
@@ -279,8 +307,11 @@ class EmbeddedPlayerActivity : Activity() {
             createdPlayer.attachViews(videoLayout, null, false, false)
             attached = true
         }
+        requestAudioFocus()
         selectedVideoTrackId = UnknownTrackId
         beginStreamLoading()
+        ensureAudibleSystemVolume()
+        val audioRequestVersion = markAudioStateSyncRequested()
         val media = Media(createdLibVlc, Uri.parse(streamUrl)).apply {
             setHWDecoderEnabled(true, false)
             addOption(":http-reconnect")
@@ -288,10 +319,13 @@ class EmbeddedPlayerActivity : Activity() {
             addOption(":live-caching=1500")
             addOption(":file-caching=1500")
             addOption(":rtsp-tcp")
+            addOption(":audio-time-stretch")
         }
         createdPlayer.setVideoScale(zoomModes[zoomModeIndex].scaleType)
         createdPlayer.media = media
         media.release()
+        applyDesiredAudioState()
+        scheduleAudioStateStartupSync(audioRequestVersion)
         createdPlayer.play()
     }
 
@@ -415,6 +449,9 @@ class EmbeddedPlayerActivity : Activity() {
             addView(controlButton(StopIcon) { finish() }, compactControlLayoutParams())
             addView(controlButton(RewindIcon) { seekBySeconds(-SeekStepSeconds) }, compactControlLayoutParams())
             addView(controlButton(ForwardIcon) { seekBySeconds(SeekStepSeconds) }, compactControlLayoutParams())
+            repeatButton = controlButton(RepeatIcon) { toggleRepeat() }
+            updateRepeatButton()
+            addView(repeatButton, compactControlLayoutParams())
             addView(controlButton("${BrightnessIcon}-") { adjustBrightnessBy(-BrightnessStep) }, compactControlLayoutParams())
             addView(controlButton("${BrightnessIcon}+") { adjustBrightnessBy(BrightnessStep) }, compactControlLayoutParams())
             addView(controlButton("Vol -") { adjustVolumeBy(-VolumeStep) }, compactControlLayoutParams())
@@ -474,9 +511,33 @@ class EmbeddedPlayerActivity : Activity() {
         if (player.isPlaying) {
             player.pause()
         } else {
+            requestAudioFocus()
+            syncAudioStateAtStartup()
             player.play()
         }
         updatePlayPauseButton()
+    }
+
+    private fun toggleRepeat() {
+        repeatEnabled = !repeatEnabled
+        reconnectAttempt = 0
+        updateRepeatButton()
+        if (!repeatEnabled) {
+            cancelReconnect()
+        }
+        showFeedback(if (repeatEnabled) "Repeat reconnect on" else "Repeat reconnect off")
+    }
+
+    private fun updateRepeatButton() {
+        if (!::repeatButton.isInitialized) {
+            return
+        }
+        repeatButton.text = if (repeatEnabled) "$RepeatIcon On" else RepeatIcon
+        repeatButton.background = roundedBackground(
+            color = if (repeatEnabled) Color.argb(240, 34, 83, 93) else Color.argb(230, 37, 45, 54),
+            radius = dp(18),
+            strokeColor = if (repeatEnabled) Color.rgb(79, 216, 235) else Color.argb(120, 79, 216, 235)
+        )
     }
 
     private fun seekBySeconds(seconds: Int) {
@@ -526,6 +587,48 @@ class EmbeddedPlayerActivity : Activity() {
             return
         }
         playPauseButton.text = if (mediaPlayer?.isPlaying == true) PauseIcon else PlayIcon
+    }
+
+    private fun scheduleReconnectIfNeeded(reason: String): Boolean {
+        if (!repeatEnabled || stoppingForLifecycle || isFinishing || !playbackStarted) {
+            return false
+        }
+        if (reconnectScheduled) {
+            return true
+        }
+        if (reconnectAttempt >= MaxReconnectAttempts) {
+            showMessage("Failed to reconnect after $MaxReconnectAttempts attempts.")
+            return true
+        }
+        reconnectAttempt += 1
+        reconnectScheduled = true
+        beginStreamLoading()
+        val delayMs = if (reconnectAttempt == 1) 0L else ReconnectDelayMs
+        showMessage(
+            if (delayMs == 0L) {
+                "$reason. Reconnecting..."
+            } else {
+                "$reason. Reconnecting in ${delayMs / 1_000L}s..."
+            }
+        )
+        val task = Runnable {
+            reconnectScheduled = false
+            if (!repeatEnabled || stoppingForLifecycle || isFinishing) {
+                completeStreamLoading()
+                return@Runnable
+            }
+            messageView.visibility = View.GONE
+            startPlayback()
+        }
+        reconnectRunnable = task
+        overlayHandler.postDelayed(task, delayMs)
+        return true
+    }
+
+    private fun cancelReconnect() {
+        reconnectRunnable?.let(overlayHandler::removeCallbacks)
+        reconnectRunnable = null
+        reconnectScheduled = false
     }
 
     private fun formatTime(milliseconds: Long): String {
@@ -589,12 +692,86 @@ class EmbeddedPlayerActivity : Activity() {
         val bounded = level.coerceIn(0, maxVolume)
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, bounded, 0)
         val percent = (bounded * 100f / maxVolume).roundToInt()
-        mediaPlayer?.setVolume(percent.coerceIn(0, 100))
+        applyDesiredAudioState()
         showFeedback("Volume $percent%")
     }
 
     private fun maxMusicVolume(): Int =
         audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+
+    private fun markAudioStateSyncRequested(): Long {
+        audioStateRequestVersion += 1
+        return audioStateRequestVersion
+    }
+
+    private fun syncAudioStateAtStartup() {
+        val version = markAudioStateSyncRequested()
+        applyDesiredAudioState()
+        scheduleAudioStateStartupSync(version)
+    }
+
+    private fun scheduleAudioStateStartupSync(requestVersion: Long) {
+        scheduleAudioStateRetry(requestVersion, 150L)
+        scheduleAudioStateRetry(requestVersion, 450L)
+        scheduleAudioStateRetry(requestVersion, 1_000L)
+    }
+
+    private fun scheduleAudioStateRetry(requestVersion: Long, delayMs: Long) {
+        overlayHandler.postDelayed({
+            if (requestVersion == audioStateRequestVersion) {
+                applyDesiredAudioState()
+            }
+        }, delayMs)
+    }
+
+    private fun applyDesiredAudioState() {
+        mediaPlayer?.setVolume(VlcAudibleVolume)
+    }
+
+    private fun ensureAudibleSystemVolume() {
+        if (startupVolumeFallbackApplied) {
+            return
+        }
+        startupVolumeFallbackApplied = true
+        val maxVolume = maxMusicVolume()
+        if (audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) > 0) {
+            return
+        }
+        val fallback = (maxVolume * StartupVolumeFallbackRatio).roundToInt().coerceIn(1, maxVolume)
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, fallback, 0)
+    }
+
+    private fun requestAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val request = audioFocusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+                        .build()
+                )
+                .setOnAudioFocusChangeListener { focusChange ->
+                    if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+                        syncAudioStateAtStartup()
+                    }
+                }
+                .build()
+                .also { audioFocusRequest = it }
+            audioManager.requestAudioFocus(request)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let(audioManager::abandonAudioFocusRequest)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(null)
+        }
+    }
 
     private fun cycleZoomMode() {
         zoomModeIndex = (zoomModeIndex + 1) % zoomModes.size
@@ -612,6 +789,9 @@ class EmbeddedPlayerActivity : Activity() {
     }
 
     private fun handleElementaryStreamChanged(event: MediaPlayer.Event) {
+        if (event.esChangedType == IMedia.Track.Type.Audio) {
+            syncAudioStateAtStartup()
+        }
         if (event.esChangedType == IMedia.Track.Type.Video) {
             when (event.type) {
                 MediaPlayer.Event.ESSelected -> selectedVideoTrackId = event.esChangedID
@@ -856,13 +1036,17 @@ class EmbeddedPlayerActivity : Activity() {
         private const val ControlsAutoHideMs = 3_500L
         private const val GestureFeedbackMs = 900L
         private const val ProgressUpdateMs = 1_000L
+        private const val ReconnectDelayMs = 10_000L
+        private const val MaxReconnectAttempts = 5
         private const val StreamInfoRefreshShortDelayMs = 250L
         private const val StreamInfoRefreshMediumDelayMs = 1_000L
         private const val StreamInfoRefreshLongDelayMs = 2_500L
         private const val ProgressBarMax = 1_000
+        private const val VlcAudibleVolume = 100
         private const val SeekStepSeconds = 15
         private const val BrightnessStep = 0.10f
         private const val VolumeStep = 0.10f
+        private const val StartupVolumeFallbackRatio = 0.35f
         private const val DefaultBrightness = 0.50f
         private const val MinimumBrightness = 0.05f
         private const val GestureSlopPx = 18f
@@ -876,6 +1060,7 @@ class EmbeddedPlayerActivity : Activity() {
         private const val StopIcon = "\u25A0"
         private const val RewindIcon = "\u23EA"
         private const val ForwardIcon = "\u23E9"
+        private const val RepeatIcon = "\u27F3"
         private const val BrightnessIcon = "\u2600"
         private const val CloseIcon = "\u2715"
     }
