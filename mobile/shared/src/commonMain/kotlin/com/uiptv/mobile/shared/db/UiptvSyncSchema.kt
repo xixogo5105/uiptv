@@ -17,6 +17,9 @@ object UiptvSyncSchema {
         "SeriesEpisode",
         "SeriesWatchState",
         "SeriesWatchingNowSnapshot",
+        "PublishedM3uSelection",
+        "PublishedM3uCategorySelection",
+        "PublishedM3uChannelSelection",
         "Configuration"
     )
 
@@ -36,14 +39,14 @@ object UiptvSyncSchema {
         "SeriesEpisode",
         "SeriesWatchState",
         "SeriesWatchingNowSnapshot",
+        "PublishedM3uSelection",
+        "PublishedM3uCategorySelection",
+        "PublishedM3uChannelSelection",
         "Configuration"
     )
 
     val desktopTablesPreservedButHiddenInV1: List<String> = listOf(
-        "ThemeCssOverride",
-        "PublishedM3uSelection",
-        "PublishedM3uCategorySelection",
-        "PublishedM3uChannelSelection"
+        "ThemeCssOverride"
     )
 
     val androidNeverSyncConfigurationColumns: Set<String> = setOf(

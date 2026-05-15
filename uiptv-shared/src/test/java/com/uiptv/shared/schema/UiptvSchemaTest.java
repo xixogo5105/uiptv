@@ -59,6 +59,9 @@ class UiptvSchemaTest {
                         "SeriesEpisode",
                         "SeriesWatchState",
                         "SeriesWatchingNowSnapshot",
+                        "PublishedM3uSelection",
+                        "PublishedM3uCategorySelection",
+                        "PublishedM3uChannelSelection",
                         "Configuration"
                 ),
                 names
@@ -80,10 +83,20 @@ class UiptvSchemaTest {
         Set<String> bookmarkOrderColumns = UiptvSchema.columnsFor(UiptvTable.BOOKMARK_ORDER).stream()
                 .map(DataColumn::name)
                 .collect(Collectors.toSet());
+        Set<String> publishedM3uSelectionColumns = UiptvSchema.columnsFor(UiptvTable.PUBLISHED_M3U_SELECTION).stream()
+                .map(DataColumn::name)
+                .collect(Collectors.toSet());
+        Set<String> publishedM3uChannelSelectionColumns = UiptvSchema.columnsFor(UiptvTable.PUBLISHED_M3U_CHANNEL_SELECTION).stream()
+                .map(DataColumn::name)
+                .collect(Collectors.toSet());
 
         assertTrue(accountColumns.contains("xtremeCredentialsJson"));
         assertTrue(accountColumns.contains("timezone"));
         assertTrue(bookmarkOrderColumns.contains("bookmark_db_id"));
         assertTrue(bookmarkOrderColumns.contains("display_order"));
+        assertTrue(publishedM3uSelectionColumns.contains("accountId"));
+        assertTrue(publishedM3uChannelSelectionColumns.contains("categoryName"));
+        assertTrue(publishedM3uChannelSelectionColumns.contains("channelId"));
+        assertTrue(publishedM3uChannelSelectionColumns.contains("selected"));
     }
 }

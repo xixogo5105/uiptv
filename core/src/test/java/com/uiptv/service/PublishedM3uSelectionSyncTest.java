@@ -25,6 +25,7 @@ class PublishedM3uSelectionSyncTest extends DbBackedTest {
 
         seedAccount(sourcePath, "100", "Sky UK");
         seedPublishedSelection(sourcePath, "100");
+        seedPublishedSelection(sourcePath, M3U8PublicationService.BOOKMARKS_PLAYLIST_ACCOUNT_ID);
         seedPublishedCategorySelection(sourcePath, "100", "Sports", false);
         seedPublishedChannelSelection(sourcePath, "100", "Sports", "channel-1", true);
 
@@ -39,9 +40,10 @@ class PublishedM3uSelectionSyncTest extends DbBackedTest {
 
         String targetSkyUkId = findAccountIdByName(targetPath, "Sky UK");
         assertTrue(hasPublishedSelection(targetPath, targetSkyUkId));
+        assertTrue(hasPublishedSelection(targetPath, M3U8PublicationService.BOOKMARKS_PLAYLIST_ACCOUNT_ID));
         assertTrue(hasPublishedCategorySelection(targetPath, targetSkyUkId, "Sports", false));
         assertTrue(hasPublishedChannelSelection(targetPath, targetSkyUkId, "Sports", "channel-1", true));
-        assertEquals(1, countPublishedSelections(targetPath));
+        assertEquals(2, countPublishedSelections(targetPath));
     }
 
     private void createSchema(Path dbPath) throws SQLException {

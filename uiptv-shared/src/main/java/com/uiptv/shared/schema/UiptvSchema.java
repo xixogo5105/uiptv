@@ -85,6 +85,9 @@ public final class UiptvSchema {
             UiptvTable.SERIES_EPISODE,
             UiptvTable.SERIES_WATCH_STATE,
             UiptvTable.SERIES_WATCHING_NOW_SNAPSHOT,
+            UiptvTable.PUBLISHED_M3U_SELECTION,
+            UiptvTable.PUBLISHED_M3U_CATEGORY_SELECTION,
+            UiptvTable.PUBLISHED_M3U_CHANNEL_SELECTION,
             UiptvTable.CONFIGURATION
     );
 
@@ -201,6 +204,23 @@ public final class UiptvSchema {
                 column("bookmark_db_id", "TEXT NOT NULL"),
                 column("category_id", "TEXT"),
                 column("display_order", "INTEGER")
+        ));
+        columns.put(UiptvTable.PUBLISHED_M3U_SELECTION, List.of(
+                column("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
+                column("accountId", "TEXT NOT NULL UNIQUE")
+        ));
+        columns.put(UiptvTable.PUBLISHED_M3U_CATEGORY_SELECTION, List.of(
+                column("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
+                column("accountId", "TEXT NOT NULL"),
+                column("categoryName", "TEXT NOT NULL"),
+                column("selected", "TEXT")
+        ));
+        columns.put(UiptvTable.PUBLISHED_M3U_CHANNEL_SELECTION, List.of(
+                column("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
+                column("accountId", "TEXT NOT NULL"),
+                column("categoryName", "TEXT NOT NULL"),
+                column("channelId", "TEXT NOT NULL"),
+                column("selected", "TEXT")
         ));
         return Collections.unmodifiableMap(columns);
     }

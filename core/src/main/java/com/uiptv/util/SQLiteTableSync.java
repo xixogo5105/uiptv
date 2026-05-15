@@ -24,6 +24,7 @@ public final class SQLiteTableSync {
     private static final String SQL_INSERT_INTO = "INSERT INTO ";
     private static final String SQL_VALUES = ") VALUES (";
     private static final String ACCOUNT_ID = "accountId";
+    private static final String BOOKMARKS_PLAYLIST_ACCOUNT_ID = "__bookmarks__";
     private static final Set<String> CONFIGURATION_SYNC_EXCLUDED_COLUMNS = Set.of("filterLockHash");
 
     private SQLiteTableSync() {
@@ -375,6 +376,9 @@ public final class SQLiteTableSync {
         String sourceAccountId = sourceRows.getString(ACCOUNT_ID);
         if (sourceAccountId == null || sourceAccountId.isBlank()) {
             return null;
+        }
+        if (BOOKMARKS_PLAYLIST_ACCOUNT_ID.equals(sourceAccountId)) {
+            return sourceAccountId;
         }
 
         sourceAccountName.setString(1, sourceAccountId);

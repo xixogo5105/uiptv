@@ -81,6 +81,9 @@ class AndroidSQLiteSnapshotSyncApplier(
             ""
         }
         source.rawQuery("SELECT $quotedColumns FROM ${quoteIdentifier(table)}$whereClause", null).use { cursor ->
+            if (table in replaceOnSyncTables) {
+                target.delete(table, null, null)
+            }
             while (cursor.moveToNext()) {
                 val values = ContentValues(commonColumns.size)
                 commonColumns.forEachIndexed { index, column ->
@@ -208,4 +211,12 @@ class AndroidSQLiteSnapshotSyncApplier(
 
     private fun quoteIdentifier(identifier: String): String =
         "\"" + identifier.replace("\"", "\"\"") + "\""
+
+    private companion object {
+        private val replaceOnSyncTables = setOf(
+            "PublishedM3uSelection",
+            "PublishedM3uCategorySelection",
+            "PublishedM3uChannelSelection"
+        )
+    }
 }

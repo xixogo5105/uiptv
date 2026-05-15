@@ -25,6 +25,9 @@ class UiptvSyncSchemaTest {
                 "SeriesEpisode",
                 "SeriesWatchState",
                 "SeriesWatchingNowSnapshot",
+                "PublishedM3uSelection",
+                "PublishedM3uCategorySelection",
+                "PublishedM3uChannelSelection",
                 "Configuration"
             ),
             UiptvSyncSchema.syncableTables
@@ -37,16 +40,16 @@ class UiptvSyncSchemaTest {
         assertTrue("Channel" in UiptvSyncSchema.androidRequiredTables)
         assertTrue("VodWatchState" in UiptvSyncSchema.androidRequiredTables)
         assertTrue("SeriesWatchingNowSnapshot" in UiptvSyncSchema.androidRequiredTables)
+        assertTrue("PublishedM3uSelection" in UiptvSyncSchema.androidRequiredTables)
+        assertTrue("PublishedM3uCategorySelection" in UiptvSyncSchema.androidRequiredTables)
+        assertTrue("PublishedM3uChannelSelection" in UiptvSyncSchema.androidRequiredTables)
     }
 
     @Test
     fun desktopOnlyTablesArePreservedButHidden() {
         assertEquals(
             listOf(
-                "ThemeCssOverride",
-                "PublishedM3uSelection",
-                "PublishedM3uCategorySelection",
-                "PublishedM3uChannelSelection"
+                "ThemeCssOverride"
             ),
             UiptvSyncSchema.desktopTablesPreservedButHiddenInV1
         )
