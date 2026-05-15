@@ -37,14 +37,30 @@ class AndroidXtremeCacheReloader(
         if (streams.isEmpty()) {
             return@withContext M3uRefreshResult.failed("No live streams found. Existing cache was kept.")
         }
+        val vodCategories = runCatching {
+            AndroidVodSeriesCatalogClient().fetchCategories(account, AndroidCatalogMode.VOD)
+        }.getOrDefault(emptyList())
+        val seriesCategories = runCatching {
+            AndroidVodSeriesCatalogClient().fetchCategories(account, AndroidCatalogMode.SERIES)
+        }.getOrDefault(emptyList())
 
         val db = databaseHelper.writableDatabase
         db.beginTransaction()
         try {
             clearLiveCache(db, accountId)
-            val summary = saveLive(db, account, categories, streams)
+            val liveSummary = saveLive(db, account, categories, streams)
+            val vodCategoryRows = saveVodSeriesCategories(db, account, AndroidCatalogMode.VOD, vodCategories)
+            val seriesCategoryRows = saveVodSeriesCategories(db, account, AndroidCatalogMode.SERIES, seriesCategories)
+            val summary = liveSummary.copy(
+                vodCategories = vodCategoryRows,
+                seriesCategories = seriesCategoryRows
+            )
             db.setTransactionSuccessful()
-            M3uRefreshResult.succeeded("Saved ${summary.liveCategories} live categories and ${summary.liveChannels} live channels.", summary)
+            M3uRefreshResult.succeeded(
+                "Saved ${summary.liveCategories} live categories, ${summary.liveChannels} live channels, " +
+                    "${summary.vodCategories} VOD categories and ${summary.seriesCategories} series categories.",
+                summary
+            )
         } finally {
             db.endTransaction()
         }
@@ -159,6 +175,40 @@ class AndroidXtremeCacheReloader(
                 put("censored", 0)
             }
         )
+
+    private fun saveVodSeriesCategories(
+        db: SQLiteDatabase,
+        account: MobileAccount,
+        mode: AndroidCatalogMode,
+        categories: List<AndroidPortalCategory>
+    ): Int {
+        val accountId = requireNotNull(account.id)
+        val table = when (mode) {
+            AndroidCatalogMode.VOD -> "VodCategory"
+            AndroidCatalogMode.SERIES -> "SeriesCategory"
+        }
+        db.delete(table, "accountId = ?", arrayOf(accountId.toString()))
+        val cachedAt = System.currentTimeMillis()
+        categories.distinctBy { it.title.lowercase() }.forEach { category ->
+            db.insert(
+                table,
+                null,
+                ContentValues().apply {
+                    put("categoryId", category.id)
+                    put("accountId", accountId.toString())
+                    put("accountType", mode.accountAction)
+                    put("title", category.title)
+                    put("alias", category.alias)
+                    put("url", "")
+                    put("activeSub", category.activeSub)
+                    put("censored", category.censored)
+                    put("extraJson", category.extraJson)
+                    put("cachedAt", cachedAt)
+                }
+            )
+        }
+        return categories.distinctBy { it.title.lowercase() }.size
+    }
 
     private fun insertChannel(db: SQLiteDatabase, categoryDbId: Long, account: MobileAccount, stream: XtremeStream) {
         val base = normalizeBaseUrl(account.url)

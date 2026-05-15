@@ -47,14 +47,30 @@ class AndroidStalkerCacheReloader(
         if (streams.isEmpty()) {
             return@withContext M3uRefreshResult.failed("No Stalker channels found. Existing cache was kept.")
         }
+        val vodCategories = runCatching {
+            AndroidVodSeriesCatalogClient().fetchCategories(account, AndroidCatalogMode.VOD)
+        }.getOrDefault(emptyList())
+        val seriesCategories = runCatching {
+            AndroidVodSeriesCatalogClient().fetchCategories(account, AndroidCatalogMode.SERIES)
+        }.getOrDefault(emptyList())
 
         val db = databaseHelper.writableDatabase
         db.beginTransaction()
         try {
             clearLiveCache(db, accountId)
-            val summary = saveLive(db, accountId, categories, streams)
+            val liveSummary = saveLive(db, accountId, categories, streams)
+            val vodCategoryRows = saveVodSeriesCategories(db, accountId, AndroidCatalogMode.VOD, vodCategories)
+            val seriesCategoryRows = saveVodSeriesCategories(db, accountId, AndroidCatalogMode.SERIES, seriesCategories)
+            val summary = liveSummary.copy(
+                vodCategories = vodCategoryRows,
+                seriesCategories = seriesCategoryRows
+            )
             db.setTransactionSuccessful()
-            M3uRefreshResult.succeeded("Saved ${summary.liveCategories} live categories and ${summary.liveChannels} live channels.", summary)
+            M3uRefreshResult.succeeded(
+                "Saved ${summary.liveCategories} live categories, ${summary.liveChannels} live channels, " +
+                    "${summary.vodCategories} VOD categories and ${summary.seriesCategories} series categories.",
+                summary
+            )
         } finally {
             db.endTransaction()
         }
@@ -238,6 +254,40 @@ class AndroidStalkerCacheReloader(
                 put("censored", 0)
             }
         )
+
+    private fun saveVodSeriesCategories(
+        db: SQLiteDatabase,
+        accountId: Long,
+        mode: AndroidCatalogMode,
+        categories: List<AndroidPortalCategory>
+    ): Int {
+        val table = when (mode) {
+            AndroidCatalogMode.VOD -> "VodCategory"
+            AndroidCatalogMode.SERIES -> "SeriesCategory"
+        }
+        db.delete(table, "accountId = ?", arrayOf(accountId.toString()))
+        val cachedAt = System.currentTimeMillis()
+        val normalized = categories.distinctBy { it.title.lowercase() }
+        normalized.forEach { category ->
+            db.insert(
+                table,
+                null,
+                ContentValues().apply {
+                    put("categoryId", category.id)
+                    put("accountId", accountId.toString())
+                    put("accountType", mode.accountAction)
+                    put("title", category.title)
+                    put("alias", category.alias)
+                    put("url", "")
+                    put("activeSub", category.activeSub)
+                    put("censored", category.censored)
+                    put("extraJson", category.extraJson)
+                    put("cachedAt", cachedAt)
+                }
+            )
+        }
+        return normalized.size
+    }
 
     private fun insertChannel(db: SQLiteDatabase, categoryDbId: Long, stream: StalkerChannel) {
         db.insert(

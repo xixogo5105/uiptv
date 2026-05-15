@@ -3,7 +3,13 @@ package com.uiptv.mobile.shared.browse
 import android.content.ContentValues
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
+import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
+import com.uiptv.mobile.shared.cache.AndroidCatalogMode
+import com.uiptv.mobile.shared.cache.AndroidPortalChannel
+import com.uiptv.mobile.shared.cache.AndroidPortalEpisode
+import com.uiptv.mobile.shared.cache.AndroidVodSeriesCatalogClient
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -26,11 +32,17 @@ class AndroidSQLiteBrowseRepository(
         val selectedAccountId = accountId
             ?: accounts.firstOrNull { it.id in cachedAccountIds }?.id
             ?: accounts.firstOrNull()?.id
-        val categories = if (selectedAccountId == null) emptyList() else {
+        var categories = if (selectedAccountId == null) emptyList() else {
             loadCategories(db, selectedAccountId, mode).filterByCategoryFilters(filters)
         }
         val selectedCategoryRowId = categoryRowId?.takeIf { selected -> categories.any { it.rowId == selected } }
             ?: categories.firstOrNull()?.rowId
+        if (selectedAccountId != null && selectedCategoryRowId != null && mode != BrowseMode.LIVE) {
+            val selectedCategory = categories.firstOrNull { it.rowId == selectedCategoryRowId }
+            if (selectedCategory != null && ensureNonLiveCategoryLoaded(db, selectedAccountId, mode, selectedCategory)) {
+                categories = loadCategories(db, selectedAccountId, mode).filterByCategoryFilters(filters)
+            }
+        }
         val items = if (selectedAccountId == null || selectedCategoryRowId == null) {
             emptyList()
         } else {
@@ -330,24 +342,23 @@ class AndroidSQLiteBrowseRepository(
         if (item.mode != BrowseMode.SERIES) {
             return@withContext emptyList()
         }
-        val db = databaseHelper.readableDatabase
-        db.rawQuery(
-            """
-            SELECT s.id, CAST(s.accountId AS INTEGER) AS accountId, acc.accountName, s.categoryId,
-                s.categoryDbId, s.seriesId, s.seriesTitle, s.episodesJson
-            FROM SeriesWatchingNowSnapshot s
-            LEFT JOIN Account acc ON CAST(s.accountId AS INTEGER) = acc.id
-            WHERE s.id = ?
-            LIMIT 1
-            """.trimIndent(),
-            arrayOf(item.rowId.toString())
-        ).use { cursor ->
-            if (!cursor.moveToFirst()) {
-                emptyList()
-            } else {
-                cursor.toWatchingNowEpisodes()
+        val db = databaseHelper.writableDatabase
+        loadSeriesEpisodesFromDb(db, item, exactCategory = true)
+            .ifEmpty { loadSeriesEpisodesFromDb(db, item, exactCategory = false) }
+            .ifEmpty { loadSeriesEpisodesFromSnapshot(db, item) }
+            .ifEmpty {
+                val account = AndroidSQLiteAccountRepository(databaseHelper)
+                    .listAccounts()
+                    .firstOrNull { it.id == item.accountId }
+                    ?: return@withContext emptyList()
+                val fetched = runCatching {
+                    AndroidVodSeriesCatalogClient().fetchSeriesEpisodes(account, item.categoryProviderId, item.contentId)
+                }.getOrDefault(emptyList())
+                if (fetched.isNotEmpty()) {
+                    saveFetchedSeriesEpisodes(db, item, fetched)
+                }
+                fetched.toWatchingNowEpisodes(item)
             }
-        }
     }
 
     override suspend fun removeWatchingNow(item: MobileWatchingNowItem): Unit = withContext(Dispatchers.IO) {
@@ -357,18 +368,128 @@ class AndroidSQLiteBrowseRepository(
                 db.delete("VodWatchState", "id = ?", arrayOf(item.rowId.toString()))
             }
             BrowseMode.SERIES -> {
-                val details = db.rawQuery(
-                    "SELECT accountId, seriesId FROM SeriesWatchingNowSnapshot WHERE id = ? LIMIT 1",
-                    arrayOf(item.rowId.toString())
-                ).use { cursor ->
-                    if (cursor.moveToFirst()) cursor.string("accountId") to cursor.string("seriesId") else item.accountId.toString() to item.contentId
-                }
-                db.delete("SeriesWatchingNowSnapshot", "id = ?", arrayOf(item.rowId.toString()))
-                if (details.first.isNotBlank() && details.second.isNotBlank()) {
-                    db.delete("SeriesWatchState", "accountId = ? AND seriesId = ?", arrayOf(details.first, details.second))
+                val accountId = item.accountId.toString()
+                val seriesId = item.contentId
+                if (accountId.isNotBlank() && seriesId.isNotBlank()) {
+                    db.delete(
+                        "SeriesWatchingNowSnapshot",
+                        "accountId = ? AND seriesId = ?",
+                        arrayOf(accountId, seriesId)
+                    )
+                    db.delete(
+                        "SeriesWatchState",
+                        "accountId = ? AND seriesId = ?",
+                        arrayOf(accountId, seriesId)
+                    )
                 }
             }
             BrowseMode.LIVE -> Unit
+        }
+    }
+
+    private suspend fun ensureNonLiveCategoryLoaded(
+        db: SQLiteDatabase,
+        accountId: Long,
+        mode: BrowseMode,
+        category: MobileBrowseCategory
+    ): Boolean {
+        val catalogMode = mode.toCatalogMode() ?: return false
+        if (category.providerId.isBlank() || isVodSeriesChannelCacheFresh(db, accountId, mode, category.providerId)) {
+            return false
+        }
+        val account = AndroidSQLiteAccountRepository(databaseHelper)
+            .listAccounts()
+            .firstOrNull { it.id == accountId }
+            ?: return false
+        if (account.type != MobileAccountType.XTREME_API && account.type != MobileAccountType.STALKER_PORTAL) {
+            return false
+        }
+        val channels = runCatching {
+            AndroidVodSeriesCatalogClient().fetchChannels(account, catalogMode, category.providerId)
+        }.getOrDefault(emptyList())
+        if (channels.isEmpty()) {
+            return false
+        }
+        saveVodSeriesChannels(db, account, mode, category.providerId, channels)
+        return true
+    }
+
+    private fun isVodSeriesChannelCacheFresh(
+        db: SQLiteDatabase,
+        accountId: Long,
+        mode: BrowseMode,
+        categoryProviderId: String
+    ): Boolean {
+        val table = when (mode) {
+            BrowseMode.VOD -> "VodChannel"
+            BrowseMode.SERIES -> "SeriesChannel"
+            BrowseMode.LIVE -> return false
+        }
+        db.rawQuery(
+            "SELECT COUNT(*), COALESCE(MAX(cachedAt), 0) FROM ${quoteIdentifier(table)} WHERE accountId = ? AND categoryId = ?",
+            arrayOf(accountId.toString(), categoryProviderId)
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) {
+                return false
+            }
+            val count = cursor.getInt(0)
+            val cachedAt = cursor.getLong(1)
+            if (count <= 0 || cachedAt <= 0) {
+                return false
+            }
+            val maxAgeMs = cacheExpiryDays(db) * MILLIS_PER_DAY
+            return System.currentTimeMillis() - cachedAt <= maxAgeMs
+        }
+    }
+
+    private fun saveVodSeriesChannels(
+        db: SQLiteDatabase,
+        account: MobileAccount,
+        mode: BrowseMode,
+        categoryProviderId: String,
+        channels: List<AndroidPortalChannel>
+    ) {
+        val accountId = requireNotNull(account.id)
+        val table = when (mode) {
+            BrowseMode.VOD -> "VodChannel"
+            BrowseMode.SERIES -> "SeriesChannel"
+            BrowseMode.LIVE -> return
+        }
+        val cachedAt = System.currentTimeMillis()
+        db.beginTransaction()
+        try {
+            db.delete(table, "accountId = ? AND categoryId = ?", arrayOf(accountId.toString(), categoryProviderId))
+            channels.forEach { channel ->
+                db.insert(
+                    table,
+                    null,
+                    ContentValues().apply {
+                        put("channelId", channel.channelId)
+                        put("categoryId", channel.categoryId.ifBlank { categoryProviderId })
+                        put("accountId", accountId.toString())
+                        put("name", channel.name)
+                        put("number", channel.number)
+                        put("cmd", channel.command)
+                        put("cmd_1", "")
+                        put("cmd_2", "")
+                        put("cmd_3", "")
+                        put("logo", channel.logo)
+                        put("censored", channel.censored)
+                        put("status", channel.status)
+                        put("hd", channel.hd)
+                        put("drmType", "")
+                        put("drmLicenseUrl", "")
+                        put("clearKeysJson", "")
+                        put("inputstreamaddon", "")
+                        put("manifestType", "")
+                        put("extraJson", channel.extraJson)
+                        put("cachedAt", cachedAt)
+                    }
+                )
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
         }
     }
 
@@ -628,7 +749,85 @@ class AndroidSQLiteBrowseRepository(
             }
         }
 
-    private fun loadSeriesWatchingNow(db: SQLiteDatabase): List<MobileWatchingNowItem> =
+    private fun loadSeriesWatchingNow(db: SQLiteDatabase): List<MobileWatchingNowItem> {
+        val fromWatchState = db.rawQuery(
+            """
+            SELECT sw.id, CAST(sw.accountId AS INTEGER) AS accountId, acc.accountName,
+                sw.categoryId, sw.seriesId, sw.updatedAt,
+                sw.seriesChannelSnapshot, sw.seriesEpisodeSnapshot,
+                s.categoryDbId, s.seriesTitle, s.seriesPoster,
+                sc.name AS cachedSeriesTitle, sc.logo AS cachedSeriesPoster,
+                cat.id AS resolvedCategoryRowId
+            FROM SeriesWatchState sw
+            JOIN (
+                SELECT accountId, seriesId, MAX(updatedAt) AS latestUpdatedAt
+                FROM SeriesWatchState
+                WHERE COALESCE(seriesId, '') <> ''
+                GROUP BY accountId, seriesId
+            ) latest ON latest.accountId = sw.accountId
+                AND latest.seriesId = sw.seriesId
+                AND latest.latestUpdatedAt = sw.updatedAt
+            LEFT JOIN Account acc ON CAST(sw.accountId AS INTEGER) = acc.id
+            LEFT JOIN SeriesWatchingNowSnapshot s ON s.accountId = sw.accountId
+                AND s.categoryId = sw.categoryId
+                AND s.seriesId = sw.seriesId
+            LEFT JOIN SeriesChannel sc ON sc.accountId = sw.accountId
+                AND sc.categoryId = sw.categoryId
+                AND sc.channelId = sw.seriesId
+            LEFT JOIN SeriesCategory cat ON cat.accountId = sw.accountId
+                AND cat.categoryId = sw.categoryId
+            ORDER BY sw.updatedAt DESC
+            """.trimIndent(),
+            null
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    val channelSnapshot = cursor.titleLogoFromJson("seriesChannelSnapshot")
+                    val episodeSnapshot = cursor.titleLogoFromJson("seriesEpisodeSnapshot")
+                    val title = firstNonBlank(
+                        cursor.string("seriesTitle"),
+                        cursor.string("cachedSeriesTitle"),
+                        channelSnapshot.title,
+                        episodeSnapshot.seriesTitle,
+                        episodeSnapshot.title,
+                        cursor.string("seriesId"),
+                        "Untitled Series"
+                    )
+                    val logo = firstNonBlank(
+                        cursor.string("seriesPoster"),
+                        cursor.string("cachedSeriesPoster"),
+                        channelSnapshot.logo,
+                        episodeSnapshot.logo
+                    )
+                    add(
+                        MobileWatchingNowItem(
+                            rowId = cursor.long("id"),
+                            accountId = cursor.long("accountId"),
+                            accountName = cursor.string("accountName"),
+                            mode = BrowseMode.SERIES,
+                            title = title,
+                            subtitle = cursor.string("accountName"),
+                            logo = logo,
+                            updatedAtEpochSeconds = cursor.long("updatedAt"),
+                            categoryProviderId = cursor.string("categoryId"),
+                            categoryRowId = cursor.long("resolvedCategoryRowId").takeIf { it > 0 }
+                                ?: cursor.string("categoryDbId").toLongOrNull()
+                                ?: 0,
+                            contentId = cursor.string("seriesId")
+                        )
+                    )
+                }
+            }
+        }
+        val watchStateKeys = fromWatchState.map { "${it.accountId}|${it.categoryProviderId}|${it.contentId}" }.toSet()
+        val snapshotOnly = loadSeriesSnapshotWatchingNowRows(db, watchStateKeys)
+        return fromWatchState + snapshotOnly
+    }
+
+    private fun loadSeriesSnapshotWatchingNowRows(
+        db: SQLiteDatabase,
+        excludedKeys: Set<String>
+    ): List<MobileWatchingNowItem> =
         db.rawQuery(
             """
             SELECT s.id, CAST(s.accountId AS INTEGER) AS accountId, acc.accountName, s.seriesTitle,
@@ -641,13 +840,17 @@ class AndroidSQLiteBrowseRepository(
         ).use { cursor ->
             buildList {
                 while (cursor.moveToNext()) {
+                    val key = "${cursor.long("accountId")}|${cursor.string("categoryId")}|${cursor.string("seriesId")}"
+                    if (key in excludedKeys) {
+                        continue
+                    }
                     add(
                         MobileWatchingNowItem(
                             rowId = cursor.long("id"),
                             accountId = cursor.long("accountId"),
                             accountName = cursor.string("accountName"),
                             mode = BrowseMode.SERIES,
-                            title = cursor.string("seriesTitle").ifBlank { "Untitled Series" },
+                            title = cursor.string("seriesTitle").ifBlank { cursor.string("seriesId").ifBlank { "Untitled Series" } },
                             subtitle = cursor.string("accountName"),
                             logo = cursor.string("seriesPoster"),
                             updatedAtEpochSeconds = cursor.long("updatedAt"),
@@ -659,6 +862,203 @@ class AndroidSQLiteBrowseRepository(
                 }
             }
         }
+
+    private fun loadSeriesEpisodesFromDb(
+        db: SQLiteDatabase,
+        item: MobileWatchingNowItem,
+        exactCategory: Boolean
+    ): List<MobileWatchingNowEpisode> {
+        val args = mutableListOf(item.accountId.toString(), item.contentId)
+        val categoryClause = if (exactCategory && item.categoryProviderId.isNotBlank()) {
+            args += item.categoryProviderId
+            "AND categoryId = ?"
+        } else {
+            ""
+        }
+        return db.rawQuery(
+            """
+            SELECT id, accountId, categoryId, seriesId, channelId, name, cmd, logo, season, episodeNum,
+                description, releaseDate, rating, duration, extraJson
+            FROM SeriesEpisode
+            WHERE accountId = ? AND seriesId = ? $categoryClause
+            ORDER BY CAST(NULLIF(season, '') AS INTEGER), CAST(NULLIF(episodeNum, '') AS INTEGER), name COLLATE NOCASE
+            """.trimIndent(),
+            args.toTypedArray()
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    add(
+                        MobileWatchingNowEpisode(
+                            rowId = cursor.long("id"),
+                            parentRowId = item.rowId,
+                            accountId = item.accountId,
+                            accountName = item.accountName,
+                            seriesId = item.contentId,
+                            seriesTitle = item.title,
+                            categoryProviderId = cursor.string("categoryId").ifBlank { item.categoryProviderId },
+                            categoryRowId = item.categoryRowId,
+                            episodeId = cursor.string("channelId"),
+                            title = cursor.string("name").ifBlank { cursor.string("channelId") },
+                            season = cursor.string("season"),
+                            episodeNumber = cursor.string("episodeNum"),
+                            command = cursor.string("cmd"),
+                            logo = cursor.string("logo"),
+                            plot = cursor.string("description"),
+                            releaseDate = cursor.string("releaseDate"),
+                            rating = cursor.string("rating"),
+                            duration = cursor.string("duration")
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private fun loadSeriesEpisodesFromSnapshot(
+        db: SQLiteDatabase,
+        item: MobileWatchingNowItem
+    ): List<MobileWatchingNowEpisode> {
+        val exact = loadSnapshotPayload(db, item, exactCategory = true)
+        val payload = exact ?: loadSnapshotPayload(db, item, exactCategory = false) ?: return emptyList()
+        return parseWatchingNowEpisodesPayload(payload, item)
+    }
+
+    private fun loadSnapshotPayload(
+        db: SQLiteDatabase,
+        item: MobileWatchingNowItem,
+        exactCategory: Boolean
+    ): String? {
+        val args = mutableListOf(item.accountId.toString(), item.contentId)
+        val categoryClause = if (exactCategory && item.categoryProviderId.isNotBlank()) {
+            args += item.categoryProviderId
+            "AND categoryId = ?"
+        } else {
+            ""
+        }
+        return db.rawQuery(
+            """
+            SELECT episodesJson
+            FROM SeriesWatchingNowSnapshot
+            WHERE accountId = ? AND seriesId = ? $categoryClause
+                AND COALESCE(episodesJson, '') <> ''
+            ORDER BY updatedAt DESC
+            LIMIT 1
+            """.trimIndent(),
+            args.toTypedArray()
+        ).use { cursor ->
+            if (cursor.moveToFirst()) cursor.string("episodesJson") else null
+        }
+    }
+
+    private fun saveFetchedSeriesEpisodes(
+        db: SQLiteDatabase,
+        item: MobileWatchingNowItem,
+        episodes: List<AndroidPortalEpisode>
+    ) {
+        val cachedAt = System.currentTimeMillis()
+        val payload = JSONArray()
+        db.beginTransaction()
+        try {
+            db.delete(
+                "SeriesEpisode",
+                "accountId = ? AND categoryId = ? AND seriesId = ?",
+                arrayOf(item.accountId.toString(), item.categoryProviderId, item.contentId)
+            )
+            episodes.forEach { episode ->
+                val channelJson = episode.toChannelJson()
+                payload.put(channelJson)
+                db.insert(
+                    "SeriesEpisode",
+                    null,
+                    ContentValues().apply {
+                        put("accountId", item.accountId.toString())
+                        put("categoryId", item.categoryProviderId)
+                        put("seriesId", item.contentId)
+                        put("channelId", episode.episodeId)
+                        put("name", episode.title)
+                        put("cmd", episode.command)
+                        put("logo", episode.logo)
+                        put("season", episode.season)
+                        put("episodeNum", episode.episodeNumber)
+                        put("description", episode.plot)
+                        put("releaseDate", episode.releaseDate)
+                        put("rating", episode.rating)
+                        put("duration", episode.duration)
+                        put("extraJson", episode.extraJson)
+                        put("cachedAt", cachedAt)
+                    }
+                )
+            }
+            upsertSeriesWatchingNowSnapshot(db, item, payload.toString(), cachedAt)
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    private fun upsertSeriesWatchingNowSnapshot(
+        db: SQLiteDatabase,
+        item: MobileWatchingNowItem,
+        episodesJson: String,
+        updatedAt: Long
+    ) {
+        val values = ContentValues().apply {
+            put("categoryDbId", item.categoryRowId.toString())
+            put("seriesTitle", item.title)
+            put("seriesPoster", item.logo)
+            put("episodesJson", episodesJson)
+            put("updatedAt", updatedAt)
+        }
+        val updated = db.update(
+            "SeriesWatchingNowSnapshot",
+            values,
+            "accountId = ? AND categoryId = ? AND seriesId = ?",
+            arrayOf(item.accountId.toString(), item.categoryProviderId, item.contentId)
+        )
+        if (updated == 0) {
+            values.put("accountId", item.accountId.toString())
+            values.put("categoryId", item.categoryProviderId)
+            values.put("seriesId", item.contentId)
+            db.insert("SeriesWatchingNowSnapshot", null, values)
+        }
+    }
+
+    private fun List<AndroidPortalEpisode>.toWatchingNowEpisodes(item: MobileWatchingNowItem): List<MobileWatchingNowEpisode> =
+        mapIndexed { index, episode ->
+            MobileWatchingNowEpisode(
+                rowId = index.toLong(),
+                parentRowId = item.rowId,
+                accountId = item.accountId,
+                accountName = item.accountName,
+                seriesId = item.contentId,
+                seriesTitle = item.title,
+                categoryProviderId = item.categoryProviderId,
+                categoryRowId = item.categoryRowId,
+                episodeId = episode.episodeId,
+                title = episode.title,
+                season = episode.season,
+                episodeNumber = episode.episodeNumber,
+                command = episode.command,
+                logo = episode.logo,
+                plot = episode.plot,
+                releaseDate = episode.releaseDate,
+                rating = episode.rating,
+                duration = episode.duration
+            )
+        }.sortedWith(watchingNowEpisodeComparator())
+
+    private fun AndroidPortalEpisode.toChannelJson(): JSONObject =
+        JSONObject()
+            .put("channelId", episodeId)
+            .put("name", title)
+            .put("cmd", command)
+            .put("logo", logo)
+            .put("season", season)
+            .put("episodeNum", episodeNumber)
+            .put("description", plot)
+            .put("releaseDate", releaseDate)
+            .put("rating", rating)
+            .put("duration", duration)
 
     private fun Cursor.toWatchingNowEpisodes(): List<MobileWatchingNowEpisode> {
         val parentRowId = long("id")
@@ -704,12 +1104,57 @@ class AndroidSQLiteBrowseRepository(
                     )
                 }
             }.sortedWith(
-                compareBy<MobileWatchingNowEpisode> { it.season.toIntOrNull() ?: Int.MAX_VALUE }
-                    .thenBy { it.episodeNumber.toIntOrNull() ?: Int.MAX_VALUE }
-                    .thenBy { it.title.lowercase() }
+                watchingNowEpisodeComparator()
             )
         }.getOrDefault(emptyList())
     }
+
+    private fun parseWatchingNowEpisodesPayload(
+        payload: String,
+        item: MobileWatchingNowItem
+    ): List<MobileWatchingNowEpisode> {
+        if (payload.isBlank()) {
+            return emptyList()
+        }
+        return runCatching {
+            val array = JSONArray(payload)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val channel = array.optJSONObject(index)
+                        ?: runCatching { JSONObject(array.optString(index)) }.getOrNull()
+                        ?: continue
+                    val episodeId = channel.optString("channelId").ifBlank { channel.optString("id") }
+                    add(
+                        MobileWatchingNowEpisode(
+                            rowId = index.toLong(),
+                            parentRowId = item.rowId,
+                            accountId = item.accountId,
+                            accountName = item.accountName,
+                            seriesId = item.contentId,
+                            seriesTitle = item.title,
+                            categoryProviderId = item.categoryProviderId,
+                            categoryRowId = item.categoryRowId,
+                            episodeId = episodeId,
+                            title = channel.optString("name").ifBlank { channel.optString("title").ifBlank { episodeId } },
+                            season = channel.optString("season"),
+                            episodeNumber = channel.optString("episodeNum").ifBlank { channel.optString("episode_num") },
+                            command = channel.optString("cmd"),
+                            logo = channel.optString("logo"),
+                            plot = channel.optString("description").ifBlank { channel.optString("plot") },
+                            releaseDate = channel.optString("releaseDate").ifBlank { channel.optString("release_date") },
+                            rating = channel.optString("rating"),
+                            duration = channel.optString("duration")
+                        )
+                    )
+                }
+            }.sortedWith(watchingNowEpisodeComparator())
+        }.getOrDefault(emptyList())
+    }
+
+    private fun watchingNowEpisodeComparator(): Comparator<MobileWatchingNowEpisode> =
+        compareBy<MobileWatchingNowEpisode> { it.season.toIntOrNull() ?: Int.MAX_VALUE }
+            .thenBy { it.episodeNumber.toIntOrNull() ?: Int.MAX_VALUE }
+            .thenBy { it.title.lowercase() }
 
     private fun findBookmarkId(db: SQLiteDatabase, accountName: String, channelId: String, mode: BrowseMode): Long? =
         db.rawQuery(
@@ -907,6 +1352,51 @@ class AndroidSQLiteBrowseRepository(
             else -> BrowseMode.LIVE
         }
 
+    private fun BrowseMode.toCatalogMode(): AndroidCatalogMode? =
+        when (this) {
+            BrowseMode.VOD -> AndroidCatalogMode.VOD
+            BrowseMode.SERIES -> AndroidCatalogMode.SERIES
+            BrowseMode.LIVE -> null
+        }
+
+    private fun cacheExpiryDays(db: SQLiteDatabase): Long =
+        db.rawQuery(
+            "SELECT cacheExpiryDays FROM Configuration ORDER BY id LIMIT 1",
+            null
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) {
+                DEFAULT_CACHE_EXPIRY_DAYS
+            } else {
+                cursor.string("cacheExpiryDays").toLongOrNull()?.takeIf { it > 0 } ?: DEFAULT_CACHE_EXPIRY_DAYS
+            }
+        }
+
+    private fun Cursor.titleLogoFromJson(column: String): TitleLogo {
+        val payload = string(column)
+        if (payload.isBlank()) {
+            return TitleLogo()
+        }
+        val json = runCatching { JSONObject(payload) }.getOrNull() ?: return TitleLogo()
+        val info = json.optJSONObject("info")
+        return TitleLogo(
+            title = firstNonBlank(
+                json.firstCleanString("seriesTitle", "name", "title"),
+                info?.firstCleanString("seriesTitle", "name", "title").orEmpty()
+            ),
+            seriesTitle = firstNonBlank(
+                json.firstCleanString("seriesTitle"),
+                info?.firstCleanString("seriesTitle").orEmpty()
+            ),
+            logo = firstNonBlank(
+                json.firstCleanString("logo", "stream_icon", "movie_image", "thumbnail", "still_path", "cover_big", "cover", "screenshot_uri", "image", "poster"),
+                info?.firstCleanString("logo", "stream_icon", "movie_image", "thumbnail", "still_path", "cover_big", "cover", "screenshot_uri", "image", "poster").orEmpty()
+            )
+        )
+    }
+
+    private fun firstNonBlank(vararg values: String): String =
+        values.firstOrNull { it.isNotBlank() }?.trim().orEmpty()
+
     private fun Cursor.string(column: String): String {
         val index = getColumnIndexOrThrow(column)
         return if (isNull(index)) "" else getString(index).orEmpty()
@@ -973,4 +1463,15 @@ class AndroidSQLiteBrowseRepository(
         val channelTerms: List<String> = emptyList(),
         val paused: Boolean = false
     )
+
+    private data class TitleLogo(
+        val title: String = "",
+        val seriesTitle: String = "",
+        val logo: String = ""
+    )
+
+    private companion object {
+        const val DEFAULT_CACHE_EXPIRY_DAYS = 30L
+        const val MILLIS_PER_DAY = 86_400_000L
+    }
 }

@@ -404,6 +404,8 @@ private fun ChannelsScreen(
     var running by remember { mutableStateOf(false) }
     var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
     var playerChoices by remember { mutableStateOf<List<PlayerChoice>>(emptyList()) }
+    var selectedBrowseSeries by remember { mutableStateOf<MobileWatchingNowItem?>(null) }
+    var browseSeriesEpisodes by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
     var searchVisible by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
 
@@ -447,6 +449,83 @@ private fun ChannelsScreen(
     }
     val visibleCategories = snapshot.categories.filter { category ->
         categoryQuery.isBlank() || category.title.contains(categoryQuery.trim(), ignoreCase = true)
+    }
+    val browseSeries = selectedBrowseSeries
+    if (browseSeries != null) {
+        backHandler(true) {
+            selectedBrowseSeries = null
+            browseSeriesEpisodes = emptyList()
+        }
+        WatchingNowSeriesDetail(
+            series = browseSeries,
+            episodes = browseSeriesEpisodes,
+            running = running,
+            statusText = statusText,
+            showThumbnail = showThumbnails,
+            logoRenderer = logoRenderer,
+            onBack = {
+                selectedBrowseSeries = null
+                browseSeriesEpisodes = emptyList()
+            },
+            onPlayEpisode = { episode ->
+                scope.launch {
+                    running = true
+                    val preference = playbackActions.loadPlayerPreference()
+                    if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
+                        runCatching { playbackActions.playWatchingNowEpisode(episode, preference.selectedPlayer, false) }
+                            .onSuccess { statusText = it.message }
+                            .onFailure { statusText = it.message ?: "Unable to open episode" }
+                    } else {
+                        playerChoices = playbackActions.playerChoices()
+                        pendingPlayback = PendingPlayback.WatchingEpisode(episode)
+                    }
+                    running = false
+                }
+            },
+            onRemoveSeries = {
+                selectedBrowseSeries = null
+                browseSeriesEpisodes = emptyList()
+            },
+            showRemove = false,
+            emptyTitle = "No episodes",
+            emptyDetail = "This series did not return episode links.",
+            modifier = modifier.fillMaxSize()
+        )
+        PlaybackPickerDialog(
+            pendingPlayback = pendingPlayback,
+            playerChoices = playerChoices,
+            playerIconRenderer = playerIconRenderer,
+            onDismiss = { pendingPlayback = null },
+            onInstall = { choice ->
+                pendingPlayback = null
+                scope.launch {
+                    running = true
+                    runCatching { playbackActions.openPlayerInstall(choice) }
+                        .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
+                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                    running = false
+                }
+            },
+            onSelect = { player, remember ->
+                val pending = pendingPlayback ?: return@PlaybackPickerDialog
+                pendingPlayback = null
+                scope.launch {
+                    running = true
+                    runCatching {
+                        when (pending) {
+                            is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, player, remember)
+                            is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
+                            is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
+                            is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
+                        }
+                    }
+                        .onSuccess { statusText = it.message }
+                        .onFailure { statusText = it.message ?: "Unable to open episode" }
+                    running = false
+                }
+            }
+        )
+        return
     }
     backHandler(selectedCategoryRowId != null) {
         selectedCategoryRowId = null
@@ -793,14 +872,25 @@ private fun ChannelsScreen(
                                     onPlay = {
                                         scope.launch {
                                             running = true
-                                            val preference = playbackActions.loadPlayerPreference()
-                                            if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
-                                                runCatching { playbackActions.playBrowseItem(item, preference.selectedPlayer, false) }
-                                                    .onSuccess { statusText = it.message }
-                                                    .onFailure { statusText = it.message ?: "Unable to open stream" }
+                                            if (item.mode == BrowseMode.SERIES && item.command.isBlank()) {
+                                                val series = item.toWatchingNowSeriesItem()
+                                                runCatching { browseActions.listWatchingNowEpisodes(series) }
+                                                    .onSuccess {
+                                                        selectedBrowseSeries = series
+                                                        browseSeriesEpisodes = it
+                                                        statusText = if (it.isEmpty()) "No episodes for ${item.name}" else "${it.size} episodes"
+                                                    }
+                                                    .onFailure { statusText = it.message ?: "Unable to open series" }
                                             } else {
-                                                playerChoices = playbackActions.playerChoices()
-                                                pendingPlayback = PendingPlayback.Browse(item)
+                                                val preference = playbackActions.loadPlayerPreference()
+                                                if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
+                                                    runCatching { playbackActions.playBrowseItem(item, preference.selectedPlayer, false) }
+                                                        .onSuccess { statusText = it.message }
+                                                        .onFailure { statusText = it.message ?: "Unable to open stream" }
+                                                } else {
+                                                    playerChoices = playbackActions.playerChoices()
+                                                    pendingPlayback = PendingPlayback.Browse(item)
+                                                }
                                             }
                                             running = false
                                         }
@@ -1623,6 +1713,9 @@ private fun WatchingNowSeriesDetail(
     onBack: () -> Unit,
     onPlayEpisode: (MobileWatchingNowEpisode) -> Unit,
     onRemoveSeries: () -> Unit,
+    showRemove: Boolean = true,
+    emptyTitle: String = "No cached episodes",
+    emptyDetail: String = "Refresh this account on desktop or Android to cache episode links.",
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -1648,19 +1741,21 @@ private fun WatchingNowSeriesDetail(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                FavouriteStar(
-                    selected = true,
-                    contentDescription = "Remove watching now ${series.title}",
-                    compact = true,
-                    onClick = onRemoveSeries
-                )
+                if (showRemove) {
+                    FavouriteStar(
+                        selected = true,
+                        contentDescription = "Remove watching now ${series.title}",
+                        compact = true,
+                        onClick = onRemoveSeries
+                    )
+                }
             }
         }
         if (episodes.isEmpty()) {
             item {
                 EmptyState(
-                    title = "No cached episodes",
-                    detail = "Refresh this account on desktop or Android to cache episode links."
+                    title = emptyTitle,
+                    detail = emptyDetail
                 )
             }
         }
@@ -3638,6 +3733,20 @@ private fun MobileBrowseItem.subtitle(): String =
             append(" - HD")
         }
     }
+
+private fun MobileBrowseItem.toWatchingNowSeriesItem(): MobileWatchingNowItem =
+    MobileWatchingNowItem(
+        rowId = rowId,
+        accountId = accountId,
+        accountName = accountName,
+        mode = BrowseMode.SERIES,
+        title = name,
+        subtitle = accountName,
+        logo = logo,
+        categoryProviderId = categoryProviderId,
+        categoryRowId = categoryRowId,
+        contentId = channelId
+    )
 
 private fun AndroidPlayerPreference.playerLabel(): String =
     when (this) {

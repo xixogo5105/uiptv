@@ -191,6 +191,16 @@ class AndroidUiptvDatabaseCompatibilityTest {
                       {"stream_id":"77","name":"World News HD","category_id":"10","stream_icon":"https://logo.test/news.png","container_extension":"m3u8"},
                       {"stream_id":"88","name":"Orphan Sports","category_id":"999","stream_icon":"","container_extension":"ts"}
                     ]
+                """.trimIndent(),
+                "get_vod_categories" to """
+                    [
+                      {"category_id":"20","category_name":"Movies"}
+                    ]
+                """.trimIndent(),
+                "get_series_categories" to """
+                    [
+                      {"category_id":"30","category_name":"Shows"}
+                    ]
                 """.trimIndent()
             )
         ).use { server ->
@@ -214,6 +224,10 @@ class AndroidUiptvDatabaseCompatibilityTest {
             assertEquals(2, db.countRows("Channel", "name = 'World News HD'"))
             assertEquals(2, db.countRows("Channel", "name = 'Orphan Sports'"))
             assertEquals(4, db.countRows("Channel", "cmd LIKE '%phone%20user/p%40ss/%'"))
+            assertEquals(1, db.countRows("VodCategory", "accountId = '${account.id}' AND categoryId = '20'"))
+            assertEquals(1, db.countRows("SeriesCategory", "accountId = '${account.id}' AND categoryId = '30'"))
+            assertEquals(0, db.countRows("VodChannel", "accountId = '${account.id}'"))
+            assertEquals(0, db.countRows("SeriesChannel", "accountId = '${account.id}'"))
         }
     }
 
@@ -233,6 +247,11 @@ class AndroidUiptvDatabaseCompatibilityTest {
                       {"id":"100","name":"Portal News HD","number":"1","cmd":"ffmpeg http://stream.test/news","cmd_1":"","cmd_2":"","cmd_3":"","logo":"https://logo.test/news.png","censored":0,"status":1,"hd":1,"tv_genre_id":"1"},
                       {"id":"200","name":"Portal Orphan","number":"2","cmd":"ffmpeg http://stream.test/orphan","cmd_1":"","cmd_2":"","cmd_3":"","logo":"","censored":0,"status":1,"hd":0,"tv_genre_id":"999"}
                     ]}}
+                """.trimIndent(),
+                "get_categories" to """
+                    {"js":[
+                      {"id":"2","title":"Portal Movies","alias":"Portal Movies","active_sub":false,"censored":0}
+                    ]}
                 """.trimIndent()
             )
         ).use { server ->
@@ -254,6 +273,68 @@ class AndroidUiptvDatabaseCompatibilityTest {
             assertEquals(4, db.countRows("Channel", "cmd LIKE 'ffmpeg http://stream.test/%'"))
             assertEquals(2, db.countRows("Channel", "name = 'Portal News HD'"))
             assertEquals(2, db.countRows("Channel", "name = 'Portal Orphan'"))
+            assertEquals(1, db.countRows("VodCategory", "accountId = '${account.id}' AND categoryId = '2'"))
+            assertEquals(1, db.countRows("SeriesCategory", "accountId = '${account.id}' AND categoryId = '2'"))
+            assertEquals(0, db.countRows("VodChannel", "accountId = '${account.id}'"))
+            assertEquals(0, db.countRows("SeriesChannel", "accountId = '${account.id}'"))
+        }
+    }
+
+    @Test
+    fun browseRepositoryFetchesVodSeriesContentsAndWatchingNowEpisodesOnDemand() = runBlocking {
+        TestHttpServer(
+            mapOf(
+                "get_vod_streams" to """
+                    [
+                      {"stream_id":"501","name":"Remote Movie","category_id":"movies","stream_icon":"https://logo.test/movie.jpg","container_extension":"mp4"}
+                    ]
+                """.trimIndent(),
+                "get_series" to """
+                    [
+                      {"series_id":"show-1","name":"Remote Show","category_id":"shows","cover":"https://logo.test/show.jpg"}
+                    ]
+                """.trimIndent(),
+                "get_series_info" to """
+                    {
+                      "info":{"name":"Remote Show"},
+                      "episodes":{
+                        "1":[
+                          {"id":"900","episode_num":"1","title":"Pilot","container_extension":"mkv","season":"1","info":{"movie_image":"https://logo.test/pilot.jpg","plot":"Intro"}}
+                        ]
+                      }
+                    }
+                """.trimIndent()
+            )
+        ).use { server ->
+            val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+                MobileAccount(
+                    accountName = "On Demand Xtreme",
+                    type = MobileAccountType.XTREME_API,
+                    url = "http://127.0.0.1:${server.port}",
+                    username = "u",
+                    password = "p"
+                )
+            )
+            val accountId = requireNotNull(account.id)
+            val db = helper.writableDatabase
+            db.execSQL("INSERT INTO VodCategory(id, categoryId, accountId, accountType, title) VALUES(2101, 'movies', ?, 'vod', 'Movies')", arrayOf(accountId.toString()))
+            db.execSQL("INSERT INTO SeriesCategory(id, categoryId, accountId, accountType, title) VALUES(2102, 'shows', ?, 'series', 'Shows')", arrayOf(accountId.toString()))
+            db.execSQL("INSERT INTO SeriesWatchState(id, accountId, mode, categoryId, seriesId, episodeId, episodeName, updatedAt) VALUES(2103, ?, 'series', 'shows', 'show-1', '900', 'Pilot', 222)", arrayOf(accountId.toString()))
+
+            val repository = AndroidSQLiteBrowseRepository(helper)
+            val vodSnapshot = repository.loadBrowse(accountId, BrowseMode.VOD, 2101, "")
+            val seriesSnapshot = repository.loadBrowse(accountId, BrowseMode.SERIES, 2102, "")
+            val watchingNow = repository.listWatchingNow("")
+            val episodes = repository.listWatchingNowEpisodes(watchingNow.single { it.contentId == "show-1" })
+
+            assertEquals("Remote Movie", vodSnapshot.items.single().name)
+            assertEquals(1, db.countRows("VodChannel", "accountId = '$accountId' AND categoryId = 'movies'"))
+            assertEquals("Remote Show", seriesSnapshot.items.single().name)
+            assertEquals(1, db.countRows("SeriesChannel", "accountId = '$accountId' AND categoryId = 'shows'"))
+            assertEquals("Remote Show", watchingNow.single { it.contentId == "show-1" }.title)
+            assertEquals("Pilot", episodes.single().title)
+            assertTrue(episodes.single().command.contains("/series/u/p/900.mkv"))
+            assertEquals(1, db.countRows("SeriesEpisode", "accountId = '$accountId' AND seriesId = 'show-1'"))
         }
     }
 
@@ -454,8 +535,8 @@ class AndroidUiptvDatabaseCompatibilityTest {
             while (reader.readLine().orEmpty().isNotEmpty()) {
                 // Drain headers.
             }
-            val action = bodiesByAction.keys.firstOrNull { requestLine.contains("action=$it") }
-            val body = action?.let { bodiesByAction.getValue(it) } ?: "[]"
+            val action = Regex("[?&]action=([^&\\s]+)").find(requestLine)?.groupValues?.getOrNull(1)
+            val body = action?.let { bodiesByAction[it] } ?: "[]"
             val bytes = body.toByteArray(Charsets.UTF_8)
             client.getOutputStream().use { output ->
                 output.write("HTTP/1.1 200 OK\r\n".toByteArray())
