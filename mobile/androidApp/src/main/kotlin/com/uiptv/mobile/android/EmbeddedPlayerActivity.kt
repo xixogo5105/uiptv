@@ -31,6 +31,13 @@ import android.widget.TextView
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlaybackTarget
+import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
@@ -53,6 +60,7 @@ class EmbeddedPlayerActivity : Activity() {
     private lateinit var playPauseButton: TextView
     private lateinit var progressSeekBar: SeekBar
     private lateinit var streamInfoLabel: TextView
+    private lateinit var titleLabel: TextView
     private lateinit var timeLabel: TextView
     private lateinit var zoomButton: TextView
     private lateinit var repeatButton: TextView
@@ -100,6 +108,11 @@ class EmbeddedPlayerActivity : Activity() {
     private var activeGesture = PlayerGesture.None
     private var zoomModeIndex = 0
     private var selectedVideoTrackId = UnknownTrackId
+    private val playbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var currentTarget: PlaybackTarget? = null
+    private var currentBingeSession: AndroidBingeWatchSession? = null
+    private var currentBingeIndex = -1
+    private var markedTargetKey = ""
 
     @Suppress("DEPRECATION")
     @SuppressLint("ClickableViewAccessibility")
@@ -111,7 +124,11 @@ class EmbeddedPlayerActivity : Activity() {
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         volumeControlStream = AudioManager.STREAM_MUSIC
 
-        if (intent.getStringExtra(NativePlayerActivity.EXTRA_URL).orEmpty().isBlank()) {
+        currentBingeSession = intent.getStringExtra(NativePlayerActivity.EXTRA_BINGE_SESSION_ID)
+            .orEmpty()
+            .takeIf { it.isNotBlank() }
+            ?.let(AndroidBingeWatchSessionStore::get)
+        if (intent.getStringExtra(NativePlayerActivity.EXTRA_URL).orEmpty().isBlank() && currentBingeSession == null) {
             finish()
             return
         }
@@ -191,6 +208,7 @@ class EmbeddedPlayerActivity : Activity() {
                         playbackStarted = true
                         reconnectAttempt = 0
                         reconnectScheduled = false
+                        currentTarget?.let(::markOpened)
                         runOnUiThread {
                             syncAudioStateAtStartup()
                             keepLoadingVisible()
@@ -226,8 +244,16 @@ class EmbeddedPlayerActivity : Activity() {
                             updatePlayPauseButton()
                         }
                     }
-                    MediaPlayer.Event.Stopped,
                     MediaPlayer.Event.EndReached -> {
+                        runOnUiThread {
+                            completeStreamLoading()
+                            updatePlayPauseButton()
+                            if (!playNextBingeIfNeeded()) {
+                                scheduleReconnectIfNeeded("Stream stopped")
+                            }
+                        }
+                    }
+                    MediaPlayer.Event.Stopped -> {
                         runOnUiThread {
                             completeStreamLoading()
                             updatePlayPauseButton()
@@ -275,20 +301,17 @@ class EmbeddedPlayerActivity : Activity() {
 
     override fun onDestroy() {
         if (playbackStarted || (mediaPlayer?.time ?: 0L) > 0L) {
-            targetFromIntent()?.let {
-                val databaseHelper = AndroidUiptvDatabaseHelper(this)
-                try {
-                    AndroidPlaybackWatchStateStore(databaseHelper).markOpened(it)
-                } finally {
-                    databaseHelper.close()
-                }
-            }
+            (currentTarget ?: targetFromIntent())?.let(::markOpened)
+        }
+        if (isFinishing) {
+            intent.getStringExtra(NativePlayerActivity.EXTRA_BINGE_SESSION_ID).orEmpty().takeIf { it.isNotBlank() }?.let(AndroidBingeWatchSessionStore::remove)
         }
         mediaPlayer?.release()
         mediaPlayer = null
         abandonAudioFocus()
         libVlc?.release()
         libVlc = null
+        playbackScope.cancel()
         overlayHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
@@ -303,11 +326,22 @@ class EmbeddedPlayerActivity : Activity() {
     private fun startPlayback() {
         val createdLibVlc = libVlc ?: return
         val createdPlayer = mediaPlayer ?: return
-        val streamUrl = intent.getStringExtra(NativePlayerActivity.EXTRA_URL).orEmpty()
-        if (streamUrl.isBlank()) {
-            finish()
+        val session = currentBingeSession
+        if (session != null && currentBingeIndex < 0 && currentTarget == null) {
+            playBingeIndex(session.startIndex)
             return
         }
+        val target = currentTarget ?: targetFromIntent()
+        val streamUrl = target?.url.orEmpty()
+        if (streamUrl.isBlank()) {
+            if (session != null) {
+                playBingeIndex(if (currentBingeIndex >= 0) currentBingeIndex else session.startIndex)
+            } else {
+                finish()
+            }
+            return
+        }
+        currentTarget = target
         if (!attached) {
             createdPlayer.attachViews(videoLayout, null, false, false)
             attached = true
@@ -333,6 +367,71 @@ class EmbeddedPlayerActivity : Activity() {
         applyDesiredAudioState()
         scheduleAudioStateStartupSync(audioRequestVersion)
         createdPlayer.play()
+    }
+
+    private fun playNextBingeIfNeeded(): Boolean {
+        val session = currentBingeSession ?: return false
+        val nextIndex = currentBingeIndex + 1
+        if (nextIndex >= session.targets.size) {
+            finish()
+            return true
+        }
+        playBingeIndex(nextIndex)
+        return true
+    }
+
+    private fun playBingeIndex(index: Int) {
+        val session = currentBingeSession ?: return
+        if (index >= session.targets.size) {
+            finish()
+            return
+        }
+        currentBingeIndex = index
+        currentTarget = null
+        playbackStarted = false
+        reconnectAttempt = 0
+        reconnectScheduled = false
+        cancelReconnect()
+        beginStreamLoading()
+        val rawTarget = session.targets[index]
+        playbackScope.launch {
+            val resolved = resolveForPlayback(rawTarget)
+            if (!resolved.url.isPlayableNetworkUrl()) {
+                completeStreamLoading()
+                showMessage("Unable to resolve ${rawTarget.title}.")
+                return@launch
+            }
+            currentTarget = resolved
+            startPlayback()
+        }
+    }
+
+    private suspend fun resolveForPlayback(target: PlaybackTarget): PlaybackTarget =
+        withContext(Dispatchers.IO) {
+            val databaseHelper = AndroidUiptvDatabaseHelper(this@EmbeddedPlayerActivity)
+            try {
+                AndroidPlaybackCoordinator(
+                    context = this@EmbeddedPlayerActivity,
+                    preferences = AndroidDataStorePreferencesRepository(this@EmbeddedPlayerActivity),
+                    databaseHelper = databaseHelper
+                ).resolvePlayableTarget(target)
+            } finally {
+                databaseHelper.close()
+            }
+        }
+
+    private fun markOpened(target: PlaybackTarget) {
+        val key = listOf(target.accountId, target.mode.name, target.categoryProviderId, target.channelId, target.episodeId).joinToString("|")
+        if (key == markedTargetKey) {
+            return
+        }
+        markedTargetKey = key
+        val databaseHelper = AndroidUiptvDatabaseHelper(this)
+        try {
+            AndroidPlaybackWatchStateStore(databaseHelper).markOpened(target)
+        } finally {
+            databaseHelper.close()
+        }
     }
 
     private fun handlePlayerTouch(event: MotionEvent): Boolean {
@@ -443,7 +542,7 @@ class EmbeddedPlayerActivity : Activity() {
         abs(event.getY(0) - event.getY(1))
 
     private fun createControlsOverlay(): LinearLayout {
-        val title = TextView(this).apply {
+        titleLabel = TextView(this).apply {
             text = intent.getStringExtra(NativePlayerActivity.EXTRA_TITLE).orEmpty().ifBlank { "Embedded player" }
             setTextColor(Color.WHITE)
             setTextSize(14f)
@@ -454,7 +553,7 @@ class EmbeddedPlayerActivity : Activity() {
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(title, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(titleLabel, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(closeButton)
         }
         streamInfoLabel = TextView(this).apply {
@@ -878,6 +977,11 @@ class EmbeddedPlayerActivity : Activity() {
         if (!::streamInfoLabel.isInitialized) {
             return
         }
+        if (::titleLabel.isInitialized) {
+            titleLabel.text = currentTarget?.title
+                ?.takeIf { it.isNotBlank() }
+                ?: intent.getStringExtra(NativePlayerActivity.EXTRA_TITLE).orEmpty().ifBlank { "Embedded player" }
+        }
         streamInfoLabel.text = buildStreamInfoLabel()
     }
 
@@ -1163,4 +1267,10 @@ class EmbeddedPlayerActivity : Activity() {
         private const val BrightnessIcon = "\u2600"
         private const val CloseIcon = "\u2715"
     }
+}
+
+private fun String.isPlayableNetworkUrl(): Boolean {
+    val uri = runCatching { Uri.parse(this) }.getOrNull() ?: return false
+    val scheme = uri.scheme?.lowercase()
+    return (scheme == "http" || scheme == "https") && !uri.host.isNullOrBlank()
 }

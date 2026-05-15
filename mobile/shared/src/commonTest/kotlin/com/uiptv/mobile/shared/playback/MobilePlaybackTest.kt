@@ -75,4 +75,11 @@ class MobilePlaybackTest {
         )
         assertEquals("https://stream.test/live.ts", extractPlayableStreamUrl("token ignored https://stream.test/live.ts"))
     }
+
+    @Test
+    fun shouldResolveStalkerPortalCommandDetectsPortalLocalCommands() {
+        assertEquals(true, shouldResolveStalkerPortalCommand("ffrt http://localhost/ch/23849"))
+        assertEquals(true, shouldResolveStalkerPortalCommand("http://127.0.0.1/ch/23849"))
+        assertEquals(false, shouldResolveStalkerPortalCommand("https://stream.test/live.ts"))
+    }
 }

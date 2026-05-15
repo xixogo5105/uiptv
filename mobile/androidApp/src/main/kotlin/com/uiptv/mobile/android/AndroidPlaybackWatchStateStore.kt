@@ -102,13 +102,23 @@ class AndroidPlaybackWatchStateStore(
             if (target.seriesTitle.isNotBlank()) {
                 put("seriesTitle", target.seriesTitle)
             }
+            if (target.logo.isNotBlank()) {
+                put("seriesPoster", target.logo)
+            }
             put("updatedAt", updatedAt)
         }
-        db.update(
+        val snapshotUpdated = db.update(
             "SeriesWatchingNowSnapshot",
             snapshotValues,
             "accountId = ? AND categoryId = ? AND seriesId = ?",
             arrayOf(target.accountId.toString(), target.categoryProviderId, seriesId)
         )
+        if (snapshotUpdated == 0) {
+            snapshotValues.put("accountId", target.accountId.toString())
+            snapshotValues.put("categoryId", target.categoryProviderId)
+            snapshotValues.put("seriesId", seriesId)
+            snapshotValues.put("episodesJson", "")
+            db.insert("SeriesWatchingNowSnapshot", null, snapshotValues)
+        }
     }
 }

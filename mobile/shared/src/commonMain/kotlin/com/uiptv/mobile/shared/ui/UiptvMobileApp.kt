@@ -1,8 +1,12 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    androidx.compose.foundation.ExperimentalFoundationApi::class
+)
 
 package com.uiptv.mobile.shared.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -26,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -92,6 +97,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -110,8 +116,11 @@ import com.uiptv.mobile.shared.browse.MobileBookmarkCategory
 import com.uiptv.mobile.shared.browse.MobileBrowseCategory
 import com.uiptv.mobile.shared.browse.MobileBrowseItem
 import com.uiptv.mobile.shared.browse.MobileBrowseSnapshot
+import com.uiptv.mobile.shared.browse.MobileSeriesDetails
 import com.uiptv.mobile.shared.browse.MobileWatchingNowEpisode
 import com.uiptv.mobile.shared.browse.MobileWatchingNowItem
+import com.uiptv.mobile.shared.browse.resolvedEpisodeNumber
+import com.uiptv.mobile.shared.browse.resolvedSeason
 import com.uiptv.mobile.shared.browse.seasonTab
 import com.uiptv.mobile.shared.browse.seasonTabs
 import com.uiptv.mobile.shared.cache.CacheRefreshAction
@@ -241,6 +250,7 @@ private val UiptvLightColorScheme = lightColorScheme(
 
 @Composable
 fun UiptvMobileApp(
+    resumeSignal: Int = 0,
     syncActions: RemoteSyncUiActions = RemoteSyncUiActions.preview(),
     accountActions: AccountUiActions = AccountUiActions.preview(),
     browseActions: BrowseUiActions = BrowseUiActions.preview(),
@@ -280,6 +290,7 @@ fun UiptvMobileApp(
             ) { padding ->
                 CurrentTab(
                     selectedTab = selectedTab,
+                    resumeSignal = resumeSignal,
                     syncActions = syncActions,
                     accountActions = accountActions,
                     browseActions = browseActions,
@@ -311,6 +322,7 @@ fun UiptvMobileApp(
 @Composable
 private fun CurrentTab(
     selectedTab: Int,
+    resumeSignal: Int,
     syncActions: RemoteSyncUiActions,
     accountActions: AccountUiActions,
     browseActions: BrowseUiActions,
@@ -361,7 +373,15 @@ private fun CurrentTab(
                 }
             }
             2 -> {
-                WatchingNowScreen(browseActions, playbackActions, showThumbnails, logoRenderer, playerIconRenderer, Modifier.fillMaxSize())
+                WatchingNowScreen(
+                    browseActions,
+                    playbackActions,
+                    showThumbnails,
+                    logoRenderer,
+                    playerIconRenderer,
+                    resumeSignal,
+                    Modifier.fillMaxSize()
+                )
             }
             3 -> {
                 RemoteSyncScreen(
@@ -403,10 +423,12 @@ private fun ChannelsScreen(
     var selectedCategoryRowId by remember { mutableStateOf<Long?>(null) }
     var statusText by remember { mutableStateOf("Loading") }
     var running by remember { mutableStateOf(false) }
+    var reloadGeneration by remember { mutableStateOf(0L) }
     var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
     var playerChoices by remember { mutableStateOf<List<PlayerChoice>>(emptyList()) }
     var selectedBrowseSeries by remember { mutableStateOf<MobileWatchingNowItem?>(null) }
     var browseSeriesEpisodes by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
+    var pendingEpisodeMenu by remember { mutableStateOf<MobileWatchingNowEpisode?>(null) }
     var searchVisible by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
 
@@ -416,9 +438,18 @@ private fun ChannelsScreen(
         itemQuery: String = channelQuery,
         browseMode: BrowseMode = mode
     ) {
+        val generation = reloadGeneration + 1
+        reloadGeneration = generation
         scope.launch {
+            if (generation != reloadGeneration) {
+                return@launch
+            }
             running = true
-            runCatching { browseActions.loadBrowse(accountId, browseMode, categoryRowId, itemQuery) }
+            val result = runCatching { browseActions.loadBrowse(accountId, browseMode, categoryRowId, itemQuery) }
+            if (generation != reloadGeneration) {
+                return@launch
+            }
+            result
                 .onSuccess {
                     snapshot = it
                     statusText = when {
@@ -480,13 +511,50 @@ private fun ChannelsScreen(
                     val preference = playbackActions.loadPlayerPreference()
                     if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
                         runCatching { playbackActions.playWatchingNowEpisode(episode, preference.selectedPlayer, false) }
-                            .onSuccess { statusText = it.message }
+                            .onSuccess {
+                                statusText = it.message
+                                if (it.launched) {
+                                    browseSeriesEpisodes = browseSeriesEpisodes.withWatchingFlag(episode)
+                                }
+                            }
                             .onFailure { statusText = it.message ?: "Unable to open episode" }
                     } else {
                         playerChoices = playbackActions.playerChoices()
                         pendingPlayback = PendingPlayback.WatchingEpisode(episode)
                     }
                     running = false
+                }
+            },
+            onBingeSeason = { seasonKey ->
+                scope.launch {
+                    running = true
+                    val preference = playbackActions.loadPlayerPreference()
+                    if (
+                        preference.rememberForFutureStreams &&
+                        preference.selectedPlayer.supportsBingeWatch() &&
+                        preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME
+                    ) {
+                        runCatching {
+                            playbackActions.playBingeWatchSeason(browseSeries, browseSeriesEpisodes, seasonKey, preference.selectedPlayer, false)
+                        }
+                            .onSuccess {
+                                statusText = it.message
+                                if (it.launched) {
+                                    browseSeriesEpisodes = browseSeriesEpisodes.withBingeStartFlag(seasonKey)
+                                }
+                            }
+                            .onFailure { statusText = it.message ?: "Unable to start binge watch" }
+                    } else {
+                        playerChoices = playbackActions.playerChoices().bingeWatchChoices()
+                        pendingPlayback = PendingPlayback.Binge(browseSeries, browseSeriesEpisodes, seasonKey)
+                    }
+                    running = false
+                }
+            },
+            onEpisodeMenu = { episode ->
+                scope.launch {
+                    playerChoices = playbackActions.playerChoices()
+                    pendingEpisodeMenu = episode
                 }
             },
             onRemoveSeries = {
@@ -497,6 +565,63 @@ private fun ChannelsScreen(
             emptyTitle = "No episodes",
             emptyDetail = "This series did not return episode links.",
             modifier = modifier.fillMaxSize()
+        )
+        EpisodeActionSheet(
+            episode = pendingEpisodeMenu,
+            playerChoices = playerChoices,
+            playerIconRenderer = playerIconRenderer,
+            onDismiss = { pendingEpisodeMenu = null },
+            onMarkWatching = { episode ->
+                pendingEpisodeMenu = null
+                scope.launch {
+                    running = true
+                    runCatching { browseActions.markWatchingNowEpisode(episode) }
+                        .onSuccess {
+                            browseSeriesEpisodes = browseSeriesEpisodes.withWatchingFlag(episode)
+                            statusText = "Marked ${episode.title} as Watching Now"
+                        }
+                        .onFailure { statusText = it.message ?: "Unable to mark Watching Now" }
+                    running = false
+                }
+            },
+            onClearWatching = { episode ->
+                pendingEpisodeMenu = null
+                scope.launch {
+                    running = true
+                    runCatching { browseActions.clearWatchingNowEpisode(episode) }
+                        .onSuccess {
+                            browseSeriesEpisodes = browseSeriesEpisodes.clearWatchingFlag(episode)
+                            statusText = "Removed Watching Now flag"
+                        }
+                        .onFailure { statusText = it.message ?: "Unable to remove Watching Now flag" }
+                    running = false
+                }
+            },
+            onInstall = { choice ->
+                pendingEpisodeMenu = null
+                scope.launch {
+                    running = true
+                    runCatching { playbackActions.openPlayerInstall(choice) }
+                        .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
+                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                    running = false
+                }
+            },
+            onPlay = { episode, player ->
+                pendingEpisodeMenu = null
+                scope.launch {
+                    running = true
+                    runCatching { playbackActions.playWatchingNowEpisode(episode, player, false) }
+                        .onSuccess {
+                            statusText = it.message
+                            if (it.launched) {
+                                browseSeriesEpisodes = browseSeriesEpisodes.withWatchingFlag(episode)
+                            }
+                        }
+                        .onFailure { statusText = it.message ?: "Unable to open episode" }
+                    running = false
+                }
+            }
         )
         PlaybackPickerDialog(
             pendingPlayback = pendingPlayback,
@@ -524,9 +649,19 @@ private fun ChannelsScreen(
                             is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
                             is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
                             is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
+                            is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
                         }
                     }
-                        .onSuccess { statusText = it.message }
+                        .onSuccess {
+                            statusText = it.message
+                            if (it.launched) {
+                                browseSeriesEpisodes = when (pending) {
+                                    is PendingPlayback.WatchingEpisode -> browseSeriesEpisodes.withWatchingFlag(pending.episode)
+                                    is PendingPlayback.Binge -> browseSeriesEpisodes.withBingeStartFlag(pending.seasonKey)
+                                    else -> browseSeriesEpisodes
+                                }
+                            }
+                        }
                         .onFailure { statusText = it.message ?: "Unable to open episode" }
                     running = false
                 }
@@ -826,10 +961,15 @@ private fun ChannelsScreen(
                                             if (item.mode == BrowseMode.SERIES && item.command.isBlank()) {
                                                 val series = item.toWatchingNowSeriesItem()
                                                 runCatching { browseActions.listWatchingNowEpisodes(series) }
-                                                    .onSuccess {
+                                                    .onSuccess { episodes ->
                                                         selectedBrowseSeries = series
-                                                        browseSeriesEpisodes = it
-                                                        statusText = if (it.isEmpty()) "No episodes for ${item.name}" else "${it.size} episodes"
+                                                        browseSeriesEpisodes = episodes
+                                                        statusText = if (episodes.isEmpty()) "No episodes for ${item.name}" else "${episodes.size} episodes"
+                                                        runCatching { browseActions.enrichSeriesDetails(series, episodes) }
+                                                            .onSuccess { details ->
+                                                                selectedBrowseSeries = details.series
+                                                                browseSeriesEpisodes = details.episodes
+                                                            }
                                                     }
                                                     .onFailure { statusText = it.message ?: "Unable to open series" }
                                             } else {
@@ -900,9 +1040,19 @@ private fun ChannelsScreen(
                         is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
                         is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
                         is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
+                        is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
                     }
                 }
-                    .onSuccess { statusText = it.message }
+                    .onSuccess {
+                        statusText = it.message
+                        if (it.launched) {
+                            browseSeriesEpisodes = when (pending) {
+                                is PendingPlayback.WatchingEpisode -> browseSeriesEpisodes.withWatchingFlag(pending.episode)
+                                is PendingPlayback.Binge -> browseSeriesEpisodes.withBingeStartFlag(pending.seasonKey)
+                                else -> browseSeriesEpisodes
+                            }
+                        }
+                    }
                     .onFailure { statusText = it.message ?: "Unable to open stream" }
                 running = false
             }
@@ -1048,7 +1198,7 @@ private fun BrowseItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 64.dp)
-            .clickable(enabled = item.command.isNotBlank(), onClick = onPlay),
+            .clickable(enabled = item.mode == BrowseMode.SERIES || item.command.isNotBlank(), onClick = onPlay),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
     ) {
@@ -1326,6 +1476,7 @@ private fun BookmarksScreen(
                         is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
                         is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
                         is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
+                        is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
                     }
                 }
                     .onSuccess { statusText = it.message }
@@ -1399,6 +1550,7 @@ private fun WatchingNowScreen(
     showThumbnails: Boolean,
     logoRenderer: LogoRenderer,
     playerIconRenderer: PlayerIconRenderer,
+    resumeSignal: Int,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -1410,14 +1562,20 @@ private fun WatchingNowScreen(
     var playerChoices by remember { mutableStateOf<List<PlayerChoice>>(emptyList()) }
     var selectedSeries by remember { mutableStateOf<MobileWatchingNowItem?>(null) }
     var seriesEpisodes by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
+    var pendingRemoveWatchingNow by remember { mutableStateOf<MobileWatchingNowItem?>(null) }
+    var pendingEpisodeMenu by remember { mutableStateOf<MobileWatchingNowEpisode?>(null) }
 
     fun reload() {
         scope.launch {
             running = true
             runCatching { browseActions.listWatchingNow(query) }
-                .onSuccess {
-                    items = it
-                    statusText = if (it.isEmpty()) "Nothing to resume" else "${it.size} resume entries"
+                .onSuccess { loaded ->
+                    items = loaded
+                    statusText = if (loaded.isEmpty()) "Nothing to resume" else "${loaded.size} resume entries"
+                    val enriched = loaded.map { item ->
+                        runCatching { browseActions.enrichWatchingNowItem(item) }.getOrDefault(item)
+                    }
+                    items = enriched
                 }
                 .onFailure { statusText = it.message ?: "Unable to load watching-now" }
             running = false
@@ -1428,19 +1586,33 @@ private fun WatchingNowScreen(
         scope.launch {
             running = true
             val preference = playbackActions.loadPlayerPreference()
-            if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
+            if (
+                preference.rememberForFutureStreams &&
+                preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME &&
+                pending.supportsRememberedPlayer(preference.selectedPlayer)
+            ) {
                 runCatching {
                     when (pending) {
                         is PendingPlayback.Browse -> playbackActions.playBrowseItem(pending.item, preference.selectedPlayer, false)
                         is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, preference.selectedPlayer, false)
                         is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, preference.selectedPlayer, false)
                         is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, preference.selectedPlayer, false)
+                        is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, preference.selectedPlayer, false)
                     }
                 }
-                    .onSuccess { statusText = it.message }
+                    .onSuccess {
+                        statusText = it.message
+                        if (it.launched) {
+                            seriesEpisodes = when (pending) {
+                                is PendingPlayback.WatchingEpisode -> seriesEpisodes.withWatchingFlag(pending.episode)
+                                is PendingPlayback.Binge -> seriesEpisodes.withBingeStartFlag(pending.seasonKey)
+                                else -> seriesEpisodes
+                            }
+                        }
+                    }
                     .onFailure { statusText = it.message ?: "Unable to resume" }
             } else {
-                playerChoices = playbackActions.playerChoices()
+                playerChoices = playbackActions.playerChoices().choicesFor(pending)
                 pendingPlayback = pending
             }
             running = false
@@ -1455,10 +1627,15 @@ private fun WatchingNowScreen(
         scope.launch {
             running = true
             runCatching { browseActions.listWatchingNowEpisodes(item) }
-                .onSuccess {
+                .onSuccess { episodes ->
                     selectedSeries = item
-                    seriesEpisodes = it
-                    statusText = if (it.isEmpty()) "No cached episodes for ${item.title}" else "${it.size} cached episodes"
+                    seriesEpisodes = episodes
+                    statusText = if (episodes.isEmpty()) "No cached episodes for ${item.title}" else "${episodes.size} cached episodes"
+                    runCatching { browseActions.enrichSeriesDetails(item, episodes) }
+                        .onSuccess { details ->
+                            selectedSeries = details.series
+                            seriesEpisodes = details.episodes
+                        }
                 }
                 .onFailure { statusText = it.message ?: "Unable to open series" }
             running = false
@@ -1485,6 +1662,14 @@ private fun WatchingNowScreen(
     LaunchedEffect(browseActions) {
         reload()
     }
+    LaunchedEffect(resumeSignal) {
+        val currentSeries = selectedSeries
+        if (currentSeries != null) {
+            openWatchingNow(currentSeries)
+        } else {
+            reload()
+        }
+    }
 
     val series = selectedSeries
     if (series != null) {
@@ -1500,8 +1685,86 @@ private fun WatchingNowScreen(
                 seriesEpisodes = emptyList()
             },
             onPlayEpisode = { episode -> play(PendingPlayback.WatchingEpisode(episode)) },
-            onRemoveSeries = { removeWatchingNow(series) },
+            onBingeSeason = { seasonKey -> play(PendingPlayback.Binge(series, seriesEpisodes, seasonKey)) },
+            onEpisodeMenu = { episode ->
+                scope.launch {
+                    playerChoices = playbackActions.playerChoices()
+                    pendingEpisodeMenu = episode
+                }
+            },
+            onRemoveSeries = { pendingRemoveWatchingNow = series },
             modifier = modifier
+        )
+        EpisodeActionSheet(
+            episode = pendingEpisodeMenu,
+            playerChoices = playerChoices,
+            playerIconRenderer = playerIconRenderer,
+            onDismiss = { pendingEpisodeMenu = null },
+            onMarkWatching = { episode ->
+                pendingEpisodeMenu = null
+                scope.launch {
+                    running = true
+                    runCatching { browseActions.markWatchingNowEpisode(episode) }
+                        .onSuccess {
+                            seriesEpisodes = seriesEpisodes.withWatchingFlag(episode)
+                            statusText = "Marked ${episode.title} as Watching Now"
+                        }
+                        .onFailure { statusText = it.message ?: "Unable to mark Watching Now" }
+                    running = false
+                }
+            },
+            onClearWatching = { episode ->
+                pendingEpisodeMenu = null
+                scope.launch {
+                    running = true
+                    runCatching { browseActions.clearWatchingNowEpisode(episode) }
+                        .onSuccess {
+                            seriesEpisodes = seriesEpisodes.clearWatchingFlag(episode)
+                            items = items.filterNot { item ->
+                                item.mode == BrowseMode.SERIES &&
+                                    item.accountId == episode.accountId &&
+                                    item.categoryProviderId == episode.categoryProviderId &&
+                                    item.contentId == episode.seriesId
+                            }
+                            statusText = "Removed Watching Now flag"
+                        }
+                        .onFailure { statusText = it.message ?: "Unable to remove Watching Now flag" }
+                    running = false
+                }
+            },
+            onInstall = { choice ->
+                pendingEpisodeMenu = null
+                scope.launch {
+                    running = true
+                    runCatching { playbackActions.openPlayerInstall(choice) }
+                        .onSuccess { statusText = "Opening ${choice.label} in Google Play" }
+                        .onFailure { statusText = it.message ?: "Unable to open Google Play" }
+                    running = false
+                }
+            },
+            onPlay = { episode, player ->
+                pendingEpisodeMenu = null
+                scope.launch {
+                    running = true
+                    runCatching { playbackActions.playWatchingNowEpisode(episode, player, false) }
+                        .onSuccess {
+                            statusText = it.message
+                            if (it.launched) {
+                                seriesEpisodes = seriesEpisodes.withWatchingFlag(episode)
+                            }
+                        }
+                        .onFailure { statusText = it.message ?: "Unable to open episode" }
+                    running = false
+                }
+            }
+        )
+        ConfirmRemoveWatchingNowDialog(
+            item = pendingRemoveWatchingNow,
+            onDismiss = { pendingRemoveWatchingNow = null },
+            onConfirm = { item ->
+                pendingRemoveWatchingNow = null
+                removeWatchingNow(item)
+            }
         )
         PlaybackPickerDialog(
             pendingPlayback = pendingPlayback,
@@ -1529,9 +1792,19 @@ private fun WatchingNowScreen(
                             is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
                             is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
                             is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
-                        }
+                            is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
                     }
-                        .onSuccess { statusText = it.message }
+                }
+                        .onSuccess {
+                            statusText = it.message
+                            if (it.launched) {
+                                seriesEpisodes = when (pending) {
+                                    is PendingPlayback.WatchingEpisode -> seriesEpisodes.withWatchingFlag(pending.episode)
+                                    is PendingPlayback.Binge -> seriesEpisodes.withBingeStartFlag(pending.seasonKey)
+                                    else -> seriesEpisodes
+                                }
+                            }
+                        }
                         .onFailure { statusText = it.message ?: "Unable to resume" }
                     running = false
                 }
@@ -1573,7 +1846,7 @@ private fun WatchingNowScreen(
                 showThumbnail = showThumbnails,
                 logoRenderer = logoRenderer,
                 onOpen = { openWatchingNow(item) },
-                onRemove = { removeWatchingNow(item) }
+                onRemove = { pendingRemoveWatchingNow = item }
             )
         }
         item {
@@ -1610,11 +1883,53 @@ private fun WatchingNowScreen(
                         is PendingPlayback.Bookmark -> playbackActions.playBookmark(pending.bookmark, player, remember)
                         is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
                         is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
+                        is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
                     }
                 }
-                    .onSuccess { statusText = it.message }
+                    .onSuccess {
+                        statusText = it.message
+                        if (it.launched) {
+                            seriesEpisodes = when (pending) {
+                                is PendingPlayback.WatchingEpisode -> seriesEpisodes.withWatchingFlag(pending.episode)
+                                is PendingPlayback.Binge -> seriesEpisodes.withBingeStartFlag(pending.seasonKey)
+                                else -> seriesEpisodes
+                            }
+                        }
+                    }
                     .onFailure { statusText = it.message ?: "Unable to resume" }
                 running = false
+            }
+        }
+    )
+    ConfirmRemoveWatchingNowDialog(
+        item = pendingRemoveWatchingNow,
+        onDismiss = { pendingRemoveWatchingNow = null },
+        onConfirm = { item ->
+            pendingRemoveWatchingNow = null
+            removeWatchingNow(item)
+        }
+    )
+}
+
+@Composable
+private fun ConfirmRemoveWatchingNowDialog(
+    item: MobileWatchingNowItem?,
+    onDismiss: () -> Unit,
+    onConfirm: (MobileWatchingNowItem) -> Unit
+) {
+    val target = item ?: return
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Remove from Watching Now?") },
+        text = { Text("Remove ${target.title} from Watching Now?") },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(target) }) {
+                Text("Remove")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
     )
@@ -1665,12 +1980,21 @@ private fun WatchingNowRow(
                 }
             },
             supportingContent = {
-                Text(
-                    "${item.mode.displayLabel()} - ${item.subtitle}",
-                    color = DeepNightMutedText,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        listOf(item.mode.displayLabel(), item.subtitle).filter { it.isNotBlank() }.joinToString(" - "),
+                        color = DeepNightMutedText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    val metadata = item.metadataLine()
+                    if (metadata.isNotBlank()) {
+                        Text(metadata, color = DeepNightMutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (item.plot.isNotBlank()) {
+                        Text(item.plot, color = DeepNightMutedText, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
             }
         )
     }
@@ -1686,6 +2010,8 @@ private fun WatchingNowSeriesDetail(
     logoRenderer: LogoRenderer,
     onBack: () -> Unit,
     onPlayEpisode: (MobileWatchingNowEpisode) -> Unit,
+    onBingeSeason: (String) -> Unit,
+    onEpisodeMenu: (MobileWatchingNowEpisode) -> Unit,
     onRemoveSeries: () -> Unit,
     showRemove: Boolean = true,
     emptyTitle: String = "No cached episodes",
@@ -1693,96 +2019,152 @@ private fun WatchingNowSeriesDetail(
     modifier: Modifier = Modifier
 ) {
     val seasonTabs = remember(episodes) { episodes.seasonTabs() }
+    val watchedSeasonKey = remember(episodes) {
+        episodes.firstOrNull { it.isWatched }?.seasonTab()?.key.orEmpty()
+    }
     var selectedSeasonKey by rememberSaveable(series.accountId, series.categoryProviderId, series.contentId) {
-        mutableStateOf("")
+        mutableStateOf(watchedSeasonKey)
+    }
+    var seasonPickedByUser by rememberSaveable(series.accountId, series.categoryProviderId, series.contentId) {
+        mutableStateOf(false)
     }
     val activeSeasonKey = seasonTabs.firstOrNull { it.key == selectedSeasonKey }?.key
+        ?: seasonTabs.firstOrNull { it.key == watchedSeasonKey }?.key
         ?: seasonTabs.firstOrNull()?.key.orEmpty()
-    LaunchedEffect(seasonTabs, activeSeasonKey) {
-        if (activeSeasonKey != selectedSeasonKey) {
-            selectedSeasonKey = activeSeasonKey
+    LaunchedEffect(seasonTabs, watchedSeasonKey, activeSeasonKey, seasonPickedByUser) {
+        val preferredSeasonKey = if (!seasonPickedByUser && watchedSeasonKey.isNotBlank()) watchedSeasonKey else activeSeasonKey
+        if (preferredSeasonKey != selectedSeasonKey) {
+            selectedSeasonKey = preferredSeasonKey
         }
     }
     val visibleEpisodes = remember(episodes, activeSeasonKey) {
         if (activeSeasonKey.isBlank()) episodes else episodes.filter { it.seasonTab().key == activeSeasonKey }
     }
+    val listState = rememberLazyListState()
+    var lastAutoScrollKey by remember(series.accountId, series.categoryProviderId, series.contentId) {
+        mutableStateOf("")
+    }
+    val hasSeriesMetadata = series.logo.isNotBlank() || series.metadataLine().isNotBlank() || series.plot.isNotBlank() || series.imdbUrl.isNotBlank()
+    LaunchedEffect(activeSeasonKey, visibleEpisodes) {
+        if (visibleEpisodes.isEmpty() || activeSeasonKey.isBlank()) {
+            return@LaunchedEffect
+        }
+        val targetIndex = visibleEpisodes.indexOfFirst { it.isWatched }.takeIf { it >= 0 } ?: 0
+        val target = visibleEpisodes[targetIndex]
+        val scrollKey = "$activeSeasonKey-${target.stableWatchingNowEpisodeKey()}-${visibleEpisodes.size}"
+        if (scrollKey != lastAutoScrollKey) {
+            lastAutoScrollKey = scrollKey
+            listState.scrollToItem(targetIndex)
+        }
+    }
 
-    LazyColumn(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        item {
-            Row(
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(onClick = onBack) {
+                Text("Back")
+            }
+            Text(
+                series.title,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (showRemove) {
+                FavouriteStar(
+                    selected = true,
+                    contentDescription = "Remove watching now ${series.title}",
+                    compact = true,
+                    onClick = onRemoveSeries
+                )
+            }
+        }
+        if (hasSeriesMetadata) {
+            SeriesMetadataHeader(
+                series = series,
+                logoRenderer = logoRenderer
+            )
+        }
+        if (seasonTabs.isNotEmpty()) {
+            LazyRow(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedButton(onClick = onBack) {
-                    Text("Back")
-                }
-                Text(
-                    series.title,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (showRemove) {
-                    FavouriteStar(
-                        selected = true,
-                        contentDescription = "Remove watching now ${series.title}",
-                        compact = true,
-                        onClick = onRemoveSeries
+                items(seasonTabs, key = { it.key }) { tab ->
+                    FilterChip(
+                        selected = tab.key == activeSeasonKey,
+                        onClick = {
+                            seasonPickedByUser = true
+                            selectedSeasonKey = tab.key
+                        },
+                        label = {
+                            Text(
+                                tab.label,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     )
                 }
             }
         }
-        if (seasonTabs.isNotEmpty()) {
-            item(key = "season-tabs") {
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(seasonTabs, key = { it.key }) { tab ->
-                        FilterChip(
-                            selected = tab.key == activeSeasonKey,
-                            onClick = { selectedSeasonKey = tab.key },
-                            label = {
-                                Text(
-                                    tab.label,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        )
-                    }
+        if (activeSeasonKey.isNotBlank() && visibleEpisodes.isNotEmpty()) {
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { onBingeSeason(activeSeasonKey) }
+            ) {
+                Text("Binge Watch")
+            }
+        }
+
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (episodes.isEmpty()) {
+                item {
+                    EmptyState(
+                        title = emptyTitle,
+                        detail = emptyDetail
+                    )
                 }
             }
-        }
-        if (episodes.isEmpty()) {
-            item {
-                EmptyState(
-                    title = emptyTitle,
-                    detail = emptyDetail
+            if (visibleEpisodes.isEmpty() && episodes.isNotEmpty()) {
+                item {
+                    EmptyState(
+                        title = "No episodes",
+                        detail = "This season has no cached episodes."
+                    )
+                }
+            }
+            items(visibleEpisodes, key = { it.stableWatchingNowEpisodeKey() }) { episode ->
+                WatchingNowEpisodeRow(
+                    episode = episode,
+                    showThumbnail = showThumbnail,
+                    logoRenderer = logoRenderer,
+                    onPlay = { onPlayEpisode(episode) },
+                    onMenu = { onEpisodeMenu(episode) }
                 )
             }
-        }
-        items(visibleEpisodes, key = { it.stableWatchingNowEpisodeKey() }) { episode ->
-            WatchingNowEpisodeRow(
-                episode = episode,
-                showThumbnail = showThumbnail,
-                logoRenderer = logoRenderer,
-                onPlay = { onPlayEpisode(episode) }
-            )
-        }
-        item {
-            if (running) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            item {
+                if (running) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+                Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
             }
-            Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -1792,15 +2174,24 @@ private fun WatchingNowEpisodeRow(
     episode: MobileWatchingNowEpisode,
     showThumbnail: Boolean,
     logoRenderer: LogoRenderer,
-    onPlay: () -> Unit
+    onPlay: () -> Unit,
+    onMenu: () -> Unit
 ) {
+    val isWatching = episode.isWatched
+    val textColor = if (isWatching) Color.White else DeepNightText
+    val mutedColor = if (isWatching) Color(0xFFE0F7FF) else DeepNightMutedText
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 64.dp)
-            .clickable(onClick = onPlay),
+            .combinedClickable(
+                onClick = onPlay,
+                onLongClick = onMenu
+            ),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = if (isWatching) Color(0xFF069AC0) else DeepNightSurfaceHigh
+        )
     ) {
         ListItem(
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
@@ -1814,19 +2205,227 @@ private fun WatchingNowEpisodeRow(
                 )
             },
             headlineContent = {
-                Text(episode.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (episode.isWatched) {
+                        Text(
+                            "WATCHING",
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFFFFD700))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            color = Color(0xFF151515),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
+                    Text(
+                        episode.title,
+                        color = textColor,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            },
+            trailingContent = {
+                IconButton(
+                    modifier = Modifier.semantics { contentDescription = "Episode options ${episode.title}" },
+                    onClick = onMenu
+                ) {
+                    Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = textColor)
+                }
             },
             supportingContent = {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    val release = episode.releaseDate.desktopReleaseLine()
+                    val rating = episode.rating.takeIf { it.isNotBlank() }?.let { "IMDb $it" }.orEmpty()
+                    val meta = listOf(release, rating, episode.duration).filter { it.isNotBlank() }.joinToString(" - ")
+                    if (meta.isNotBlank()) {
+                        Text(meta, color = mutedColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(
+                        episode.plot.ifBlank { episode.seriesTitle },
+                        color = mutedColor,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SeriesMetadataHeader(
+    series: MobileWatchingNowItem,
+    logoRenderer: LogoRenderer
+) {
+    val uriHandler = LocalUriHandler.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (series.logo.isNotBlank()) {
+            Surface(
+                modifier = Modifier
+                    .width(112.dp)
+                    .height(160.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                shape = RoundedCornerShape(8.dp),
+                color = DeepNightSurfaceHighest
+            ) {
+                logoRenderer(
+                    series.logo,
+                    "Poster ${series.title}",
+                    Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(8.dp))
+                )
+            }
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (series.rating.isNotBlank() || series.imdbUrl.isNotBlank()) {
+                ImdbBadge(
+                    rating = series.rating,
+                    imdbUrl = series.imdbUrl,
+                    onOpen = { url -> uriHandler.openUri(url) }
+                )
+            }
+            if (series.genre.isNotBlank()) {
+                Text("Genre: ${series.genre}", color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
+            }
+            val release = series.releaseDate.desktopShortDate()
+            if (release.isNotBlank()) {
+                Text("Release: $release", color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
+            }
+            if (series.duration.isNotBlank()) {
+                Text(series.duration, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
+            }
+            if (series.plot.isNotBlank()) {
                 Text(
-                    listOf(
-                        episode.season.takeIf { it.isNotBlank() }?.let { "S$it" },
-                        episode.episodeNumber.takeIf { it.isNotBlank() }?.let { "E$it" },
-                        episode.duration.takeIf { it.isNotBlank() }
-                    ).filterNotNull().joinToString(" - ").ifBlank { episode.seriesTitle },
+                    series.plot,
                     color = DeepNightMutedText,
-                    maxLines = 2,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 7,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImdbBadge(
+    rating: String,
+    imdbUrl: String,
+    onOpen: (String) -> Unit
+) {
+    val url = imdbUrl.normalizedImdbUrl()
+    Surface(
+        modifier = if (url.isNotBlank()) Modifier.clickable { onOpen(url) } else Modifier,
+        shape = RoundedCornerShape(6.dp),
+        color = Color(0xFFF5C518),
+        contentColor = Color(0xFF111111)
+    ) {
+        Text(
+            listOf("IMDb", rating).filter { it.isNotBlank() }.joinToString(" "),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun EpisodeActionSheet(
+    episode: MobileWatchingNowEpisode?,
+    playerChoices: List<PlayerChoice>,
+    playerIconRenderer: PlayerIconRenderer,
+    onDismiss: () -> Unit,
+    onMarkWatching: (MobileWatchingNowEpisode) -> Unit,
+    onClearWatching: (MobileWatchingNowEpisode) -> Unit,
+    onInstall: (PlayerChoice) -> Unit,
+    onPlay: (MobileWatchingNowEpisode, AndroidPlayerPreference) -> Unit
+) {
+    val target = episode ?: return
+    var confirmRemove by remember(target) { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = DeepNightSurface,
+        contentColor = DeepNightText
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(target.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            if (target.isWatched) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Watching",
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFFFFD700))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        color = Color(0xFF151515),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    OutlinedButton(onClick = { confirmRemove = true }) {
+                        Text("Remove Watching Now")
+                    }
+                }
+            } else {
+                Button(onClick = { onMarkWatching(target) }) {
+                    Text("Watching Now")
+                }
+            }
+            PlayerChoiceGrid(
+                choices = playerChoices,
+                selectedPlayer = null,
+                playerIconRenderer = playerIconRenderer,
+                onSelect = { choice ->
+                    if (choice.opensInstallFlow()) {
+                        onInstall(choice)
+                    } else {
+                        onPlay(target, choice.player)
+                    }
+                }
+            )
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+    }
+    if (confirmRemove) {
+        AlertDialog(
+            onDismissRequest = { confirmRemove = false },
+            title = { Text("Remove Watching Now?") },
+            text = { Text("Remove ${target.title} from Watching Now?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmRemove = false
+                        onClearWatching(target)
+                    }
+                ) {
+                    Text("Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemove = false }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -1845,6 +2444,9 @@ private fun PlaybackPickerDialog(
         return
     }
     var rememberChoice by remember(pendingPlayback) { mutableStateOf(false) }
+    val choices = remember(pendingPlayback, playerChoices) {
+        playerChoices.choicesFor(pendingPlayback)
+    }
     val sheetState = rememberModalBottomSheetState()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1858,9 +2460,13 @@ private fun PlaybackPickerDialog(
                 .padding(horizontal = 18.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text("Open Stream", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                if (pendingPlayback is PendingPlayback.Binge) "Binge Watch" else "Open Stream",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
             PlayerChoiceGrid(
-                choices = playerChoices,
+                choices = choices,
                 selectedPlayer = null,
                 playerIconRenderer = playerIconRenderer,
                 onSelect = { choice ->
@@ -1871,13 +2477,15 @@ private fun PlaybackPickerDialog(
                     }
                 }
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (pendingPlayback !is PendingPlayback.Binge) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
                     modifier = Modifier.semantics { contentDescription = "Remember player choice" },
                     checked = rememberChoice,
                     onCheckedChange = { rememberChoice = it }
                 )
                 Text("Always use this player")
+                }
             }
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
@@ -3531,6 +4139,10 @@ data class BrowseUiActions(
     val removeBookmark: suspend (Long) -> Unit,
     val listWatchingNow: suspend (String) -> List<MobileWatchingNowItem>,
     val listWatchingNowEpisodes: suspend (MobileWatchingNowItem) -> List<MobileWatchingNowEpisode>,
+    val enrichWatchingNowItem: suspend (MobileWatchingNowItem) -> MobileWatchingNowItem,
+    val enrichSeriesDetails: suspend (MobileWatchingNowItem, List<MobileWatchingNowEpisode>) -> MobileSeriesDetails,
+    val markWatchingNowEpisode: suspend (MobileWatchingNowEpisode) -> Unit,
+    val clearWatchingNowEpisode: suspend (MobileWatchingNowEpisode) -> Unit,
     val removeWatchingNow: suspend (MobileWatchingNowItem) -> Unit
 ) {
     companion object {
@@ -3586,6 +4198,10 @@ data class BrowseUiActions(
                     listOf(MobileWatchingNowItem(1, 1, "Demo", BrowseMode.VOD, "Demo Movie", "Demo", updatedAtEpochSeconds = 1))
                 },
                 listWatchingNowEpisodes = { emptyList() },
+                enrichWatchingNowItem = { it },
+                enrichSeriesDetails = { series, episodes -> MobileSeriesDetails(series, episodes) },
+                markWatchingNowEpisode = {},
+                clearWatchingNowEpisode = {},
                 removeWatchingNow = {}
             )
         }
@@ -3599,6 +4215,7 @@ data class PlaybackUiActions(
     val playBookmark: suspend (MobileBookmark, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
     val playWatchingNow: suspend (MobileWatchingNowItem, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
     val playWatchingNowEpisode: suspend (MobileWatchingNowEpisode, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
+    val playBingeWatchSeason: suspend (MobileWatchingNowItem, List<MobileWatchingNowEpisode>, String, AndroidPlayerPreference, Boolean) -> PlaybackLaunchResult,
     val openPlayerInstall: suspend (PlayerChoice) -> Unit,
     val savePlayerPreference: suspend (AndroidPlayerPreference) -> Unit,
     val clearPlayerPreference: suspend () -> Unit
@@ -3617,6 +4234,7 @@ data class PlaybackUiActions(
                 playBookmark = { bookmark, _, _ -> PlaybackLaunchResult(true, "Opening ${bookmark.channelName}") },
                 playWatchingNow = { item, _, _ -> PlaybackLaunchResult(true, "Opening ${item.title}") },
                 playWatchingNowEpisode = { episode, _, _ -> PlaybackLaunchResult(true, "Opening ${episode.title}") },
+                playBingeWatchSeason = { series, _, _, _, _ -> PlaybackLaunchResult(true, "Starting ${series.title}") },
                 openPlayerInstall = {},
                 savePlayerPreference = {},
                 clearPlayerPreference = {}
@@ -3712,7 +4330,7 @@ private fun String.shortJobId(): String =
 
 private fun BrowseMode.displayLabel(): String =
     when (this) {
-        BrowseMode.LIVE -> "itv"
+        BrowseMode.LIVE -> "Live TV"
         BrowseMode.VOD -> "vod"
         BrowseMode.SERIES -> "series"
     }
@@ -3742,18 +4360,13 @@ private enum class AccountFilter(val label: String, val emptyLabel: String) {
 }
 
 private fun MobileBrowseItem.subtitle(): String =
-    buildString {
-        if (number.isNotBlank()) {
-            append(number)
-            append(" - ")
-        }
-        append(categoryTitle)
-        append(" - ")
-        append(mode.displayLabel())
-        if (isHd) {
-            append(" - HD")
-        }
-    }
+    listOf(
+        number.takeIf { it.isNotBlank() },
+        categoryTitle,
+        mode.displayLabel(),
+        "HD".takeIf { isHd },
+        metadataLine().takeIf { it.isNotBlank() }
+    ).filterNotNull().joinToString(" - ")
 
 private fun MobileBrowseItem.toWatchingNowSeriesItem(): MobileWatchingNowItem =
     MobileWatchingNowItem(
@@ -3766,8 +4379,150 @@ private fun MobileBrowseItem.toWatchingNowSeriesItem(): MobileWatchingNowItem =
         logo = logo,
         categoryProviderId = categoryProviderId,
         categoryRowId = categoryRowId,
-        contentId = channelId
+        contentId = channelId,
+        plot = plot,
+        releaseDate = releaseDate,
+        rating = rating,
+        duration = duration,
+        genre = genre,
+        imdbUrl = imdbUrl
     )
+
+private fun MobileBrowseItem.metadataLine(): String =
+    metadataLine(rating, releaseDate, duration, genre)
+
+private fun MobileWatchingNowItem.metadataLine(): String =
+    metadataLine(rating, releaseDate, duration, genre)
+
+private fun metadataLine(
+    rating: String,
+    releaseDate: String,
+    duration: String,
+    genre: String
+): String =
+    listOf(
+        rating.takeIf { it.isNotBlank() }?.let { "IMDb $it" },
+        releaseDate.desktopShortDate().takeIf { it.isNotBlank() },
+        duration.takeIf { it.isNotBlank() },
+        genre.takeIf { it.isNotBlank() }
+    ).filterNotNull().joinToString(" - ")
+
+private fun String.desktopReleaseLine(): String {
+    val value = desktopShortDate()
+    return if (value.isBlank()) "" else "Release: $value"
+}
+
+private fun String.desktopShortDate(): String {
+    val value = trim()
+    if (value.isBlank()) {
+        return ""
+    }
+    val iso = Regex("""\b(\d{4})-(\d{2})-(\d{2})\b""").find(value)
+    if (iso != null) {
+        val year = iso.groupValues[1].toIntOrNull()
+        val month = iso.groupValues[2].toIntOrNull()
+        val day = iso.groupValues[3].toIntOrNull()
+        if (year != null && month != null && day != null && month in 1..12 && day in 1..31) {
+            return "${day.englishOrdinal()} ${ENGLISH_MONTHS[month - 1]} $year"
+        }
+    }
+    return value.substringBefore('T').takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}""")) }
+        ?.desktopShortDate()
+        ?: value
+}
+
+private fun Int.englishOrdinal(): String {
+    val suffix = if (this % 100 in 11..13) {
+        "th"
+    } else {
+        when (this % 10) {
+            1 -> "st"
+            2 -> "nd"
+            3 -> "rd"
+            else -> "th"
+        }
+    }
+    return "$this$suffix"
+}
+
+private fun String.normalizedImdbUrl(): String {
+    val value = trim()
+    if (value.isBlank()) {
+        return ""
+    }
+    if (value.startsWith("http://") || value.startsWith("https://")) {
+        return value
+    }
+    val id = Regex("""tt\d+""").find(value)?.value.orEmpty()
+    return if (id.isNotBlank()) "https://www.imdb.com/title/$id/" else ""
+}
+
+private val ENGLISH_MONTHS = listOf(
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+)
+
+private fun List<MobileWatchingNowEpisode>.withWatchingFlag(target: MobileWatchingNowEpisode): List<MobileWatchingNowEpisode> =
+    map { episode ->
+        if (episode.accountId == target.accountId &&
+            episode.categoryProviderId == target.categoryProviderId &&
+            episode.seriesId == target.seriesId
+        ) {
+            episode.copy(isWatched = episode.sameEpisodeAs(target))
+        } else {
+            episode
+        }
+    }
+
+private fun List<MobileWatchingNowEpisode>.withBingeStartFlag(seasonKey: String): List<MobileWatchingNowEpisode> {
+    val target = bingeStartEpisode(seasonKey) ?: return this
+    return withWatchingFlag(target)
+}
+
+private fun List<MobileWatchingNowEpisode>.bingeStartEpisode(seasonKey: String): MobileWatchingNowEpisode? {
+    val seasonEpisodes = filter { it.matchesBingeSeasonKey(seasonKey) }
+        .sortedWith(
+            compareBy<MobileWatchingNowEpisode> { it.resolvedSeason().toIntOrNull() ?: Int.MAX_VALUE }
+                .thenBy { it.resolvedEpisodeNumber().toIntOrNull() ?: Int.MAX_VALUE }
+                .thenBy { it.title.lowercase() }
+        )
+    return seasonEpisodes.firstOrNull { it.isWatched } ?: seasonEpisodes.firstOrNull()
+}
+
+private fun MobileWatchingNowEpisode.matchesBingeSeasonKey(seasonKey: String): Boolean =
+    when {
+        seasonKey.isBlank() -> true
+        seasonKey == "other" -> seasonTab().key == "other"
+        else -> seasonTab().key == seasonKey
+    }
+
+private fun List<MobileWatchingNowEpisode>.clearWatchingFlag(target: MobileWatchingNowEpisode): List<MobileWatchingNowEpisode> =
+    map { episode ->
+        if (episode.accountId == target.accountId &&
+            episode.categoryProviderId == target.categoryProviderId &&
+            episode.seriesId == target.seriesId
+        ) {
+            episode.copy(isWatched = false)
+        } else {
+            episode
+        }
+    }
+
+private fun MobileWatchingNowEpisode.sameEpisodeAs(other: MobileWatchingNowEpisode): Boolean {
+    val thisKey = episodeId.ifBlank { rowId.toString() }
+    val otherKey = other.episodeId.ifBlank { other.rowId.toString() }
+    return thisKey == otherKey
+}
 
 private fun MobileWatchingNowItem.stableWatchingNowKey(): String {
     val contentKey = contentId.ifBlank { rowId.toString() }
@@ -3848,11 +4603,30 @@ private fun AndroidPlayerPreference.isMxPlayer(): Boolean =
         AndroidPlayerPreference.SYSTEM_CHOOSER -> false
     }
 
+private fun AndroidPlayerPreference.supportsBingeWatch(): Boolean =
+    this == AndroidPlayerPreference.EMBEDDED_PLAYER ||
+        this == AndroidPlayerPreference.NATIVE ||
+        this == AndroidPlayerPreference.ASK_EVERY_TIME
+
+private fun PendingPlayback.supportsRememberedPlayer(player: AndroidPlayerPreference): Boolean =
+    this !is PendingPlayback.Binge || player.supportsBingeWatch()
+
+private fun List<PlayerChoice>.choicesFor(pending: PendingPlayback): List<PlayerChoice> =
+    if (pending is PendingPlayback.Binge) bingeWatchChoices() else this
+
+private fun List<PlayerChoice>.bingeWatchChoices(): List<PlayerChoice> =
+    filter { it.player.supportsBingeWatch() && !it.opensInstallFlow() }
+
 private sealed interface PendingPlayback {
     data class Browse(val item: MobileBrowseItem) : PendingPlayback
     data class Bookmark(val bookmark: MobileBookmark) : PendingPlayback
     data class Watching(val item: MobileWatchingNowItem) : PendingPlayback
     data class WatchingEpisode(val episode: MobileWatchingNowEpisode) : PendingPlayback
+    data class Binge(
+        val series: MobileWatchingNowItem,
+        val episodes: List<MobileWatchingNowEpisode>,
+        val seasonKey: String
+    ) : PendingPlayback
 }
 
 private fun CacheRefreshJobState.isActive(): Boolean =

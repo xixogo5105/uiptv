@@ -53,3 +53,19 @@ fun extractPlayableStreamUrl(raw: String): String {
     val parts = withoutPrefix.split(Regex("\\s+")).filter { it.isNotBlank() }
     return if (parts.size > 1) parts.last() else withoutPrefix
 }
+
+fun shouldResolveStalkerPortalCommand(raw: String): Boolean {
+    val value = raw.trim()
+    if (value.isBlank()) {
+        return false
+    }
+    val lower = value.lowercase()
+    if (lower.startsWith("ffrt ") || lower.startsWith("ffmpeg ") || lower.startsWith("ffmpeg+") || lower.startsWith("ffmpeg%20")) {
+        return true
+    }
+    val playable = extractPlayableStreamUrl(value).lowercase()
+    return playable.startsWith("http://localhost/") ||
+        playable.startsWith("https://localhost/") ||
+        playable.startsWith("http://127.0.0.1/") ||
+        playable.startsWith("https://127.0.0.1/")
+}

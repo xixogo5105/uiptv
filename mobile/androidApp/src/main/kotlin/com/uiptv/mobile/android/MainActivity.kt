@@ -20,6 +20,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -52,6 +53,8 @@ import com.uiptv.mobile.shared.ui.UiptvMobileApp
 import com.uiptv.mobile.shared.ui.RemoteSyncUiActions
 
 class MainActivity : ComponentActivity() {
+    private var appResumeSignal by mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestNotificationPermissionIfNeeded()
@@ -102,6 +105,7 @@ class MainActivity : ComponentActivity() {
             }
 
             UiptvMobileApp(
+                resumeSignal = appResumeSignal,
                 syncActions = RemoteSyncUiActions(
                     loadPreferences = preferences::load,
                     checkConnection = syncService::checkConnection,
@@ -127,6 +131,10 @@ class MainActivity : ComponentActivity() {
                     removeBookmark = browseRepository::removeBookmark,
                     listWatchingNow = browseRepository::listWatchingNow,
                     listWatchingNowEpisodes = browseRepository::listWatchingNowEpisodes,
+                    enrichWatchingNowItem = browseRepository::enrichWatchingNowItem,
+                    enrichSeriesDetails = browseRepository::enrichSeriesDetails,
+                    markWatchingNowEpisode = browseRepository::markWatchingNowEpisode,
+                    clearWatchingNowEpisode = browseRepository::clearWatchingNowEpisode,
                     removeWatchingNow = browseRepository::removeWatchingNow
                 ),
                 playbackActions = PlaybackUiActions(
@@ -136,6 +144,7 @@ class MainActivity : ComponentActivity() {
                     playBookmark = playbackCoordinator::playBookmark,
                     playWatchingNow = playbackCoordinator::playWatchingNow,
                     playWatchingNowEpisode = playbackCoordinator::playWatchingNowEpisode,
+                    playBingeWatchSeason = playbackCoordinator::playBingeWatchSeason,
                     openPlayerInstall = playbackCoordinator::openPlayerInstall,
                     savePlayerPreference = playbackCoordinator::savePlayerPreference,
                     clearPlayerPreference = playbackCoordinator::clearPlayerPreference
@@ -188,6 +197,11 @@ class MainActivity : ComponentActivity() {
                 }
             )
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appResumeSignal += 1
     }
 
     private fun requestNotificationPermissionIfNeeded() {

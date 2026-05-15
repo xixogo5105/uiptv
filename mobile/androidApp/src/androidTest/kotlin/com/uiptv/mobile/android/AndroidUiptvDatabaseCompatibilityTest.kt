@@ -7,10 +7,14 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
 import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
+import com.uiptv.mobile.shared.browse.AndroidEpisodeMetadata
+import com.uiptv.mobile.shared.browse.AndroidImdbMetadata
+import com.uiptv.mobile.shared.browse.AndroidImdbMetadataProvider
 import com.uiptv.mobile.shared.browse.AndroidSQLiteBrowseRepository
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.browse.MobileBrowseItem
 import com.uiptv.mobile.shared.browse.MobileWatchingNowEpisode
+import com.uiptv.mobile.shared.browse.MobileWatchingNowItem
 import com.uiptv.mobile.shared.cache.AndroidM3uCacheReloader
 import com.uiptv.mobile.shared.cache.AndroidStalkerCacheReloader
 import com.uiptv.mobile.shared.cache.AndroidXtremeCacheReloader
@@ -325,6 +329,15 @@ class AndroidUiptvDatabaseCompatibilityTest {
             db.execSQL("INSERT INTO SeriesEpisode(id, accountId, categoryId, seriesId, channelId, name, cmd, season, episodeNum) VALUES(2104, ?, 'shows', 'show-1', '900', 'Stale Pilot', '', '1', '1')", arrayOf(accountId.toString()))
 
             val repository = AndroidSQLiteBrowseRepository(helper)
+            val vodCategoriesSnapshot = repository.loadBrowse(accountId, BrowseMode.VOD, null, "")
+            val seriesCategoriesSnapshot = repository.loadBrowse(accountId, BrowseMode.SERIES, null, "")
+
+            assertEquals(null, vodCategoriesSnapshot.selectedCategoryRowId)
+            assertEquals(emptyList<MobileBrowseItem>(), vodCategoriesSnapshot.items)
+            assertEquals(null, seriesCategoriesSnapshot.selectedCategoryRowId)
+            assertEquals(emptyList<MobileBrowseItem>(), seriesCategoriesSnapshot.items)
+            assertEquals(emptyList<String>(), server.requests.toList())
+
             val vodSnapshot = repository.loadBrowse(accountId, BrowseMode.VOD, 2101, "")
             val seriesSnapshot = repository.loadBrowse(accountId, BrowseMode.SERIES, 2102, "")
             val watchingNow = repository.listWatchingNow("")
@@ -338,6 +351,8 @@ class AndroidUiptvDatabaseCompatibilityTest {
             assertEquals("Pilot", episodes.single().title)
             assertTrue(episodes.single().command.contains("/series/u/p/900.mkv"))
             assertEquals(1, db.countRows("SeriesEpisode", "accountId = '$accountId' AND seriesId = 'show-1'"))
+            assertTrue(server.requests.any { it.contains("action=get_vod_streams") && it.contains("category_id=movies") })
+            assertTrue(server.requests.any { it.contains("action=get_series") && it.contains("category_id=shows") })
         }
     }
 
@@ -547,6 +562,285 @@ class AndroidUiptvDatabaseCompatibilityTest {
         }
     }
 
+    @Test
+    fun browseRepositoryEnrichesWatchingNowAndSeriesEpisodesFromMetadataProvider() = runBlocking {
+        val provider = object : AndroidImdbMetadataProvider {
+            override fun findSeriesDetails(title: String, preferredImdbId: String, hints: List<String>): AndroidImdbMetadata =
+                AndroidImdbMetadata(
+                    name = "Localized Show",
+                    cover = "https://image.test/show.jpg",
+                    plot = "Series plot",
+                    releaseDate = "2024-02-01",
+                    rating = "8.7",
+                    genre = "Drama",
+                    imdbUrl = "https://www.imdb.com/title/tt1234567/",
+                    episodesMeta = listOf(
+                        AndroidEpisodeMetadata(
+                            title = "The Real Pilot",
+                            season = "4",
+                            episodeNumber = "1",
+                            plot = "Episode plot",
+                            logo = "https://image.test/episode.jpg",
+                            releaseDate = "2024-02-02",
+                            rating = "8.9"
+                        )
+                    )
+                )
+
+            override fun findMovieDetails(title: String, preferredImdbId: String, hints: List<String>): AndroidImdbMetadata =
+                AndroidImdbMetadata(
+                    name = "Provider Movie",
+                    cover = "https://image.test/movie.jpg",
+                    plot = "Movie plot",
+                    releaseDate = "2023-01-01",
+                    rating = "7.5",
+                    duration = "110 min",
+                    genre = "Action",
+                    imdbUrl = "https://www.imdb.com/title/tt7654321/"
+                )
+        }
+        val repository = AndroidSQLiteBrowseRepository(helper, provider)
+
+        val movie = repository.enrichWatchingNowItem(
+            MobileWatchingNowItem(
+                rowId = 1,
+                accountId = 2,
+                accountName = "Demo",
+                mode = BrowseMode.VOD,
+                title = "Cached Movie",
+                subtitle = "Demo"
+            )
+        )
+        val details = repository.enrichSeriesDetails(
+            MobileWatchingNowItem(
+                rowId = 2,
+                accountId = 2,
+                accountName = "Demo",
+                mode = BrowseMode.SERIES,
+                title = "Cached Show",
+                subtitle = "Demo",
+                contentId = "show-1"
+            ),
+            listOf(
+                MobileWatchingNowEpisode(
+                    rowId = 3,
+                    parentRowId = 2,
+                    accountId = 2,
+                    accountName = "Demo",
+                    seriesId = "show-1",
+                    seriesTitle = "Cached Show",
+                    categoryProviderId = "series",
+                    categoryRowId = 4,
+                    episodeId = "episode-1",
+                    title = "Season 4 - Episode 1",
+                    episodeNumber = "1"
+                )
+            )
+        )
+
+        assertEquals("Cached Movie", movie.title)
+        assertEquals("Movie plot", movie.plot)
+        assertEquals("7.5", movie.rating)
+        assertEquals("110 min", movie.duration)
+        assertEquals("Localized Show", details.series.title)
+        assertEquals("Series plot", details.series.plot)
+        assertEquals("The Real Pilot", details.episodes.single().title)
+        assertEquals("Episode plot", details.episodes.single().plot)
+        assertEquals("8.9", details.episodes.single().rating)
+    }
+
+    @Test
+    fun playbackCoordinatorStartsBingeWatchWithoutResolvingEpisodeUrlsUpfront() = runBlocking {
+        AndroidBingeWatchSessionStore.clear()
+        val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+            MobileAccount(
+                accountName = "Binge Account",
+                type = MobileAccountType.STALKER_PORTAL,
+                url = "http://127.0.0.1:1",
+                macAddress = "00:1A:79:00:00:02"
+            )
+        )
+        val accountId = requireNotNull(account.id)
+        helper.writableDatabase.execSQL(
+            """
+            INSERT INTO SeriesWatchState(
+                id, accountId, mode, categoryId, seriesId, episodeId, episodeName, season, episodeNum, updatedAt
+            ) VALUES(3101, ?, 'series', 'shows', 'show-1', 'ep-2', 'Episode 2', '1', '2', 999)
+            """.trimIndent(),
+            arrayOf(accountId.toString())
+        )
+        val startedIntents = mutableListOf<Intent>()
+        val coordinator = AndroidPlaybackCoordinator(
+            context = context,
+            preferences = AndroidDataStorePreferencesRepository(context),
+            databaseHelper = helper,
+            activityStarter = { startedIntents += it }
+        )
+
+        val result = coordinator.playBingeWatchSeason(
+            series = MobileWatchingNowItem(
+                rowId = 1,
+                accountId = accountId,
+                accountName = "Binge Account",
+                mode = BrowseMode.SERIES,
+                title = "Portal Show",
+                subtitle = "Binge Account",
+                categoryProviderId = "shows",
+                contentId = "show-1"
+            ),
+            episodes = listOf(
+                bingeEpisode(accountId, "ep-1", "Season 1 - Episode 1", "ffrt http://localhost/ch/ep-1", "1"),
+                bingeEpisode(accountId, "ep-2", "Season 1 - Episode 2", "ffrt http://localhost/ch/ep-2", "2")
+            ),
+            seasonKey = "season:1",
+            player = AndroidPlayerPreference.EMBEDDED_PLAYER,
+            remember = false
+        )
+
+        assertTrue(result.launched)
+        val intent = startedIntents.single()
+        val sessionId = intent.getStringExtra(NativePlayerActivity.EXTRA_BINGE_SESSION_ID).orEmpty()
+        val session = requireNotNull(AndroidBingeWatchSessionStore.get(sessionId))
+        assertEquals(1, session.startIndex)
+        assertEquals("ffrt http://localhost/ch/ep-2", intent.getStringExtra(NativePlayerActivity.EXTRA_URL))
+        assertEquals(listOf("ffrt http://localhost/ch/ep-1", "ffrt http://localhost/ch/ep-2"), session.targets.map { it.url })
+        assertEquals(EmbeddedPlayerActivity::class.java.name, intent.component?.className)
+        AndroidBingeWatchSessionStore.clear()
+    }
+
+    @Test
+    fun playbackCoordinatorStartsBingeAtFirstEpisodeWhenSeasonHasNoFlagAndMovesWatchingPointer() = runBlocking {
+        AndroidBingeWatchSessionStore.clear()
+        val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+            MobileAccount(
+                accountName = "Binge Season Account",
+                type = MobileAccountType.STALKER_PORTAL,
+                url = "http://127.0.0.1:1",
+                macAddress = "00:1A:79:00:00:03"
+            )
+        )
+        val accountId = requireNotNull(account.id)
+        val db = helper.writableDatabase
+        db.execSQL(
+            """
+            INSERT INTO SeriesWatchState(
+                id, accountId, mode, categoryId, seriesId, episodeId, episodeName, season, episodeNum, updatedAt
+            ) VALUES(3201, ?, 'series', 'shows', 'show-1', 's1e3', 'Season 1 - Episode 3', '1', '3', 999)
+            """.trimIndent(),
+            arrayOf(accountId.toString())
+        )
+        val startedIntents = mutableListOf<Intent>()
+        val coordinator = AndroidPlaybackCoordinator(
+            context = context,
+            preferences = AndroidDataStorePreferencesRepository(context),
+            databaseHelper = helper,
+            activityStarter = { startedIntents += it }
+        )
+        val episodes = listOf(
+            bingeEpisode(accountId, "s2e1", "Season 2 - Episode 1", "ffrt http://localhost/ch/s2e1", "1", season = "2"),
+            bingeEpisode(accountId, "s2e2", "Season 2 - Episode 2", "ffrt http://localhost/ch/s2e2", "2", season = "2")
+        )
+
+        val result = coordinator.playBingeWatchSeason(
+            series = MobileWatchingNowItem(
+                rowId = 1,
+                accountId = accountId,
+                accountName = "Binge Season Account",
+                mode = BrowseMode.SERIES,
+                title = "Portal Show",
+                subtitle = "Binge Season Account",
+                categoryProviderId = "shows",
+                contentId = "show-1"
+            ),
+            episodes = episodes,
+            seasonKey = "season:2",
+            player = AndroidPlayerPreference.EMBEDDED_PLAYER,
+            remember = false
+        )
+
+        assertTrue(result.launched)
+        val session = requireNotNull(AndroidBingeWatchSessionStore.get(startedIntents.single().getStringExtra(NativePlayerActivity.EXTRA_BINGE_SESSION_ID).orEmpty()))
+        assertEquals(0, session.startIndex)
+        assertEquals("s2e1", db.singleString("SeriesWatchState", "episodeId", "accountId = '$accountId' AND seriesId = 'show-1'"))
+        assertEquals("2", db.singleString("SeriesWatchState", "season", "accountId = '$accountId' AND seriesId = 'show-1'"))
+        assertEquals("1", db.singleString("SeriesWatchState", "episodeNum", "accountId = '$accountId' AND seriesId = 'show-1'"))
+        assertEquals(1, db.countRows("SeriesWatchingNowSnapshot", "accountId = '$accountId' AND seriesId = 'show-1'"))
+
+        AndroidPlaybackWatchStateStore(helper, epochSeconds = { 5001 }).markOpened(session.targets[1])
+
+        assertEquals("s2e2", db.singleString("SeriesWatchState", "episodeId", "accountId = '$accountId' AND seriesId = 'show-1'"))
+        assertEquals("2", db.singleString("SeriesWatchState", "episodeNum", "accountId = '$accountId' AND seriesId = 'show-1'"))
+        AndroidBingeWatchSessionStore.clear()
+    }
+
+    @Test
+    fun browseRepositoryMarksClearsWatchingFlagAndBingeStartsThere() = runBlocking {
+        AndroidBingeWatchSessionStore.clear()
+        val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+            MobileAccount(
+                accountName = "Manual Flag",
+                type = MobileAccountType.XTREME_API,
+                url = "https://example.test",
+                username = "u",
+                password = "p"
+            )
+        )
+        val accountId = requireNotNull(account.id)
+        val db = helper.writableDatabase
+        db.execSQL("INSERT INTO SeriesCategory(id, categoryId, accountId, accountType, title) VALUES(4101, 'shows', ?, 'series', 'Shows')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesEpisode(id, accountId, categoryId, seriesId, channelId, name, cmd, season, episodeNum) VALUES(4102, ?, 'shows', 'show-1', 'ep-1', 'Episode 1', 'https://stream.test/ep1.m3u8', '1', '1')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesEpisode(id, accountId, categoryId, seriesId, channelId, name, cmd, season, episodeNum) VALUES(4103, ?, 'shows', 'show-1', 'ep-2', 'Episode 2', 'https://stream.test/ep2.m3u8', '1', '2')", arrayOf(accountId.toString()))
+        val series = MobileWatchingNowItem(
+            rowId = 1,
+            accountId = accountId,
+            accountName = "Manual Flag",
+            mode = BrowseMode.SERIES,
+            title = "Flagged Show",
+            subtitle = "Manual Flag",
+            categoryProviderId = "shows",
+            categoryRowId = 4101,
+            contentId = "show-1"
+        )
+        val repository = AndroidSQLiteBrowseRepository(helper)
+        val initial = repository.listWatchingNowEpisodes(series)
+        val startedIntents = mutableListOf<Intent>()
+        val coordinator = AndroidPlaybackCoordinator(
+            context = context,
+            preferences = AndroidDataStorePreferencesRepository(context),
+            databaseHelper = helper,
+            activityStarter = { startedIntents += it }
+        )
+
+        assertEquals(listOf(false, false), initial.map { it.isWatched })
+
+        val playResult = coordinator.playWatchingNowEpisode(initial[0], AndroidPlayerPreference.EMBEDDED_PLAYER, remember = false)
+        assertTrue(playResult.launched)
+        assertEquals("ep-1", db.singleString("SeriesWatchState", "episodeId", "accountId = '$accountId' AND seriesId = 'show-1'"))
+        assertEquals(1, db.countRows("SeriesWatchingNowSnapshot", "accountId = '$accountId' AND seriesId = 'show-1'"))
+        val played = repository.listWatchingNowEpisodes(series)
+        assertEquals(listOf(true, false), played.map { it.isWatched })
+
+        repository.markWatchingNowEpisode(played[1])
+        val marked = repository.listWatchingNowEpisodes(series)
+
+        assertEquals(listOf(false, true), marked.map { it.isWatched })
+        assertEquals(1, db.countRows("SeriesWatchState", "accountId = '$accountId' AND seriesId = 'show-1' AND episodeId = 'ep-2'"))
+
+        startedIntents.clear()
+        val result = coordinator.playBingeWatchSeason(series, marked, "season:1", AndroidPlayerPreference.EMBEDDED_PLAYER, remember = false)
+
+        assertTrue(result.launched)
+        val session = requireNotNull(AndroidBingeWatchSessionStore.get(startedIntents.single().getStringExtra(NativePlayerActivity.EXTRA_BINGE_SESSION_ID).orEmpty()))
+        assertEquals(1, session.startIndex)
+
+        repository.clearWatchingNowEpisode(marked[1])
+        val cleared = repository.listWatchingNowEpisodes(series)
+
+        assertEquals(listOf(false, false), cleared.map { it.isWatched })
+        assertEquals(0, db.countRows("SeriesWatchState", "accountId = '$accountId' AND seriesId = 'show-1'"))
+        AndroidBingeWatchSessionStore.clear()
+    }
+
     private fun SQLiteDatabase.tableExists(table: String): Boolean {
         rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(table)).use { cursor ->
             return cursor.moveToFirst()
@@ -577,6 +871,30 @@ class AndroidUiptvDatabaseCompatibilityTest {
             return cursor.getString(0)
         }
     }
+
+    private fun bingeEpisode(
+        accountId: Long,
+        episodeId: String,
+        title: String,
+        command: String,
+        episodeNumber: String,
+        season: String = "1"
+    ): MobileWatchingNowEpisode =
+        MobileWatchingNowEpisode(
+            rowId = episodeId.hashCode().toLong(),
+            parentRowId = 1,
+            accountId = accountId,
+            accountName = "Binge Account",
+            seriesId = "show-1",
+            seriesTitle = "Portal Show",
+            categoryProviderId = "shows",
+            categoryRowId = 0,
+            episodeId = episodeId,
+            title = title,
+            season = season,
+            episodeNumber = episodeNumber,
+            command = command
+        )
 
     private class TestHttpServer(private val bodiesByAction: Map<String, String>) : AutoCloseable {
         private val socket = ServerSocket(0)

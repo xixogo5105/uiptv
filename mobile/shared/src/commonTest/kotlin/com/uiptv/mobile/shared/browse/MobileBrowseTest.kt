@@ -126,12 +126,25 @@ class MobileBrowseTest {
 
         val tabs = episodes.seasonTabs()
 
-        assertEquals(listOf("Specials", "Season 1", "Season 2", "Extras", "Other"), tabs.map { it.label })
+        assertEquals(listOf("0", "1", "2", "Extras", "Other"), tabs.map { it.label })
         assertEquals("season:1", episodes[1].seasonTab().key)
         assertEquals("other", episodes.last().seasonTab().key)
     }
 
-    private fun watchingEpisode(title: String, season: String): MobileWatchingNowEpisode =
+    @Test
+    fun watchingNowEpisodesInferSeasonTabsFromTitleWhenSeasonIsMissing() {
+        val episodes = listOf(
+            watchingEpisode("Season 4 - Episode 1", season = "", episodeNumber = "1"),
+            watchingEpisode("Season 5 - Episode 1", season = "", episodeNumber = "1"),
+            watchingEpisode("S06E02", season = "")
+        )
+
+        assertEquals(listOf("4", "5", "6"), episodes.seasonTabs().map { it.label })
+        assertEquals("4", episodes[0].resolvedSeason())
+        assertEquals("2", episodes[2].resolvedEpisodeNumber())
+    }
+
+    private fun watchingEpisode(title: String, season: String, episodeNumber: String = ""): MobileWatchingNowEpisode =
         MobileWatchingNowEpisode(
             rowId = title.hashCode().toLong(),
             parentRowId = 2,
@@ -143,6 +156,7 @@ class MobileBrowseTest {
             categoryRowId = 9,
             episodeId = title,
             title = title,
-            season = season
+            season = season,
+            episodeNumber = episodeNumber
         )
 }

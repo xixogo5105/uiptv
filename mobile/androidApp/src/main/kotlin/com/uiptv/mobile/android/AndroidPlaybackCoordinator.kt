@@ -15,11 +15,15 @@ import com.uiptv.mobile.shared.browse.MobileBookmark
 import com.uiptv.mobile.shared.browse.MobileBrowseItem
 import com.uiptv.mobile.shared.browse.MobileWatchingNowEpisode
 import com.uiptv.mobile.shared.browse.MobileWatchingNowItem
+import com.uiptv.mobile.shared.browse.resolvedEpisodeNumber
+import com.uiptv.mobile.shared.browse.resolvedSeason
+import com.uiptv.mobile.shared.browse.seasonTab
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlaybackLaunchResult
 import com.uiptv.mobile.shared.playback.PlaybackTarget
 import com.uiptv.mobile.shared.playback.PlayerChoice
 import com.uiptv.mobile.shared.playback.extractPlayableStreamUrl
+import com.uiptv.mobile.shared.playback.shouldResolveStalkerPortalCommand
 import com.uiptv.mobile.shared.settings.AndroidPlayerPreference
 import com.uiptv.mobile.shared.settings.AndroidPreferencesRepository
 import com.uiptv.mobile.shared.settings.PlayerPreference
@@ -129,7 +133,7 @@ class AndroidPlaybackCoordinator(
             if (remember) {
                 preferences.savePlayerPreference(PlayerPreference(player, player.resolvePreferredPackageName(), true))
             }
-            if (!player.usesNativeActivity()) {
+            if (target.mode == BrowseMode.SERIES || !player.usesNativeActivity()) {
                 watchStateStore.markOpened(target.resolved())
             }
         }
@@ -173,9 +177,39 @@ class AndroidPlaybackCoordinator(
             if (remember) {
                 preferences.savePlayerPreference(PlayerPreference(player, player.resolvePreferredPackageName(), true))
             }
-            if (!player.usesNativeActivity()) {
-                watchStateStore.markOpened(target.resolved())
+            watchStateStore.markOpened(target.resolved())
+        }
+        result
+    }
+
+    suspend fun playBingeWatchSeason(
+        series: MobileWatchingNowItem,
+        episodes: List<MobileWatchingNowEpisode>,
+        seasonKey: String,
+        player: AndroidPlayerPreference,
+        remember: Boolean
+    ): PlaybackLaunchResult = withContext(Dispatchers.IO) {
+        if (series.mode != BrowseMode.SERIES) {
+            return@withContext PlaybackLaunchResult(false, "Binge watch is only available for series.")
+        }
+        if (!player.usesNativeActivity()) {
+            return@withContext PlaybackLaunchResult(
+                false,
+                "Binge watch on mobile uses the embedded or Android Media player so episode URLs can be prepared just before playback."
+            )
+        }
+        val targets = bingeSeasonTargets(episodes, seasonKey)
+        if (targets.isEmpty()) {
+            return@withContext PlaybackLaunchResult(false, "No episodes are cached for this season.")
+        }
+        val start = bingeStart(series, targets)
+        val session = AndroidBingeWatchSessionStore.create(series.title, targets, start.index)
+        val result = launchBingeSession(session, player)
+        if (result.launched) {
+            if (remember) {
+                preferences.savePlayerPreference(PlayerPreference(player, player.resolvePreferredPackageName(), true))
             }
+            session.targets.getOrNull(session.startIndex)?.let(watchStateStore::markOpened)
         }
         result
     }
@@ -208,6 +242,43 @@ class AndroidPlaybackCoordinator(
             PlaybackLaunchResult(false, "${player.displayLabel()} is not available.")
         } catch (ex: Exception) {
             PlaybackLaunchResult(false, ex.message ?: "Unable to open stream.")
+        }
+    }
+
+    private fun launchBingeSession(
+        session: AndroidBingeWatchSession,
+        player: AndroidPlayerPreference
+    ): PlaybackLaunchResult {
+        val target = session.targets.getOrNull(session.startIndex)
+            ?: return PlaybackLaunchResult(false, "No episodes are cached for this season.")
+        if (player == AndroidPlayerPreference.NATIVE && !target.nativeSupported()) {
+            return PlaybackLaunchResult(false, "Android Media cannot open this DRM or inputstream metadata yet. Use Embedded for binge watch.")
+        }
+        val intent = when (player) {
+            AndroidPlayerPreference.EMBEDDED_PLAYER -> embeddedPlayerIntent(target)
+            AndroidPlayerPreference.NATIVE,
+            AndroidPlayerPreference.ASK_EVERY_TIME -> nativePlayerIntent(target)
+            AndroidPlayerPreference.SYSTEM_CHOOSER,
+            AndroidPlayerPreference.VLC,
+            AndroidPlayerPreference.MX_PLAYER_PRO,
+            AndroidPlayerPreference.MX_PLAYER_FREE,
+            AndroidPlayerPreference.KODI,
+            AndroidPlayerPreference.JUST_PLAYER,
+            AndroidPlayerPreference.XPLAYER -> return PlaybackLaunchResult(
+                false,
+                "Binge watch on mobile uses the embedded or Android Media player so episode URLs can be prepared just before playback."
+            )
+        }
+            .putExtra(NativePlayerActivity.EXTRA_BINGE_SESSION_ID, session.id)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+        return try {
+            activityStarter(intent)
+            PlaybackLaunchResult(true, "Starting ${session.seriesTitle}.")
+        } catch (_: ActivityNotFoundException) {
+            PlaybackLaunchResult(false, "${player.displayLabel()} is not available.")
+        } catch (ex: Exception) {
+            PlaybackLaunchResult(false, ex.message ?: "Unable to start binge watch.")
         }
     }
 
@@ -302,12 +373,8 @@ class AndroidPlaybackCoordinator(
             packageName?.let(::setPackage)
         }
 
-    private suspend fun resolvePlayableTarget(target: PlaybackTarget): PlaybackTarget {
+    suspend fun resolvePlayableTarget(target: PlaybackTarget): PlaybackTarget {
         val direct = target.resolved()
-        if (direct.url.isPlayableNetworkUrl()) {
-            return direct
-        }
-
         val account = AndroidSQLiteAccountRepository(databaseHelper)
             .listAccounts()
             .firstOrNull { account ->
@@ -319,6 +386,9 @@ class AndroidPlaybackCoordinator(
             return direct
         }
         if (target.url.isBlank()) {
+            return direct
+        }
+        if (direct.url.isPlayableNetworkUrl() && !shouldResolveStalkerPortalCommand(target.url)) {
             return direct
         }
 
@@ -333,7 +403,7 @@ class AndroidPlaybackCoordinator(
                 return target.copy(url = normalized)
             }
         }
-        return direct
+        return if (shouldResolveStalkerPortalCommand(direct.url)) direct.copy(url = "") else direct
     }
 
     private fun stalkerCommandCandidates(account: MobileAccount, target: PlaybackTarget): List<String> {
@@ -546,9 +616,61 @@ class AndroidPlaybackCoordinator(
             seriesId = seriesId,
             seriesTitle = seriesTitle,
             episodeId = episodeId,
-            season = season,
-            episodeNumber = episodeNumber
+            season = resolvedSeason(),
+            episodeNumber = resolvedEpisodeNumber()
         )
+
+    private fun bingeSeasonTargets(episodes: List<MobileWatchingNowEpisode>, seasonKey: String): List<PlaybackTarget> =
+        episodes
+            .filter { it.command.isNotBlank() && it.matchesSeasonKey(seasonKey) }
+            .sortedWith(
+                compareBy<MobileWatchingNowEpisode> { it.resolvedSeason().toIntOrNull() ?: Int.MAX_VALUE }
+                    .thenBy { it.resolvedEpisodeNumber().toIntOrNull() ?: Int.MAX_VALUE }
+                    .thenBy { it.title.lowercase() }
+            )
+            .map { it.toPlaybackTarget() }
+
+    private fun MobileWatchingNowEpisode.matchesSeasonKey(seasonKey: String): Boolean =
+        when {
+            seasonKey.isBlank() -> true
+            seasonKey == "other" -> seasonTab().key == "other"
+            else -> seasonTab().key == seasonKey
+        }
+
+    private fun bingeStart(series: MobileWatchingNowItem, targets: List<PlaybackTarget>): BingeStart {
+        val row = databaseHelper.readableDatabase.rawQuery(
+            """
+            SELECT episodeId, season, episodeNum
+            FROM SeriesWatchState
+            WHERE accountId = ? AND categoryId = ? AND seriesId = ?
+            ORDER BY updatedAt DESC
+            LIMIT 1
+            """.trimIndent(),
+            arrayOf(series.accountId.toString(), series.categoryProviderId, series.contentId)
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) {
+                null
+            } else {
+                LastWatchedEpisode(
+                    episodeId = cursor.commandOrBlank("episodeId"),
+                    season = cursor.commandOrBlank("season"),
+                    episodeNumber = cursor.commandOrBlank("episodeNum")
+                )
+            }
+        } ?: return BingeStart(index = 0)
+        val selectedSeason = targets.firstOrNull()?.season.orEmpty().normalizedNumber()
+        val watchedSeason = row.season.normalizedNumber()
+        if (watchedSeason.isNotBlank() && selectedSeason.isNotBlank() && selectedSeason != watchedSeason) {
+            return BingeStart(index = 0)
+        }
+        return targets.indexOfFirst { target ->
+            (row.episodeId.isNotBlank() && target.episodeId == row.episodeId) ||
+                (row.episodeNumber.isNotBlank() && target.episodeNumber.normalizedNumber() == row.episodeNumber.normalizedNumber())
+        }
+            .takeIf { it >= 0 }
+            ?.let { BingeStart(index = it) }
+            ?: BingeStart(index = 0)
+    }
 
     private fun AndroidPlayerPreference.packageName(): String =
         when (this) {
@@ -729,4 +851,22 @@ class AndroidPlaybackCoordinator(
             equals("com.widevine.alpha", ignoreCase = true) ||
             equals("clearkey", ignoreCase = true) ||
             equals("org.w3.clearkey", ignoreCase = true)
+
+    private data class LastWatchedEpisode(
+        val episodeId: String,
+        val season: String,
+        val episodeNumber: String
+    )
+
+    private data class BingeStart(
+        val index: Int
+    )
+
+    private fun String.normalizedNumber(): String {
+        val digits = filter { it.isDigit() }
+        if (digits.isBlank()) {
+            return ""
+        }
+        return digits.trimStart('0').ifBlank { "0" }
+    }
 }
