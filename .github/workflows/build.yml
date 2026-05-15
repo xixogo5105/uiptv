@@ -77,7 +77,7 @@ jobs:
           restore-keys: ${{ runner.os }}-m2
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Run mobile tests and coverage
         working-directory: mobile
