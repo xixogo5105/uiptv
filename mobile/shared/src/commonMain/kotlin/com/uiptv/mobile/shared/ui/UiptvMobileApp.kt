@@ -660,19 +660,15 @@ private fun ChannelsScreen(
                 ) {
                     if (compactChrome) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            item {
-                                if (showingChannelList) {
-                                    CompactToolbarAction("←", "Back to categories") {
+                            if (showingChannelList) {
+                                item {
+                                    CompactChromeIcon("←", "Back to categories") {
                                         backToCategories()
-                                    }
-                                } else {
-                                    CompactToolbarAction("≡", "Open categories") {
-                                        scope.launch { drawerState.open() }
                                     }
                                 }
                             }
                             item {
-                                CompactToolbarAction(if (searchVisible) "X" else "⌕", "Search channels") {
+                                CompactChromeIcon(if (searchVisible) "X" else "⌕", "Search channels") {
                                     searchVisible = !searchVisible
                                 }
                             }
@@ -915,19 +911,19 @@ private fun ChannelsScreen(
 }
 
 @Composable
-private fun CompactToolbarAction(label: String, description: String, onClick: () -> Unit) {
+private fun CompactChromeIcon(label: String, description: String, onClick: () -> Unit) {
     Text(
         text = label,
         modifier = Modifier
-            .defaultMinSize(minHeight = 40.dp)
-            .background(DeepNightSurfaceHighest)
+            .defaultMinSize(minWidth = 32.dp, minHeight = 32.dp)
             .clickable(onClick = onClick)
             .semantics { contentDescription = description }
-            .padding(horizontal = 8.dp, vertical = 10.dp),
-        color = DeepNightText,
-        style = MaterialTheme.typography.bodySmall,
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        color = DeepNightPrimary,
+        style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
-        maxLines = 1
+        maxLines = 1,
+        textAlign = TextAlign.Center
     )
 }
 
