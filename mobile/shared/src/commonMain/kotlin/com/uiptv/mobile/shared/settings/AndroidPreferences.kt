@@ -25,9 +25,15 @@ data class PlayerPreference(
     val rememberForFutureStreams: Boolean = true
 )
 
+data class EmbeddedPlayerPreference(
+    val repeatReconnect: Boolean = false,
+    val muted: Boolean = false
+)
+
 data class AndroidPreferenceSnapshot(
     val remoteEndpoint: RemoteEndpointPreference = RemoteEndpointPreference(),
     val playerPreference: PlayerPreference = PlayerPreference(),
+    val embeddedPlayerPreference: EmbeddedPlayerPreference = EmbeddedPlayerPreference(),
     val firstRunCompleted: Boolean = false
 )
 
@@ -40,6 +46,8 @@ interface AndroidPreferencesRepository {
 
     suspend fun savePlayerPreference(preference: PlayerPreference)
 
+    suspend fun saveEmbeddedPlayerPreference(preference: EmbeddedPlayerPreference)
+
     suspend fun setFirstRunCompleted(completed: Boolean)
 }
 
@@ -50,6 +58,8 @@ object AndroidOnlyPreferenceKeys {
     const val PLAYER_TYPE = "player_type"
     const val PLAYER_PACKAGE = "player_package"
     const val PLAYER_REMEMBER = "player_remember"
+    const val EMBEDDED_PLAYER_REPEAT_RECONNECT = "embedded_player_repeat_reconnect"
+    const val EMBEDDED_PLAYER_MUTED = "embedded_player_muted"
     const val FIRST_RUN_COMPLETED = "first_run_completed"
 
     val all: Set<String> = setOf(
@@ -59,6 +69,8 @@ object AndroidOnlyPreferenceKeys {
         PLAYER_TYPE,
         PLAYER_PACKAGE,
         PLAYER_REMEMBER,
+        EMBEDDED_PLAYER_REPEAT_RECONNECT,
+        EMBEDDED_PLAYER_MUTED,
         FIRST_RUN_COMPLETED
     )
 }

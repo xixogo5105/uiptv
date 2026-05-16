@@ -33,6 +33,10 @@ class AndroidDataStorePreferencesRepository(
                 packageName = values[PLAYER_PACKAGE].orEmpty(),
                 rememberForFutureStreams = values[PLAYER_REMEMBER] ?: true
             ),
+            embeddedPlayerPreference = EmbeddedPlayerPreference(
+                repeatReconnect = values[EMBEDDED_PLAYER_REPEAT_RECONNECT] ?: false,
+                muted = values[EMBEDDED_PLAYER_MUTED] ?: false
+            ),
             firstRunCompleted = values[FIRST_RUN_COMPLETED] ?: false
         )
     }
@@ -58,6 +62,13 @@ class AndroidDataStorePreferencesRepository(
         }
     }
 
+    override suspend fun saveEmbeddedPlayerPreference(preference: EmbeddedPlayerPreference) {
+        dataStore.edit { values ->
+            values[EMBEDDED_PLAYER_REPEAT_RECONNECT] = preference.repeatReconnect
+            values[EMBEDDED_PLAYER_MUTED] = preference.muted
+        }
+    }
+
     override suspend fun setFirstRunCompleted(completed: Boolean) {
         dataStore.edit { values ->
             values[FIRST_RUN_COMPLETED] = completed
@@ -71,6 +82,8 @@ class AndroidDataStorePreferencesRepository(
         val PLAYER_TYPE = stringPreferencesKey(AndroidOnlyPreferenceKeys.PLAYER_TYPE)
         val PLAYER_PACKAGE = stringPreferencesKey(AndroidOnlyPreferenceKeys.PLAYER_PACKAGE)
         val PLAYER_REMEMBER = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PLAYER_REMEMBER)
+        val EMBEDDED_PLAYER_REPEAT_RECONNECT = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_REPEAT_RECONNECT)
+        val EMBEDDED_PLAYER_MUTED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_MUTED)
         val FIRST_RUN_COMPLETED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.FIRST_RUN_COMPLETED)
     }
 }

@@ -6,6 +6,7 @@ import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.db.UiptvSchemaInfo
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import com.uiptv.mobile.shared.settings.AndroidPlayerPreference
+import com.uiptv.mobile.shared.settings.EmbeddedPlayerPreference
 import com.uiptv.mobile.shared.settings.PlayerPreference
 import java.io.File
 import kotlinx.coroutines.runBlocking
@@ -38,6 +39,8 @@ class AndroidPreferencesRepositoryTest {
 
         assertEquals(AndroidPlayerPreference.EMBEDDED_PLAYER, defaults.playerPreference.selectedPlayer)
         assertEquals(true, defaults.playerPreference.rememberForFutureStreams)
+        assertEquals(false, defaults.embeddedPlayerPreference.repeatReconnect)
+        assertEquals(false, defaults.embeddedPlayerPreference.muted)
 
         repository.saveRemoteEndpoint("192.168.1.20", 8888)
         repository.savePlayerPreference(
@@ -45,6 +48,12 @@ class AndroidPreferencesRepositoryTest {
                 selectedPlayer = AndroidPlayerPreference.VLC,
                 packageName = "org.videolan.vlc",
                 rememberForFutureStreams = true
+            )
+        )
+        repository.saveEmbeddedPlayerPreference(
+            EmbeddedPlayerPreference(
+                repeatReconnect = true,
+                muted = true
             )
         )
         repository.markRemoteSyncSucceeded(1_893_456_000L)
@@ -58,6 +67,8 @@ class AndroidPreferencesRepositoryTest {
         assertEquals(AndroidPlayerPreference.VLC, snapshot.playerPreference.selectedPlayer)
         assertEquals("org.videolan.vlc", snapshot.playerPreference.packageName)
         assertEquals(true, snapshot.playerPreference.rememberForFutureStreams)
+        assertEquals(true, snapshot.embeddedPlayerPreference.repeatReconnect)
+        assertEquals(true, snapshot.embeddedPlayerPreference.muted)
         assertEquals(true, snapshot.firstRunCompleted)
 
         val columns = AndroidUiptvDatabaseHelper(context).use { helper ->
@@ -73,6 +84,7 @@ class AndroidPreferencesRepositoryTest {
 
         assertFalse(columns.contains("androidDefaultPlayer"))
         assertFalse(columns.contains("androidPlayerPackage"))
+        assertFalse(columns.contains("embeddedPlayerMuted"))
         assertFalse(columns.contains("lastDesktopHost"))
     }
 }

@@ -32,6 +32,7 @@ class AndroidPreferencesTest {
 
         assertEquals(RemoteEndpointPreference(), snapshot.remoteEndpoint)
         assertEquals(PlayerPreference(), snapshot.playerPreference)
+        assertEquals(EmbeddedPlayerPreference(), snapshot.embeddedPlayerPreference)
         assertFalse(snapshot.firstRunCompleted)
     }
 
@@ -44,6 +45,8 @@ class AndroidPreferencesTest {
             AndroidOnlyPreferenceKeys.PLAYER_TYPE,
             AndroidOnlyPreferenceKeys.PLAYER_PACKAGE,
             AndroidOnlyPreferenceKeys.PLAYER_REMEMBER,
+            AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_REPEAT_RECONNECT,
+            AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_MUTED,
             AndroidOnlyPreferenceKeys.FIRST_RUN_COMPLETED
         )
 
@@ -55,6 +58,8 @@ class AndroidPreferencesTest {
         assertTrue(AndroidOnlyPreferenceKeys.PLAYER_TYPE in AndroidOnlyPreferenceKeys.all)
         assertTrue(AndroidOnlyPreferenceKeys.PLAYER_PACKAGE in AndroidOnlyPreferenceKeys.all)
         assertTrue(AndroidOnlyPreferenceKeys.PLAYER_REMEMBER in AndroidOnlyPreferenceKeys.all)
+        assertTrue(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_REPEAT_RECONNECT in AndroidOnlyPreferenceKeys.all)
+        assertTrue(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_MUTED in AndroidOnlyPreferenceKeys.all)
         assertFalse(UiptvSyncSchema.syncableTables.any { it.contains("Player", ignoreCase = true) })
     }
 

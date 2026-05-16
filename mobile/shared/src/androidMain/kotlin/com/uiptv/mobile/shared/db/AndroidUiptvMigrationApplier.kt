@@ -1,5 +1,6 @@
 package com.uiptv.mobile.shared.db
 
+import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
 import java.security.MessageDigest
 
@@ -86,18 +87,17 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
         status: String,
         errorMessage: String?
     ) {
-        db.execSQL(
-            """
-            INSERT INTO schema_migrations(name, checksum, status, applied_at, error_message)
-            VALUES(?, ?, ?, ?, ?)
-            ON CONFLICT(name) DO UPDATE SET
-                checksum = excluded.checksum,
-                status = excluded.status,
-                applied_at = excluded.applied_at,
-                error_message = excluded.error_message
-            """.trimIndent(),
-            arrayOf<Any?>(name, checksum, status, epochSeconds(), errorMessage)
-        )
+        val values = ContentValues().apply {
+            put("name", name)
+            put("checksum", checksum)
+            put("status", status)
+            put("applied_at", epochSeconds())
+            put("error_message", errorMessage)
+        }
+        val updated = db.update("schema_migrations", values, "name = ?", arrayOf(name))
+        if (updated == 0) {
+            db.insertWithOnConflict("schema_migrations", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        }
     }
 
     private fun columnExists(db: SQLiteDatabase, table: String, column: String): Boolean {

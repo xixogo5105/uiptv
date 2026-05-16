@@ -20,6 +20,12 @@ class AndroidSQLiteBrowseRepository(
     private val databaseHelper: AndroidUiptvDatabaseHelper,
     private val metadataProvider: AndroidImdbMetadataProvider = AndroidImdbMetadataService(databaseHelper)
 ) : BrowseRepository {
+    private val bookmarkCacheLock = Any()
+    @Volatile
+    private var bookmarkCache: BookmarkCache? = null
+    @Volatile
+    private var bookmarkIndexesEnsured = false
+
     override suspend fun loadBrowse(
         accountId: Long?,
         mode: BrowseMode,
@@ -60,6 +66,71 @@ class AndroidSQLiteBrowseRepository(
 
     override suspend fun listBookmarkCategories(): List<MobileBookmarkCategory> = withContext(Dispatchers.IO) {
         val db = databaseHelper.writableDatabase
+        loadBookmarkCache(db).categories
+    }
+
+    override suspend fun listBookmarks(query: String, bookmarkCategoryId: String?): List<MobileBookmark> = withContext(Dispatchers.IO) {
+        val db = databaseHelper.writableDatabase
+        loadBookmarkCache(db).bookmarks.filterBookmarks(query, bookmarkCategoryId)
+    }
+
+    private fun loadBookmarkCache(db: SQLiteDatabase): BookmarkCache {
+        bookmarkCache?.let { return it }
+
+        return synchronized(bookmarkCacheLock) {
+            bookmarkCache ?: run {
+                ensureBookmarkIndexes(db)
+                val categories = loadBookmarkCategoriesUncached(db)
+                val bookmarks = loadBookmarksUncached(db)
+                BookmarkCache(
+                    categories = categories,
+                    bookmarks = bookmarks
+                ).also { bookmarkCache = it }
+            }
+        }
+    }
+
+    private fun invalidateBookmarkCache() {
+        synchronized(bookmarkCacheLock) {
+            bookmarkCache = null
+        }
+    }
+
+    private fun ensureBookmarkIndexes(db: SQLiteDatabase) {
+        if (bookmarkIndexesEnsured) {
+            return
+        }
+        synchronized(bookmarkCacheLock) {
+            if (bookmarkIndexesEnsured) {
+                return
+            }
+            createIndexIfColumnsExist(db, "Account", "idx_android_account_name", listOf("accountName"))
+            createIndexIfColumnsExist(db, "Bookmark", "idx_android_bookmark_category", listOf("categoryId"))
+            createIndexIfColumnsExist(db, "BookmarkOrder", "idx_android_bookmark_order_bookmark", listOf("bookmark_db_id"))
+            createIndexIfColumnsExist(db, "Category", "idx_android_category_account_id", listOf("accountId", "id"))
+            createIndexIfColumnsExist(db, "Channel", "idx_android_channel_category_channel", listOf("categoryId", "channelId"))
+            createIndexIfColumnsExist(db, "VodChannel", "idx_android_vod_channel_account_channel", listOf("accountId", "channelId"))
+            createIndexIfColumnsExist(db, "SeriesChannel", "idx_android_series_channel_account_channel", listOf("accountId", "channelId"))
+            bookmarkIndexesEnsured = true
+        }
+    }
+
+    private fun createIndexIfColumnsExist(
+        db: SQLiteDatabase,
+        table: String,
+        indexName: String,
+        columns: List<String>
+    ) {
+        val existingColumns = tableColumns(db, table)
+        if (columns.all { it in existingColumns }) {
+            val columnList = columns.joinToString(", ") { quoteIdentifier(it) }
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS ${quoteIdentifier(indexName)} ON ${quoteIdentifier(table)}($columnList)"
+            )
+        }
+    }
+
+    private fun loadBookmarkCategoriesUncached(db: SQLiteDatabase): List<MobileBookmarkCategory> {
         val categories = mutableListOf<MobileBookmarkCategory>()
         val total = db.rawQuery("SELECT COUNT(*) FROM Bookmark", null).use { cursor ->
             if (cursor.moveToFirst()) cursor.getInt(0) else 0
@@ -83,194 +154,28 @@ class AndroidSQLiteBrowseRepository(
                 )
             }
         }
-        categories
+        return categories
     }
 
-    override suspend fun listBookmarks(query: String, bookmarkCategoryId: String?): List<MobileBookmark> = withContext(Dispatchers.IO) {
-        val db = databaseHelper.writableDatabase
+    private fun loadBookmarksUncached(db: SQLiteDatabase): List<MobileBookmark> {
         val logoSelect = if (columnExists(db, "Bookmark", "logo")) "bm.logo AS bookmarkLogo" else "'' AS bookmarkLogo"
         val channelJsonSelect = if (columnExists(db, "Bookmark", "channelJson")) "bm.channelJson" else "'' AS channelJson"
         val vodJsonSelect = if (columnExists(db, "Bookmark", "vodJson")) "bm.vodJson" else "'' AS vodJson"
         val seriesJsonSelect = if (columnExists(db, "Bookmark", "seriesJson")) "bm.seriesJson" else "'' AS seriesJson"
-        val args = mutableListOf<String>()
-        val whereParts = mutableListOf<String>()
-        if (!bookmarkCategoryId.isNullOrBlank()) {
-            whereParts += "bm.categoryId = ?"
-            args += bookmarkCategoryId
-        }
-        if (query.isNotBlank()) {
-            whereParts += "(bm.channelName LIKE ? OR bm.accountName LIKE ? OR bm.categoryTitle LIKE ?)"
-            val pattern = "%${query.trim()}%"
-            args += pattern
-            args += pattern
-            args += pattern
-        }
-        val where = if (whereParts.isEmpty()) "" else "WHERE ${whereParts.joinToString(" AND ")}"
-        db.rawQuery(
+        val bookmarks = db.rawQuery(
             """
             SELECT bm.id, COALESCE(acc.id, 0) AS accountId, bm.accountName, bm.categoryId, bm.categoryTitle,
                 bm.channelId, bm.channelName, bm.cmd, bm.accountAction, $logoSelect,
                 bm.drmType AS bookmarkDrmType, bm.drmLicenseUrl AS bookmarkDrmLicenseUrl,
                 bm.clearKeysJson AS bookmarkClearKeysJson, bm.inputstreamaddon AS bookmarkInputstreamaddon,
                 bm.manifestType AS bookmarkManifestType,
-                $channelJsonSelect, $vodJsonSelect, $seriesJsonSelect,
-                (
-                    SELECT ch.logo
-                    FROM Channel ch
-                    JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
-                    WHERE CAST(cat.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND ch.channelId = bm.channelId
-                        AND COALESCE(ch.logo, '') <> ''
-                    LIMIT 1
-                ) AS liveLogo,
-                (
-                    SELECT ch.drmType
-                    FROM Channel ch
-                    JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
-                    WHERE CAST(cat.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND ch.channelId = bm.channelId
-                        AND COALESCE(ch.drmType, '') <> ''
-                    LIMIT 1
-                ) AS liveDrmType,
-                (
-                    SELECT ch.drmLicenseUrl
-                    FROM Channel ch
-                    JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
-                    WHERE CAST(cat.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND ch.channelId = bm.channelId
-                        AND COALESCE(ch.drmLicenseUrl, '') <> ''
-                    LIMIT 1
-                ) AS liveDrmLicenseUrl,
-                (
-                    SELECT ch.clearKeysJson
-                    FROM Channel ch
-                    JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
-                    WHERE CAST(cat.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND ch.channelId = bm.channelId
-                        AND COALESCE(ch.clearKeysJson, '') <> ''
-                    LIMIT 1
-                ) AS liveClearKeysJson,
-                (
-                    SELECT ch.inputstreamaddon
-                    FROM Channel ch
-                    JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
-                    WHERE CAST(cat.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND ch.channelId = bm.channelId
-                        AND COALESCE(ch.inputstreamaddon, '') <> ''
-                    LIMIT 1
-                ) AS liveInputstreamaddon,
-                (
-                    SELECT ch.manifestType
-                    FROM Channel ch
-                    JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
-                    WHERE CAST(cat.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND ch.channelId = bm.channelId
-                        AND COALESCE(ch.manifestType, '') <> ''
-                    LIMIT 1
-                ) AS liveManifestType,
-                (
-                    SELECT vc.logo
-                    FROM VodChannel vc
-                    WHERE CAST(vc.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND vc.channelId = bm.channelId
-                        AND COALESCE(vc.logo, '') <> ''
-                    LIMIT 1
-                ) AS vodLogo,
-                (
-                    SELECT vc.drmType
-                    FROM VodChannel vc
-                    WHERE CAST(vc.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND vc.channelId = bm.channelId
-                        AND COALESCE(vc.drmType, '') <> ''
-                    LIMIT 1
-                ) AS vodDrmType,
-                (
-                    SELECT vc.drmLicenseUrl
-                    FROM VodChannel vc
-                    WHERE CAST(vc.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND vc.channelId = bm.channelId
-                        AND COALESCE(vc.drmLicenseUrl, '') <> ''
-                    LIMIT 1
-                ) AS vodDrmLicenseUrl,
-                (
-                    SELECT vc.clearKeysJson
-                    FROM VodChannel vc
-                    WHERE CAST(vc.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND vc.channelId = bm.channelId
-                        AND COALESCE(vc.clearKeysJson, '') <> ''
-                    LIMIT 1
-                ) AS vodClearKeysJson,
-                (
-                    SELECT vc.inputstreamaddon
-                    FROM VodChannel vc
-                    WHERE CAST(vc.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND vc.channelId = bm.channelId
-                        AND COALESCE(vc.inputstreamaddon, '') <> ''
-                    LIMIT 1
-                ) AS vodInputstreamaddon,
-                (
-                    SELECT vc.manifestType
-                    FROM VodChannel vc
-                    WHERE CAST(vc.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND vc.channelId = bm.channelId
-                        AND COALESCE(vc.manifestType, '') <> ''
-                    LIMIT 1
-                ) AS vodManifestType,
-                (
-                    SELECT sc.logo
-                    FROM SeriesChannel sc
-                    WHERE CAST(sc.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND sc.channelId = bm.channelId
-                        AND COALESCE(sc.logo, '') <> ''
-                    LIMIT 1
-                ) AS seriesLogo,
-                (
-                    SELECT sc.drmType
-                    FROM SeriesChannel sc
-                    WHERE CAST(sc.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND sc.channelId = bm.channelId
-                        AND COALESCE(sc.drmType, '') <> ''
-                    LIMIT 1
-                ) AS seriesDrmType,
-                (
-                    SELECT sc.drmLicenseUrl
-                    FROM SeriesChannel sc
-                    WHERE CAST(sc.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND sc.channelId = bm.channelId
-                        AND COALESCE(sc.drmLicenseUrl, '') <> ''
-                    LIMIT 1
-                ) AS seriesDrmLicenseUrl,
-                (
-                    SELECT sc.clearKeysJson
-                    FROM SeriesChannel sc
-                    WHERE CAST(sc.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND sc.channelId = bm.channelId
-                        AND COALESCE(sc.clearKeysJson, '') <> ''
-                    LIMIT 1
-                ) AS seriesClearKeysJson,
-                (
-                    SELECT sc.inputstreamaddon
-                    FROM SeriesChannel sc
-                    WHERE CAST(sc.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND sc.channelId = bm.channelId
-                        AND COALESCE(sc.inputstreamaddon, '') <> ''
-                    LIMIT 1
-                ) AS seriesInputstreamaddon,
-                (
-                    SELECT sc.manifestType
-                    FROM SeriesChannel sc
-                    WHERE CAST(sc.accountId AS INTEGER) = COALESCE(acc.id, 0)
-                        AND sc.channelId = bm.channelId
-                        AND COALESCE(sc.manifestType, '') <> ''
-                    LIMIT 1
-                ) AS seriesManifestType
+                $channelJsonSelect, $vodJsonSelect, $seriesJsonSelect
             FROM Bookmark bm
             LEFT JOIN Account acc ON acc.accountName = bm.accountName
             LEFT JOIN BookmarkOrder bo ON bo.bookmark_db_id = CAST(bm.id AS TEXT)
-            $where
             ORDER BY COALESCE(bo.display_order, bm.id), bm.accountName COLLATE NOCASE, bm.categoryTitle COLLATE NOCASE, bm.channelName COLLATE NOCASE
             """.trimIndent(),
-            args.toTypedArray()
+            null
         ).use { cursor ->
             buildList {
                 while (cursor.moveToNext()) {
@@ -278,13 +183,118 @@ class AndroidSQLiteBrowseRepository(
                 }
             }
         }
+        return bookmarks.withCachedBookmarkFallbacks(db)
+    }
+
+    private fun List<MobileBookmark>.withCachedBookmarkFallbacks(db: SQLiteDatabase): List<MobileBookmark> {
+        val targets = filter { it.needsBookmarkFallback() && it.bookmarkFallbackKey() != null }
+        if (targets.isEmpty()) {
+            return this
+        }
+
+        val fallbacks = mutableMapOf<BookmarkFallbackKey, BookmarkRenderData>()
+        listOf(BrowseMode.LIVE, BrowseMode.VOD, BrowseMode.SERIES).forEach { mode ->
+            fallbacks += loadCachedBookmarkFallbacks(db, mode, targets.filter { it.mode == mode })
+        }
+        if (fallbacks.isEmpty()) {
+            return this
+        }
+
+        return map { bookmark ->
+            val key = bookmark.bookmarkFallbackKey()
+            val fallback = if (key == null) null else fallbacks[key]
+            if (fallback == null) {
+                bookmark
+            } else {
+                bookmark.copy(
+                    logo = firstNonBlank(bookmark.logo, fallback.logo),
+                    drmType = firstNonBlank(bookmark.drmType, fallback.drmType),
+                    drmLicenseUrl = firstNonBlank(bookmark.drmLicenseUrl, fallback.drmLicenseUrl),
+                    clearKeysJson = firstNonBlank(bookmark.clearKeysJson, fallback.clearKeysJson),
+                    inputstreamAddon = firstNonBlank(bookmark.inputstreamAddon, fallback.inputstreamaddon),
+                    manifestType = firstNonBlank(bookmark.manifestType, fallback.manifestType)
+                )
+            }
+        }
+    }
+
+    private fun loadCachedBookmarkFallbacks(
+        db: SQLiteDatabase,
+        mode: BrowseMode,
+        bookmarks: List<MobileBookmark>
+    ): Map<BookmarkFallbackKey, BookmarkRenderData> {
+        if (bookmarks.isEmpty()) {
+            return emptyMap()
+        }
+        val fallback = mutableMapOf<BookmarkFallbackKey, BookmarkRenderData>()
+        bookmarks.groupBy { it.accountId }.forEach { (accountId, accountBookmarks) ->
+            if (accountId <= 0) {
+                return@forEach
+            }
+            accountBookmarks.map { it.channelId }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .chunked(BOOKMARK_FALLBACK_CHUNK_SIZE)
+                .forEach { channelIds ->
+                    val placeholders = channelIds.joinToString(",") { "?" }
+                    val args = arrayOf(accountId.toString(), *channelIds.toTypedArray())
+                    db.rawQuery(bookmarkFallbackSql(mode, placeholders), args).use { cursor ->
+                        while (cursor.moveToNext()) {
+                            fallback.mergeBookmarkFallback(mode, cursor)
+                        }
+                    }
+                }
+        }
+        return fallback
+    }
+
+    private fun bookmarkFallbackSql(mode: BrowseMode, channelPlaceholders: String): String =
+        when (mode) {
+            BrowseMode.LIVE -> """
+                SELECT CAST(cat.accountId AS INTEGER) AS accountId, ch.channelId, ch.logo,
+                    ch.drmType, ch.drmLicenseUrl, ch.clearKeysJson, ch.inputstreamaddon, ch.manifestType
+                FROM Channel ch
+                JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
+                WHERE cat.accountId = ? AND ch.channelId IN ($channelPlaceholders)
+                ORDER BY ch.id
+            """
+            BrowseMode.VOD -> bookmarkVodSeriesFallbackSql("VodChannel", channelPlaceholders)
+            BrowseMode.SERIES -> bookmarkVodSeriesFallbackSql("SeriesChannel", channelPlaceholders)
+        }.trimIndent()
+
+    private fun bookmarkVodSeriesFallbackSql(table: String, channelPlaceholders: String): String =
+        """
+        SELECT CAST(accountId AS INTEGER) AS accountId, channelId, logo,
+            drmType, drmLicenseUrl, clearKeysJson, inputstreamaddon, manifestType
+        FROM ${quoteIdentifier(table)}
+        WHERE accountId = ? AND channelId IN ($channelPlaceholders)
+        ORDER BY id
+        """.trimIndent()
+
+    private fun MutableMap<BookmarkFallbackKey, BookmarkRenderData>.mergeBookmarkFallback(
+        mode: BrowseMode,
+        cursor: Cursor
+    ) {
+        val key = BookmarkFallbackKey(
+            mode = mode,
+            accountId = cursor.long("accountId"),
+            channelId = cursor.string("channelId")
+        )
+        getOrPut(key) { BookmarkRenderData() }.fillMissing(
+            logo = cursor.string("logo"),
+            drmType = cursor.string("drmType"),
+            drmLicenseUrl = cursor.string("drmLicenseUrl"),
+            clearKeysJson = cursor.string("clearKeysJson"),
+            inputstreamaddon = cursor.string("inputstreamaddon"),
+            manifestType = cursor.string("manifestType")
+        )
     }
 
     override suspend fun toggleBookmark(item: MobileBrowseItem): Boolean = withContext(Dispatchers.IO) {
         val db = databaseHelper.writableDatabase
         val existingId = findBookmarkId(db, item.accountName, item.channelId, item.mode)
         val supportsLogo = columnExists(db, "Bookmark", "logo")
-        if (existingId != null) {
+        val bookmarked = if (existingId != null) {
             db.delete("Bookmark", "id = ?", arrayOf(existingId.toString()))
             db.delete("BookmarkOrder", "bookmark_db_id = ?", arrayOf(existingId.toString()))
             false
@@ -316,12 +326,15 @@ class AndroidSQLiteBrowseRepository(
             )
             true
         }
+        invalidateBookmarkCache()
+        bookmarked
     }
 
     override suspend fun removeBookmark(bookmarkId: Long): Unit = withContext(Dispatchers.IO) {
         val db = databaseHelper.writableDatabase
         db.delete("Bookmark", "id = ?", arrayOf(bookmarkId.toString()))
         db.delete("BookmarkOrder", "bookmark_db_id = ?", arrayOf(bookmarkId.toString()))
+        invalidateBookmarkCache()
     }
 
     override suspend fun listWatchingNow(query: String): List<MobileWatchingNowItem> = withContext(Dispatchers.IO) {
@@ -1500,7 +1513,7 @@ class AndroidSQLiteBrowseRepository(
 
     private fun Cursor.toBookmark(): MobileBookmark {
         val mode = string("accountAction").toBrowseMode()
-        val renderData = resolvedBookmarkRenderData(mode)
+        val renderData = resolvedBookmarkRenderData()
         return MobileBookmark(
             rowId = long("id"),
             accountId = long("accountId"),
@@ -1520,7 +1533,7 @@ class AndroidSQLiteBrowseRepository(
         )
     }
 
-    private fun Cursor.resolvedBookmarkRenderData(mode: BrowseMode): BookmarkRenderData {
+    private fun Cursor.resolvedBookmarkRenderData(): BookmarkRenderData {
         val data = BookmarkRenderData(
             logo = string("bookmarkLogo"),
             drmType = string("bookmarkDrmType"),
@@ -1532,24 +1545,7 @@ class AndroidSQLiteBrowseRepository(
         data.mergeChannelJson(string("channelJson"))
         data.mergeChannelJson(string("vodJson"))
         data.mergeSeriesJson(string("seriesJson"))
-        data.mergeCachedFallback(this, mode)
         return data
-    }
-
-    private fun BookmarkRenderData.mergeCachedFallback(cursor: Cursor, mode: BrowseMode) {
-        val prefix = when (mode) {
-            BrowseMode.LIVE -> "live"
-            BrowseMode.VOD -> "vod"
-            BrowseMode.SERIES -> "series"
-        }
-        fillMissing(
-            logo = cursor.string("${prefix}Logo"),
-            drmType = cursor.string("${prefix}DrmType"),
-            drmLicenseUrl = cursor.string("${prefix}DrmLicenseUrl"),
-            clearKeysJson = cursor.string("${prefix}ClearKeysJson"),
-            inputstreamaddon = cursor.string("${prefix}Inputstreamaddon"),
-            manifestType = cursor.string("${prefix}ManifestType")
-        )
     }
 
     private fun BookmarkRenderData.mergeChannelJson(json: String) {
@@ -1704,6 +1700,21 @@ class AndroidSQLiteBrowseRepository(
     private fun firstNonBlank(vararg values: String): String =
         values.firstOrNull { it.isNotBlank() }?.trim().orEmpty()
 
+    private fun MobileBookmark.needsBookmarkFallback(): Boolean =
+        logo.isBlank() ||
+            drmType.isBlank() ||
+            drmLicenseUrl.isBlank() ||
+            clearKeysJson.isBlank() ||
+            inputstreamAddon.isBlank() ||
+            manifestType.isBlank()
+
+    private fun MobileBookmark.bookmarkFallbackKey(): BookmarkFallbackKey? =
+        if (accountId > 0 && channelId.isNotBlank()) {
+            BookmarkFallbackKey(mode, accountId, channelId)
+        } else {
+            null
+        }
+
     private fun MobileWatchingNowItem.watchingNowIdentityKey(): String {
         val contentKey = contentId.ifBlank { rowId.toString() }
         return "${mode.name}|$accountId|$categoryProviderId|$contentKey"
@@ -1736,6 +1747,30 @@ class AndroidSQLiteBrowseRepository(
                 }
             }
             return false
+        }
+    }
+
+    private fun tableColumns(db: SQLiteDatabase, table: String): Set<String> {
+        db.rawQuery("PRAGMA table_info(${quoteIdentifier(table)})", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            val columns = mutableSetOf<String>()
+            while (cursor.moveToNext()) {
+                columns += cursor.getString(nameIndex)
+            }
+            return columns
+        }
+    }
+
+    private fun List<MobileBookmark>.filterBookmarks(query: String, bookmarkCategoryId: String?): List<MobileBookmark> {
+        val normalizedQuery = query.trim()
+        return filter { bookmark ->
+            (bookmarkCategoryId.isNullOrBlank() || bookmark.bookmarkCategoryId == bookmarkCategoryId) &&
+                (
+                    normalizedQuery.isBlank() ||
+                        bookmark.channelName.contains(normalizedQuery, ignoreCase = true) ||
+                        bookmark.accountName.contains(normalizedQuery, ignoreCase = true) ||
+                        bookmark.categoryTitle.contains(normalizedQuery, ignoreCase = true)
+                    )
         }
     }
 
@@ -1782,6 +1817,17 @@ class AndroidSQLiteBrowseRepository(
         val logo: String = ""
     )
 
+    private data class BookmarkCache(
+        val categories: List<MobileBookmarkCategory>,
+        val bookmarks: List<MobileBookmark>
+    )
+
+    private data class BookmarkFallbackKey(
+        val mode: BrowseMode,
+        val accountId: Long,
+        val channelId: String
+    )
+
     private data class WatchingMarker(
         val episodeId: String,
         val season: String,
@@ -1791,6 +1837,7 @@ class AndroidSQLiteBrowseRepository(
     private companion object {
         const val DEFAULT_CACHE_EXPIRY_DAYS = 30L
         const val MILLIS_PER_DAY = 86_400_000L
+        const val BOOKMARK_FALLBACK_CHUNK_SIZE = 250
         val IMDB_ID_PATTERN = Regex("""tt\d+""")
     }
 }

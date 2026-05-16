@@ -26,12 +26,14 @@ import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlaybackTarget
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
+import com.uiptv.mobile.shared.settings.EmbeddedPlayerPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -54,6 +56,7 @@ class EmbeddedPlayerActivity : Activity() {
     private lateinit var rootLayout: FrameLayout
     private lateinit var videoLayout: VLCVideoLayout
     private lateinit var controlsOverlay: LinearLayout
+    private lateinit var playlistOverlay: LinearLayout
     private lateinit var feedbackView: TextView
     private lateinit var loadingSpinner: ProgressBar
     private lateinit var messageView: TextView
@@ -64,13 +67,14 @@ class EmbeddedPlayerActivity : Activity() {
     private lateinit var timeLabel: TextView
     private lateinit var zoomButton: TextView
     private lateinit var repeatButton: TextView
+    private lateinit var muteButton: TextView
     private val overlayHandler = Handler(Looper.getMainLooper())
     private val zoomModes = listOf(
-        ZoomMode("Default", MediaPlayer.ScaleType.SURFACE_BEST_FIT),
-        ZoomMode("Fill", MediaPlayer.ScaleType.SURFACE_FILL),
-        ZoomMode("16:9", MediaPlayer.ScaleType.SURFACE_16_9),
-        ZoomMode("4:3", MediaPlayer.ScaleType.SURFACE_4_3),
-        ZoomMode("Original", MediaPlayer.ScaleType.SURFACE_ORIGINAL)
+        ZoomMode("Default", MediaPlayer.ScaleType.SURFACE_BEST_FIT, R.drawable.aspect_ratio),
+        ZoomMode("Fill", MediaPlayer.ScaleType.SURFACE_FILL, R.drawable.aspect_ratio_fill),
+        ZoomMode("16:9", MediaPlayer.ScaleType.SURFACE_16_9, R.drawable.aspect_ratio),
+        ZoomMode("4:3", MediaPlayer.ScaleType.SURFACE_4_3, R.drawable.aspect_ratio),
+        ZoomMode("Original", MediaPlayer.ScaleType.SURFACE_ORIGINAL, R.drawable.aspect_ratio_stretch)
     )
     private val hideControlsRunnable = Runnable {
         controlsOverlay.visibility = View.GONE
@@ -99,6 +103,7 @@ class EmbeddedPlayerActivity : Activity() {
     private var audioFocusRequest: AudioFocusRequest? = null
     private var reconnectRunnable: Runnable? = null
     private var startupVolumeFallbackApplied = false
+    private var muted = false
     private var touchStartX = 0f
     private var touchStartY = 0f
     private var twoFingerStartSpanX = 0f
@@ -113,6 +118,7 @@ class EmbeddedPlayerActivity : Activity() {
     private var currentBingeSession: AndroidBingeWatchSession? = null
     private var currentBingeIndex = -1
     private var markedTargetKey = ""
+    private val preferencesRepository by lazy { AndroidDataStorePreferencesRepository(this) }
 
     @Suppress("DEPRECATION")
     @SuppressLint("ClickableViewAccessibility")
@@ -128,6 +134,7 @@ class EmbeddedPlayerActivity : Activity() {
             .orEmpty()
             .takeIf { it.isNotBlank() }
             ?.let(AndroidBingeWatchSessionStore::get)
+        loadEmbeddedPlayerPreference()
         if (intent.getStringExtra(NativePlayerActivity.EXTRA_URL).orEmpty().isBlank() && currentBingeSession == null) {
             finish()
             return
@@ -157,6 +164,7 @@ class EmbeddedPlayerActivity : Activity() {
             visibility = View.GONE
         }
         controlsOverlay = createControlsOverlay()
+        playlistOverlay = createPlaylistOverlay()
         rootLayout = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(
@@ -166,6 +174,14 @@ class EmbeddedPlayerActivity : Activity() {
             addView(
                 controlsOverlay,
                 FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
+            )
+            addView(
+                playlistOverlay,
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM).apply {
+                    leftMargin = dp(10)
+                    rightMargin = dp(10)
+                    bottomMargin = dp(138)
+                }
             )
             addView(
                 feedbackView,
@@ -290,6 +306,7 @@ class EmbeddedPlayerActivity : Activity() {
     override fun onStop() {
         stoppingForLifecycle = true
         cancelReconnect()
+        setMusicStreamMuted(false)
         overlayHandler.removeCallbacks(updateProgressRunnable)
         mediaPlayer?.runCatchingStop()
         if (attached) {
@@ -371,6 +388,7 @@ class EmbeddedPlayerActivity : Activity() {
 
     private fun playNextBingeIfNeeded(): Boolean {
         val session = currentBingeSession ?: return false
+        hidePlaylistOverlay()
         val nextIndex = currentBingeIndex + 1
         if (nextIndex >= session.targets.size) {
             finish()
@@ -392,6 +410,7 @@ class EmbeddedPlayerActivity : Activity() {
         reconnectAttempt = 0
         reconnectScheduled = false
         cancelReconnect()
+        mediaPlayer?.runCatchingStop()
         beginStreamLoading()
         val rawTarget = session.targets[index]
         playbackScope.launch {
@@ -412,7 +431,7 @@ class EmbeddedPlayerActivity : Activity() {
             try {
                 AndroidPlaybackCoordinator(
                     context = this@EmbeddedPlayerActivity,
-                    preferences = AndroidDataStorePreferencesRepository(this@EmbeddedPlayerActivity),
+                    preferences = preferencesRepository,
                     databaseHelper = databaseHelper
                 ).resolvePlayableTarget(target)
             } finally {
@@ -494,6 +513,7 @@ class EmbeddedPlayerActivity : Activity() {
                 if (wasTap) {
                     toggleControls()
                 } else {
+                    hidePlaylistOverlay()
                     enterImmersiveMode()
                 }
                 activeGesture = PlayerGesture.None
@@ -608,14 +628,16 @@ class EmbeddedPlayerActivity : Activity() {
             addView(controlButton(StopIcon) { finish() }, compactControlLayoutParams())
             addView(controlButton(RewindIcon) { seekBySeconds(-SeekStepSeconds) }, compactControlLayoutParams())
             addView(controlButton(ForwardIcon) { seekBySeconds(SeekStepSeconds) }, compactControlLayoutParams())
-            repeatButton = controlButton(RepeatIcon) { toggleRepeat() }
+            if (currentBingeSession != null) {
+                addView(controlButton(PlaylistIcon) { togglePlaylistOverlay() }, compactControlLayoutParams())
+            }
+            muteButton = iconControlButton(R.drawable.mute_off, "Mute") { toggleMute() }
+            updateMuteButton()
+            addView(muteButton, compactControlLayoutParams())
+            repeatButton = iconControlButton(R.drawable.repeat_off, "Repeat") { toggleRepeat() }
             updateRepeatButton()
             addView(repeatButton, compactControlLayoutParams())
-            addView(controlButton("${BrightnessIcon}-") { adjustBrightnessBy(-BrightnessStep) }, compactControlLayoutParams())
-            addView(controlButton("${BrightnessIcon}+") { adjustBrightnessBy(BrightnessStep) }, compactControlLayoutParams())
-            addView(controlButton("Vol -") { adjustVolumeBy(-VolumeStep) }, compactControlLayoutParams())
-            addView(controlButton("Vol +") { adjustVolumeBy(VolumeStep) }, compactControlLayoutParams())
-            zoomButton = controlButton(zoomModes[zoomModeIndex].label) { cycleZoomMode() }
+            zoomButton = iconControlButton(zoomModes[zoomModeIndex].iconRes, "Zoom ${zoomModes[zoomModeIndex].label}") { cycleZoomMode() }
             addView(zoomButton, compactControlLayoutParams())
         }
         val controlsScroller = HorizontalScrollView(this).apply {
@@ -625,7 +647,7 @@ class EmbeddedPlayerActivity : Activity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(10), dp(12), dp(12))
-            background = roundedBackground(Color.argb(225, 12, 16, 20), dp(0))
+            background = roundedBackground(Color.argb(175, 12, 16, 20), dp(0))
             visibility = View.GONE
             addView(titleRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(streamInfoLabel, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -637,6 +659,93 @@ class EmbeddedPlayerActivity : Activity() {
             addView(controlsScroller, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = dp(4)
             })
+        }
+    }
+
+    private fun createPlaylistOverlay(): LinearLayout {
+        val session = currentBingeSession
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(8), dp(10), dp(10))
+        }
+        if (session != null) {
+            content.addView(
+                TextView(this).apply {
+                    text = session.seriesTitle.ifBlank { "Playlist" }
+                    setTextColor(Color.WHITE)
+                    setTextSize(13f)
+                    setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+                    maxLines = 1
+                },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    bottomMargin = dp(6)
+                }
+            )
+            session.targets.forEachIndexed { index, target ->
+                content.addView(playlistRow(index, target))
+            }
+        }
+        val scroller = ScrollView(this).apply {
+            isFillViewport = false
+            addView(content)
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedBackground(Color.argb(205, 12, 16, 20), dp(12), Color.argb(100, 79, 216, 235))
+            visibility = View.GONE
+            addView(scroller, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(260)))
+        }
+    }
+
+    private fun playlistRow(index: Int, target: PlaybackTarget): TextView =
+        TextView(this).apply {
+            text = playlistRowLabel(index, target)
+            setTextColor(Color.WHITE)
+            setTextSize(13f)
+            maxLines = 2
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(9), dp(10), dp(9))
+            background = roundedBackground(
+                color = if (index == currentBingeIndex) Color.argb(220, 34, 83, 93) else Color.argb(135, 37, 45, 54),
+                radius = dp(8),
+                strokeColor = if (index == currentBingeIndex) Color.rgb(79, 216, 235) else null
+            )
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                hidePlaylistOverlay()
+                if (index != currentBingeIndex) {
+                    showFeedback("Opening ${target.title.ifBlank { "playlist item" }}")
+                    playBingeIndex(index)
+                }
+                scheduleControlsHide()
+            }
+        }.also { row ->
+            row.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(4)
+            }
+        }
+
+    private fun playlistRowLabel(index: Int, target: PlaybackTarget): String {
+        val episode = listOf(target.season, target.episodeNumber)
+            .filter { it.isNotBlank() }
+            .joinToString("x")
+            .takeIf { it.isNotBlank() }
+        val prefix = episode ?: (index + 1).toString()
+        return "$prefix  ${target.title.ifBlank { "Untitled" }}"
+    }
+
+    private fun togglePlaylistOverlay() {
+        if (!::playlistOverlay.isInitialized || currentBingeSession == null) {
+            return
+        }
+        playlistOverlay.visibility = if (playlistOverlay.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        overlayHandler.removeCallbacks(hideControlsRunnable)
+    }
+
+    private fun hidePlaylistOverlay() {
+        if (::playlistOverlay.isInitialized) {
+            playlistOverlay.visibility = View.GONE
         }
     }
 
@@ -659,8 +768,26 @@ class EmbeddedPlayerActivity : Activity() {
             }
         }
 
+    private fun iconControlButton(drawableRes: Int, description: String, onClick: () -> Unit): TextView =
+        controlButton("", onClick).apply {
+            contentDescription = description
+            setButtonIcon(this, drawableRes)
+        }
+
+    private fun setButtonIcon(button: TextView, drawableRes: Int) {
+        val drawable = resources.getDrawable(drawableRes, theme).mutate()
+        val size = dp(ControlIconSizeDp)
+        drawable.setBounds(0, 0, size, size)
+        drawable.setTint(Color.WHITE)
+        button.text = ""
+        button.setCompoundDrawables(drawable, null, null, null)
+        button.compoundDrawablePadding = 0
+        button.minWidth = dp(44)
+        button.minHeight = dp(36)
+    }
+
     private fun compactControlLayoutParams(): LinearLayout.LayoutParams =
-        LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+        LinearLayout.LayoutParams(dp(44), dp(36)).apply {
             leftMargin = dp(4)
             rightMargin = dp(4)
         }
@@ -677,6 +804,27 @@ class EmbeddedPlayerActivity : Activity() {
         updatePlayPauseButton()
     }
 
+    private fun toggleMute() {
+        muted = !muted
+        applyDesiredAudioState()
+        updateMuteButton()
+        saveEmbeddedPlayerPreference()
+        showFeedback(if (muted) "Muted" else "Unmuted")
+    }
+
+    private fun updateMuteButton() {
+        if (!::muteButton.isInitialized) {
+            return
+        }
+        setButtonIcon(muteButton, if (muted) R.drawable.mute_on else R.drawable.mute_off)
+        muteButton.contentDescription = if (muted) "Unmute" else "Mute"
+        muteButton.background = roundedBackground(
+            color = if (muted) Color.argb(240, 34, 83, 93) else Color.argb(230, 37, 45, 54),
+            radius = dp(18),
+            strokeColor = if (muted) Color.rgb(79, 216, 235) else Color.argb(120, 79, 216, 235)
+        )
+    }
+
     private fun toggleRepeat() {
         repeatEnabled = !repeatEnabled
         reconnectAttempt = 0
@@ -684,14 +832,39 @@ class EmbeddedPlayerActivity : Activity() {
         if (!repeatEnabled) {
             cancelReconnect()
         }
+        saveEmbeddedPlayerPreference()
         showFeedback(if (repeatEnabled) "Repeat reconnect on" else "Repeat reconnect off")
+    }
+
+    private fun loadEmbeddedPlayerPreference() {
+        playbackScope.launch {
+            runCatching { preferencesRepository.load().embeddedPlayerPreference }
+                .onSuccess { preference ->
+                    repeatEnabled = preference.repeatReconnect
+                    muted = preference.muted
+                    updateRepeatButton()
+                    updateMuteButton()
+                    applyDesiredAudioState()
+                }
+        }
+    }
+
+    private fun saveEmbeddedPlayerPreference() {
+        val preference = EmbeddedPlayerPreference(
+            repeatReconnect = repeatEnabled,
+            muted = muted
+        )
+        playbackScope.launch {
+            runCatching { preferencesRepository.saveEmbeddedPlayerPreference(preference) }
+        }
     }
 
     private fun updateRepeatButton() {
         if (!::repeatButton.isInitialized) {
             return
         }
-        repeatButton.text = if (repeatEnabled) "$RepeatIcon On" else RepeatIcon
+        setButtonIcon(repeatButton, if (repeatEnabled) R.drawable.repeat_on else R.drawable.repeat_off)
+        repeatButton.contentDescription = if (repeatEnabled) "Repeat on" else "Repeat off"
         repeatButton.background = roundedBackground(
             color = if (repeatEnabled) Color.argb(240, 34, 83, 93) else Color.argb(230, 37, 45, 54),
             radius = dp(18),
@@ -808,6 +981,7 @@ class EmbeddedPlayerActivity : Activity() {
     private fun toggleControls() {
         if (controlsVisible) {
             controlsOverlay.visibility = View.GONE
+            hidePlaylistOverlay()
             controlsVisible = false
             overlayHandler.removeCallbacks(hideControlsRunnable)
             enterImmersiveMode()
@@ -865,7 +1039,9 @@ class EmbeddedPlayerActivity : Activity() {
 
     private fun syncAudioStateAtStartup() {
         val version = markAudioStateSyncRequested()
-        ensureAudioTrackSelected()
+        if (!muted) {
+            ensureAudioTrackSelected()
+        }
         applyDesiredAudioState()
         scheduleAudioStateStartupSync(version)
     }
@@ -887,9 +1063,21 @@ class EmbeddedPlayerActivity : Activity() {
     private fun applyDesiredAudioState() {
         mediaPlayer?.let { player ->
             runCatching { player.setAudioDigitalOutputEnabled(false) }
+            setMusicStreamMuted(muted)
+            if (muted) {
+                val volumeResult = runCatching { player.setVolume(0) }.getOrDefault(0)
+                Log.d(LogTag, "Applied VLC mute volumeResult=$volumeResult")
+                return
+            }
+            ensureAudioTrackSelected()
             val result = runCatching { player.setVolume(VlcAudibleVolume) }.getOrDefault(0)
             Log.d(LogTag, "Applied VLC volume=$VlcAudibleVolume result=$result")
         }
+    }
+
+    private fun setMusicStreamMuted(value: Boolean) {
+        val direction = if (value) AudioManager.ADJUST_MUTE else AudioManager.ADJUST_UNMUTE
+        runCatching { audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, 0) }
     }
 
     private fun MediaPlayer.configureAudioOutput() {
@@ -969,7 +1157,8 @@ class EmbeddedPlayerActivity : Activity() {
         zoomModeIndex = index.coerceIn(zoomModes.indices)
         val mode = zoomModes[zoomModeIndex]
         mediaPlayer?.setVideoScale(mode.scaleType)
-        zoomButton.text = mode.label
+        setButtonIcon(zoomButton, mode.iconRes)
+        zoomButton.contentDescription = "Zoom ${mode.label}"
         showFeedback("Zoom ${mode.label}")
     }
 
@@ -1195,7 +1384,8 @@ class EmbeddedPlayerActivity : Activity() {
 
     private data class ZoomMode(
         val label: String,
-        val scaleType: MediaPlayer.ScaleType
+        val scaleType: MediaPlayer.ScaleType,
+        val iconRes: Int
     )
 
     private data class VideoTrackDetails(
@@ -1248,6 +1438,7 @@ class EmbeddedPlayerActivity : Activity() {
         private const val SeekStepSeconds = 15
         private const val BrightnessStep = 0.10f
         private const val VolumeStep = 0.10f
+        private const val ControlIconSizeDp = 18
         private const val StartupVolumeFallbackRatio = 0.35f
         private const val DefaultBrightness = 0.50f
         private const val MinimumBrightness = 0.05f
@@ -1263,8 +1454,7 @@ class EmbeddedPlayerActivity : Activity() {
         private const val StopIcon = "\u25A0"
         private const val RewindIcon = "\u23EA"
         private const val ForwardIcon = "\u23E9"
-        private const val RepeatIcon = "\u27F3"
-        private const val BrightnessIcon = "\u2600"
+        private const val PlaylistIcon = "List"
         private const val CloseIcon = "\u2715"
     }
 }
