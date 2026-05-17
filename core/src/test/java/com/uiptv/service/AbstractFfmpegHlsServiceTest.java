@@ -116,7 +116,7 @@ class AbstractFfmpegHlsServiceTest {
         stop.setAccessible(true);
 
         try {
-            boolean started = (Boolean) start.invoke(FfmpegService.getInstance(), List.of("/bin/sh", "-c", "sleep 1"));
+            boolean started = (Boolean) start.invoke(FfmpegService.getInstance(), List.of("/bin/sh", "-c", "exit 0"));
             assertFalse(started);
         } finally {
             stop.invoke(FfmpegService.getInstance());

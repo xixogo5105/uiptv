@@ -12,7 +12,7 @@ import java.sql.SQLException;
 import java.time.Duration;
 
 public class RemoteSyncClientService {
-    private static final Duration POLL_DELAY = Duration.ofSeconds(1);
+    private static final long DEFAULT_POLL_DELAY_MS = 1_000L;
     private static final Duration STATUS_TIMEOUT = Duration.ofMinutes(3);
     private static final String REMOTE_SYNC_COMPLETED_MESSAGE = "Remote database sync completed.";
     private static final String REMOTE_SYNC_FAILED_MESSAGE = "Remote database sync failed.";
@@ -127,8 +127,12 @@ public class RemoteSyncClientService {
     }
 
     private void sleepBeforeNextPoll() throws IOException {
+        long pollDelayMs = Long.getLong("uiptv.remote.sync.poll.delay.ms", DEFAULT_POLL_DELAY_MS);
+        if (pollDelayMs <= 0L) {
+            return;
+        }
         try {
-            Thread.sleep(POLL_DELAY.toMillis());
+            Thread.sleep(pollDelayMs);
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while waiting for remote sync approval", interruptedException);

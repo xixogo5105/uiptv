@@ -44,9 +44,9 @@ public class ChannelService {
     private static final String FIELD_CENSORED = "censored";
     private static final String FIELD_STATUS = "status";
     private static final int MAX_PAGES_WITHOUT_PAGINATION = 200;
-    private static final long STALKER_BASE_DELAY_MS = Long.getLong("uiptv.stalker.page.delay.ms", 800L);
-    private static final long STALKER_MAX_DELAY_MS = Long.getLong("uiptv.stalker.page.maxDelay.ms", 8000L);
-    private static final long STALKER_JITTER_MS = Long.getLong("uiptv.stalker.page.jitter.ms", 200L);
+    private static final String STALKER_BASE_DELAY_PROPERTY = "uiptv.stalker.page.delay.ms";
+    private static final String STALKER_MAX_DELAY_PROPERTY = "uiptv.stalker.page.maxDelay.ms";
+    private static final String STALKER_JITTER_PROPERTY = "uiptv.stalker.page.jitter.ms";
     private static final int STALKER_MAX_RETRIES_PER_PAGE = Integer.getInteger("uiptv.stalker.page.maxRetries", 2);
     private static final Map<String, RequestThrottle> STALKER_THROTTLES = new java.util.concurrent.ConcurrentHashMap<>();
     private final CacheService cacheService;
@@ -714,7 +714,19 @@ public class ChannelService {
             }
         }
         String key = (account == null ? "" : account.getDbId()) + "|" + portalHost + "|" + (account == null ? "" : account.getAction());
-        return STALKER_THROTTLES.computeIfAbsent(key, _ -> new RequestThrottle(STALKER_BASE_DELAY_MS, STALKER_MAX_DELAY_MS, STALKER_JITTER_MS));
+        return STALKER_THROTTLES.computeIfAbsent(key, _ -> new RequestThrottle(stalkerBaseDelayMs(), stalkerMaxDelayMs(), stalkerJitterMs()));
+    }
+
+    private long stalkerBaseDelayMs() {
+        return Long.getLong(STALKER_BASE_DELAY_PROPERTY, 800L);
+    }
+
+    private long stalkerMaxDelayMs() {
+        return Long.getLong(STALKER_MAX_DELAY_PROPERTY, 8000L);
+    }
+
+    private long stalkerJitterMs() {
+        return Long.getLong(STALKER_JITTER_PROPERTY, 200L);
     }
 
     private void emitProgress(Consumer<PageProgress> progressCallback, int fetchedItems, int totalItems, int pageNumber, int pageCount) {

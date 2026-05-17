@@ -357,6 +357,13 @@
                         <useModulePath>false</useModulePath>
                         <systemPropertyVariables>
                             <uiptv.hls.ts.delete.grace.millis>100</uiptv.hls.ts.delete.grace.millis>
+                            <uiptv.hls.missing.ts.retry.attempts>50</uiptv.hls.missing.ts.retry.attempts>
+                            <uiptv.hls.missing.ts.retry.sleep.millis>1</uiptv.hls.missing.ts.retry.sleep.millis>
+                            <uiptv.remote.sync.poll.delay.ms>1</uiptv.remote.sync.poll.delay.ms>
+                            <uiptv.stalker.page.delay.ms>0</uiptv.stalker.page.delay.ms>
+                            <uiptv.stalker.page.maxDelay.ms>0</uiptv.stalker.page.maxDelay.ms>
+                            <uiptv.stalker.page.jitter.ms>0</uiptv.stalker.page.jitter.ms>
+                            <uiptv.youtubeDl.default.enabled>false</uiptv.youtubeDl.default.enabled>
                         </systemPropertyVariables>
                     </configuration>
                 </plugin>
@@ -403,6 +410,13 @@
                     <useModulePath>false</useModulePath>
                     <systemPropertyVariables>
                         <uiptv.hls.ts.delete.grace.millis>100</uiptv.hls.ts.delete.grace.millis>
+                        <uiptv.hls.missing.ts.retry.attempts>50</uiptv.hls.missing.ts.retry.attempts>
+                        <uiptv.hls.missing.ts.retry.sleep.millis>1</uiptv.hls.missing.ts.retry.sleep.millis>
+                        <uiptv.remote.sync.poll.delay.ms>1</uiptv.remote.sync.poll.delay.ms>
+                        <uiptv.stalker.page.delay.ms>0</uiptv.stalker.page.delay.ms>
+                        <uiptv.stalker.page.maxDelay.ms>0</uiptv.stalker.page.maxDelay.ms>
+                        <uiptv.stalker.page.jitter.ms>0</uiptv.stalker.page.jitter.ms>
+                        <uiptv.youtubeDl.default.enabled>false</uiptv.youtubeDl.default.enabled>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

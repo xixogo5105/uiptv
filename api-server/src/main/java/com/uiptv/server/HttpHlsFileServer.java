@@ -14,8 +14,8 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class HttpHlsFileServer implements HttpHandler {
-    private static final int MISSING_TS_RETRY_ATTEMPTS = Integer.getInteger("uiptv.hls.missing.ts.retry.attempts", 100);
-    private static final long MISSING_TS_RETRY_SLEEP_MS = Long.getLong("uiptv.hls.missing.ts.retry.sleep.millis", 50L);
+    private static final String MISSING_TS_RETRY_ATTEMPTS_PROPERTY = "uiptv.hls.missing.ts.retry.attempts";
+    private static final String MISSING_TS_RETRY_SLEEP_MS_PROPERTY = "uiptv.hls.missing.ts.retry.sleep.millis";
     private static final byte[] EMPTY_CONTENT = new byte[0];
 
     @Override
@@ -52,9 +52,9 @@ public class HttpHlsFileServer implements HttpHandler {
             return data;
         }
 
-        for (int i = 0; i < MISSING_TS_RETRY_ATTEMPTS; i++) {
+        for (int i = 0; i < missingTsRetryAttempts(); i++) {
             try {
-                Thread.sleep(MISSING_TS_RETRY_SLEEP_MS);
+                Thread.sleep(missingTsRetrySleepMs());
             } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
                 break;
@@ -65,6 +65,14 @@ public class HttpHlsFileServer implements HttpHandler {
             }
         }
         return EMPTY_CONTENT;
+    }
+
+    private static int missingTsRetryAttempts() {
+        return Math.max(0, Integer.getInteger(MISSING_TS_RETRY_ATTEMPTS_PROPERTY, 100));
+    }
+
+    private static long missingTsRetrySleepMs() {
+        return Math.max(0L, Long.getLong(MISSING_TS_RETRY_SLEEP_MS_PROPERTY, 50L));
     }
 
     private static boolean isHvecEnabled(String value) {

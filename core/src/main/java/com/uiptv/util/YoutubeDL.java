@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit;
 public class YoutubeDL {
     private static final String DEFAULT_YT_DLP_COMMAND = "yt-dlp";
     private static final String DEFAULT_YOUTUBE_DL_COMMAND = "youtube-dl";
+    private static final String DEFAULT_DOWNLOADERS_ENABLED_PROPERTY = "uiptv.youtubeDl.default.enabled";
     private static String customYtDlpPath = null;
     private static String customYoutubeDlPath = null;
 
@@ -28,7 +29,7 @@ public class YoutubeDL {
         if (customYtDlpPath != null) {
             streamUrl = tryGetStreamUrl(customYtDlpPath, videoUrl);
         }
-        if (streamUrl == null) {
+        if (streamUrl == null && defaultDownloadersEnabled()) {
             streamUrl = tryGetStreamUrl(DEFAULT_YT_DLP_COMMAND, videoUrl);
         }
         if (streamUrl != null) {
@@ -38,7 +39,7 @@ public class YoutubeDL {
         if (customYoutubeDlPath != null) {
             streamUrl = tryGetStreamUrl(customYoutubeDlPath, videoUrl);
         }
-        if (streamUrl == null) {
+        if (streamUrl == null && defaultDownloadersEnabled()) {
             streamUrl = tryGetStreamUrl(DEFAULT_YOUTUBE_DL_COMMAND, videoUrl);
         }
         if (streamUrl != null) {
@@ -47,6 +48,10 @@ public class YoutubeDL {
 
         AppLog.addWarningLog(YoutubeDL.class, "Neither yt-dlp nor youtube-dl found or failed. Falling back to original URL.");
         return videoUrl;
+    }
+
+    private static boolean defaultDownloadersEnabled() {
+        return Boolean.parseBoolean(System.getProperty(DEFAULT_DOWNLOADERS_ENABLED_PROPERTY, "true"));
     }
 
     private static String tryGetStreamUrl(String command, String videoUrl) {
