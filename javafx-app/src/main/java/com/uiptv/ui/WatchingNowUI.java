@@ -24,13 +24,21 @@ public class WatchingNowUI extends VBox {
     }
 
     public void forceReload() {
-        seriesDelegate.forceReload();
-        vodDelegate.forceReload();
+        if (seriesDelegate != null) {
+            seriesDelegate.forceReload();
+        }
+        if (vodDelegate != null) {
+            vodDelegate.forceReload();
+        }
     }
 
     public void refreshIfNeeded() {
-        seriesDelegate.refreshIfNeeded();
-        vodDelegate.refreshIfNeeded();
+        if (seriesDelegate != null) {
+            seriesDelegate.refreshIfNeeded();
+        }
+        if (vodDelegate != null) {
+            vodDelegate.refreshIfNeeded();
+        }
     }
 
     static String refreshButtonLabel() {
@@ -89,9 +97,15 @@ public class WatchingNowUI extends VBox {
             if (newScene == null) {
                 ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
                 thumbnailListenerRegistered = false;
+                disposeDelegates();
             } else if (!thumbnailListenerRegistered) {
                 ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
                 thumbnailListenerRegistered = true;
+                if (seriesDelegate == null || vodDelegate == null) {
+                    tabPane = buildTabs();
+                    getChildren().setAll(tabPane);
+                    VBox.setVgrow(tabPane, Priority.ALWAYS);
+                }
             }
         });
     }
@@ -99,6 +113,7 @@ public class WatchingNowUI extends VBox {
     private void refreshThumbnailMode() {
         Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
         String selectedTabText = selectedTab == null ? "" : selectedTab.getText();
+        disposeDelegates();
         tabPane = buildTabs();
         getChildren().setAll(tabPane);
         VBox.setVgrow(tabPane, Priority.ALWAYS);
@@ -106,6 +121,17 @@ public class WatchingNowUI extends VBox {
             tabPane.getSelectionModel().select(1);
         } else {
             tabPane.getSelectionModel().select(0);
+        }
+    }
+
+    private void disposeDelegates() {
+        if (seriesDelegate != null) {
+            seriesDelegate.dispose();
+            seriesDelegate = null;
+        }
+        if (vodDelegate != null) {
+            vodDelegate.dispose();
+            vodDelegate = null;
         }
     }
 }

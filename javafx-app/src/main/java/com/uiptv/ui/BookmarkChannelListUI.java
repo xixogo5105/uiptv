@@ -350,6 +350,7 @@ public class BookmarkChannelListUI extends HBox {
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty || item == null) {
+                    imageView.clearImage();
                     setGraphic(null);
                     return;
                 }
@@ -359,6 +360,7 @@ public class BookmarkChannelListUI extends HBox {
                         : null;
 
                 if (bookmarkItem == null) {
+                    imageView.clearImage();
                     setGraphic(null);
                     return;
                 }

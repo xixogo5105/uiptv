@@ -26,15 +26,20 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.net.URI;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -60,6 +65,8 @@ public class ReloadCachePopup extends VBox {
     private static final String TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED = "reloadModeCategoryListCallFailed";
     private static final String TR_RELOAD_MODE_CATEGORY_LIST_FAILED = "reloadModeCategoryListFailed";
     private static final String TR_RELOAD_NO_CHANNELS_LOADED = "reloadNoChannelsLoaded";
+    private static final int MAX_LOG_LINES_PER_ACCOUNT = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxLinesPerAccount", 500));
+    private static final int MAX_PENDING_LOG_LINES = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxPending", 2_000));
 
     private enum AccountRunStatus {
         QUEUED, RUNNING, DONE, YELLOW, FAILED, EMPTY
@@ -85,6 +92,9 @@ public class ReloadCachePopup extends VBox {
         }
     }
 
+    private record PendingLogLine(String accountId, String line) {
+    }
+
     private final Stage stage;
     private final VBox accountsVBox = new VBox(5);
     private final VBox logVBox = new VBox(8);
@@ -103,7 +113,14 @@ public class ReloadCachePopup extends VBox {
     private final Map<String, SummaryStatus> latestAccountSummaries = new LinkedHashMap<>();
     private final ReloadRunOutcomeTracker runOutcomeTracker = new ReloadRunOutcomeTracker();
     private final Set<String> ignoredFailureDomains = new HashSet<>();
+    private final Set<String> pendingAccountInfoRefreshes = ConcurrentHashMap.newKeySet();
+    private final Object pendingLogLock = new Object();
+    private final Deque<PendingLogLine> pendingLogLines = new ArrayDeque<>();
+    private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
+    private final AtomicBoolean logDrainScheduled = new AtomicBoolean(false);
     private volatile boolean stopRequested = false;
+    private volatile boolean disposed = false;
+    private volatile Thread reloadThread;
     private final Runnable onAccountsDeleted;
     private VBox accountColumn;
     private ColumnConstraints accountsColumn;
@@ -283,7 +300,7 @@ public class ReloadCachePopup extends VBox {
         reloadButton.managedProperty().bind(reloadButton.visibleProperty());
         stopButton.setVisible(false);
         stopButton.managedProperty().bind(stopButton.visibleProperty());
-        stopButton.setOnAction(event -> stopRequested = true);
+        stopButton.setOnAction(event -> requestStop());
         Button copyLogButton = new Button(I18n.tr("autoCopyLog"));
         copyLogButton.setOnAction(event -> copyLogsToClipboard());
         Button closeButton = new Button(I18n.tr("autoClose"));
@@ -297,6 +314,7 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void copyLogsToClipboard() {
+        drainPendingLogLines();
         final Clipboard clipboard = Clipboard.getSystemClipboard();
         final ClipboardContent content = new ClipboardContent();
         content.putString(buildLogsClipboardText());
@@ -341,10 +359,35 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void registerStageCloseListener() {
-        stage.setOnCloseRequest(event -> releaseTransientState());
+        stage.setOnCloseRequest(event -> disposePopup());
+        stage.setOnHidden(event -> disposePopup());
+    }
+
+    private void disposePopup() {
+        disposed = true;
+        requestStop();
+        clearPendingLogLines();
+        releaseTransientState();
+    }
+
+    private void requestStop() {
+        stopRequested = true;
+        Thread activeReloadThread = reloadThread;
+        if (activeReloadThread != null) {
+            activeReloadThread.interrupt();
+        }
     }
 
     private void releaseTransientState() {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(this::releaseTransientState);
+            return;
+        }
+
+        for (AccountLogPanel panel : accountLogPanels.values()) {
+            panel.dispose();
+        }
+
         // Clear all cached data to allow garbage collection
         checkBoxes.clear();
         accountLogPanels.clear();
@@ -352,14 +395,21 @@ public class ReloadCachePopup extends VBox {
         latestSummaryLines.clear();
         latestAccountSummaries.clear();
         ignoredFailureDomains.clear();
+        pendingAccountInfoRefreshes.clear();
+        runOutcomeTracker.clear();
 
         // Clear all log panel UI nodes
+        accountsVBox.getChildren().clear();
         logVBox.getChildren().clear();
+        accountsScrollPane.setContent(null);
+        logScrollPane.setContent(null);
+        progressBar.reset();
 
         // Clear account column UI
         if (accountColumn != null) {
             accountColumn.getChildren().clear();
         }
+        getChildren().clear();
     }
 
     private void hideAccountSelectionColumn() {
@@ -381,7 +431,24 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void startReloadInBackground() {
-        new Thread(this::reloadSelectedAccounts).start();
+        if (disposed || !reloadInProgress.compareAndSet(false, true)) {
+            return;
+        }
+
+        List<Account> selectedAccounts = selectedAccountsSnapshot();
+        Thread thread = new Thread(() -> reloadSelectedAccounts(selectedAccounts), "uiptv-cache-reload");
+        thread.setDaemon(true);
+        reloadThread = thread;
+        thread.start();
+    }
+
+    private List<Account> selectedAccountsSnapshot() {
+        AtomicReference<List<Account>> selectedAccounts = new AtomicReference<>(List.of());
+        runOnFxThreadAndWait(() -> selectedAccounts.set(checkBoxes.stream()
+                .filter(CheckBox::isSelected)
+                .map(checkBox -> (Account) checkBox.getUserData())
+                .toList()));
+        return selectedAccounts.get();
     }
 
     private void preselectAccounts(List<Account> accountsToPreselect) {
@@ -413,42 +480,63 @@ public class ReloadCachePopup extends VBox {
         }
     }
 
-    private void reloadSelectedAccounts() {
-        List<Account> selectedAccounts = checkBoxes.stream()
-                .filter(CheckBox::isSelected)
-                .map(checkBox -> (Account) checkBox.getUserData())
-                .toList();
-        prepareReloadRun(selectedAccounts);
-        if (selectedAccounts.isEmpty()) {
-            showReloadButton();
-            return;
-        }
-        List<Account> processedAccounts = new ArrayList<>();
-        Map<String, AccountRunStatus> finalStatuses = new LinkedHashMap<>();
-        Map<String, SummaryStatus> summaryStatusByAccountId = new LinkedHashMap<>();
-        int totalFetchedChannels = 0;
-        for (int i = 0; i < selectedAccounts.size(); i++) {
-            if (stopRequested) {
-                break;
+    private void reloadSelectedAccounts(List<Account> selectedAccounts) {
+        try {
+            if (disposed) {
+                return;
             }
-            Account account = selectedAccounts.get(i);
-            processedAccounts.add(account);
-            setRunningAccount(account, i + 1, selectedAccounts.size());
-            AccountReloadResult result = reloadSingleAccount(account);
-            totalFetchedChannels += result.countedChannels;
-            SummaryStatus summaryStatus = buildSummaryStatus(result.availableChannelCount, result.failed, result.accountIssues);
-            summaryStatusByAccountId.put(account.getDbId(), summaryStatus);
-            progressBar.updateSegment(i, segmentStatus(summaryStatus));
-            AccountRunStatus finalStatus = finalAccountRunStatus(summaryStatus, result.availableChannelCount, result.failed);
-            finalStatuses.put(account.getDbId(), finalStatus);
-            updateAccountStatus(account, finalStatus, result.availableChannelCount);
+            prepareReloadRun(selectedAccounts);
+            if (selectedAccounts.isEmpty()) {
+                showReloadButton();
+                return;
+            }
+            List<Account> processedAccounts = new ArrayList<>();
+            Map<String, AccountRunStatus> finalStatuses = new LinkedHashMap<>();
+            Map<String, SummaryStatus> summaryStatusByAccountId = new LinkedHashMap<>();
+            int totalFetchedChannels = 0;
+            for (int i = 0; i < selectedAccounts.size(); i++) {
+                if (isReloadStopped()) {
+                    break;
+                }
+                Account account = selectedAccounts.get(i);
+                processedAccounts.add(account);
+                setRunningAccount(account, i + 1, selectedAccounts.size());
+                if (isReloadStopped()) {
+                    break;
+                }
+                AccountReloadResult result = reloadSingleAccount(account);
+                if (disposed) {
+                    break;
+                }
+                totalFetchedChannels += result.countedChannels;
+                SummaryStatus summaryStatus = buildSummaryStatus(result.availableChannelCount, result.failed, result.accountIssues);
+                summaryStatusByAccountId.put(account.getDbId(), summaryStatus);
+                progressBar.updateSegment(i, segmentStatus(summaryStatus));
+                AccountRunStatus finalStatus = finalAccountRunStatus(summaryStatus, result.availableChannelCount, result.failed);
+                finalStatuses.put(account.getDbId(), finalStatus);
+                updateAccountStatus(account, finalStatus, result.availableChannelCount);
+            }
+            finishReloadRun(processedAccounts, finalStatuses, summaryStatusByAccountId, totalFetchedChannels);
+        } finally {
+            reloadInProgress.set(false);
+            if (Thread.currentThread() == reloadThread) {
+                reloadThread = null;
+            }
         }
-        finishReloadRun(processedAccounts, finalStatuses, summaryStatusByAccountId, totalFetchedChannels);
+    }
+
+    private boolean isReloadStopped() {
+        return stopRequested || disposed || Thread.currentThread().isInterrupted();
     }
 
     private void prepareReloadRun(List<Account> selectedAccounts) {
         stopRequested = false;
+        clearPendingLogLines();
+        pendingAccountInfoRefreshes.clear();
         Platform.runLater(() -> {
+            if (disposed) {
+                return;
+            }
             reloadButton.setVisible(false);
             stopButton.setVisible(true);
         });
@@ -458,12 +546,18 @@ public class ReloadCachePopup extends VBox {
 
     private void showReloadButton() {
         Platform.runLater(() -> {
+            if (disposed) {
+                return;
+            }
             reloadButton.setVisible(true);
             stopButton.setVisible(false);
         });
     }
 
     private AccountReloadResult reloadSingleAccount(Account account) {
+        if (isReloadStopped()) {
+            return new AccountReloadResult(true, 0, 0, List.of(I18n.tr("autoStop")));
+        }
         String domainKey = resolveRepeatFailureDomain(account);
         if (domainKey != null && ignoredFailureDomains.contains(domainKey)) {
             logMessage(account, LOG_SKIPPED_IGNORED_DOMAIN);
@@ -558,7 +652,14 @@ public class ReloadCachePopup extends VBox {
 
     private void finishReloadRun(List<Account> processedAccounts, Map<String, AccountRunStatus> finalStatuses,
                                  Map<String, SummaryStatus> summaryStatusByAccountId, int totalFetchedChannels) {
+        if (disposed) {
+            return;
+        }
         Platform.runLater(() -> {
+            if (disposed) {
+                return;
+            }
+            drainPendingLogLines();
             com.uiptv.util.AppLog.addInfoLog(ReloadCachePopup.class, "Reload run completed.");
             reloadButton.setVisible(true);
             stopButton.setVisible(false);
@@ -566,7 +667,7 @@ public class ReloadCachePopup extends VBox {
             latestAccountSummaries.putAll(summaryStatusByAccountId);
             appendRunSummary(processedAccounts, finalStatuses, totalFetchedChannels);
             Map<String, SummaryStatus> problematicAccounts = collectProblematicAccounts(processedAccounts, summaryStatusByAccountId);
-            if (!problematicAccounts.isEmpty()) {
+            if (!problematicAccounts.isEmpty() && stage.isShowing()) {
                 showDeleteProblemAccountsPopup(processedAccounts, problematicAccounts);
             }
         });
@@ -599,6 +700,9 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void showDeleteProblemAccountsPopup(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts) {
+        if (disposed || !stage.isShowing()) {
+            return;
+        }
         Stage popupStage = createProblemAccountsStage();
         VBox accountsBox = new VBox(5);
         VBox root = buildProblemAccountsPopupRoot(processedAccounts, problematicAccounts, popupStage, accountsBox);
@@ -761,6 +865,12 @@ public class ReloadCachePopup extends VBox {
 
     private void prepareAccountLogPanels(List<Account> selectedAccounts) {
         runOnFxThreadAndWait(() -> {
+            if (disposed) {
+                return;
+            }
+            for (AccountLogPanel panel : accountLogPanels.values()) {
+                panel.dispose();
+            }
             accountLogPanels.clear();
             runAccountOrder.clear();
             latestSummaryLines.clear();
@@ -869,6 +979,9 @@ public class ReloadCachePopup extends VBox {
 
     private void setRunningAccount(Account currentAccount, int current, int total) {
         runOnFxThreadAndWait(() -> {
+            if (disposed) {
+                return;
+            }
             String nextAccountId = currentAccount.getDbId();
 
             AccountLogPanel currentPanel = accountLogPanels.get(nextAccountId);
@@ -905,7 +1018,13 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void updateAccountStatus(Account account, AccountRunStatus status, Integer channelCount) {
+        if (disposed || account == null) {
+            return;
+        }
         Platform.runLater(() -> {
+            if (disposed) {
+                return;
+            }
             AccountLogPanel panel = accountLogPanels.get(account.getDbId());
             if (panel != null) {
                 panel.setStatus(status, channelCount);
@@ -914,28 +1033,92 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void logMessage(Account account, String message) {
+        if (disposed || account == null || account.getDbId() == null || account.getDbId().isBlank()) {
+            return;
+        }
         String compact = compactLog(account, message);
         if (compact.isBlank()) {
             return;
         }
         runOutcomeTracker.recordMessage(account.getDbId(), message, compact);
-        Platform.runLater(() -> {
-            AccountLogPanel panel = accountLogPanels.get(account.getDbId());
-            if (panel != null) {
-                panel.appendLog(compact);
+        enqueueLogLine(account.getDbId(), compact);
+    }
+
+    private void enqueueLogLine(String accountId, String line) {
+        if (disposed || accountId == null || accountId.isBlank() || line == null || line.isBlank()) {
+            return;
+        }
+        synchronized (pendingLogLock) {
+            while (pendingLogLines.size() >= MAX_PENDING_LOG_LINES) {
+                pendingLogLines.removeFirst();
             }
-        });
+            pendingLogLines.addLast(new PendingLogLine(accountId, line));
+        }
+        scheduleLogDrain();
+    }
+
+    private void scheduleLogDrain() {
+        if (disposed) {
+            return;
+        }
+        if (logDrainScheduled.compareAndSet(false, true)) {
+            try {
+                Platform.runLater(this::drainPendingLogLines);
+            } catch (IllegalStateException _) {
+                logDrainScheduled.set(false);
+            }
+        }
+    }
+
+    private void drainPendingLogLines() {
+        logDrainScheduled.set(false);
+        if (disposed) {
+            clearPendingLogLines();
+            return;
+        }
+
+        List<PendingLogLine> lines = new ArrayList<>();
+        synchronized (pendingLogLock) {
+            while (!pendingLogLines.isEmpty()) {
+                lines.add(pendingLogLines.removeFirst());
+            }
+        }
+
+        for (PendingLogLine pending : lines) {
+            AccountLogPanel panel = accountLogPanels.get(pending.accountId());
+            if (panel != null) {
+                panel.appendLog(pending.line());
+            }
+        }
+
+        synchronized (pendingLogLock) {
+            if (!pendingLogLines.isEmpty()) {
+                scheduleLogDrain();
+            }
+        }
+    }
+
+    private void clearPendingLogLines() {
+        synchronized (pendingLogLock) {
+            pendingLogLines.clear();
+        }
+        logDrainScheduled.set(false);
     }
 
     private void refreshAccountInfoTitle(Account account) {
-        if (account == null || account.getType() != AccountType.STALKER_PORTAL) {
+        if (disposed || account == null || account.getType() != AccountType.STALKER_PORTAL) {
             return;
         }
         if (account.getDbId() == null || account.getDbId().isBlank()) {
             return;
         }
-        AccountInfo info = accountInfoService.getByAccountId(account.getDbId());
+        String accountId = account.getDbId();
+        if (!pendingAccountInfoRefreshes.add(accountId)) {
+            return;
+        }
+        AccountInfo info = accountInfoService.getByAccountId(accountId);
         if (info == null) {
+            pendingAccountInfoRefreshes.remove(accountId);
             return;
         }
         String statusValue = info.getAccountStatus() != null ? info.getAccountStatus().toDisplay() : "";
@@ -954,12 +1137,23 @@ public class ReloadCachePopup extends VBox {
         final String status = statusValue;
         final AccountInfoUiUtil.ExpiryState expiryState = expiryStateValue;
         final AccountInfoUiUtil.StatusState statusState = statusStateValue;
-        Platform.runLater(() -> {
-            AccountLogPanel panel = accountLogPanels.get(account.getDbId());
-            if (panel != null) {
-                panel.updateAccountInfo(expiry, status, expiryState, statusState);
-            }
-        });
+        try {
+            Platform.runLater(() -> {
+                try {
+                    if (disposed) {
+                        return;
+                    }
+                    AccountLogPanel panel = accountLogPanels.get(accountId);
+                    if (panel != null) {
+                        panel.updateAccountInfo(expiry, status, expiryState, statusState);
+                    }
+                } finally {
+                    pendingAccountInfoRefreshes.remove(accountId);
+                }
+            });
+        } catch (IllegalStateException _) {
+            pendingAccountInfoRefreshes.remove(accountId);
+        }
     }
 
     private String compactLog(Account account, String message) {
@@ -1304,8 +1498,15 @@ public class ReloadCachePopup extends VBox {
     }
 
     private GlobalFailureDecision promptCarryOnAfterGlobalFailure(Account account, String reason, boolean canIgnoreDomain) {
+        if (isReloadStopped()) {
+            return GlobalFailureDecision.STOP_ALL;
+        }
         final GlobalFailureDecision[] decision = {GlobalFailureDecision.CARRY_ON};
-        runOnFxThreadAndWait(() -> {
+        boolean completed = runOnFxThreadAndWait(() -> {
+            if (disposed) {
+                decision[0] = GlobalFailureDecision.STOP_ALL;
+                return;
+            }
             ButtonType carryOnButton = new ButtonType(I18n.tr("reloadCarryOn"), ButtonBar.ButtonData.YES);
             ButtonType stopAllButton = new ButtonType(I18n.tr("reloadStopAll"), ButtonBar.ButtonData.OTHER);
             ButtonType markBadButton = new ButtonType(I18n.tr("reloadMarkBadAndNext"), ButtonBar.ButtonData.CANCEL_CLOSE);
@@ -1344,7 +1545,7 @@ public class ReloadCachePopup extends VBox {
                 decision[0] = GlobalFailureDecision.MARK_BAD;
             }
         });
-        return decision[0];
+        return completed ? decision[0] : GlobalFailureDecision.STOP_ALL;
     }
 
     private String resolveRepeatFailureDomain(Account account) {
@@ -1550,23 +1751,34 @@ public class ReloadCachePopup extends VBox {
     }
 
 
-    private void runOnFxThreadAndWait(Runnable runnable) {
+    private boolean runOnFxThreadAndWait(Runnable runnable) {
+        if (runnable == null || disposed) {
+            return false;
+        }
         if (Platform.isFxApplicationThread()) {
             runnable.run();
-            return;
+            return true;
         }
         CountDownLatch latch = new CountDownLatch(1);
-        Platform.runLater(() -> {
-            try {
-                runnable.run();
-            } finally {
-                latch.countDown();
-            }
-        });
+        try {
+            Platform.runLater(() -> {
+                try {
+                    if (!disposed) {
+                        runnable.run();
+                    }
+                } finally {
+                    latch.countDown();
+                }
+            });
+        } catch (IllegalStateException _) {
+            return false;
+        }
         try {
             latch.await();
+            return !Thread.currentThread().isInterrupted();
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
+            return false;
         }
     }
 
@@ -1673,11 +1885,29 @@ public class ReloadCachePopup extends VBox {
         }
 
         private void appendLog(String line) {
+            while (logs.size() >= MAX_LOG_LINES_PER_ACCOUNT) {
+                logs.remove(0);
+                if (!logBody.getChildren().isEmpty()) {
+                    logBody.getChildren().remove(0);
+                }
+            }
             logs.add(line);
             Label lineLabel = new Label(line);
             lineLabel.setWrapText(true);
             lineLabel.getStyleClass().add("log-text");
             logBody.getChildren().add(lineLabel);
+        }
+
+        private void dispose() {
+            logs.clear();
+            header.setOnMouseClicked(null);
+            runningIndicator.managedProperty().unbind();
+            logBody.getChildren().clear();
+            header.getChildren().clear();
+            expiryBox.getChildren().clear();
+            statusBox.getChildren().clear();
+            accountInfoBox.getChildren().clear();
+            root.getChildren().clear();
         }
 
         private void setStatus(AccountRunStatus status, Integer channelCount) {

@@ -97,7 +97,7 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
     protected Map<String, List<Channel>> loadM3uChannelsByCategory(List<Category> categories, Account account, LoggerCallback logger) {
         Map<String, List<Channel>> channelsByCategory = new LinkedHashMap<>();
         try {
-            M3uChannelBuckets buckets = buildM3uChannelBuckets(account);
+            M3uChannelBuckets buckets = buildM3uChannelBuckets(account, categories);
             populateChannelsByCategory(categories, channelsByCategory, buckets);
         } catch (MalformedURLException e) {
             log(logger, "Failed to load M3U channels: " + e.getMessage());
@@ -105,9 +105,9 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
         return channelsByCategory;
     }
 
-    private M3uChannelBuckets buildM3uChannelBuckets(Account account) throws MalformedURLException {
+    private M3uChannelBuckets buildM3uChannelBuckets(Account account, List<Category> categories) throws MalformedURLException {
         List<PlaylistEntry> entries = loadM3uEntries(account);
-        boolean hasOtherCategories = loadM3uCategories(account).size() >= 2;
+        boolean hasOtherCategories = categories != null && categories.stream().anyMatch(category -> category != null && !isAllCategory(category));
         List<Channel> allChannels = new ArrayList<>();
         List<Channel> uncategorizedChannels = new ArrayList<>();
         Map<String, List<Channel>> groupedChannels = new HashMap<>();

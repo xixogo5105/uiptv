@@ -270,6 +270,9 @@ public class AccountListUI extends HBox {
 
     private void setCurrentContent(Node content) {
         currentContent = content;
+        if (content != detailView) {
+            detailContent.getChildren().clear();
+        }
         VBox.setVgrow(content, Priority.ALWAYS);
     }
 

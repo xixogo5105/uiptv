@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static com.uiptv.util.StringUtils.isBlank;
@@ -71,6 +72,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private HBox imdbBadgeNode;
     private volatile boolean imdbLoading = false;
     private volatile boolean imdbLoaded = false;
+    private final AtomicLong lifecycleGeneration = new AtomicLong();
     private VBox selectedEpisodeCard;
     private boolean watchingNowDetailStylingApplied = false;
     private VBox bodyContainer;
@@ -94,7 +96,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     @Override
     protected void initWidgets() {
-        ImageCacheManager.clearCache(EPISODE_CACHE);
         initHeader();
         seasonTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         seasonTabPane.setMaxWidth(Double.MAX_VALUE);
@@ -381,10 +382,14 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         }
         reloadEpisodesButton.setDisable(true);
         reloadEpisodesButton.setText(I18n.tr("autoReloading"));
+        long generation = lifecycleGeneration.get();
         new Thread(() -> {
             EpisodeList refreshed = SeriesEpisodeService.getInstance()
                     .reloadEpisodesFromPortal(account, seriesCategoryId, seriesId, () -> false);
             Platform.runLater(() -> {
+                if (!isImdbTaskCurrent(generation)) {
+                    return;
+                }
                 imdbLoaded = false;
                 imdbLoading = false;
                 clearEpisodesAndRefreshTabs();
@@ -746,14 +751,18 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         }
         imdbLoading = true;
         Platform.runLater(this::applySeriesHeader);
-        new Thread(() -> {
+        long generation = lifecycleGeneration.get();
+        boolean submitted = WatchingNowMetadataExecutor.submit(() -> {
             try {
+                if (!isImdbTaskCurrent(generation)) {
+                    return;
+                }
                 JSONObject imdb = findImdbWithRetry(
                         firstNonBlank(seasonInfo.optString("name", ""), categoryTitle),
                         seasonInfo.optString("tmdb", ""),
                         3
                 );
-                if (imdb != null) {
+                if (imdb != null && isImdbTaskCurrent(generation)) {
                     String imdbCover = normalizeImageUrl(imdb.optString(KEY_COVER, ""));
                     if (!isBlank(imdbCover)) {
                         imdb.put(KEY_COVER, imdbCover);
@@ -771,9 +780,12 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                     enrichEpisodesFromMeta(allEpisodeItems, imdb.optJSONArray("episodesMeta"));
                 }
             } finally {
-                imdbLoaded = true;
-                imdbLoading = false;
                 Platform.runLater(() -> {
+                    if (!isImdbTaskCurrent(generation)) {
+                        return;
+                    }
+                    imdbLoaded = true;
+                    imdbLoading = false;
                     applySeriesHeader();
                     applySeasonFilter();
                     if (pendingTargetSeason != null) {
@@ -785,7 +797,32 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                     }
                 });
             }
-        }, "episodes-imdb-loader").start();
+        });
+        if (!submitted) {
+            imdbLoading = false;
+        }
+    }
+
+    private boolean isImdbTaskCurrent(long generation) {
+        return lifecycleGeneration.get() == generation;
+    }
+
+    @Override
+    protected void releaseTransientState() {
+        lifecycleGeneration.incrementAndGet();
+        super.releaseTransientState();
+        renderedCardsByItem.clear();
+        cardsContainer.getChildren().clear();
+        seasonTabPane.getTabs().clear();
+        selectedEpisodeCard = null;
+        imdbLoaded = false;
+        imdbLoading = false;
+        imdbBadgeNode = null;
+        seriesPosterNode.setImage(null);
+        pendingTargetSeason = null;
+        pendingTargetEpisodeId = null;
+        pendingTargetEpisodeNumber = null;
+        pendingTargetEpisodeName = null;
     }
 
     private void enrichEpisodesFromMeta(List<EpisodeItem> episodes, JSONArray metaRows) {

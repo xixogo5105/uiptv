@@ -44,6 +44,12 @@ public class ImdbMetadataService {
     private static final String HEADER_USER_AGENT = "User-Agent";
     private static final String JSON_SUFFIX = ".json";
     private static final String USER_AGENT_BROWSER = "Mozilla/5.0";
+    private static final int MAX_SEARCH_QUERIES = Math.max(1, Integer.getInteger("uiptv.imdb.search.maxQueries", 8));
+    private static final int MAX_QUERY_CHARS = Math.max(32, Integer.getInteger("uiptv.imdb.search.maxQueryChars", 160));
+    private static final int MAX_EPISODE_META_ROWS = Math.max(1, Integer.getInteger("uiptv.imdb.episodeMeta.maxRows", 500));
+    private static final int MAX_TMDB_SEASONS = Math.max(1, Integer.getInteger("uiptv.imdb.tmdb.maxSeasons", 24));
+    private static final int MAX_METADATA_BODY_CHARS = Math.max(64 * 1024,
+            Integer.getInteger("uiptv.imdb.http.maxBodyChars", 2 * 1024 * 1024));
 
     private static final class CandidateMatch {
         private final JSONObject candidate;
@@ -326,7 +332,7 @@ public class ImdbMetadataService {
             JSONArray videos = meta.optJSONArray("videos");
             if (videos != null && !videos.isEmpty()) {
                 JSONArray episodesMeta = new JSONArray();
-                for (int i = 0; i < videos.length(); i++) {
+                for (int i = 0; i < videos.length() && episodesMeta.length() < MAX_EPISODE_META_ROWS; i++) {
                     JSONObject video = videos.optJSONObject(i);
                     if (video == null) continue;
                     JSONObject e = new JSONObject();
@@ -397,7 +403,7 @@ public class ImdbMetadataService {
             if (isBlank(body)) {
                 return new JSONArray();
             }
-            return new JSONArray(body);
+            return trimJsonArray(new JSONArray(body), MAX_EPISODE_META_ROWS);
         } catch (Exception _) {
             return new JSONArray();
         }
@@ -781,12 +787,26 @@ public class ImdbMetadataService {
     private Set<String> collectTmdbSeasons(Map<String, JSONObject> bySeasonEpisode) {
         Set<String> seasons = new LinkedHashSet<>();
         for (String key : bySeasonEpisode.keySet()) {
+            if (seasons.size() >= MAX_TMDB_SEASONS) {
+                break;
+            }
             int separatorIndex = key.indexOf(':');
             if (separatorIndex > 0) {
                 seasons.add(key.substring(0, separatorIndex));
             }
         }
         return seasons;
+    }
+
+    private JSONArray trimJsonArray(JSONArray source, int maxRows) {
+        if (source == null || source.length() <= maxRows) {
+            return source == null ? new JSONArray() : source;
+        }
+        JSONArray trimmed = new JSONArray();
+        for (int i = 0; i < source.length() && i < maxRows; i++) {
+            trimmed.put(source.opt(i));
+        }
+        return trimmed;
     }
 
     private void mergeLocalizedTmdbEpisode(Map<String, JSONObject> bySeasonEpisode, String season, JSONObject episode) {
@@ -843,7 +863,7 @@ public class ImdbMetadataService {
 
             JSONObject payload = new JSONObject(response.body());
             JSONArray episodes = payload.optJSONArray("episodes");
-            return episodes == null ? new JSONArray() : episodes;
+            return episodes == null ? new JSONArray() : trimJsonArray(episodes, MAX_EPISODE_META_ROWS);
         } catch (Exception _) {
             return new JSONArray();
         }
@@ -967,7 +987,7 @@ public class ImdbMetadataService {
         if (queries.isEmpty()) {
             addQueryVariant(queries, rawTitle);
         }
-        return new ArrayList<>(queries);
+        return new ArrayList<>(queries).stream().limit(MAX_SEARCH_QUERIES).toList();
     }
 
     private void addQueryVariant(Set<String> sink, String value) {
@@ -975,6 +995,10 @@ public class ImdbMetadataService {
         String v = value.trim();
         if (isBlank(v)) return;
         if (v.length() < 2) return;
+        if (v.length() > MAX_QUERY_CHARS) {
+            v = v.substring(0, MAX_QUERY_CHARS).trim();
+        }
+        if (isBlank(v) || sink.size() >= MAX_SEARCH_QUERIES) return;
         sink.add(v);
     }
 
@@ -1060,7 +1084,8 @@ public class ImdbMetadataService {
             if (response.statusCode() != HttpUtil.STATUS_OK) {
                 return "";
             }
-            return response.body();
+            String body = response.body();
+            return body != null && body.length() <= MAX_METADATA_BODY_CHARS ? body : "";
         } catch (Exception _) {
             return "";
         }

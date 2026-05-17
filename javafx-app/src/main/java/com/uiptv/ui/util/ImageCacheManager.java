@@ -14,6 +14,7 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.util.Timeout;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -33,7 +34,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("java:S1874")
 public class ImageCacheManager {
@@ -46,6 +51,10 @@ public class ImageCacheManager {
     private static final int MAX_MEMORY_IMAGES = Integer.getInteger("uiptv.image.cache.max.entries", 120);
     private static final int MAX_IMAGE_DECODE_WIDTH = Integer.getInteger("uiptv.image.decode.max.width", 640);
     private static final int MAX_IMAGE_DECODE_HEIGHT = Integer.getInteger("uiptv.image.decode.max.height", 640);
+    private static final int MAX_IMAGE_DOWNLOAD_BYTES = Math.max(64 * 1024,
+            Integer.getInteger("uiptv.image.download.max.bytes", 8 * 1024 * 1024));
+    private static final int IMAGE_LOADER_THREADS = Math.max(1, Integer.getInteger("uiptv.image.loader.threads", 4));
+    private static final int IMAGE_LOADER_QUEUE_SIZE = Math.max(1, Integer.getInteger("uiptv.image.loader.queue.size", 256));
     private static final long DISK_CACHE_MAX_BYTES = Long.getLong("uiptv.image.cache.disk.max.bytes", 512L * 1024L * 1024L);
     private static final long DISK_CACHE_TRIM_TO_BYTES = Long.getLong("uiptv.image.cache.disk.trim.bytes", 384L * 1024L * 1024L);
     private static final long DISK_CACHE_TRIM_INTERVAL_MS = Long.getLong("uiptv.image.cache.disk.trim.interval.ms", 5L * 60L * 1000L);
@@ -118,6 +127,18 @@ public class ImageCacheManager {
                 }
             });
     private static final Map<String, CompletableFuture<Image>> LOADING_TASKS = new ConcurrentHashMap<>();
+    private static final ThreadPoolExecutor IMAGE_LOADER = new ThreadPoolExecutor(
+            IMAGE_LOADER_THREADS,
+            IMAGE_LOADER_THREADS,
+            30L,
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(IMAGE_LOADER_QUEUE_SIZE),
+            runnable -> {
+                Thread thread = new Thread(runnable, "uiptv-image-loader");
+                thread.setDaemon(true);
+                return thread;
+            }
+    );
 
     public static CompletableFuture<Image> loadImageAsync(String url, String caller) {
         // Return immediately when thumbnails disabled
@@ -164,14 +185,46 @@ public class ImageCacheManager {
             return CompletableFuture.completedFuture(diskCached);
         }
 
-        return LOADING_TASKS.computeIfAbsent(cacheKey, k ->
-                CompletableFuture.supplyAsync(() -> fetchImageWithFallback(url, cacheKey, normalizedCaller))
-                        .exceptionally(e -> {
-                            logImageIssue(url, "Failed to load image: " + e.getMessage());
-                            NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
-                            return null;
-                        }).whenComplete((img, ex) -> LOADING_TASKS.remove(cacheKey))
-        );
+        return startImageLoad(url, cacheKey, normalizedCaller);
+    }
+
+    private static CompletableFuture<Image> startImageLoad(String url, String cacheKey, String normalizedCaller) {
+        CompletableFuture<Image> existing = LOADING_TASKS.get(cacheKey);
+        if (existing != null) {
+            return existing;
+        }
+
+        CompletableFuture<Image> future = new CompletableFuture<>();
+        CompletableFuture<Image> previous = LOADING_TASKS.putIfAbsent(cacheKey, future);
+        if (previous != null) {
+            return previous;
+        }
+
+        try {
+            IMAGE_LOADER.execute(() -> {
+                try {
+                    if (future.isCancelled() || Thread.currentThread().isInterrupted()) {
+                        return;
+                    }
+                    Image image = fetchImageWithFallback(url, cacheKey, normalizedCaller);
+                    if (!future.isCancelled()) {
+                        future.complete(image);
+                    }
+                } catch (Exception e) {
+                    logImageIssue(url, "Failed to load image: " + e.getMessage());
+                    NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
+                    if (!future.isCancelled()) {
+                        future.complete(null);
+                    }
+                } finally {
+                    LOADING_TASKS.remove(cacheKey, future);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            LOADING_TASKS.remove(cacheKey, future);
+            future.complete(null);
+        }
+        return future;
     }
 
     private static Image decodeInlineImage(String url) {
@@ -294,7 +347,7 @@ public class ImageCacheManager {
             }
 
             try (InputStream inputStream = entity.getContent()) {
-                byte[] imageBytes = inputStream.readAllBytes();
+                byte[] imageBytes = readImageBytes(inputStream);
                 if (imageBytes.length == 0) {
                     return null;
                 }
@@ -313,6 +366,21 @@ public class ImageCacheManager {
         } finally {
             semaphore.release();
         }
+    }
+
+    private static byte[] readImageBytes(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream(Math.min(64 * 1024, MAX_IMAGE_DOWNLOAD_BYTES));
+        byte[] buffer = new byte[16 * 1024];
+        int read;
+        int total = 0;
+        while ((read = inputStream.read(buffer)) != -1) {
+            total += read;
+            if (total > MAX_IMAGE_DOWNLOAD_BYTES) {
+                throw new IOException("Image download exceeded " + MAX_IMAGE_DOWNLOAD_BYTES + " bytes");
+            }
+            output.write(buffer, 0, read);
+        }
+        return output.toByteArray();
     }
 
     private static Path resolveDiskCacheDir() {
@@ -541,12 +609,8 @@ public class ImageCacheManager {
     }
 
     public static void clearCache() {
-        // Return immediately when thumbnails disabled
-        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
-            return;
-        }
+        cancelLoadingTasks("");
         IMAGE_CACHE.clear();
-        LOADING_TASKS.clear();
         NEGATIVE_CACHE_UNTIL.clear();
         HOST_BACKOFF_UNTIL.clear();
         HOST_SEMAPHORES.clear();
@@ -555,16 +619,23 @@ public class ImageCacheManager {
     }
 
     public static void clearCache(String caller) {
-        // Return immediately when thumbnails disabled
-        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
-            return;
-        }
         String normalizedCaller = normalizeCaller(caller);
         String prefix = normalizedCaller + ":";
         IMAGE_CACHE.keySet().removeIf(key -> key.startsWith(prefix));
-        LOADING_TASKS.keySet().removeIf(key -> key.startsWith(prefix));
+        cancelLoadingTasks(prefix);
         NEGATIVE_CACHE_UNTIL.keySet().removeIf(key -> key.startsWith(prefix));
         clearDiskCache(normalizedCaller);
+    }
+
+    private static void cancelLoadingTasks(String prefix) {
+        for (Map.Entry<String, CompletableFuture<Image>> entry : new ArrayList<>(LOADING_TASKS.entrySet())) {
+            if (prefix == null || prefix.isEmpty() || entry.getKey().startsWith(prefix)) {
+                CompletableFuture<Image> future = entry.getValue();
+                if (LOADING_TASKS.remove(entry.getKey(), future) && future != null) {
+                    future.cancel(true);
+                }
+            }
+        }
     }
 
     private static void trimTransientCachesIfNeeded() {

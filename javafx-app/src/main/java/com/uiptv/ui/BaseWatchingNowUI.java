@@ -29,6 +29,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,7 +58,8 @@ public abstract class BaseWatchingNowUI extends VBox {
     private final ScrollPane scrollPane = new ScrollPane(contentBox);
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
-    private final Map<String, SeriesPanelData> panelDataByKey = new LinkedHashMap<>();
+    private final AtomicLong lifecycleGeneration = new AtomicLong();
+    private final Map<String, SeriesPanelData> panelDataByKey = Collections.synchronizedMap(new LinkedHashMap<>());
     private final WatchingNowSeriesResolver seriesResolver = new WatchingNowSeriesResolver();
     private final Map<String, ImdbCacheEntry> imdbCacheByPanelKey = Collections.synchronizedMap(
             new LinkedHashMap<>(64, 0.75f, true) {
@@ -85,9 +87,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         contentBox.setPadding(new Insets(5));
         getChildren().add(scrollPane);
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
-        if (thumbnailsEnabled()) {
-            ImageCacheManager.clearCache(WATCHING_NOW_CACHE);
-        }
         // Initialize with empty state instead of loading on startup
         contentBox.getChildren().setAll(new Label("")); // Empty container
         registerListeners();
@@ -114,10 +113,15 @@ public abstract class BaseWatchingNowUI extends VBox {
         reloadQueued.set(false);
         dirty = false;
         contentBox.getChildren().setAll(new Label(I18n.tr("autoLoadingCurrentlyWatchedSeries")));
+        long generation = lifecycleGeneration.get();
         new Thread(() -> {
             List<SeriesPanelData> rows = buildPanelsFromCache();
             Platform.runLater(() -> {
                 try {
+                    if (lifecycleGeneration.get() != generation || !isDisplayable()) {
+                        dirty = true;
+                        return;
+                    }
                     render(rows);
                 } finally {
                     reloadInProgress.set(false);
@@ -1019,18 +1023,30 @@ public abstract class BaseWatchingNowUI extends VBox {
             data.imdbLoading = false;
             return;
         }
-        new Thread(() -> {
+        long generation = lifecycleGeneration.get();
+        boolean submitted = WatchingNowMetadataExecutor.submit(() -> {
             try {
+                if (!isPanelCurrent(data, generation)) {
+                    return;
+                }
                 JSONObject imdb = findImdbWithRetry(data, 3);
-                if (imdb != null) {
+                if (imdb != null && isPanelCurrent(data, generation)) {
                     mergeImdbIntoPanel(data, imdb);
                 }
             } finally {
-                data.imdbLoaded = true;
-                data.imdbLoading = false;
-                Platform.runLater(() -> applyLoadedImdbToUi(data, pane));
+                Platform.runLater(() -> {
+                    if (!isPanelCurrent(data, generation)) {
+                        return;
+                    }
+                    data.imdbLoaded = true;
+                    data.imdbLoading = false;
+                    applyLoadedImdbToUi(data, pane);
+                });
             }
-        }, "watching-now-imdb-loader").start();
+        });
+        if (!submitted) {
+            data.imdbLoading = false;
+        }
     }
 
     private void mergeImdbIntoPanel(SeriesPanelData data, JSONObject imdb) {
@@ -1074,7 +1090,11 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
             if (img != null) {
-                Platform.runLater(() -> data.seriesPosterNode.setImage(img));
+                Platform.runLater(() -> {
+                    if (data.seriesPosterNode != null) {
+                        data.seriesPosterNode.setImage(img);
+                    }
+                });
             }
         });
     }
@@ -1089,7 +1109,11 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
             if (img != null) {
-                Platform.runLater(() -> data.seriesListPosterNode.setImage(img));
+                Platform.runLater(() -> {
+                    if (data.seriesListPosterNode != null) {
+                        data.seriesListPosterNode.setImage(img);
+                    }
+                });
             }
         });
     }
@@ -1188,6 +1212,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (data == null || data.account == null || data.state == null || isBlank(data.state.getSeriesId())) {
             return;
         }
+        long generation = lifecycleGeneration.get();
         if (data.reloadEpisodesButton != null) {
             data.reloadEpisodesButton.setDisable(true);
             data.reloadEpisodesButton.setText(I18n.tr("autoReloading"));
@@ -1206,6 +1231,9 @@ public abstract class BaseWatchingNowUI extends VBox {
             );
             List<WatchingEpisode> refreshedEpisodes = mapEpisodesFromCache(data.account, data.state, refreshed);
             Platform.runLater(() -> {
+                if (!isPanelCurrent(data, generation)) {
+                    return;
+                }
                 // Always discard old episodes on reload and rebuild tabs from the latest response.
                 data.episodes.clear();
                 data.episodes.addAll(refreshedEpisodes);
@@ -1365,6 +1393,11 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
     }
 
+    void dispose() {
+        unregisterListeners();
+        releaseUiState();
+    }
+
     private void onDataChanged(String accountId, String seriesId) {
         // If panelDataByKey is empty (UI not yet rendered), do a full refresh instead of delta
         if (panelDataByKey.isEmpty() || isBlank(accountId) || isBlank(seriesId)) {
@@ -1387,10 +1420,17 @@ public abstract class BaseWatchingNowUI extends VBox {
             return;
         }
         reloadInProgress.set(true);
+        long generation = lifecycleGeneration.get();
         new Thread(() -> {
             try {
                 List<SeriesPanelData> updated = buildUpdatedSeriesPanels(accountId, seriesId);
-                Platform.runLater(() -> applySeriesDelta(accountId, seriesId, updated));
+                Platform.runLater(() -> {
+                    if (lifecycleGeneration.get() == generation && isDisplayable()) {
+                        applySeriesDelta(accountId, seriesId, updated);
+                    } else {
+                        dirty = true;
+                    }
+                });
             } finally {
                 reloadInProgress.set(false);
                 if (reloadQueued.getAndSet(false) || dirty) {
@@ -1521,7 +1561,11 @@ public abstract class BaseWatchingNowUI extends VBox {
             if (!isBlank(cover)) {
                 ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
                     if (img != null) {
-                        Platform.runLater(() -> selected.seriesPosterNode.setImage(img));
+                        Platform.runLater(() -> {
+                            if (selected.seriesPosterNode != null) {
+                                selected.seriesPosterNode.setImage(img);
+                            }
+                        });
                     }
                 });
             }
@@ -1875,17 +1919,26 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private void releaseUiState() {
+        lifecycleGeneration.incrementAndGet();
+        reloadQueued.set(false);
+        dirty = true;
         for (SeriesPanelData panel : panelDataByKey.values()) {
             if (panel != null) {
-                panel.watchingLabels.clear();
-                panel.seasonCardsBySeason.clear();
+                panel.clearTransientUiState();
             }
         }
         panelDataByKey.clear();
         imdbCacheByPanelKey.clear();
         selectedSeriesKey = "";
         renderedDetailKey = "";
+        selectedSeriesCard = null;
         contentBox.getChildren().clear();
+    }
+
+    private boolean isPanelCurrent(SeriesPanelData data, long generation) {
+        return data != null
+                && lifecycleGeneration.get() == generation
+                && Objects.equals(panelDataByKey.get(seriesPaneKey(data)), data);
     }
 
     private String panelCacheKey(Account account, SeriesWatchState state) {
@@ -1982,6 +2035,34 @@ public abstract class BaseWatchingNowUI extends VBox {
             this.episodeList = episodeList == null ? new EpisodeList() : episodeList;
             this.imdbLoaded = false;
             this.imdbLoading = false;
+        }
+
+        private void clearTransientUiState() {
+            watchingLabels.clear();
+            seasonCardsBySeason.clear();
+            if (seriesPosterNode != null) {
+                seriesPosterNode.setImage(null);
+            }
+            if (seriesListPosterNode != null) {
+                seriesListPosterNode.setImage(null);
+            }
+            if (seasonTabs != null) {
+                seasonTabs.getTabs().clear();
+            }
+            titleNode = null;
+            ratingNode = null;
+            genreNode = null;
+            releaseNode = null;
+            plotNode = null;
+            imdbBadgeNode = null;
+            imdbLoadingNode = null;
+            reloadEpisodesButton = null;
+            seriesPosterNode = null;
+            seriesListPosterNode = null;
+            seasonTabs = null;
+            selectedEpisodeCard = null;
+            episodeList = new EpisodeList();
+            episodes.clear();
         }
     }
 

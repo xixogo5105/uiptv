@@ -65,7 +65,6 @@ public class ChannelListUI extends HBox {
     private final Map<String, ChannelItem> channelItemByKey = new java.util.concurrent.ConcurrentHashMap<>();
     private final AtomicReference<Map<String, String>> categoryTitleByCategoryId = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<String, String>> categoryTitleByNormalizedTitle = new AtomicReference<>(Map.of());
-    private final AtomicReference<Map<String, BookmarkContext>> m3uAllSourceContextByChannelKey = new AtomicReference<>(Map.of());
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     private static final String LOG_ACCOUNT = " account=";
     private static final String LOG_CHANNEL_ID = " channelId=";
@@ -110,9 +109,6 @@ public class ChannelListUI extends HBox {
         this.account = account;
         this.categoryTitle = categoryTitle;
         preloadAllCategoryContextAsync();
-        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
-            ImageCacheManager.clearCache(IMAGE_CACHE_KEY_CHANNEL);
-        }
         initWidgets();
         registerBookmarkListener();
         registerThumbnailModeListener();
@@ -452,6 +448,7 @@ public class ChannelListUI extends HBox {
                 super.updateItem(item, empty);
 
                 if (empty || item == null) {
+                    imageView.clearImage();
                     setGraphic(null);
                     return;
                 }
@@ -461,6 +458,7 @@ public class ChannelListUI extends HBox {
                         : null;
 
                 if (channelItem == null) {
+                    imageView.clearImage();
                     setGraphic(null);
                     return;
                 }
@@ -599,6 +597,11 @@ public class ChannelListUI extends HBox {
     }
 
     public void dispose() {
+        unregisterBookmarkListener();
+        if (thumbnailListenerRegistered) {
+            ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
+            thumbnailListenerRegistered = false;
+        }
         releaseTransientState();
     }
 
@@ -610,16 +613,22 @@ public class ChannelListUI extends HBox {
         if (loadingThread != null && loadingThread.isAlive()) {
             loadingThread.interrupt();
         }
+        cancelLoadingProgressHide();
         seriesEpisodesCache.clear();
         // Clear channel items and metadata to allow garbage collection
         if (channelItems != null) {
             channelItems.clear();
         }
+        channelList.clear();
         seenChannelKeys.clear();
         channelItemByKey.clear();
         categoryTitleByCategoryId.set(Map.of());
         categoryTitleByNormalizedTitle.set(Map.of());
-        m3uAllSourceContextByChannelKey.set(Map.of());
+        detailContent.getChildren().clear();
+        detailPane.getChildren().clear();
+        if (table != null) {
+            table.setItems(FXCollections.observableArrayList());
+        }
     }
 
     private void unregisterBookmarkListener() {
@@ -809,14 +818,10 @@ public class ChannelListUI extends HBox {
                                 Category::getTitle,
                                 (left, right) -> left)));
 
-                if (isM3uAccount()) {
-                    m3uAllSourceContextByChannelKey.set(loadM3uAllSourceContextMap(categories));
-                }
             } catch (Exception _) {
                 // Ignore malformed category context and keep default empty mappings.
                 categoryTitleByCategoryId.set(Map.of());
                 categoryTitleByNormalizedTitle.set(Map.of());
-                m3uAllSourceContextByChannelKey.set(Map.of());
             } finally {
                 runLater(this::refreshBookmarkStatesAsync);
             }
@@ -831,54 +836,9 @@ public class ChannelListUI extends HBox {
         return account.getType() == M3U8_LOCAL || account.getType() == M3U8_URL;
     }
 
-    private String channelIdentityKey(Channel channel) {
-        if (channel == null) {
-            return "";
-        }
-        String id = channel.getChannelId() == null ? "" : channel.getChannelId().trim();
-        String cmd = channel.getCmd() == null ? "" : channel.getCmd().trim();
-        String name = channel.getName() == null ? "" : channel.getName().trim().toLowerCase();
-        return id + "|" + cmd + "|" + name;
-    }
-
-    @SuppressWarnings("java:S135")
-    private Map<String, BookmarkContext> loadM3uAllSourceContextMap(List<Category> categories) {
-        if (categories == null || categories.isEmpty()) {
-            return Map.of();
-        }
-        try {
-            Map<String, BookmarkContext> contextByKey = new java.util.HashMap<>();
-            for (Category category : categories) {
-                if (category == null || isBlank(category.getDbId()) || isBlank(category.getTitle())) {
-                    continue;
-                }
-                if ("all".equalsIgnoreCase(category.getTitle().trim())) {
-                    continue;
-                }
-                List<Channel> channels = ChannelService.getInstance().getCachedLiveChannelsByDbCategoryId(category.getDbId());
-                for (Channel channel : channels) {
-                    String key = channelIdentityKey(channel);
-                    if (isBlank(key)) {
-                        continue;
-                    }
-                    contextByKey.putIfAbsent(key, new BookmarkContext(category.getDbId(), category.getTitle()));
-                }
-            }
-            return contextByKey;
-        } catch (Exception _) {
-            return Map.of();
-        }
-    }
-
     private BookmarkContext resolveBookmarkContext(Channel channel) {
         String effectiveCategoryId = categoryId;
         String effectiveCategoryTitle = categoryTitle;
-        if (isAllCategoryView() && channel != null && isM3uAccount()) {
-            BookmarkContext sourceContext = m3uAllSourceContextByChannelKey.get().get(channelIdentityKey(channel));
-            if (sourceContext != null) {
-                return sourceContext;
-            }
-        }
         if (isAllCategoryView() && channel != null && !isBlank(channel.getCategoryId())) {
             effectiveCategoryId = channel.getCategoryId();
             String mappedTitle = resolveMappedCategoryTitle(channel.getCategoryId());

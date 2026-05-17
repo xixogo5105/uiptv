@@ -246,6 +246,7 @@ public class CategoryListUI extends HBox {
         if (mode == null || mode == activeMode) {
             return;
         }
+        disposeChannelListState(modeStates.get(activeMode));
         activeMode = mode;
         account.setAction(mode);
         refreshCategoryColumnTitle();
@@ -454,6 +455,7 @@ public class CategoryListUI extends HBox {
         } else {
             ui.setInlineEpisodeNavigationEnabled(true);
         }
+        disposeChannelListState(state);
         channelListUIHolder[0] = ui;
         state.channelListUI = ui;
         state.selectedCategory = item;
@@ -578,6 +580,17 @@ public class CategoryListUI extends HBox {
 
     private boolean sameCategorySelection(CategoryItem left, CategoryItem right) {
         return Objects.equals(stableCategorySelectionKey(left), stableCategorySelectionKey(right));
+    }
+
+    private void disposeChannelListState(ModeState state) {
+        if (state == null) {
+            return;
+        }
+        if (state.channelListUI != null) {
+            state.channelListUI.dispose();
+            state.channelListUI = null;
+        }
+        state.selectedCategory = null;
     }
 
     private String stableCategorySelectionKey(CategoryItem item) {

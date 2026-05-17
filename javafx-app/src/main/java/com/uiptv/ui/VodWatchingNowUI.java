@@ -9,7 +9,6 @@ import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.service.VodWatchStateChangeListener;
 import com.uiptv.service.VodWatchStateService;
 import com.uiptv.service.WatchingNowVodResolver;
-import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ImageUrlNormalizer;
@@ -28,6 +27,7 @@ import org.json.JSONObject;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.uiptv.model.Account.AccountAction.vod;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -40,8 +40,18 @@ public class VodWatchingNowUI extends VBox {
     private final ScrollPane scrollPane = new ScrollPane(contentBox);
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
-    private final Map<String, VodPanelData> panelDataByKey = new LinkedHashMap<>();
+    private final AtomicLong lifecycleGeneration = new AtomicLong();
+    private final Map<String, VodPanelData> panelDataByKey = Collections.synchronizedMap(new LinkedHashMap<>());
     private final WatchingNowVodResolver vodResolver = new WatchingNowVodResolver();
+    private static final int MAX_IMDB_CACHE_ENTRIES = Integer.getInteger("uiptv.watchingnow.vod.imdb.maxEntries", 200);
+    private final Map<String, VodImdbCacheEntry> imdbCacheByPanelKey = Collections.synchronizedMap(
+            new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, VodImdbCacheEntry> eldest) {
+                    return size() > MAX_IMDB_CACHE_ENTRIES;
+                }
+            }
+    );
     private volatile boolean dirty = true;
     private final VodWatchStateChangeListener changeListener = this::onDataChanged;
     private final AccountChangeListener accountChangeListener = _ -> onAccountsChanged();
@@ -60,9 +70,6 @@ public class VodWatchingNowUI extends VBox {
         contentBox.setPadding(new Insets(5));
         getChildren().add(scrollPane);
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
-        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
-            ImageCacheManager.clearCache(VOD_WATCHING_NOW_CACHE);
-        }
         // Initialize with empty state instead of loading on startup
         contentBox.getChildren().setAll(new Label("")); // Empty container
         registerListeners();
@@ -87,10 +94,15 @@ public class VodWatchingNowUI extends VBox {
         reloadQueued.set(false);
         dirty = false;
         contentBox.getChildren().setAll(new Label(I18n.tr("autoLoadingChannelsFor", I18n.tr("autoVod"))));
+        long generation = lifecycleGeneration.get();
         new Thread(() -> {
             List<VodPanelData> rows = buildRows();
             Platform.runLater(() -> {
                 try {
+                    if (lifecycleGeneration.get() != generation || !isDisplayable()) {
+                        dirty = true;
+                        return;
+                    }
                     render(rows);
                 } finally {
                     reloadInProgress.set(false);
@@ -133,12 +145,16 @@ public class VodWatchingNowUI extends VBox {
                 meta.getReleaseDate(),
                 meta.getRating()
         );
-        return VodPanelData.create(account, state, row.getPlaybackChannel(), row.getDisplayTitle(), metadata, meta.getDuration());
+        VodPanelData panel = VodPanelData.create(account, state, row.getPlaybackChannel(), row.getDisplayTitle(), metadata, meta.getDuration());
+        applyImdbCache(panel);
+        return panel;
     }
 
     private void render(List<VodPanelData> rows) {
+        clearPanelUiReferences(panelDataByKey.values());
         contentBox.getChildren().clear();
         panelDataByKey.clear();
+        selectedCard = null;
         if (rows == null || rows.isEmpty()) {
             contentBox.getChildren().add(new Label(I18n.tr("autoNoWatchingNowVodFound")));
             return;
@@ -149,6 +165,19 @@ public class VodWatchingNowUI extends VBox {
             triggerImdbLoad(row);
         }
         VBox.setVgrow(contentBox, Priority.ALWAYS);
+    }
+
+    private void applyImdbCache(VodPanelData data) {
+        if (data == null) {
+            return;
+        }
+        VodImdbCacheEntry cached = imdbCacheByPanelKey.get(panelKey(data));
+        if (cached == null) {
+            return;
+        }
+        cached.applyTo(data);
+        data.imdbLoaded = true;
+        data.imdbLoading = false;
     }
 
     private HBox createCard(VodPanelData data) {
@@ -316,18 +345,31 @@ public class VodWatchingNowUI extends VBox {
             return;
         }
         data.imdbLoading = true;
-        new Thread(() -> {
+        long generation = lifecycleGeneration.get();
+        boolean submitted = WatchingNowMetadataExecutor.submit(() -> {
             try {
+                if (!isPanelCurrent(data, generation)) {
+                    return;
+                }
                 JSONObject imdb = ImdbMetadataService.getInstance().findBestEffortMovieDetails(data.displayTitle, "");
-                if (imdb != null) {
+                if (imdb != null && isPanelCurrent(data, generation)) {
                     mergeImdb(data, imdb);
+                    imdbCacheByPanelKey.put(panelKey(data), VodImdbCacheEntry.from(data));
                 }
             } finally {
-                data.imdbLoaded = true;
-                data.imdbLoading = false;
-                Platform.runLater(this::refreshRenderedCards);
+                Platform.runLater(() -> {
+                    if (!isPanelCurrent(data, generation)) {
+                        return;
+                    }
+                    data.imdbLoaded = true;
+                    data.imdbLoading = false;
+                    refreshRenderedCards();
+                });
             }
-        }, "vod-watching-now-imdb").start();
+        });
+        if (!submitted) {
+            data.imdbLoading = false;
+        }
     }
 
     private void mergeImdb(VodPanelData data, JSONObject imdb) {
@@ -489,6 +531,7 @@ public class VodWatchingNowUI extends VBox {
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterListeners();
+                releaseUiState();
             } else {
                 ensureListenersRegistered();
                 refreshIfNeeded();
@@ -523,6 +566,33 @@ public class VodWatchingNowUI extends VBox {
         }
     }
 
+    void dispose() {
+        unregisterListeners();
+        releaseUiState();
+    }
+
+    private void releaseUiState() {
+        lifecycleGeneration.incrementAndGet();
+        reloadQueued.set(false);
+        dirty = true;
+        clearPanelUiReferences(panelDataByKey.values());
+        panelDataByKey.clear();
+        imdbCacheByPanelKey.clear();
+        selectedCard = null;
+        contentBox.getChildren().clear();
+    }
+
+    private void clearPanelUiReferences(Collection<VodPanelData> panels) {
+        if (panels == null || panels.isEmpty()) {
+            return;
+        }
+        for (VodPanelData panel : new ArrayList<>(panels)) {
+            if (panel != null) {
+                panel.clearTransientUiState();
+            }
+        }
+    }
+
     private void onDataChanged(String accountId, String vodId) {
         // If panelDataByKey is empty (UI not yet rendered), do a full refresh instead of delta
         if (panelDataByKey.isEmpty()) {
@@ -542,6 +612,12 @@ public class VodWatchingNowUI extends VBox {
 
     private boolean isDisplayable() {
         return getScene() != null && isVisible();
+    }
+
+    private boolean isPanelCurrent(VodPanelData data, long generation) {
+        return data != null
+                && lifecycleGeneration.get() == generation
+                && Objects.equals(panelDataByKey.get(panelKey(data)), data);
     }
 
     private String panelKey(VodPanelData data) {
@@ -598,6 +674,15 @@ public class VodWatchingNowUI extends VBox {
             return new VodPanelData(account, state, playbackChannel, displayTitle, metadata, duration);
         }
 
+        private void clearTransientUiState() {
+            ratingNode = null;
+            releaseNode = null;
+            durationNode = null;
+            plotNode = null;
+            imdbBadgeNode = null;
+            imdbLoadingNode = null;
+        }
+
         private static final class DisplayMetadata {
             private String coverUrl;
             private String plot;
@@ -614,6 +699,53 @@ public class VodWatchingNowUI extends VBox {
             private static DisplayMetadata of(String coverUrl, String plot, String releaseDate, String rating) {
                 return new DisplayMetadata(coverUrl, plot, releaseDate, rating);
             }
+        }
+    }
+
+    private static final class VodImdbCacheEntry {
+        private final String coverUrl;
+        private final String plot;
+        private final String releaseDate;
+        private final String rating;
+        private final String imdbUrl;
+
+        private VodImdbCacheEntry(String coverUrl, String plot, String releaseDate, String rating, String imdbUrl) {
+            this.coverUrl = coverUrl == null ? "" : coverUrl;
+            this.plot = plot == null ? "" : plot;
+            this.releaseDate = releaseDate == null ? "" : releaseDate;
+            this.rating = rating == null ? "" : rating;
+            this.imdbUrl = imdbUrl == null ? "" : imdbUrl;
+        }
+
+        private static VodImdbCacheEntry from(VodPanelData data) {
+            if (data == null || data.metadata == null) {
+                return new VodImdbCacheEntry("", "", "", "", "");
+            }
+            return new VodImdbCacheEntry(
+                    data.metadata.coverUrl,
+                    data.metadata.plot,
+                    data.metadata.releaseDate,
+                    data.metadata.rating,
+                    data.imdbUrl
+            );
+        }
+
+        private void applyTo(VodPanelData data) {
+            if (data == null || data.metadata == null) {
+                return;
+            }
+            data.metadata.coverUrl = firstNonBlank(data.metadata.coverUrl, coverUrl);
+            data.metadata.plot = firstNonBlank(data.metadata.plot, plot);
+            data.metadata.releaseDate = firstNonBlank(data.metadata.releaseDate, releaseDate);
+            data.metadata.rating = firstNonBlank(data.metadata.rating, rating);
+            data.imdbUrl = firstNonBlank(data.imdbUrl, imdbUrl);
+        }
+
+        private static String firstNonBlank(String primary, String fallback) {
+            if (!isBlank(primary)) {
+                return primary.trim();
+            }
+            return fallback == null ? "" : fallback.trim();
         }
     }
 }

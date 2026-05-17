@@ -50,13 +50,16 @@ public class AsyncImageView extends StackPane {
     }
 
     public void loadImage(String url, String type) {
-        this.currentUrl = url;
-        imageView.setVisible(false);
-        defaultIcon.setVisible(true);
-
         if (url == null || url.isEmpty()) {
+            clearImage();
             return;
         }
+        if (Objects.equals(url, this.currentUrl) && imageView.getImage() != null) {
+            return;
+        }
+
+        clearImage();
+        this.currentUrl = url;
 
         ImageCacheManager.loadImageAsync(url, type)
                 .thenAccept(image -> {
@@ -71,5 +74,12 @@ public class AsyncImageView extends StackPane {
                         });
                     }
                 });
+    }
+
+    public void clearImage() {
+        this.currentUrl = null;
+        imageView.setImage(null);
+        imageView.setVisible(false);
+        defaultIcon.setVisible(true);
     }
 }

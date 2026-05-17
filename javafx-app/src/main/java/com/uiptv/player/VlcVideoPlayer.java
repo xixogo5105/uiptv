@@ -365,16 +365,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void stopMedia() {
-        synchronized (playerLock) {
-            EmbeddedMediaPlayer player = mediaPlayer;
-            if (player != null) {
-                player.controls().stop();
-            }
-        }
-        videoImageView.setImage(null);
-        videoSourceWidth = 0;
-        videoSourceHeight = 0;
-        lastStreamInfoLabel = "";
+        disposeMedia();
     }
 
     @Override

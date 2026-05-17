@@ -118,6 +118,7 @@ public class LiteVideoPlayer extends BaseVideoPlayer {
         if (mediaPlayer != null) {
             safeStopPlayer(mediaPlayer);
             mediaView.setMediaPlayer(null);
+            safeDisposePlayer(mediaPlayer);
             mediaPlayer = null;
         }
         if (usingFfmpegFallback) {

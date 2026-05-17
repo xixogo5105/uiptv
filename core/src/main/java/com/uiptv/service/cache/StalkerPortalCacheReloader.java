@@ -100,7 +100,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         log(logger, savedCategories.size() + " Categories & " + allChannels.size() + " Channels saved Successfully \u2713");
     }
 
-    private String fetchAllStalkerChannelsJson(Account account) {
+    private List<Channel> fetchAllStalkerChannels(Account account) {
         List<Map<String, String>> attempts = List.of(
                 getAllChannelsParams(null, null),
                 getAllChannelsParams(0, 99999),
@@ -115,13 +115,13 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             try {
                 List<Channel> channels = ChannelService.getInstance().parseItvChannels(json, false);
                 if (!channels.isEmpty()) {
-                    return json;
+                    return channels;
                 }
             } catch (Exception _) {
                 // Ignore non-usable JSON variants and keep trying the remaining fallback shapes.
             }
         }
-        return "";
+        return Collections.emptyList();
     }
 
     private List<Channel> fetchAllChannelsByCategoryLastResort(Account account, List<Category> categories,
@@ -196,12 +196,8 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
     }
 
     private List<Channel> parseGlobalLiveChannels(Account account, LoggerCallback logger) {
-        String jsonChannels = fetchAllStalkerChannelsJson(account);
-        if (isBlank(jsonChannels)) {
-            return Collections.emptyList();
-        }
         try {
-            return ChannelService.getInstance().parseItvChannels(jsonChannels, false);
+            return fetchAllStalkerChannels(account);
         } catch (Exception e) {
             log(logger, "Failed to parse channels from get_all_channels: " + e.getMessage());
             return Collections.emptyList();

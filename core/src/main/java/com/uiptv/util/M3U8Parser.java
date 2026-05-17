@@ -8,8 +8,9 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
+import java.io.InputStreamReader;
 import java.io.StringReader;
+import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -38,12 +39,21 @@ public class M3U8Parser {
 
     public static Set<PlaylistEntry> parseUrlCategory(URL m3u8Url) {
         try {
-            String protocol = m3u8Url.getProtocol();
-            if (protocol != null && protocol.toLowerCase().startsWith("http")) {
-                HttpUtil.HttpResult response = HttpUtil.sendRequest(m3u8Url.toString(), null, "GET");
-                return parseCategory(new BufferedReader(new StringReader(response.body())));
+            if (isHttpUrl(m3u8Url)) {
+                HttpUtil.StreamResult response = HttpUtil.openStream(m3u8Url.toString(), null, "GET", null, HttpUtil.RequestOptions.defaults());
+                if (response == null) {
+                    HttpUtil.HttpResult result = HttpUtil.sendRequest(m3u8Url.toString(), null, "GET");
+                    return parseCategory(new BufferedReader(new StringReader(result.body())));
+                }
+                try (response;
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(response.bodyStream(), StandardCharsets.UTF_8))) {
+                    return parseCategory(reader);
+                }
             }
-            return parseCategory(new BufferedReader(new StringReader(readNonHttpUrl(m3u8Url))));
+            try (InputStream inputStream = m3u8Url.openStream();
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                return parseCategory(reader);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Unable to parse M3U categories from URL", e);
         }
@@ -59,12 +69,21 @@ public class M3U8Parser {
 
     public static List<PlaylistEntry> parseChannelUrlM3U8(URL m3u8Url) {
         try {
-            String protocol = m3u8Url.getProtocol();
-            if (protocol != null && protocol.toLowerCase().startsWith("http")) {
-                HttpUtil.HttpResult response = HttpUtil.sendRequest(m3u8Url.toString(), null, "GET");
-                return parseM3U8(new BufferedReader(new StringReader(response.body())));
+            if (isHttpUrl(m3u8Url)) {
+                HttpUtil.StreamResult response = HttpUtil.openStream(m3u8Url.toString(), null, "GET", null, HttpUtil.RequestOptions.defaults());
+                if (response == null) {
+                    HttpUtil.HttpResult result = HttpUtil.sendRequest(m3u8Url.toString(), null, "GET");
+                    return parseM3U8(new BufferedReader(new StringReader(result.body())));
+                }
+                try (response;
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(response.bodyStream(), StandardCharsets.UTF_8))) {
+                    return parseM3U8(reader);
+                }
             }
-            return parseM3U8(new BufferedReader(new StringReader(readNonHttpUrl(m3u8Url))));
+            try (InputStream inputStream = m3u8Url.openStream();
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                return parseM3U8(reader);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Unable to parse M3U channels from URL", e);
         }
@@ -129,24 +148,26 @@ public class M3U8Parser {
     private static List<PlaylistEntry> parseM3U8(BufferedReader reader) {
         List<PlaylistEntry> playlistEntries = new ArrayList<>();
         try {
-            List<String> lines = readLines(reader);
-            int index = 0;
-            while (index < lines.size()) {
-                String line = lines.get(index);
+            EntryHeader header = null;
+            EntryState state = null;
+            String line;
+            while ((line = reader.readLine()) != null) {
                 if (!line.startsWith(EXTINF)) {
-                    index++;
+                    if (header != null && state != null) {
+                        String trimmed = line == null ? EMPTY : line.trim();
+                        if (applyMetaLine(state, line, trimmed) && state.url != null) {
+                            addParsedEntry(playlistEntries, header, state);
+                            header = null;
+                            state = null;
+                        }
+                    }
                     continue;
                 }
-
-                EntryHeader header = parseEntryHeader(line);
-                ParsedEntry parsed = parseEntryState(lines, index + 1);
-                EntryState state = parsed.state();
-                if (isNotBlank(state.url)) {
-                    for (String groupTitle : effectiveGroupTitles(header.groupTitles)) {
-                        playlistEntries.add(new PlaylistEntry(header.tvgId, groupTitle, header.title, state.url, header.logo, state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType));
-                    }
-                }
-                index = parsed.lastIndex() + 1;
+                header = parseEntryHeader(line);
+                state = new EntryState();
+            }
+            if (header != null && state != null && isNotBlank(state.url)) {
+                addParsedEntry(playlistEntries, header, state);
             }
         } catch (IOException e) {
             AppLog.addErrorLog(M3U8Parser.class, e.getMessage());
@@ -154,9 +175,19 @@ public class M3U8Parser {
         return playlistEntries;
     }
 
+    private static void addParsedEntry(List<PlaylistEntry> playlistEntries, EntryHeader header, EntryState state) {
+        for (String groupTitle : effectiveGroupTitles(header.groupTitles)) {
+            playlistEntries.add(new PlaylistEntry(header.tvgId, groupTitle, header.title, state.url, header.logo,
+                    state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType));
+        }
+    }
+
     private static ParsedEntry parseEntryState(List<String> lines, int startIndex) {
         EntryState state = new EntryState();
-        for (int index = startIndex; index < lines.size(); index++) {
+        if (lines == null || lines.isEmpty()) {
+            return new ParsedEntry(state, -1);
+        }
+        for (int index = Math.max(0, startIndex); index < lines.size(); index++) {
             String nextLine = lines.get(index);
             String trimmed = nextLine == null ? EMPTY : nextLine.trim();
             if (trimmed.startsWith(EXTINF)) {
@@ -167,15 +198,6 @@ public class M3U8Parser {
             }
         }
         return new ParsedEntry(state, lines.size() - 1);
-    }
-
-    private static List<String> readLines(BufferedReader reader) throws IOException {
-        List<String> lines = new ArrayList<>();
-        String line;
-        while ((line = reader.readLine()) != null) {
-            lines.add(line);
-        }
-        return lines;
     }
 
     private static EntryHeader parseEntryHeader(String line) {
@@ -359,9 +381,8 @@ public class M3U8Parser {
         return candidate.matches("(?i)^.+\\.(m3u8|mpd|ts|aac|mp3|mp4|m4s)(\\?.*)?$");
     }
 
-    private static String readNonHttpUrl(URL source) throws IOException {
-        try (InputStream inputStream = source.openStream()) {
-            return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
-        }
+    private static boolean isHttpUrl(URL source) {
+        String protocol = source == null ? "" : source.getProtocol();
+        return protocol != null && protocol.toLowerCase().startsWith("http");
     }
 }
