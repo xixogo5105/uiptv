@@ -52,6 +52,8 @@ public final class I18n {
 
     private static final Object LOCK = new Object();
     private static final Pattern TOKEN_ARTIFACT_PATTERN = Pattern.compile("(?:__\\s*T\\s*K\\d+_+|__\\d+__|ForTK\\d+__)");
+    private static final ResourceBundle.Control NO_DEFAULT_LOCALE_FALLBACK =
+            ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_PROPERTIES);
     private static Locale currentLocale = Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG);
     private static ResourceBundle bundle = loadBundle(currentLocale);
 
@@ -250,13 +252,13 @@ public final class I18n {
     private static ResourceBundle loadBundle(Locale locale) {
         Locale requestedLocale = locale == null ? Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG) : locale;
         try {
-            return ResourceBundle.getBundle(BUNDLE_BASE_NAME, requestedLocale);
+            return ResourceBundle.getBundle(BUNDLE_BASE_NAME, requestedLocale, NO_DEFAULT_LOCALE_FALLBACK);
         } catch (MissingResourceException _) {
             if (DEFAULT_LANGUAGE_TAG.equalsIgnoreCase(requestedLocale.toLanguageTag())) {
                 return null;
             }
             try {
-                return ResourceBundle.getBundle(BUNDLE_BASE_NAME, Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG));
+                return ResourceBundle.getBundle(BUNDLE_BASE_NAME, Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG), NO_DEFAULT_LOCALE_FALLBACK);
             } catch (MissingResourceException _) {
                 return null;
             }
