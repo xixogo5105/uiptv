@@ -626,9 +626,7 @@ public class ChannelListUI extends HBox {
         categoryTitleByNormalizedTitle.set(Map.of());
         detailContent.getChildren().clear();
         detailPane.getChildren().clear();
-        if (table != null) {
-            table.setItems(FXCollections.observableArrayList());
-        }
+        table.setItems(FXCollections.observableArrayList());
     }
 
     private void unregisterBookmarkListener() {

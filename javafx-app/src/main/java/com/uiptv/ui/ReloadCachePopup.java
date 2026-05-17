@@ -124,9 +124,9 @@ public class ReloadCachePopup extends VBox {
     private final Deque<PendingLogLine> pendingLogLines = new ArrayDeque<>();
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean logDrainScheduled = new AtomicBoolean(false);
+    private final AtomicReference<Thread> reloadThread = new AtomicReference<>();
     private volatile boolean stopRequested = false;
     private volatile boolean disposed = false;
-    private volatile Thread reloadThread;
     private final Runnable onAccountsDeleted;
     private VBox accountColumn;
     private ColumnConstraints accountsColumn;
@@ -378,7 +378,7 @@ public class ReloadCachePopup extends VBox {
 
     private void requestStop() {
         stopRequested = true;
-        Thread activeReloadThread = reloadThread;
+        Thread activeReloadThread = reloadThread.get();
         if (activeReloadThread != null) {
             activeReloadThread.interrupt();
         }
@@ -444,7 +444,7 @@ public class ReloadCachePopup extends VBox {
         List<Account> selectedAccounts = selectedAccountsSnapshot();
         Thread thread = new Thread(() -> reloadSelectedAccounts(selectedAccounts), "uiptv-cache-reload");
         thread.setDaemon(true);
-        reloadThread = thread;
+        reloadThread.set(thread);
         thread.start();
     }
 
@@ -500,34 +500,27 @@ public class ReloadCachePopup extends VBox {
             Map<String, AccountRunStatus> finalStatuses = new LinkedHashMap<>();
             Map<String, SummaryStatus> summaryStatusByAccountId = new LinkedHashMap<>();
             int totalFetchedChannels = 0;
-            for (int i = 0; i < selectedAccounts.size(); i++) {
-                if (isReloadStopped()) {
-                    break;
-                }
+            for (int i = 0; i < selectedAccounts.size() && !isReloadStopped() && !disposed; i++) {
                 Account account = selectedAccounts.get(i);
                 processedAccounts.add(account);
                 setRunningAccount(account, i + 1, selectedAccounts.size());
-                if (isReloadStopped()) {
-                    break;
+                if (!isReloadStopped()) {
+                    AccountReloadResult result = reloadSingleAccount(account);
+                    if (!disposed) {
+                        totalFetchedChannels += result.countedChannels;
+                        SummaryStatus summaryStatus = buildSummaryStatus(result.availableChannelCount, result.failed, result.accountIssues);
+                        summaryStatusByAccountId.put(account.getDbId(), summaryStatus);
+                        progressBar.updateSegment(i, segmentStatus(summaryStatus));
+                        AccountRunStatus finalStatus = finalAccountRunStatus(summaryStatus, result.availableChannelCount, result.failed);
+                        finalStatuses.put(account.getDbId(), finalStatus);
+                        updateAccountStatus(account, finalStatus, result.availableChannelCount);
+                    }
                 }
-                AccountReloadResult result = reloadSingleAccount(account);
-                if (disposed) {
-                    break;
-                }
-                totalFetchedChannels += result.countedChannels;
-                SummaryStatus summaryStatus = buildSummaryStatus(result.availableChannelCount, result.failed, result.accountIssues);
-                summaryStatusByAccountId.put(account.getDbId(), summaryStatus);
-                progressBar.updateSegment(i, segmentStatus(summaryStatus));
-                AccountRunStatus finalStatus = finalAccountRunStatus(summaryStatus, result.availableChannelCount, result.failed);
-                finalStatuses.put(account.getDbId(), finalStatus);
-                updateAccountStatus(account, finalStatus, result.availableChannelCount);
             }
             finishReloadRun(processedAccounts, finalStatuses, summaryStatusByAccountId, totalFetchedChannels);
         } finally {
             reloadInProgress.set(false);
-            if (Thread.currentThread() == reloadThread) {
-                reloadThread = null;
-            }
+            reloadThread.compareAndSet(Thread.currentThread(), null);
             requestPostReloadMemoryCleanup(selectedAccounts.size());
         }
     }
@@ -544,7 +537,6 @@ public class ReloadCachePopup extends VBox {
                 return;
             }
             com.uiptv.db.SQLConnection.releaseMemory();
-            System.gc();
         }, "uiptv-reload-memory-cleanup");
         cleanupThread.setDaemon(true);
         cleanupThread.start();
@@ -1131,10 +1123,7 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void refreshAccountInfoTitle(Account account) {
-        if (disposed || account == null || account.getType() != AccountType.STALKER_PORTAL) {
-            return;
-        }
-        if (account.getDbId() == null || account.getDbId().isBlank()) {
+        if (!canRefreshAccountInfoTitle(account)) {
             return;
         }
         String accountId = account.getDbId();
@@ -1179,6 +1168,14 @@ public class ReloadCachePopup extends VBox {
         } catch (IllegalStateException _) {
             pendingAccountInfoRefreshes.remove(accountId);
         }
+    }
+
+    private boolean canRefreshAccountInfoTitle(Account account) {
+        return !disposed
+                && account != null
+                && account.getType() == AccountType.STALKER_PORTAL
+                && account.getDbId() != null
+                && !account.getDbId().isBlank();
     }
 
     private String compactLog(Account account, String message) {
@@ -1532,45 +1529,68 @@ public class ReloadCachePopup extends VBox {
                 decision[0] = GlobalFailureDecision.STOP_ALL;
                 return;
             }
-            ButtonType carryOnButton = new ButtonType(I18n.tr("reloadCarryOn"), ButtonBar.ButtonData.YES);
-            ButtonType stopAllButton = new ButtonType(I18n.tr("reloadStopAll"), ButtonBar.ButtonData.OTHER);
-            ButtonType markBadButton = new ButtonType(I18n.tr("reloadMarkBadAndNext"), ButtonBar.ButtonData.CANCEL_CLOSE);
-            ButtonType ignoreDomainButton = new ButtonType(I18n.tr("reloadMarkBadIgnoreDomain"), ButtonBar.ButtonData.NO);
-            String promptMessage = canIgnoreDomain
-                    ? I18n.tr("reloadGlobalFailurePromptWithIgnoreDomain", account.getAccountName(), reason)
-                    : I18n.tr("reloadGlobalFailurePrompt", account.getAccountName(), reason);
-            List<ButtonType> buttons = new ArrayList<>();
-            buttons.add(carryOnButton);
-            if (canIgnoreDomain) {
-                buttons.add(ignoreDomainButton);
-            }
-            buttons.add(markBadButton);
-            buttons.add(stopAllButton);
-
-            Alert alert = new Alert(
-                    Alert.AlertType.CONFIRMATION,
-                    promptMessage,
-                    buttons.toArray(new ButtonType[0])
-            );
-            alert.setHeaderText(I18n.tr("reloadGlobalCallFailure"));
-            if (RootApplication.getCurrentTheme() != null) {
-                alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-            }
-            alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
-                    ? javafx.geometry.NodeOrientation.RIGHT_TO_LEFT
-                    : javafx.geometry.NodeOrientation.LEFT_TO_RIGHT);
-            ButtonType selected = alert.showAndWait().orElse(markBadButton);
-            if (selected == carryOnButton) {
-                decision[0] = GlobalFailureDecision.CARRY_ON;
-            } else if (selected == ignoreDomainButton) {
-                decision[0] = GlobalFailureDecision.MARK_BAD_AND_IGNORE_DOMAIN;
-            } else if (selected == stopAllButton) {
-                decision[0] = GlobalFailureDecision.STOP_ALL;
-            } else {
-                decision[0] = GlobalFailureDecision.MARK_BAD;
-            }
+            GlobalFailurePrompt prompt = buildGlobalFailurePrompt(account, reason, canIgnoreDomain);
+            ButtonType selected = prompt.alert().showAndWait().orElse(prompt.markBadButton());
+            decision[0] = resolveGlobalFailureDecision(selected, prompt);
         });
         return completed ? decision[0] : GlobalFailureDecision.STOP_ALL;
+    }
+
+    private GlobalFailurePrompt buildGlobalFailurePrompt(Account account, String reason, boolean canIgnoreDomain) {
+        ButtonType carryOnButton = new ButtonType(I18n.tr("reloadCarryOn"), ButtonBar.ButtonData.YES);
+        ButtonType stopAllButton = new ButtonType(I18n.tr("reloadStopAll"), ButtonBar.ButtonData.OTHER);
+        ButtonType markBadButton = new ButtonType(I18n.tr("reloadMarkBadAndNext"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        ButtonType ignoreDomainButton = new ButtonType(I18n.tr("reloadMarkBadIgnoreDomain"), ButtonBar.ButtonData.NO);
+        List<ButtonType> buttons = new ArrayList<>(List.of(carryOnButton));
+        if (canIgnoreDomain) {
+            buttons.add(ignoreDomainButton);
+        }
+        buttons.add(markBadButton);
+        buttons.add(stopAllButton);
+
+        Alert alert = new Alert(
+                Alert.AlertType.CONFIRMATION,
+                globalFailurePromptMessage(account, reason, canIgnoreDomain),
+                buttons.toArray(new ButtonType[0])
+        );
+        alert.setHeaderText(I18n.tr("reloadGlobalCallFailure"));
+        applyDialogThemeAndOrientation(alert);
+        return new GlobalFailurePrompt(alert, carryOnButton, stopAllButton, markBadButton, ignoreDomainButton);
+    }
+
+    private String globalFailurePromptMessage(Account account, String reason, boolean canIgnoreDomain) {
+        return canIgnoreDomain
+                ? I18n.tr("reloadGlobalFailurePromptWithIgnoreDomain", account.getAccountName(), reason)
+                : I18n.tr("reloadGlobalFailurePrompt", account.getAccountName(), reason);
+    }
+
+    private void applyDialogThemeAndOrientation(Alert alert) {
+        if (RootApplication.getCurrentTheme() != null) {
+            alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
+        }
+        alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
+                ? javafx.geometry.NodeOrientation.RIGHT_TO_LEFT
+                : javafx.geometry.NodeOrientation.LEFT_TO_RIGHT);
+    }
+
+    private GlobalFailureDecision resolveGlobalFailureDecision(ButtonType selected, GlobalFailurePrompt prompt) {
+        if (selected == prompt.carryOnButton()) {
+            return GlobalFailureDecision.CARRY_ON;
+        }
+        if (selected == prompt.ignoreDomainButton()) {
+            return GlobalFailureDecision.MARK_BAD_AND_IGNORE_DOMAIN;
+        }
+        if (selected == prompt.stopAllButton()) {
+            return GlobalFailureDecision.STOP_ALL;
+        }
+        return GlobalFailureDecision.MARK_BAD;
+    }
+
+    private record GlobalFailurePrompt(Alert alert,
+                                       ButtonType carryOnButton,
+                                       ButtonType stopAllButton,
+                                       ButtonType markBadButton,
+                                       ButtonType ignoreDomainButton) {
     }
 
     private String resolveRepeatFailureDomain(Account account) {

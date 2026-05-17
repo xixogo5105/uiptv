@@ -1035,12 +1035,11 @@ public abstract class BaseWatchingNowUI extends VBox {
                 }
             } finally {
                 Platform.runLater(() -> {
-                    if (!isPanelCurrent(data, generation)) {
-                        return;
+                    if (isPanelCurrent(data, generation)) {
+                        data.imdbLoaded = true;
+                        data.imdbLoading = false;
+                        applyLoadedImdbToUi(data, pane);
                     }
-                    data.imdbLoaded = true;
-                    data.imdbLoading = false;
-                    applyLoadedImdbToUi(data, pane);
                 });
             }
         });
@@ -1556,6 +1555,13 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (selected.titleNode != null) {
             applySeasonInfoToHeader(selected);
         }
+        refreshSeriesPosterInPlace(selected);
+        if (selected.seasonTabs != null) {
+            refreshSeasonTables(selected);
+        }
+    }
+
+    private void refreshSeriesPosterInPlace(SeriesPanelData selected) {
         if (selected.seriesPosterNode != null) {
             String cover = resolveSeriesPosterUrl(selected);
             if (!isBlank(cover)) {
@@ -1569,9 +1575,6 @@ public abstract class BaseWatchingNowUI extends VBox {
                     }
                 });
             }
-        }
-        if (selected.seasonTabs != null) {
-            refreshSeasonTables(selected);
         }
     }
 

@@ -35,7 +35,6 @@ public class LogDisplayUI extends VBox {
     private static Stage detachedStage;
     private static Stage webLogStage;
     private static TextArea webLogArea;
-    private static Consumer<String> webLogListener;
     private final VBox contentBox = new VBox(5);
 
     static {
@@ -140,7 +139,7 @@ public class LogDisplayUI extends VBox {
         detachedStage.show();
     }
 
-    private void showWebLogWindow() {
+    private static void showWebLogWindow() {
         if (webLogStage != null && webLogStage.isShowing()) {
             refreshWebLogArea();
             webLogStage.toFront();
@@ -172,7 +171,7 @@ public class LogDisplayUI extends VBox {
         popupRoot.setPadding(new Insets(8));
         VBox.setVgrow(webLogArea, Priority.ALWAYS);
 
-        webLogListener = LogDisplayUI::appendToWebLogArea;
+        Consumer<String> webLogListener = LogDisplayUI::appendToWebLogArea;
         WebActivityLog.registerListener(webLogListener);
         refreshWebLogArea();
 
@@ -183,7 +182,6 @@ public class LogDisplayUI extends VBox {
         webLogStage.setScene(scene);
         webLogStage.setOnHidden(event -> {
             WebActivityLog.unregisterListener(webLogListener);
-            webLogListener = null;
             webLogArea = null;
             webLogStage = null;
         });

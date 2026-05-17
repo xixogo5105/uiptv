@@ -22,12 +22,12 @@ final class WebRequestActivityLoggingHandler implements HttpHandler {
         }
 
         long startedAt = System.nanoTime();
-        Throwable failure = null;
+        Exception failure = null;
         try {
             next.handleRequest(exchange);
-        } catch (Throwable throwable) {
-            failure = throwable;
-            throw throwable;
+        } catch (Exception exception) {
+            failure = exception;
+            throw exception;
         } finally {
             int statusCode = failure == null ? exchange.getStatusCode() : Math.max(500, exchange.getStatusCode());
             WebActivityLog.recordRequest(

@@ -14,7 +14,7 @@ import com.uiptv.util.M3U8Parser;
 import com.uiptv.util.StringUtils;
 
 import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -94,10 +94,20 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
             return;
         }
         if (account.getType() == AccountType.M3U8_URL) {
-            M3U8Parser.forEachChannelUrlM3U8(new URL(path), consumer);
+            M3U8Parser.forEachChannelUriM3U8(toSourceUri(path), consumer);
             return;
         }
         M3U8Parser.forEachChannelPathM3U8(path, consumer);
+    }
+
+    private URI toSourceUri(String path) throws MalformedURLException {
+        try {
+            return URI.create(path);
+        } catch (IllegalArgumentException e) {
+            MalformedURLException malformed = new MalformedURLException(e.getMessage());
+            malformed.initCause(e);
+            throw malformed;
+        }
     }
 
     private void releaseChannelMap(Map<String, List<Channel>> channelsMap) {

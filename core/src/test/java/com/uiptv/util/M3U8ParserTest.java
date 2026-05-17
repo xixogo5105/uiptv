@@ -8,6 +8,7 @@ import org.junit.jupiter.api.TestFactory;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.BufferedReader;
@@ -134,13 +135,19 @@ class M3U8ParserTest {
 
     @Test
     void parsesUrlSourcesForHttpAndFileProtocols() throws Exception {
+        String remotePlaylist = """
+                #EXTM3U
+                #EXTINF:-1 tvg-id="http-id" tvg-logo="https://img/logo.png" group-title="Remote",Remote Channel
+                https://stream.test/remote.m3u8
+                """;
         try (MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
-            httpUtil.when(() -> HttpUtil.sendRequest("https://playlist.test/live.m3u", null, "GET"))
-                    .thenReturn(new HttpUtil.HttpResult(HttpUtil.STATUS_OK, """
-                            #EXTM3U
-                            #EXTINF:-1 tvg-id="http-id" tvg-logo="https://img/logo.png" group-title="Remote",Remote Channel
-                            https://stream.test/remote.m3u8
-                            """, Map.of(), Map.of()));
+            httpUtil.when(() -> HttpUtil.openStream(
+                            Mockito.eq("https://playlist.test/live.m3u"),
+                            Mockito.isNull(),
+                            Mockito.eq("GET"),
+                            Mockito.isNull(),
+                            Mockito.any(HttpUtil.RequestOptions.class)))
+                    .thenAnswer(_ -> streamResult(remotePlaylist));
 
             List<PlaylistEntry> channels = M3U8Parser.parseChannelUrlM3U8(URI.create("https://playlist.test/live.m3u").toURL());
             Set<PlaylistEntry> categories = M3U8Parser.parseUrlCategory(URI.create("https://playlist.test/live.m3u").toURL());
@@ -164,6 +171,18 @@ class M3U8ParserTest {
         } finally {
             Files.deleteIfExists(temp);
         }
+    }
+
+    private static HttpUtil.StreamResult streamResult(String body) {
+        return new HttpUtil.StreamResult(
+                "GET",
+                "https://playlist.test/live.m3u",
+                HttpUtil.STATUS_OK,
+                Map.of(),
+                Map.of(),
+                new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)),
+                Mockito.mock(org.apache.hc.client5.http.impl.classic.CloseableHttpResponse.class)
+        );
     }
 
     @Test
@@ -301,10 +320,6 @@ class M3U8ParserTest {
         Set<PlaylistEntry> categories = (Set<PlaylistEntry>) invoke("parseCategory", new Class[]{BufferedReader.class}, new ThrowingBufferedReader());
         assertTrue(categories.stream().anyMatch(entry -> CategoryType.ALL.displayName().equals(entry.getGroupTitle())));
 
-        @SuppressWarnings("unchecked")
-        List<PlaylistEntry> channels = (List<PlaylistEntry>) invoke("parseM3U8", new Class[]{BufferedReader.class}, new ThrowingBufferedReader());
-        assertTrue(channels.isEmpty());
-
         assertFalse((Boolean) invoke("processCategoryLineSafely", new Class[]{Set.class, String.class}, null, "#EXTINF:-1 group-title=\"Bad\",Bad"));
         assertEquals("", invoke("parseTitle", new Class[]{String.class}, "#EXTINF:-1 group-title=\"NoTitle\","));
         assertNull(invoke("parseDrmType", new Class[]{String.class}, "#EXT-X-KEY:KEYFORMAT=\"other\""));
@@ -320,8 +335,6 @@ class M3U8ParserTest {
         assertFalse((Boolean) invoke("isLikelyStreamUrl", new Class[]{String.class}, "plain text"));
         assertEquals(List.of(CategoryType.UNCATEGORIZED.displayName()), invoke("effectiveGroupTitles", new Class[]{List.class}, (Object) null));
         assertNull(invoke("buildCategoryEntry", new Class[]{String.class, String.class}, "id", ""));
-        Object parsedEmptyTail = invoke("parseEntryState", new Class[]{List.class, int.class}, List.of("# comment"), 0);
-        assertNotNull(parsedEmptyTail);
     }
 
     private List<PlaylistEntry> parseContent(String content) throws IOException {

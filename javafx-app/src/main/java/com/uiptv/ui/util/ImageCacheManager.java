@@ -220,7 +220,7 @@ public class ImageCacheManager {
                     LOADING_TASKS.remove(cacheKey, future);
                 }
             });
-        } catch (RejectedExecutionException e) {
+        } catch (RejectedExecutionException _) {
             LOADING_TASKS.remove(cacheKey, future);
             future.complete(null);
         }

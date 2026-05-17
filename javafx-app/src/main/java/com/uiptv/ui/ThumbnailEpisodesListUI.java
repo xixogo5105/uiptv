@@ -763,44 +763,55 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                         3
                 );
                 if (imdb != null && isImdbTaskCurrent(generation)) {
-                    String imdbCover = normalizeImageUrl(imdb.optString(KEY_COVER, ""));
-                    if (!isBlank(imdbCover)) {
-                        imdb.put(KEY_COVER, imdbCover);
-                        seasonInfo.put(KEY_COVER, imdbCover);
-                    }
-                    mergeMissing(seasonInfo, imdb, "name");
-                    mergeMissing(seasonInfo, imdb, "plot");
-                    mergeMissing(seasonInfo, imdb, "cast");
-                    mergeMissing(seasonInfo, imdb, "director");
-                    mergeMissing(seasonInfo, imdb, "genre");
-                    mergeMissing(seasonInfo, imdb, KEY_RELEASE_DATE);
-                    mergeMissing(seasonInfo, imdb, KEY_RATING);
-                    mergeMissing(seasonInfo, imdb, "tmdb");
-                    mergeMissing(seasonInfo, imdb, "imdbUrl");
-                    enrichEpisodesFromMeta(allEpisodeItems, imdb.optJSONArray("episodesMeta"));
+                    applyImdbMetadata(imdb);
                 }
             } finally {
-                Platform.runLater(() -> {
-                    if (!isImdbTaskCurrent(generation)) {
-                        return;
-                    }
-                    imdbLoaded = true;
-                    imdbLoading = false;
-                    applySeriesHeader();
-                    applySeasonFilter();
-                    if (pendingTargetSeason != null) {
-                        navigateToEpisodeTarget(pendingTargetSeason, pendingTargetEpisodeId, pendingTargetEpisodeNumber, pendingTargetEpisodeName);
-                        pendingTargetSeason = null;
-                        pendingTargetEpisodeId = null;
-                        pendingTargetEpisodeNumber = null;
-                        pendingTargetEpisodeName = null;
-                    }
-                });
+                Platform.runLater(() -> completeImdbLazyLoad(generation));
             }
         });
         if (!submitted) {
             imdbLoading = false;
         }
+    }
+
+    private void applyImdbMetadata(JSONObject imdb) {
+        String imdbCover = normalizeImageUrl(imdb.optString(KEY_COVER, ""));
+        if (!isBlank(imdbCover)) {
+            imdb.put(KEY_COVER, imdbCover);
+            seasonInfo.put(KEY_COVER, imdbCover);
+        }
+        mergeMissing(seasonInfo, imdb, "name");
+        mergeMissing(seasonInfo, imdb, "plot");
+        mergeMissing(seasonInfo, imdb, "cast");
+        mergeMissing(seasonInfo, imdb, "director");
+        mergeMissing(seasonInfo, imdb, "genre");
+        mergeMissing(seasonInfo, imdb, KEY_RELEASE_DATE);
+        mergeMissing(seasonInfo, imdb, KEY_RATING);
+        mergeMissing(seasonInfo, imdb, "tmdb");
+        mergeMissing(seasonInfo, imdb, "imdbUrl");
+        enrichEpisodesFromMeta(allEpisodeItems, imdb.optJSONArray("episodesMeta"));
+    }
+
+    private void completeImdbLazyLoad(long generation) {
+        if (!isImdbTaskCurrent(generation)) {
+            return;
+        }
+        imdbLoaded = true;
+        imdbLoading = false;
+        applySeriesHeader();
+        applySeasonFilter();
+        navigateToPendingEpisodeTarget();
+    }
+
+    private void navigateToPendingEpisodeTarget() {
+        if (pendingTargetSeason == null) {
+            return;
+        }
+        navigateToEpisodeTarget(pendingTargetSeason, pendingTargetEpisodeId, pendingTargetEpisodeNumber, pendingTargetEpisodeName);
+        pendingTargetSeason = null;
+        pendingTargetEpisodeId = null;
+        pendingTargetEpisodeNumber = null;
+        pendingTargetEpisodeName = null;
     }
 
     private boolean isImdbTaskCurrent(long generation) {

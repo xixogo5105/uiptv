@@ -24,6 +24,8 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 public final class WebActivityLog {
     private static final int MAX_LINES = Integer.getInteger("uiptv.webActivity.maxLines", 2000);
     private static final int MAX_VALUE_LENGTH = 160;
+    private static final String WEB_PLAYER_SUFFIX = " in the web player";
+    private static final String SOURCE_PREFIX = " from ";
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Object LOCK = new Object();
     private static final Deque<String> entries = new ArrayDeque<>();
@@ -112,36 +114,53 @@ public final class WebActivityLog {
     }
 
     private static String describePath(String method, String path, Map<String, String> params) {
-        if ("/".equals(path) || "/index.html".equals(path)) {
-            return "Opened the UIPTV web app";
-        }
-        if ("/myflix.html".equals(path)) {
-            return "Opened the MyFlix web page";
-        }
-        if ("/player.html".equals(path) || "/drm.html".equals(path)) {
-            return "Opened the web player";
+        String staticPage = describeStaticPage(path);
+        if (isNotBlank(staticPage)) {
+            return staticPage;
         }
         if (path.startsWith("/player")) {
             return describePlayerRequest(path, params);
         }
-        if ("/playlist.m3u8".equals(path)) {
-            return "Downloaded a playlist file: playlist.m3u8" + describePlaylistScope(params);
+        String playlist = describePlaylistRequest(path, params);
+        if (isNotBlank(playlist)) {
+            return playlist;
         }
-        if ("/bookmarks.m3u8".equals(path)) {
-            return "Downloaded the bookmarks M3U playlist";
+        String streaming = describeStreamingRequest(method, path, params);
+        if (isNotBlank(streaming)) {
+            return streaming;
         }
-        if ("/iptv.m3u8".equals(path) || "/iptv.m3u".equals(path)) {
-            return "Accessed the published M3U playlist: " + fileName(path);
+        String remoteSync = describeRemoteSyncRequest(path);
+        if (isNotBlank(remoteSync)) {
+            return remoteSync;
         }
-        if ("/bookmarkEntry.ts".equals(path)) {
-            return "Played a bookmarked stream from an M3U playlist";
+        String appData = describeAppDataRequest(path);
+        if (isNotBlank(appData)) {
+            return appData;
         }
-        if ("/bingewatch.m3u8".equals(path)) {
-            return "Downloaded a binge-watch playlist";
-        }
-        if (path.startsWith("/bingwatch")) {
-            return "Opened a binge-watch episode stream";
-        }
+        return "Opened " + path;
+    }
+
+    private static String describeStaticPage(String path) {
+        return switch (path) {
+            case "/", "/index.html" -> "Opened the UIPTV web app";
+            case "/myflix.html" -> "Opened the MyFlix web page";
+            case "/player.html", "/drm.html" -> "Opened the web player";
+            default -> "";
+        };
+    }
+
+    private static String describePlaylistRequest(String path, Map<String, String> params) {
+        return switch (path) {
+            case "/playlist.m3u8" -> "Downloaded a playlist file: playlist.m3u8" + describePlaylistScope(params);
+            case "/bookmarks.m3u8" -> "Downloaded the bookmarks M3U playlist";
+            case "/iptv.m3u8", "/iptv.m3u" -> "Accessed the published M3U playlist: " + fileName(path);
+            case "/bookmarkEntry.ts" -> "Played a bookmarked stream from an M3U playlist";
+            case "/bingewatch.m3u8" -> "Downloaded a binge-watch playlist";
+            default -> path.startsWith("/bingwatch") ? "Opened a binge-watch episode stream" : "";
+        };
+    }
+
+    private static String describeStreamingRequest(String method, String path, Map<String, String> params) {
         if (path.startsWith("/proxy-stream")) {
             return "Streamed media through the web player" + sourceSummary(params.get("src"));
         }
@@ -151,6 +170,10 @@ public final class WebActivityLog {
         if (path.startsWith("/hls")) {
             return describeHlsRequest(path);
         }
+        return "";
+    }
+
+    private static String describeRemoteSyncRequest(String path) {
         if (path.startsWith("/remote-sync/download")) {
             return "Downloaded a remote sync database snapshot";
         }
@@ -166,6 +189,10 @@ public final class WebActivityLog {
         if (path.startsWith("/remote-sync/complete")) {
             return "Completed a remote sync session";
         }
+        return "";
+    }
+
+    private static String describeAppDataRequest(String path) {
         if (path.startsWith("/accounts")) {
             return "Loaded accounts in the web app";
         }
@@ -193,7 +220,7 @@ public final class WebActivityLog {
         if (path.startsWith("/config")) {
             return "Loaded web app configuration";
         }
-        return "Opened " + path;
+        return "";
     }
 
     private static String describePlayerRequest(String path, Map<String, String> params) {
@@ -201,11 +228,11 @@ public final class WebActivityLog {
         String target = isNotBlank(name) ? " \"" + name + "\"" : "";
         String mode = firstNonBlank(params.get("mode"), modeFromPlayerPath(path));
         return switch (mode.toLowerCase(Locale.ROOT)) {
-            case "itv", "live" -> "Played live channel" + target + " in the web player";
-            case "vod" -> "Played movie or video" + target + " in the web player";
-            case "series" -> "Played series episode" + target + " in the web player";
+            case "itv", "live" -> "Played live channel" + target + WEB_PLAYER_SUFFIX;
+            case "vod" -> "Played movie or video" + target + WEB_PLAYER_SUFFIX;
+            case "series" -> "Played series episode" + target + WEB_PLAYER_SUFFIX;
             default -> isNotBlank(params.get("bookmarkId"))
-                    ? "Played a bookmarked item in the web player"
+                    ? "Played a bookmarked item" + WEB_PLAYER_SUFFIX
                     : "Started web playback" + target;
         };
     }
@@ -267,15 +294,15 @@ public final class WebActivityLog {
             String host = uri.getHost();
             String sourceFile = fileName(uri.getPath());
             if (isNotBlank(host) && isNotBlank(sourceFile)) {
-                return " from " + safeValue(host + "/" + sourceFile);
+                return SOURCE_PREFIX + safeValue(host + "/" + sourceFile);
             }
             if (isNotBlank(host)) {
-                return " from " + safeValue(host);
+                return SOURCE_PREFIX + safeValue(host);
             }
         } catch (Exception _) {
             // Fall back to a safe, short source label below.
         }
-        return " from " + safeValue(fileName(source));
+        return SOURCE_PREFIX + safeValue(fileName(source));
     }
 
     private static String describeResult(int statusCode) {
@@ -394,7 +421,10 @@ public final class WebActivityLog {
     }
 
     private static String firstNonBlank(String first, String second) {
-        return isNotBlank(first) ? first : isBlank(second) ? "" : second;
+        if (isNotBlank(first)) {
+            return first;
+        }
+        return isBlank(second) ? "" : second;
     }
 
     private static String safeValue(String value) {

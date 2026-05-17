@@ -358,12 +358,11 @@ public class VodWatchingNowUI extends VBox {
                 }
             } finally {
                 Platform.runLater(() -> {
-                    if (!isPanelCurrent(data, generation)) {
-                        return;
+                    if (isPanelCurrent(data, generation)) {
+                        data.imdbLoaded = true;
+                        data.imdbLoading = false;
+                        refreshRenderedCards();
                     }
-                    data.imdbLoaded = true;
-                    data.imdbLoading = false;
-                    refreshRenderedCards();
                 });
             }
         });
