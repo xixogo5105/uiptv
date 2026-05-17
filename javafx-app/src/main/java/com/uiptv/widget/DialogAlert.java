@@ -1,6 +1,7 @@
 package com.uiptv.widget;
 
 import com.uiptv.ui.RootApplication;
+import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
 import javafx.geometry.NodeOrientation;
 import javafx.scene.control.Alert;
@@ -17,7 +18,13 @@ public class DialogAlert {
     }
 
     public static ButtonType showDialog(String title, String contents) {
-        Alert confirmDialogue = new Alert(Alert.AlertType.CONFIRMATION, I18n.tr(contents), ButtonType.YES, ButtonType.NO);
+        String message = I18n.tr(contents);
+        AppLog.addInfoLog(DialogAlert.class, "Dialog requested: " + message);
+        if (Boolean.getBoolean("uiptv.headless")) {
+            AppLog.addWarningLog(DialogAlert.class, "Dialog skipped in headless mode.");
+            return ButtonType.NO;
+        }
+        Alert confirmDialogue = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.YES, ButtonType.NO);
         if (title != null) {
             confirmDialogue.setTitle(I18n.tr(title));
             confirmDialogue.setHeaderText(null);

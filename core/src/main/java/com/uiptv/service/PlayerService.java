@@ -3,10 +3,9 @@ package com.uiptv.service;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
+import com.uiptv.util.AppLog;
 import com.uiptv.util.ServerUrlUtil;
 import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URLDecoder;
@@ -20,7 +19,6 @@ import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class PlayerService {
-    private static final Logger log = LoggerFactory.getLogger(PlayerService.class);
     private final Set<PlaybackResolvedListener> playbackResolvedListeners = new CopyOnWriteArraySet<>();
 
     private final XtremePlayerService xtremePlayerService = new XtremePlayerService();
@@ -59,9 +57,9 @@ public class PlayerService {
             String originalUrl = response.getUrl();
             String sanitizedUrl = sanitizeAndEncodeUrl(originalUrl);
             if (!originalUrl.equals(sanitizedUrl)) {
-                log.info("Original URL contained invalid characters. Re-encoding.");
-                log.info("Original: {}", originalUrl);
-                log.info("Encoded:  {}", sanitizedUrl);
+                AppLog.addInfoLog(PlayerService.class, "Original URL contained invalid characters. Re-encoding.");
+                AppLog.addInfoLog(PlayerService.class, "Original: " + originalUrl);
+                AppLog.addInfoLog(PlayerService.class, "Encoded: " + sanitizedUrl);
                 response.setUrl(sanitizedUrl);
             }
         }

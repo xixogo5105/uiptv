@@ -93,10 +93,12 @@ public class UIptvServer {
         routes.addExactPath("/iptv.m3u", adapt(new HttpIptvM3u8Server()));
 
         routes.addPrefixPath("/", adapt(new HttpSpaHtmlServer()));
-        return exchange -> {
+
+        HttpHandler routedHandler = exchange -> {
             exchange.putAttachment(UndertowAttachments.attributes(), UndertowAttachments.newAttributes());
             routes.handleRequest(exchange);
         };
+        return new WebRequestActivityLoggingHandler(routedHandler);
     }
 
     private static HttpHandler adapt(com.sun.net.httpserver.HttpHandler handler) {
@@ -127,8 +129,8 @@ public class UIptvServer {
         if (httpServer != null) {
             httpServer.stop();
             httpServer = null;
+            addInfoLog(UIptvServer.class, "Server Stopped");
         }
-        addInfoLog(UIptvServer.class, "Server Stopped");
     }
 
     public static synchronized boolean isRunning() {

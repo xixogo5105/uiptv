@@ -1,0 +1,418 @@
+package com.uiptv.util;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
+
+import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.util.StringUtils.isNotBlank;
+
+public final class WebActivityLog {
+    private static final int MAX_LINES = Integer.getInteger("uiptv.webActivity.maxLines", 2000);
+    private static final int MAX_VALUE_LENGTH = 160;
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final Object LOCK = new Object();
+    private static final Deque<String> entries = new ArrayDeque<>();
+    private static final CopyOnWriteArrayList<Consumer<String>> listeners = new CopyOnWriteArrayList<>();
+    private static final Path LOG_FILE = buildLogFilePath();
+
+    private WebActivityLog() {
+    }
+
+    public static void recordRequest(String method,
+                                     String path,
+                                     String rawQuery,
+                                     String requestIp,
+                                     int statusCode,
+                                     long durationMillis) {
+        String action = describeRequest(method, path, rawQuery);
+        if (isBlank(action)) {
+            return;
+        }
+
+        String entry = TIMESTAMP_FORMATTER.format(LocalDateTime.now())
+                + " | IP " + safeValue(isBlank(requestIp) ? "unknown" : requestIp)
+                + " | " + action
+                + " | Result: " + describeResult(statusCode)
+                + " | " + Math.max(0L, durationMillis) + " ms";
+        appendEntry(entry);
+        notifyListeners(entry);
+        if (AppLog.isTerminalLoggingEnabled()) {
+            AppLog.addInfoLog(WebActivityLog.class, "Web activity: " + entry);
+        }
+    }
+
+    public static String describeRequest(String method, String path, String rawQuery) {
+        String normalizedPath = normalizePath(path);
+        if (shouldIgnore(normalizedPath)) {
+            return "";
+        }
+        Map<String, String> params = queryToMap(rawQuery);
+        String requestMethod = isBlank(method) ? "GET" : method.trim().toUpperCase(Locale.ROOT);
+        String action = describePath(requestMethod, normalizedPath, params);
+        if (!"GET".equals(requestMethod) && !action.startsWith(requestMethod + " request")) {
+            return requestMethod + " request - " + action;
+        }
+        return action;
+    }
+
+    public static String readAllText() {
+        synchronized (LOCK) {
+            if (!entries.isEmpty()) {
+                return String.join(System.lineSeparator(), entries) + System.lineSeparator();
+            }
+        }
+        try {
+            return Files.exists(LOG_FILE) ? Files.readString(LOG_FILE) : "";
+        } catch (IOException e) {
+            AppLog.addWarningLog(WebActivityLog.class, "Unable to read temporary web activity log: " + e.getMessage());
+            return "";
+        }
+    }
+
+    public static void clear() {
+        synchronized (LOCK) {
+            entries.clear();
+            try {
+                Files.deleteIfExists(LOG_FILE);
+            } catch (IOException e) {
+                AppLog.addWarningLog(WebActivityLog.class, "Unable to clear temporary web activity log: " + e.getMessage());
+            }
+        }
+    }
+
+    public static Path getLogFilePath() {
+        return LOG_FILE;
+    }
+
+    public static void registerListener(Consumer<String> listener) {
+        if (listener != null) {
+            listeners.add(listener);
+        }
+    }
+
+    public static void unregisterListener(Consumer<String> listener) {
+        if (listener != null) {
+            listeners.remove(listener);
+        }
+    }
+
+    private static String describePath(String method, String path, Map<String, String> params) {
+        if ("/".equals(path) || "/index.html".equals(path)) {
+            return "Opened the UIPTV web app";
+        }
+        if ("/myflix.html".equals(path)) {
+            return "Opened the MyFlix web page";
+        }
+        if ("/player.html".equals(path) || "/drm.html".equals(path)) {
+            return "Opened the web player";
+        }
+        if (path.startsWith("/player")) {
+            return describePlayerRequest(path, params);
+        }
+        if ("/playlist.m3u8".equals(path)) {
+            return "Downloaded a playlist file: playlist.m3u8" + describePlaylistScope(params);
+        }
+        if ("/bookmarks.m3u8".equals(path)) {
+            return "Downloaded the bookmarks M3U playlist";
+        }
+        if ("/iptv.m3u8".equals(path) || "/iptv.m3u".equals(path)) {
+            return "Accessed the published M3U playlist: " + fileName(path);
+        }
+        if ("/bookmarkEntry.ts".equals(path)) {
+            return "Played a bookmarked stream from an M3U playlist";
+        }
+        if ("/bingewatch.m3u8".equals(path)) {
+            return "Downloaded a binge-watch playlist";
+        }
+        if (path.startsWith("/bingwatch")) {
+            return "Opened a binge-watch episode stream";
+        }
+        if (path.startsWith("/proxy-stream")) {
+            return "Streamed media through the web player" + sourceSummary(params.get("src"));
+        }
+        if (path.startsWith("/hls-upload")) {
+            return describeHlsUpload(method, path);
+        }
+        if (path.startsWith("/hls")) {
+            return describeHlsRequest(path);
+        }
+        if (path.startsWith("/remote-sync/download")) {
+            return "Downloaded a remote sync database snapshot";
+        }
+        if (path.startsWith("/remote-sync/upload")) {
+            return "Uploaded a remote sync database snapshot";
+        }
+        if (path.startsWith("/remote-sync/request")) {
+            return "Requested remote sync access";
+        }
+        if (path.startsWith("/remote-sync/status")) {
+            return "Checked remote sync status";
+        }
+        if (path.startsWith("/remote-sync/complete")) {
+            return "Completed a remote sync session";
+        }
+        if (path.startsWith("/accounts")) {
+            return "Loaded accounts in the web app";
+        }
+        if (path.startsWith("/categories")) {
+            return "Loaded categories in the web app";
+        }
+        if (path.startsWith("/channels")) {
+            return "Loaded channels in the web app";
+        }
+        if (path.startsWith("/seriesEpisodes")) {
+            return "Loaded series episodes in the web app";
+        }
+        if (path.startsWith("/seriesDetails")) {
+            return "Loaded series details in the web app";
+        }
+        if (path.startsWith("/vodDetails")) {
+            return "Loaded movie details in the web app";
+        }
+        if (path.startsWith("/watchingNow")) {
+            return "Updated the watching-now list in the web app";
+        }
+        if (path.startsWith("/bookmarks")) {
+            return "Used bookmarks in the web app";
+        }
+        if (path.startsWith("/config")) {
+            return "Loaded web app configuration";
+        }
+        return "Opened " + path;
+    }
+
+    private static String describePlayerRequest(String path, Map<String, String> params) {
+        String name = safeValue(params.get("name"));
+        String target = isNotBlank(name) ? " \"" + name + "\"" : "";
+        String mode = firstNonBlank(params.get("mode"), modeFromPlayerPath(path));
+        return switch (mode.toLowerCase(Locale.ROOT)) {
+            case "itv", "live" -> "Played live channel" + target + " in the web player";
+            case "vod" -> "Played movie or video" + target + " in the web player";
+            case "series" -> "Played series episode" + target + " in the web player";
+            default -> isNotBlank(params.get("bookmarkId"))
+                    ? "Played a bookmarked item in the web player"
+                    : "Started web playback" + target;
+        };
+    }
+
+    private static String modeFromPlayerPath(String path) {
+        if (path.endsWith("/live")) {
+            return "live";
+        }
+        if (path.endsWith("/vod")) {
+            return "vod";
+        }
+        if (path.endsWith("/series") || path.endsWith("/bingewatch")) {
+            return "series";
+        }
+        return "";
+    }
+
+    private static String describePlaylistScope(Map<String, String> params) {
+        if (isNotBlank(params.get("channelId"))) {
+            return " for one channel";
+        }
+        if (isNotBlank(params.get("categoryId"))) {
+            return " for one category";
+        }
+        if (isNotBlank(params.get("accountId"))) {
+            return " for one account";
+        }
+        return "";
+    }
+
+    private static String describeHlsUpload(String method, String path) {
+        String file = fileName(path);
+        if ("DELETE".equals(method)) {
+            return "Removed temporary stream file: " + file;
+        }
+        if ("PUT".equals(method) || "POST".equals(method)) {
+            return "Uploaded temporary stream file: " + file;
+        }
+        return "Used temporary stream upload storage: " + file;
+    }
+
+    private static String describeHlsRequest(String path) {
+        String file = fileName(path);
+        if (file.endsWith(".m3u8")) {
+            return "Loaded the web stream playlist: " + file;
+        }
+        if (file.endsWith(".ts")) {
+            return "Loaded a web stream segment: " + file;
+        }
+        return "Loaded a temporary web stream file: " + file;
+    }
+
+    private static String sourceSummary(String source) {
+        if (isBlank(source)) {
+            return "";
+        }
+        try {
+            URI uri = URI.create(source);
+            String host = uri.getHost();
+            String sourceFile = fileName(uri.getPath());
+            if (isNotBlank(host) && isNotBlank(sourceFile)) {
+                return " from " + safeValue(host + "/" + sourceFile);
+            }
+            if (isNotBlank(host)) {
+                return " from " + safeValue(host);
+            }
+        } catch (Exception _) {
+            // Fall back to a safe, short source label below.
+        }
+        return " from " + safeValue(fileName(source));
+    }
+
+    private static String describeResult(int statusCode) {
+        if (statusCode >= 200 && statusCode < 300) {
+            return "completed";
+        }
+        if (statusCode >= 300 && statusCode < 400) {
+            return "redirected";
+        }
+        if (statusCode == 404) {
+            return "not found";
+        }
+        if (statusCode >= 400 && statusCode < 500) {
+            return "rejected (" + statusCode + ")";
+        }
+        if (statusCode >= 500) {
+            return "failed (" + statusCode + ")";
+        }
+        return "unknown";
+    }
+
+    private static void appendEntry(String entry) {
+        synchronized (LOCK) {
+            entries.addLast(entry);
+            boolean trimmed = false;
+            while (entries.size() > MAX_LINES) {
+                entries.removeFirst();
+                trimmed = true;
+            }
+            try {
+                Files.createDirectories(LOG_FILE.getParent());
+                if (trimmed) {
+                    persistAllEntries();
+                } else {
+                    Files.writeString(LOG_FILE, entry + System.lineSeparator(), StandardCharsets.UTF_8,
+                            StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                }
+            } catch (IOException e) {
+                AppLog.addWarningLog(WebActivityLog.class, "Unable to write temporary web activity log: " + e.getMessage());
+            }
+        }
+    }
+
+    private static void persistAllEntries() throws IOException {
+        String text = entries.isEmpty() ? "" : String.join(System.lineSeparator(), entries) + System.lineSeparator();
+        Files.writeString(LOG_FILE, text, StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+    }
+
+    private static void notifyListeners(String entry) {
+        for (Consumer<String> listener : listeners) {
+            try {
+                listener.accept(entry);
+            } catch (Exception e) {
+                AppLog.addWarningLog(WebActivityLog.class, "Web activity listener failed: " + e.getMessage());
+            }
+        }
+    }
+
+    private static Path buildLogFilePath() {
+        long pid = -1L;
+        try {
+            pid = ProcessHandle.current().pid();
+        } catch (Exception _) {
+            // Process id is only used to avoid cross-session collisions.
+        }
+        return Path.of(System.getProperty("java.io.tmpdir"), "uiptv", "web-activity-" + pid + ".log");
+    }
+
+    private static boolean shouldIgnore(String path) {
+        return path.startsWith("/css")
+                || path.startsWith("/javascript")
+                || path.startsWith("/js")
+                || "/icon.ico".equals(path)
+                || "/manifest.json".equals(path)
+                || "/sw.js".equals(path);
+    }
+
+    private static String normalizePath(String path) {
+        if (isBlank(path)) {
+            return "/";
+        }
+        String normalized = path.trim();
+        return normalized.startsWith("/") ? normalized : "/" + normalized;
+    }
+
+    private static String fileName(String path) {
+        if (isBlank(path)) {
+            return "";
+        }
+        String clean = path;
+        int queryIndex = clean.indexOf('?');
+        if (queryIndex >= 0) {
+            clean = clean.substring(0, queryIndex);
+        }
+        int slashIndex = clean.lastIndexOf('/');
+        String value = slashIndex >= 0 ? clean.substring(slashIndex + 1) : clean;
+        return safeValue(decode(value));
+    }
+
+    private static Map<String, String> queryToMap(String rawQuery) {
+        if (isBlank(rawQuery)) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> params = new HashMap<>();
+        for (String param : rawQuery.split("&")) {
+            if (isBlank(param)) {
+                continue;
+            }
+            String[] pair = param.split("=", 2);
+            String key = decode(pair[0]);
+            String value = pair.length > 1 ? decode(pair[1]) : "";
+            params.put(key, value);
+        }
+        return params;
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        return isNotBlank(first) ? first : isBlank(second) ? "" : second;
+    }
+
+    private static String safeValue(String value) {
+        String sanitized = AppLog.sanitizeValue(value);
+        if (sanitized.length() <= MAX_VALUE_LENGTH) {
+            return sanitized;
+        }
+        return sanitized.substring(0, MAX_VALUE_LENGTH) + "...";
+    }
+
+    private static String decode(String value) {
+        if (value == null) {
+            return "";
+        }
+        try {
+            return URLDecoder.decode(value, StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException _) {
+            return value;
+        }
+    }
+}

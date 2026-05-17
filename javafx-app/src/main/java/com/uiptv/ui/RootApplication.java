@@ -13,6 +13,7 @@ import com.uiptv.ui.util.StyleClassDecorator;
 import com.uiptv.ui.util.ThemeStylesheetResolver;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.ui.util.UiServerUrlUtil;
+import com.uiptv.util.AppLog;
 import com.uiptv.util.EmbeddedPlayerWideViewUtil;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
@@ -27,8 +28,6 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintStream;
 import java.sql.SQLException;
 import java.util.Arrays;
 
@@ -49,16 +48,16 @@ public class RootApplication extends Application {
         ServerUrlUtil.installServerShutdownHook();
         boolean showLogsEnabled = hasShowLogsArg(args);
         String[] filteredArgs = removeShowLogsArg(args);
-        if (showLogsEnabled) {
-            System.setProperty("uiptv.showLogs", "true");
-        } else {
-            disableTerminalLogs();
-        }
+        boolean syncMode = filteredArgs != null && filteredArgs.length > 0 && "sync".equalsIgnoreCase(filteredArgs[0]);
+        boolean headlessMode = filteredArgs != null && Arrays.stream(filteredArgs).anyMatch(s -> s.toLowerCase().contains("headless"));
+        System.setProperty("uiptv.headless", Boolean.toString(headlessMode));
+        AppLog.setTerminalLoggingEnabled(showLogsEnabled || headlessMode || syncMode);
 
-        if (filteredArgs != null && filteredArgs.length > 0 && "sync".equalsIgnoreCase(filteredArgs[0])) {
+        if (syncMode) {
             handleSync(filteredArgs);
             exit(0);
-        } else if (filteredArgs != null && Arrays.stream(filteredArgs).anyMatch(s -> s.toLowerCase().contains("headless"))) {
+        } else if (headlessMode) {
+            AppLog.addInfoLog(RootApplication.class, "Starting UIPTV in headless mode.");
             ServerUrlUtil.startServer();
         } else {
             launch();
@@ -134,12 +133,6 @@ public class RootApplication extends Application {
             return false;
         }
         return "show-logs".equalsIgnoreCase(arg) || "--show-logs".equalsIgnoreCase(arg);
-    }
-
-    private static void disableTerminalLogs() {
-        PrintStream sink = new PrintStream(OutputStream.nullOutputStream(), true);
-        System.setOut(sink);
-        System.setErr(sink);
     }
 
     public static Stage getPrimaryStage() {

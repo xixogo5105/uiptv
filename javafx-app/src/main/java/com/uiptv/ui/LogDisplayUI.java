@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.AppLog;
+import com.uiptv.util.WebActivityLog;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -16,6 +17,8 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
+import java.util.function.Consumer;
+
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_HEIGHT_PIXELS;
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 
@@ -23,12 +26,16 @@ public class LogDisplayUI extends VBox {
     private static TextArea logArea;
     private final Button clearLogButton= new Button(I18n.tr("autoClear"));
     private final Button copyLogButton = new Button(I18n.tr("autoCopy"));
+    private final Button webLogButton = new Button(I18n.tr("autoWebLogs"));
     private final Button detachButton = new Button(I18n.tr("autoDetach"));
     private final Button attachButton = new Button(I18n.tr("autoAttach"));
     private static boolean isLoggingEnabled = false;
     private static boolean forceLoggingEnabled = false;
     private static boolean detached = false;
     private static Stage detachedStage;
+    private static Stage webLogStage;
+    private static TextArea webLogArea;
+    private static Consumer<String> webLogListener;
     private final VBox contentBox = new VBox(5);
 
     static {
@@ -56,6 +63,7 @@ public class LogDisplayUI extends VBox {
 
         detachButton.setOnAction(event -> detachWindow());
         attachButton.setOnAction(event -> attachWindow());
+        webLogButton.setOnAction(event -> showWebLogWindow());
 
         renderAttachedView();
         getChildren().addAll(contentBox);
@@ -93,7 +101,7 @@ public class LogDisplayUI extends VBox {
 
     private void renderAttachedView() {
         contentBox.getChildren().clear();
-        HBox controlBox = new HBox(10, copyLogButton, clearLogButton, detachButton);
+        HBox controlBox = new HBox(10, copyLogButton, clearLogButton, webLogButton, detachButton);
         VBox vbox = new VBox(5, logArea, controlBox);
         VBox.setVgrow(logArea, Priority.ALWAYS);
         contentBox.getChildren().add(vbox);
@@ -119,7 +127,7 @@ public class LogDisplayUI extends VBox {
         popupRoot.setPadding(new Insets(8));
         Button popupAttachButton = new Button(I18n.tr("autoAttach"));
         popupAttachButton.setOnAction(event -> attachWindow());
-        HBox controlBox = new HBox(10, copyLogButton, clearLogButton, popupAttachButton);
+        HBox controlBox = new HBox(10, copyLogButton, clearLogButton, webLogButton, popupAttachButton);
         popupRoot.getChildren().addAll(logArea, controlBox);
         VBox.setVgrow(logArea, Priority.ALWAYS);
 
@@ -130,6 +138,91 @@ public class LogDisplayUI extends VBox {
         detachedStage.setScene(detachedScene);
         detachedStage.setOnCloseRequest(event -> attachWindow());
         detachedStage.show();
+    }
+
+    private void showWebLogWindow() {
+        if (webLogStage != null && webLogStage.isShowing()) {
+            refreshWebLogArea();
+            webLogStage.toFront();
+            return;
+        }
+
+        webLogArea = new TextArea();
+        webLogArea.setEditable(false);
+        webLogArea.setWrapText(true);
+        webLogArea.setPromptText(I18n.tr("autoNoWebRequestsLoggedYet"));
+        webLogArea.getStyleClass().add("terminal");
+
+        Label location = new Label(I18n.tr("autoWebLogsTemporaryLocation", WebActivityLog.getLogFilePath()));
+        location.setWrapText(true);
+
+        Button copyButton = new Button(I18n.tr("autoCopy"));
+        Button clearButton = new Button(I18n.tr("autoClear"));
+        Button refreshButton = new Button(I18n.tr("autoRefresh"));
+        Button closeButton = new Button(I18n.tr("commonClose"));
+        copyButton.setOnAction(event -> copyWebLogToClipboard());
+        clearButton.setOnAction(event -> {
+            WebActivityLog.clear();
+            refreshWebLogArea();
+        });
+        refreshButton.setOnAction(event -> refreshWebLogArea());
+
+        HBox controls = new HBox(10, copyButton, clearButton, refreshButton, closeButton);
+        VBox popupRoot = new VBox(8, location, webLogArea, controls);
+        popupRoot.setPadding(new Insets(8));
+        VBox.setVgrow(webLogArea, Priority.ALWAYS);
+
+        webLogListener = LogDisplayUI::appendToWebLogArea;
+        WebActivityLog.registerListener(webLogListener);
+        refreshWebLogArea();
+
+        webLogStage = new Stage();
+        webLogStage.setTitle(I18n.tr("autoWebRequestLogs"));
+        Scene scene = new Scene(popupRoot, 900, 600);
+        UiI18n.applySceneOrientation(scene);
+        webLogStage.setScene(scene);
+        webLogStage.setOnHidden(event -> {
+            WebActivityLog.unregisterListener(webLogListener);
+            webLogListener = null;
+            webLogArea = null;
+            webLogStage = null;
+        });
+        closeButton.setOnAction(event -> webLogStage.close());
+        webLogStage.show();
+    }
+
+    private static void refreshWebLogArea() {
+        if (webLogArea == null) {
+            return;
+        }
+        Runnable refresh = () -> webLogArea.setText(WebActivityLog.readAllText());
+        if (Platform.isFxApplicationThread()) {
+            refresh.run();
+        } else {
+            Platform.runLater(refresh);
+        }
+    }
+
+    private static void appendToWebLogArea(String line) {
+        if (webLogArea == null) {
+            return;
+        }
+        Runnable append = () -> webLogArea.appendText(line + "\n");
+        if (Platform.isFxApplicationThread()) {
+            append.run();
+        } else {
+            Platform.runLater(append);
+        }
+    }
+
+    private static void copyWebLogToClipboard() {
+        if (webLogArea == null) {
+            return;
+        }
+        Clipboard clipboard = Clipboard.getSystemClipboard();
+        ClipboardContent content = new ClipboardContent();
+        content.putString(webLogArea.getText());
+        clipboard.setContent(content);
     }
 
     private void attachWindow() {

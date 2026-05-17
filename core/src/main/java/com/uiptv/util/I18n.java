@@ -52,9 +52,6 @@ public final class I18n {
 
     private static final Object LOCK = new Object();
     private static final Pattern TOKEN_ARTIFACT_PATTERN = Pattern.compile("(?:__\\s*T\\s*K\\d+_+|__\\d+__|ForTK\\d+__)");
-    private static final ResourceBundle.Control NO_FALLBACK_CONTROL =
-            ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_DEFAULT);
-    
     private static Locale currentLocale = Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG);
     private static ResourceBundle bundle = loadBundle(currentLocale);
 
@@ -201,17 +198,9 @@ public final class I18n {
             if (bundle != null && bundle.containsKey(key)) {
                 return bundle.getString(key);
             }
-            try {
-                ResourceBundle fallbackBundle = ResourceBundle.getBundle(
-                        BUNDLE_BASE_NAME,
-                        Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG),
-                        I18n.class.getClassLoader(),
-                        NO_FALLBACK_CONTROL);
-                if (fallbackBundle != null && fallbackBundle.containsKey(key)) {
-                    return fallbackBundle.getString(key);
-                }
-            } catch (Exception _) {
-                // Fall back to returning the translation key when bundles are unavailable.
+            ResourceBundle fallbackBundle = loadBundle(Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG));
+            if (fallbackBundle != null && fallbackBundle.containsKey(key)) {
+                return fallbackBundle.getString(key);
             }
         }
         return key;
@@ -259,20 +248,17 @@ public final class I18n {
     }
 
     private static ResourceBundle loadBundle(Locale locale) {
+        Locale requestedLocale = locale == null ? Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG) : locale;
         try {
-            return ResourceBundle.getBundle(BUNDLE_BASE_NAME, locale, I18n.class.getClassLoader(), NO_FALLBACK_CONTROL);
+            return ResourceBundle.getBundle(BUNDLE_BASE_NAME, requestedLocale);
         } catch (MissingResourceException _) {
+            if (DEFAULT_LANGUAGE_TAG.equalsIgnoreCase(requestedLocale.toLanguageTag())) {
+                return null;
+            }
             try {
-                return ResourceBundle.getBundle(BUNDLE_BASE_NAME, locale, NO_FALLBACK_CONTROL);
+                return ResourceBundle.getBundle(BUNDLE_BASE_NAME, Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG));
             } catch (MissingResourceException _) {
-                try {
-                    return ResourceBundle.getBundle(
-                            BUNDLE_BASE_NAME,
-                            Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG),
-                            NO_FALLBACK_CONTROL);
-                } catch (MissingResourceException _) {
-                    return null;
-                }
+                return null;
             }
         }
     }

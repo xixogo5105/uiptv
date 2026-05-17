@@ -10,6 +10,8 @@ public final class AppLog {
     private static final List<Consumer<String>> listeners = new CopyOnWriteArrayList<>();
     private static final int MAX_LOG_LENGTH = 4000;
     private static final String SHOW_LOGS_PROPERTY = "uiptv.showLogs";
+    private static volatile boolean terminalLoggingEnabled =
+            Boolean.parseBoolean(System.getProperty(SHOW_LOGS_PROPERTY, "false"));
 
     private AppLog() {
     }
@@ -26,11 +28,19 @@ public final class AppLog {
         logWithLevel(logSource, log, LogLevel.ERROR);
     }
 
+    public static void addErrorLog(Class<?> logSource, String log, Throwable throwable) {
+        logWithLevel(logSource, log, LogLevel.ERROR, throwable);
+    }
+
     public static void addLog(Class<?> logSource, String log) {
         addInfoLog(logSource, log);
     }
 
     private static void logWithLevel(Class<?> logSource, String log, LogLevel level) {
+        logWithLevel(logSource, log, level, null);
+    }
+
+    private static void logWithLevel(Class<?> logSource, String log, LogLevel level, Throwable throwable) {
         if (logSource == null) {
             throw new IllegalArgumentException("logSource cannot be null");
         }
@@ -38,7 +48,13 @@ public final class AppLog {
         if (isTerminalLoggingEnabled()) {
             Logger logger = LoggerFactory.getLogger(logSource);
             switch (level) {
-                case ERROR -> logger.error(safeLog);
+                case ERROR -> {
+                    if (throwable == null) {
+                        logger.error(safeLog);
+                    } else {
+                        logger.error(safeLog, throwable);
+                    }
+                }
                 case WARNING -> logger.warn(safeLog);
                 case INFO -> logger.info(safeLog);
             }
@@ -86,8 +102,13 @@ public final class AppLog {
         }
     }
 
-    private static boolean isTerminalLoggingEnabled() {
-        return Boolean.parseBoolean(System.getProperty(SHOW_LOGS_PROPERTY, "false"));
+    public static void setTerminalLoggingEnabled(boolean enabled) {
+        terminalLoggingEnabled = enabled;
+        System.setProperty(SHOW_LOGS_PROPERTY, Boolean.toString(enabled));
+    }
+
+    public static boolean isTerminalLoggingEnabled() {
+        return terminalLoggingEnabled || Boolean.parseBoolean(System.getProperty(SHOW_LOGS_PROPERTY, "false"));
     }
 
     private enum LogLevel {
