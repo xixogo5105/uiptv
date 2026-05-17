@@ -321,19 +321,19 @@ class M3U8ParserTest {
         assertTrue(categories.stream().anyMatch(entry -> CategoryType.ALL.displayName().equals(entry.getGroupTitle())));
 
         assertFalse((Boolean) invoke("processCategoryLineSafely", new Class[]{Set.class, String.class}, null, "#EXTINF:-1 group-title=\"Bad\",Bad"));
-        assertEquals("", invoke("parseTitle", new Class[]{String.class}, "#EXTINF:-1 group-title=\"NoTitle\","));
-        assertNull(invoke("parseDrmType", new Class[]{String.class}, "#EXT-X-KEY:KEYFORMAT=\"other\""));
+        assertEquals("", invokeEntryParser("parseTitle", new Class[]{String.class}, "#EXTINF:-1 group-title=\"NoTitle\","));
+        assertNull(invokeEntryParser("parseDrmType", new Class[]{String.class}, "#EXT-X-KEY:KEYFORMAT=\"other\""));
 
         @SuppressWarnings("unchecked")
-        Map<String, String> blankKeys = (Map<String, String>) invoke("parseClearKeys", new Class[]{String.class}, "");
+        Map<String, String> blankKeys = (Map<String, String>) invokeEntryParser("parseClearKeys", new Class[]{String.class}, "");
         assertTrue(blankKeys.isEmpty());
 
-        assertEquals("", invoke("normalizePotentialUrl", new Class[]{String.class}, ""));
-        assertFalse((Boolean) invoke("isLikelyStreamUrl", new Class[]{String.class}, ""));
-        assertFalse((Boolean) invoke("isLikelyStreamUrl", new Class[]{String.class}, "# comment"));
-        assertTrue((Boolean) invoke("isLikelyStreamUrl", new Class[]{String.class}, "folder/channel"));
-        assertFalse((Boolean) invoke("isLikelyStreamUrl", new Class[]{String.class}, "plain text"));
-        assertEquals(List.of(CategoryType.UNCATEGORIZED.displayName()), invoke("effectiveGroupTitles", new Class[]{List.class}, (Object) null));
+        assertEquals("", invokeEntryParser("normalizePotentialUrl", new Class[]{String.class}, ""));
+        assertFalse((Boolean) invokeEntryParser("isLikelyStreamUrl", new Class[]{String.class}, ""));
+        assertFalse((Boolean) invokeEntryParser("isLikelyStreamUrl", new Class[]{String.class}, "# comment"));
+        assertTrue((Boolean) invokeEntryParser("isLikelyStreamUrl", new Class[]{String.class}, "folder/channel"));
+        assertFalse((Boolean) invokeEntryParser("isLikelyStreamUrl", new Class[]{String.class}, "plain text"));
+        assertEquals(List.of(CategoryType.UNCATEGORIZED.displayName()), invokeEntryParser("effectiveGroupTitles", new Class[]{List.class}, (Object) null));
         assertNull(invoke("buildCategoryEntry", new Class[]{String.class, String.class}, "id", ""));
     }
 
@@ -379,6 +379,16 @@ class M3U8ParserTest {
 
     private Object invoke(String name, Class<?>[] parameterTypes, Object... args) throws Exception {
         Method method = M3U8Parser.class.getDeclaredMethod(name, parameterTypes);
+        return invokeMethod(method, args);
+    }
+
+    private Object invokeEntryParser(String name, Class<?>[] parameterTypes, Object... args) throws Exception {
+        Class<?> parserClass = Class.forName(M3U8Parser.class.getName() + "$EntryParser");
+        Method method = parserClass.getDeclaredMethod(name, parameterTypes);
+        return invokeMethod(method, args);
+    }
+
+    private Object invokeMethod(Method method, Object... args) throws Exception {
         method.setAccessible(true);
         try {
             return method.invoke(null, args);

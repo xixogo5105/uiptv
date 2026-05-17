@@ -179,31 +179,8 @@ public class M3U8Parser {
         }
     }
 
-    private static void addParsedEntry(Consumer<PlaylistEntry> consumer, EntryHeader header, EntryState state) {
-        for (String groupTitle : effectiveGroupTitles(header.groupTitles)) {
-            consumer.accept(new PlaylistEntry(header.tvgId, groupTitle, header.title, state.url, header.logo,
-                    state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType));
-        }
-    }
-
-    private static EntryHeader parseEntryHeader(String line) {
-        return new EntryHeader(
-                parseAttribute(line, "tvg-id"),
-                splitGroupTitles(parseAttribute(line, "group-title")),
-                parseTitle(line),
-                parseAttribute(line, "tvg-logo")
-        );
-    }
-
     private static boolean shouldTreatAsUncategorized(String groupTitle) {
         return !isNotBlank(groupTitle) || groupTitle.equalsIgnoreCase(UNCATEGORIZED);
-    }
-
-    private static List<String> effectiveGroupTitles(List<String> groupTitles) {
-        if (groupTitles == null || groupTitles.isEmpty()) {
-            return List.of(UNCATEGORIZED);
-        }
-        return groupTitles;
     }
 
     private static PlaylistEntry buildCategoryEntry(String tvgId, String groupTitle) {
@@ -211,61 +188,6 @@ public class M3U8Parser {
             return null;
         }
         return new PlaylistEntry(tvgId, groupTitle, null, null, null);
-    }
-
-    private static boolean applyMetaLine(EntryState state, String nextLine, String trimmed) {
-        if (nextLine.startsWith(EXT_X_KEY)) {
-            state.drmType = parseDrmType(nextLine);
-            state.drmLicenseUrl = parseAttribute(nextLine, "URI");
-            return false;
-        }
-        if (nextLine.startsWith(KODIPROP_INPUTSTREAM_ADDON)) {
-            state.inputstreamaddon = nextLine.substring(KODIPROP_INPUTSTREAM_ADDON.length()).trim();
-            return false;
-        }
-        if (nextLine.startsWith(KODIPROP_MANIFEST_TYPE)) {
-            state.manifestType = nextLine.substring(KODIPROP_MANIFEST_TYPE.length()).trim();
-            return false;
-        }
-        if (nextLine.startsWith(KODIPROP_LICENSE_TYPE)) {
-            state.drmType = normalizeLicenseType(nextLine.substring(KODIPROP_LICENSE_TYPE.length()).trim(), state.drmType);
-            return false;
-        }
-        if (nextLine.startsWith(KODIPROP_LICENSE_KEY)) {
-            applyLicenseKey(state, nextLine.substring(KODIPROP_LICENSE_KEY.length()).trim());
-            return false;
-        }
-        if (isNotBlank(trimmed) && !trimmed.startsWith(COMMENT_PREFIX)) {
-            String normalizedCandidate = normalizePotentialUrl(trimmed);
-            if (isLikelyStreamUrl(normalizedCandidate)) {
-                state.url = normalizedCandidate;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static String normalizeLicenseType(String type, String currentType) {
-        if (DRM_TYPE_WIDEVINE.equalsIgnoreCase(type)) {
-            return DRM_TYPE_WIDEVINE;
-        }
-        if ("clearkey".equalsIgnoreCase(type)
-                || DRM_TYPE_CLEARKEY.equalsIgnoreCase(type)
-                || "com.clearkey.alpha".equalsIgnoreCase(type)) {
-            return DRM_TYPE_CLEARKEY;
-        }
-        return currentType;
-    }
-
-    private static void applyLicenseKey(EntryState state, String key) {
-        if (DRM_TYPE_CLEARKEY.equalsIgnoreCase(state.drmType)) {
-            if (state.clearKeys == null) {
-                state.clearKeys = new HashMap<>();
-            }
-            state.clearKeys.putAll(parseClearKeys(key));
-            return;
-        }
-        state.drmLicenseUrl = key;
     }
 
     private static final class EntryState {
@@ -320,93 +242,171 @@ public class M3U8Parser {
             header = null;
             state = null;
         }
+
+        private static void addParsedEntry(Consumer<PlaylistEntry> consumer, EntryHeader header, EntryState state) {
+            for (String groupTitle : effectiveGroupTitles(header.groupTitles)) {
+                consumer.accept(new PlaylistEntry(header.tvgId, groupTitle, header.title, state.url, header.logo,
+                        state.drmType, state.drmLicenseUrl, state.clearKeys, state.inputstreamaddon, state.manifestType));
+            }
+        }
+
+        private static EntryHeader parseEntryHeader(String line) {
+            return new EntryHeader(
+                    parseAttribute(line, "tvg-id"),
+                    splitGroupTitles(parseAttribute(line, "group-title")),
+                    parseTitle(line),
+                    parseAttribute(line, "tvg-logo")
+            );
+        }
+
+        private static List<String> effectiveGroupTitles(List<String> groupTitles) {
+            if (groupTitles == null || groupTitles.isEmpty()) {
+                return List.of(UNCATEGORIZED);
+            }
+            return groupTitles;
+        }
+
+        private static boolean applyMetaLine(EntryState state, String nextLine, String trimmed) {
+            if (nextLine.startsWith(EXT_X_KEY)) {
+                state.drmType = parseDrmType(nextLine);
+                state.drmLicenseUrl = parseAttribute(nextLine, "URI");
+                return false;
+            }
+            if (nextLine.startsWith(KODIPROP_INPUTSTREAM_ADDON)) {
+                state.inputstreamaddon = nextLine.substring(KODIPROP_INPUTSTREAM_ADDON.length()).trim();
+                return false;
+            }
+            if (nextLine.startsWith(KODIPROP_MANIFEST_TYPE)) {
+                state.manifestType = nextLine.substring(KODIPROP_MANIFEST_TYPE.length()).trim();
+                return false;
+            }
+            if (nextLine.startsWith(KODIPROP_LICENSE_TYPE)) {
+                state.drmType = normalizeLicenseType(nextLine.substring(KODIPROP_LICENSE_TYPE.length()).trim(), state.drmType);
+                return false;
+            }
+            if (nextLine.startsWith(KODIPROP_LICENSE_KEY)) {
+                applyLicenseKey(state, nextLine.substring(KODIPROP_LICENSE_KEY.length()).trim());
+                return false;
+            }
+            if (isNotBlank(trimmed) && !trimmed.startsWith(COMMENT_PREFIX)) {
+                String normalizedCandidate = normalizePotentialUrl(trimmed);
+                if (isLikelyStreamUrl(normalizedCandidate)) {
+                    state.url = normalizedCandidate;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static String normalizeLicenseType(String type, String currentType) {
+            if (DRM_TYPE_WIDEVINE.equalsIgnoreCase(type)) {
+                return DRM_TYPE_WIDEVINE;
+            }
+            if ("clearkey".equalsIgnoreCase(type)
+                    || DRM_TYPE_CLEARKEY.equalsIgnoreCase(type)
+                    || "com.clearkey.alpha".equalsIgnoreCase(type)) {
+                return DRM_TYPE_CLEARKEY;
+            }
+            return currentType;
+        }
+
+        private static void applyLicenseKey(EntryState state, String key) {
+            if (DRM_TYPE_CLEARKEY.equalsIgnoreCase(state.drmType)) {
+                if (state.clearKeys == null) {
+                    state.clearKeys = new HashMap<>();
+                }
+                state.clearKeys.putAll(parseClearKeys(key));
+                return;
+            }
+            state.drmLicenseUrl = key;
+        }
+
+        private static String parseTitle(String line) {
+            int lastCommaIndex = line.lastIndexOf(",");
+            if (lastCommaIndex != -1 && lastCommaIndex < line.length() - 1) {
+                return line.substring(lastCommaIndex + 1).trim();
+            }
+            return EMPTY;
+        }
+
+        private static String parseDrmType(String line) {
+            Pattern pattern = Pattern.compile("KEYFORMAT=\"(.*?)\"");
+            Matcher matcher = pattern.matcher(line);
+            if (matcher.find()) {
+                String keyFormat = matcher.group(1);
+                if (DRM_TYPE_WIDEVINE.equalsIgnoreCase(keyFormat)) {
+                    return DRM_TYPE_WIDEVINE;
+                }
+            }
+            return null;
+        }
+
+        private static Map<String, String> parseClearKeys(String keyString) {
+            Map<String, String> keys = new HashMap<>();
+            if (!isNotBlank(keyString)) {
+                return keys;
+            }
+            String normalized = keyString.trim();
+            if (normalized.startsWith("{") && normalized.endsWith("}")) {
+                try {
+                    JSONObject json = new JSONObject(normalized);
+                    for (String key : json.keySet()) {
+                        keys.put(key, json.optString(key));
+                    }
+                    return keys;
+                } catch (Exception _) {
+                    // Fall through to legacy pair parsing for malformed inputs.
+                }
+            }
+            for (String pair : normalized.split(";")) {
+                String[] parts = pair.split(":");
+                if (parts.length == 2) {
+                    keys.put(parts[0], parts[1]);
+                }
+            }
+            return keys;
+        }
+
+        private static String normalizePotentialUrl(String value) {
+            if (!isNotBlank(value)) {
+                return value;
+            }
+            String normalized = value.trim();
+            normalized = normalized.replace("\\/", "/");
+            normalized = normalized.replaceAll("(?i)\\\\u002f", "/");
+            normalized = normalized.replaceAll("(?i)\\\\u003a", ":");
+            normalized = normalized.replaceAll("(?i)\\\\u003f", "?");
+            normalized = normalized.replaceAll("(?i)\\\\u003d", "=");
+            normalized = normalized.replaceAll("(?i)\\\\u0026", "&");
+            return normalized;
+        }
+
+        private static boolean isLikelyStreamUrl(String value) {
+            if (!isNotBlank(value)) {
+                return false;
+            }
+            String candidate = value.trim();
+            if (candidate.startsWith(COMMENT_PREFIX)) {
+                return false;
+            }
+            if (candidate.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
+                return true;
+            }
+            if (candidate.startsWith("//")
+                    || candidate.startsWith("/")
+                    || candidate.startsWith("./")
+                    || candidate.startsWith("../")
+                    || candidate.matches("^[a-zA-Z]:\\\\\\\\.*")) {
+                return true;
+            }
+            if (candidate.contains("/")) {
+                return true;
+            }
+            return candidate.matches("(?i)^.+\\.(m3u8|mpd|ts|aac|mp3|mp4|m4s)(\\?.*)?$");
+        }
     }
 
     private record EntryHeader(String tvgId, List<String> groupTitles, String title, String logo) {
-    }
-
-    private static String parseTitle(String line) {
-        int lastCommaIndex = line.lastIndexOf(",");
-        if (lastCommaIndex != -1 && lastCommaIndex < line.length() - 1) {
-            return line.substring(lastCommaIndex + 1).trim();
-        }
-        return EMPTY;
-    }
-
-    private static String parseDrmType(String line) {
-        Pattern pattern = Pattern.compile("KEYFORMAT=\"(.*?)\"");
-        Matcher matcher = pattern.matcher(line);
-        if (matcher.find()) {
-            String keyFormat = matcher.group(1);
-            if (DRM_TYPE_WIDEVINE.equalsIgnoreCase(keyFormat)) {
-                return DRM_TYPE_WIDEVINE;
-            }
-        }
-        return null;
-    }
-
-    private static Map<String, String> parseClearKeys(String keyString) {
-        Map<String, String> keys = new HashMap<>();
-        if (!isNotBlank(keyString)) {
-            return keys;
-        }
-        String normalized = keyString.trim();
-        if (normalized.startsWith("{") && normalized.endsWith("}")) {
-            try {
-                JSONObject json = new JSONObject(normalized);
-                for (String key : json.keySet()) {
-                    keys.put(key, json.optString(key));
-                }
-                return keys;
-            } catch (Exception _) {
-                // Fall through to legacy pair parsing for malformed inputs.
-            }
-        }
-        for (String pair : normalized.split(";")) {
-            String[] parts = pair.split(":");
-            if (parts.length == 2) {
-                keys.put(parts[0], parts[1]);
-            }
-        }
-        return keys;
-    }
-
-    private static String normalizePotentialUrl(String value) {
-        if (!isNotBlank(value)) {
-            return value;
-        }
-        String normalized = value.trim();
-        normalized = normalized.replace("\\/", "/");
-        normalized = normalized.replaceAll("(?i)\\\\u002f", "/");
-        normalized = normalized.replaceAll("(?i)\\\\u003a", ":");
-        normalized = normalized.replaceAll("(?i)\\\\u003f", "?");
-        normalized = normalized.replaceAll("(?i)\\\\u003d", "=");
-        normalized = normalized.replaceAll("(?i)\\\\u0026", "&");
-        return normalized;
-    }
-
-    private static boolean isLikelyStreamUrl(String value) {
-        if (!isNotBlank(value)) {
-            return false;
-        }
-        String candidate = value.trim();
-        if (candidate.startsWith(COMMENT_PREFIX)) {
-            return false;
-        }
-        if (candidate.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
-            return true;
-        }
-        if (candidate.startsWith("//")
-                || candidate.startsWith("/")
-                || candidate.startsWith("./")
-                || candidate.startsWith("../")
-                || candidate.matches("^[a-zA-Z]:\\\\\\\\.*")) {
-            return true;
-        }
-        if (candidate.contains("/")) {
-            return true;
-        }
-        return candidate.matches("(?i)^.+\\.(m3u8|mpd|ts|aac|mp3|mp4|m4s)(\\?.*)?$");
     }
 
     private static boolean isHttpUri(URI source) {
