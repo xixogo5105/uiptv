@@ -17,6 +17,9 @@ public class InMemoryHlsService {
     private static final long MAX_STORAGE_BYTES = Math.max(16L * 1024L * 1024L,
             Long.getLong("uiptv.hls.max.bytes", 192L * 1024L * 1024L));
     private static final long DEFAULT_TS_DELETE_GRACE_MILLIS = 20_000L;
+    private final int maxSegments;
+    private final long maxStorageBytes;
+    private final Long fixedTsDeleteGraceMillis;
     private long totalStorageBytes = 0L;
     private final ScheduledExecutorService deleteScheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
         Thread thread = new Thread(runnable, "uiptv-hls-delete-grace");
@@ -25,6 +28,17 @@ public class InMemoryHlsService {
     });
 
     private InMemoryHlsService() {
+        this(MAX_SEGMENTS, MAX_STORAGE_BYTES, null);
+    }
+
+    InMemoryHlsService(int maxSegments, long maxStorageBytes, long tsDeleteGraceMillis) {
+        this(maxSegments, maxStorageBytes, Long.valueOf(tsDeleteGraceMillis));
+    }
+
+    private InMemoryHlsService(int maxSegments, long maxStorageBytes, Long fixedTsDeleteGraceMillis) {
+        this.maxSegments = Math.max(1, maxSegments);
+        this.maxStorageBytes = Math.max(1L, maxStorageBytes);
+        this.fixedTsDeleteGraceMillis = fixedTsDeleteGraceMillis;
     }
 
     private static class SingletonHelper {
@@ -116,13 +130,16 @@ public class InMemoryHlsService {
     }
 
     private long tsDeleteGraceMillis() {
+        if (fixedTsDeleteGraceMillis != null) {
+            return fixedTsDeleteGraceMillis;
+        }
         return Long.getLong("uiptv.hls.ts.delete.grace.millis", DEFAULT_TS_DELETE_GRACE_MILLIS);
     }
 
     private void cleanupOldSegments() {
         long tsCount = storage.keySet().stream().filter(k -> k.endsWith(".ts")).count();
 
-        while (tsCount > MAX_SEGMENTS || (tsCount > 1 && totalStorageBytes > MAX_STORAGE_BYTES)) {
+        while (tsCount > maxSegments || (tsCount > 1 && totalStorageBytes > maxStorageBytes)) {
             String oldestKey = null;
             long oldestTime = Long.MAX_VALUE;
 

@@ -18,6 +18,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -160,6 +161,34 @@ class M3U8ParserTest {
             Set<PlaylistEntry> categories = M3U8Parser.parseUrlCategory(temp.toUri().toURL());
             assertEquals("./relative.m3u8", channels.getFirst().getPlaylistEntry());
             assertTrue(categories.stream().anyMatch(entry -> "File".equals(entry.getGroupTitle())));
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+    }
+
+    @Test
+    void streamingChannelParsersMatchCollectingParsers() throws Exception {
+        Path temp = writeTempPlaylist("""
+                #EXTM3U
+                #EXTINF:-1 tvg-id="shared" tvg-logo="https://img/shared.png" group-title="News;Sports",Shared Channel
+                https://stream.test/shared.m3u8
+                #EXTINF:-1 tvg-id="drm" group-title="Movies",DRM Channel
+                #KODIPROP:inputstream.adaptive.license_type=clearkey
+                #KODIPROP:inputstream.adaptive.license_key=abc:def
+                https://stream.test/drm.mpd
+                #EXTINF:-1,No Group
+                relative.ts
+                """);
+        try {
+            List<PlaylistEntry> collected = M3U8Parser.parseChannelPathM3U8(temp.toString());
+            List<PlaylistEntry> streamedFromPath = new ArrayList<>();
+            List<PlaylistEntry> streamedFromUrl = new ArrayList<>();
+
+            M3U8Parser.forEachChannelPathM3U8(temp.toString(), streamedFromPath::add);
+            M3U8Parser.forEachChannelUrlM3U8(temp.toUri().toURL(), streamedFromUrl::add);
+
+            assertEquals(entrySignatures(collected), entrySignatures(streamedFromPath));
+            assertEquals(entrySignatures(collected), entrySignatures(streamedFromUrl));
         } finally {
             Files.deleteIfExists(temp);
         }
@@ -317,6 +346,22 @@ class M3U8ParserTest {
             assertEquals(expectedTitle, entries.get(0).getTitle());
             assertEquals(expectedUrl, entries.get(0).getPlaylistEntry());
         });
+    }
+
+    private List<String> entrySignatures(List<PlaylistEntry> entries) {
+        return entries.stream()
+                .map(entry -> String.join("|",
+                        String.valueOf(entry.getId()),
+                        String.valueOf(entry.getGroupTitle()),
+                        String.valueOf(entry.getTitle()),
+                        String.valueOf(entry.getPlaylistEntry()),
+                        String.valueOf(entry.getLogo()),
+                        String.valueOf(entry.getDrmType()),
+                        String.valueOf(entry.getDrmLicenseUrl()),
+                        String.valueOf(entry.getClearKeys()),
+                        String.valueOf(entry.getInputstreamaddon()),
+                        String.valueOf(entry.getManifestType())))
+                .toList();
     }
 
     private Object invoke(String name, Class<?>[] parameterTypes, Object... args) throws Exception {

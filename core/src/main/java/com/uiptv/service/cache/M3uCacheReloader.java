@@ -10,11 +10,12 @@ import com.uiptv.model.Channel;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.service.CategoryService;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.M3U8Parser;
 import com.uiptv.util.StringUtils;
 
 import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,41 +23,106 @@ import java.util.Map;
 import java.util.Set;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 import static com.uiptv.model.CategoryType.ALL;
 
 public class M3uCacheReloader extends AbstractAccountCacheReloader {
     @Override
     public void reloadCache(Account account, LoggerCallback logger) {
-        List<Category> categories = normalizeCategoriesByTitle(loadFreshCategories(account, logger)).categories();
-        if (categories.isEmpty()) {
-            log(logger, "No categories found. Keeping existing cache.");
-            return;
+        M3uReloadData reloadData = loadM3uReloadData(account, logger);
+        List<Category> categories = reloadData.categories();
+        Map<String, List<Channel>> channelsMap = reloadData.channelsByCategory();
+        List<Category> categoriesToSave = new ArrayList<>();
+        List<Category> savedCategories = new ArrayList<>();
+        try {
+            if (categories.isEmpty()) {
+                log(logger, "No categories found. Keeping existing cache.");
+                return;
+            }
+            log(logger, "Found Categories " + categories.size());
+
+            int totalChannels = channelsMap.values().stream().mapToInt(List::size).sum();
+
+            if (totalChannels == 0) {
+                log(logger, "No channels found in any category. Keeping existing cache.");
+                return;
+            }
+            log(logger, "Found Channels " + totalChannels + ". Found 0 Orphaned channels.");
+
+            // Filter categories: only keep those with channels and apply M3U-specific rules
+            categoriesToSave = filterCategoriesForM3u(categories, channelsMap, logger);
+
+            clearCache(account);
+            CategoryDb.get().saveAll(categoriesToSave, account);
+            savedCategories = CategoryDb.get().getCategories(account);
+            for (Category savedCat : savedCategories) {
+                List<Channel> channels = channelsMap.remove(savedCat.getTitle());
+                if (channels != null && !channels.isEmpty()) {
+                    ChannelDb.get().saveAll(channels, savedCat.getDbId(), account);
+                }
+                releaseChannelList(channels);
+            }
+            log(logger, savedCategories.size() + " Categories & " + totalChannels + " Channels saved Successfully \u2713");
+        } finally {
+            releaseChannelMap(channelsMap);
+            releaseList(categories);
+            releaseList(categoriesToSave);
+            releaseList(savedCategories);
         }
-        log(logger, "Found Categories " + categories.size());
+    }
 
-        Map<String, List<Channel>> channelsMap = loadM3uChannelsByCategory(categories, account, logger);
-        int totalChannels = channelsMap.values().stream().mapToInt(List::size).sum();
-
-        if (totalChannels == 0) {
-            log(logger, "No channels found in any category. Keeping existing cache.");
-            return;
-        }
-        log(logger, "Found Channels " + totalChannels + ". Found 0 Orphaned channels.");
-
-        // Filter categories: only keep those with channels and apply M3U-specific rules
-        List<Category> categoriesToSave = filterCategoriesForM3u(categories, channelsMap, logger);
-        
-        clearCache(account);
-        CategoryDb.get().saveAll(categoriesToSave, account);
-        List<Category> savedCategories = CategoryDb.get().getCategories(account);
-        for (Category savedCat : savedCategories) {
-            List<Channel> channels = channelsMap.get(savedCat.getTitle());
-            if (channels != null && !channels.isEmpty()) {
-                ChannelDb.get().saveAll(channels, savedCat.getDbId(), account);
+    private M3uReloadData loadM3uReloadData(Account account, LoggerCallback logger) {
+        if (canReadFreshCategoriesFromSource(account)) {
+            M3uSourceAccumulator accumulator = new M3uSourceAccumulator();
+            try {
+                forEachM3uEntry(account, accumulator::accept);
+                List<Category> categories = normalizeCategoriesByTitle(accumulator.categories()).categories();
+                return new M3uReloadData(categories, accumulator.channelsByCategory());
+            } catch (MalformedURLException e) {
+                log(logger, "Failed to load fresh M3U source: " + e.getMessage());
             }
         }
-        log(logger, savedCategories.size() + " Categories & " + totalChannels + " Channels saved Successfully \u2713");
+
+        List<Category> categories = normalizeCategoriesByTitle(loadFreshCategories(account, logger)).categories();
+        return new M3uReloadData(categories, loadM3uChannelsByCategory(categories, account, logger));
+    }
+
+    private void forEachM3uEntry(Account account, Consumer<PlaylistEntry> consumer) throws MalformedURLException {
+        String path = account.getM3u8Path();
+        if (StringUtils.isBlank(path)) {
+            return;
+        }
+        if (account.getType() == AccountType.M3U8_URL) {
+            M3U8Parser.forEachChannelUrlM3U8(new URL(path), consumer);
+            return;
+        }
+        M3U8Parser.forEachChannelPathM3U8(path, consumer);
+    }
+
+    private void releaseChannelMap(Map<String, List<Channel>> channelsMap) {
+        if (channelsMap == null || channelsMap.isEmpty()) {
+            return;
+        }
+        for (List<Channel> channels : channelsMap.values()) {
+            releaseChannelList(channels);
+        }
+        channelsMap.clear();
+    }
+
+    private void releaseChannelList(List<Channel> channels) {
+        releaseList(channels);
+    }
+
+    private void releaseList(List<?> values) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        try {
+            values.clear();
+        } catch (UnsupportedOperationException _) {
+            // Test fixtures and some callers may supply immutable lists.
+        }
     }
 
     private List<Category> loadFreshCategories(Account account, LoggerCallback logger) {
@@ -107,17 +173,21 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
 
     private M3uChannelBuckets buildM3uChannelBuckets(Account account, List<Category> categories) throws MalformedURLException {
         List<PlaylistEntry> entries = loadM3uEntries(account);
-        boolean hasOtherCategories = categories != null && categories.stream().anyMatch(category -> category != null && !isAllCategory(category));
-        List<Channel> allChannels = new ArrayList<>();
-        List<Channel> uncategorizedChannels = new ArrayList<>();
-        Map<String, List<Channel>> groupedChannels = new HashMap<>();
+        try {
+            boolean hasOtherCategories = categories != null && categories.stream().anyMatch(category -> category != null && !isAllCategory(category));
+            List<Channel> allChannels = new ArrayList<>();
+            List<Channel> uncategorizedChannels = new ArrayList<>();
+            Map<String, List<Channel>> groupedChannels = new LinkedHashMap<>();
 
-        for (PlaylistEntry entry : entries) {
-            Channel channel = toChannel(entry);
-            allChannels.add(channel);
-            addChannelToBucket(entry, channel, groupedChannels, uncategorizedChannels, hasOtherCategories);
+            for (PlaylistEntry entry : entries) {
+                Channel channel = toChannel(entry);
+                allChannels.add(channel);
+                addChannelToBucket(entry, channel, groupedChannels, uncategorizedChannels, hasOtherCategories);
+            }
+            return new M3uChannelBuckets(allChannels, uncategorizedChannels, groupedChannels);
+        } finally {
+            releaseList(entries);
         }
-        return new M3uChannelBuckets(allChannels, uncategorizedChannels, groupedChannels);
     }
 
     private void addChannelToBucket(PlaylistEntry entry,
@@ -130,6 +200,9 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
             if (hasOtherCategories) {
                 uncategorizedChannels.add(channel);
             }
+            return;
+        }
+        if (CategoryType.isAll(groupTitle)) {
             return;
         }
         groupedChannels.computeIfAbsent(groupTitle, ignored -> new ArrayList<>()).add(channel);
@@ -318,5 +391,62 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
     private record M3uChannelBuckets(List<Channel> allChannels,
                                      List<Channel> uncategorizedChannels,
                                      Map<String, List<Channel>> groupedChannels) {
+    }
+
+    private record M3uReloadData(List<Category> categories, Map<String, List<Channel>> channelsByCategory) {
+    }
+
+    private final class M3uSourceAccumulator {
+        private final Map<String, Category> categoryByTitle = new LinkedHashMap<>();
+        private final List<Channel> allChannels = new ArrayList<>();
+        private final List<Channel> uncategorizedChannels = new ArrayList<>();
+        private final Map<String, List<Channel>> groupedChannels = new LinkedHashMap<>();
+
+        private M3uSourceAccumulator() {
+            addCategory(CategoryType.ALL.displayName(), CategoryType.ALL.displayName());
+        }
+
+        private void accept(PlaylistEntry entry) {
+            if (entry == null) {
+                return;
+            }
+            String groupTitle = normalizedGroupTitle(entry);
+            if (!CategoryType.ALL.displayName().equalsIgnoreCase(groupTitle)) {
+                addCategory(entry.getId(), groupTitle);
+            }
+            Channel channel = toChannel(entry);
+            allChannels.add(channel);
+            if (isUncategorizedGroup(groupTitle)) {
+                uncategorizedChannels.add(channel);
+                return;
+            }
+            if (CategoryType.isAll(groupTitle)) {
+                return;
+            }
+            groupedChannels.computeIfAbsent(groupTitle, _ -> new ArrayList<>()).add(channel);
+        }
+
+        private void addCategory(String categoryId, String title) {
+            if (StringUtils.isBlank(title)) {
+                return;
+            }
+            categoryByTitle.putIfAbsent(categoryLookupKey(title), new Category(categoryId, title, title, false, 0));
+        }
+
+        private List<Category> categories() {
+            return new ArrayList<>(categoryByTitle.values());
+        }
+
+        private Map<String, List<Channel>> channelsByCategory() {
+            Map<String, List<Channel>> channelsByCategory = new LinkedHashMap<>();
+            if (!allChannels.isEmpty()) {
+                channelsByCategory.put(CategoryType.ALL.displayName(), allChannels);
+            }
+            channelsByCategory.putAll(groupedChannels);
+            if (!uncategorizedChannels.isEmpty()) {
+                channelsByCategory.put(CategoryType.UNCATEGORIZED.displayName(), uncategorizedChannels);
+            }
+            return channelsByCategory;
+        }
     }
 }

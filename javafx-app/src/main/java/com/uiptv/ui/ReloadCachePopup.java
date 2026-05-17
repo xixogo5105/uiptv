@@ -67,6 +67,12 @@ public class ReloadCachePopup extends VBox {
     private static final String TR_RELOAD_NO_CHANNELS_LOADED = "reloadNoChannelsLoaded";
     private static final int MAX_LOG_LINES_PER_ACCOUNT = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxLinesPerAccount", 500));
     private static final int MAX_PENDING_LOG_LINES = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxPending", 2_000));
+    private static final boolean POST_RELOAD_MEMORY_CLEANUP_ENABLED = Boolean.parseBoolean(
+            System.getProperty("uiptv.reload.memoryCleanup.enabled", "true"));
+    private static final int POST_RELOAD_MEMORY_CLEANUP_MIN_ACCOUNTS = Math.max(1,
+            Integer.getInteger("uiptv.reload.memoryCleanup.minAccounts", 1));
+    private static final long POST_RELOAD_MEMORY_CLEANUP_DELAY_MS = Math.max(0L,
+            Long.getLong("uiptv.reload.memoryCleanup.delayMs", 1_500L));
 
     private enum AccountRunStatus {
         QUEUED, RUNNING, DONE, YELLOW, FAILED, EMPTY
@@ -522,7 +528,26 @@ public class ReloadCachePopup extends VBox {
             if (Thread.currentThread() == reloadThread) {
                 reloadThread = null;
             }
+            requestPostReloadMemoryCleanup(selectedAccounts.size());
         }
+    }
+
+    private void requestPostReloadMemoryCleanup(int accountCount) {
+        if (!POST_RELOAD_MEMORY_CLEANUP_ENABLED || accountCount < POST_RELOAD_MEMORY_CLEANUP_MIN_ACCOUNTS) {
+            return;
+        }
+        Thread cleanupThread = new Thread(() -> {
+            try {
+                Thread.sleep(POST_RELOAD_MEMORY_CLEANUP_DELAY_MS);
+            } catch (InterruptedException _) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            com.uiptv.db.SQLConnection.releaseMemory();
+            System.gc();
+        }, "uiptv-reload-memory-cleanup");
+        cleanupThread.setDaemon(true);
+        cleanupThread.start();
     }
 
     private boolean isReloadStopped() {

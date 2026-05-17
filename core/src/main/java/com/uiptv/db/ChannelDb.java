@@ -157,7 +157,7 @@ public class ChannelDb extends BaseDb {
     public void saveAll(List<Channel> channels, String dbCategoryId, Account account) {
         Category category = new CategoryDb().getCategoryByDbId(dbCategoryId, account);
         deleteAll(category.getDbId());
-        List<Channel> dedupedChannels = dedupeChannelsCaseInsensitive(channels);
+        Collection<Channel> dedupedChannels = dedupeChannelsCaseInsensitive(channels);
         try (Connection conn = connect()) {
             conn.setAutoCommit(false);
             try (PreparedStatement statement = conn.prepareStatement(insertTableSql(CHANNEL_TABLE))) {
@@ -198,7 +198,7 @@ public class ChannelDb extends BaseDb {
         }
     }
 
-    private List<Channel> dedupeChannelsCaseInsensitive(List<Channel> channels) {
+    private Collection<Channel> dedupeChannelsCaseInsensitive(List<Channel> channels) {
         if (channels == null || channels.isEmpty()) {
             return List.of();
         }
@@ -209,7 +209,7 @@ public class ChannelDb extends BaseDb {
             }
             uniqueChannels.putIfAbsent(channelComparisonKey(channel), channel);
         }
-        return new ArrayList<>(uniqueChannels.values());
+        return uniqueChannels.values();
     }
 
     private String channelComparisonKey(Channel channel) {

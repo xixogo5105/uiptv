@@ -8,6 +8,8 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -363,6 +365,45 @@ class ImdbMetadataServiceTest {
 
         assertTrue(((JSONArray) invoke("fetchTmdbSeasonEpisodes", new Class[]{String.class, String.class, String.class}, "", "1", "en-US")).isEmpty());
         assertTrue(((JSONObject) invoke("mapTmdbEpisodeMeta", new Class[]{JSONObject.class}, (Object) null)).isEmpty());
+    }
+
+    @Test
+    void metadataLimits_boundSearchQueriesEpisodesSeasonsAndHttpBodies() throws Exception {
+        List<String> hints = new ArrayList<>();
+        String longTitle = "Example Show ".repeat(40);
+        for (int i = 0; i < 30; i++) {
+            hints.add(longTitle + i);
+        }
+
+        @SuppressWarnings("unchecked")
+        List<String> queries = (List<String>) invoke("buildSearchQueries", new Class[]{String.class, List.class}, longTitle, hints);
+        assertTrue(queries.size() <= 8);
+        assertTrue(queries.stream().allMatch(query -> query.length() <= 160));
+
+        JSONArray rows = new JSONArray();
+        for (int i = 0; i < 20; i++) {
+            rows.put(new JSONObject().put("index", i));
+        }
+        JSONArray trimmed = (JSONArray) invoke("trimJsonArray", new Class[]{JSONArray.class, int.class}, rows, 7);
+        assertEquals(7, trimmed.length());
+        assertEquals(0, trimmed.getJSONObject(0).getInt("index"));
+        assertEquals(6, trimmed.getJSONObject(6).getInt("index"));
+
+        Map<String, JSONObject> bySeasonEpisode = new LinkedHashMap<>();
+        for (int i = 1; i <= 40; i++) {
+            bySeasonEpisode.put(i + ":1", new JSONObject());
+        }
+        @SuppressWarnings("unchecked")
+        Set<String> seasons = (Set<String>) invoke("collectTmdbSeasons", new Class[]{Map.class}, bySeasonEpisode);
+        assertTrue(seasons.size() <= 24);
+        assertTrue(seasons.contains("1"));
+        assertFalse(seasons.contains("40"));
+
+        try (MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(Mockito.anyString(), Mockito.anyMap(), Mockito.eq("GET")))
+                    .thenReturn(new com.uiptv.util.HttpUtil.HttpResult(200, "x".repeat((2 * 1024 * 1024) + 1), Map.of(), Map.of()));
+            assertEquals("", invokeString("httpGet", "https://large.test"));
+        }
     }
 
     @Test

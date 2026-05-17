@@ -78,6 +78,14 @@ public class SQLConnection {
         }
     }
 
+    public static void releaseMemory() {
+        try (Connection conn = openConnection(); Statement statement = conn.createStatement()) {
+            statement.execute("PRAGMA shrink_memory");
+        } catch (SQLException e) {
+            com.uiptv.util.AppLog.addWarningLog(SQLConnection.class, "Unable to release SQLite memory: " + e.getMessage());
+        }
+    }
+
     private static Connection openConnection() throws SQLException {
         Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
         try (Statement statement = conn.createStatement()) {

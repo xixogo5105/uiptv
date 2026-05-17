@@ -11,8 +11,7 @@ class InMemoryHlsServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = InMemoryHlsService.getInstance();
-        service.clear();
+        service = new InMemoryHlsService(3, 1024L, 0L);
     }
 
     @Test
@@ -40,7 +39,7 @@ class InMemoryHlsServiceTest {
 
     @Test
     void testCleanupOldSegments() {
-        int maxSegments = Integer.getInteger("uiptv.hls.max.segments", 180);
+        int maxSegments = 3;
         int extraSegments = 5;
         int totalSegments = maxSegments + extraSegments;
 
@@ -53,7 +52,19 @@ class InMemoryHlsServiceTest {
         assertFalse(service.exists("segment" + (extraSegments - 1) + ".ts"));
         assertTrue(service.exists("segment" + extraSegments + ".ts"));
         assertTrue(service.exists("segment" + (totalSegments - 1) + ".ts"));
-        assertTrue(service.exists("segment" + maxSegments + ".ts"));
+    }
+
+    @Test
+    void evictsOldestSegmentsWhenByteCapExceeded() {
+        service = new InMemoryHlsService(100, 10L, 0L);
+
+        service.put("old.ts", new byte[7]);
+        waitForNextMillisecond();
+        service.put("new.ts", new byte[7]);
+
+        assertFalse(service.exists("old.ts"));
+        assertTrue(service.exists("new.ts"));
+        assertEquals(7L, service.getTotalStorageBytes());
     }
 
     @Test

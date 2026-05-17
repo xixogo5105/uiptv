@@ -54,4 +54,29 @@ class ChannelDbCoverageTest extends DbBackedTest {
         assertEquals(0, channelDb.getChannelCountForAccount(savedAccount.getDbId()));
         assertTrue(channelDb.getChannels(savedCategory.getDbId()).isEmpty());
     }
+
+    @Test
+    void saveAllDedupesCaseInsensitiveWithoutExtraCopies() {
+        Account account = new Account("channel-db-dedupe", "user", "pass", "http://test.com",
+                "00:11:22:33:44:56", null, null, null, null, null,
+                AccountType.M3U8_URL, null, "http://test.com/playlist.m3u8", false);
+        AccountService.getInstance().save(account);
+        Account savedAccount = AccountService.getInstance().getByName("channel-db-dedupe");
+
+        Category category = new Category("cat-1", "Sports", "sports", false, 0);
+        CategoryDb.get().saveAll(List.of(category), savedAccount);
+        Category savedCategory = CategoryDb.get().getCategories(savedAccount).get(0);
+
+        ChannelDb.get().saveAll(List.of(
+                new Channel("ESPN", "ESPN", "1", "cmd://1", null, null, null, "logo1", 0, 1, 1, null, null, null, null, null),
+                new Channel("espn", "Duplicate ESPN", "2", "cmd://2", null, null, null, "logo2", 0, 1, 1, null, null, null, null, null),
+                new Channel("", "Sky Sports", "3", "cmd://3", null, null, null, "logo3", 0, 1, 1, null, null, null, null, null),
+                new Channel("", " sky sports ", "4", "cmd://4", null, null, null, "logo4", 0, 1, 1, null, null, null, null, null)
+        ), savedCategory.getDbId(), savedAccount);
+
+        List<Channel> channels = ChannelDb.get().getChannels(savedCategory.getDbId());
+        assertEquals(2, channels.size());
+        assertTrue(channels.stream().anyMatch(channel -> "ESPN".equals(channel.getName())));
+        assertTrue(channels.stream().anyMatch(channel -> "Sky Sports".equals(channel.getName())));
+    }
 }
