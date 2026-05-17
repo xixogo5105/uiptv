@@ -16,7 +16,6 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.M3U8Parser;
 
 import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -32,7 +31,7 @@ import static com.uiptv.model.Account.AccountAction.itv;
 import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.model.Account.AccountAction.vod;
 import static com.uiptv.util.M3U8Parser.parseChannelPathM3U8;
-import static com.uiptv.util.M3U8Parser.parseChannelUrlM3U8;
+import static com.uiptv.util.M3U8Parser.parseChannelSourceM3U8;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
@@ -248,7 +247,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
             return new LinkedHashSet<>();
         }
         return account.getType() == AccountType.M3U8_URL
-                ? M3U8Parser.parseUrlCategory(new URL(path))
+                ? M3U8Parser.parseSourceCategory(path)
                 : M3U8Parser.parsePathCategory(path);
     }
 
@@ -259,7 +258,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
             return List.of();
         }
         return account.getType() == AccountType.M3U8_URL
-                ? parseChannelUrlM3U8(new URL(path))
+                ? parseChannelSourceM3U8(path)
                 : parseChannelPathM3U8(path);
     }
 

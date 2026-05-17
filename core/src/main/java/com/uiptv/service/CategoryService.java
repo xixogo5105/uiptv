@@ -18,7 +18,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.*;
 
 import static com.uiptv.model.Account.AccountAction.itv;
@@ -29,7 +28,7 @@ import static com.uiptv.util.AccountType.*;
 import static com.uiptv.util.FetchAPI.nullSafeBoolean;
 import static com.uiptv.util.FetchAPI.nullSafeInteger;
 import static com.uiptv.util.M3U8Parser.parsePathCategory;
-import static com.uiptv.util.M3U8Parser.parseUrlCategory;
+import static com.uiptv.util.M3U8Parser.parseSourceCategory;
 
 public class CategoryService {
     private final ContentFilterService contentFilterService;
@@ -216,7 +215,7 @@ public class CategoryService {
     @SuppressWarnings("java:S1874")
     private List<Category> m3u8Categories(Account account) throws MalformedURLException {
         Set<Category> categories = new LinkedHashSet<>();
-        Set<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL ? parseUrlCategory(new URL(account.getM3u8Path())) : parsePathCategory(account.getM3u8Path());
+        Set<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL ? parseSourceCategory(account.getM3u8Path()) : parsePathCategory(account.getM3u8Path());
         m3uEntries.forEach(entry -> {
             Category c = new Category(entry.getId(), entry.getGroupTitle(), entry.getGroupTitle(), false, 0);
             categories.add(c);

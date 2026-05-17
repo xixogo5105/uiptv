@@ -41,7 +41,25 @@ public class M3U8Parser {
     }
 
     public static Set<PlaylistEntry> parseUrlCategory(URL m3u8Url) {
-        return parseUriCategory(URI.create(m3u8Url.toString()));
+        return parseSourceCategory(m3u8Url.toString());
+    }
+
+    public static Set<PlaylistEntry> parseSourceCategory(String m3u8Source) {
+        try {
+            String source = normalizeSource(m3u8Source);
+            if (isHttpSource(source)) {
+                HttpUtil.StreamResult response = HttpUtil.openStream(source, null, "GET", null, HttpUtil.RequestOptions.defaults());
+                try (response;
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(response.bodyStream(), StandardCharsets.UTF_8))) {
+                    return parseCategory(reader);
+                }
+            }
+            try (BufferedReader reader = openUriReader(URI.create(source))) {
+                return parseCategory(reader);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Unable to parse M3U categories from URL", e);
+        }
     }
 
     public static Set<PlaylistEntry> parseUriCategory(URI m3u8Uri) {
@@ -70,7 +88,13 @@ public class M3U8Parser {
     }
 
     public static List<PlaylistEntry> parseChannelUrlM3U8(URL m3u8Url) {
-        return parseChannelUriM3U8(URI.create(m3u8Url.toString()));
+        return parseChannelSourceM3U8(m3u8Url.toString());
+    }
+
+    public static List<PlaylistEntry> parseChannelSourceM3U8(String m3u8Source) {
+        List<PlaylistEntry> entries = new ArrayList<>();
+        forEachChannelSourceM3U8(m3u8Source, entries::add);
+        return entries;
     }
 
     public static List<PlaylistEntry> parseChannelUriM3U8(URI m3u8Uri) {
@@ -80,7 +104,26 @@ public class M3U8Parser {
     }
 
     public static void forEachChannelUrlM3U8(URL m3u8Url, Consumer<PlaylistEntry> consumer) {
-        forEachChannelUriM3U8(URI.create(m3u8Url.toString()), consumer);
+        forEachChannelSourceM3U8(m3u8Url.toString(), consumer);
+    }
+
+    public static void forEachChannelSourceM3U8(String m3u8Source, Consumer<PlaylistEntry> consumer) {
+        try {
+            String source = normalizeSource(m3u8Source);
+            if (isHttpSource(source)) {
+                HttpUtil.StreamResult response = HttpUtil.openStream(source, null, "GET", null, HttpUtil.RequestOptions.defaults());
+                try (response;
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(response.bodyStream(), StandardCharsets.UTF_8))) {
+                    parseM3U8(reader, consumer);
+                    return;
+                }
+            }
+            try (BufferedReader reader = openUriReader(URI.create(source))) {
+                parseM3U8(reader, consumer);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Unable to parse M3U channels from URL", e);
+        }
     }
 
     public static void forEachChannelUriM3U8(URI m3u8Uri, Consumer<PlaylistEntry> consumer) {
@@ -412,6 +455,18 @@ public class M3U8Parser {
     private static boolean isHttpUri(URI source) {
         String protocol = source == null ? "" : source.getScheme();
         return protocol != null && protocol.toLowerCase().startsWith("http");
+    }
+
+    private static boolean isHttpSource(String source) {
+        if (!isNotBlank(source)) {
+            return false;
+        }
+        return source.regionMatches(true, 0, "http://", 0, "http://".length())
+                || source.regionMatches(true, 0, "https://", 0, "https://".length());
+    }
+
+    private static String normalizeSource(String source) {
+        return source == null ? "" : source.trim();
     }
 
     private static BufferedReader openUriReader(URI source) throws IOException {
