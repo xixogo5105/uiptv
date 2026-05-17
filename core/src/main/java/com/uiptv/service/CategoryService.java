@@ -17,7 +17,6 @@ import com.uiptv.util.XtremeApiParser;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.net.MalformedURLException;
 import java.util.*;
 
 import static com.uiptv.model.Account.AccountAction.itv;
@@ -212,8 +211,7 @@ public class CategoryService {
         return XtremeApiParser.parseCategories(account);
     }
 
-    @SuppressWarnings("java:S1874")
-    private List<Category> m3u8Categories(Account account) throws MalformedURLException {
+    private List<Category> m3u8Categories(Account account) {
         Set<Category> categories = new LinkedHashSet<>();
         Set<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL ? parseSourceCategory(account.getM3u8Path()) : parsePathCategory(account.getM3u8Path());
         m3uEntries.forEach(entry -> {

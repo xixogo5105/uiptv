@@ -13,7 +13,6 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.M3U8Parser;
 import com.uiptv.util.StringUtils;
 
-import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -78,7 +77,7 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
                 forEachM3uEntry(account, accumulator::accept);
                 List<Category> categories = normalizeCategoriesByTitle(accumulator.categories()).categories();
                 return new M3uReloadData(categories, accumulator.channelsByCategory());
-            } catch (MalformedURLException e) {
+            } catch (RuntimeException e) {
                 log(logger, "Failed to load fresh M3U source: " + e.getMessage());
             }
         }
@@ -87,7 +86,7 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
         return new M3uReloadData(categories, loadM3uChannelsByCategory(categories, account, logger));
     }
 
-    private void forEachM3uEntry(Account account, Consumer<PlaylistEntry> consumer) throws MalformedURLException {
+    private void forEachM3uEntry(Account account, Consumer<PlaylistEntry> consumer) {
         String path = account.getM3u8Path();
         if (StringUtils.isBlank(path)) {
             return;
@@ -134,7 +133,7 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
                 categories.add(new Category(entry.getId(), entry.getGroupTitle(), entry.getGroupTitle(), false, 0));
             }
             return new ArrayList<>(categories);
-        } catch (MalformedURLException e) {
+        } catch (RuntimeException e) {
             log(logger, "Failed to load fresh M3U categories: " + e.getMessage());
             return CategoryService.getInstance().get(account, false, logger);
         }
@@ -164,13 +163,13 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
         try {
             M3uChannelBuckets buckets = buildM3uChannelBuckets(account, categories);
             populateChannelsByCategory(categories, channelsByCategory, buckets);
-        } catch (MalformedURLException e) {
+        } catch (RuntimeException e) {
             log(logger, "Failed to load M3U channels: " + e.getMessage());
         }
         return channelsByCategory;
     }
 
-    private M3uChannelBuckets buildM3uChannelBuckets(Account account, List<Category> categories) throws MalformedURLException {
+    private M3uChannelBuckets buildM3uChannelBuckets(Account account, List<Category> categories) {
         List<PlaylistEntry> entries = loadM3uEntries(account);
         try {
             boolean hasOtherCategories = categories != null && categories.stream().anyMatch(category -> category != null && !isAllCategory(category));

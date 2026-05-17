@@ -15,7 +15,6 @@ import com.uiptv.util.RssParser;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.M3U8Parser;
 
-import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -213,7 +212,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         return "fallback:" + UUID.randomUUID();
     }
 
-    protected List<Channel> m3u8Channels(String category, Account account) throws MalformedURLException {
+    protected List<Channel> m3u8Channels(String category, Account account) {
         Set<Channel> channels = new LinkedHashSet<>();
         Set<PlaylistEntry> m3uCategories = loadM3uCategories(account);
         boolean hasOtherCategories = m3uCategories.size() >= 2;
@@ -240,8 +239,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         return channels.stream().toList();
     }
 
-    @SuppressWarnings("java:S1874")
-    protected Set<PlaylistEntry> loadM3uCategories(Account account) throws MalformedURLException {
+    protected Set<PlaylistEntry> loadM3uCategories(Account account) {
         String path = account.getM3u8Path();
         if (isBlank(path)) {
             return new LinkedHashSet<>();
@@ -251,8 +249,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
                 : M3U8Parser.parsePathCategory(path);
     }
 
-    @SuppressWarnings("java:S1874")
-    protected List<PlaylistEntry> loadM3uEntries(Account account) throws MalformedURLException {
+    protected List<PlaylistEntry> loadM3uEntries(Account account) {
         String path = account.getM3u8Path();
         if (isBlank(path)) {
             return List.of();
