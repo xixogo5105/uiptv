@@ -643,7 +643,7 @@ class EmbeddedPlayerActivity : Activity() {
             zoomButton = iconControlButton(zoomModes[zoomModeIndex].iconRes, "Zoom ${zoomModes[zoomModeIndex].label}") { cycleZoomMode() }
             addView(zoomButton, compactControlLayoutParams())
             if (isPictureInPictureAvailable()) {
-                addView(controlButton(PictureInPictureLabel) { enterPictureInPicture() }, compactControlLayoutParams())
+                addView(iconControlButton(R.drawable.picture_in_picture, "Picture in picture") { enterPictureInPicture() }, compactControlLayoutParams())
             }
         }
         val controlsScroller = HorizontalScrollView(this).apply {
@@ -1497,7 +1497,6 @@ class EmbeddedPlayerActivity : Activity() {
         private const val RewindIcon = "\u23EA"
         private const val ForwardIcon = "\u23E9"
         private const val PlaylistIcon = "List"
-        private const val PictureInPictureLabel = "PiP"
         private const val CloseIcon = "\u2715"
     }
 }
