@@ -59,7 +59,7 @@ class AndroidDatabaseBackupManager(
         reopenAndValidateLiveDatabase()
 
         BackupRestoreResult(
-            message = "Backup restored. Restart the app if any screen still shows old data.",
+            message = "Backup restored. Local data refreshed.",
             bytes = stagedDatabase.length()
         )
     }

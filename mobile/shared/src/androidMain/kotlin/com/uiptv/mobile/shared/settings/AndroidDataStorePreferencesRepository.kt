@@ -37,6 +37,11 @@ class AndroidDataStorePreferencesRepository(
                 repeatReconnect = values[EMBEDDED_PLAYER_REPEAT_RECONNECT] ?: false,
                 muted = values[EMBEDDED_PLAYER_MUTED] ?: false
             ),
+            panelVisibilityPreference = PanelVisibilityPreference(
+                bookmarksCategoryPanelVisible = values[PANEL_BOOKMARKS_CATEGORY_VISIBLE] ?: false,
+                watchingNowDetailsPanelVisible = values[PANEL_WATCHING_NOW_DETAILS_VISIBLE] ?: true,
+                accountsActionsPanelVisible = values[PANEL_ACCOUNTS_ACTIONS_VISIBLE] ?: false
+            ),
             firstRunCompleted = values[FIRST_RUN_COMPLETED] ?: false
         )
     }
@@ -69,6 +74,14 @@ class AndroidDataStorePreferencesRepository(
         }
     }
 
+    override suspend fun savePanelVisibilityPreference(preference: PanelVisibilityPreference) {
+        dataStore.edit { values ->
+            values[PANEL_BOOKMARKS_CATEGORY_VISIBLE] = preference.bookmarksCategoryPanelVisible
+            values[PANEL_WATCHING_NOW_DETAILS_VISIBLE] = preference.watchingNowDetailsPanelVisible
+            values[PANEL_ACCOUNTS_ACTIONS_VISIBLE] = preference.accountsActionsPanelVisible
+        }
+    }
+
     override suspend fun setFirstRunCompleted(completed: Boolean) {
         dataStore.edit { values ->
             values[FIRST_RUN_COMPLETED] = completed
@@ -84,6 +97,9 @@ class AndroidDataStorePreferencesRepository(
         val PLAYER_REMEMBER = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PLAYER_REMEMBER)
         val EMBEDDED_PLAYER_REPEAT_RECONNECT = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_REPEAT_RECONNECT)
         val EMBEDDED_PLAYER_MUTED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_MUTED)
+        val PANEL_BOOKMARKS_CATEGORY_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_BOOKMARKS_CATEGORY_VISIBLE)
+        val PANEL_WATCHING_NOW_DETAILS_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_WATCHING_NOW_DETAILS_VISIBLE)
+        val PANEL_ACCOUNTS_ACTIONS_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_ACCOUNTS_ACTIONS_VISIBLE)
         val FIRST_RUN_COMPLETED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.FIRST_RUN_COMPLETED)
     }
 }

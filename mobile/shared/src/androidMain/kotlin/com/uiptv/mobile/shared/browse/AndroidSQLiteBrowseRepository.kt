@@ -90,6 +90,13 @@ class AndroidSQLiteBrowseRepository(
         }
     }
 
+    fun invalidateCaches() {
+        synchronized(bookmarkCacheLock) {
+            bookmarkCache = null
+            bookmarkIndexesEnsured = false
+        }
+    }
+
     private fun invalidateBookmarkCache() {
         synchronized(bookmarkCacheLock) {
             bookmarkCache = null

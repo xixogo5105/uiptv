@@ -7,6 +7,7 @@ import com.uiptv.mobile.shared.db.UiptvSchemaInfo
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import com.uiptv.mobile.shared.settings.AndroidPlayerPreference
 import com.uiptv.mobile.shared.settings.EmbeddedPlayerPreference
+import com.uiptv.mobile.shared.settings.PanelVisibilityPreference
 import com.uiptv.mobile.shared.settings.PlayerPreference
 import java.io.File
 import kotlinx.coroutines.runBlocking
@@ -41,6 +42,7 @@ class AndroidPreferencesRepositoryTest {
         assertEquals(true, defaults.playerPreference.rememberForFutureStreams)
         assertEquals(false, defaults.embeddedPlayerPreference.repeatReconnect)
         assertEquals(false, defaults.embeddedPlayerPreference.muted)
+        assertEquals(PanelVisibilityPreference(), defaults.panelVisibilityPreference)
 
         repository.saveRemoteEndpoint("192.168.1.20", 8888)
         repository.savePlayerPreference(
@@ -56,6 +58,13 @@ class AndroidPreferencesRepositoryTest {
                 muted = true
             )
         )
+        repository.savePanelVisibilityPreference(
+            PanelVisibilityPreference(
+                bookmarksCategoryPanelVisible = true,
+                watchingNowDetailsPanelVisible = false,
+                accountsActionsPanelVisible = true
+            )
+        )
         repository.markRemoteSyncSucceeded(1_893_456_000L)
         repository.setFirstRunCompleted(true)
 
@@ -69,6 +78,14 @@ class AndroidPreferencesRepositoryTest {
         assertEquals(true, snapshot.playerPreference.rememberForFutureStreams)
         assertEquals(true, snapshot.embeddedPlayerPreference.repeatReconnect)
         assertEquals(true, snapshot.embeddedPlayerPreference.muted)
+        assertEquals(
+            PanelVisibilityPreference(
+                bookmarksCategoryPanelVisible = true,
+                watchingNowDetailsPanelVisible = false,
+                accountsActionsPanelVisible = true
+            ),
+            snapshot.panelVisibilityPreference
+        )
         assertEquals(true, snapshot.firstRunCompleted)
 
         val columns = AndroidUiptvDatabaseHelper(context).use { helper ->

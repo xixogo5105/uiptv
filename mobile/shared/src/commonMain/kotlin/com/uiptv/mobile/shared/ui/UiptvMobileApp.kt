@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -134,6 +135,7 @@ import com.uiptv.mobile.shared.settings.AndroidPreferenceSnapshot
 import com.uiptv.mobile.shared.settings.AndroidFilterSettings
 import com.uiptv.mobile.shared.settings.BackupRestoreResult
 import com.uiptv.mobile.shared.settings.MobileBackupArchive
+import com.uiptv.mobile.shared.settings.PanelVisibilityPreference
 import com.uiptv.mobile.shared.settings.PlayerPreference
 import com.uiptv.mobile.shared.sync.RemoteSyncProgress
 import com.uiptv.mobile.shared.sync.RemoteSyncProgressStep
@@ -276,6 +278,7 @@ fun UiptvMobileApp(
     browseActions: BrowseUiActions = BrowseUiActions.preview(),
     playbackActions: PlaybackUiActions = PlaybackUiActions.preview(),
     filterActions: FilterUiActions = FilterUiActions.preview(),
+    panelVisibilityActions: PanelVisibilityUiActions = PanelVisibilityUiActions.preview(),
     backupRestoreActions: BackupRestoreUiActions = BackupRestoreUiActions.preview(),
     localPlaylistPicker: LocalPlaylistPicker? = null,
     backupFileCreator: BackupFileCreator? = null,
@@ -288,10 +291,18 @@ fun UiptvMobileApp(
     var selectedBrowseAccount by remember { mutableStateOf<MobileAccount?>(null) }
     var showThumbnails by remember { mutableStateOf(false) }
     var wideSearchVisible by rememberSaveable { mutableStateOf(false) }
+    var panelVisibilityPreference by remember { mutableStateOf(PanelVisibilityPreference()) }
+    val appScope = rememberCoroutineScope()
     fun selectTab(index: Int) {
         selectedTab = index
         selectedBrowseAccount = null
         wideSearchVisible = false
+    }
+    fun updatePanelVisibility(preference: PanelVisibilityPreference) {
+        panelVisibilityPreference = preference
+        appScope.launch {
+            runCatching { panelVisibilityActions.save(preference) }
+        }
     }
     backHandler(selectedBrowseAccount != null) {
         selectedBrowseAccount = null
@@ -299,6 +310,10 @@ fun UiptvMobileApp(
     LaunchedEffect(filterActions) {
         runCatching { filterActions.load() }
             .onSuccess { showThumbnails = it.enableThumbnails }
+    }
+    LaunchedEffect(panelVisibilityActions) {
+        runCatching { panelVisibilityActions.load() }
+            .onSuccess { panelVisibilityPreference = it }
     }
 
     val useDarkTheme = isSystemInDarkTheme()
@@ -326,6 +341,7 @@ fun UiptvMobileApp(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .background(palette.background)
+                                .safeDrawingPadding()
                         ) {
                             AppTabs(
                                 selectedTab = selectedTab,
@@ -354,6 +370,7 @@ fun UiptvMobileApp(
                                 restoreFilePicker = restoreFilePicker,
                                 selectedBrowseAccount = selectedBrowseAccount,
                                 showThumbnails = showThumbnails,
+                                panelVisibilityPreference = panelVisibilityPreference,
                                 logoRenderer = logoRenderer,
                                 playerIconRenderer = playerIconRenderer,
                                 onOpenAccountChannels = { account ->
@@ -361,6 +378,7 @@ fun UiptvMobileApp(
                                 },
                                 onCloseAccountChannels = { selectedBrowseAccount = null },
                                 onThumbnailSettingChanged = { showThumbnails = it },
+                                onPanelVisibilityPreferenceChange = ::updatePanelVisibility,
                                 backHandler = backHandler,
                                 wideLayout = true,
                                 wideSearchVisible = wideSearchVisible && wideSearchEnabled,
@@ -389,6 +407,7 @@ fun UiptvMobileApp(
                                 restoreFilePicker = restoreFilePicker,
                                 selectedBrowseAccount = selectedBrowseAccount,
                                 showThumbnails = showThumbnails,
+                                panelVisibilityPreference = panelVisibilityPreference,
                                 logoRenderer = logoRenderer,
                                 playerIconRenderer = playerIconRenderer,
                                 onOpenAccountChannels = { account ->
@@ -396,6 +415,7 @@ fun UiptvMobileApp(
                                 },
                                 onCloseAccountChannels = { selectedBrowseAccount = null },
                                 onThumbnailSettingChanged = { showThumbnails = it },
+                                onPanelVisibilityPreferenceChange = ::updatePanelVisibility,
                                 backHandler = backHandler,
                                 wideLayout = false,
                                 wideSearchVisible = false,
@@ -426,11 +446,13 @@ private fun CurrentTab(
     restoreFilePicker: RestoreFilePicker?,
     selectedBrowseAccount: MobileAccount?,
     showThumbnails: Boolean,
+    panelVisibilityPreference: PanelVisibilityPreference,
     logoRenderer: LogoRenderer,
     playerIconRenderer: PlayerIconRenderer,
     onOpenAccountChannels: (MobileAccount) -> Unit,
     onCloseAccountChannels: () -> Unit,
     onThumbnailSettingChanged: (Boolean) -> Unit,
+    onPanelVisibilityPreferenceChange: (PanelVisibilityPreference) -> Unit,
     backHandler: @Composable (enabled: Boolean, onBack: () -> Unit) -> Unit,
     wideLayout: Boolean,
     wideSearchVisible: Boolean,
@@ -451,13 +473,34 @@ private fun CurrentTab(
                     playerIconRenderer,
                     wideLayout,
                     wideSearchVisible,
+                    resumeSignal,
+                    panelVisibilityPreference.bookmarksCategoryPanelVisible,
+                    { visible ->
+                        onPanelVisibilityPreferenceChange(
+                            panelVisibilityPreference.copy(bookmarksCategoryPanelVisible = visible)
+                        )
+                    },
                     Modifier.fillMaxSize()
                 )
             }
             1 -> {
                 val account = selectedBrowseAccount.takeIf { hasBrowseAccount }
                 if (account == null) {
-                    AccountsScreen(accountActions, onOpenAccountChannels, localPlaylistPicker, wideLayout, wideSearchVisible, Modifier.fillMaxSize())
+                    AccountsScreen(
+                        accountActions,
+                        onOpenAccountChannels,
+                        localPlaylistPicker,
+                        wideLayout,
+                        wideSearchVisible,
+                        resumeSignal,
+                        panelVisibilityPreference.accountsActionsPanelVisible,
+                        { visible ->
+                            onPanelVisibilityPreferenceChange(
+                                panelVisibilityPreference.copy(accountsActionsPanelVisible = visible)
+                            )
+                        },
+                        Modifier.fillMaxSize()
+                    )
                 } else {
                     ChannelsScreen(
                         browseActions = browseActions,
@@ -473,6 +516,7 @@ private fun CurrentTab(
                         backHandler = backHandler,
                         wideLayout = wideLayout,
                         wideSearchVisible = wideSearchVisible,
+                        refreshSignal = resumeSignal,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -487,6 +531,12 @@ private fun CurrentTab(
                     resumeSignal,
                     wideLayout,
                     wideSearchVisible,
+                    panelVisibilityPreference.watchingNowDetailsPanelVisible,
+                    { visible ->
+                        onPanelVisibilityPreferenceChange(
+                            panelVisibilityPreference.copy(watchingNowDetailsPanelVisible = visible)
+                        )
+                    },
                     Modifier.fillMaxSize()
                 )
             }
@@ -523,6 +573,7 @@ private fun ChannelsScreen(
     backHandler: @Composable (enabled: Boolean, onBack: () -> Unit) -> Unit = { _, _ -> },
     wideLayout: Boolean = false,
     wideSearchVisible: Boolean = false,
+    refreshSignal: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -587,7 +638,7 @@ private fun ChannelsScreen(
         channelQuery = ""
         reload(snapshot.selectedAccountId, null, "", mode)
     }
-    LaunchedEffect(browseActions, requestedAccountId, selectedAccountType) {
+    LaunchedEffect(browseActions, requestedAccountId, selectedAccountType, refreshSignal) {
         val activeMode = if (mode in visibleModes) mode else BrowseMode.LIVE
         mode = activeMode
         selectedCategoryRowId = null
@@ -1753,6 +1804,9 @@ private fun BookmarksScreen(
     playerIconRenderer: PlayerIconRenderer,
     wideLayout: Boolean,
     wideSearchVisible: Boolean,
+    refreshSignal: Int,
+    categoryPanelVisible: Boolean,
+    onCategoryPanelVisibleChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -1761,7 +1815,6 @@ private fun BookmarksScreen(
     var bookmarks by remember { mutableStateOf<List<MobileBookmark>>(emptyList()) }
     var query by remember { mutableStateOf("") }
     var searchVisible by rememberSaveable { mutableStateOf(false) }
-    var wideCategoryPanelVisible by rememberSaveable { mutableStateOf(true) }
     var statusText by remember { mutableStateOf("Loading") }
     var running by remember { mutableStateOf(false) }
     var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
@@ -1783,7 +1836,7 @@ private fun BookmarksScreen(
         }
     }
 
-    LaunchedEffect(browseActions) {
+    LaunchedEffect(browseActions, refreshSignal) {
         reload()
     }
 
@@ -1798,7 +1851,7 @@ private fun BookmarksScreen(
             showThumbnails = showThumbnails,
             logoRenderer = logoRenderer,
             searchVisible = wideSearchVisible,
-            categoryPanelVisible = wideCategoryPanelVisible,
+            categoryPanelVisible = categoryPanelVisible,
             onQueryChange = {
                 query = it
                 reload(search = it)
@@ -1807,7 +1860,7 @@ private fun BookmarksScreen(
                 selectedCategoryId = category.id
                 reload(category.id)
             },
-            onToggleCategoryPanel = { wideCategoryPanelVisible = !wideCategoryPanelVisible },
+            onToggleCategoryPanel = { onCategoryPanelVisibleChange(!categoryPanelVisible) },
             onPlay = { bookmark ->
                 scope.launch {
                     running = true
@@ -2337,6 +2390,8 @@ private fun WatchingNowScreen(
     resumeSignal: Int,
     wideLayout: Boolean,
     wideSearchVisible: Boolean,
+    detailsPanelVisible: Boolean,
+    onDetailsPanelVisibleChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -2482,6 +2537,8 @@ private fun WatchingNowScreen(
             onRemoveSeries = { pendingRemoveWatchingNow = series },
             wideLayout = wideLayout,
             wideSearchVisible = wideSearchVisible,
+            detailsPanelVisible = detailsPanelVisible,
+            onDetailsPanelVisibleChange = onDetailsPanelVisibleChange,
             modifier = modifier
         )
         EpisodeActionSheet(
@@ -3162,6 +3219,8 @@ private fun WatchingNowSeriesDetail(
     emptyDetail: String = "Refresh this account on desktop or Android to cache episode links.",
     wideLayout: Boolean = false,
     wideSearchVisible: Boolean = false,
+    detailsPanelVisible: Boolean = true,
+    onDetailsPanelVisibleChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val seasonTabs = remember(episodes) { episodes.seasonTabs() }
@@ -3176,9 +3235,6 @@ private fun WatchingNowSeriesDetail(
     }
     var episodeQuery by rememberSaveable(series.accountId, series.categoryProviderId, series.contentId) {
         mutableStateOf("")
-    }
-    var widePosterPanelVisible by rememberSaveable(series.accountId, series.categoryProviderId, series.contentId) {
-        mutableStateOf(true)
     }
     val activeSeasonKey = seasonTabs.firstOrNull { it.key == selectedSeasonKey }?.key
         ?: seasonTabs.firstOrNull { it.key == watchedSeasonKey }?.key
@@ -3231,7 +3287,7 @@ private fun WatchingNowSeriesDetail(
             activeSeasonKey = activeSeasonKey,
             episodeQuery = episodeQuery,
             searchVisible = wideSearchVisible,
-            posterPanelVisible = widePosterPanelVisible,
+            posterPanelVisible = detailsPanelVisible,
             listState = listState,
             running = running,
             statusText = statusText,
@@ -3243,7 +3299,7 @@ private fun WatchingNowSeriesDetail(
             onBack = onBack,
             onRemoveSeries = onRemoveSeries,
             onEpisodeQueryChange = { episodeQuery = it },
-            onTogglePosterPanel = { widePosterPanelVisible = !widePosterPanelVisible },
+            onTogglePosterPanel = { onDetailsPanelVisibleChange(!detailsPanelVisible) },
             onSeasonSelect = { tab ->
                 seasonPickedByUser = true
                 selectedSeasonKey = tab.key
@@ -4918,6 +4974,9 @@ private fun AccountsScreen(
     localPlaylistPicker: LocalPlaylistPicker?,
     wideLayout: Boolean,
     wideSearchVisible: Boolean,
+    refreshSignal: Int,
+    actionsPanelVisible: Boolean,
+    onActionsPanelVisibleChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -4933,7 +4992,6 @@ private fun AccountsScreen(
     var accountFilter by remember { mutableStateOf(AccountFilter.ALL) }
     var accountSearchVisible by remember { mutableStateOf(false) }
     var accountSearchQuery by remember { mutableStateOf("") }
-    var wideActionsPanelVisible by rememberSaveable { mutableStateOf(true) }
     var actionsMenuExpanded by remember { mutableStateOf(false) }
 
     fun reload() {
@@ -4969,7 +5027,7 @@ private fun AccountsScreen(
         }
     }
 
-    LaunchedEffect(accountActions) {
+    LaunchedEffect(accountActions, refreshSignal) {
         accounts = accountActions.loadAccounts()
     }
 
@@ -5034,12 +5092,12 @@ private fun AccountsScreen(
                 accountFilter = accountFilter,
                 accountSearchVisible = effectiveAccountSearchVisible,
                 accountSearchQuery = accountSearchQuery,
-                actionsPanelVisible = wideActionsPanelVisible,
+                actionsPanelVisible = actionsPanelVisible,
                 running = running,
                 statusText = statusText,
                 onFilterSelect = { accountFilter = it },
                 onSearchChange = { accountSearchQuery = it },
-                onToggleActionsPanel = { wideActionsPanelVisible = !wideActionsPanelVisible },
+                onToggleActionsPanel = { onActionsPanelVisibleChange(!actionsPanelVisible) },
                 onNewAccount = {
                     editing = MobileAccount()
                     selectedType = MobileAccountType.STALKER_PORTAL
@@ -5608,6 +5666,7 @@ private fun AccountRow(
                 Text(
                     account.accountName,
                     modifier = Modifier.weight(1f),
+                    color = DeepNightText,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
@@ -5621,7 +5680,7 @@ private fun AccountRow(
                 modifier = Modifier.semantics { contentDescription = "Account actions for ${account.accountName}" },
                 onClick = { menuExpanded = true }
             ) {
-                Icon(Icons.Outlined.MoreVert, contentDescription = null)
+                Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = DeepNightMutedText)
             }
             DropdownMenu(
                 expanded = menuExpanded,
@@ -6374,6 +6433,19 @@ data class FilterUiActions(
                 save = {},
                 setPaused = {},
                 setEnableThumbnails = {}
+            )
+    }
+}
+
+data class PanelVisibilityUiActions(
+    val load: suspend () -> PanelVisibilityPreference,
+    val save: suspend (PanelVisibilityPreference) -> Unit
+) {
+    companion object {
+        fun preview(): PanelVisibilityUiActions =
+            PanelVisibilityUiActions(
+                load = { PanelVisibilityPreference() },
+                save = {}
             )
     }
 }

@@ -30,10 +30,17 @@ data class EmbeddedPlayerPreference(
     val muted: Boolean = false
 )
 
+data class PanelVisibilityPreference(
+    val bookmarksCategoryPanelVisible: Boolean = false,
+    val watchingNowDetailsPanelVisible: Boolean = true,
+    val accountsActionsPanelVisible: Boolean = false
+)
+
 data class AndroidPreferenceSnapshot(
     val remoteEndpoint: RemoteEndpointPreference = RemoteEndpointPreference(),
     val playerPreference: PlayerPreference = PlayerPreference(),
     val embeddedPlayerPreference: EmbeddedPlayerPreference = EmbeddedPlayerPreference(),
+    val panelVisibilityPreference: PanelVisibilityPreference = PanelVisibilityPreference(),
     val firstRunCompleted: Boolean = false
 )
 
@@ -48,6 +55,8 @@ interface AndroidPreferencesRepository {
 
     suspend fun saveEmbeddedPlayerPreference(preference: EmbeddedPlayerPreference)
 
+    suspend fun savePanelVisibilityPreference(preference: PanelVisibilityPreference)
+
     suspend fun setFirstRunCompleted(completed: Boolean)
 }
 
@@ -60,6 +69,9 @@ object AndroidOnlyPreferenceKeys {
     const val PLAYER_REMEMBER = "player_remember"
     const val EMBEDDED_PLAYER_REPEAT_RECONNECT = "embedded_player_repeat_reconnect"
     const val EMBEDDED_PLAYER_MUTED = "embedded_player_muted"
+    const val PANEL_BOOKMARKS_CATEGORY_VISIBLE = "panel_bookmarks_category_visible"
+    const val PANEL_WATCHING_NOW_DETAILS_VISIBLE = "panel_watching_now_details_visible"
+    const val PANEL_ACCOUNTS_ACTIONS_VISIBLE = "panel_accounts_actions_visible"
     const val FIRST_RUN_COMPLETED = "first_run_completed"
 
     val all: Set<String> = setOf(
@@ -71,6 +83,9 @@ object AndroidOnlyPreferenceKeys {
         PLAYER_REMEMBER,
         EMBEDDED_PLAYER_REPEAT_RECONNECT,
         EMBEDDED_PLAYER_MUTED,
+        PANEL_BOOKMARKS_CATEGORY_VISIBLE,
+        PANEL_WATCHING_NOW_DETAILS_VISIBLE,
+        PANEL_ACCOUNTS_ACTIONS_VISIBLE,
         FIRST_RUN_COMPLETED
     )
 }

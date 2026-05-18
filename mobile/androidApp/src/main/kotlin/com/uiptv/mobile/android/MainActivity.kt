@@ -48,6 +48,7 @@ import com.uiptv.mobile.shared.ui.BackupRestoreUiActions
 import com.uiptv.mobile.shared.ui.BrowseUiActions
 import com.uiptv.mobile.shared.ui.DefaultPlayerIcon
 import com.uiptv.mobile.shared.ui.FilterUiActions
+import com.uiptv.mobile.shared.ui.PanelVisibilityUiActions
 import com.uiptv.mobile.shared.ui.PlaybackUiActions
 import com.uiptv.mobile.shared.ui.UiptvMobileApp
 import com.uiptv.mobile.shared.ui.RemoteSyncUiActions
@@ -72,6 +73,10 @@ class MainActivity : ComponentActivity() {
             snapshotApplier = AndroidSQLiteSnapshotSyncApplier(databaseHelper, cacheDir),
             preferences = preferences
         )
+        fun notifyLocalDatabaseChanged() {
+            browseRepository.invalidateCaches()
+            appResumeSignal += 1
+        }
 
         setContent {
             var pendingLocalPlaylistSelection by remember { mutableStateOf<((String) -> Unit)?>(null) }
@@ -109,8 +114,14 @@ class MainActivity : ComponentActivity() {
                 syncActions = RemoteSyncUiActions(
                     loadPreferences = preferences::load,
                     checkConnection = syncService::checkConnection,
-                    pullFromDesktop = syncService::pullFromDesktop,
-                    resetLocalData = localDataResetter::resetAndVacuum
+                    pullFromDesktop = { host, port, onProgress ->
+                        syncService.pullFromDesktop(host, port, onProgress)
+                            .also { notifyLocalDatabaseChanged() }
+                    },
+                    resetLocalData = {
+                        localDataResetter.resetAndVacuum()
+                        notifyLocalDatabaseChanged()
+                    }
                 ),
                 accountActions = AccountUiActions(
                     loadAccounts = accountRepository::listAccounts,
@@ -155,9 +166,16 @@ class MainActivity : ComponentActivity() {
                     setPaused = filterRepository::setPaused,
                     setEnableThumbnails = filterRepository::setEnableThumbnails
                 ),
+                panelVisibilityActions = PanelVisibilityUiActions(
+                    load = { preferences.load().panelVisibilityPreference },
+                    save = preferences::savePanelVisibilityPreference
+                ),
                 backupRestoreActions = BackupRestoreUiActions(
                     backupToUri = backupManager::backupToUri,
-                    restoreFromUri = backupManager::restoreFromUri
+                    restoreFromUri = { uri ->
+                        backupManager.restoreFromUri(uri)
+                            .also { notifyLocalDatabaseChanged() }
+                    }
                 ),
                 logoRenderer = { logoUrl, description, modifier ->
                     RemoteLogoImage(logoUrl, description, modifier)

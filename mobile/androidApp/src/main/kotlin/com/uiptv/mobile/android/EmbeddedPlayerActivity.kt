@@ -37,6 +37,7 @@ import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlaybackTarget
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import com.uiptv.mobile.shared.settings.EmbeddedPlayerPreference
+import java.lang.reflect.Field
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -375,6 +376,7 @@ class EmbeddedPlayerActivity : Activity() {
         val media = Media(createdLibVlc, Uri.parse(streamUrl)).apply {
             setHWDecoderEnabled(true, false)
             addOption(":http-reconnect")
+            addOption(":http-user-agent=$ChromeUserAgent")
             addOption(":network-caching=1500")
             addOption(":live-caching=1500")
             addOption(":file-caching=1500")
@@ -1260,6 +1262,9 @@ class EmbeddedPlayerActivity : Activity() {
     private fun currentVideoTrackDetails(): VideoTrackDetails? {
         val player = mediaPlayer ?: return null
         val media = runCatching { player.media }.getOrNull()
+        currentRenderedVideoLayoutDetails(player)
+            ?.takeIf { it.hasUsefulInfo() }
+            ?.let { return it }
         runCatching { player.currentVideoTrack }
             .getOrNull()
             ?.toVideoTrackDetails()
@@ -1273,6 +1278,42 @@ class EmbeddedPlayerActivity : Activity() {
         }
         return media?.let { bestUsefulVideoTrack(it) }
     }
+
+    private fun currentRenderedVideoLayoutDetails(player: MediaPlayer): VideoTrackDetails? {
+        val helper = runCatching { VideoHelperField?.get(player) }.getOrNull() ?: return null
+        val videoWidth = helper.intField("mVideoWidth")
+        val videoHeight = helper.intField("mVideoHeight")
+        val visibleWidth = helper.intField("mVideoVisibleWidth").takeIf { it > 0 } ?: videoWidth
+        val visibleHeight = helper.intField("mVideoVisibleHeight").takeIf { it > 0 } ?: videoHeight
+        if (visibleWidth <= 0 || visibleHeight <= 0) {
+            return null
+        }
+        val sarNum = helper.intField("mVideoSarNum")
+        val sarDen = helper.intField("mVideoSarDen")
+        val sampleAspectRatio = if (sarNum > 0 && sarDen > 0) {
+            sarNum.toFloat() / sarDen.toFloat()
+        } else {
+            1f
+        }
+        val adjustedWidth = (visibleWidth * sampleAspectRatio).roundToInt().coerceAtLeast(1)
+        return VideoTrackDetails(
+            displayWidth = adjustedWidth,
+            displayHeight = visibleHeight,
+            codec = currentVideoCodec(player)
+        )
+    }
+
+    private fun currentVideoCodec(player: MediaPlayer): String =
+        runCatching { player.currentVideoTrack }
+            .getOrNull()
+            ?.codec
+            ?.takeIf { it.isNotBlank() }
+            ?: runCatching { player.media }.getOrNull()?.let(::bestUsefulVideoTrack)?.codec.orEmpty()
+
+    private fun Any.intField(name: String): Int =
+        runCatching {
+            javaClass.getDeclaredField(name).apply { isAccessible = true }.getInt(this)
+        }.getOrDefault(0)
 
     private fun findVideoTrackById(media: IMedia, trackId: Int): VideoTrackDetails? =
         runCatching {
@@ -1472,6 +1513,7 @@ class EmbeddedPlayerActivity : Activity() {
         private const val MaxReconnectAttempts = 5
         private const val PreferredAudioOutput = "opensles"
         private const val LogTag = "UIPTV-Embedded"
+        private const val ChromeUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
         private const val StreamInfoRefreshShortDelayMs = 250L
         private const val StreamInfoRefreshMediumDelayMs = 1_000L
         private const val StreamInfoRefreshLongDelayMs = 2_500L
@@ -1498,6 +1540,9 @@ class EmbeddedPlayerActivity : Activity() {
         private const val ForwardIcon = "\u23E9"
         private const val PlaylistIcon = "List"
         private const val CloseIcon = "\u2715"
+        private val VideoHelperField: Field? = runCatching {
+            MediaPlayer::class.java.getDeclaredField("mVideoHelper").apply { isAccessible = true }
+        }.getOrNull()
     }
 }
 
