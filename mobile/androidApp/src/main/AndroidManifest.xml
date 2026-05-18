@@ -2,6 +2,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
     <queries>
         <package android:name="org.videolan.vlc" />
         <package android:name="com.mxtech.videoplayer.pro" />
@@ -21,6 +24,7 @@
 
     <application
         android:allowBackup="false"
+        android:banner="@drawable/tv_banner"
         android:icon="@mipmap/ic_launcher"
         android:label="UIPTV"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -33,8 +37,10 @@
             android:exported="false" />
         <activity
             android:name=".EmbeddedPlayerActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:exported="false" />
+            android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
+            android:exported="false"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true" />
         <activity
             android:name=".MainActivity"
             android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
@@ -42,6 +48,10 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
     </application>

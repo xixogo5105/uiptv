@@ -2,7 +2,9 @@ package com.uiptv.mobile.android
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.PictureInPictureParams
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
@@ -16,6 +18,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.util.Rational
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -639,6 +642,9 @@ class EmbeddedPlayerActivity : Activity() {
             addView(repeatButton, compactControlLayoutParams())
             zoomButton = iconControlButton(zoomModes[zoomModeIndex].iconRes, "Zoom ${zoomModes[zoomModeIndex].label}") { cycleZoomMode() }
             addView(zoomButton, compactControlLayoutParams())
+            if (isPictureInPictureAvailable()) {
+                addView(controlButton(PictureInPictureLabel) { enterPictureInPicture() }, compactControlLayoutParams())
+            }
         }
         val controlsScroller = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
@@ -747,6 +753,42 @@ class EmbeddedPlayerActivity : Activity() {
         if (::playlistOverlay.isInitialized) {
             playlistOverlay.visibility = View.GONE
         }
+    }
+
+    private fun isPictureInPictureAvailable(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
+            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+
+    private fun enterPictureInPicture() {
+        if (!isPictureInPictureAvailable()) {
+            showFeedback("PiP unavailable")
+            return
+        }
+        hidePlaylistOverlay()
+        controlsOverlay.visibility = View.GONE
+        controlsVisible = false
+        overlayHandler.removeCallbacks(hideControlsRunnable)
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                enterPictureInPictureMode(
+                    PictureInPictureParams.Builder()
+                        .setAspectRatio(currentVideoAspectRatio())
+                        .build()
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                enterPictureInPictureMode()
+            }
+        }.onFailure {
+            Log.w(LogTag, "Unable to enter picture-in-picture", it)
+            showFeedback("PiP unavailable")
+        }
+    }
+
+    private fun currentVideoAspectRatio(): Rational {
+        val width = videoLayout.width.takeIf { it > 0 } ?: rootLayout.width.takeIf { it > 0 } ?: 16
+        val height = videoLayout.height.takeIf { it > 0 } ?: rootLayout.height.takeIf { it > 0 } ?: 9
+        return Rational(width.coerceAtLeast(1), height.coerceAtLeast(1))
     }
 
     private fun controlButton(label: String, onClick: () -> Unit): TextView =
@@ -1455,6 +1497,7 @@ class EmbeddedPlayerActivity : Activity() {
         private const val RewindIcon = "\u23EA"
         private const val ForwardIcon = "\u23E9"
         private const val PlaylistIcon = "List"
+        private const val PictureInPictureLabel = "PiP"
         private const val CloseIcon = "\u2715"
     }
 }
