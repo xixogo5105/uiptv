@@ -10,6 +10,7 @@ import android.os.Build
 import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
 import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
+import com.uiptv.mobile.shared.browse.AndroidBookmarkPlayHistoryStore
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.browse.MobileBookmark
 import com.uiptv.mobile.shared.browse.MobileBrowseItem
@@ -143,6 +144,9 @@ class AndroidPlaybackCoordinator(
     suspend fun playBookmark(bookmark: MobileBookmark, player: AndroidPlayerPreference, remember: Boolean): PlaybackLaunchResult =
         withContext(Dispatchers.IO) {
             val result = launch(bookmark.toPlaybackTarget(), player)
+            if (result.launched) {
+                AndroidBookmarkPlayHistoryStore(databaseHelper.writableDatabase).record(bookmark)
+            }
             if (result.launched && remember) {
                 preferences.savePlayerPreference(PlayerPreference(player, player.resolvePreferredPackageName(), true))
             }

@@ -83,6 +83,9 @@ data class MobileBookmarkCategory(
     val itemCount: Int = 0
 )
 
+const val RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID = "__recently_played_bookmarks__"
+const val RECENTLY_PLAYED_BOOKMARKS_CATEGORY_NAME = "Recently Played Channels"
+
 data class MobileWatchingNowItem(
     val rowId: Long,
     val accountId: Long,
@@ -184,6 +187,8 @@ interface BrowseRepository {
     suspend fun toggleBookmark(item: MobileBrowseItem): Boolean
 
     suspend fun removeBookmark(bookmarkId: Long)
+
+    suspend fun clearRecentlyPlayedBookmarks()
 
     suspend fun listWatchingNow(query: String): List<MobileWatchingNowItem>
 

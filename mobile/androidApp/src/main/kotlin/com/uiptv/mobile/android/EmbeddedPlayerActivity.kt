@@ -630,9 +630,10 @@ class EmbeddedPlayerActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             playPauseButton = controlButton(PauseIcon) { togglePlayPause() }
             addView(playPauseButton, compactControlLayoutParams())
-            addView(controlButton(StopIcon) { finish() }, compactControlLayoutParams())
             addView(controlButton(RewindIcon) { seekBySeconds(-SeekStepSeconds) }, compactControlLayoutParams())
             addView(controlButton(ForwardIcon) { seekBySeconds(SeekStepSeconds) }, compactControlLayoutParams())
+            addView(iconControlButton(R.drawable.reload, "Reload stream") { reloadCurrentStream() }, compactControlLayoutParams())
+            addView(controlButton(StopIcon) { finish() }, compactControlLayoutParams())
             if (currentBingeSession != null) {
                 addView(controlButton(PlaylistIcon) { togglePlaylistOverlay() }, compactControlLayoutParams())
             }
@@ -846,6 +847,26 @@ class EmbeddedPlayerActivity : Activity() {
             player.play()
         }
         updatePlayPauseButton()
+    }
+
+    private fun reloadCurrentStream() {
+        cancelReconnect()
+        reconnectAttempt = 0
+        reconnectScheduled = false
+        playbackStarted = false
+        selectedVideoTrackId = UnknownTrackId
+        messageView.visibility = View.GONE
+        hidePlaylistOverlay()
+        showFeedback("Reloading")
+        mediaPlayer?.let { player ->
+            runCatching { player.stop() }
+        }
+        val session = currentBingeSession
+        if (currentTarget == null && session != null) {
+            playBingeIndex(if (currentBingeIndex >= 0) currentBingeIndex else session.startIndex)
+        } else {
+            startPlayback()
+        }
     }
 
     private fun toggleMute() {

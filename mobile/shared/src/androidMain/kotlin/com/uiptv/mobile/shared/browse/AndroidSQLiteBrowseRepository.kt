@@ -66,12 +66,20 @@ class AndroidSQLiteBrowseRepository(
 
     override suspend fun listBookmarkCategories(): List<MobileBookmarkCategory> = withContext(Dispatchers.IO) {
         val db = databaseHelper.writableDatabase
-        loadBookmarkCache(db).categories
+        val cache = loadBookmarkCache(db)
+        cache.categories.withRecentlyPlayedCategory(
+            AndroidBookmarkPlayHistoryStore(db).currentBookmarkCount(cache.bookmarks)
+        )
     }
 
     override suspend fun listBookmarks(query: String, bookmarkCategoryId: String?): List<MobileBookmark> = withContext(Dispatchers.IO) {
         val db = databaseHelper.writableDatabase
-        loadBookmarkCache(db).bookmarks.filterBookmarks(query, bookmarkCategoryId)
+        val cache = loadBookmarkCache(db)
+        if (bookmarkCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID) {
+            AndroidBookmarkPlayHistoryStore(db).topBookmarks(cache.bookmarks, query)
+        } else {
+            cache.bookmarks.filterBookmarks(query, bookmarkCategoryId)
+        }
     }
 
     private fun loadBookmarkCache(db: SQLiteDatabase): BookmarkCache {
@@ -342,6 +350,10 @@ class AndroidSQLiteBrowseRepository(
         db.delete("Bookmark", "id = ?", arrayOf(bookmarkId.toString()))
         db.delete("BookmarkOrder", "bookmark_db_id = ?", arrayOf(bookmarkId.toString()))
         invalidateBookmarkCache()
+    }
+
+    override suspend fun clearRecentlyPlayedBookmarks(): Unit = withContext(Dispatchers.IO) {
+        AndroidBookmarkPlayHistoryStore(databaseHelper.writableDatabase).clear()
     }
 
     override suspend fun listWatchingNow(query: String): List<MobileWatchingNowItem> = withContext(Dispatchers.IO) {
@@ -1778,6 +1790,23 @@ class AndroidSQLiteBrowseRepository(
                         bookmark.accountName.contains(normalizedQuery, ignoreCase = true) ||
                         bookmark.categoryTitle.contains(normalizedQuery, ignoreCase = true)
                     )
+        }
+    }
+
+    private fun List<MobileBookmarkCategory>.withRecentlyPlayedCategory(itemCount: Int): List<MobileBookmarkCategory> {
+        val recentCategory = MobileBookmarkCategory(
+            id = RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID,
+            name = RECENTLY_PLAYED_BOOKMARKS_CATEGORY_NAME,
+            itemCount = itemCount
+        )
+        val baseCategories = filterNot { it.id == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID }
+        if (baseCategories.isEmpty()) {
+            return listOf(recentCategory)
+        }
+        return buildList {
+            add(baseCategories.first())
+            add(recentCategory)
+            addAll(baseCategories.drop(1))
         }
     }
 

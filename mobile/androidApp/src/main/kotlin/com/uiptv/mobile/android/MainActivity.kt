@@ -140,6 +140,10 @@ class MainActivity : ComponentActivity() {
                     listBookmarks = browseRepository::listBookmarks,
                     toggleBookmark = browseRepository::toggleBookmark,
                     removeBookmark = browseRepository::removeBookmark,
+                    clearRecentlyPlayedBookmarks = {
+                        browseRepository.clearRecentlyPlayedBookmarks()
+                        notifyLocalDatabaseChanged()
+                    },
                     listWatchingNow = browseRepository::listWatchingNow,
                     listWatchingNowEpisodes = browseRepository::listWatchingNowEpisodes,
                     enrichWatchingNowItem = browseRepository::enrichWatchingNowItem,

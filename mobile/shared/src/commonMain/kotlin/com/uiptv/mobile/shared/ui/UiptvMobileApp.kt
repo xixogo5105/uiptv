@@ -116,6 +116,7 @@ import com.uiptv.mobile.shared.browse.MobileBookmarkCategory
 import com.uiptv.mobile.shared.browse.MobileBrowseCategory
 import com.uiptv.mobile.shared.browse.MobileBrowseItem
 import com.uiptv.mobile.shared.browse.MobileBrowseSnapshot
+import com.uiptv.mobile.shared.browse.RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID
 import com.uiptv.mobile.shared.browse.MobileSeriesDetails
 import com.uiptv.mobile.shared.browse.MobileSeriesSeasonTab
 import com.uiptv.mobile.shared.browse.MobileWatchingNowEpisode
@@ -543,6 +544,7 @@ private fun CurrentTab(
             3 -> {
                 RemoteSyncScreen(
                     syncActions,
+                    browseActions,
                     playbackActions,
                     filterActions,
                     backupRestoreActions,
@@ -1867,7 +1869,10 @@ private fun BookmarksScreen(
                     val preference = playbackActions.loadPlayerPreference()
                     if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
                         runCatching { playbackActions.playBookmark(bookmark, preference.selectedPlayer, false) }
-                            .onSuccess { statusText = it.message }
+                            .onSuccess {
+                                statusText = it.message
+                                if (it.launched) reload()
+                            }
                             .onFailure { statusText = it.message ?: "Unable to open bookmark" }
                     } else {
                         playerChoices = playbackActions.playerChoices()
@@ -1921,7 +1926,10 @@ private fun BookmarksScreen(
                             is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
                         }
                     }
-                        .onSuccess { statusText = it.message }
+                        .onSuccess {
+                            statusText = it.message
+                            if (it.launched && pending is PendingPlayback.Bookmark) reload()
+                        }
                         .onFailure { statusText = it.message ?: "Unable to open bookmark" }
                     running = false
                 }
@@ -1988,8 +1996,8 @@ private fun BookmarksScreen(
         if (bookmarks.isEmpty()) {
             item {
                 EmptyState(
-                    title = if (query.isBlank()) "No bookmarks" else "No bookmark matches",
-                    detail = if (query.isBlank()) "Save channels from the Channels screen." else "Try a shorter search term."
+                    title = bookmarkEmptyTitle(query, selectedCategoryId),
+                    detail = bookmarkEmptyDetail(query, selectedCategoryId)
                 )
             }
         }
@@ -2004,7 +2012,10 @@ private fun BookmarksScreen(
                         val preference = playbackActions.loadPlayerPreference()
                         if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
                             runCatching { playbackActions.playBookmark(bookmark, preference.selectedPlayer, false) }
-                                .onSuccess { statusText = it.message }
+                                .onSuccess {
+                                    statusText = it.message
+                                    if (it.launched) reload()
+                                }
                                 .onFailure { statusText = it.message ?: "Unable to open bookmark" }
                         } else {
                             playerChoices = playbackActions.playerChoices()
@@ -2064,15 +2075,32 @@ private fun BookmarksScreen(
                         is PendingPlayback.Watching -> playbackActions.playWatchingNow(pending.item, player, remember)
                         is PendingPlayback.WatchingEpisode -> playbackActions.playWatchingNowEpisode(pending.episode, player, remember)
                         is PendingPlayback.Binge -> playbackActions.playBingeWatchSeason(pending.series, pending.episodes, pending.seasonKey, player, remember)
+                        }
                     }
-                }
-                    .onSuccess { statusText = it.message }
+                    .onSuccess {
+                        statusText = it.message
+                        if (it.launched && pending is PendingPlayback.Bookmark) reload()
+                    }
                     .onFailure { statusText = it.message ?: "Unable to open bookmark" }
                 running = false
             }
         }
     )
 }
+
+private fun bookmarkEmptyTitle(query: String, selectedCategoryId: String?): String =
+    when {
+        query.isNotBlank() -> "No bookmark matches"
+        selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID -> "No recently played channels"
+        else -> "No bookmarks"
+    }
+
+private fun bookmarkEmptyDetail(query: String, selectedCategoryId: String?): String =
+    when {
+        query.isNotBlank() -> "Try a shorter search term."
+        selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID -> "Play bookmarks to build this list."
+        else -> "Save channels from the Channels screen."
+    }
 
 @Composable
 private fun BookmarkRow(
@@ -2267,8 +2295,8 @@ private fun WideBookmarksContent(
                 if (bookmarks.isEmpty()) {
                     item {
                         EmptyState(
-                            title = if (query.isBlank()) "No bookmarks" else "No bookmark matches",
-                            detail = if (query.isBlank()) "Save channels from the Channels screen." else "Try a shorter search term."
+                            title = bookmarkEmptyTitle(query, selectedCategoryId),
+                            detail = bookmarkEmptyDetail(query, selectedCategoryId)
                         )
                     }
                 }
@@ -4086,6 +4114,7 @@ private fun UserPill(
 @Composable
 private fun RemoteSyncScreen(
     syncActions: RemoteSyncUiActions,
+    browseActions: BrowseUiActions,
     playbackActions: PlaybackUiActions,
     filterActions: FilterUiActions,
     backupRestoreActions: BackupRestoreUiActions,
@@ -4200,6 +4229,16 @@ private fun RemoteSyncScreen(
         }
     }
 
+    fun clearRecentlyPlayedBookmarks() {
+        scope.launch {
+            running = true
+            runCatching { browseActions.clearRecentlyPlayedBookmarks() }
+                .onSuccess { statusText = "Recently played channels cleared" }
+                .onFailure { statusText = it.message ?: "Unable to clear recently played channels" }
+            running = false
+        }
+    }
+
     val selectedPlayerChoice = remember(selectedPlayer, playerChoices) {
         (listOf(PlayerChoice(AndroidPlayerPreference.ASK_EVERY_TIME, "Ask")) + playerChoices)
             .firstOrNull { it.matchesSelected(selectedPlayer) }
@@ -4264,6 +4303,7 @@ private fun RemoteSyncScreen(
             },
             onBackup = ::launchBackup,
             onRestore = { confirmRestore = true },
+            onClearRecentlyPlayedBookmarks = ::clearRecentlyPlayedBookmarks,
             onThumbnailChange = { enabled ->
                 scope.launch {
                     running = true
@@ -4483,6 +4523,14 @@ private fun RemoteSyncScreen(
                 }
                 Text("Change", color = DeepNightPrimary, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
             }
+        }
+        Text("Playback History", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        OutlinedButton(
+            modifier = Modifier.semantics { contentDescription = "Clear recently played bookmark channels" },
+            enabled = !running,
+            onClick = ::clearRecentlyPlayedBookmarks
+        ) {
+            Text("Clear Recently Played")
         }
         Text("Filters", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Text(
@@ -4714,6 +4762,7 @@ private fun WideRemoteSyncContent(
     onPull: () -> Unit,
     onBackup: () -> Unit,
     onRestore: () -> Unit,
+    onClearRecentlyPlayedBookmarks: () -> Unit,
     onThumbnailChange: (Boolean) -> Unit,
     onPlayerClick: () -> Unit,
     onPausedToggle: () -> Unit,
@@ -4873,6 +4922,16 @@ private fun WideRemoteSyncContent(
                         }
                         Text("Change", color = DeepNightPrimary, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     }
+                }
+                Text("Playback History", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                OutlinedButton(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = "Clear recently played bookmark channels" },
+                    enabled = !running,
+                    onClick = onClearRecentlyPlayedBookmarks
+                ) {
+                    Text("Clear Recently Played")
                 }
                 Text("Reset", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Button(
@@ -6315,6 +6374,7 @@ data class BrowseUiActions(
     val listBookmarks: suspend (String, String?) -> List<MobileBookmark>,
     val toggleBookmark: suspend (MobileBrowseItem) -> Boolean,
     val removeBookmark: suspend (Long) -> Unit,
+    val clearRecentlyPlayedBookmarks: suspend () -> Unit,
     val listWatchingNow: suspend (String) -> List<MobileWatchingNowItem>,
     val listWatchingNowEpisodes: suspend (MobileWatchingNowItem) -> List<MobileWatchingNowEpisode>,
     val enrichWatchingNowItem: suspend (MobileWatchingNowItem) -> MobileWatchingNowItem,
@@ -6372,6 +6432,7 @@ data class BrowseUiActions(
                 },
                 toggleBookmark = { true },
                 removeBookmark = {},
+                clearRecentlyPlayedBookmarks = {},
                 listWatchingNow = {
                     listOf(MobileWatchingNowItem(1, 1, "Demo", BrowseMode.VOD, "Demo Movie", "Demo", updatedAtEpochSeconds = 1))
                 },
