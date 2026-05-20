@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.coroutines.cancellation.CancellationException
 import java.util.UUID
 
 class AndroidCacheRefreshScheduler(
@@ -250,7 +251,7 @@ class AndroidCacheMaintenanceWorker(
                             )
                         )
                     )
-                    val result = refreshAccount(account, m3uReloader, xtremeReloader, stalkerReloader)
+                    val result = refreshAccountSafely(account, m3uReloader, xtremeReloader, stalkerReloader)
                     when (result.status) {
                         CacheRefreshJobStatus.SUCCEEDED -> passedAccounts += account.accountName
                         CacheRefreshJobStatus.SKIPPED -> skippedAccounts += account.accountName
@@ -258,6 +259,7 @@ class AndroidCacheMaintenanceWorker(
                         CacheRefreshJobStatus.QUEUED,
                         CacheRefreshJobStatus.RUNNING -> Unit
                     }
+                    releaseLargeRefreshAllocations()
                     setProgress(
                         workDataOf(
                             KEY_STATUS to CacheRefreshJobStatus.RUNNING.name,
@@ -296,6 +298,24 @@ class AndroidCacheMaintenanceWorker(
             ongoing = false
         )
         return result
+    }
+
+    private suspend fun refreshAccountSafely(
+        account: MobileAccount,
+        m3uReloader: AndroidM3uCacheReloader,
+        xtremeReloader: AndroidXtremeCacheReloader,
+        stalkerReloader: AndroidStalkerCacheReloader
+    ): M3uRefreshResult =
+        try {
+            refreshAccount(account, m3uReloader, xtremeReloader, stalkerReloader)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            M3uRefreshResult.failed(e.message ?: "Unexpected refresh error.")
+        }
+
+    private fun releaseLargeRefreshAllocations() {
+        System.gc()
     }
 
     private suspend fun refreshAccount(
@@ -355,19 +375,23 @@ class AndroidCacheMaintenanceWorker(
             if (!currentAccount.isNullOrBlank()) {
                 append('\n').append("Current account: ").append(currentAccount)
             }
-            append('\n').append("Accounts passed: ").append(passedAccounts.formatAccountList())
-            append('\n').append("Accounts skipped: ").append(skippedAccounts.formatAccountList())
-            append('\n').append("Accounts failed: ").append(failedAccounts.formatAccountList())
+            append('\n').append("Accounts passed: ").append(passedAccounts.formatAccountCount())
+            append('\n').append("Accounts skipped: ").append(skippedAccounts.formatAccountSummary())
+            append('\n').append("Accounts failed: ").append(failedAccounts.formatAccountSummary())
         }
     }
 
-    private fun List<String>.formatAccountList(maxShown: Int = 40): String {
+    private fun List<String>.formatAccountCount(): String =
+        if (isEmpty()) "None" else size.toString()
+
+    private fun List<String>.formatAccountSummary(maxShown: Int = 8): String {
         if (isEmpty()) {
             return "None"
         }
-        val shown = take(maxShown)
-        val suffix = if (size > shown.size) ", and ${size - shown.size} more" else ""
-        return shown.joinToString(", ") + suffix
+        val shown = takeLast(maxShown)
+        val prefix = if (size > shown.size) "last ${shown.size}: " else ""
+        val suffix = if (size > shown.size) "; ${size - shown.size} earlier" else ""
+        return "$size ($prefix${shown.joinToString(", ")}$suffix)"
     }
 }
 

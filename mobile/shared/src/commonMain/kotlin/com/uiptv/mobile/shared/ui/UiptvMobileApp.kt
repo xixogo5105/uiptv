@@ -594,10 +594,14 @@ private fun ChannelsScreen(
     var pendingEpisodeMenu by remember { mutableStateOf<MobileWatchingNowEpisode?>(null) }
     var searchVisible by remember { mutableStateOf(false) }
 
+    fun activeSearchVisible(): Boolean = if (wideLayout) wideSearchVisible else searchVisible
+    fun activeCategoryQuery(): String = if (activeSearchVisible()) categoryQuery else ""
+    fun activeChannelQuery(): String = if (activeSearchVisible()) channelQuery else ""
+
     fun reload(
         accountId: Long? = requestedAccountId ?: snapshot.selectedAccountId,
         categoryRowId: Long? = selectedCategoryRowId,
-        itemQuery: String = channelQuery,
+        itemQuery: String = activeChannelQuery(),
         browseMode: BrowseMode = mode
     ) {
         val generation = reloadGeneration + 1
@@ -627,6 +631,19 @@ private fun ChannelsScreen(
         }
     }
 
+    fun toggleCompactSearch() {
+        val nextVisible = !searchVisible
+        searchVisible = nextVisible
+        if (!nextVisible) {
+            if (selectedCategoryRowId == null) {
+                categoryQuery = ""
+            } else if (channelQuery.isNotBlank()) {
+                channelQuery = ""
+                reload(snapshot.selectedAccountId, selectedCategoryRowId, "")
+            }
+        }
+    }
+
     val selectedCategory = snapshot.categories.firstOrNull { it.rowId == selectedCategoryRowId }
     val selectedAccountName = requestedAccountName
         ?: snapshot.accounts.firstOrNull { it.id == snapshot.selectedAccountId }?.name
@@ -647,8 +664,20 @@ private fun ChannelsScreen(
         channelQuery = ""
         reload(requestedAccountId, null, "", activeMode)
     }
+    LaunchedEffect(wideLayout, wideSearchVisible) {
+        if (wideLayout && !wideSearchVisible && (categoryQuery.isNotBlank() || channelQuery.isNotBlank())) {
+            categoryQuery = ""
+            if (channelQuery.isNotBlank()) {
+                channelQuery = ""
+                if (selectedCategoryRowId != null) {
+                    reload(snapshot.selectedAccountId, selectedCategoryRowId, "")
+                }
+            }
+        }
+    }
     val visibleCategories = snapshot.categories.filter { category ->
-        categoryQuery.isBlank() || category.title.contains(categoryQuery.trim(), ignoreCase = true)
+        val query = activeCategoryQuery()
+        query.isBlank() || category.title.contains(query.trim(), ignoreCase = true)
     }
     val currentTitle = selectedCategory?.title ?: "${mode.displayLabel()} Categories"
     val screenTitle = "$selectedAccountName - $currentTitle"
@@ -1028,7 +1057,7 @@ private fun ChannelsScreen(
                                 val searchDescription = if (selectedCategoryRowId == null) "Search categories" else "Search channels"
                                 IconButton(
                                     modifier = Modifier.semantics { contentDescription = searchDescription },
-                                    onClick = { searchVisible = !searchVisible }
+                                    onClick = { toggleCompactSearch() }
                                 ) {
                                     Text(if (searchVisible) "X" else "⌕", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                                 }
@@ -1064,7 +1093,7 @@ private fun ChannelsScreen(
                                     if (searchVisible) "X" else "⌕",
                                     if (selectedCategoryRowId == null) "Search categories" else "Search channels"
                                 ) {
-                                    searchVisible = !searchVisible
+                                    toggleCompactSearch()
                                 }
                             }
                             if (showAccountSelector) {
@@ -1133,7 +1162,7 @@ private fun ChannelsScreen(
                     }
                 }
                 if (searchVisible) {
-                    OutlinedTextField(
+                    CompactOutlinedTextField(
                         value = if (selectedCategoryRowId == null) categoryQuery else channelQuery,
                         onValueChange = {
                             if (selectedCategoryRowId == null) {
@@ -1144,9 +1173,7 @@ private fun ChannelsScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text(if (selectedCategoryRowId == null) "Search categories" else "Search channels") },
-                        colors = darkTextFieldColors()
+                        label = if (selectedCategoryRowId == null) "Search categories" else "Search channels"
                     )
                 }
                 AnimatedContent(
@@ -1441,13 +1468,11 @@ private fun WideChannelsContent(
                         }
                     }
                     if (searchVisible) {
-                        OutlinedTextField(
+                        CompactOutlinedTextField(
                             value = categoryQuery,
                             onValueChange = onCategoryQueryChange,
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            label = { Text("Search categories") },
-                            colors = darkTextFieldColors()
+                            label = "Search categories"
                         )
                     }
                     LazyColumn(
@@ -1487,13 +1512,11 @@ private fun WideChannelsContent(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (searchVisible) {
-                    OutlinedTextField(
+                    CompactOutlinedTextField(
                         value = channelQuery,
                         onValueChange = onChannelQueryChange,
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("Search channels") },
-                        colors = darkTextFieldColors()
+                        label = "Search channels"
                     )
                 }
                 LazyColumn(
@@ -1822,7 +1845,10 @@ private fun BookmarksScreen(
     var pendingPlayback by remember { mutableStateOf<PendingPlayback?>(null) }
     var playerChoices by remember { mutableStateOf<List<PlayerChoice>>(emptyList()) }
 
-    fun reload(categoryId: String? = selectedCategoryId, search: String = query) {
+    fun activeSearchVisible(): Boolean = if (wideLayout) wideSearchVisible else searchVisible
+    fun activeBookmarkQuery(): String = if (activeSearchVisible()) query else ""
+
+    fun reload(categoryId: String? = selectedCategoryId, search: String = activeBookmarkQuery()) {
         scope.launch {
             running = true
             runCatching {
@@ -1840,6 +1866,12 @@ private fun BookmarksScreen(
 
     LaunchedEffect(browseActions, refreshSignal) {
         reload()
+    }
+    LaunchedEffect(wideLayout, wideSearchVisible, searchVisible) {
+        if (!activeSearchVisible() && query.isNotBlank()) {
+            query = ""
+            reload(search = "")
+        }
     }
 
     if (wideLayout) {
@@ -1980,16 +2012,14 @@ private fun BookmarksScreen(
         }
         if (searchVisible) {
             item(key = "bookmark-search-field") {
-                OutlinedTextField(
+                CompactOutlinedTextField(
                     value = query,
                     onValueChange = {
                         query = it
                         reload(search = it)
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Search bookmarks") },
-                    colors = darkTextFieldColors()
+                    label = "Search bookmarks"
                 )
             }
         }
@@ -2148,9 +2178,9 @@ private fun BookmarkRow(
             },
             supportingContent = {
                 Text(
-                    "${bookmark.accountName} - ${bookmark.categoryTitle} - ${bookmark.mode.displayLabel()}",
+                    bookmark.accountName,
                     color = DeepNightMutedText,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -2219,13 +2249,11 @@ private fun WideBookmarksContent(
                         }
                     }
                     if (searchVisible) {
-                        OutlinedTextField(
+                        CompactOutlinedTextField(
                             value = query,
                             onValueChange = onQueryChange,
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            label = { Text("Search bookmarks") },
-                            colors = darkTextFieldColors()
+                            label = "Search bookmarks"
                         )
                     }
                     LazyColumn(
@@ -2275,13 +2303,11 @@ private fun WideBookmarksContent(
                         }
                     }
                     if (searchVisible && !categoryPanelVisible) {
-                        OutlinedTextField(
+                        CompactOutlinedTextField(
                             value = query,
                             onValueChange = onQueryChange,
                             modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            label = { Text("Search bookmarks") },
-                            colors = darkTextFieldColors()
+                            label = "Search bookmarks"
                         )
                     } else {
                         Spacer(Modifier.weight(1f))
@@ -2355,13 +2381,11 @@ private fun WideWatchingNowContent(
         verticalArrangement = Arrangement.spacedBy(gap)
     ) {
         if (searchVisible) {
-            OutlinedTextField(
+            CompactOutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Search watching now") },
-                colors = darkTextFieldColors()
+                label = "Search watching now"
             )
         }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2435,10 +2459,12 @@ private fun WatchingNowScreen(
     var pendingEpisodeMenu by remember { mutableStateOf<MobileWatchingNowEpisode?>(null) }
     var wideWatchingFilter by rememberSaveable { mutableStateOf(WatchingNowFilter.ALL) }
 
-    fun reload() {
+    fun activeWatchingQuery(): String = if (!wideLayout || wideSearchVisible) query else ""
+
+    fun reload(search: String = activeWatchingQuery()) {
         scope.launch {
             running = true
-            runCatching { browseActions.listWatchingNow(query) }
+            runCatching { browseActions.listWatchingNow(search) }
                 .onSuccess { loaded ->
                     items = loaded
                     statusText = if (loaded.isEmpty()) "Nothing to resume" else "${loaded.size} resume entries"
@@ -2531,6 +2557,12 @@ private fun WatchingNowScreen(
 
     LaunchedEffect(browseActions) {
         reload()
+    }
+    LaunchedEffect(wideLayout, wideSearchVisible) {
+        if (wideLayout && !wideSearchVisible && query.isNotBlank()) {
+            query = ""
+            reload("")
+        }
     }
     LaunchedEffect(resumeSignal) {
         val currentSeries = selectedSeries
@@ -2708,7 +2740,7 @@ private fun WatchingNowScreen(
             searchVisible = wideSearchVisible,
             onQueryChange = {
                 query = it
-                reload()
+                reload(it)
             },
             onFilterSelect = { wideWatchingFilter = it },
             onOpen = { openWatchingNow(it) },
@@ -2778,16 +2810,14 @@ private fun WatchingNowScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
-            OutlinedTextField(
+            CompactOutlinedTextField(
                 value = query,
                 onValueChange = {
                     query = it
-                    reload()
+                    reload(it)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Search watching now") },
-                colors = darkTextFieldColors()
+                label = "Search watching now"
             )
         }
         if (items.isEmpty()) {
@@ -3152,13 +3182,11 @@ private fun WideWatchingNowSeriesDetailContent(
                         }
                     }
                     if (searchVisible) {
-                        OutlinedTextField(
+                        CompactOutlinedTextField(
                             value = episodeQuery,
                             onValueChange = onEpisodeQueryChange,
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            label = { Text("Search episodes") },
-                            colors = darkTextFieldColors()
+                            label = "Search episodes"
                         )
                     }
                     if (seasonTabs.isNotEmpty()) {
@@ -3273,11 +3301,17 @@ private fun WatchingNowSeriesDetail(
             selectedSeasonKey = preferredSeasonKey
         }
     }
+    LaunchedEffect(wideLayout, wideSearchVisible) {
+        if (wideLayout && !wideSearchVisible && episodeQuery.isNotBlank()) {
+            episodeQuery = ""
+        }
+    }
     val seasonEpisodes = remember(episodes, activeSeasonKey) {
         if (activeSeasonKey.isBlank()) episodes else episodes.filter { it.seasonTab().key == activeSeasonKey }
     }
-    val visibleEpisodes = remember(seasonEpisodes, episodeQuery) {
-        val query = episodeQuery.trim()
+    val effectiveEpisodeQuery = if (wideLayout && !wideSearchVisible) "" else episodeQuery
+    val visibleEpisodes = remember(seasonEpisodes, effectiveEpisodeQuery) {
+        val query = effectiveEpisodeQuery.trim()
         if (query.isBlank()) {
             seasonEpisodes
         } else {
@@ -4367,24 +4401,20 @@ private fun RemoteSyncScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        OutlinedTextField(
+        CompactOutlinedTextField(
             value = host,
             onValueChange = { host = it },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text("Host") },
-            placeholder = { Text("Desktop IP or hostname") },
-            colors = darkTextFieldColors()
+            label = "Host",
+            placeholder = "Desktop IP or hostname"
         )
-        OutlinedTextField(
+        CompactOutlinedTextField(
             value = portText,
             onValueChange = { portText = it.filter(Char::isDigit).take(5) },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text("Port") },
-            placeholder = { Text("Desktop sync port") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            colors = darkTextFieldColors()
+            label = "Port",
+            placeholder = "Desktop sync port",
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
@@ -4805,24 +4835,20 @@ private fun WideRemoteSyncContent(
                 verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
             ) {
                 Text("Config", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(
+                CompactOutlinedTextField(
                     value = host,
                     onValueChange = onHostChange,
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Host") },
-                    placeholder = { Text("Desktop IP or hostname") },
-                    colors = darkTextFieldColors()
+                    label = "Host",
+                    placeholder = "Desktop IP or hostname"
                 )
-                OutlinedTextField(
+                CompactOutlinedTextField(
                     value = portText,
                     onValueChange = onPortChange,
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Port") },
-                    placeholder = { Text("Desktop sync port") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    colors = darkTextFieldColors()
+                    label = "Port",
+                    placeholder = "Desktop sync port",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
@@ -5319,13 +5345,11 @@ private fun AccountsScreen(
             }
             if (accountSearchVisible) {
                 item {
-                    OutlinedTextField(
+                    CompactOutlinedTextField(
                         value = accountSearchQuery,
                         onValueChange = { accountSearchQuery = it },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("Search accounts") },
-                        colors = darkTextFieldColors()
+                        label = "Search accounts"
                     )
                 }
             }
@@ -5579,13 +5603,11 @@ private fun WideAccountsContent(
                 }
             }
             if (accountSearchVisible) {
-                OutlinedTextField(
+                CompactOutlinedTextField(
                     value = accountSearchQuery,
                     onValueChange = onSearchChange,
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Search accounts") },
-                    colors = darkTextFieldColors()
+                    label = "Search accounts"
                 )
             }
             LazyColumn(
@@ -5799,10 +5821,11 @@ private fun CacheRefreshDialog(
         title = { Text(job.action.label()) },
         text = {
             val summaryLines = remember(job.message) { cacheSummaryLines(job.message) }
+            val maxSummaryHeight = if (LocalWidePhoneLayout.current) 220.dp else 360.dp
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 360.dp)
+                    .heightIn(max = maxSummaryHeight)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -6029,13 +6052,11 @@ private fun AccountEditor(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedTextField(
+                CompactOutlinedTextField(
                     value = account.m3u8Path,
                     onValueChange = { onAccountChange(account.copy(m3u8Path = it)) },
                     modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    label = { Text("Playlist file") },
-                    colors = darkTextFieldColors()
+                    label = "Playlist file"
                 )
                 Button(
                     modifier = Modifier.semantics { contentDescription = "Browse for local M3U playlist file" },
@@ -6087,12 +6108,48 @@ private fun AccountEditor(
 
 @Composable
 private fun AccountTextField(label: String, value: String, onValueChange: (String) -> Unit) {
-    OutlinedTextField(
+    CompactOutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
+        label = label
+    )
+}
+
+@Composable
+private fun CompactOutlinedTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    placeholder: String? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.height(50.dp),
         singleLine = true,
-        label = { Text(label) },
+        textStyle = MaterialTheme.typography.bodySmall,
+        label = {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        placeholder = placeholder?.let { placeholderText ->
+            {
+                Text(
+                    placeholderText,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        },
+        keyboardOptions = keyboardOptions,
         colors = darkTextFieldColors()
     )
 }

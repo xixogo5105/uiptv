@@ -694,7 +694,7 @@ class AndroidSQLiteBrowseRepository(
                 LEFT JOIN Channel ch ON ch.categoryId = CAST(cat.id AS TEXT)
                 WHERE cat.accountId = ?
                 GROUP BY cat.id, cat.categoryId, cat.accountId, cat.title
-                ORDER BY CASE WHEN LOWER(cat.title) = 'all' THEN 0 ELSE 1 END, cat.title COLLATE NOCASE
+                ORDER BY cat.id
             """
             BrowseMode.VOD -> """
                 SELECT cat.id, cat.categoryId, cat.accountId, cat.title, COUNT(ch.id) AS itemCount
@@ -702,7 +702,7 @@ class AndroidSQLiteBrowseRepository(
                 LEFT JOIN VodChannel ch ON ch.categoryId = cat.categoryId AND ch.accountId = cat.accountId
                 WHERE cat.accountId = ?
                 GROUP BY cat.id, cat.categoryId, cat.accountId, cat.title
-                ORDER BY cat.title COLLATE NOCASE
+                ORDER BY cat.id
             """
             BrowseMode.SERIES -> """
                 SELECT cat.id, cat.categoryId, cat.accountId, cat.title, COUNT(ch.id) AS itemCount
@@ -710,7 +710,7 @@ class AndroidSQLiteBrowseRepository(
                 LEFT JOIN SeriesChannel ch ON ch.categoryId = cat.categoryId AND ch.accountId = cat.accountId
                 WHERE cat.accountId = ?
                 GROUP BY cat.id, cat.categoryId, cat.accountId, cat.title
-                ORDER BY cat.title COLLATE NOCASE
+                ORDER BY cat.id
             """
         }
         return db.rawQuery(sql.trimIndent(), arrayOf(accountId.toString())).use { cursor ->
@@ -821,7 +821,7 @@ class AndroidSQLiteBrowseRepository(
             if (query.isNotBlank()) {
                 append(" AND (ch.name LIKE ? OR ch.number LIKE ?)")
             }
-            append(" ORDER BY CAST(NULLIF(ch.number, '') AS INTEGER), ch.name COLLATE NOCASE")
+            append(" ORDER BY CASE WHEN bm.id IS NULL THEN 1 ELSE 0 END, ch.id")
         }
     }
 
