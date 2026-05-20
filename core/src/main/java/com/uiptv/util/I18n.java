@@ -1,5 +1,9 @@
 package com.uiptv.util;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
 import java.time.LocalDate;
 import java.time.chrono.IsoChronology;
@@ -7,9 +11,13 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DecimalStyle;
 import java.time.format.FormatStyle;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.MissingResourceException;
+import java.util.Map;
+import java.util.Properties;
 import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -52,8 +60,6 @@ public final class I18n {
 
     private static final Object LOCK = new Object();
     private static final Pattern TOKEN_ARTIFACT_PATTERN = Pattern.compile("(?:__\\s*T\\s*K\\d+_+|__\\d+__|ForTK\\d+__)");
-    private static final ResourceBundle.Control NO_DEFAULT_LOCALE_FALLBACK =
-            ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_PROPERTIES);
     private static Locale currentLocale = Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG);
     private static ResourceBundle bundle = loadBundle(currentLocale);
 
@@ -251,17 +257,113 @@ public final class I18n {
 
     private static ResourceBundle loadBundle(Locale locale) {
         Locale requestedLocale = locale == null ? Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG) : locale;
+        ResourceBundle requestedBundle = loadBundleWithoutDefaultLocaleFallback(requestedLocale);
+        if (requestedBundle != null || DEFAULT_LANGUAGE_TAG.equalsIgnoreCase(requestedLocale.toLanguageTag())) {
+            return requestedBundle;
+        }
+        return loadBundleWithoutDefaultLocaleFallback(Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG));
+    }
+
+    private static ResourceBundle loadBundleWithoutDefaultLocaleFallback(Locale locale) {
+        ResourceBundle parent = null;
+        List<Locale> candidates = bundleCandidateLocales(locale);
+        for (int i = candidates.size() - 1; i >= 0; i--) {
+            ResourceBundle current = readPropertiesBundle(candidates.get(i), parent);
+            if (current != null) {
+                parent = current;
+            }
+        }
+        return parent;
+    }
+
+    private static List<Locale> bundleCandidateLocales(Locale locale) {
+        LinkedHashSet<Locale> candidates = new LinkedHashSet<>();
+        String language = locale == null ? "" : locale.getLanguage();
+        String script = locale == null ? "" : locale.getScript();
+        String country = locale == null ? "" : locale.getCountry();
+        String variant = locale == null ? "" : locale.getVariant();
+        if (!language.isBlank()) {
+            addBundleCandidate(candidates, language, script, country, variant);
+            addBundleCandidate(candidates, language, script, country, "");
+            addBundleCandidate(candidates, language, script, "", "");
+            addBundleCandidate(candidates, language, "", country, variant);
+            addBundleCandidate(candidates, language, "", country, "");
+            addBundleCandidate(candidates, language, "", "", "");
+        }
+        candidates.add(Locale.ROOT);
+        return List.copyOf(candidates);
+    }
+
+    private static void addBundleCandidate(Set<Locale> candidates,
+                                           String language,
+                                           String script,
+                                           String country,
+                                           String variant) {
+        if (language == null || language.isBlank()) {
+            return;
+        }
         try {
-            return ResourceBundle.getBundle(BUNDLE_BASE_NAME, requestedLocale, NO_DEFAULT_LOCALE_FALLBACK);
-        } catch (MissingResourceException _) {
-            if (DEFAULT_LANGUAGE_TAG.equalsIgnoreCase(requestedLocale.toLanguageTag())) {
+            Locale.Builder builder = new Locale.Builder().setLanguage(language);
+            if (script != null && !script.isBlank()) builder.setScript(script);
+            if (country != null && !country.isBlank()) builder.setRegion(country);
+            if (variant != null && !variant.isBlank()) builder.setVariant(variant);
+            candidates.add(builder.build());
+        } catch (Exception _) {
+            // Ignore invalid candidate combinations; the root bundle remains available.
+        }
+    }
+
+    private static ResourceBundle readPropertiesBundle(Locale locale, ResourceBundle parent) {
+        String resourceName = BUNDLE_BASE_NAME.replace('.', '/') + bundleResourceSuffix(locale) + ".properties";
+        try (InputStream input = I18n.class.getModule().getResourceAsStream(resourceName)) {
+            if (input == null) {
                 return null;
             }
-            try {
-                return ResourceBundle.getBundle(BUNDLE_BASE_NAME, Locale.forLanguageTag(DEFAULT_LANGUAGE_TAG), NO_DEFAULT_LOCALE_FALLBACK);
-            } catch (MissingResourceException _) {
-                return null;
+            Properties properties = new Properties();
+            properties.load(new InputStreamReader(input, StandardCharsets.UTF_8));
+            return new PropertiesBackedResourceBundle(properties, parent);
+        } catch (IOException _) {
+            return null;
+        }
+    }
+
+    private static String bundleResourceSuffix(Locale locale) {
+        if (locale == null || Locale.ROOT.equals(locale) || locale.getLanguage().isBlank()) {
+            return "";
+        }
+        StringBuilder suffix = new StringBuilder("_").append(locale.getLanguage());
+        if (!locale.getScript().isBlank()) suffix.append('_').append(locale.getScript());
+        if (!locale.getCountry().isBlank()) suffix.append('_').append(locale.getCountry());
+        if (!locale.getVariant().isBlank()) suffix.append('_').append(locale.getVariant());
+        return suffix.toString();
+    }
+
+    private static final class PropertiesBackedResourceBundle extends ResourceBundle {
+        private final Map<String, String> values;
+
+        private PropertiesBackedResourceBundle(Properties properties, ResourceBundle parent) {
+            values = properties.stringPropertyNames().stream()
+                    .collect(java.util.stream.Collectors.toUnmodifiableMap(key -> key, properties::getProperty));
+            setParent(parent);
+        }
+
+        @Override
+        protected Object handleGetObject(String key) {
+            return values.get(key);
+        }
+
+        @Override
+        public Enumeration<String> getKeys() {
+            LinkedHashSet<String> keys = new LinkedHashSet<>(values.keySet());
+            if (parent != null) {
+                keys.addAll(parent.keySet());
             }
+            return Collections.enumeration(keys);
+        }
+
+        @Override
+        protected Set<String> handleKeySet() {
+            return values.keySet();
         }
     }
 
