@@ -79,6 +79,8 @@ class AndroidCacheRefreshScheduler(
             progressPercent = data.getInt(KEY_PROGRESS, if (info.state.isFinished) 100 else 0),
             message = data.getString(KEY_MESSAGE) ?: remembered?.message ?: info.state.name.lowercase().replaceFirstChar { it.uppercase() },
             accountId = remembered?.accountId,
+            failedAccountIds = data.getString(KEY_FAILED_ACCOUNT_IDS)?.toAccountIdList()
+                ?: remembered?.failedAccountIds.orEmpty(),
             updatedAtEpochSeconds = nowEpochSeconds()
         )
         rememberState(state)
@@ -157,6 +159,7 @@ class AndroidCacheRefreshScheduler(
             .put("progressPercent", progressPercent)
             .put("message", message)
             .put("accountId", accountId)
+            .put("failedAccountIds", failedAccountIds.toAccountIdCsv())
             .put("updatedAtEpochSeconds", updatedAtEpochSeconds)
 
     private fun JSONObject.toCacheRefreshJobState(): CacheRefreshJobState? {
@@ -169,6 +172,7 @@ class AndroidCacheRefreshScheduler(
             progressPercent = optInt("progressPercent", 0),
             message = optString("message"),
             accountId = if (isNull("accountId")) null else optLong("accountId"),
+            failedAccountIds = optString("failedAccountIds").toAccountIdList(),
             updatedAtEpochSeconds = optLong("updatedAtEpochSeconds", 0)
         ).takeIf { it.jobId.isNotBlank() }
     }
@@ -232,62 +236,69 @@ class AndroidCacheMaintenanceWorker(
                 val passedAccounts = mutableListOf<String>()
                 val skippedAccounts = mutableListOf<String>()
                 val failedAccounts = mutableListOf<String>()
+                val failedAccountIds = mutableListOf<Long>()
                 for ((index, account) in accounts.withIndex()) {
                     if (isStopped) {
                         skippedAccounts += accounts.drop(index).map { it.accountName }
                         break
                     }
                     setProgress(
-                        workDataOf(
-                            KEY_STATUS to CacheRefreshJobStatus.RUNNING.name,
-                            KEY_PROGRESS to (10 + (index * 80 / accounts.size.coerceAtLeast(1))),
-                            KEY_MESSAGE to buildRefreshAllMessage(
+                        refreshAllData(
+                            status = CacheRefreshJobStatus.RUNNING,
+                            progress = 10 + (index * 80 / accounts.size.coerceAtLeast(1)),
+                            message = buildRefreshAllMessage(
                                 totalAccounts = accounts.size,
                                 currentAccount = account.accountName,
                                 passedAccounts = passedAccounts,
                                 skippedAccounts = skippedAccounts,
                                 failedAccounts = failedAccounts,
                                 complete = false
-                            )
+                            ),
+                            failedAccountIds = failedAccountIds
                         )
                     )
                     val result = refreshAccountSafely(account, m3uReloader, xtremeReloader, stalkerReloader)
                     when (result.status) {
                         CacheRefreshJobStatus.SUCCEEDED -> passedAccounts += account.accountName
                         CacheRefreshJobStatus.SKIPPED -> skippedAccounts += account.accountName
-                        CacheRefreshJobStatus.FAILED -> failedAccounts += account.accountName
+                        CacheRefreshJobStatus.FAILED -> {
+                            failedAccounts += account.accountName
+                            account.id?.let { failedAccountIds += it }
+                        }
                         CacheRefreshJobStatus.QUEUED,
                         CacheRefreshJobStatus.RUNNING -> Unit
                     }
                     releaseLargeRefreshAllocations()
                     setProgress(
-                        workDataOf(
-                            KEY_STATUS to CacheRefreshJobStatus.RUNNING.name,
-                            KEY_PROGRESS to (10 + (((index + 1) * 80) / accounts.size.coerceAtLeast(1))),
-                            KEY_MESSAGE to buildRefreshAllMessage(
+                        refreshAllData(
+                            status = CacheRefreshJobStatus.RUNNING,
+                            progress = 10 + (((index + 1) * 80) / accounts.size.coerceAtLeast(1)),
+                            message = buildRefreshAllMessage(
                                 totalAccounts = accounts.size,
                                 currentAccount = null,
                                 passedAccounts = passedAccounts,
                                 skippedAccounts = skippedAccounts,
                                 failedAccounts = failedAccounts,
                                 complete = false
-                            )
+                            ),
+                            failedAccountIds = failedAccountIds
                         )
                     )
                 }
                 val terminalStatus = if (isStopped) CacheRefreshJobStatus.SKIPPED else CacheRefreshJobStatus.SUCCEEDED
                 Result.success(
-                    workDataOf(
-                        KEY_STATUS to terminalStatus.name,
-                        KEY_PROGRESS to 100,
-                        KEY_MESSAGE to buildRefreshAllMessage(
+                    refreshAllData(
+                        status = terminalStatus,
+                        progress = 100,
+                        message = buildRefreshAllMessage(
                             totalAccounts = accounts.size,
                             currentAccount = null,
                             passedAccounts = passedAccounts,
                             skippedAccounts = skippedAccounts,
                             failedAccounts = failedAccounts,
                             complete = true
-                        )
+                        ),
+                        failedAccountIds = failedAccountIds
                     )
                 )
             }
@@ -357,6 +368,19 @@ class AndroidCacheMaintenanceWorker(
             KEY_MESSAGE to message
         )
 
+    private fun refreshAllData(
+        status: CacheRefreshJobStatus,
+        progress: Int,
+        message: String,
+        failedAccountIds: List<Long>
+    ): Data =
+        workDataOf(
+            KEY_STATUS to status.name,
+            KEY_PROGRESS to progress,
+            KEY_MESSAGE to message,
+            KEY_FAILED_ACCOUNT_IDS to failedAccountIds.toAccountIdCsv()
+        )
+
     private fun buildRefreshAllMessage(
         totalAccounts: Int,
         currentAccount: String?,
@@ -395,11 +419,20 @@ class AndroidCacheMaintenanceWorker(
     }
 }
 
+private fun List<Long>.toAccountIdCsv(): String =
+    distinct().joinToString(",")
+
+private fun String.toAccountIdList(): List<Long> =
+    split(',')
+        .mapNotNull { it.trim().toLongOrNull() }
+        .distinct()
+
 const val KEY_ACTION = "action"
 const val KEY_ACCOUNT_ID = "account_id"
 const val KEY_STATUS = "status"
 const val KEY_PROGRESS = "progress"
 const val KEY_MESSAGE = "message"
+private const val KEY_FAILED_ACCOUNT_IDS = "failed_account_ids"
 private const val ACTION_TAG_PREFIX = "cache-action:"
 private const val CACHE_JOB_PREFS = "cache_jobs"
 private const val KEY_RECENT_CACHE_JOBS = "recent_cache_jobs"

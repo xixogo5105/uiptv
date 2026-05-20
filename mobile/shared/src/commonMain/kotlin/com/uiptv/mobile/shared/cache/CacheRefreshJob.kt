@@ -33,6 +33,7 @@ data class CacheRefreshJobState(
     val progressPercent: Int = 0,
     val message: String = "",
     val accountId: Long? = null,
+    val failedAccountIds: List<Long> = emptyList(),
     val updatedAtEpochSeconds: Long = 0
 )
 

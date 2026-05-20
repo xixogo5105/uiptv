@@ -45,6 +45,7 @@ class CacheRefreshJobTest {
             progressPercent = 42,
             message = "Refreshing Demo",
             accountId = 7,
+            failedAccountIds = listOf(11, 12),
             updatedAtEpochSeconds = 123
         )
 
@@ -53,8 +54,9 @@ class CacheRefreshJobTest {
         assertEquals(CacheRefreshJobStatus.RUNNING, state.status)
         assertEquals(42, state.progressPercent)
         assertEquals("Refreshing Demo", state.message)
-        assertEquals(7, state.accountId)
-        assertEquals(123, state.updatedAtEpochSeconds)
+        assertEquals(7L, state.accountId)
+        assertEquals(listOf(11L, 12L), state.failedAccountIds)
+        assertEquals(123L, state.updatedAtEpochSeconds)
     }
 
     @Test

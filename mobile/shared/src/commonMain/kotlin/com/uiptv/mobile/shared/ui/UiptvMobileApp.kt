@@ -5271,6 +5271,7 @@ private fun AccountsScreen(
     var cacheDialogJob by remember { mutableStateOf<CacheRefreshJobState?>(null) }
     var accountFeedback by remember { mutableStateOf<AccountFeedback?>(null) }
     var pendingDelete by remember { mutableStateOf<MobileAccount?>(null) }
+    var pendingDeleteFailedAccounts by remember { mutableStateOf<List<FailedRefreshAccount>>(emptyList()) }
     var editorVisible by remember { mutableStateOf(false) }
     var accountFilter by remember { mutableStateOf(AccountFilter.ALL) }
     var accountSearchVisible by remember { mutableStateOf(false) }
@@ -5337,8 +5338,10 @@ private fun AccountsScreen(
 
     val refreshAllJob = cacheDialogJob?.takeIf { it.action == CacheRefreshAction.REFRESH_ALL }
     if (refreshAllJob != null) {
+        val failedRefreshAccounts = failedRefreshAccounts(accounts, refreshAllJob.failedAccountIds)
         CacheRefreshProgressScreen(
             job = refreshAllJob,
+            failedAccounts = failedRefreshAccounts,
             modifier = modifier,
             onDismiss = { cacheDialogJob = null },
             onStop = {
@@ -5354,6 +5357,9 @@ private fun AccountsScreen(
                             accountFeedback = AccountFeedback("Stop Failed", message, false)
                         }
                 }
+            },
+            onDeleteFailedAccounts = { selectedIds ->
+                pendingDeleteFailedAccounts = failedRefreshAccounts.filter { it.id in selectedIds }
             }
         )
     } else {
@@ -5690,6 +5696,73 @@ private fun AccountsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (pendingDeleteFailedAccounts.isNotEmpty()) {
+        val accountsToDelete = pendingDeleteFailedAccounts
+        AlertDialog(
+            onDismissRequest = { pendingDeleteFailedAccounts = emptyList() },
+            title = { Text("Delete Failed Accounts") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 260.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Delete ${accountsToDelete.size} selected failed account${if (accountsToDelete.size == 1) "" else "s"}? Local cache, bookmarks, and watch state for the selected account${if (accountsToDelete.size == 1) "" else "s"} will be removed."
+                    )
+                    accountsToDelete.forEach { account ->
+                        Text(
+                            account.name,
+                            color = DeepNightText,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val ids = accountsToDelete.map { it.id }.toSet()
+                        pendingDeleteFailedAccounts = emptyList()
+                        scope.launch {
+                            running = true
+                            runCatching {
+                                ids.forEach { accountActions.deleteAccount(it) }
+                            }.onSuccess {
+                                statusText = "Deleted ${ids.size} failed account${if (ids.size == 1) "" else "s"}"
+                                accountFeedback = AccountFeedback(
+                                    "Failed Accounts Deleted",
+                                    "Deleted ${ids.size} selected failed account${if (ids.size == 1) "" else "s"}.",
+                                    true
+                                )
+                                cacheDialogJob = cacheDialogJob?.copy(
+                                    failedAccountIds = cacheDialogJob?.failedAccountIds.orEmpty().filterNot { it in ids }
+                                )
+                            }.onFailure {
+                                val message = it.message ?: "Unable to delete failed accounts"
+                                statusText = message
+                                accountFeedback = AccountFeedback("Delete Failed", message, false)
+                            }
+                            accounts = runCatching { accountActions.loadAccounts() }.getOrDefault(accounts)
+                            running = false
+                        }
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteFailedAccounts = emptyList() }) {
                     Text("Cancel")
                 }
             }
@@ -6069,12 +6142,20 @@ private fun CacheRefreshDialog(
 @Composable
 private fun CacheRefreshProgressScreen(
     job: CacheRefreshJobState,
+    failedAccounts: List<FailedRefreshAccount>,
     modifier: Modifier = Modifier,
     onDismiss: () -> Unit,
-    onStop: () -> Unit
+    onStop: () -> Unit,
+    onDeleteFailedAccounts: (Set<Long>) -> Unit
 ) {
     val progress = job.progressPercent.coerceIn(0, 100)
     val lines = remember(job.message) { cacheProgressLines(job.message) }
+    val failedAccountIds = remember(failedAccounts) { failedAccounts.map { it.id }.toSet() }
+    var selectedFailedAccountIds by remember(job.jobId) { mutableStateOf<Set<Long>>(emptySet()) }
+    LaunchedEffect(failedAccountIds) {
+        selectedFailedAccountIds = selectedFailedAccountIds.intersect(failedAccountIds)
+    }
+    val canDeleteFailedAccounts = !job.isActive() && failedAccounts.isNotEmpty()
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -6128,6 +6209,85 @@ private fun CacheRefreshProgressScreen(
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace
                     )
+                }
+                if (canDeleteFailedAccounts) {
+                    item(key = "failed-account-delete-header") {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "Failed accounts",
+                                color = DeepNightText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Select the failed accounts you want to delete.",
+                                color = DeepNightMutedText,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                    items(failedAccounts, key = { "failed-account-${it.id}" }) { account ->
+                        val selected = account.id in selectedFailedAccountIds
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable {
+                                    selectedFailedAccountIds = if (selected) {
+                                        selectedFailedAccountIds - account.id
+                                    } else {
+                                        selectedFailedAccountIds + account.id
+                                    }
+                                }
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = selected,
+                                onCheckedChange = { checked ->
+                                    selectedFailedAccountIds = if (checked) {
+                                        selectedFailedAccountIds + account.id
+                                    } else {
+                                        selectedFailedAccountIds - account.id
+                                    }
+                                }
+                            )
+                            Text(
+                                account.name,
+                                modifier = Modifier.weight(1f),
+                                color = DeepNightText,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (canDeleteFailedAccounts) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "${selectedFailedAccountIds.size} selected",
+                    modifier = Modifier.weight(1f),
+                    color = DeepNightMutedText,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                TextButton(
+                    enabled = selectedFailedAccountIds.size < failedAccounts.size,
+                    onClick = { selectedFailedAccountIds = failedAccountIds }
+                ) {
+                    Text("Select all")
+                }
+                Button(
+                    enabled = selectedFailedAccountIds.isNotEmpty(),
+                    onClick = { onDeleteFailedAccounts(selectedFailedAccountIds) }
+                ) {
+                    Text("Delete selected")
                 }
             }
         }
@@ -6815,6 +6975,23 @@ private data class AccountFeedback(
     val message: String,
     val success: Boolean
 )
+
+private data class FailedRefreshAccount(
+    val id: Long,
+    val name: String
+)
+
+private fun failedRefreshAccounts(
+    accounts: List<MobileAccount>,
+    failedAccountIds: List<Long>
+): List<FailedRefreshAccount> {
+    val namesById = accounts.mapNotNull { account ->
+        account.id?.let { it to account.accountName }
+    }.toMap()
+    return failedAccountIds
+        .distinct()
+        .map { id -> FailedRefreshAccount(id, namesById[id] ?: "Account $id") }
+}
 
 private fun RemoteSyncProgress.label(): String =
     when (step) {
