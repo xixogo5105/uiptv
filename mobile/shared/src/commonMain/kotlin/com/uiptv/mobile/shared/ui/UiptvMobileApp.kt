@@ -6326,7 +6326,7 @@ private fun CompactOutlinedTextField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.height(50.dp),
+        modifier = modifier.heightIn(min = 56.dp),
         singleLine = true,
         textStyle = MaterialTheme.typography.bodySmall,
         label = {
