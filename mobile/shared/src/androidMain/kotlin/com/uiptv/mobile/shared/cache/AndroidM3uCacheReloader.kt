@@ -63,11 +63,17 @@ class AndroidM3uCacheReloader(
         return when {
             source.startsWith("content://", ignoreCase = true) ->
                 context.contentResolver.openInputStream(Uri.parse(source))?.use { input ->
-                    input.readBytes().toString(Charsets.UTF_8)
+                    input.readUtf8Limited("Playlist")
                 } ?: error("Unable to open playlist URI.")
             source.startsWith("http://", ignoreCase = true) || source.startsWith("https://", ignoreCase = true) ->
                 readUrl(source)
-            else -> File(source).readText(Charsets.UTF_8)
+            else -> {
+                val file = File(source)
+                if (file.length() > MAX_CACHE_HTTP_BODY_BYTES) {
+                    error("Playlist is too large (${file.length().toDisplaySize()}; limit ${MAX_CACHE_HTTP_BODY_BYTES.toLong().toDisplaySize()}). Existing cache was kept.")
+                }
+                file.readText(Charsets.UTF_8)
+            }
         }
     }
 
@@ -77,17 +83,7 @@ class AndroidM3uCacheReloader(
             readTimeout = 60_000
             requestMethod = "GET"
         }
-        return try {
-            val status = connection.responseCode
-            val stream = if (status >= 300) connection.errorStream else connection.inputStream
-            val body = stream?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()
-            if (status >= 300) {
-                error(body.ifBlank { "Playlist request failed with status $status." })
-            }
-            body
-        } finally {
-            connection.disconnect()
-        }
+        return connection.readCacheBody("Playlist request")
     }
 
     private fun saveEntries(db: SQLiteDatabase, accountId: Long, entries: List<M3uEntry>): AccountCacheSummary {

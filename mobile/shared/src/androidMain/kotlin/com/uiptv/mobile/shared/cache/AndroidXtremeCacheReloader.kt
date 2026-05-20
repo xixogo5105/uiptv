@@ -111,17 +111,7 @@ class AndroidXtremeCacheReloader(
             readTimeout = 60_000
             requestMethod = account.httpMethod.ifBlank { "GET" }
         }
-        return try {
-            val status = connection.responseCode
-            val stream = if (status >= 300) connection.errorStream else connection.inputStream
-            val body = stream?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()
-            if (status >= 300) {
-                error(body.ifBlank { "Xtreme request failed with status $status." })
-            }
-            body
-        } finally {
-            connection.disconnect()
-        }
+        return connection.readCacheBody("Xtreme request")
     }
 
     private fun saveLive(

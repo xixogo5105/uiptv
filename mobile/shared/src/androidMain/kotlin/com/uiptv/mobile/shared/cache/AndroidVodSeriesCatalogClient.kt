@@ -208,7 +208,7 @@ internal class AndroidVodSeriesCatalogClient {
             readTimeout = 60_000
             requestMethod = account.httpMethod.ifBlank { "GET" }
         }
-        return readHttp(connection, "Xtreme request")
+        return connection.readCacheBody("Xtreme request")
     }
 
     private fun connectStalker(account: MobileAccount): StalkerSession {
@@ -462,21 +462,8 @@ internal class AndroidVodSeriesCatalogClient {
                 outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
             }
         }
-        return readHttp(connection, "Stalker request")
+        return connection.readCacheBody("Stalker request")
     }
-
-    private fun readHttp(connection: HttpURLConnection, label: String): String =
-        try {
-            val status = connection.responseCode
-            val stream = if (status >= 300) connection.errorStream else connection.inputStream
-            val body = stream?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()
-            if (status >= 300) {
-                error(body.ifBlank { "$label failed with status $status." })
-            }
-            body
-        } finally {
-            connection.disconnect()
-        }
 
     private fun resolveStalkerPageCount(root: JSONObject, js: JSONObject): Int {
         val pagination = root.optJSONObject("pagination") ?: js

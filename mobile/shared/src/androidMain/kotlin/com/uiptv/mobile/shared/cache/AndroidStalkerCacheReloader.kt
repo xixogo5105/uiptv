@@ -14,6 +14,7 @@ import java.net.HttpURLConnection
 import java.net.URLEncoder
 import java.net.URL
 import java.util.UUID
+import kotlin.math.ceil
 
 class AndroidStalkerCacheReloader(
     private val databaseHelper: AndroidUiptvDatabaseHelper
@@ -77,7 +78,7 @@ class AndroidStalkerCacheReloader(
                     lastFailure = "No Stalker categories found. Existing cache was kept."
                     continue
                 }
-                val streams = fetchChannels(candidate, session)
+                val streams = fetchChannels(candidate, session, categories)
                 if (streams.isEmpty()) {
                     lastFailure = "No Stalker channels found. Existing cache was kept."
                     continue
@@ -133,28 +134,133 @@ class AndroidStalkerCacheReloader(
         }
     }
 
-    private fun fetchChannels(account: MobileAccount, session: StalkerSession): List<StalkerChannel> {
-        val attempts = listOf(
-            emptyMap(),
-            mapOf("p" to "0", "per_page" to "99999"),
-            mapOf("p" to "1", "per_page" to "99999")
-        )
-        attempts.forEach { paging ->
-            val body = readPortal(
-                portalUrl = session.portalUrl,
-                account = account,
-                token = session.token,
-                params = mapOf("type" to "itv", "action" to "get_all_channels") + paging
+    private fun fetchChannels(
+        account: MobileAccount,
+        session: StalkerSession,
+        categories: List<StalkerCategory>
+    ): List<StalkerChannel> {
+        val categoryChannels = runCatching {
+            fetchChannelsByCategory(account, session, categories)
+        }.getOrDefault(emptyList())
+        if (categoryChannels.isNotEmpty()) {
+            return categoryChannels
+        }
+        return fetchGlobalChannels(account, session)
+    }
+
+    private fun fetchGlobalChannels(account: MobileAccount, session: StalkerSession): List<StalkerChannel> {
+        for (startPage in listOf(0, 1)) {
+            val firstPage = readGlobalChannelsPage(
+                account,
+                session,
+                mapOf("p" to startPage.toString(), "per_page" to STALKER_PAGE_SIZE)
             )
-            val parsed = parseChannels(body)
-            if (parsed.isNotEmpty()) {
-                return parsed
+            if (firstPage.channels.isEmpty()) {
+                continue
             }
+            val channels = firstPage.channels.toMutableList()
+            val maxPage = firstPage.pageCount.coerceAtLeast(1).coerceAtMost(MAX_STALKER_PAGES)
+            for (page in (startPage + 1)..maxPage) {
+                val nextPage = readGlobalChannelsPage(
+                    account,
+                    session,
+                    mapOf("p" to page.toString(), "per_page" to STALKER_PAGE_SIZE)
+                )
+                if (nextPage.channels.isEmpty()) {
+                    break
+                }
+                channels += nextPage.channels
+            }
+            return channels.distinctBy { "${it.channelId}|${it.command}|${it.name.lowercase()}" }
         }
         return emptyList()
     }
 
-    private fun parseChannels(body: String): List<StalkerChannel> {
+    private fun readGlobalChannelsPage(
+        account: MobileAccount,
+        session: StalkerSession,
+        paging: Map<String, String>
+    ): StalkerPage {
+        val body = readPortal(
+            portalUrl = session.portalUrl,
+            account = account,
+            token = session.token,
+            params = mapOf("type" to "itv", "action" to "get_all_channels") + paging,
+            maxBytes = MAX_STALKER_PAGE_BODY_BYTES
+        )
+        val root = JSONObject(body)
+        val js = root.optJSONObject("js") ?: root
+        return StalkerPage(parseChannels(body), resolveStalkerPageCount(root, js))
+    }
+
+    private fun fetchChannelsByCategory(
+        account: MobileAccount,
+        session: StalkerSession,
+        categories: List<StalkerCategory>
+    ): List<StalkerChannel> {
+        val uniqueChannels = linkedMapOf<String, StalkerChannel>()
+        categories.forEach { category ->
+            fetchCategoryChannels(account, session, category.id).forEach { channel ->
+                uniqueChannels.putIfAbsent("${channel.channelId}|${channel.command}|${channel.name.lowercase()}", channel)
+            }
+        }
+        return uniqueChannels.values.toList()
+    }
+
+    private fun fetchCategoryChannels(
+        account: MobileAccount,
+        session: StalkerSession,
+        categoryId: String
+    ): List<StalkerChannel> {
+        for (startPage in listOf(0, 1)) {
+            val firstPage = fetchCategoryPage(account, session, categoryId, startPage)
+            if (firstPage.channels.isEmpty()) {
+                continue
+            }
+            val channels = firstPage.channels.toMutableList()
+            val maxPage = firstPage.pageCount.coerceAtLeast(1).coerceAtMost(MAX_STALKER_PAGES)
+            for (page in (startPage + 1)..maxPage) {
+                val nextPage = fetchCategoryPage(account, session, categoryId, page)
+                if (nextPage.channels.isEmpty()) {
+                    break
+                }
+                channels += nextPage.channels
+            }
+            return channels
+        }
+        return emptyList()
+    }
+
+    private fun fetchCategoryPage(
+        account: MobileAccount,
+        session: StalkerSession,
+        categoryId: String,
+        page: Int
+    ): StalkerPage {
+        val body = readPortal(
+            portalUrl = session.portalUrl,
+            account = account,
+            token = session.token,
+            params = mapOf(
+                "type" to "itv",
+                "action" to "get_ordered_list",
+                "genre" to categoryId,
+                "force_ch_link_check" to "",
+                "fav" to "0",
+                "sortby" to "added",
+                "hd" to "1",
+                "p" to page.toString(),
+                "per_page" to STALKER_PAGE_SIZE,
+                "max_count" to "0"
+            )
+        )
+        val root = JSONObject(body)
+        val js = root.optJSONObject("js") ?: root
+        val pageCount = resolveStalkerPageCount(root, js)
+        return StalkerPage(parseChannels(body, categoryId), pageCount)
+    }
+
+    private fun parseChannels(body: String, fallbackCategoryId: String = ""): List<StalkerChannel> {
         val root = JSONObject(body)
         val list = root.stalkerDataArray()
         return buildList {
@@ -170,7 +276,7 @@ class AndroidStalkerCacheReloader(
                         channelId = id,
                         name = name,
                         number = item.optString("number"),
-                        categoryId = item.optString("tv_genre_id"),
+                        categoryId = item.optString("tv_genre_id").ifBlank { fallbackCategoryId },
                         command = item.optString("cmd"),
                         command1 = item.optString("cmd_1"),
                         command2 = item.optString("cmd_2"),
@@ -185,11 +291,23 @@ class AndroidStalkerCacheReloader(
         }
     }
 
+    private fun resolveStalkerPageCount(root: JSONObject, js: JSONObject): Int {
+        val pagination = root.optJSONObject("pagination") ?: js
+        val totalItems = pagination.optInt("total_items", 0)
+        val maxPageItems = pagination.optInt("max_page_items", 0)
+        return if (totalItems > 0 && maxPageItems > 0) {
+            ceil(totalItems.toDouble() / maxPageItems.toDouble()).toInt()
+        } else {
+            1
+        }
+    }
+
     private fun readPortal(
         portalUrl: String,
         account: MobileAccount,
         token: String,
-        params: Map<String, String>
+        params: Map<String, String>,
+        maxBytes: Int = MAX_CACHE_HTTP_BODY_BYTES
     ): String {
         val payload = (params + ("JsHttpRequest" to "${System.currentTimeMillis()}-xml")).toQueryString()
         val method = account.httpMethod.ifBlank { "GET" }.trim().uppercase()
@@ -214,17 +332,7 @@ class AndroidStalkerCacheReloader(
                 outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
             }
         }
-        return try {
-            val status = connection.responseCode
-            val stream = if (status >= 300) connection.errorStream else connection.inputStream
-            val body = stream?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()
-            if (status >= 300) {
-                error(body.ifBlank { "Stalker request failed with status $status." })
-            }
-            body
-        } finally {
-            connection.disconnect()
-        }
+        return connection.readCacheBody("Stalker request", maxBytes)
     }
 
     private fun saveLive(
@@ -413,6 +521,8 @@ class AndroidStalkerCacheReloader(
 
     private data class StalkerSession(val portalUrl: String, val token: String)
 
+    private data class StalkerPage(val channels: List<StalkerChannel>, val pageCount: Int)
+
     private data class StalkerCategory(val id: String, val title: String)
 
     private data class StalkerChannel(
@@ -429,4 +539,10 @@ class AndroidStalkerCacheReloader(
         val status: Int,
         val hd: Int
     )
+
+    private companion object {
+        const val STALKER_PAGE_SIZE = "999"
+        const val MAX_STALKER_PAGES = 200
+        const val MAX_STALKER_PAGE_BODY_BYTES = 8 * 1024 * 1024
+    }
 }
