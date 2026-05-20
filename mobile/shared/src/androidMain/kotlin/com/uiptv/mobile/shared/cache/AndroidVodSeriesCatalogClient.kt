@@ -61,50 +61,40 @@ internal class AndroidVodSeriesCatalogClient {
     fun fetchCategories(account: MobileAccount, mode: AndroidCatalogMode): List<AndroidPortalCategory> =
         when (account.type) {
             MobileAccountType.XTREME_API -> fetchXtremeCategories(account, mode)
-            MobileAccountType.STALKER_PORTAL -> {
-                val session = connectStalker(account)
-                fetchStalkerCategories(account, session, mode)
-            }
+            MobileAccountType.STALKER_PORTAL -> fetchStalkerCategoriesWithFallback(account, mode)
             else -> emptyList()
         }
 
     fun fetchChannels(account: MobileAccount, mode: AndroidCatalogMode, categoryId: String): List<AndroidPortalChannel> =
         when (account.type) {
             MobileAccountType.XTREME_API -> fetchXtremeChannels(account, mode, categoryId)
-            MobileAccountType.STALKER_PORTAL -> {
-                val session = connectStalker(account)
-                fetchStalkerOrderedList(account, session, mode, categoryId)
-            }
+            MobileAccountType.STALKER_PORTAL -> fetchStalkerOrderedListWithFallback(account, mode, categoryId)
             else -> emptyList()
         }
 
     fun fetchSeriesEpisodes(account: MobileAccount, categoryId: String, seriesId: String): List<AndroidPortalEpisode> =
         when (account.type) {
             MobileAccountType.XTREME_API -> fetchXtremeEpisodes(account, seriesId)
-            MobileAccountType.STALKER_PORTAL -> {
-                val session = connectStalker(account)
-                fetchStalkerOrderedList(
-                    account = account,
-                    session = session,
-                    mode = AndroidCatalogMode.SERIES,
-                    categoryId = categoryId,
-                    movieId = seriesId,
-                    seasonId = "0"
-                ).map { channel ->
-                    AndroidPortalEpisode(
-                        episodeId = channel.channelId,
-                        title = channel.name,
-                        command = channel.command,
-                        logo = channel.logo,
-                        season = channel.season,
-                        episodeNumber = channel.episodeNumber,
-                        plot = channel.plot,
-                        releaseDate = channel.releaseDate,
-                        rating = channel.rating,
-                        duration = channel.duration,
-                        extraJson = channel.extraJson
-                    )
-                }
+            MobileAccountType.STALKER_PORTAL -> fetchStalkerOrderedListWithFallback(
+                account = account,
+                mode = AndroidCatalogMode.SERIES,
+                categoryId = categoryId,
+                movieId = seriesId,
+                seasonId = "0"
+            ).map { channel ->
+                AndroidPortalEpisode(
+                    episodeId = channel.channelId,
+                    title = channel.name,
+                    command = channel.command,
+                    logo = channel.logo,
+                    season = channel.season,
+                    episodeNumber = channel.episodeNumber,
+                    plot = channel.plot,
+                    releaseDate = channel.releaseDate,
+                    rating = channel.rating,
+                    duration = channel.duration,
+                    extraJson = channel.extraJson
+                )
             }
             else -> emptyList()
         }
@@ -229,7 +219,9 @@ internal class AndroidVodSeriesCatalogClient {
             token = "",
             params = mapOf("type" to "stb", "action" to "handshake", "token" to "")
         )
-        val token = JSONObject(handshake).optJSONObject("js")?.cleanString("token").orEmpty()
+        val handshakeJson = JSONObject(handshake)
+        val token = handshakeJson.optJSONObject("js")?.cleanString("token")
+            ?: handshakeJson.cleanString("token")
         require(token.isNotBlank()) { "Unable to retrieve Stalker token." }
         runCatching {
             readPortal(
@@ -240,6 +232,41 @@ internal class AndroidVodSeriesCatalogClient {
             )
         }
         return StalkerSession(portalUrl, token)
+    }
+
+    private fun fetchStalkerCategoriesWithFallback(
+        account: MobileAccount,
+        mode: AndroidCatalogMode
+    ): List<AndroidPortalCategory> {
+        for (candidate in account.stalkerCandidateAccounts()) {
+            val categories = runCatching {
+                val session = connectStalker(candidate)
+                fetchStalkerCategories(candidate, session, mode)
+            }.getOrDefault(emptyList())
+            if (categories.isNotEmpty()) {
+                return categories
+            }
+        }
+        return emptyList()
+    }
+
+    private fun fetchStalkerOrderedListWithFallback(
+        account: MobileAccount,
+        mode: AndroidCatalogMode,
+        categoryId: String,
+        movieId: String = "",
+        seasonId: String = "0"
+    ): List<AndroidPortalChannel> {
+        for (candidate in account.stalkerCandidateAccounts()) {
+            val channels = runCatching {
+                val session = connectStalker(candidate)
+                fetchStalkerOrderedList(candidate, session, mode, categoryId, movieId, seasonId)
+            }.getOrDefault(emptyList())
+            if (channels.isNotEmpty()) {
+                return channels
+            }
+        }
+        return emptyList()
     }
 
     private fun fetchStalkerCategories(
@@ -413,10 +440,13 @@ internal class AndroidVodSeriesCatalogClient {
         params: Map<String, String>
     ): String {
         val payload = (params + ("JsHttpRequest" to "${System.currentTimeMillis()}-xml")).toQueryString()
-        val connection = (URL("$portalUrl?$payload").openConnection() as HttpURLConnection).apply {
+        val method = account.httpMethod.ifBlank { "GET" }.trim().uppercase()
+        val isPost = method == "POST"
+        val requestUrl = if (isPost) portalUrl else "$portalUrl?$payload"
+        val connection = (URL(requestUrl).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 60_000
-            requestMethod = "GET"
+            requestMethod = method
             setRequestProperty("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG250 stbapp ver: 2 rev: 250 Safari/533.3")
             setRequestProperty("X-User-Agent", "Model: MAG250; Link: WiFi")
             setRequestProperty("Referer", account.url.ifBlank { portalUrl })
@@ -425,6 +455,11 @@ internal class AndroidVodSeriesCatalogClient {
             setRequestProperty("Cookie", "mac=${account.macAddress}; stb_lang=en; timezone=${account.timezone.ifBlank { "Europe/London" }};")
             if (token.isNotBlank()) {
                 setRequestProperty("Authorization", "Bearer $token")
+            }
+            if (isPost) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
             }
         }
         return readHttp(connection, "Stalker request")
@@ -520,6 +555,9 @@ internal class AndroidVodSeriesCatalogClient {
             "${candidate.trimEnd('/')}/portal.php"
         }
     }
+
+    private fun MobileAccount.stalkerCandidateAccounts(): List<MobileAccount> =
+        stalkerMacCandidates().map { withStalkerMac(it) }
 
     private fun Map<String, String>.toQueryString(): String =
         entries.joinToString("&") { (key, value) -> "${key.url()}=${value.url()}" }

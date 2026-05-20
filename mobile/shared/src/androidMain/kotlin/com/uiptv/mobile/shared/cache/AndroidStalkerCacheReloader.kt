@@ -30,35 +30,28 @@ class AndroidStalkerCacheReloader(
         if (account.url.isBlank() && account.serverPortalUrl.isBlank()) {
             return@withContext M3uRefreshResult.failed("Stalker portal URL is required.")
         }
-        if (account.macAddress.isBlank()) {
+        if (account.stalkerMacCandidates().isEmpty()) {
             return@withContext M3uRefreshResult.failed("Stalker MAC address is required.")
         }
 
-        val session = runCatching { connect(account) }
-            .getOrElse { return@withContext M3uRefreshResult.failed(it.message ?: "Unable to connect to Stalker portal.") }
-        val categories = runCatching { fetchCategories(account, session) }
-            .getOrElse { return@withContext M3uRefreshResult.failed(it.message ?: "Unable to load Stalker categories.") }
-        val streams = runCatching { fetchChannels(account, session) }
-            .getOrElse { return@withContext M3uRefreshResult.failed(it.message ?: "Unable to load Stalker channels.") }
-
-        if (categories.isEmpty()) {
-            return@withContext M3uRefreshResult.failed("No Stalker categories found. Existing cache was kept.")
-        }
-        if (streams.isEmpty()) {
-            return@withContext M3uRefreshResult.failed("No Stalker channels found. Existing cache was kept.")
-        }
+        val payload = runCatching { loadRefreshPayload(account) }
+            .getOrElse { return@withContext M3uRefreshResult.failed(it.message ?: "Unable to load Stalker portal.") }
+        val selectedAccount = payload.account
         val vodCategories = runCatching {
-            AndroidVodSeriesCatalogClient().fetchCategories(account, AndroidCatalogMode.VOD)
+            AndroidVodSeriesCatalogClient().fetchCategories(selectedAccount, AndroidCatalogMode.VOD)
         }.getOrDefault(emptyList())
         val seriesCategories = runCatching {
-            AndroidVodSeriesCatalogClient().fetchCategories(account, AndroidCatalogMode.SERIES)
+            AndroidVodSeriesCatalogClient().fetchCategories(selectedAccount, AndroidCatalogMode.SERIES)
         }.getOrDefault(emptyList())
 
         val db = databaseHelper.writableDatabase
         db.beginTransaction()
         try {
+            if (!selectedAccount.macAddress.equals(account.macAddress, ignoreCase = true)) {
+                updateSelectedMac(db, accountId, selectedAccount.macAddress)
+            }
             clearLiveCache(db, accountId)
-            val liveSummary = saveLive(db, accountId, categories, streams)
+            val liveSummary = saveLive(db, accountId, payload.categories, payload.streams)
             val vodCategoryRows = saveVodSeriesCategories(db, accountId, AndroidCatalogMode.VOD, vodCategories)
             val seriesCategoryRows = saveVodSeriesCategories(db, accountId, AndroidCatalogMode.SERIES, seriesCategories)
             val summary = liveSummary.copy(
@@ -76,6 +69,30 @@ class AndroidStalkerCacheReloader(
         }
     }
 
+    private fun loadRefreshPayload(account: MobileAccount): StalkerRefreshPayload {
+        var lastFailure = "Unable to load Stalker portal."
+        for (mac in account.stalkerMacCandidates()) {
+            val candidate = account.withStalkerMac(mac)
+            try {
+                val session = connect(candidate)
+                val categories = fetchCategories(candidate, session)
+                if (categories.isEmpty()) {
+                    lastFailure = "No Stalker categories found. Existing cache was kept."
+                    continue
+                }
+                val streams = fetchChannels(candidate, session)
+                if (streams.isEmpty()) {
+                    lastFailure = "No Stalker channels found. Existing cache was kept."
+                    continue
+                }
+                return StalkerRefreshPayload(candidate, categories, streams)
+            } catch (e: Exception) {
+                lastFailure = e.message ?: "Unable to connect to Stalker portal."
+            }
+        }
+        error(lastFailure)
+    }
+
     private fun connect(account: MobileAccount): StalkerSession {
         val portalUrl = normalizePortalUrl(account.serverPortalUrl.ifBlank { account.url })
         val handshake = readPortal(
@@ -84,7 +101,9 @@ class AndroidStalkerCacheReloader(
             token = "",
             params = mapOf("type" to "stb", "action" to "handshake", "token" to "")
         )
-        val token = JSONObject(handshake).optJSONObject("js")?.optString("token").orEmpty()
+        val handshakeJson = JSONObject(handshake)
+        val token = handshakeJson.optJSONObject("js")?.optString("token")
+            ?: handshakeJson.optString("token")
         require(token.isNotBlank()) { "Unable to retrieve Stalker token." }
         runCatching {
             readPortal(
@@ -104,7 +123,7 @@ class AndroidStalkerCacheReloader(
             token = session.token,
             params = mapOf("type" to "itv", "action" to "get_genres")
         )
-        val list = JSONObject(body).getJSONArray("js")
+        val list = JSONObject(body).stalkerDataArray()
         return buildList {
             for (index in 0 until list.length()) {
                 val item = list.optJSONObject(index) ?: continue
@@ -140,8 +159,7 @@ class AndroidStalkerCacheReloader(
 
     private fun parseChannels(body: String): List<StalkerChannel> {
         val root = JSONObject(body)
-        val js = root.optJSONObject("js") ?: root
-        val list = js.getJSONArray("data")
+        val list = root.stalkerDataArray()
         return buildList {
             for (index in 0 until list.length()) {
                 val item = list.optJSONObject(index) ?: continue
@@ -177,10 +195,13 @@ class AndroidStalkerCacheReloader(
         params: Map<String, String>
     ): String {
         val payload = (params + ("JsHttpRequest" to "${System.currentTimeMillis()}-xml")).toQueryString()
-        val connection = (URL("$portalUrl?$payload").openConnection() as HttpURLConnection).apply {
+        val method = account.httpMethod.ifBlank { "GET" }.trim().uppercase()
+        val isPost = method == "POST"
+        val requestUrl = if (isPost) portalUrl else "$portalUrl?$payload"
+        val connection = (URL(requestUrl).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 60_000
-            requestMethod = "GET"
+            requestMethod = method
             setRequestProperty("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3")
             setRequestProperty("X-User-Agent", "Model: MAG250; Link: WiFi")
             setRequestProperty("Referer", account.url.ifBlank { portalUrl })
@@ -189,6 +210,11 @@ class AndroidStalkerCacheReloader(
             setRequestProperty("Cookie", "mac=${account.macAddress}; stb_lang=en; timezone=${account.timezone.ifBlank { "Europe/London" }};")
             if (token.isNotBlank()) {
                 setRequestProperty("Authorization", "Bearer $token")
+            }
+            if (isPost) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
             }
         }
         return try {
@@ -323,6 +349,22 @@ class AndroidStalkerCacheReloader(
         db.delete("Category", "accountId = ?", arrayOf(accountId.toString()))
     }
 
+    private fun updateSelectedMac(db: SQLiteDatabase, accountId: Long, macAddress: String) {
+        db.update(
+            "Account",
+            ContentValues().apply { put("macAddress", macAddress) },
+            "id = ?",
+            arrayOf(accountId.toString())
+        )
+    }
+
+    private fun JSONObject.stalkerDataArray() =
+        when (val js = opt("js")) {
+            is org.json.JSONArray -> js
+            is JSONObject -> js.optJSONArray("data") ?: org.json.JSONArray()
+            else -> optJSONArray("data") ?: org.json.JSONArray()
+        }
+
     private fun normalizePortalUrl(source: String): String {
         var candidate = source.trim()
         if (!candidate.contains("://")) {
@@ -374,6 +416,12 @@ class AndroidStalkerCacheReloader(
 
     private fun randomId(): String =
         (UUID.randomUUID().toString() + UUID.randomUUID().toString()).replace("-", "")
+
+    private data class StalkerRefreshPayload(
+        val account: MobileAccount,
+        val categories: List<StalkerCategory>,
+        val streams: List<StalkerChannel>
+    )
 
     private data class StalkerSession(val portalUrl: String, val token: String)
 
