@@ -41,12 +41,16 @@ data class MobileAccount(
         } else {
             url
         }
+        val normalizedMac = normalizedMacAddress()
         return copy(
             accountName = accountName.trim(),
             url = normalizedUrl.trim(),
             username = username.trim(),
-            macAddress = macAddress.replace(" ", ""),
-            macAddressList = normalizeCsv(macAddressList),
+            macAddress = normalizedMac,
+            macAddressList = normalizeMacAddressCsv(
+                value = macAddressList,
+                primaryMacAddress = if (normalizedType == MobileAccountType.STALKER_PORTAL) normalizedMac else ""
+            ),
             httpMethod = httpMethod.ifBlank { "GET" }.trim().uppercase(),
             timezone = timezone.ifBlank { "Europe/London" }.trim()
         )
@@ -55,11 +59,14 @@ data class MobileAccount(
     val canRefreshCache: Boolean
         get() = type.cacheRefreshSupported
 
-    private fun normalizeCsv(value: String): String =
-        value.split(",")
-            .map { it.replace(" ", "") }
+    private fun normalizedMacAddress(): String =
+        macAddress.filterNot { it.isWhitespace() }
+
+    private fun normalizeMacAddressCsv(value: String, primaryMacAddress: String): String =
+        (listOf(primaryMacAddress) + value.split(","))
+            .map { it.filterNot { char -> char.isWhitespace() } }
             .filter { it.isNotBlank() }
-            .distinct()
+            .distinctBy { it.lowercase() }
             .joinToString(",")
 }
 

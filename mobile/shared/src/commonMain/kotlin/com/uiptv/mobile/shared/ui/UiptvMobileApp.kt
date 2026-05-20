@@ -5312,7 +5312,9 @@ private fun AccountsScreen(
     }
 
     LaunchedEffect(accountActions, refreshSignal) {
-        accounts = accountActions.loadAccounts()
+        runCatching { accountActions.loadAccounts() }
+            .onSuccess { accounts = it }
+            .onFailure { statusText = it.message ?: "Unable to load accounts" }
     }
 
     val activeCacheJobId = cacheDialogJob?.jobId
@@ -5327,7 +5329,9 @@ private fun AccountsScreen(
                 statusText = latest.message.ifBlank { latest.status.label() }
                 if (!latest.isActive()) {
                     if (latest.status == CacheRefreshJobStatus.SUCCEEDED) {
-                        accounts = accountActions.loadAccounts()
+                        runCatching { accountActions.loadAccounts() }
+                            .onSuccess { accounts = it }
+                            .onFailure { statusText = it.message ?: "Unable to load accounts" }
                     }
                     break
                 }
@@ -5643,7 +5647,9 @@ private fun AccountsScreen(
                             )
                             editing = it
                             editorVisible = false
-                            accounts = accountActions.loadAccounts()
+                            runCatching { accountActions.loadAccounts() }
+                                .onSuccess { loaded -> accounts = loaded }
+                                .onFailure { error -> statusText = error.message ?: "Unable to load accounts" }
                         }
                         .onFailure {
                             val message = it.message ?: "Unable to save account"
@@ -5680,7 +5686,9 @@ private fun AccountsScreen(
                                     accountFeedback = AccountFeedback("Account Deleted", "${account.accountName} was deleted.", true)
                                     editing = MobileAccount()
                                     selectedType = MobileAccountType.STALKER_PORTAL
-                                    accounts = accountActions.loadAccounts()
+                                    runCatching { accountActions.loadAccounts() }
+                                        .onSuccess { loaded -> accounts = loaded }
+                                        .onFailure { error -> statusText = error.message ?: "Unable to load accounts" }
                                 }
                                 .onFailure {
                                     val message = it.message ?: "Unable to delete account"
@@ -6364,6 +6372,10 @@ private fun AccountEditor(
     onSave: () -> Unit,
     onDelete: () -> Unit
 ) {
+    var macManagerVisible by remember(account.id) { mutableStateOf(false) }
+    val macOptions = remember(account.macAddress, account.macAddressList) {
+        account.stalkerMacOptions()
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -6392,8 +6404,12 @@ private fun AccountEditor(
             AccountTextField("Password", account.password) { onAccountChange(account.copy(password = it)) }
         }
         if (selectedType == MobileAccountType.STALKER_PORTAL) {
-            AccountTextField("MAC", account.macAddress) { onAccountChange(account.copy(macAddress = it)) }
-            AccountTextField("MAC List", account.macAddressList) { onAccountChange(account.copy(macAddressList = it)) }
+            StalkerMacSelector(
+                selectedMac = account.macAddress,
+                macOptions = macOptions,
+                onMacSelected = { onAccountChange(account.withStalkerMacs(macOptions, it)) },
+                onManage = { macManagerVisible = true }
+            )
             AccountTextField("Serial", account.serialNumber) { onAccountChange(account.copy(serialNumber = it)) }
             AccountTextField("Device ID 1", account.deviceId1) { onAccountChange(account.copy(deviceId1 = it)) }
             AccountTextField("Device ID 2", account.deviceId2) { onAccountChange(account.copy(deviceId2 = it)) }
@@ -6462,7 +6478,266 @@ private fun AccountEditor(
             }
         }
     }
+    if (macManagerVisible) {
+        MacAddressManagerDialog(
+            account = account,
+            macOptions = macOptions,
+            onAccountChange = onAccountChange,
+            onDismiss = { macManagerVisible = false }
+        )
+    }
 }
+
+@Composable
+private fun StalkerMacSelector(
+    selectedMac: String,
+    macOptions: List<String>,
+    onMacSelected: (String) -> Unit,
+    onManage: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = macOptions.firstOrNull { it.equals(selectedMac, ignoreCase = true) }
+        ?: selectedMac.normalizedMacEntry()
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "MAC",
+                modifier = Modifier.weight(1f),
+                color = DeepNightMutedText,
+                style = MaterialTheme.typography.bodySmall
+            )
+            TextButton(onClick = onManage) {
+                Text("Manage")
+            }
+        }
+        Box {
+            OutlinedButton(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = "Select Stalker MAC address" },
+                enabled = macOptions.isNotEmpty(),
+                onClick = { expanded = true }
+            ) {
+                Text(
+                    selected.ifBlank { "No MAC addresses" },
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Start,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text("v")
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                macOptions.forEach { mac ->
+                    DropdownMenuItem(
+                        text = { Text(mac) },
+                        onClick = {
+                            expanded = false
+                            onMacSelected(mac)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MacAddressManagerDialog(
+    account: MobileAccount,
+    macOptions: List<String>,
+    onAccountChange: (MobileAccount) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var entry by rememberSaveable(account.id) { mutableStateOf("") }
+    var editingMac by rememberSaveable(account.id) { mutableStateOf<String?>(null) }
+    fun applyMacs(nextMacs: List<String>, selectedMac: String) {
+        onAccountChange(account.withStalkerMacs(nextMacs, selectedMac))
+    }
+    fun clearEditor() {
+        entry = ""
+        editingMac = null
+    }
+    fun commitEntry() {
+        val normalizedEntry = entry.normalizedMacEntry()
+        if (normalizedEntry.isBlank()) {
+            return
+        }
+        val editing = editingMac
+        val retainedMacs = if (editing == null) {
+            macOptions
+        } else {
+            macOptions.filterNot { it.equals(editing, ignoreCase = true) }
+        }
+        val selectedMac = if (
+            account.macAddress.isBlank() ||
+            editing != null && account.macAddress.equals(editing, ignoreCase = true)
+        ) {
+            normalizedEntry
+        } else {
+            account.macAddress
+        }
+        applyMacs(retainedMacs + normalizedEntry, selectedMac)
+        clearEditor()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Manage MAC Addresses") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 380.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CompactOutlinedTextField(
+                        value = entry,
+                        onValueChange = { entry = it },
+                        modifier = Modifier.weight(1f),
+                        label = if (editingMac == null) "MAC address" else "Edit MAC"
+                    )
+                    Button(
+                        enabled = entry.normalizedMacEntry().isNotBlank(),
+                        onClick = { commitEntry() }
+                    ) {
+                        Text(if (editingMac == null) "Add" else "Save")
+                    }
+                }
+                if (editingMac != null) {
+                    TextButton(onClick = { clearEditor() }) {
+                        Text("Cancel edit")
+                    }
+                }
+                if (macOptions.isEmpty()) {
+                    Text(
+                        "No MAC addresses",
+                        color = DeepNightMutedText,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                macOptions.forEach { mac ->
+                    MacAddressManagerRow(
+                        mac = mac,
+                        selected = mac.equals(account.macAddress, ignoreCase = true),
+                        onSelect = { applyMacs(macOptions, mac) },
+                        onEdit = {
+                            editingMac = mac
+                            entry = mac
+                        },
+                        onDelete = {
+                            val nextMacs = macOptions.filterNot { it.equals(mac, ignoreCase = true) }
+                            val nextSelected = if (account.macAddress.equals(mac, ignoreCase = true)) {
+                                nextMacs.firstOrNull().orEmpty()
+                            } else {
+                                account.macAddress
+                            }
+                            applyMacs(nextMacs, nextSelected)
+                            if (editingMac?.equals(mac, ignoreCase = true) == true) {
+                                clearEditor()
+                            }
+                        }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Done")
+            }
+        }
+    )
+}
+
+@Composable
+private fun MacAddressManagerRow(
+    mac: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = if (selected) DeepNightPrimary.copy(alpha = 0.18f) else DeepNightSurfaceHighest,
+        contentColor = DeepNightText
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    mac,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (selected) {
+                    Text(
+                        "Selected",
+                        color = DeepNightAccent,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(enabled = !selected, onClick = onSelect) {
+                    Text("Use")
+                }
+                TextButton(onClick = onEdit) {
+                    Text("Edit")
+                }
+                TextButton(onClick = onDelete) {
+                    Text("Delete")
+                }
+            }
+        }
+    }
+}
+
+private fun MobileAccount.stalkerMacOptions(): List<String> =
+    normalizeMacEntries(macAddressList, macAddress)
+
+private fun MobileAccount.withStalkerMacs(macOptions: List<String>, selectedMac: String): MobileAccount {
+    val normalizedMacs = normalizeMacEntries(macOptions)
+    val normalizedSelected = selectedMac.normalizedMacEntry()
+    val selected = normalizedMacs.firstOrNull { it.equals(normalizedSelected, ignoreCase = true) }
+        ?: normalizedMacs.firstOrNull()
+        ?: ""
+    return copy(
+        macAddress = selected,
+        macAddressList = normalizedMacs.joinToString(",")
+    )
+}
+
+private fun normalizeMacEntries(vararg values: String): List<String> =
+    normalizeMacEntries(values.asIterable())
+
+private fun normalizeMacEntries(values: Iterable<String>): List<String> =
+    values
+        .flatMap { it.split(",") }
+        .map { it.normalizedMacEntry() }
+        .filter { it.isNotBlank() }
+        .distinctBy { it.lowercase() }
+
+private fun String.normalizedMacEntry(): String =
+    filterNot { it.isWhitespace() }
 
 @Composable
 private fun AccountTextField(label: String, value: String, onValueChange: (String) -> Unit) {

@@ -224,10 +224,10 @@ class AndroidCacheMaintenanceWorker(
                         workDataOf(
                             KEY_STATUS to CacheRefreshJobStatus.RUNNING.name,
                             KEY_PROGRESS to 25,
-                            KEY_MESSAGE to "Refreshing ${account.accountName}."
+                            KEY_MESSAGE to "Refreshing ${account.accountName}.".safeWorkMessage()
                         )
                     )
-                    refreshAccount(account, m3uReloader, xtremeReloader, stalkerReloader).toWorkResult()
+                    refreshAccountSafely(account, m3uReloader, xtremeReloader, stalkerReloader).toWorkResult()
                 }
             }
             CacheRefreshAction.REFRESH_ALL -> {
@@ -268,7 +268,6 @@ class AndroidCacheMaintenanceWorker(
                         CacheRefreshJobStatus.QUEUED,
                         CacheRefreshJobStatus.RUNNING -> Unit
                     }
-                    releaseLargeRefreshAllocations()
                     setProgress(
                         refreshAllData(
                             status = CacheRefreshJobStatus.RUNNING,
@@ -325,10 +324,6 @@ class AndroidCacheMaintenanceWorker(
             M3uRefreshResult.failed(e.message ?: "Unexpected refresh error.")
         }
 
-    private fun releaseLargeRefreshAllocations() {
-        System.gc()
-    }
-
     private suspend fun refreshAccount(
         account: MobileAccount,
         m3uReloader: AndroidM3uCacheReloader,
@@ -350,7 +345,7 @@ class AndroidCacheMaintenanceWorker(
         val data = workDataOf(
             KEY_STATUS to status.name,
             KEY_PROGRESS to if (status == CacheRefreshJobStatus.SUCCEEDED) 100 else 0,
-            KEY_MESSAGE to message
+            KEY_MESSAGE to message.safeWorkMessage()
         )
         return when (status) {
             CacheRefreshJobStatus.SUCCEEDED,
@@ -365,7 +360,7 @@ class AndroidCacheMaintenanceWorker(
         workDataOf(
             KEY_STATUS to CacheRefreshJobStatus.SUCCEEDED.name,
             KEY_PROGRESS to progress,
-            KEY_MESSAGE to message
+            KEY_MESSAGE to message.safeWorkMessage()
         )
 
     private fun refreshAllData(
@@ -377,7 +372,7 @@ class AndroidCacheMaintenanceWorker(
         workDataOf(
             KEY_STATUS to status.name,
             KEY_PROGRESS to progress,
-            KEY_MESSAGE to message,
+            KEY_MESSAGE to message.safeWorkMessage(),
             KEY_FAILED_ACCOUNT_IDS to failedAccountIds.toAccountIdCsv()
         )
 
@@ -420,7 +415,7 @@ class AndroidCacheMaintenanceWorker(
 }
 
 private fun List<Long>.toAccountIdCsv(): String =
-    distinct().joinToString(",")
+    distinct().take(MAX_FAILED_ACCOUNT_IDS_IN_STATE).joinToString(",")
 
 private fun String.toAccountIdList(): List<Long> =
     split(',')
@@ -433,6 +428,8 @@ const val KEY_STATUS = "status"
 const val KEY_PROGRESS = "progress"
 const val KEY_MESSAGE = "message"
 private const val KEY_FAILED_ACCOUNT_IDS = "failed_account_ids"
+private const val MAX_WORK_MESSAGE_CHARS = 1_000
+private const val MAX_FAILED_ACCOUNT_IDS_IN_STATE = 200
 private const val ACTION_TAG_PREFIX = "cache-action:"
 private const val CACHE_JOB_PREFS = "cache_jobs"
 private const val KEY_RECENT_CACHE_JOBS = "recent_cache_jobs"
@@ -480,5 +477,14 @@ private class CacheRefreshNotifier(
             .setOngoing(ongoing)
             .setOnlyAlertOnce(true)
             .build()
+    }
+}
+
+private fun String.safeWorkMessage(): String {
+    val normalized = replace('\u0000', ' ').trim()
+    return if (normalized.length <= MAX_WORK_MESSAGE_CHARS) {
+        normalized
+    } else {
+        normalized.take(MAX_WORK_MESSAGE_CHARS).trimEnd() + "..."
     }
 }

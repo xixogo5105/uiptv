@@ -25,7 +25,7 @@ class MobileAccountTest {
         assertEquals("http://example.test/", normalized.url)
         assertEquals("user", normalized.username)
         assertEquals("00:11:22", normalized.macAddress)
-        assertEquals("aa:bb,cc:dd", normalized.macAddressList)
+        assertEquals("00:11:22,aa:bb,cc:dd", normalized.macAddressList)
         assertEquals("POST", normalized.httpMethod)
         assertEquals("UTC", normalized.timezone)
     }
