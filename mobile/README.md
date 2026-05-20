@@ -9,9 +9,59 @@ This is the Android-first Kotlin Multiplatform workspace for UIPTV mobile.
 
 ## Local Requirements
 
-- Android SDK with API 36 installed.
+- End users installing a built APK do not need Android SDK, NDK, CMake, Gradle, or any other build tools. The APK packages the required LibVLC native libraries and the small UIPTV native VLC probe library.
+- Developers compiling from source need Android SDK with API 36 installed.
+- Developers compiling `androidApp` also need Android NDK and CMake because the app builds `androidApp/src/main/cpp/vlc_probe.cpp` into `libuiptv_vlc_probe.so`. Gradle/CMake builds this library automatically for `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64`; do not prebuild or copy `.so` files into the repository.
 - `ANDROID_HOME` set, or `sdk.dir=/path/to/android/sdk` in `mobile/local.properties`.
 - Xcode command-line tools are required only for iOS framework linking. iOS targets are deferred and only enabled automatically when `xcrun xcodebuild -version` works, or explicitly with `-Puiptv.enableIosTargets=true`.
+
+### Native Build Tool Setup
+
+The simplest setup on every desktop platform is Android Studio:
+
+1. Install Android Studio.
+2. Open SDK Manager.
+3. Install Android SDK Platform 36.
+4. Install SDK Tools: Android SDK Platform-Tools, Android SDK Build-Tools, NDK (Side by side), and CMake.
+5. Point Gradle at the SDK with `ANDROID_HOME` or `mobile/local.properties`.
+
+The current native wrapper requires CMake `3.22.1` or newer and a side-by-side Android NDK. A recent SDK Manager NDK is fine; the build does not rely on a checked-in prebuilt native binary.
+
+macOS example:
+
+```bash
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+sdkmanager "platforms;android-36" "platform-tools" "build-tools;36.0.0" "cmake;3.22.1" "ndk;28.2.13676358"
+```
+
+Linux example:
+
+```bash
+export ANDROID_HOME="$HOME/Android/Sdk"
+export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+sdkmanager "platforms;android-36" "platform-tools" "build-tools;36.0.0" "cmake;3.22.1" "ndk;28.2.13676358"
+```
+
+Windows PowerShell example:
+
+```powershell
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+$env:Path = "$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\cmdline-tools\latest\bin;$env:Path"
+sdkmanager.bat "platforms;android-36" "platform-tools" "build-tools;36.0.0" "cmake;3.22.1" "ndk;28.2.13676358"
+```
+
+Instead of setting `ANDROID_HOME`, you can create `mobile/local.properties`:
+
+```properties
+sdk.dir=/absolute/path/to/android/sdk
+```
+
+On Windows, forward slashes are accepted:
+
+```properties
+sdk.dir=C:/Users/<you>/AppData/Local/Android/Sdk
+```
 
 ## Compile And Test
 

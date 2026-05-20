@@ -27,6 +27,8 @@ import android.view.Window
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -65,21 +67,22 @@ class EmbeddedPlayerActivity : Activity() {
     private lateinit var feedbackView: TextView
     private lateinit var loadingSpinner: ProgressBar
     private lateinit var messageView: TextView
-    private lateinit var playPauseButton: TextView
+    private lateinit var playPauseButton: ImageButton
     private lateinit var progressSeekBar: SeekBar
     private lateinit var streamInfoLabel: TextView
     private lateinit var titleLabel: TextView
     private lateinit var timeLabel: TextView
-    private lateinit var zoomButton: TextView
-    private lateinit var repeatButton: TextView
-    private lateinit var muteButton: TextView
+    private lateinit var zoomButton: ImageButton
+    private lateinit var repeatButton: ImageButton
+    private lateinit var muteButton: ImageButton
     private val overlayHandler = Handler(Looper.getMainLooper())
     private val zoomModes = listOf(
         ZoomMode("Default", MediaPlayer.ScaleType.SURFACE_BEST_FIT, R.drawable.aspect_ratio),
-        ZoomMode("Fill", MediaPlayer.ScaleType.SURFACE_FILL, R.drawable.aspect_ratio_fill),
+        ZoomMode("Zoom fill", MediaPlayer.ScaleType.SURFACE_FIT_SCREEN, R.drawable.aspect_ratio_fill),
+        ZoomMode("Stretch fill", MediaPlayer.ScaleType.SURFACE_FILL, R.drawable.aspect_ratio_stretch),
         ZoomMode("16:9", MediaPlayer.ScaleType.SURFACE_16_9, R.drawable.aspect_ratio),
         ZoomMode("4:3", MediaPlayer.ScaleType.SURFACE_4_3, R.drawable.aspect_ratio),
-        ZoomMode("Original", MediaPlayer.ScaleType.SURFACE_ORIGINAL, R.drawable.aspect_ratio_stretch)
+        ZoomMode("Original", MediaPlayer.ScaleType.SURFACE_ORIGINAL, R.drawable.aspect_ratio)
     )
     private val hideControlsRunnable = Runnable {
         controlsOverlay.visibility = View.GONE
@@ -109,6 +112,7 @@ class EmbeddedPlayerActivity : Activity() {
     private var reconnectRunnable: Runnable? = null
     private var startupVolumeFallbackApplied = false
     private var muted = false
+    private var lastAudibleVlcVolume = DefaultVlcVolume
     private var touchStartX = 0f
     private var touchStartY = 0f
     private var twoFingerStartSpanX = 0f
@@ -118,8 +122,12 @@ class EmbeddedPlayerActivity : Activity() {
     private var activeGesture = PlayerGesture.None
     private var zoomModeIndex = 0
     private var selectedVideoTrackId = UnknownTrackId
+    private var nativeProbeHandle = 0L
+    private var lastNativeProbeDetailsKey = ""
     @Volatile
     private var renderedVideoDetails: VideoTrackDetails? = null
+    @Volatile
+    private var nativeProbeVideoDetails: VideoTrackDetails? = null
     private var videoLayoutListenerWrapped = false
     private val playbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var currentTarget: PlaybackTarget? = null
@@ -297,6 +305,9 @@ class EmbeddedPlayerActivity : Activity() {
         }
         libVlc = createdLibVlc
         mediaPlayer = createdPlayer
+        nativeProbeHandle = LibVlcNativeProbe.attach(createdPlayer) { event ->
+            handleNativeProbeEvent(event)
+        }
     }
 
     override fun onResume() {
@@ -332,6 +343,8 @@ class EmbeddedPlayerActivity : Activity() {
         if (isFinishing) {
             intent.getStringExtra(NativePlayerActivity.EXTRA_BINGE_SESSION_ID).orEmpty().takeIf { it.isNotBlank() }?.let(AndroidBingeWatchSessionStore::remove)
         }
+        LibVlcNativeProbe.detach(nativeProbeHandle)
+        nativeProbeHandle = 0L
         mediaPlayer?.release()
         mediaPlayer = null
         abandonAudioFocus()
@@ -377,6 +390,8 @@ class EmbeddedPlayerActivity : Activity() {
         requestAudioFocus()
         selectedVideoTrackId = UnknownTrackId
         renderedVideoDetails = null
+        nativeProbeVideoDetails = null
+        lastNativeProbeDetailsKey = ""
         beginStreamLoading()
         ensureAudibleSystemVolume()
         val audioRequestVersion = markAudioStateSyncRequested()
@@ -635,12 +650,11 @@ class EmbeddedPlayerActivity : Activity() {
         val buttonRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            playPauseButton = controlButton(PauseIcon) { togglePlayPause() }
+            playPauseButton = iconControlButton(R.drawable.video_player_pause, "Pause") { togglePlayPause() }
             addView(playPauseButton, compactControlLayoutParams())
-            addView(controlButton(RewindIcon) { seekBySeconds(-SeekStepSeconds) }, compactControlLayoutParams())
-            addView(controlButton(ForwardIcon) { seekBySeconds(SeekStepSeconds) }, compactControlLayoutParams())
-            addView(iconControlButton(R.drawable.reload, "Reload stream") { reloadCurrentStream() }, compactControlLayoutParams())
-            addView(controlButton(StopIcon) { finish() }, compactControlLayoutParams())
+            addView(iconControlButton(R.drawable.video_player_stop, "Stop") { finish() }, compactControlLayoutParams())
+            addView(iconControlButton(R.drawable.video_player_reverse_rewind, "Rewind 15 seconds") { seekBySeconds(-SeekStepSeconds) }, compactControlLayoutParams())
+            addView(iconControlButton(R.drawable.video_player_fast_forward, "Fast forward 15 seconds") { seekBySeconds(SeekStepSeconds) }, compactControlLayoutParams())
             if (currentBingeSession != null) {
                 addView(controlButton(PlaylistIcon) { togglePlaylistOverlay() }, compactControlLayoutParams())
             }
@@ -650,6 +664,7 @@ class EmbeddedPlayerActivity : Activity() {
             repeatButton = iconControlButton(R.drawable.repeat_off, "Repeat") { toggleRepeat() }
             updateRepeatButton()
             addView(repeatButton, compactControlLayoutParams())
+            addView(iconControlButton(R.drawable.reload, "Reload stream") { reloadCurrentStream() }, compactControlLayoutParams())
             zoomButton = iconControlButton(zoomModes[zoomModeIndex].iconRes, "Zoom ${zoomModes[zoomModeIndex].label}") { cycleZoomMode() }
             addView(zoomButton, compactControlLayoutParams())
             if (isPictureInPictureAvailable()) {
@@ -808,10 +823,10 @@ class EmbeddedPlayerActivity : Activity() {
             setTextSize(14f)
             setTypeface(Typeface.DEFAULT, Typeface.BOLD)
             gravity = Gravity.CENTER
-            minWidth = dp(44)
-            minHeight = dp(36)
-            setPadding(dp(10), dp(7), dp(10), dp(7))
-            background = roundedBackground(Color.argb(230, 37, 45, 54), dp(18), Color.argb(120, 79, 216, 235))
+            minimumWidth = dp(ControlButtonSizeDp)
+            minimumHeight = dp(ControlButtonSizeDp)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = controlButtonBackground(active = false)
             isClickable = true
             isFocusable = true
             setOnClickListener {
@@ -820,29 +835,44 @@ class EmbeddedPlayerActivity : Activity() {
             }
         }
 
-    private fun iconControlButton(drawableRes: Int, description: String, onClick: () -> Unit): TextView =
-        controlButton("", onClick).apply {
+    private fun iconControlButton(drawableRes: Int, description: String, onClick: () -> Unit): ImageButton =
+        ImageButton(this).apply {
             contentDescription = description
+            background = controlButtonBackground(active = false)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(ControlIconPaddingDp), dp(ControlIconPaddingDp), dp(ControlIconPaddingDp), dp(ControlIconPaddingDp))
+            minimumWidth = dp(ControlButtonSizeDp)
+            minimumHeight = dp(ControlButtonSizeDp)
+            isClickable = true
+            isFocusable = true
             setButtonIcon(this, drawableRes)
+            setOnClickListener {
+                onClick()
+                scheduleControlsHide()
+            }
         }
 
-    private fun setButtonIcon(button: TextView, drawableRes: Int) {
+    private fun setButtonIcon(button: ImageButton, drawableRes: Int) {
         val drawable = resources.getDrawable(drawableRes, theme).mutate()
-        val size = dp(ControlIconSizeDp)
-        drawable.setBounds(0, 0, size, size)
         drawable.setTint(Color.WHITE)
-        button.text = ""
-        button.setCompoundDrawables(drawable, null, null, null)
-        button.compoundDrawablePadding = 0
-        button.minWidth = dp(44)
-        button.minHeight = dp(36)
+        button.setImageDrawable(drawable)
+        button.imageTintList = ColorStateList.valueOf(Color.WHITE)
+        button.minimumWidth = dp(ControlButtonSizeDp)
+        button.minimumHeight = dp(ControlButtonSizeDp)
     }
 
     private fun compactControlLayoutParams(): LinearLayout.LayoutParams =
-        LinearLayout.LayoutParams(dp(44), dp(36)).apply {
+        LinearLayout.LayoutParams(dp(ControlButtonSizeDp), dp(ControlButtonSizeDp)).apply {
             leftMargin = dp(4)
             rightMargin = dp(4)
         }
+
+    private fun controlButtonBackground(active: Boolean): GradientDrawable =
+        roundedBackground(
+            color = if (active) Color.argb(240, 34, 83, 93) else Color.argb(230, 37, 45, 54),
+            radius = dp(ControlButtonSizeDp / 2),
+            strokeColor = if (active) Color.rgb(79, 216, 235) else Color.argb(120, 79, 216, 235)
+        )
 
     private fun togglePlayPause() {
         val player = mediaPlayer ?: return
@@ -862,6 +892,8 @@ class EmbeddedPlayerActivity : Activity() {
         reconnectScheduled = false
         playbackStarted = false
         selectedVideoTrackId = UnknownTrackId
+        nativeProbeVideoDetails = null
+        lastNativeProbeDetailsKey = ""
         messageView.visibility = View.GONE
         hidePlaylistOverlay()
         showFeedback("Reloading")
@@ -881,7 +913,7 @@ class EmbeddedPlayerActivity : Activity() {
         if (!muted) {
             ensureAudibleSystemVolume()
         }
-        applyDesiredAudioState()
+        applyDesiredAudioState(force = true)
         updateMuteButton()
         saveEmbeddedPlayerPreference()
         showFeedback(if (muted) "Muted" else "Unmuted")
@@ -893,11 +925,7 @@ class EmbeddedPlayerActivity : Activity() {
         }
         setButtonIcon(muteButton, if (muted) R.drawable.mute_on else R.drawable.mute_off)
         muteButton.contentDescription = if (muted) "Unmute" else "Mute"
-        muteButton.background = roundedBackground(
-            color = if (muted) Color.argb(240, 34, 83, 93) else Color.argb(230, 37, 45, 54),
-            radius = dp(18),
-            strokeColor = if (muted) Color.rgb(79, 216, 235) else Color.argb(120, 79, 216, 235)
-        )
+        muteButton.background = controlButtonBackground(active = muted)
     }
 
     private fun toggleRepeat() {
@@ -940,11 +968,7 @@ class EmbeddedPlayerActivity : Activity() {
         }
         setButtonIcon(repeatButton, if (repeatEnabled) R.drawable.repeat_on else R.drawable.repeat_off)
         repeatButton.contentDescription = if (repeatEnabled) "Repeat on" else "Repeat off"
-        repeatButton.background = roundedBackground(
-            color = if (repeatEnabled) Color.argb(240, 34, 83, 93) else Color.argb(230, 37, 45, 54),
-            radius = dp(18),
-            strokeColor = if (repeatEnabled) Color.rgb(79, 216, 235) else Color.argb(120, 79, 216, 235)
-        )
+        repeatButton.background = controlButtonBackground(active = repeatEnabled)
     }
 
     private fun seekBySeconds(seconds: Int) {
@@ -993,7 +1017,9 @@ class EmbeddedPlayerActivity : Activity() {
         if (!::playPauseButton.isInitialized) {
             return
         }
-        playPauseButton.text = if (mediaPlayer?.isPlaying == true) PauseIcon else PlayIcon
+        val isPlaying = mediaPlayer?.isPlaying == true
+        setButtonIcon(playPauseButton, if (isPlaying) R.drawable.video_player_pause else R.drawable.video_player_play)
+        playPauseButton.contentDescription = if (isPlaying) "Pause" else "Play"
     }
 
     private fun scheduleReconnectIfNeeded(reason: String): Boolean {
@@ -1140,21 +1166,34 @@ class EmbeddedPlayerActivity : Activity() {
         }, delayMs)
     }
 
-    private fun applyDesiredAudioState() {
+    private fun applyDesiredAudioState(force: Boolean = false) {
         mediaPlayer?.let { player ->
             runCatching { player.setAudioDigitalOutputEnabled(false) }
             if (muted) {
-                applyVlcVolume(player, 0, "mute")
+                rememberAudibleVlcVolume(player)
+                LibVlcNativeProbe.setMute(player, true)
+                applyVlcVolume(player, 0, "mute", force)
                 return
             }
+            LibVlcNativeProbe.setMute(player, false)
             ensureAudioTrackSelected()
-            applyVlcVolume(player, VlcAudibleVolume, "volume")
+            applyVlcVolume(player, restoredVlcVolume(), "volume", force)
         }
     }
 
-    private fun applyVlcVolume(player: MediaPlayer, volume: Int, label: String) {
+    private fun rememberAudibleVlcVolume(player: MediaPlayer) {
         val currentVolume = runCatching { player.getVolume() }.getOrDefault(Int.MIN_VALUE)
-        if (currentVolume == volume) {
+        if (currentVolume > 0) {
+            lastAudibleVlcVolume = currentVolume.coerceIn(MinAudibleVlcVolume, MaxVlcVolume)
+        }
+    }
+
+    private fun restoredVlcVolume(): Int =
+        lastAudibleVlcVolume.coerceIn(MinAudibleVlcVolume, MaxVlcVolume)
+
+    private fun applyVlcVolume(player: MediaPlayer, volume: Int, label: String, force: Boolean = false) {
+        val currentVolume = runCatching { player.getVolume() }.getOrDefault(Int.MIN_VALUE)
+        if (!force && currentVolume == volume) {
             return
         }
         val result = runCatching { player.setVolume(volume) }.getOrDefault(0)
@@ -1277,6 +1316,56 @@ class EmbeddedPlayerActivity : Activity() {
         }
     }
 
+    private fun handleNativeProbeEvent(event: LibVlcNativeProbe.NativeEvent) {
+        val details = VideoTrackDetails(
+            displayWidth = event.width,
+            displayHeight = event.height,
+            codec = event.codec
+        )
+        runOnUiThread {
+            if (event.esType == IMedia.Track.Type.Video && event.eventType == MediaPlayer.Event.ESSelected) {
+                selectedVideoTrackId = event.esId
+            }
+            if (details.hasUsefulInfo()) {
+                val previous = nativeProbeVideoDetails
+                val nextWidth = details.displayWidth.takeIf { it > 0 } ?: previous?.displayWidth ?: 0
+                val nextHeight = if (
+                    previous != null &&
+                    nextWidth == previous.displayWidth &&
+                    details.displayHeight > previous.displayHeight &&
+                    details.displayHeight - previous.displayHeight <= PaddedDecoderHeightTolerance
+                ) {
+                    previous.displayHeight
+                } else {
+                    details.displayHeight.takeIf { it > 0 } ?: previous?.displayHeight ?: 0
+                }
+                nativeProbeVideoDetails = VideoTrackDetails(
+                    displayWidth = nextWidth,
+                    displayHeight = nextHeight,
+                    codec = details.codec.ifBlank { previous?.codec.orEmpty() }
+                )
+                val key = listOf(
+                    event.eventType,
+                    event.esType,
+                    event.esId,
+                    nativeProbeVideoDetails?.displayWidth,
+                    nativeProbeVideoDetails?.displayHeight,
+                    nativeProbeVideoDetails?.codec
+                ).joinToString("|")
+                if (key != lastNativeProbeDetailsKey) {
+                    lastNativeProbeDetailsKey = key
+                    Log.d(
+                        LogTag,
+                        "native libVLC event=${event.eventType} es=${event.esType}/${event.esId} " +
+                            "video=${nativeProbeVideoDetails?.displayWidth}x${nativeProbeVideoDetails?.displayHeight} " +
+                            "codec=${nativeProbeVideoDetails?.codec.orEmpty()}"
+                    )
+                }
+            }
+            updateStreamInfo()
+        }
+    }
+
     private fun scheduleStreamInfoRefreshes() {
         updateStreamInfo()
         overlayHandler.postDelayed({ updateStreamInfo() }, StreamInfoRefreshShortDelayMs)
@@ -1303,11 +1392,16 @@ class EmbeddedPlayerActivity : Activity() {
         val player = mediaPlayer ?: return null
         val media = runCatching { player.media }.getOrNull()
         val rendered = renderedVideoDetails
+        val nativeProbe = nativeProbeVideoDetails
         rendered
-            ?.copy(codec = rendered.codec.ifBlank { currentVideoCodec(player) })
+            ?.copy(codec = rendered.codec.ifBlank { nativeProbe?.codec.orEmpty().ifBlank { currentVideoCodec(player) } })
             ?.takeIf { it.hasUsefulInfo() }
             ?.let { return it }
         currentRenderedVideoLayoutDetails(player)
+            ?.let { it.copy(codec = it.codec.ifBlank { nativeProbe?.codec.orEmpty() }) }
+            ?.takeIf { it.hasUsefulInfo() }
+            ?.let { return it }
+        nativeProbe
             ?.takeIf { it.hasUsefulInfo() }
             ?.let { return it }
         runCatching { player.currentVideoTrack }
@@ -1624,11 +1718,14 @@ class EmbeddedPlayerActivity : Activity() {
         private const val StreamInfoRefreshMediumDelayMs = 1_000L
         private const val StreamInfoRefreshLongDelayMs = 2_500L
         private const val ProgressBarMax = 1_000
-        private const val VlcAudibleVolume = 100
+        private const val DefaultVlcVolume = 100
+        private const val MinAudibleVlcVolume = 1
+        private const val MaxVlcVolume = 200
         private const val SeekStepSeconds = 15
         private const val BrightnessStep = 0.10f
         private const val VolumeStep = 0.10f
-        private const val ControlIconSizeDp = 18
+        private const val ControlButtonSizeDp = 48
+        private const val ControlIconPaddingDp = 13
         private const val StartupVolumeFallbackRatio = 0.35f
         private const val DefaultBrightness = 0.50f
         private const val MinimumBrightness = 0.05f
@@ -1636,14 +1733,10 @@ class EmbeddedPlayerActivity : Activity() {
         private const val TwoFingerZoomSlopDp = 56
         private const val TapSlopPx = 14f
         private const val UnknownTrackId = -1
+        private const val PaddedDecoderHeightTolerance = 16
         private const val VideoOrientationLeftBottom = 1
         private const val VideoOrientationRightTop = 3
         private const val LiveTimeLabel = "Live"
-        private const val PlayIcon = "\u25B6"
-        private const val PauseIcon = "\u23F8"
-        private const val StopIcon = "\u25A0"
-        private const val RewindIcon = "\u23EA"
-        private const val ForwardIcon = "\u23E9"
         private const val PlaylistIcon = "List"
         private const val CloseIcon = "\u2715"
         private val VideoHelperField: Field? = runCatching {
