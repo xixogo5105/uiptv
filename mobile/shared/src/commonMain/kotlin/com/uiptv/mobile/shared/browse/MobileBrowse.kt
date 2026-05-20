@@ -202,6 +202,8 @@ interface BrowseRepository {
 
     suspend fun clearRecentlyPlayedBookmarks()
 
+    suspend fun removeRecentlyPlayedBookmark(bookmark: MobileBookmark)
+
     suspend fun listWatchingNow(query: String): List<MobileWatchingNowItem>
 
     suspend fun listWatchingNowEpisodes(item: MobileWatchingNowItem): List<MobileWatchingNowEpisode>

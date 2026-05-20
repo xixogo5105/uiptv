@@ -48,6 +48,7 @@ import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 import org.videolan.libvlc.interfaces.IMedia
+import org.videolan.libvlc.interfaces.IVLCVout
 import org.videolan.libvlc.util.HWDecoderUtil
 import org.videolan.libvlc.util.VLCVideoLayout
 import kotlin.math.abs
@@ -117,6 +118,9 @@ class EmbeddedPlayerActivity : Activity() {
     private var activeGesture = PlayerGesture.None
     private var zoomModeIndex = 0
     private var selectedVideoTrackId = UnknownTrackId
+    @Volatile
+    private var renderedVideoDetails: VideoTrackDetails? = null
+    private var videoLayoutListenerWrapped = false
     private val playbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var currentTarget: PlaybackTarget? = null
     private var currentBingeSession: AndroidBingeWatchSession? = null
@@ -310,12 +314,13 @@ class EmbeddedPlayerActivity : Activity() {
     override fun onStop() {
         stoppingForLifecycle = true
         cancelReconnect()
-        setMusicStreamMuted(false)
         overlayHandler.removeCallbacks(updateProgressRunnable)
         mediaPlayer?.runCatchingStop()
         if (attached) {
             mediaPlayer?.detachViews()
             attached = false
+            videoLayoutListenerWrapped = false
+            renderedVideoDetails = null
         }
         super.onStop()
     }
@@ -366,10 +371,12 @@ class EmbeddedPlayerActivity : Activity() {
         if (!attached) {
             createdPlayer.attachViews(videoLayout, null, false, false)
             attached = true
+            installVideoLayoutObserver(createdPlayer)
         }
         createdPlayer.configureAudioOutput()
         requestAudioFocus()
         selectedVideoTrackId = UnknownTrackId
+        renderedVideoDetails = null
         beginStreamLoading()
         ensureAudibleSystemVolume()
         val audioRequestVersion = markAudioStateSyncRequested()
@@ -871,6 +878,9 @@ class EmbeddedPlayerActivity : Activity() {
 
     private fun toggleMute() {
         muted = !muted
+        if (!muted) {
+            ensureAudibleSystemVolume()
+        }
         applyDesiredAudioState()
         updateMuteButton()
         saveEmbeddedPlayerPreference()
@@ -1088,6 +1098,11 @@ class EmbeddedPlayerActivity : Activity() {
     private fun setVolumeLevel(level: Int) {
         val maxVolume = maxMusicVolume()
         val bounded = level.coerceIn(0, maxVolume)
+        if (muted && bounded > 0) {
+            muted = false
+            updateMuteButton()
+            saveEmbeddedPlayerPreference()
+        }
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, bounded, 0)
         val percent = (bounded * 100f / maxVolume).roundToInt()
         applyDesiredAudioState()
@@ -1128,21 +1143,22 @@ class EmbeddedPlayerActivity : Activity() {
     private fun applyDesiredAudioState() {
         mediaPlayer?.let { player ->
             runCatching { player.setAudioDigitalOutputEnabled(false) }
-            setMusicStreamMuted(muted)
             if (muted) {
-                val volumeResult = runCatching { player.setVolume(0) }.getOrDefault(0)
-                Log.d(LogTag, "Applied VLC mute volumeResult=$volumeResult")
+                applyVlcVolume(player, 0, "mute")
                 return
             }
             ensureAudioTrackSelected()
-            val result = runCatching { player.setVolume(VlcAudibleVolume) }.getOrDefault(0)
-            Log.d(LogTag, "Applied VLC volume=$VlcAudibleVolume result=$result")
+            applyVlcVolume(player, VlcAudibleVolume, "volume")
         }
     }
 
-    private fun setMusicStreamMuted(value: Boolean) {
-        val direction = if (value) AudioManager.ADJUST_MUTE else AudioManager.ADJUST_UNMUTE
-        runCatching { audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, 0) }
+    private fun applyVlcVolume(player: MediaPlayer, volume: Int, label: String) {
+        val currentVolume = runCatching { player.getVolume() }.getOrDefault(Int.MIN_VALUE)
+        if (currentVolume == volume) {
+            return
+        }
+        val result = runCatching { player.setVolume(volume) }.getOrDefault(0)
+        Log.d(LogTag, "Applied VLC $label=$volume result=$result")
     }
 
     private fun MediaPlayer.configureAudioOutput() {
@@ -1170,6 +1186,9 @@ class EmbeddedPlayerActivity : Activity() {
     }
 
     private fun ensureAudibleSystemVolume() {
+        if (muted) {
+            return
+        }
         if (startupVolumeFallbackApplied) {
             return
         }
@@ -1283,13 +1302,18 @@ class EmbeddedPlayerActivity : Activity() {
     private fun currentVideoTrackDetails(): VideoTrackDetails? {
         val player = mediaPlayer ?: return null
         val media = runCatching { player.media }.getOrNull()
+        val rendered = renderedVideoDetails
+        rendered
+            ?.copy(codec = rendered.codec.ifBlank { currentVideoCodec(player) })
+            ?.takeIf { it.hasUsefulInfo() }
+            ?.let { return it }
         currentRenderedVideoLayoutDetails(player)
             ?.takeIf { it.hasUsefulInfo() }
             ?.let { return it }
         runCatching { player.currentVideoTrack }
             .getOrNull()
             ?.toVideoTrackDetails()
-            ?.takeIf { it.hasUsefulInfo() }
+            ?.takeIf { it.hasResolution() }
             ?.let { return it }
 
         val selectedTrackId = selectedVideoTrackId.takeIf { it != UnknownTrackId }
@@ -1300,27 +1324,85 @@ class EmbeddedPlayerActivity : Activity() {
         return media?.let { bestUsefulVideoTrack(it) }
     }
 
+    private fun installVideoLayoutObserver(player: MediaPlayer) {
+        if (videoLayoutListenerWrapped) {
+            return
+        }
+        val field = VoutLayoutListenerField ?: return
+        val vout = player.getVLCVout()
+        val original = runCatching { field.get(vout) as? IVLCVout.OnNewVideoLayoutListener }.getOrNull() ?: return
+        val observer = IVLCVout.OnNewVideoLayoutListener { vlcVout, width, height, visibleWidth, visibleHeight, sarNum, sarDen ->
+            original.onNewVideoLayout(vlcVout, width, height, visibleWidth, visibleHeight, sarNum, sarDen)
+            updateRenderedVideoDetails(width, height, visibleWidth, visibleHeight, sarNum, sarDen)
+        }
+        runCatching {
+            field.set(vout, observer)
+            videoLayoutListenerWrapped = true
+        }
+    }
+
+    private fun updateRenderedVideoDetails(
+        width: Int,
+        height: Int,
+        visibleWidth: Int,
+        visibleHeight: Int,
+        sarNum: Int,
+        sarDen: Int
+    ) {
+        val details = videoLayoutDetails(
+            width = width,
+            height = height,
+            visibleWidth = visibleWidth,
+            visibleHeight = visibleHeight,
+            sarNum = sarNum,
+            sarDen = sarDen,
+            codec = ""
+        ) ?: return
+        renderedVideoDetails = details
+        overlayHandler.post { updateStreamInfo() }
+    }
+
     private fun currentRenderedVideoLayoutDetails(player: MediaPlayer): VideoTrackDetails? {
         val helper = runCatching { VideoHelperField?.get(player) }.getOrNull() ?: return null
         val videoWidth = helper.intField("mVideoWidth")
         val videoHeight = helper.intField("mVideoHeight")
         val visibleWidth = helper.intField("mVideoVisibleWidth").takeIf { it > 0 } ?: videoWidth
         val visibleHeight = helper.intField("mVideoVisibleHeight").takeIf { it > 0 } ?: videoHeight
-        if (visibleWidth <= 0 || visibleHeight <= 0) {
+        return videoLayoutDetails(
+            width = videoWidth,
+            height = videoHeight,
+            visibleWidth = visibleWidth,
+            visibleHeight = visibleHeight,
+            sarNum = helper.intField("mVideoSarNum"),
+            sarDen = helper.intField("mVideoSarDen"),
+            codec = currentVideoCodec(player)
+        )
+    }
+
+    private fun videoLayoutDetails(
+        width: Int,
+        height: Int,
+        visibleWidth: Int,
+        visibleHeight: Int,
+        sarNum: Int,
+        sarDen: Int,
+        codec: String
+    ): VideoTrackDetails? {
+        val sourceWidth = visibleWidth.takeIf { it > 0 } ?: width
+        val sourceHeight = visibleHeight.takeIf { it > 0 } ?: height
+        if (sourceWidth <= 0 || sourceHeight <= 0) {
             return null
         }
-        val sarNum = helper.intField("mVideoSarNum")
-        val sarDen = helper.intField("mVideoSarDen")
         val sampleAspectRatio = if (sarNum > 0 && sarDen > 0) {
             sarNum.toFloat() / sarDen.toFloat()
         } else {
             1f
         }
-        val adjustedWidth = (visibleWidth * sampleAspectRatio).roundToInt().coerceAtLeast(1)
+        val adjustedWidth = (sourceWidth * sampleAspectRatio).roundToInt().coerceAtLeast(1)
         return VideoTrackDetails(
             displayWidth = adjustedWidth,
-            displayHeight = visibleHeight,
-            codec = currentVideoCodec(player)
+            displayHeight = sourceHeight,
+            codec = codec
         )
     }
 
@@ -1502,6 +1584,9 @@ class EmbeddedPlayerActivity : Activity() {
         fun hasUsefulInfo(): Boolean =
             displayWidth > 0 || displayHeight > 0 || codec.isNotBlank()
 
+        fun hasResolution(): Boolean =
+            displayWidth > 0 && displayHeight > 0
+
         fun resolutionLabel(): String =
             if (displayWidth > 0 && displayHeight > 0) {
                 val tier = when {
@@ -1563,6 +1648,11 @@ class EmbeddedPlayerActivity : Activity() {
         private const val CloseIcon = "\u2715"
         private val VideoHelperField: Field? = runCatching {
             MediaPlayer::class.java.getDeclaredField("mVideoHelper").apply { isAccessible = true }
+        }.getOrNull()
+        private val VoutLayoutListenerField: Field? = runCatching {
+            Class.forName("org.videolan.libvlc.AWindow")
+                .getDeclaredField("mOnNewVideoLayoutListener")
+                .apply { isAccessible = true }
         }.getOrNull()
     }
 }

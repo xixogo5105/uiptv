@@ -2045,6 +2045,32 @@ private fun BookmarksScreen(
 
     fun activeSearchVisible(): Boolean = if (wideLayout) wideSearchVisible else searchVisible
     fun activeBookmarkQuery(): String = if (activeSearchVisible()) query else ""
+    fun removeBookmarkFromActiveList(bookmark: MobileBookmark) {
+        scope.launch {
+            val clearingRecent = selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID
+            running = true
+            runCatching {
+                if (clearingRecent) {
+                    browseActions.removeRecentlyPlayedBookmark(bookmark)
+                } else {
+                    browseActions.removeBookmark(bookmark.rowId)
+                }
+            }
+                .onSuccess {
+                    statusText = if (clearingRecent) "Cleared from recently played" else "Removed bookmark"
+                    categories = browseActions.listBookmarkCategories()
+                    bookmarks = browseActions.listBookmarks(activeBookmarkQuery(), selectedCategoryId)
+                }
+                .onFailure {
+                    statusText = it.message ?: if (clearingRecent) {
+                        "Unable to clear recently played item"
+                    } else {
+                        "Unable to remove bookmark"
+                    }
+                }
+            running = false
+        }
+    }
 
     fun reload(categoryId: String? = selectedCategoryId, search: String = activeBookmarkQuery()) {
         scope.launch {
@@ -2112,17 +2138,7 @@ private fun BookmarksScreen(
                 }
             },
             onRemove = { bookmark ->
-                scope.launch {
-                    running = true
-                    runCatching { browseActions.removeBookmark(bookmark.rowId) }
-                        .onSuccess {
-                            statusText = "Removed bookmark"
-                            categories = browseActions.listBookmarkCategories()
-                            bookmarks = browseActions.listBookmarks(query, selectedCategoryId)
-                        }
-                        .onFailure { statusText = it.message ?: "Unable to remove bookmark" }
-                    running = false
-                }
+                removeBookmarkFromActiveList(bookmark)
             },
             modifier = modifier
         )
@@ -2232,6 +2248,7 @@ private fun BookmarksScreen(
         items(bookmarks, key = { it.rowId }) { bookmark ->
             BookmarkRow(
                 bookmark = bookmark,
+                recentlyPlayed = selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID,
                 showThumbnail = showThumbnails,
                 logoRenderer = logoRenderer,
                 onPlay = {
@@ -2253,17 +2270,7 @@ private fun BookmarksScreen(
                     }
                 },
                 onRemove = {
-                    scope.launch {
-                        running = true
-                        runCatching { browseActions.removeBookmark(bookmark.rowId) }
-                            .onSuccess {
-                                statusText = "Removed bookmark"
-                                categories = browseActions.listBookmarkCategories()
-                                bookmarks = browseActions.listBookmarks(query, selectedCategoryId)
-                            }
-                            .onFailure { statusText = it.message ?: "Unable to remove bookmark" }
-                        running = false
-                    }
+                    removeBookmarkFromActiveList(bookmark)
                 }
             )
         }
@@ -2333,6 +2340,7 @@ private fun bookmarkEmptyDetail(query: String, selectedCategoryId: String?): Str
 @Composable
 private fun BookmarkRow(
     bookmark: MobileBookmark,
+    recentlyPlayed: Boolean,
     showThumbnail: Boolean,
     logoRenderer: LogoRenderer,
     onPlay: () -> Unit,
@@ -2359,12 +2367,27 @@ private fun BookmarkRow(
             },
             headlineContent = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    FavouriteStar(
-                        selected = true,
-                        contentDescription = "Remove favourite ${bookmark.channelName}",
-                        compact = true,
-                        onClick = onRemove
-                    )
+                    if (recentlyPlayed) {
+                        IconButton(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .semantics { contentDescription = "Clear recently played ${bookmark.channelName}" },
+                            onClick = onRemove
+                        ) {
+                            Icon(
+                                Icons.Outlined.DeleteSweep,
+                                contentDescription = null,
+                                tint = DeepNightAccent
+                            )
+                        }
+                    } else {
+                        FavouriteStar(
+                            selected = true,
+                            contentDescription = "Remove favourite ${bookmark.channelName}",
+                            compact = true,
+                            onClick = onRemove
+                        )
+                    }
                     Text(
                         bookmark.channelName,
                         modifier = Modifier.weight(1f),
@@ -2530,6 +2553,7 @@ private fun WideBookmarksContent(
                             Box(modifier = Modifier.weight(1f)) {
                                 BookmarkRow(
                                     bookmark = bookmark,
+                                    recentlyPlayed = selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID,
                                     showThumbnail = showThumbnails,
                                     logoRenderer = logoRenderer,
                                     onPlay = { onPlay(bookmark) },
@@ -7066,6 +7090,7 @@ data class BrowseUiActions(
     val removeCachedCategories: suspend (Long, BrowseMode, Set<Long>) -> MobileCategoryCacheRemovalResult,
     val removeBookmark: suspend (Long) -> Unit,
     val clearRecentlyPlayedBookmarks: suspend () -> Unit,
+    val removeRecentlyPlayedBookmark: suspend (MobileBookmark) -> Unit,
     val listWatchingNow: suspend (String) -> List<MobileWatchingNowItem>,
     val listWatchingNowEpisodes: suspend (MobileWatchingNowItem) -> List<MobileWatchingNowEpisode>,
     val enrichWatchingNowItem: suspend (MobileWatchingNowItem) -> MobileWatchingNowItem,
@@ -7127,6 +7152,7 @@ data class BrowseUiActions(
                 },
                 removeBookmark = {},
                 clearRecentlyPlayedBookmarks = {},
+                removeRecentlyPlayedBookmark = {},
                 listWatchingNow = {
                     listOf(MobileWatchingNowItem(1, 1, "Demo", BrowseMode.VOD, "Demo Movie", "Demo", updatedAtEpochSeconds = 1))
                 },

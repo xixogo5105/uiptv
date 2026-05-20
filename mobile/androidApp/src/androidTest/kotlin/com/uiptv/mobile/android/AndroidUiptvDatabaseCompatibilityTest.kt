@@ -8,11 +8,13 @@ import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
 import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.browse.AndroidEpisodeMetadata
+import com.uiptv.mobile.shared.browse.AndroidBookmarkPlayHistoryStore
 import com.uiptv.mobile.shared.browse.AndroidImdbMetadata
 import com.uiptv.mobile.shared.browse.AndroidImdbMetadataProvider
 import com.uiptv.mobile.shared.browse.AndroidSQLiteBrowseRepository
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.browse.MobileBrowseItem
+import com.uiptv.mobile.shared.browse.RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID
 import com.uiptv.mobile.shared.browse.MobileWatchingNowEpisode
 import com.uiptv.mobile.shared.browse.MobileWatchingNowItem
 import com.uiptv.mobile.shared.cache.AndroidM3uCacheReloader
@@ -394,6 +396,36 @@ class AndroidUiptvDatabaseCompatibilityTest {
 
         assertEquals(0, repository.listBookmarks("News", null).size)
         assertEquals(listOf("Resume Series", "Resume Movie"), repository.listWatchingNow("").map { it.title })
+    }
+
+    @Test
+    fun browseRepositoryClearsSingleRecentlyPlayedBookmarkWithoutRemovingFavourite() = runBlocking {
+        val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+            MobileAccount(
+                accountName = "Recent Account",
+                type = MobileAccountType.M3U8_URL,
+                m3u8Path = "https://example.test/list.m3u"
+            )
+        )
+        val accountId = requireNotNull(account.id)
+        val db = helper.writableDatabase
+        db.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(1501, 'all', ?, 'itv', 'All')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO Channel(id, channelId, categoryId, name, number, cmd, hd) VALUES(1502, 'recent-1', '1501', 'Recent News', '1', 'https://stream.test/recent', 1)")
+
+        val repository = AndroidSQLiteBrowseRepository(helper)
+        val item = repository.loadBrowse(accountId, BrowseMode.LIVE, 1501, "").items.single()
+        assertTrue(repository.toggleBookmark(item))
+        val bookmark = repository.listBookmarks("", null).single()
+        AndroidBookmarkPlayHistoryStore(db).record(bookmark)
+
+        assertEquals(listOf("Recent News"), repository.listBookmarks("", RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID).map { it.channelName })
+        assertEquals(1, repository.listBookmarkCategories().single { it.id == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID }.itemCount)
+
+        repository.removeRecentlyPlayedBookmark(bookmark)
+
+        assertEquals(emptyList<String>(), repository.listBookmarks("", RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID).map { it.channelName })
+        assertEquals(0, repository.listBookmarkCategories().single { it.id == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID }.itemCount)
+        assertEquals(listOf("Recent News"), repository.listBookmarks("", null).map { it.channelName })
     }
 
     @Test

@@ -79,6 +79,12 @@ class AndroidBookmarkPlayHistoryStore(
         db.delete(TABLE, null, null)
     }
 
+    fun remove(bookmark: MobileBookmark) {
+        val key = bookmark.historyKey() ?: return
+        ensureTable()
+        db.delete(TABLE, KEY_WHERE, key.args())
+    }
+
     private fun currentPlayCount(key: BookmarkHistoryKey): Int? =
         db.rawQuery(
             "SELECT playCount FROM $TABLE WHERE $KEY_WHERE LIMIT 1",

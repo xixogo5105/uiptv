@@ -425,6 +425,10 @@ class AndroidSQLiteBrowseRepository(
         AndroidBookmarkPlayHistoryStore(databaseHelper.writableDatabase).clear()
     }
 
+    override suspend fun removeRecentlyPlayedBookmark(bookmark: MobileBookmark): Unit = withContext(Dispatchers.IO) {
+        AndroidBookmarkPlayHistoryStore(databaseHelper.writableDatabase).remove(bookmark)
+    }
+
     override suspend fun listWatchingNow(query: String): List<MobileWatchingNowItem> = withContext(Dispatchers.IO) {
         val db = databaseHelper.writableDatabase
         val items = loadVodWatchingNow(db) + loadSeriesWatchingNow(db)

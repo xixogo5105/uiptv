@@ -145,6 +145,10 @@ class MainActivity : ComponentActivity() {
                         browseRepository.clearRecentlyPlayedBookmarks()
                         notifyLocalDatabaseChanged()
                     },
+                    removeRecentlyPlayedBookmark = { bookmark ->
+                        browseRepository.removeRecentlyPlayedBookmark(bookmark)
+                        notifyLocalDatabaseChanged()
+                    },
                     listWatchingNow = browseRepository::listWatchingNow,
                     listWatchingNowEpisodes = browseRepository::listWatchingNowEpisodes,
                     enrichWatchingNowItem = browseRepository::enrichWatchingNowItem,
