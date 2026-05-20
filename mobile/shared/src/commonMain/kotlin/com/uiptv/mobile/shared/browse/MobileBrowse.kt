@@ -53,6 +53,12 @@ data class MobileBrowseSnapshot(
     val items: List<MobileBrowseItem> = emptyList()
 )
 
+data class MobileCategoryCacheRemovalResult(
+    val requestedCategoryCount: Int,
+    val removedCategoryCount: Int,
+    val removedItemCount: Int
+)
+
 data class BrowseAccountOption(
     val id: Long,
     val name: String,
@@ -185,6 +191,12 @@ interface BrowseRepository {
     suspend fun listBookmarks(query: String, bookmarkCategoryId: String?): List<MobileBookmark>
 
     suspend fun toggleBookmark(item: MobileBrowseItem): Boolean
+
+    suspend fun removeCachedCategories(
+        accountId: Long,
+        mode: BrowseMode,
+        categoryRowIds: Set<Long>
+    ): MobileCategoryCacheRemovalResult
 
     suspend fun removeBookmark(bookmarkId: Long)
 

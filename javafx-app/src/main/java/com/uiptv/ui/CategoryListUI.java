@@ -3,12 +3,14 @@ package com.uiptv.ui;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.CategoryType;
+import com.uiptv.service.CategoryCacheRemovalService;
 import com.uiptv.service.CategoryResolver;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.SearchableTableView;
+import com.uiptv.widget.UIptvAlert;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -23,8 +25,11 @@ import javafx.scene.layout.VBox;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -115,6 +120,7 @@ public class CategoryListUI extends HBox {
         setMaxHeight(Double.MAX_VALUE);
         setMinHeight(0);
         table.setEditable(true);
+        table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         table.getColumns().add(categoryTitle);
         categoryTitle.setVisible(true);
         categoryId.setVisible(false);
@@ -335,10 +341,17 @@ public class CategoryListUI extends HBox {
         table.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.ENTER) {
                 doRetrieveChannels(table.getFocusModel().getFocusedItem());
+            } else if (event.getCode() == KeyCode.DELETE) {
+                removeSelectedCachedCategories();
+                event.consume();
             }
         });
         table.setRowFactory(_ -> {
             TableRow<CategoryItem> row = new TableRow<>();
+            ContextMenu contextMenu = new ContextMenu();
+            MenuItem removeSelected = new MenuItem(I18n.tr("categoryRemoveSelectedFromCache"));
+            removeSelected.setOnAction(_ -> removeSelectedCachedCategories());
+            contextMenu.getItems().add(removeSelected);
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY
                         && event.getClickCount() == 2) {
@@ -346,8 +359,114 @@ public class CategoryListUI extends HBox {
 
                 }
             });
+            row.setOnContextMenuRequested(event -> {
+                if (row.isEmpty()) {
+                    return;
+                }
+                if (!row.isSelected()) {
+                    table.getSelectionModel().clearAndSelect(row.getIndex());
+                }
+                removeSelected.setDisable(selectedRemovableCategoryItems().isEmpty());
+                contextMenu.show(row, event.getScreenX(), event.getScreenY());
+                event.consume();
+            });
             return row;
         });
+    }
+
+    private void removeSelectedCachedCategories() {
+        List<CategoryItem> selected = selectedRemovableCategoryItems();
+        if (selected.isEmpty()) {
+            showErrorAlert(I18n.tr("categoryRemoveCachedNoSelection"));
+            return;
+        }
+        int selectedCount = selected.size();
+        if (!confirmCachedCategoryRemoval(selectedCount)) {
+            return;
+        }
+
+        Account.AccountAction mode = activeMode;
+        account.setAction(mode);
+        List<String> categoryDbIds = selected.stream().map(CategoryItem::getId).toList();
+        try {
+            cancelCurrentLoadingRequest();
+            CategoryCacheRemovalService.getInstance().removeCachedCategories(account, categoryDbIds);
+            discardRemovedCategoryState(mode, selected);
+            List<Category> categories = CategoryService.getInstance().getCached(account);
+            modeStates.computeIfAbsent(mode, _ -> new ModeState()).categories = new ArrayList<>(categories);
+            setItems(categories);
+            table.getSelectionModel().clearSelection();
+        } catch (Exception e) {
+            showErrorAlert(I18n.tr("autoFailed") + ": " + e.getMessage());
+        }
+    }
+
+    private List<CategoryItem> selectedRemovableCategoryItems() {
+        Map<String, CategoryItem> uniqueItems = new LinkedHashMap<>();
+        for (CategoryItem item : table.getSelectionModel().getSelectedItems()) {
+            if (isRemovableCategoryItem(item)) {
+                uniqueItems.putIfAbsent(item.getId().trim(), item);
+            }
+        }
+        return new ArrayList<>(uniqueItems.values());
+    }
+
+    private boolean isRemovableCategoryItem(CategoryItem item) {
+        return item != null
+                && item.getId() != null
+                && !item.getId().trim().isEmpty()
+                && !isAllCategory(item);
+    }
+
+    private boolean confirmCachedCategoryRemoval(int selectedCount) {
+        ButtonType okButton = UIptvAlert.okButtonType();
+        ButtonType closeButton = UIptvAlert.closeButtonType();
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
+                I18n.tr("categoryRemoveCachedConfirmMessage",
+                        I18n.formatNumber(String.valueOf(selectedCount)),
+                        removalContentLabel(activeMode)),
+                okButton,
+                closeButton);
+        alert.setTitle(I18n.tr("categoryRemoveCachedTitle"));
+        alert.setHeaderText(null);
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == okButton;
+    }
+
+    private String removalContentLabel(Account.AccountAction mode) {
+        return switch (mode) {
+            case vod -> I18n.tr("categoryRemoveCachedVodItems");
+            case series -> I18n.tr("categoryRemoveCachedSeriesItems");
+            case itv -> I18n.tr("categoryRemoveCachedLiveItems");
+        };
+    }
+
+    private void cancelCurrentLoadingRequest() {
+        if (currentRequestCancelled != null) {
+            currentRequestCancelled.set(true);
+        }
+        Thread runningThread = currentLoadingThread.getAndSet(null);
+        if (runningThread != null && runningThread.isAlive()) {
+            runningThread.interrupt();
+        }
+    }
+
+    private void discardRemovedCategoryState(Account.AccountAction mode, List<CategoryItem> removedItems) {
+        ModeState state = modeStates.computeIfAbsent(mode, _ -> new ModeState());
+        if (state.selectedCategory == null) {
+            return;
+        }
+        boolean selectedCategoryRemoved = removedItems.stream()
+                .anyMatch(item -> sameCategorySelection(item, state.selectedCategory));
+        if (!selectedCategoryRemoved) {
+            return;
+        }
+        disposeChannelListState(state);
+        if (embeddedMode) {
+            showListView();
+        } else {
+            removeChannelPane();
+        }
     }
 
     private void doRetrieveChannels(CategoryItem item) {

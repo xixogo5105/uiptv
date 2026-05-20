@@ -397,6 +397,63 @@ class AndroidUiptvDatabaseCompatibilityTest {
     }
 
     @Test
+    fun browseRepositoryRemovesSelectedCachedCategoriesOnly() = runBlocking {
+        val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+            MobileAccount(
+                accountName = "Removal Account",
+                type = MobileAccountType.XTREME_API,
+                url = "https://example.test",
+                username = "u",
+                password = "p"
+            )
+        )
+        val accountId = requireNotNull(account.id)
+        val db = helper.writableDatabase
+        db.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(2101, 'live-remove', ?, 'itv', 'Live Remove')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(2102, 'live-keep', ?, 'itv', 'Live Keep')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO Channel(id, channelId, categoryId, name) VALUES(2201, 'live-1', '2101', 'Live One')")
+        db.execSQL("INSERT INTO Channel(id, channelId, categoryId, name) VALUES(2202, 'live-2', '2102', 'Live Two')")
+        db.execSQL("INSERT INTO VodCategory(id, categoryId, accountId, accountType, title) VALUES(2301, 'vod-remove', ?, 'vod', 'Vod Remove')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO VodCategory(id, categoryId, accountId, accountType, title) VALUES(2302, 'vod-keep', ?, 'vod', 'Vod Keep')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO VodChannel(id, channelId, categoryId, accountId, name) VALUES(2401, 'vod-1', 'vod-remove', ?, 'Movie One')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO VodChannel(id, channelId, categoryId, accountId, name) VALUES(2402, 'vod-2', 'vod-keep', ?, 'Movie Two')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesCategory(id, categoryId, accountId, accountType, title) VALUES(2501, 'series-remove', ?, 'series', 'Series Remove')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesCategory(id, categoryId, accountId, accountType, title) VALUES(2502, 'series-keep', ?, 'series', 'Series Keep')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesChannel(id, channelId, categoryId, accountId, name) VALUES(2601, 'series-1', 'series-remove', ?, 'Series One')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesChannel(id, channelId, categoryId, accountId, name) VALUES(2602, 'series-2', 'series-keep', ?, 'Series Two')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesEpisode(id, accountId, categoryId, seriesId, channelId, name) VALUES(2701, ?, 'series-remove', 'series-1', 'episode-1', 'Episode One')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesEpisode(id, accountId, categoryId, seriesId, channelId, name) VALUES(2702, ?, 'series-keep', 'series-2', 'episode-2', 'Episode Two')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO Bookmark(id, accountName, categoryId, channelId, channelName) VALUES(2801, 'Removal Account', 'live-remove', 'live-1', 'Live One')")
+        db.execSQL("INSERT INTO VodWatchState(id, accountId, categoryId, vodId, vodName) VALUES(2901, ?, 'vod-remove', 'vod-1', 'Movie One')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesWatchState(id, accountId, mode, categoryId, seriesId, episodeId, episodeName) VALUES(3001, ?, 'series', 'series-remove', 'series-1', 'episode-1', 'Episode One')", arrayOf(accountId.toString()))
+        db.execSQL("INSERT INTO SeriesWatchingNowSnapshot(id, accountId, categoryId, seriesId, seriesTitle) VALUES(3002, ?, 'series-remove', 'series-1', 'Series One')", arrayOf(accountId.toString()))
+
+        val repository = AndroidSQLiteBrowseRepository(helper)
+        val liveResult = repository.removeCachedCategories(accountId, BrowseMode.LIVE, setOf(2101L))
+        val vodResult = repository.removeCachedCategories(accountId, BrowseMode.VOD, setOf(2301L))
+        val seriesResult = repository.removeCachedCategories(accountId, BrowseMode.SERIES, setOf(2501L))
+
+        assertEquals(1, liveResult.removedCategoryCount)
+        assertEquals(1, liveResult.removedItemCount)
+        assertEquals(1, vodResult.removedCategoryCount)
+        assertEquals(1, vodResult.removedItemCount)
+        assertEquals(1, seriesResult.removedCategoryCount)
+        assertEquals(2, seriesResult.removedItemCount)
+        assertEquals(0, db.countRows("Channel", "categoryId = '2101'"))
+        assertEquals(1, db.countRows("Channel", "categoryId = '2102'"))
+        assertEquals(0, db.countRows("VodChannel", "accountId = '$accountId' AND categoryId = 'vod-remove'"))
+        assertEquals(1, db.countRows("VodChannel", "accountId = '$accountId' AND categoryId = 'vod-keep'"))
+        assertEquals(0, db.countRows("SeriesChannel", "accountId = '$accountId' AND categoryId = 'series-remove'"))
+        assertEquals(1, db.countRows("SeriesChannel", "accountId = '$accountId' AND categoryId = 'series-keep'"))
+        assertEquals(0, db.countRows("SeriesEpisode", "accountId = '$accountId' AND categoryId = 'series-remove'"))
+        assertEquals(1, db.countRows("SeriesEpisode", "accountId = '$accountId' AND categoryId = 'series-keep'"))
+        assertEquals(1, db.countRows("Bookmark", "accountName = 'Removal Account'"))
+        assertEquals(1, db.countRows("VodWatchState", "accountId = '$accountId' AND categoryId = 'vod-remove'"))
+        assertEquals(1, db.countRows("SeriesWatchState", "accountId = '$accountId' AND categoryId = 'series-remove'"))
+        assertEquals(1, db.countRows("SeriesWatchingNowSnapshot", "accountId = '$accountId' AND categoryId = 'series-remove'"))
+    }
+
+    @Test
     fun playbackCoordinatorPersistsPreferenceAndMarksWatchingNow() = runBlocking {
         val account = AndroidSQLiteAccountRepository(helper).saveAccount(
             MobileAccount(

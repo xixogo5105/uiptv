@@ -345,6 +345,75 @@ class AndroidSQLiteBrowseRepository(
         bookmarked
     }
 
+    override suspend fun removeCachedCategories(
+        accountId: Long,
+        mode: BrowseMode,
+        categoryRowIds: Set<Long>
+    ): MobileCategoryCacheRemovalResult = withContext(Dispatchers.IO) {
+        val rowIds = categoryRowIds
+            .filter { it > 0 }
+            .distinct()
+        if (accountId <= 0 || rowIds.isEmpty()) {
+            return@withContext MobileCategoryCacheRemovalResult(0, 0, 0)
+        }
+
+        val db = databaseHelper.writableDatabase
+        db.beginTransaction()
+        try {
+            val categories = loadRemovalCategories(db, accountId, mode, rowIds)
+            val removedItems = if (categories.isEmpty()) {
+                0
+            } else {
+                when (mode) {
+                    BrowseMode.LIVE -> deleteRows(
+                        db = db,
+                        table = "Channel",
+                        where = "categoryId IN (${placeholders(categories.size)})",
+                        args = categories.map { it.rowId.toString() }
+                    )
+                    BrowseMode.VOD -> deleteRows(
+                        db = db,
+                        table = "VodChannel",
+                        where = "accountId = ? AND categoryId IN (${placeholders(categories.size)})",
+                        args = listOf(accountId.toString()) + categories.map { it.providerId }
+                    )
+                    BrowseMode.SERIES -> {
+                        val args = listOf(accountId.toString()) + categories.map { it.providerId }
+                        deleteRows(
+                            db = db,
+                            table = "SeriesChannel",
+                            where = "accountId = ? AND categoryId IN (${placeholders(categories.size)})",
+                            args = args
+                        ) + deleteRows(
+                            db = db,
+                            table = "SeriesEpisode",
+                            where = "accountId = ? AND categoryId IN (${placeholders(categories.size)})",
+                            args = args
+                        )
+                    }
+                }
+            }
+            val removedCategories = if (categories.isEmpty()) {
+                0
+            } else {
+                deleteRows(
+                    db = db,
+                    table = mode.categoryTable(),
+                    where = "accountId = ? AND id IN (${placeholders(categories.size)})",
+                    args = listOf(accountId.toString()) + categories.map { it.rowId.toString() }
+                )
+            }
+            db.setTransactionSuccessful()
+            MobileCategoryCacheRemovalResult(
+                requestedCategoryCount = rowIds.size,
+                removedCategoryCount = removedCategories,
+                removedItemCount = removedItems
+            )
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     override suspend fun removeBookmark(bookmarkId: Long): Unit = withContext(Dispatchers.IO) {
         val db = databaseHelper.writableDatabase
         db.delete("Bookmark", "id = ?", arrayOf(bookmarkId.toString()))
@@ -846,6 +915,48 @@ class AndroidSQLiteBrowseRepository(
                 )
             }
         }
+    }
+
+    private fun loadRemovalCategories(
+        db: SQLiteDatabase,
+        accountId: Long,
+        mode: BrowseMode,
+        rowIds: List<Long>
+    ): List<CategoryRemovalRow> {
+        if (rowIds.isEmpty()) {
+            return emptyList()
+        }
+        return db.rawQuery(
+            """
+            SELECT id, categoryId
+            FROM ${quoteIdentifier(mode.categoryTable())}
+            WHERE accountId = ? AND id IN (${placeholders(rowIds.size)})
+            """.trimIndent(),
+            (listOf(accountId.toString()) + rowIds.map { it.toString() }).toTypedArray()
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    add(
+                        CategoryRemovalRow(
+                            rowId = cursor.long("id"),
+                            providerId = cursor.string("categoryId").trim()
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private fun deleteRows(
+        db: SQLiteDatabase,
+        table: String,
+        where: String,
+        args: List<String>
+    ): Int {
+        if (args.isEmpty()) {
+            return 0
+        }
+        return db.delete(table, where, args.toTypedArray())
     }
 
     private fun loadVodWatchingNow(db: SQLiteDatabase): List<MobileWatchingNowItem> =
@@ -1666,6 +1777,21 @@ class AndroidSQLiteBrowseRepository(
             BrowseMode.VOD -> "vod"
             BrowseMode.SERIES -> "series"
         }
+
+    private fun BrowseMode.categoryTable(): String =
+        when (this) {
+            BrowseMode.LIVE -> "Category"
+            BrowseMode.VOD -> "VodCategory"
+            BrowseMode.SERIES -> "SeriesCategory"
+        }
+
+    private fun placeholders(count: Int): String =
+        List(count) { "?" }.joinToString(",")
+
+    private data class CategoryRemovalRow(
+        val rowId: Long,
+        val providerId: String
+    )
 
     private fun String.toBrowseMode(): BrowseMode =
         when {

@@ -111,6 +111,7 @@ import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.browse.BrowseAccountOption
 import com.uiptv.mobile.shared.browse.BrowseMode
+import com.uiptv.mobile.shared.browse.MobileCategoryCacheRemovalResult
 import com.uiptv.mobile.shared.browse.MobileBookmark
 import com.uiptv.mobile.shared.browse.MobileBookmarkCategory
 import com.uiptv.mobile.shared.browse.MobileBrowseCategory
@@ -593,6 +594,9 @@ private fun ChannelsScreen(
     var browseSeriesEpisodes by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
     var pendingEpisodeMenu by remember { mutableStateOf<MobileWatchingNowEpisode?>(null) }
     var searchVisible by remember { mutableStateOf(false) }
+    var categorySelectionMode by remember { mutableStateOf(false) }
+    var selectedCategoryIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var pendingCategoryRemoval by remember { mutableStateOf(false) }
 
     fun activeSearchVisible(): Boolean = if (wideLayout) wideSearchVisible else searchVisible
     fun activeCategoryQuery(): String = if (activeSearchVisible()) categoryQuery else ""
@@ -661,6 +665,9 @@ private fun ChannelsScreen(
         val activeMode = if (mode in visibleModes) mode else BrowseMode.LIVE
         mode = activeMode
         selectedCategoryRowId = null
+        categorySelectionMode = false
+        selectedCategoryIds = emptySet()
+        pendingCategoryRemoval = false
         channelQuery = ""
         reload(requestedAccountId, null, "", activeMode)
     }
@@ -682,6 +689,57 @@ private fun ChannelsScreen(
     val currentTitle = selectedCategory?.title ?: "${mode.displayLabel()} Categories"
     val screenTitle = "$selectedAccountName - $currentTitle"
     val browseSeries = selectedBrowseSeries
+    val selectedCategoryCount = selectedCategoryIds.count { id -> snapshot.categories.any { it.rowId == id } }
+
+    fun clearCategorySelection() {
+        categorySelectionMode = false
+        selectedCategoryIds = emptySet()
+        pendingCategoryRemoval = false
+    }
+
+    fun beginCategorySelection(category: MobileBrowseCategory) {
+        categorySelectionMode = true
+        selectedCategoryIds = setOf(category.rowId)
+    }
+
+    fun toggleCategorySelection(category: MobileBrowseCategory) {
+        val nextSelection = if (category.rowId in selectedCategoryIds) {
+            selectedCategoryIds - category.rowId
+        } else {
+            selectedCategoryIds + category.rowId
+        }
+        selectedCategoryIds = nextSelection
+        if (nextSelection.isEmpty()) {
+            categorySelectionMode = false
+        }
+    }
+
+    fun requestCategoryRemoval() {
+        if (selectedCategoryCount > 0) {
+            pendingCategoryRemoval = true
+        }
+    }
+
+    fun removeSelectedCategories() {
+        val accountId = snapshot.selectedAccountId ?: requestedAccountId ?: return
+        val idsToRemove = selectedCategoryIds
+        val removedActiveCategory = selectedCategoryRowId != null && selectedCategoryRowId in idsToRemove
+        scope.launch {
+            running = true
+            runCatching { browseActions.removeCachedCategories(accountId, mode, idsToRemove) }
+                .onSuccess { result ->
+                    statusText = "Removed ${result.removedCategoryCount} categories and ${result.removedItemCount} cached items"
+                    clearCategorySelection()
+                    if (removedActiveCategory) {
+                        selectedCategoryRowId = null
+                        channelQuery = ""
+                    }
+                    reload(accountId, if (removedActiveCategory) null else selectedCategoryRowId, activeChannelQuery(), mode)
+                }
+                .onFailure { statusText = it.message ?: "Unable to remove categories" }
+            running = false
+        }
+    }
     if (browseSeries != null) {
         backHandler(true) {
             selectedBrowseSeries = null
@@ -866,8 +924,40 @@ private fun ChannelsScreen(
         )
         return
     }
-    backHandler(selectedCategoryRowId != null) {
-        backToCategories()
+    backHandler(categorySelectionMode || selectedCategoryRowId != null) {
+        if (categorySelectionMode) {
+            clearCategorySelection()
+        } else {
+            backToCategories()
+        }
+    }
+    if (pendingCategoryRemoval && selectedCategoryCount > 0) {
+        AlertDialog(
+            onDismissRequest = { pendingCategoryRemoval = false },
+            title = { Text("Remove cached categories?") },
+            text = {
+                Text(
+                    "You are about to remove $selectedCategoryCount cached categories. " +
+                        "Cached ${mode.removalItemLabel()} in those categories will also be removed. " +
+                        "Bookmarks and Watching Now entries will stay. Refresh cache for this account to bring them back."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingCategoryRemoval = false
+                        removeSelectedCategories()
+                    }
+                ) {
+                    Text("Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingCategoryRemoval = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (wideLayout) {
@@ -886,6 +976,9 @@ private fun ChannelsScreen(
             statusText = statusText,
             logoRenderer = logoRenderer,
             searchVisible = wideSearchVisible,
+            categorySelectionMode = categorySelectionMode,
+            selectedCategoryIds = selectedCategoryIds,
+            selectedCategoryCount = selectedCategoryCount,
             onBack = {
                 if (showingChannelList) {
                     backToCategories()
@@ -902,6 +995,7 @@ private fun ChannelsScreen(
                 }
             },
             onAccountSelect = { account ->
+                clearCategorySelection()
                 selectedCategoryRowId = null
                 channelQuery = ""
                 val nextMode = if (mode in account.type.browseModesForAccount()) mode else BrowseMode.LIVE
@@ -909,16 +1003,24 @@ private fun ChannelsScreen(
                 reload(account.id, null, "", nextMode)
             },
             onModeSelect = { entry ->
+                clearCategorySelection()
                 mode = entry
                 selectedCategoryRowId = null
                 channelQuery = ""
                 reload(snapshot.selectedAccountId, null, "", entry)
             },
             onCategorySelect = { category ->
-                selectedCategoryRowId = category.rowId
-                channelQuery = ""
-                reload(snapshot.selectedAccountId, category.rowId, "")
+                if (categorySelectionMode) {
+                    toggleCategorySelection(category)
+                } else {
+                    selectedCategoryRowId = category.rowId
+                    channelQuery = ""
+                    reload(snapshot.selectedAccountId, category.rowId, "")
+                }
             },
+            onCategoryLongPress = { category -> beginCategorySelection(category) },
+            onClearCategorySelection = { clearCategorySelection() },
+            onRemoveSelectedCategories = { requestCategoryRemoval() },
             onPlayItem = { item ->
                 scope.launch {
                     running = true
@@ -1101,6 +1203,7 @@ private fun ChannelsScreen(
                                     FilterChip(
                                         selected = snapshot.selectedAccountId == account.id,
                                         onClick = {
+                                            clearCategorySelection()
                                             selectedCategoryRowId = null
                                             channelQuery = ""
                                             val nextMode = if (mode in account.type.browseModesForAccount()) mode else BrowseMode.LIVE
@@ -1116,6 +1219,7 @@ private fun ChannelsScreen(
                                     FilterChip(
                                         selected = mode == entry,
                                         onClick = {
+                                            clearCategorySelection()
                                             mode = entry
                                             selectedCategoryRowId = null
                                             channelQuery = ""
@@ -1133,6 +1237,7 @@ private fun ChannelsScreen(
                                 FilterChip(
                                     selected = snapshot.selectedAccountId == account.id,
                                     onClick = {
+                                        clearCategorySelection()
                                         selectedCategoryRowId = null
                                         channelQuery = ""
                                         val nextMode = if (mode in account.type.browseModesForAccount()) mode else BrowseMode.LIVE
@@ -1150,6 +1255,7 @@ private fun ChannelsScreen(
                                 FilterChip(
                                     selected = mode == entry,
                                     onClick = {
+                                        clearCategorySelection()
                                         mode = entry
                                         selectedCategoryRowId = null
                                         channelQuery = ""
@@ -1186,6 +1292,15 @@ private fun ChannelsScreen(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            if (categorySelectionMode) {
+                                item {
+                                    CategorySelectionToolbar(
+                                        selectedCount = selectedCategoryCount,
+                                        onRemove = { requestCategoryRemoval() },
+                                        onCancel = { clearCategorySelection() }
+                                    )
+                                }
+                            }
                             if (visibleCategories.isEmpty()) {
                                 item {
                                     EmptyState(
@@ -1206,11 +1321,18 @@ private fun ChannelsScreen(
                             items(visibleCategories, key = { it.rowId }) { category ->
                                 CategoryListRow(
                                     category = category,
+                                    selected = category.rowId in selectedCategoryIds,
+                                    selectionMode = categorySelectionMode,
                                     onClick = {
-                                        selectedCategoryRowId = category.rowId
-                                        channelQuery = ""
-                                        reload(snapshot.selectedAccountId, category.rowId, "")
-                                    }
+                                        if (categorySelectionMode) {
+                                            toggleCategorySelection(category)
+                                        } else {
+                                            selectedCategoryRowId = category.rowId
+                                            channelQuery = ""
+                                            reload(snapshot.selectedAccountId, category.rowId, "")
+                                        }
+                                    },
+                                    onLongClick = { beginCategorySelection(category) }
                                 )
                             }
                         }
@@ -1363,6 +1485,9 @@ private fun WideChannelsContent(
     statusText: String,
     logoRenderer: LogoRenderer,
     searchVisible: Boolean,
+    categorySelectionMode: Boolean,
+    selectedCategoryIds: Set<Long>,
+    selectedCategoryCount: Int,
     showBack: Boolean,
     onBack: () -> Unit,
     onCategoryQueryChange: (String) -> Unit,
@@ -1370,6 +1495,9 @@ private fun WideChannelsContent(
     onAccountSelect: (BrowseAccountOption) -> Unit,
     onModeSelect: (BrowseMode) -> Unit,
     onCategorySelect: (MobileBrowseCategory) -> Unit,
+    onCategoryLongPress: (MobileBrowseCategory) -> Unit,
+    onClearCategorySelection: () -> Unit,
+    onRemoveSelectedCategories: () -> Unit,
     onPlayItem: (MobileBrowseItem) -> Unit,
     onToggleBookmark: (MobileBrowseItem) -> Unit,
     modifier: Modifier = Modifier
@@ -1475,6 +1603,13 @@ private fun WideChannelsContent(
                             label = "Search categories"
                         )
                     }
+                    if (categorySelectionMode) {
+                        CategorySelectionToolbar(
+                            selectedCount = selectedCategoryCount,
+                            onRemove = onRemoveSelectedCategories,
+                            onCancel = onClearCategorySelection
+                        )
+                    }
                     LazyColumn(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1499,7 +1634,10 @@ private fun WideChannelsContent(
                         items(visibleCategories, key = { it.rowId }) { category ->
                             CategoryListRow(
                                 category = category,
-                                onClick = { onCategorySelect(category) }
+                                selected = category.rowId in selectedCategoryIds,
+                                selectionMode = categorySelectionMode,
+                                onClick = { onCategorySelect(category) },
+                                onLongClick = { onCategoryLongPress(category) }
                             )
                         }
                     }
@@ -1629,16 +1767,76 @@ private fun SelectableChip(label: String, selected: Boolean, description: String
 }
 
 @Composable
-private fun CategoryListRow(category: MobileBrowseCategory, onClick: () -> Unit) {
+private fun CategorySelectionToolbar(
+    selectedCount: Int,
+    onRemove: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = DeepNightSurfaceHighest,
+        contentColor = DeepNightText,
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "$selectedCount selected",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            TextButton(onClick = onCancel) {
+                Text("Cancel")
+            }
+            Button(
+                enabled = selectedCount > 0,
+                onClick = onRemove
+            ) {
+                Text("Remove")
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryListRow(
+    category: MobileBrowseCategory,
+    selected: Boolean = false,
+    selectionMode: Boolean = false,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {}
+) {
+    val backgroundColor = if (selected) {
+        DeepNightPrimary.copy(alpha = 0.24f)
+    } else {
+        DeepNightSurfaceHigh
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 56.dp)
-            .background(DeepNightSurfaceHigh)
-            .clickable(onClick = onClick)
+            .background(backgroundColor)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (selectionMode) {
+            Checkbox(
+                checked = selected,
+                onCheckedChange = { onClick() }
+            )
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 category.title,
@@ -6430,6 +6628,7 @@ data class BrowseUiActions(
     val listBookmarkCategories: suspend () -> List<MobileBookmarkCategory>,
     val listBookmarks: suspend (String, String?) -> List<MobileBookmark>,
     val toggleBookmark: suspend (MobileBrowseItem) -> Boolean,
+    val removeCachedCategories: suspend (Long, BrowseMode, Set<Long>) -> MobileCategoryCacheRemovalResult,
     val removeBookmark: suspend (Long) -> Unit,
     val clearRecentlyPlayedBookmarks: suspend () -> Unit,
     val listWatchingNow: suspend (String) -> List<MobileWatchingNowItem>,
@@ -6488,6 +6687,9 @@ data class BrowseUiActions(
                     )
                 },
                 toggleBookmark = { true },
+                removeCachedCategories = { _, _, ids ->
+                    MobileCategoryCacheRemovalResult(ids.size, ids.size, 0)
+                },
                 removeBookmark = {},
                 clearRecentlyPlayedBookmarks = {},
                 listWatchingNow = {
@@ -6642,6 +6844,13 @@ private fun BrowseMode.displayLabel(): String =
         BrowseMode.LIVE -> "Live TV"
         BrowseMode.VOD -> "vod"
         BrowseMode.SERIES -> "series"
+    }
+
+private fun BrowseMode.removalItemLabel(): String =
+    when (this) {
+        BrowseMode.LIVE -> "channels"
+        BrowseMode.VOD -> "VOD items"
+        BrowseMode.SERIES -> "series items and episodes"
     }
 
 private fun MobileAccountType?.browseModesForAccount(): List<BrowseMode> =
