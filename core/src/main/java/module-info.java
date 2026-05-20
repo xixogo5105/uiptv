@@ -21,6 +21,7 @@ module com.uiptv.core {
     exports com.uiptv.service.remotesync;
     exports com.uiptv.model;
     exports com.uiptv.shared;
+    exports com.uiptv.db;
 
     opens com.uiptv.model to org.json;
 }
