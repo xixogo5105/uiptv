@@ -29,9 +29,6 @@ public class CategoryCacheRemovalService {
     private static final String WHERE_ACCOUNT_CATEGORY_IN = " WHERE accountId=? AND categoryId IN (";
     private static final String WHERE_ACCOUNT_TYPE_ID_IN = " WHERE accountId=? AND accountType=? AND id IN (";
 
-    public CategoryCacheRemovalService() {
-    }
-
     public static CategoryCacheRemovalService getInstance() {
         return new CategoryCacheRemovalService();
     }
