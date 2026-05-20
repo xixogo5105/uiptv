@@ -38,6 +38,7 @@ import static javafx.application.Platform.runLater;
 public class BookmarkChannelListUI extends HBox {
     private static final DataFormat SERIALIZED_MIME_TYPE = new DataFormat("application/x-java-serialized-object");
     private static final String BOOKMARK_CACHE = "bookmark";
+    private static final String BOOKMARK_ACCOUNT_LABEL_STYLE_CLASS = "bookmark-account-label";
     private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
     private final SearchableTableViewWithButton<BookmarkItem> bookmarkTable = new SearchableTableViewWithButton<>();
     private final TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
@@ -333,17 +334,35 @@ public class BookmarkChannelListUI extends HBox {
         return new TableCell<>() {
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
+            private final Label accountLabel = new Label();
+            private final HBox titleRow = new HBox(6);
+            private final VBox textLines = new VBox(2);
             private final Label drmBadge = new Label(I18n.tr("autoDrm"));
             private final Pane spacer = new Pane();
             private final AsyncImageView imageView = new AsyncImageView();
 
             {
+                nameLabel.setMaxWidth(Double.MAX_VALUE);
+                nameLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
+                accountLabel.setMaxWidth(Double.MAX_VALUE);
+                accountLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
+                accountLabel.getStyleClass().add(BOOKMARK_ACCOUNT_LABEL_STYLE_CLASS);
+                HBox.setHgrow(nameLabel, Priority.ALWAYS);
+                HBox.setHgrow(textLines, Priority.ALWAYS);
                 HBox.setHgrow(spacer, Priority.ALWAYS);
                 drmBadge.getStyleClass().add("drm-badge");
                 drmBadge.setVisible(false);
                 drmBadge.setManaged(false);
+                titleRow.setAlignment(Pos.CENTER_LEFT);
+                titleRow.setMaxWidth(Double.MAX_VALUE);
+                titleRow.getChildren().addAll(nameLabel, drmBadge);
+                textLines.setAlignment(Pos.CENTER_LEFT);
+                textLines.getChildren().addAll(titleRow, accountLabel);
                 graphic.setAlignment(Pos.CENTER_LEFT);
-                graphic.getChildren().addAll(imageView, nameLabel, drmBadge, spacer);
+                graphic.getChildren().addAll(imageView, textLines, spacer);
+                graphic.setMaxWidth(Double.MAX_VALUE);
+                graphic.prefWidthProperty().bind(Bindings.max(0, widthProperty().subtract(16)));
+                setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
             }
 
             @Override
@@ -365,7 +384,8 @@ public class BookmarkChannelListUI extends HBox {
                     return;
                 }
 
-                nameLabel.setText(item);
+                nameLabel.setText(bookmarkItem.getChannelName());
+                accountLabel.setText(bookmarkItem.getAccountName());
                 boolean drmProtected = isNotBlank(bookmarkItem.getDrmType())
                         || isNotBlank(bookmarkItem.getDrmLicenseUrl())
                         || isNotBlank(bookmarkItem.getClearKeysJson())
@@ -383,16 +403,34 @@ public class BookmarkChannelListUI extends HBox {
         return new TableCell<>() {
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
+            private final Label accountLabel = new Label();
+            private final HBox titleRow = new HBox(6);
+            private final VBox textLines = new VBox(2);
             private final Label drmBadge = new Label(I18n.tr("autoDrm"));
             private final Pane spacer = new Pane();
 
             {
+                nameLabel.setMaxWidth(Double.MAX_VALUE);
+                nameLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
+                accountLabel.setMaxWidth(Double.MAX_VALUE);
+                accountLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
+                accountLabel.getStyleClass().add(BOOKMARK_ACCOUNT_LABEL_STYLE_CLASS);
+                HBox.setHgrow(nameLabel, Priority.ALWAYS);
+                HBox.setHgrow(textLines, Priority.ALWAYS);
                 HBox.setHgrow(spacer, Priority.ALWAYS);
                 drmBadge.getStyleClass().add("drm-badge");
                 drmBadge.setVisible(false);
                 drmBadge.setManaged(false);
+                titleRow.setAlignment(Pos.CENTER_LEFT);
+                titleRow.setMaxWidth(Double.MAX_VALUE);
+                titleRow.getChildren().addAll(nameLabel, drmBadge);
+                textLines.setAlignment(Pos.CENTER_LEFT);
+                textLines.getChildren().addAll(titleRow, accountLabel);
                 graphic.setAlignment(Pos.CENTER_LEFT);
-                graphic.getChildren().addAll(nameLabel, drmBadge, spacer);
+                graphic.getChildren().addAll(textLines, spacer);
+                graphic.setMaxWidth(Double.MAX_VALUE);
+                graphic.prefWidthProperty().bind(Bindings.max(0, widthProperty().subtract(16)));
+                setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
             }
 
             @Override
@@ -412,7 +450,8 @@ public class BookmarkChannelListUI extends HBox {
                     return;
                 }
 
-                nameLabel.setText(item);
+                nameLabel.setText(bookmarkItem.getChannelName());
+                accountLabel.setText(bookmarkItem.getAccountName());
                 boolean drmProtected = isNotBlank(bookmarkItem.getDrmType())
                         || isNotBlank(bookmarkItem.getDrmLicenseUrl())
                         || isNotBlank(bookmarkItem.getClearKeysJson())

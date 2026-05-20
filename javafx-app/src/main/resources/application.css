@@ -182,6 +182,11 @@
     -fx-background-radius: 6;
 }
 
+.bookmark-account-label {
+    -fx-font-size: 0.85em;
+    -fx-opacity: 0.72;
+}
+
 .no-dim-disabled:disabled {
     -fx-opacity: 1.0;
 }
