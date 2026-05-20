@@ -188,11 +188,11 @@ class ProviderIdentityContractTest extends DbBackedTest {
             );
 
             Mockito.verify(playerService).get(
-                    Mockito.eq(account),
-                    Mockito.eq(requestEpisode),
-                    Mockito.eq("provider-episode-44"),
-                    Mockito.eq("provider-series-55"),
-                    Mockito.eq("portal-series-cat-903")
+                    account,
+                    requestEpisode,
+                    "provider-episode-44",
+                    "provider-series-55",
+                    "portal-series-cat-903"
             );
         }
     }
