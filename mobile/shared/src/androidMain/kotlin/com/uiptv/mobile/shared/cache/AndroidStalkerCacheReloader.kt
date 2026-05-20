@@ -47,9 +47,6 @@ class AndroidStalkerCacheReloader(
         val db = databaseHelper.writableDatabase
         db.beginTransaction()
         try {
-            if (!selectedAccount.macAddress.equals(account.macAddress, ignoreCase = true)) {
-                updateSelectedMac(db, accountId, selectedAccount.macAddress)
-            }
             clearLiveCache(db, accountId)
             val liveSummary = saveLive(db, accountId, payload.categories, payload.streams)
             val vodCategoryRows = saveVodSeriesCategories(db, accountId, AndroidCatalogMode.VOD, vodCategories)
@@ -347,15 +344,6 @@ class AndroidStalkerCacheReloader(
             arrayOf(accountId.toString())
         )
         db.delete("Category", "accountId = ?", arrayOf(accountId.toString()))
-    }
-
-    private fun updateSelectedMac(db: SQLiteDatabase, accountId: Long, macAddress: String) {
-        db.update(
-            "Account",
-            ContentValues().apply { put("macAddress", macAddress) },
-            "id = ?",
-            arrayOf(accountId.toString())
-        )
     }
 
     private fun JSONObject.stalkerDataArray() =
