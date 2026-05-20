@@ -15,7 +15,6 @@ module com.uiptv.core {
 
     exports com.uiptv.api;
     exports com.uiptv.application;
-    exports com.uiptv.db to com.uiptv.api.server, com.uiptv.gui;
     exports com.uiptv.util;
     exports com.uiptv.service;
     exports com.uiptv.service.cache;

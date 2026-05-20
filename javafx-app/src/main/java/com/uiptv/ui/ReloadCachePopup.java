@@ -1,5 +1,6 @@
 package com.uiptv.ui;
 
+import com.uiptv.application.ConfigurationApplicationService;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
@@ -536,7 +537,7 @@ public class ReloadCachePopup extends VBox {
                 Thread.currentThread().interrupt();
                 return;
             }
-            com.uiptv.db.SQLConnection.releaseMemory();
+            ConfigurationApplicationService.getInstance().releaseDatabaseMemory();
         }, "uiptv-reload-memory-cleanup");
         cleanupThread.setDaemon(true);
         cleanupThread.start();

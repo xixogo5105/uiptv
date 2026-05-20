@@ -44,6 +44,10 @@ public class ConfigurationApplicationService {
         return SQLConnection.getDatabasePath();
     }
 
+    public void releaseDatabaseMemory() {
+        SQLConnection.releaseMemory();
+    }
+
     public boolean isServerRunning() {
         return ServerUrlUtil.isServerRunning();
     }
