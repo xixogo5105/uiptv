@@ -21,7 +21,9 @@ enum class RemoteSyncStatus {
 data class RemoteSyncOptions(
     val syncConfiguration: Boolean = false,
     val syncExternalPlayerPaths: Boolean = false,
-    val configurationProfile: ConfigurationSyncProfile = ConfigurationSyncProfile.DESKTOP_FULL
+    val configurationProfile: ConfigurationSyncProfile = ConfigurationSyncProfile.DESKTOP_FULL,
+    val archiveTransfer: Boolean = true,
+    val encryptedTransfer: Boolean = true
 )
 
 enum class ConfigurationSyncProfile {
@@ -29,11 +31,16 @@ enum class ConfigurationSyncProfile {
     ANDROID_PORTABLE
 }
 
-fun androidPortablePullOptions(): RemoteSyncOptions =
+fun androidPortablePullOptions(
+    archiveTransfer: Boolean = true,
+    encryptedTransfer: Boolean = true
+): RemoteSyncOptions =
     RemoteSyncOptions(
         syncConfiguration = true,
         syncExternalPlayerPaths = false,
-        configurationProfile = ConfigurationSyncProfile.ANDROID_PORTABLE
+        configurationProfile = ConfigurationSyncProfile.ANDROID_PORTABLE,
+        archiveTransfer = archiveTransfer,
+        encryptedTransfer = encryptedTransfer
     )
 
 data class RemoteSyncRequest(
@@ -100,7 +107,7 @@ class PullFromDesktopSyncUseCase(
             request = RemoteSyncRequest(
                 direction = RemoteSyncDirection.IMPORT_FROM_REMOTE,
                 verificationCode = verificationCode,
-                options = androidPortablePullOptions()
+                options = androidPortablePullOptions(archiveTransfer = false, encryptedTransfer = false)
             )
         )
     }

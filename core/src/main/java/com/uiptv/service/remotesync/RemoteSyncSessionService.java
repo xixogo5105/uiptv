@@ -84,17 +84,21 @@ public class RemoteSyncSessionService {
 
     public RemoteSyncExecutionResult acceptUpload(String sessionId, InputStream requestBody) throws IOException, SQLException {
         SessionState session = requireSession(sessionId);
+        Path uploadedTransfer = null;
+        Path payloadPath = null;
         Path uploadedSnapshot = null;
         synchronized (session) {
             expireIfNeeded(session);
             session.ensureStatus(RemoteSyncDirection.EXPORT_TO_REMOTE, RemoteSyncStatus.APPROVED);
-            uploadedSnapshot = SecureTempFileSupport.createTempFile("uiptv-remote-upload-", ".db");
+            uploadedTransfer = SecureTempFileSupport.createTempFile("uiptv-remote-upload-", ".bin");
             try (InputStream inputStream = requestBody) {
-                Files.copy(inputStream, uploadedSnapshot, StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(inputStream, uploadedTransfer, StandardCopyOption.REPLACE_EXISTING);
             }
         }
 
         try {
+            payloadPath = prepareInboundPayload(uploadedTransfer, session);
+            uploadedSnapshot = extractTransferSnapshot(payloadPath, session.options);
             DatabaseSyncService.DatabaseSyncReport report = databaseSyncService.syncDatabasesWithReport(
                     uploadedSnapshot.toAbsolutePath().toString(),
                     SQLConnection.getDatabasePath(),
@@ -108,7 +112,7 @@ public class RemoteSyncSessionService {
             }
             notifier.get().showInfo("remoteSyncRemoteCompletedMessage");
             return new RemoteSyncExecutionResult(report, REMOTE_SYNC_COMPLETED_MESSAGE);
-        } catch (SQLException ex) {
+        } catch (IOException | SQLException ex) {
             AppLog.addErrorLog(
                     RemoteSyncSessionService.class,
                     "Remote database sync failed while accepting upload: " + ex.getMessage()
@@ -119,6 +123,10 @@ public class RemoteSyncSessionService {
             notifier.get().showError("remoteSyncRemoteFailedMessage");
             throw ex;
         } finally {
+            deleteIfExists(uploadedTransfer);
+            if (payloadPath != null && !payloadPath.equals(uploadedTransfer)) {
+                deleteIfExists(payloadPath);
+            }
             deleteIfExists(uploadedSnapshot);
         }
     }
@@ -175,9 +183,15 @@ public class RemoteSyncSessionService {
                 session.reject();
                 return;
             }
+            Path payloadPath = null;
             try {
                 if (session.direction == RemoteSyncDirection.IMPORT_FROM_REMOTE) {
-                    session.snapshotPath = snapshotService.createSnapshot(SQLConnection.getDatabasePath());
+                    payloadPath = createTransferPayload(SQLConnection.getDatabasePath(), session.options);
+                    session.snapshotPath = prepareOutboundTransfer(payloadPath, session);
+                    if (!session.snapshotPath.equals(payloadPath)) {
+                        deleteIfExists(payloadPath);
+                        payloadPath = null;
+                    }
                     session.status = RemoteSyncStatus.READY_FOR_DOWNLOAD;
                     session.message = "Approved. Snapshot ready.";
                 } else {
@@ -186,9 +200,55 @@ public class RemoteSyncSessionService {
                 }
                 session.expiresAt = clock.instant().plus(TRANSFER_TTL);
             } catch (IOException | SQLException ex) {
+                deleteIfExists(payloadPath);
                 session.fail(ex.getMessage());
             }
         }
+    }
+
+    private Path createTransferPayload(String databasePath, RemoteSyncOptions options) throws IOException, SQLException {
+        if (options.archiveTransfer()) {
+            return snapshotService.createSnapshotArchive(databasePath);
+        }
+        return snapshotService.createSnapshot(databasePath);
+    }
+
+    private Path prepareOutboundTransfer(Path payloadPath, SessionState session) throws IOException {
+        if (!session.options.encryptedTransfer()) {
+            return payloadPath;
+        }
+        Path encryptedPath = SecureTempFileSupport.createTempFile("uiptv-remote-download-", ".bin");
+        try {
+            RemoteSyncTransferCipher.encrypt(payloadPath, encryptedPath, session.verificationCode, session.sessionId);
+            return encryptedPath;
+        } catch (IOException ex) {
+            Files.deleteIfExists(encryptedPath);
+            throw ex;
+        }
+    }
+
+    private Path prepareInboundPayload(Path uploadedTransfer, SessionState session) throws IOException {
+        if (!session.options.encryptedTransfer()) {
+            return uploadedTransfer;
+        }
+        Path decryptedPath = SecureTempFileSupport.createTempFile(
+                "uiptv-remote-upload-",
+                session.options.archiveTransfer() ? ".zip" : ".db"
+        );
+        try {
+            RemoteSyncTransferCipher.decrypt(uploadedTransfer, decryptedPath, session.verificationCode, session.sessionId);
+            return decryptedPath;
+        } catch (IOException ex) {
+            Files.deleteIfExists(decryptedPath);
+            throw ex;
+        }
+    }
+
+    private Path extractTransferSnapshot(Path payloadPath, RemoteSyncOptions options) throws IOException, SQLException {
+        if (options.archiveTransfer()) {
+            return snapshotService.extractSnapshotDatabase(payloadPath);
+        }
+        return payloadPath;
     }
 
     private void validateRequest(RemoteSyncRequest request) {

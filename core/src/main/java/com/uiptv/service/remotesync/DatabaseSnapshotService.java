@@ -1,5 +1,7 @@
 package com.uiptv.service.remotesync;
 
+import com.uiptv.service.DatabaseBackupArchiveService;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,6 +12,16 @@ import java.sql.Statement;
 import java.util.Objects;
 
 public class DatabaseSnapshotService {
+    private final DatabaseBackupArchiveService backupArchiveService;
+
+    public DatabaseSnapshotService() {
+        this(DatabaseBackupArchiveService.getInstance());
+    }
+
+    DatabaseSnapshotService(DatabaseBackupArchiveService backupArchiveService) {
+        this.backupArchiveService = Objects.requireNonNull(backupArchiveService, "backupArchiveService");
+    }
+
     public Path createSnapshot(String databasePath) throws IOException, SQLException {
         Objects.requireNonNull(databasePath, "databasePath");
         Path snapshotPath = SecureTempFileSupport.createTempFile("uiptv-remote-sync-", ".db");
@@ -17,6 +29,32 @@ public class DatabaseSnapshotService {
             runVacuumInto(databasePath, snapshotPath);
             return snapshotPath;
         } catch (SQLException ex) {
+            Files.deleteIfExists(snapshotPath);
+            throw ex;
+        }
+    }
+
+    public Path createSnapshotArchive(String databasePath) throws IOException, SQLException {
+        Path snapshotPath = createSnapshot(databasePath);
+        Path archivePath = SecureTempFileSupport.createTempFile("uiptv-remote-sync-", ".zip");
+        try {
+            backupArchiveService.createBackupArchive(snapshotPath.toString(), archivePath.toString());
+            return archivePath;
+        } catch (IOException | SQLException ex) {
+            Files.deleteIfExists(archivePath);
+            throw ex;
+        } finally {
+            Files.deleteIfExists(snapshotPath);
+        }
+    }
+
+    public Path extractSnapshotDatabase(Path transferPath) throws IOException, SQLException {
+        Objects.requireNonNull(transferPath, "transferPath");
+        Path snapshotPath = SecureTempFileSupport.createTempFile("uiptv-remote-sync-", ".db");
+        try {
+            backupArchiveService.extractBackupDatabase(transferPath.toString(), snapshotPath.toString());
+            return snapshotPath;
+        } catch (IOException | SQLException ex) {
             Files.deleteIfExists(snapshotPath);
             throw ex;
         }

@@ -10,6 +10,7 @@ import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -68,7 +69,65 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         assertEquals("session-1", httpClient.lastUploadedSessionId);
         assertNotNull(httpClient.lastUploadedSnapshot);
         assertTrue(Files.exists(httpClient.lastUploadedSnapshot));
+        Path decryptedArchive = tempDir.resolve("uploaded-transfer.zip");
+        RemoteSyncTransferCipher.decrypt(
+                httpClient.lastUploadedSnapshot,
+                decryptedArchive,
+                httpClient.lastRequest.verificationCode(),
+                "session-1"
+        );
+        Path uploadedSnapshot = new DatabaseSnapshotService().extractSnapshotDatabase(decryptedArchive);
+        try {
+            withDatabase(uploadedSnapshot, () -> assertNotNull(AccountService.getInstance().getByName("local-account")));
+        } finally {
+            Files.deleteIfExists(uploadedSnapshot);
+        }
         assertTrue(progressSteps.contains(RemoteSyncProgressStep.UPLOADING));
+    }
+
+    @Test
+    void exportToRemote_usesLegacyRawTransferWhenRemoteDoesNotEchoArchiveSupport() throws Exception {
+        RemoteSyncOptions legacyOptions = RemoteSyncOptions.legacyRawTransfer(false, false, ConfigurationSyncProfile.DESKTOP_FULL);
+        FakeRemoteSyncHttpClient httpClient = new FakeRemoteSyncHttpClient();
+        httpClient.nextCreatedState = new RemoteSyncSessionState(
+                "legacy-session",
+                RemoteSyncDirection.EXPORT_TO_REMOTE,
+                RemoteSyncStatus.PENDING_APPROVAL,
+                "1234",
+                "machine-a",
+                "10.0.0.9",
+                legacyOptions,
+                "Awaiting approval."
+        );
+        httpClient.statusResponses.add(new RemoteSyncSessionState(
+                "legacy-session",
+                RemoteSyncDirection.EXPORT_TO_REMOTE,
+                RemoteSyncStatus.APPROVED,
+                "1234",
+                "machine-a",
+                "10.0.0.9",
+                legacyOptions,
+                "Approved."
+        ));
+        httpClient.uploadResult = new RemoteSyncExecutionResult(null, "done");
+
+        RemoteSyncClientService service = new RemoteSyncClientService(
+                httpClient,
+                new DatabaseSnapshotService(),
+                DatabaseSyncService.getInstance()
+        );
+
+        service.exportToRemote(
+                "127.0.0.1",
+                8888,
+                new RemoteSyncOptions(false, false),
+                (step, detail) -> {
+                }
+        );
+
+        try (var input = Files.newInputStream(httpClient.lastUploadedSnapshot)) {
+            assertEquals("SQLite format 3", new String(input.readNBytes(15), StandardCharsets.US_ASCII));
+        }
     }
 
     @Test
@@ -102,7 +161,8 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
                 new RemoteSyncOptions(true, true),
                 "Ready."
         ));
-        httpClient.downloadSource = new DatabaseSnapshotService().createSnapshot(remoteSourceDb.toString());
+        httpClient.downloadSource = remoteSourceDb;
+        httpClient.downloadAsEncryptedArchive = true;
 
         RemoteSyncClientService service = new RemoteSyncClientService(httpClient, new DatabaseSnapshotService(), DatabaseSyncService.getInstance());
         RemoteSyncExecutionResult result = service.importFromRemote(
@@ -123,11 +183,67 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
     }
 
     @Test
+    void importFromRemote_archiveTransferHonorsConfigurationAndPlayerPathExclusions() throws Exception {
+        Path remoteSourceDb = tempDir.resolve("remote-config-excluded-source.db");
+        initializeDatabase(remoteSourceDb);
+        withDatabase(remoteSourceDb, () -> {
+            saveLocalAccount("remote-account");
+            saveLocalConfiguration(true, "remote-player");
+        });
+        saveLocalConfiguration(false, "local-player");
+
+        RemoteSyncOptions options = new RemoteSyncOptions(false, false);
+        FakeRemoteSyncHttpClient httpClient = new FakeRemoteSyncHttpClient();
+        httpClient.nextCreatedState = new RemoteSyncSessionState(
+                "session-config-excluded",
+                RemoteSyncDirection.IMPORT_FROM_REMOTE,
+                RemoteSyncStatus.PENDING_APPROVAL,
+                "8642",
+                "machine-a",
+                "10.0.0.9",
+                options,
+                "Awaiting approval."
+        );
+        httpClient.statusResponses.add(httpClient.nextCreatedState);
+        httpClient.statusResponses.add(new RemoteSyncSessionState(
+                "session-config-excluded",
+                RemoteSyncDirection.IMPORT_FROM_REMOTE,
+                RemoteSyncStatus.READY_FOR_DOWNLOAD,
+                "8642",
+                "machine-a",
+                "10.0.0.9",
+                options,
+                "Ready."
+        ));
+        httpClient.downloadSource = remoteSourceDb;
+        httpClient.downloadAsEncryptedArchive = true;
+
+        RemoteSyncClientService service = new RemoteSyncClientService(httpClient, new DatabaseSnapshotService(), DatabaseSyncService.getInstance());
+        RemoteSyncExecutionResult result = service.importFromRemote(
+                "127.0.0.1",
+                8888,
+                options,
+                (step, detail) -> {
+                }
+        );
+
+        assertNotNull(result.report());
+        assertFalse(result.report().isConfigurationRequested());
+        assertNotNull(AccountService.getInstance().getByName("remote-account"));
+        Configuration configuration = ConfigurationService.getInstance().read();
+        assertFalse(configuration.isDarkTheme());
+        assertEquals("local-player", configuration.getPlayerPath1());
+        assertEquals("session-config-excluded", httpClient.completedSessionId);
+        assertTrue(httpClient.completedSuccess);
+    }
+
+    @Test
     void importFromRemote_reportsGenericFailureToRemoteWhenLocalSyncFails() throws Exception {
         Path invalidRemoteSnapshot = tempDir.resolve("invalid-remote-source.db");
         Files.writeString(invalidRemoteSnapshot, "not a sqlite database");
 
         FakeRemoteSyncHttpClient httpClient = new FakeRemoteSyncHttpClient();
+        RemoteSyncOptions legacyOptions = RemoteSyncOptions.legacyRawTransfer(true, true, ConfigurationSyncProfile.DESKTOP_FULL);
         httpClient.nextCreatedState = new RemoteSyncSessionState(
                 "session-3",
                 RemoteSyncDirection.IMPORT_FROM_REMOTE,
@@ -135,7 +251,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
                 "1111",
                 "machine-a",
                 "10.0.0.9",
-                new RemoteSyncOptions(true, true),
+                legacyOptions,
                 "Awaiting approval."
         );
         httpClient.statusResponses.add(httpClient.nextCreatedState);
@@ -146,7 +262,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
                 "1111",
                 "machine-a",
                 "10.0.0.9",
-                new RemoteSyncOptions(true, true),
+                legacyOptions,
                 "Ready."
         ));
         httpClient.downloadSource = invalidRemoteSnapshot;
@@ -155,7 +271,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         Exception failure = assertThrows(Exception.class, () -> service.importFromRemote(
                 "127.0.0.1",
                 8888,
-                new RemoteSyncOptions(true, true),
+                legacyOptions,
                 (step, detail) -> {
                 }
         ));
@@ -215,7 +331,9 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         private final List<RemoteSyncSessionState> statusResponses = new ArrayList<>();
         private RemoteSyncSessionState nextCreatedState;
         private RemoteSyncExecutionResult uploadResult;
+        private RemoteSyncRequest lastRequest;
         private Path downloadSource;
+        private boolean downloadAsEncryptedArchive;
         private boolean healthChecked;
         private String lastUploadedSessionId;
         private Path lastUploadedSnapshot;
@@ -230,6 +348,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
 
         @Override
         public RemoteSyncSessionState createSession(String baseUrl, RemoteSyncRequest request) {
+            lastRequest = request;
             return nextCreatedState;
         }
 
@@ -249,8 +368,35 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         @Override
         public Path downloadSnapshot(String baseUrl, String sessionId) throws IOException {
             Path copy = Files.createTempFile("remote-client-download-", ".db");
-            Files.copy(downloadSource, copy, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Path transferSource = buildDownloadTransfer(sessionId);
+            Files.copy(transferSource, copy, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            if (!transferSource.equals(downloadSource)) {
+                Files.deleteIfExists(transferSource);
+            }
             return copy;
+        }
+
+        private Path buildDownloadTransfer(String sessionId) throws IOException {
+            if (!downloadAsEncryptedArchive) {
+                return downloadSource;
+            }
+            Path archivePath = null;
+            Path encryptedPath = null;
+            try {
+                archivePath = new DatabaseSnapshotService().createSnapshotArchive(downloadSource.toString());
+                encryptedPath = Files.createTempFile("remote-client-download-", ".bin");
+                RemoteSyncTransferCipher.encrypt(archivePath, encryptedPath, lastRequest.verificationCode(), sessionId);
+                return encryptedPath;
+            } catch (Exception ex) {
+                if (encryptedPath != null) {
+                    Files.deleteIfExists(encryptedPath);
+                }
+                throw ex instanceof IOException ioException ? ioException : new IOException(ex);
+            } finally {
+                if (archivePath != null) {
+                    Files.deleteIfExists(archivePath);
+                }
+            }
         }
 
         @Override

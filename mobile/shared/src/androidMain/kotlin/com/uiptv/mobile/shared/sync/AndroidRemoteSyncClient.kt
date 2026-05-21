@@ -28,6 +28,8 @@ class AndroidRemoteSyncClient : RemoteSyncClient {
             .put("syncConfiguration", request.options.syncConfiguration)
             .put("syncExternalPlayerPaths", request.options.syncExternalPlayerPaths)
             .put("configurationProfile", request.options.configurationProfile.name)
+            .put("archiveTransfer", request.options.archiveTransfer)
+            .put("encryptedTransfer", request.options.encryptedTransfer)
             .toString()
         return withContext(Dispatchers.IO) {
             executeJson("$baseUrl/remote-sync/request", "POST", body).toSessionState()
@@ -143,7 +145,9 @@ class AndroidRemoteSyncClient : RemoteSyncClient {
             options = RemoteSyncOptions(
                 syncConfiguration = optBoolean("syncConfiguration", false),
                 syncExternalPlayerPaths = optBoolean("syncExternalPlayerPaths", false),
-                configurationProfile = optEnum("configurationProfile", ConfigurationSyncProfile.DESKTOP_FULL)
+                configurationProfile = optEnum("configurationProfile", ConfigurationSyncProfile.DESKTOP_FULL),
+                archiveTransfer = optBoolean("archiveTransfer", false),
+                encryptedTransfer = optBoolean("encryptedTransfer", false)
             ),
             message = optString("message")
         )

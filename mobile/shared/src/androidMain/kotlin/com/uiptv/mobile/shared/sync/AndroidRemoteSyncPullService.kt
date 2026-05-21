@@ -2,7 +2,10 @@ package com.uiptv.mobile.shared.sync
 
 import com.uiptv.mobile.shared.db.AndroidSQLiteSnapshotSyncApplier
 import com.uiptv.mobile.shared.settings.AndroidPreferencesRepository
+import com.uiptv.mobile.shared.settings.MobileBackupArchive
 import kotlinx.coroutines.delay
+import java.io.File
+import java.util.zip.ZipInputStream
 import kotlin.random.Random
 
 class AndroidRemoteSyncPullService(
@@ -54,7 +57,9 @@ class AndroidRemoteSyncPullService(
         check(streamingClient.health(baseUrl)) { "Remote sync server did not respond with OK status." }
 
         var sessionId = ""
-        var snapshotFile = snapshotApplier.createTempSnapshotFile()
+        val transferFile = snapshotApplier.createTempTransferFile()
+        var payloadFile: File? = null
+        var snapshotFile: File? = null
         try {
             val session = streamingClient.request(
                 baseUrl = baseUrl,
@@ -71,10 +76,15 @@ class AndroidRemoteSyncPullService(
             sessionId = readySession.sessionId.ifBlank { sessionId }
 
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.DOWNLOADING, verificationCode))
-            streamingClient.downloadToFile(baseUrl, sessionId, snapshotFile)
+            streamingClient.downloadToFile(baseUrl, sessionId, transferFile)
+            val transferOptions = readySession.options
+            val payloadForSync = prepareInboundPayload(transferFile, verificationCode, sessionId, transferOptions)
+            payloadFile = payloadForSync
+            val snapshotForSync = extractTransferSnapshot(payloadForSync, transferOptions)
+            snapshotFile = snapshotForSync
 
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.APPLYING_SYNC, verificationCode))
-            val report = snapshotApplier.applyFile(snapshotFile)
+            val report = snapshotApplier.applyFile(snapshotForSync)
 
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.COMPLETING_REMOTE, verificationCode))
             streamingClient.complete(baseUrl, sessionId, success = true, message = "Remote database sync completed.")
@@ -94,7 +104,54 @@ class AndroidRemoteSyncPullService(
             }
             throw ex
         } finally {
+            transferFile.delete()
+            payloadFile?.takeUnless { it == transferFile }?.delete()
+            snapshotFile?.takeUnless { it == payloadFile || it == transferFile }?.delete()
+        }
+    }
+
+    private fun prepareInboundPayload(
+        transferFile: File,
+        verificationCode: String,
+        sessionId: String,
+        options: RemoteSyncOptions
+    ): File {
+        if (!options.encryptedTransfer) {
+            return transferFile
+        }
+        val decryptedFile = snapshotApplier.createTempTransferFile(if (options.archiveTransfer) ".zip" else ".db")
+        try {
+            AndroidRemoteSyncTransferCipher.decrypt(transferFile, decryptedFile, verificationCode, sessionId)
+            return decryptedFile
+        } catch (ex: Throwable) {
+            decryptedFile.delete()
+            throw ex
+        }
+    }
+
+    private fun extractTransferSnapshot(payloadFile: File, options: RemoteSyncOptions): File {
+        if (!options.archiveTransfer) {
+            return payloadFile
+        }
+        val snapshotFile = snapshotApplier.createTempSnapshotFile()
+        try {
+            var databaseFound = false
+            ZipInputStream(payloadFile.inputStream().buffered()).use { zip ->
+                while (true) {
+                    val entry = zip.nextEntry ?: break
+                    if (!entry.isDirectory && entry.name == MobileBackupArchive.DATABASE_ENTRY) {
+                        snapshotFile.outputStream().use { output -> zip.copyTo(output) }
+                        databaseFound = true
+                    }
+                    zip.closeEntry()
+                }
+            }
+            require(databaseFound) { "Backup does not contain ${MobileBackupArchive.DATABASE_ENTRY}." }
+            require(snapshotFile.length() > 0L) { "Backup database is empty." }
+            return snapshotFile
+        } catch (ex: Throwable) {
             snapshotFile.delete()
+            throw ex
         }
     }
 

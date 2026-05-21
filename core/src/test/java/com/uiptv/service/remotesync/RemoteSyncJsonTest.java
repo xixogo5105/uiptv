@@ -23,6 +23,8 @@ class RemoteSyncJsonTest {
         assertTrue(parsed.options().syncConfiguration());
         assertFalse(parsed.options().syncExternalPlayerPaths());
         assertEquals(ConfigurationSyncProfile.ANDROID_PORTABLE, parsed.options().configurationProfile());
+        assertTrue(parsed.options().archiveTransfer());
+        assertTrue(parsed.options().encryptedTransfer());
     }
 
     @Test
@@ -36,5 +38,7 @@ class RemoteSyncJsonTest {
                 .put("configurationProfile", "NOT_A_PROFILE"));
 
         assertEquals(ConfigurationSyncProfile.DESKTOP_FULL, parsed.options().configurationProfile());
+        assertFalse(parsed.options().archiveTransfer());
+        assertFalse(parsed.options().encryptedTransfer());
     }
 }

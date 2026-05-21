@@ -102,6 +102,26 @@ class DatabaseBackupArchiveServiceTest {
     }
 
     @Test
+    void extractsArchiveDatabaseForRemoteSyncMerge() throws Exception {
+        Path source = tempDir.resolve("source.db");
+        Path archive = tempDir.resolve("uiptv-backup.zip");
+        Path extracted = tempDir.resolve("extracted.db");
+        createReadyDatabase(source);
+        seedAccount(source, 1, "archive-account");
+        DatabaseBackupArchiveService service = fixedClockService();
+        service.createBackupArchive(source.toString(), archive.toString());
+
+        DatabaseBackupArchiveService.BackupArchiveReport report = service.extractBackupDatabase(
+                archive.toString(),
+                extracted.toString()
+        );
+
+        assertEquals(archive.toAbsolutePath().toString(), report.path());
+        assertEquals(Files.size(extracted), report.databaseBytes());
+        assertEquals("archive-account", firstAccountName(extracted));
+    }
+
+    @Test
     void sharedConstantsMatchAndroidArchiveContract() {
         assertEquals("application/zip", DatabaseBackupArchiveService.MIME_TYPE);
         assertEquals("uiptv-backup.json", DatabaseBackupArchiveService.METADATA_ENTRY);

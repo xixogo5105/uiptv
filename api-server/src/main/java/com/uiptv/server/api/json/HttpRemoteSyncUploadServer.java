@@ -29,7 +29,7 @@ public class HttpRemoteSyncUploadServer implements HttpHandler {
             ).toString());
         } catch (IllegalArgumentException | IllegalStateException ex) {
             writeJsonResponse(exchange, 400, new JSONObject().put("message", ex.getMessage()).toString());
-        } catch (SQLException ex) {
+        } catch (IOException | SQLException ex) {
             AppLog.addErrorLog(HttpRemoteSyncUploadServer.class, "Remote sync upload failed: " + ex.getMessage());
             writeJsonResponse(exchange, 500, new JSONObject().put("message", REMOTE_SYNC_FAILED_MESSAGE).toString());
         }

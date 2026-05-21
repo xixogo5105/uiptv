@@ -106,6 +106,20 @@ public class DatabaseBackupArchiveService {
         }
     }
 
+    public BackupArchiveReport extractBackupDatabase(String backupPath, String targetDatabasePath) throws IOException, SQLException {
+        Path sourceBackup = Path.of(backupPath);
+        Path targetDatabase = Path.of(targetDatabasePath);
+        requireExistingFile(sourceBackup, "Backup file does not exist.");
+        createParentDirectories(targetDatabase);
+        stageRestoreDatabase(sourceBackup, targetDatabase);
+        migrateAndValidate(targetDatabase);
+        return new BackupArchiveReport(
+                sourceBackup.toAbsolutePath().toString(),
+                Files.size(targetDatabase),
+                Files.size(sourceBackup)
+        );
+    }
+
     private void writeMetadata(ZipOutputStream zip, long databaseBytes) throws IOException {
         JSONObject metadata = new JSONObject()
                 .put("formatVersion", FORMAT_VERSION)
@@ -121,7 +135,7 @@ public class DatabaseBackupArchiveService {
 
     private void stageRestoreDatabase(Path sourceBackup, Path stagedDatabase) throws IOException {
         if (isZipArchive(sourceBackup)) {
-            extractDatabase(sourceBackup, stagedDatabase);
+            extractDatabaseEntry(sourceBackup, stagedDatabase);
             return;
         }
         if (!isSqliteDatabase(sourceBackup)) {
@@ -130,7 +144,7 @@ public class DatabaseBackupArchiveService {
         Files.copy(sourceBackup, stagedDatabase, StandardCopyOption.REPLACE_EXISTING);
     }
 
-    private void extractDatabase(Path sourceBackup, Path stagedDatabase) throws IOException {
+    private void extractDatabaseEntry(Path sourceBackup, Path stagedDatabase) throws IOException {
         boolean databaseFound = false;
         try (InputStream input = Files.newInputStream(sourceBackup);
              ZipInputStream zip = new ZipInputStream(new BufferedInputStream(input))) {

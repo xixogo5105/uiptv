@@ -14,6 +14,8 @@ public final class RemoteSyncJson {
     private static final String SYNC_CONFIGURATION = "syncConfiguration";
     private static final String SYNC_EXTERNAL_PLAYER_PATHS = "syncExternalPlayerPaths";
     private static final String CONFIGURATION_PROFILE = "configurationProfile";
+    private static final String ARCHIVE_TRANSFER = "archiveTransfer";
+    private static final String ENCRYPTED_TRANSFER = "encryptedTransfer";
     private static final String MESSAGE = "message";
 
     private RemoteSyncJson() {
@@ -26,7 +28,9 @@ public final class RemoteSyncJson {
                 .put(REQUESTER_NAME, request.requesterName())
                 .put(SYNC_CONFIGURATION, request.options().syncConfiguration())
                 .put(SYNC_EXTERNAL_PLAYER_PATHS, request.options().syncExternalPlayerPaths())
-                .put(CONFIGURATION_PROFILE, request.options().configurationProfile().name());
+                .put(CONFIGURATION_PROFILE, request.options().configurationProfile().name())
+                .put(ARCHIVE_TRANSFER, request.options().archiveTransfer())
+                .put(ENCRYPTED_TRANSFER, request.options().encryptedTransfer());
     }
 
     public static RemoteSyncRequest toRequest(JSONObject json) {
@@ -37,7 +41,9 @@ public final class RemoteSyncJson {
                 new RemoteSyncOptions(
                         json.optBoolean(SYNC_CONFIGURATION, false),
                         json.optBoolean(SYNC_EXTERNAL_PLAYER_PATHS, false),
-                        parseConfigurationProfile(json.optString(CONFIGURATION_PROFILE, ""))
+                        parseConfigurationProfile(json.optString(CONFIGURATION_PROFILE, "")),
+                        json.optBoolean(ARCHIVE_TRANSFER, false),
+                        json.optBoolean(ENCRYPTED_TRANSFER, false)
                 )
         );
     }
@@ -53,6 +59,8 @@ public final class RemoteSyncJson {
                 .put(SYNC_CONFIGURATION, state.options().syncConfiguration())
                 .put(SYNC_EXTERNAL_PLAYER_PATHS, state.options().syncExternalPlayerPaths())
                 .put(CONFIGURATION_PROFILE, state.options().configurationProfile().name())
+                .put(ARCHIVE_TRANSFER, state.options().archiveTransfer())
+                .put(ENCRYPTED_TRANSFER, state.options().encryptedTransfer())
                 .put(MESSAGE, state.message());
     }
 
@@ -67,7 +75,9 @@ public final class RemoteSyncJson {
                 new RemoteSyncOptions(
                         json.optBoolean(SYNC_CONFIGURATION, false),
                         json.optBoolean(SYNC_EXTERNAL_PLAYER_PATHS, false),
-                        parseConfigurationProfile(json.optString(CONFIGURATION_PROFILE, ""))
+                        parseConfigurationProfile(json.optString(CONFIGURATION_PROFILE, "")),
+                        json.optBoolean(ARCHIVE_TRANSFER, false),
+                        json.optBoolean(ENCRYPTED_TRANSFER, false)
                 ),
                 json.optString(MESSAGE, "")
         );

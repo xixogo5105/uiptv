@@ -29,6 +29,9 @@ class AndroidSQLiteSnapshotSyncApplier(
     fun createTempSnapshotFile(): File =
         File.createTempFile("uiptv-remote-sync-", ".db", tempDirectory)
 
+    fun createTempTransferFile(suffix: String = ".bin"): File =
+        File.createTempFile("uiptv-remote-transfer-", suffix, tempDirectory)
+
     fun apply(snapshotFile: File): DatabaseSyncReport =
         applySnapshotFile(snapshotFile)
 

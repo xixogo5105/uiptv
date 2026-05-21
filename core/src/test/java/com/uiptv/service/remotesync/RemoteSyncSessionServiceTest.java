@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -62,8 +61,10 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         RemoteSyncSessionState approved = service.getSessionState(sessionId);
         assertEquals(RemoteSyncStatus.APPROVED, approved.status());
 
-        Path sourceSnapshot = snapshotService.createSnapshot(sourceDb.toString());
-        try (InputStream snapshotStream = Files.newInputStream(sourceSnapshot)) {
+        Path sourceArchive = snapshotService.createSnapshotArchive(sourceDb.toString());
+        Path encryptedUpload = tempDir.resolve("source-upload.bin");
+        RemoteSyncTransferCipher.encrypt(sourceArchive, encryptedUpload, "1234", sessionId);
+        try (InputStream snapshotStream = Files.newInputStream(encryptedUpload)) {
             withDatabase(remoteDb, () -> {
                 try {
                     DatabaseSyncService.DatabaseSyncReport report = service.acceptUpload(sessionId, snapshotStream).report();
@@ -73,6 +74,8 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
                     throw new RuntimeException(ex);
                 }
             });
+        } finally {
+            Files.deleteIfExists(sourceArchive);
         }
 
         withDatabase(remoteDb, () -> {
@@ -80,6 +83,66 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
             assertNotNull(imported);
             Configuration configuration = ConfigurationService.getInstance().read();
             assertTrue(configuration.isDarkTheme());
+            assertEquals("keep-local-player", configuration.getPlayerPath1());
+        });
+
+        assertEquals(RemoteSyncStatus.COMPLETED, service.getSessionState(sessionId).status());
+        assertTrue(notifier.infoMessages.contains("remoteSyncRemoteCompletedMessage"));
+    }
+
+    @Test
+    void exportSession_archiveTransferHonorsConfigurationExclusion() throws Exception {
+        Path remoteDb = tempDir.resolve("remote-config-excluded.db");
+        Path sourceDb = tempDir.resolve("source-config-excluded.db");
+        initializeDatabase(remoteDb);
+        initializeDatabase(sourceDb);
+
+        withDatabase(remoteDb, () -> saveConfiguration(false, "keep-local-player"));
+        withDatabase(sourceDb, () -> {
+            saveAccount("source-account");
+            saveConfiguration(true, "source-player");
+        });
+
+        RecordingNotifier notifier = new RecordingNotifier();
+        RemoteSyncSessionService service = new RemoteSyncSessionService(
+                snapshotService,
+                DatabaseSyncService.getInstance(),
+                Clock.systemUTC(),
+                (request, decisionConsumer) -> decisionConsumer.accept(true),
+                notifier
+        );
+
+        String sessionId = withDatabase(remoteDb, () -> service.createSession(
+                new RemoteSyncRequest(
+                        RemoteSyncDirection.EXPORT_TO_REMOTE,
+                        "2468",
+                        "machine-a",
+                        new RemoteSyncOptions(false, false)
+                ),
+                "10.0.0.8"
+        ).sessionId());
+
+        Path sourceArchive = snapshotService.createSnapshotArchive(sourceDb.toString());
+        Path encryptedUpload = tempDir.resolve("source-config-excluded-upload.bin");
+        RemoteSyncTransferCipher.encrypt(sourceArchive, encryptedUpload, "2468", sessionId);
+        try (InputStream snapshotStream = Files.newInputStream(encryptedUpload)) {
+            withDatabase(remoteDb, () -> {
+                try {
+                    DatabaseSyncService.DatabaseSyncReport report = service.acceptUpload(sessionId, snapshotStream).report();
+                    assertNotNull(report);
+                    assertFalse(report.isConfigurationRequested());
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
+            });
+        } finally {
+            Files.deleteIfExists(sourceArchive);
+        }
+
+        withDatabase(remoteDb, () -> {
+            assertNotNull(AccountService.getInstance().getByName("source-account"));
+            Configuration configuration = ConfigurationService.getInstance().read();
+            assertFalse(configuration.isDarkTheme());
             assertEquals("keep-local-player", configuration.getPlayerPath1());
         });
 
@@ -112,12 +175,14 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         ).sessionId());
 
         Path invalidSnapshot = tempDir.resolve("invalid-upload.db");
+        Path encryptedInvalidSnapshot = tempDir.resolve("invalid-upload.bin");
         Files.writeString(invalidSnapshot, "not a sqlite database");
+        RemoteSyncTransferCipher.encrypt(invalidSnapshot, encryptedInvalidSnapshot, "2222", sessionId);
 
-        SQLException failure;
-        try (InputStream snapshotStream = Files.newInputStream(invalidSnapshot)) {
+        Exception failure;
+        try (InputStream snapshotStream = Files.newInputStream(encryptedInvalidSnapshot)) {
             failure = assertThrows(
-                    SQLException.class,
+                    Exception.class,
                     () -> withDatabase(remoteDb, () -> service.acceptUpload(sessionId, snapshotStream))
             );
         }
@@ -164,22 +229,23 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         RemoteSyncSessionState state = service.getSessionState(sessionId);
         assertEquals(RemoteSyncStatus.READY_FOR_DOWNLOAD, state.status());
 
-        Path downloadSnapshot = service.getDownloadSnapshot(sessionId);
-        assertTrue(Files.exists(downloadSnapshot));
+        Path encryptedDownload = service.getDownloadSnapshot(sessionId);
+        assertTrue(Files.exists(encryptedDownload));
+        Path downloadArchive = tempDir.resolve("download.zip");
+        RemoteSyncTransferCipher.decrypt(encryptedDownload, downloadArchive, "5678", sessionId);
+        Path downloadSnapshot = snapshotService.extractSnapshotDatabase(downloadArchive);
 
-        withDatabase(targetDb, () -> {
-            try {
-                DatabaseSyncService.getInstance().syncDatabasesWithReport(
-                        downloadSnapshot.toString(),
-                        targetDb.toString(),
-                        true,
-                        true,
-                        null
-                );
-            } catch (SQLException ex) {
-                throw new RuntimeException(ex);
-            }
-        });
+        try {
+            withDatabase(targetDb, () -> DatabaseSyncService.getInstance().syncDatabasesWithReport(
+                    downloadSnapshot.toString(),
+                    targetDb.toString(),
+                    true,
+                    true,
+                    null
+            ));
+        } finally {
+            Files.deleteIfExists(downloadSnapshot);
+        }
 
         withDatabase(targetDb, () -> {
             assertNotNull(AccountService.getInstance().getByName("remote-account"));
@@ -190,7 +256,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
 
         service.completeImport(sessionId, true, "done");
         assertEquals(RemoteSyncStatus.COMPLETED, service.getSessionState(sessionId).status());
-        assertFalse(Files.exists(downloadSnapshot));
+        assertFalse(Files.exists(encryptedDownload));
         assertTrue(notifier.infoMessages.contains("remoteSyncRemoteCompletedMessage"));
     }
 

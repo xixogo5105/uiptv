@@ -17,6 +17,8 @@ class RemoteSyncContractsTest {
         assertTrue(options.syncConfiguration)
         assertFalse(options.syncExternalPlayerPaths)
         assertEquals(ConfigurationSyncProfile.ANDROID_PORTABLE, options.configurationProfile)
+        assertTrue(options.archiveTransfer)
+        assertTrue(options.encryptedTransfer)
     }
 
     @Test
@@ -66,6 +68,8 @@ class RemoteSyncContractsTest {
         assertEquals(ConfigurationSyncProfile.ANDROID_PORTABLE, request.options.configurationProfile)
         assertTrue(request.options.syncConfiguration)
         assertFalse(request.options.syncExternalPlayerPaths)
+        assertFalse(request.options.archiveTransfer)
+        assertFalse(request.options.encryptedTransfer)
     }
 
     @Test

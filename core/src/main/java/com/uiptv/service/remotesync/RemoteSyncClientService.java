@@ -48,16 +48,21 @@ public class RemoteSyncClientService {
         String verificationCode = VerificationCodeGenerator.createFourDigitCode();
         RemoteSyncSessionState session = httpClient.createSession(baseUrl, buildRequest(RemoteSyncDirection.EXPORT_TO_REMOTE, verificationCode, options));
         awaitReadyState(baseUrl, session.sessionId(), RemoteSyncStatus.APPROVED, verificationCode, progressListener);
+        RemoteSyncOptions transferOptions = session.options();
 
         notifyProgress(progressListener, RemoteSyncProgressStep.CREATING_SNAPSHOT, null);
-        Path snapshotPath = snapshotService.createSnapshot(SQLConnection.getDatabasePath());
+        Path payloadPath = createTransferPayload(SQLConnection.getDatabasePath(), transferOptions);
+        Path uploadPath = prepareOutboundTransfer(payloadPath, session.sessionId(), verificationCode, transferOptions);
         try {
             notifyProgress(progressListener, RemoteSyncProgressStep.UPLOADING, null);
-            RemoteSyncExecutionResult result = httpClient.uploadSnapshot(baseUrl, session.sessionId(), snapshotPath);
+            RemoteSyncExecutionResult result = httpClient.uploadSnapshot(baseUrl, session.sessionId(), uploadPath);
             notifyProgress(progressListener, RemoteSyncProgressStep.FINISHED, null);
             return result;
         } finally {
-            Files.deleteIfExists(snapshotPath);
+            Files.deleteIfExists(payloadPath);
+            if (!uploadPath.equals(payloadPath)) {
+                Files.deleteIfExists(uploadPath);
+            }
         }
     }
 
@@ -74,8 +79,12 @@ public class RemoteSyncClientService {
         awaitReadyState(baseUrl, session.sessionId(), RemoteSyncStatus.READY_FOR_DOWNLOAD, verificationCode, progressListener);
 
         notifyProgress(progressListener, RemoteSyncProgressStep.DOWNLOADING, null);
-        Path downloadedSnapshot = httpClient.downloadSnapshot(baseUrl, session.sessionId());
+        Path downloadedTransfer = httpClient.downloadSnapshot(baseUrl, session.sessionId());
+        Path payloadPath = null;
+        Path downloadedSnapshot = null;
         try {
+            payloadPath = prepareInboundPayload(downloadedTransfer, session.sessionId(), verificationCode, session.options());
+            downloadedSnapshot = extractTransferSnapshot(payloadPath, session.options());
             notifyProgress(progressListener, RemoteSyncProgressStep.APPLYING_SYNC, null);
             DatabaseSyncService.DatabaseSyncReport report = databaseSyncService.syncDatabasesWithReport(
                     downloadedSnapshot.toAbsolutePath().toString(),
@@ -96,8 +105,60 @@ public class RemoteSyncClientService {
             httpClient.completeSession(baseUrl, session.sessionId(), false, REMOTE_SYNC_FAILED_MESSAGE);
             throw ex;
         } finally {
+            Files.deleteIfExists(downloadedTransfer);
+            if (payloadPath != null && !payloadPath.equals(downloadedTransfer)) {
+                Files.deleteIfExists(payloadPath);
+            }
             Files.deleteIfExists(downloadedSnapshot);
         }
+    }
+
+    private Path createTransferPayload(String databasePath, RemoteSyncOptions options) throws IOException, SQLException {
+        if (options.archiveTransfer()) {
+            return snapshotService.createSnapshotArchive(databasePath);
+        }
+        return snapshotService.createSnapshot(databasePath);
+    }
+
+    private Path prepareOutboundTransfer(Path payloadPath,
+                                         String sessionId,
+                                         String verificationCode,
+                                         RemoteSyncOptions options) throws IOException {
+        if (!options.encryptedTransfer()) {
+            return payloadPath;
+        }
+        Path encryptedPath = SecureTempFileSupport.createTempFile("uiptv-remote-sync-", ".bin");
+        try {
+            RemoteSyncTransferCipher.encrypt(payloadPath, encryptedPath, verificationCode, sessionId);
+            return encryptedPath;
+        } catch (IOException ex) {
+            Files.deleteIfExists(encryptedPath);
+            throw ex;
+        }
+    }
+
+    private Path prepareInboundPayload(Path downloadedTransfer,
+                                       String sessionId,
+                                       String verificationCode,
+                                       RemoteSyncOptions options) throws IOException {
+        if (!options.encryptedTransfer()) {
+            return downloadedTransfer;
+        }
+        Path decryptedPath = SecureTempFileSupport.createTempFile("uiptv-remote-sync-", options.archiveTransfer() ? ".zip" : ".db");
+        try {
+            RemoteSyncTransferCipher.decrypt(downloadedTransfer, decryptedPath, verificationCode, sessionId);
+            return decryptedPath;
+        } catch (IOException ex) {
+            Files.deleteIfExists(decryptedPath);
+            throw ex;
+        }
+    }
+
+    private Path extractTransferSnapshot(Path payloadPath, RemoteSyncOptions options) throws IOException, SQLException {
+        if (options.archiveTransfer()) {
+            return snapshotService.extractSnapshotDatabase(payloadPath);
+        }
+        return payloadPath;
     }
 
     private RemoteSyncRequest buildRequest(RemoteSyncDirection direction, String verificationCode, RemoteSyncOptions options) {
