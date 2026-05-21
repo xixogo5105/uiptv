@@ -592,18 +592,7 @@
                             class="w-100 h-100"
                             controls
                             ref="videoPlayer"
-                            v-if="!isYoutube"
                     ></video>
-
-                    <!-- YouTube Player -->
-                    <iframe
-                            :src="youtubeSrc"
-                            allow="autoplay; encrypted-media"
-                            allowfullscreen
-                            class="w-100 h-100"
-                            frameborder="0"
-                            v-if="isYoutube"
-                    ></iframe>
                 </div>
             </div>
         </div>

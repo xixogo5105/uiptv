@@ -23,16 +23,7 @@ public class PlayerUrlUtils {
     public static String resolveAndProcessUrl(String url) {
         if (isBlank(url)) return url;
 
-        String processedUrl = extractPlayableUrl(url);
-
-        // Check if the link is a YouTube video URL
-        if (processedUrl != null && (processedUrl.contains("youtube.com/watch?v=") || processedUrl.contains("youtu.be/"))) {
-            String streamingUrl = YoutubeDL.getStreamingUrl(processedUrl);
-            if (streamingUrl != null && !streamingUrl.isEmpty()) {
-                return streamingUrl;
-            }
-        }
-        return processedUrl;
+        return extractPlayableUrl(url);
     }
 
     public static String extractPlayableUrl(String raw) {

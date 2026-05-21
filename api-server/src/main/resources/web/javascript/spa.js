@@ -44,8 +44,6 @@ createApp({
         const suppressNextBookmarkClick = ref(false);
         const bookmarkOverflowToggleRef = ref(null);
 
-        const isYoutube = ref(false);
-        const youtubeSrc = ref('');
         const playerInstance = ref(null);
         const mpegtsPlayer = ref(null);
         const videoPlayer = ref(null);
@@ -2330,8 +2328,6 @@ createApp({
                 currentChannel.value = null;
                 playbackError.value = '';
             }
-            isYoutube.value = false;
-            youtubeSrc.value = '';
             videoTracks.value = [];
             audioTracks.value = [];
             textTracks.value = [];
@@ -2370,20 +2366,6 @@ createApp({
                 return;
             }
 
-            const youtubeId = extractYoutubeIdFromAny([
-                uri,
-                currentChannel.value?.cmd || '',
-                currentChannel.value?.playRequestUrl || ''
-            ]);
-
-            if (youtubeId) {
-                isYoutube.value = true;
-                youtubeSrc.value = `https://www.youtube.com/embed/${youtubeId}?autoplay=1`;
-                playbackMode.value = resolvePlaybackModeLabel(uri, 'youtube');
-                return;
-            }
-
-            isYoutube.value = false;
             await nextTick();
 
             const video = videoPlayer.value;
@@ -2525,61 +2507,6 @@ createApp({
 
         const normalizeWebPlaybackUrl = (rawUrl) => playbackUtils.normalizeWebPlaybackUrl(rawUrl);
         const downgradeHttpsToHttpForKnownPaths = (url) => playbackUtils.downgradeHttpsToHttpForKnownPaths(url);
-
-        const extractYoutubeId = (value) => {
-            const raw = String(value || '').trim();
-            if (!raw) return '';
-
-            const decoded = (() => {
-                try {
-                    return decodeURIComponent(raw);
-                } catch (_) {
-                    return raw;
-                }
-            })();
-
-            const cleaned = decoded.trim();
-
-            const directPatterns = [
-                /(?:youtube\.com\/watch\?[^#\s]*v=)([A-Za-z0-9_-]{11})/i,
-                /(?:youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/i,
-                /(?:youtu\.be\/)([A-Za-z0-9_-]{11})/i,
-                /(?:youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})/i,
-                /(?:youtube-nocookie\.com\/embed\/)([A-Za-z0-9_-]{11})/i
-            ];
-
-            for (const re of directPatterns) {
-                const m = cleaned.match(re);
-                if (m?.[1]) return m[1];
-            }
-
-            // Some sources pass nested URL values like url=https://youtube...
-            const nested = cleaned.match(/(?:^|[?&])url=([^&]+)/i);
-            if (nested?.[1]) {
-                const nestedDecoded = (() => {
-                    try {
-                        return decodeURIComponent(nested[1]);
-                    } catch (_) {
-                        return nested[1];
-                    }
-                })();
-                for (const re of directPatterns) {
-                    const m = nestedDecoded.match(re);
-                    if (m?.[1]) return m[1];
-                }
-            }
-
-            return '';
-        };
-
-        const extractYoutubeIdFromAny = (values) => {
-            const list = Array.isArray(values) ? values : [values];
-            for (const value of list) {
-                const id = extractYoutubeId(value);
-                if (id) return id;
-            }
-            return '';
-        };
 
         const loadShaka = async (channel) => {
             await nextTick();
@@ -2917,7 +2844,7 @@ createApp({
 
         const togglePictureInPicture = async () => {
             const video = videoPlayer.value;
-            if (!video || isYoutube.value || !document.pictureInPictureEnabled) return;
+            if (!video || !document.pictureInPictureEnabled) return;
             try {
                 if (document.pictureInPictureElement === video) {
                     await document.exitPictureInPicture();
@@ -2933,7 +2860,7 @@ createApp({
             const nextMuted = !isMuted.value;
             isMuted.value = nextMuted;
             const video = videoPlayer.value;
-            if (!video || isYoutube.value) return;
+            if (!video) return;
             if (!nextMuted && video.volume === 0) {
                 video.volume = 1;
             }
@@ -2955,7 +2882,7 @@ createApp({
         };
 
         const ensurePlaybackNotPaused = async () => {
-            if (!isPlaying.value || isYoutube.value) return;
+            if (!isPlaying.value) return;
             const video = videoPlayer.value;
             if (!video) return;
             if (video.paused && !video.ended) {
@@ -3325,8 +3252,6 @@ createApp({
             canReorderBookmarks,
             draggedBookmarkId,
             dragOverBookmarkId,
-            isYoutube,
-            youtubeSrc,
             videoPlayer,
             videoTracks,
             audioTracks,

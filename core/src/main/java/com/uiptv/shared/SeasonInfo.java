@@ -23,7 +23,6 @@ public class SeasonInfo extends BaseJson {
     private String rating5Based;
     private String backdropPath;
     private String tmdb;
-    private String youtubeTrailer;
     private String episodeRunTime;
     private String categoryId;
 
@@ -40,7 +39,6 @@ public class SeasonInfo extends BaseJson {
         this.rating5Based = safeGetString(info, "rating_5based");
         this.backdropPath = safeGetString(info, "backdrop_path");
         this.tmdb = safeGetString(info, "tmdb");
-        this.youtubeTrailer = safeGetString(info, "youtube_trailer");
         this.episodeRunTime = safeGetString(info, "episode_run_time");
         this.categoryId = safeGetString(info, "category_id");
     }

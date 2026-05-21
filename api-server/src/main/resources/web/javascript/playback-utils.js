@@ -22,7 +22,6 @@
     const resolvePlaybackModeLabel = (url, engine = '') => {
         const lowerUrl = String(url || '').trim().toLowerCase();
         const normalizedEngine = String(engine || '').trim().toLowerCase();
-        if (normalizedEngine === 'youtube') return 'youtube';
         if (lowerUrl.includes('/proxy-stream')) return 'proxy';
         if (normalizedEngine === 'mpegts') return 'mpegts';
         if (normalizedEngine === 'shaka') {

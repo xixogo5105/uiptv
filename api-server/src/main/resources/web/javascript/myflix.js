@@ -68,8 +68,6 @@ createApp({
         let sharedHeader = null;
 
         const playerKey = ref(0);
-        const isYoutube = ref(false);
-        const youtubeSrc = ref('');
         const playerInstance = ref(null);
         const mpegtsPlayer = ref(null);
         let playbackFetchController = null;
@@ -1750,8 +1748,6 @@ createApp({
                 playbackMode.value = '';
             }
             playerLoading.value = false;
-            isYoutube.value = false;
-            youtubeSrc.value = '';
             videoTracks.value = [];
             audioTracks.value = [];
             textTracks.value = [];
@@ -1804,7 +1800,6 @@ createApp({
         };
 
         const togglePictureInPicture = async () => {
-            if (isYoutube.value) return;
             const video = videoPlayerModal.value;
             if (!video || typeof document.pictureInPictureEnabled === 'undefined') return;
             try {
@@ -1821,7 +1816,6 @@ createApp({
         const toggleMute = () => {
             const nextMuted = !isMuted.value;
             isMuted.value = nextMuted;
-            if (isYoutube.value) return;
             const video = videoPlayerModal.value;
             if (!video) return;
             if (!nextMuted && video.volume === 0) {
@@ -1890,15 +1884,6 @@ createApp({
                 return;
             }
 
-            if (uri.includes('youtube.com') || uri.includes('youtu.be')) {
-                isYoutube.value = true;
-                const videoId = uri.split('v=')[1] ? uri.split('v=')[1].split('&')[0] : uri.split('/').pop();
-                youtubeSrc.value = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
-                playbackMode.value = playbackUtils.resolvePlaybackModeLabel(uri, 'youtube');
-                return;
-            }
-
-            isYoutube.value = false;
             const video = await resolveActiveVideoElement();
             if (!video || !isPlaybackRequestActive(lifecycleId)) return;
             bindPlaybackEvents(video);
@@ -2327,7 +2312,7 @@ createApp({
         };
 
         const ensurePlaybackNotPaused = async () => {
-            if (!isPlaying.value || isYoutube.value) return;
+            if (!isPlaying.value) return;
             const video = videoPlayerModal.value;
             if (!video) return;
             if (video.paused && !video.ended) {
@@ -2751,8 +2736,6 @@ createApp({
             showOverlay,
             showBookmarkModal,
             playerKey,
-            isYoutube,
-            youtubeSrc,
             videoPlayerModal,
             playerInlineRef,
             playerModalFrame,

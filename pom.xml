@@ -317,7 +317,6 @@
                             <uiptv.stalker.page.delay.ms>0</uiptv.stalker.page.delay.ms>
                             <uiptv.stalker.page.maxDelay.ms>0</uiptv.stalker.page.maxDelay.ms>
                             <uiptv.stalker.page.jitter.ms>0</uiptv.stalker.page.jitter.ms>
-                            <uiptv.youtubeDl.default.enabled>false</uiptv.youtubeDl.default.enabled>
                         </systemPropertyVariables>
                     </configuration>
                 </plugin>
@@ -370,7 +369,6 @@
                         <uiptv.stalker.page.delay.ms>0</uiptv.stalker.page.delay.ms>
                         <uiptv.stalker.page.maxDelay.ms>0</uiptv.stalker.page.maxDelay.ms>
                         <uiptv.stalker.page.jitter.ms>0</uiptv.stalker.page.jitter.ms>
-                        <uiptv.youtubeDl.default.enabled>false</uiptv.youtubeDl.default.enabled>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

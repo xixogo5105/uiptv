@@ -78,16 +78,7 @@
                             class="nf-video"
                             controls
                             ref="videoPlayerModal"
-                            v-if="!isYoutube"
                     ></video>
-                    <iframe
-                            :src="youtubeSrc"
-                            allow="autoplay; encrypted-media"
-                            allowfullscreen
-                            class="nf-video"
-                            frameborder="0"
-                            v-if="isYoutube"
-                    ></iframe>
                     <div class="nf-player-loading" v-if="playerLoading && isPlaying">
                         <span aria-hidden="true" class="spinner-border text-light" role="status"></span>
                     </div>
