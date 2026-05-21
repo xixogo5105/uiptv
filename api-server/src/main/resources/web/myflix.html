@@ -21,6 +21,7 @@
     <link href="/css/myflix.css?v=20260224a" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
     <script src="/javascript/playback-utils.js?v=20260312a"></script>
     <script src="/javascript/player-controls.js?v=20260310a"></script>
     <script src="/javascript/shared-player.js?v=20260311c"></script>
@@ -77,7 +78,16 @@
                             class="nf-video"
                             controls
                             ref="videoPlayerModal"
+                            v-if="!isYoutube"
                     ></video>
+                    <iframe
+                            :src="youtubeSrc"
+                            allow="autoplay; encrypted-media"
+                            allowfullscreen
+                            class="nf-video"
+                            frameborder="0"
+                            v-if="isYoutube"
+                    ></iframe>
                     <div class="nf-player-loading" v-if="playerLoading && isPlaying">
                         <span aria-hidden="true" class="spinner-border text-light" role="status"></span>
                     </div>

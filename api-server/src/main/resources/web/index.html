@@ -22,6 +22,8 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <!-- Shaka Player -->
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
+    <!-- MPEG-TS over MSE -->
+    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
     <script src="/javascript/playback-utils.js?v=20260312a"></script>
     <script src="/javascript/player-controls.js?v=20260310a"></script>
     <script src="/javascript/shared-player.js?v=20260311c"></script>
@@ -590,7 +592,18 @@
                             class="w-100 h-100"
                             controls
                             ref="videoPlayer"
+                            v-if="!isYoutube"
                     ></video>
+
+                    <!-- YouTube Player -->
+                    <iframe
+                            :src="youtubeSrc"
+                            allow="autoplay; encrypted-media"
+                            allowfullscreen
+                            class="w-100 h-100"
+                            frameborder="0"
+                            v-if="isYoutube"
+                    ></iframe>
                 </div>
             </div>
         </div>
