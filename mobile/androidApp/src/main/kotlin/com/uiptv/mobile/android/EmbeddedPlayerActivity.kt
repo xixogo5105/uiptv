@@ -255,7 +255,6 @@ class EmbeddedPlayerActivity : Activity() {
                             keepLoadingVisible()
                             messageView.visibility = View.GONE
                             updatePlayPauseButton()
-                            scheduleStartupStreamInfoRefreshes()
                             updateStreamInfo(force = true, refreshTrackButtons = true)
                         }
                     }
@@ -422,6 +421,8 @@ class EmbeddedPlayerActivity : Activity() {
         applyDesiredAudioState()
         scheduleAudioStateStartupSync(audioRequestVersion)
         createdPlayer.play()
+        scheduleStartupStreamInfoRefreshes()
+        updateStreamInfo(force = true, refreshTrackButtons = true)
     }
 
     private fun playNextBingeIfNeeded(): Boolean {
@@ -1691,10 +1692,6 @@ class EmbeddedPlayerActivity : Activity() {
 
     private fun attachNativeProbeIfSupported(player: MediaPlayer) {
         if (nativeProbeHandle != 0L) {
-            return
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            Log.i(LogTag, "Skipping native libVLC probe on Android ${Build.VERSION.SDK_INT}")
             return
         }
         nativeProbeHandle = LibVlcNativeProbe.attach(player) { event ->
