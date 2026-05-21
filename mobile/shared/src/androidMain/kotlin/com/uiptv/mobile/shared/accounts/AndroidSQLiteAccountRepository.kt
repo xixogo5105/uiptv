@@ -19,6 +19,7 @@ class AndroidSQLiteAccountRepository(
                 epg, m3u8Path, type, serverPortalUrl, pinToTop,
                 resolveChainAndDeepRedirects, httpMethod, timezone
             FROM Account
+            WHERE UPPER(COALESCE(type, '')) <> 'RSS_FEED'
             ORDER BY CASE WHEN LOWER(COALESCE(pinToTop, '0')) IN ('1', 'true', 'yes') THEN 1 ELSE 0 END DESC,
                 id ASC
             """.trimIndent(),

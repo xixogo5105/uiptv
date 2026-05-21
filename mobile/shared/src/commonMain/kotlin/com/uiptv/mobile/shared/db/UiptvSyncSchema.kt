@@ -45,9 +45,7 @@ object UiptvSyncSchema {
         "Configuration"
     )
 
-    val desktopTablesPreservedButHiddenInV1: List<String> = listOf(
-        "ThemeCssOverride"
-    )
+    val desktopTablesPreservedButHiddenInV1: List<String> = emptyList()
 
     val androidNeverSyncConfigurationColumns: Set<String> = setOf(
         "playerPath1",
@@ -55,8 +53,6 @@ object UiptvSyncSchema {
         "playerPath3",
         "defaultPlayerPath",
         "embeddedPlayer",
-        "enableFfmpegTranscoding",
-        "enableLitePlayerFfmpeg",
         "serverPort",
         "autoRunServerOnStartup",
         "darkTheme",
@@ -80,7 +76,6 @@ object UiptvSyncSchema {
         "darkTheme",
         "serverPort",
         "embeddedPlayer",
-        "enableFfmpegTranscoding",
         "cacheExpiryDays",
         "enableThumbnails",
         "wideView",
@@ -88,7 +83,6 @@ object UiptvSyncSchema {
         "tmdbReadAccessToken",
         "filterLockHash",
         "uiZoomPercent",
-        "enableLitePlayerFfmpeg",
         "autoRunServerOnStartup",
         "vlcNetworkCachingMs",
         "vlcLiveCachingMs",

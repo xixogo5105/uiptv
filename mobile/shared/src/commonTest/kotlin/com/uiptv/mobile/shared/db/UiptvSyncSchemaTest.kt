@@ -41,7 +41,7 @@ class UiptvSyncSchemaTest {
 
     @Test
     fun desktopOnlyTablesArePreservedButHidden() {
-        assertEquals(listOf("ThemeCssOverride"), UiptvSyncSchema.desktopTablesPreservedButHiddenInV1)
+        assertEquals(emptyList(), UiptvSyncSchema.desktopTablesPreservedButHiddenInV1)
     }
 
     @Test
@@ -59,7 +59,6 @@ class UiptvSyncSchemaTest {
                 "darkTheme",
                 "serverPort",
                 "embeddedPlayer",
-                "enableFfmpegTranscoding",
                 "cacheExpiryDays",
                 "enableThumbnails",
                 "wideView",
@@ -67,7 +66,6 @@ class UiptvSyncSchemaTest {
                 "tmdbReadAccessToken",
                 "filterLockHash",
                 "uiZoomPercent",
-                "enableLitePlayerFfmpeg",
                 "autoRunServerOnStartup",
                 "vlcNetworkCachingMs",
                 "vlcLiveCachingMs",

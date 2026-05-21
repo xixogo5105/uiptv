@@ -2,7 +2,6 @@ package com.uiptv.mobile.shared.accounts
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MobileAccountTest {
@@ -14,7 +13,7 @@ class MobileAccountTest {
             url = "http://example.test",
             username = "  user  ",
             macAddress = " 00: 11 :22 ",
-            macAddressList = " aa:bb , cc:dd, aa:bb,  ",
+            macAddressList = " aa:bb ; cc:dd, aa:bb,  ",
             httpMethod = " post ",
             timezone = "  UTC  "
         )
@@ -52,7 +51,6 @@ class MobileAccountTest {
         assertTrue(MobileAccount(type = MobileAccountType.XTREME_API).canRefreshCache)
         assertTrue(MobileAccount(type = MobileAccountType.M3U8_URL).canRefreshCache)
         assertTrue(MobileAccount(type = MobileAccountType.M3U8_LOCAL).canRefreshCache)
-        assertFalse(MobileAccount(type = MobileAccountType.RSS_FEED).canRefreshCache)
     }
 
     @Test

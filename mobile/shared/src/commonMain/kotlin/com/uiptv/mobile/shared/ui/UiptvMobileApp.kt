@@ -6397,6 +6397,10 @@ private fun AccountEditor(
     onDelete: () -> Unit
 ) {
     var macManagerVisible by remember(account.id) { mutableStateOf(false) }
+    val isNewAccount = account.id == null
+    var stalkerAdvancedVisible by remember(account.id, selectedType) {
+        mutableStateOf(account.hasAdvancedStalkerFields())
+    }
     val macOptions = remember(account.macAddress, account.macAddressList) {
         account.stalkerMacOptions()
     }
@@ -6407,12 +6411,21 @@ private fun AccountEditor(
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("Account", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(
+            if (isNewAccount) "Create account" else "Edit account",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            accountEditorHelpText(selectedType, isNewAccount),
+            color = DeepNightMutedText,
+            style = MaterialTheme.typography.bodySmall
+        )
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            MobileAccountType.entries.forEach { type ->
+            mobileAccountTypeChoices.forEach { type ->
                 SelectableChip(
                     label = type.name.shortAccountType(),
                     selected = selectedType == type,
@@ -6421,55 +6434,82 @@ private fun AccountEditor(
                 )
             }
         }
-        AccountTextField("Name", account.accountName) { onAccountChange(account.copy(accountName = it)) }
-        AccountTextField("URL", account.url) { onAccountChange(account.copy(url = it)) }
-        if (selectedType == MobileAccountType.XTREME_API || selectedType == MobileAccountType.STALKER_PORTAL) {
-            AccountTextField("Username", account.username) { onAccountChange(account.copy(username = it)) }
-            AccountTextField("Password", account.password) { onAccountChange(account.copy(password = it)) }
-        }
-        if (selectedType == MobileAccountType.STALKER_PORTAL) {
-            StalkerMacSelector(
-                selectedMac = account.macAddress,
-                macOptions = macOptions,
-                onMacSelected = { onAccountChange(account.withStalkerMacs(macOptions, it)) },
-                onManage = { macManagerVisible = true }
-            )
-            AccountTextField("Serial", account.serialNumber) { onAccountChange(account.copy(serialNumber = it)) }
-            AccountTextField("Device ID 1", account.deviceId1) { onAccountChange(account.copy(deviceId1 = it)) }
-            AccountTextField("Device ID 2", account.deviceId2) { onAccountChange(account.copy(deviceId2 = it)) }
-            AccountTextField("Signature", account.signature) { onAccountChange(account.copy(signature = it)) }
-            AccountTextField("HTTP Method", account.httpMethod) { onAccountChange(account.copy(httpMethod = it)) }
-            AccountTextField("Timezone", account.timezone) { onAccountChange(account.copy(timezone = it)) }
-        }
-        if (selectedType == MobileAccountType.M3U8_URL) {
-            AccountTextField("Playlist", account.m3u8Path) { onAccountChange(account.copy(m3u8Path = it)) }
-        }
-        if (selectedType == MobileAccountType.M3U8_LOCAL) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CompactOutlinedTextField(
-                    value = account.m3u8Path,
-                    onValueChange = { onAccountChange(account.copy(m3u8Path = it)) },
-                    modifier = Modifier.weight(1f),
-                    label = "Playlist file"
-                )
-                Button(
-                    modifier = Modifier.semantics { contentDescription = "Browse for local M3U playlist file" },
-                    enabled = onBrowseLocalPlaylist != null,
-                    onClick = {
-                        onBrowseLocalPlaylist?.invoke { selectedUri ->
-                            onAccountChange(account.copy(m3u8Path = selectedUri))
-                        }
-                    }
-                ) {
-                    Text("Browse")
+        AccountTextField("Account name", account.accountName) { onAccountChange(account.copy(accountName = it)) }
+        when (selectedType) {
+            MobileAccountType.STALKER_PORTAL -> {
+                AccountTextField("Portal URL", account.url) { onAccountChange(account.copy(url = it)) }
+                if (isNewAccount) {
+                    AccountMultilineTextField(
+                        label = "MAC addresses",
+                        value = account.macAddressList.ifBlank { account.macAddress },
+                        onValueChange = { onAccountChange(account.withStalkerMacInput(it)) },
+                        placeholder = "00:1A:79:00:00:01, 00:1A:79:00:00:02"
+                    )
+                    Text(
+                        "Add one or more MAC addresses separated by comma or semicolon. The first valid entry becomes the default.",
+                        color = DeepNightMutedText,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else {
+                    StalkerMacSelector(
+                        selectedMac = account.macAddress,
+                        macOptions = macOptions,
+                        onMacSelected = { onAccountChange(account.withStalkerMacs(macOptions, it)) },
+                        onManage = { macManagerVisible = true }
+                    )
+                }
+                TextButton(onClick = { stalkerAdvancedVisible = !stalkerAdvancedVisible }) {
+                    Text(if (stalkerAdvancedVisible) "Hide advanced options" else "Advanced options")
+                }
+                if (stalkerAdvancedVisible) {
+                    AccountTextField("Username (optional)", account.username) { onAccountChange(account.copy(username = it)) }
+                    AccountTextField("Password (optional)", account.password) { onAccountChange(account.copy(password = it)) }
+                    AccountTextField("Serial", account.serialNumber) { onAccountChange(account.copy(serialNumber = it)) }
+                    AccountTextField("Device ID 1", account.deviceId1) { onAccountChange(account.copy(deviceId1 = it)) }
+                    AccountTextField("Device ID 2", account.deviceId2) { onAccountChange(account.copy(deviceId2 = it)) }
+                    AccountTextField("Signature", account.signature) { onAccountChange(account.copy(signature = it)) }
+                    AccountTextField("HTTP Method", account.httpMethod) { onAccountChange(account.copy(httpMethod = it)) }
+                    AccountTextField("Timezone", account.timezone) { onAccountChange(account.copy(timezone = it)) }
                 }
             }
+            MobileAccountType.XTREME_API -> {
+                AccountTextField("Server URL", account.url) { onAccountChange(account.copy(url = it)) }
+                AccountTextField("Username", account.username) { onAccountChange(account.copy(username = it)) }
+                AccountTextField("Password", account.password) { onAccountChange(account.copy(password = it)) }
+            }
+            MobileAccountType.M3U8_URL -> {
+                AccountTextField("Playlist URL", account.m3u8Path.ifBlank { account.url }) {
+                    onAccountChange(account.copy(m3u8Path = it))
+                }
+                AccountTextField("EPG URL (optional)", account.epg) { onAccountChange(account.copy(epg = it)) }
+            }
+            MobileAccountType.M3U8_LOCAL -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CompactOutlinedTextField(
+                        value = account.m3u8Path.ifBlank { account.url },
+                        onValueChange = { onAccountChange(account.copy(m3u8Path = it)) },
+                        modifier = Modifier.weight(1f),
+                        label = "Playlist file"
+                    )
+                    Button(
+                        modifier = Modifier.semantics { contentDescription = "Browse for local M3U playlist file" },
+                        enabled = onBrowseLocalPlaylist != null,
+                        onClick = {
+                            onBrowseLocalPlaylist?.invoke { selectedUri ->
+                                onAccountChange(account.copy(m3u8Path = selectedUri))
+                            }
+                        }
+                    ) {
+                        Text("Browse")
+                    }
+                }
+                AccountTextField("EPG URL (optional)", account.epg) { onAccountChange(account.copy(epg = it)) }
+            }
         }
-        AccountTextField("EPG", account.epg) { onAccountChange(account.copy(epg = it)) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
                 modifier = Modifier.semantics { contentDescription = "Pin account to top" },
@@ -6489,7 +6529,7 @@ private fun AccountEditor(
             Button(
                 modifier = Modifier.semantics { contentDescription = "Save account" },
                 onClick = onSave,
-                enabled = account.accountName.isNotBlank()
+                enabled = account.canSaveForType(selectedType)
             ) {
                 Text("Save")
             }
@@ -6735,8 +6775,53 @@ private fun MacAddressManagerRow(
     }
 }
 
+private val mobileAccountTypeChoices = listOf(
+    MobileAccountType.STALKER_PORTAL,
+    MobileAccountType.XTREME_API,
+    MobileAccountType.M3U8_URL,
+    MobileAccountType.M3U8_LOCAL
+)
+
+private fun accountEditorHelpText(type: MobileAccountType, isNewAccount: Boolean): String =
+    when (type) {
+        MobileAccountType.STALKER_PORTAL -> if (isNewAccount) {
+            "Enter the portal URL and paste all MAC addresses in one field. You can fine-tune MACs later from Edit."
+        } else {
+            "Update portal details and manage the saved MAC addresses for this account."
+        }
+        MobileAccountType.XTREME_API -> "Enter the server URL plus username and password from your provider."
+        MobileAccountType.M3U8_URL -> "Paste the remote M3U playlist URL. Add an EPG URL only if you have one."
+        MobileAccountType.M3U8_LOCAL -> "Choose a local M3U file stored on this device."
+    }
+
+private fun MobileAccount.canSaveForType(type: MobileAccountType): Boolean =
+    accountName.isNotBlank() && when (type) {
+        MobileAccountType.STALKER_PORTAL -> url.isNotBlank() && normalizeMacEntries(macAddressList, macAddress).isNotEmpty()
+        MobileAccountType.XTREME_API -> url.isNotBlank() && username.isNotBlank() && password.isNotBlank()
+        MobileAccountType.M3U8_URL,
+        MobileAccountType.M3U8_LOCAL -> m3u8Path.isNotBlank() || url.isNotBlank()
+    }
+
+private fun MobileAccount.hasAdvancedStalkerFields(): Boolean =
+    username.isNotBlank() ||
+        password.isNotBlank() ||
+        serialNumber.isNotBlank() ||
+        deviceId1.isNotBlank() ||
+        deviceId2.isNotBlank() ||
+        signature.isNotBlank() ||
+        httpMethod.isNotBlank() && !httpMethod.equals("GET", ignoreCase = true) ||
+        timezone.isNotBlank() && timezone != "Europe/London"
+
 private fun MobileAccount.stalkerMacOptions(): List<String> =
     normalizeMacEntries(macAddressList, macAddress)
+
+private fun MobileAccount.withStalkerMacInput(input: String): MobileAccount {
+    val normalizedMacs = normalizeMacEntries(input)
+    return copy(
+        macAddress = normalizedMacs.firstOrNull().orEmpty(),
+        macAddressList = input
+    )
+}
 
 private fun MobileAccount.withStalkerMacs(macOptions: List<String>, selectedMac: String): MobileAccount {
     val normalizedMacs = normalizeMacEntries(macOptions)
@@ -6755,7 +6840,7 @@ private fun normalizeMacEntries(vararg values: String): List<String> =
 
 private fun normalizeMacEntries(values: Iterable<String>): List<String> =
     values
-        .flatMap { it.split(",") }
+        .flatMap { it.split(',', ';') }
         .map { it.normalizedMacEntry() }
         .filter { it.isNotBlank() }
         .distinctBy { it.lowercase() }
@@ -6770,6 +6855,41 @@ private fun AccountTextField(label: String, value: String, onValueChange: (Strin
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
         label = label
+    )
+}
+
+@Composable
+private fun AccountMultilineTextField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String? = null
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 96.dp),
+        minLines = 3,
+        textStyle = MaterialTheme.typography.bodySmall,
+        label = {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        placeholder = placeholder?.let { placeholderText ->
+            {
+                Text(
+                    placeholderText,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        },
+        colors = darkTextFieldColors()
     )
 }
 
@@ -7310,7 +7430,6 @@ private fun String.shortAccountType(): String =
         "XTREME_API" -> "Xtreme"
         "M3U8_URL" -> "M3U URL"
         "M3U8_LOCAL" -> "M3U File"
-        "RSS_FEED" -> "RSS"
         else -> this
     }
 

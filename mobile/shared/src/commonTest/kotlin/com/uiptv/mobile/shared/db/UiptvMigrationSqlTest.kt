@@ -10,8 +10,8 @@ class UiptvMigrationSqlTest {
     @Test
     fun schemaVersionConstantsMatchBundledMigrationSet() {
         assertEquals("uiptv.db", UiptvSchemaInfo.DATABASE_NAME)
-        assertEquals(198, UiptvSchemaInfo.SCHEMA_VERSION_CODE)
-        assertEquals("0198", UiptvSchemaInfo.CURRENT_SCHEMA_VERSION)
+        assertEquals(199, UiptvSchemaInfo.SCHEMA_VERSION_CODE)
+        assertEquals("0199", UiptvSchemaInfo.CURRENT_SCHEMA_VERSION)
         assertEquals("db/migrations", UiptvSchemaInfo.MIGRATIONS_DIR)
         assertEquals("db/migrations/migrations.txt", UiptvSchemaInfo.MIGRATIONS_LIST)
     }

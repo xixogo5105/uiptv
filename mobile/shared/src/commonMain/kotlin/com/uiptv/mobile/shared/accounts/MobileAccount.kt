@@ -4,8 +4,7 @@ enum class MobileAccountType(val displayName: String, val cacheRefreshSupported:
     STALKER_PORTAL("Stalker Portal", true),
     XTREME_API("Xtreme API", true),
     M3U8_URL("M3U URL", true),
-    M3U8_LOCAL("M3U Local", true),
-    RSS_FEED("RSS Feed", false)
+    M3U8_LOCAL("M3U Local", true)
 }
 
 data class MobileAccount(
@@ -41,16 +40,18 @@ data class MobileAccount(
         } else {
             url
         }
-        val normalizedMac = normalizedMacAddress()
+        val normalizedMacs = if (normalizedType == MobileAccountType.STALKER_PORTAL) {
+            normalizeMacAddressEntries(listOf(macAddress, macAddressList))
+        } else {
+            emptyList()
+        }
+        val normalizedMac = normalizedMacs.firstOrNull().orEmpty()
         return copy(
             accountName = accountName.trim(),
             url = normalizedUrl.trim(),
             username = username.trim(),
             macAddress = normalizedMac,
-            macAddressList = normalizeMacAddressCsv(
-                value = macAddressList,
-                primaryMacAddress = if (normalizedType == MobileAccountType.STALKER_PORTAL) normalizedMac else ""
-            ),
+            macAddressList = normalizedMacs.joinToString(","),
             httpMethod = httpMethod.ifBlank { "GET" }.trim().uppercase(),
             timezone = timezone.ifBlank { "Europe/London" }.trim()
         )
@@ -59,15 +60,12 @@ data class MobileAccount(
     val canRefreshCache: Boolean
         get() = type.cacheRefreshSupported
 
-    private fun normalizedMacAddress(): String =
-        macAddress.filterNot { it.isWhitespace() }
-
-    private fun normalizeMacAddressCsv(value: String, primaryMacAddress: String): String =
-        (listOf(primaryMacAddress) + value.split(","))
+    private fun normalizeMacAddressEntries(values: Iterable<String>): List<String> =
+        values
+            .flatMap { it.split(',', ';') }
             .map { it.filterNot { char -> char.isWhitespace() } }
             .filter { it.isNotBlank() }
             .distinctBy { it.lowercase() }
-            .joinToString(",")
 }
 
 data class AccountCacheSummary(

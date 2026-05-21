@@ -336,8 +336,6 @@ class AndroidCacheMaintenanceWorker(
             MobileAccountType.M3U8_LOCAL -> m3uReloader.refreshAccount(id)
             MobileAccountType.XTREME_API -> xtremeReloader.refreshAccount(id)
             MobileAccountType.STALKER_PORTAL -> stalkerReloader.refreshAccount(id)
-            MobileAccountType.RSS_FEED ->
-                M3uRefreshResult.skipped("RSS Feed cache refresh is not supported.")
         }
     }
 
