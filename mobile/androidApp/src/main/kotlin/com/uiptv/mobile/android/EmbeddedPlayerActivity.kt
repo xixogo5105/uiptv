@@ -616,7 +616,7 @@ class EmbeddedPlayerActivity : Activity() {
             addView(closeButton)
         }
         streamInfoLabel = TextView(this).apply {
-            text = buildStreamInfoLabel(null)
+            text = buildStreamInfoLabel()
             setTextColor(Color.rgb(174, 184, 194))
             setTextSize(11f)
             maxLines = 1
@@ -1562,14 +1562,8 @@ class EmbeddedPlayerActivity : Activity() {
             return
         }
         updateTitleLabel()
-        val shouldRefresh = force || cachedStreamInfoLabel.isBlank()
-        val video = if (shouldRefresh) {
-            currentVideoTrackDetails()
-        } else {
-            null
-        }
-        val label = if (shouldRefresh) {
-            buildStreamInfoLabel(video)
+        val label = if (force || cachedStreamInfoLabel.isBlank()) {
+            buildStreamInfoLabel()
         } else {
             cachedStreamInfoLabel
         }
@@ -1579,9 +1573,6 @@ class EmbeddedPlayerActivity : Activity() {
         }
         if (refreshTrackButtons) {
             updateTrackMenuButtons()
-        }
-        if (shouldRefresh && video?.hasCompleteInfo() == true) {
-            stopStartupStreamInfoProbing()
         }
     }
 
@@ -1696,15 +1687,6 @@ class EmbeddedPlayerActivity : Activity() {
         startupStreamInfoRefreshScheduled = false
     }
 
-    private fun stopStartupStreamInfoProbing() {
-        if (!startupStreamInfoRefreshScheduled && nativeProbeHandle == 0L) {
-            return
-        }
-        cancelStartupStreamInfoRefreshes()
-        detachNativeProbe()
-        Log.d(LogTag, "Stream info resolved; stopped startup probing")
-    }
-
     private fun isStartupStreamInfoRefreshActive(): Boolean =
         startupStreamInfoRefreshScheduled && SystemClock.uptimeMillis() <= streamInfoRefreshStopsAt
 
@@ -1722,7 +1704,8 @@ class EmbeddedPlayerActivity : Activity() {
         nativeProbeHandle = 0L
     }
 
-    private fun buildStreamInfoLabel(video: VideoTrackDetails?): String {
+    private fun buildStreamInfoLabel(): String {
+        val video = currentVideoTrackDetails()
         val resolution = if (video != null) {
             video.resolutionLabel()
         } else {
@@ -2043,9 +2026,6 @@ class EmbeddedPlayerActivity : Activity() {
 
         fun hasResolution(): Boolean =
             displayWidth > 0 && displayHeight > 0
-
-        fun hasCompleteInfo(): Boolean =
-            hasResolution() && codec.isNotBlank()
 
         fun resolutionLabel(): String =
             if (displayWidth > 0 && displayHeight > 0) {
