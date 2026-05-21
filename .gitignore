@@ -17,6 +17,15 @@ mobile/.gradle/
 mobile/build/
 mobile/**/build/
 mobile/local.properties
+
+# Android/CMake native build output
+mobile/**/.cxx/
+mobile/**/.externalNativeBuild/
+mobile/**/.cmake/
+mobile/**/CMakeFiles/
+mobile/**/CMakeCache.txt
+mobile/**/cmake_install.cmake
+mobile/**/compile_commands.json
 /web/dist/css/myflix.css
 /web/dist/css/player.css
 /web/dist/css/spa.css
