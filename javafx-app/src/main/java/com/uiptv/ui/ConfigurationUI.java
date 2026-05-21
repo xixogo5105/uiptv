@@ -93,6 +93,7 @@ public class ConfigurationUI extends VBox {
     private final VBox filterAdminControls = new VBox(10);
     private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
     private final CheckBox autoRunServerOnStartupCheckBox = new CheckBox(I18n.tr("configAutoRunServerOnStartup"));
+    private final CheckBox httpsServerEnabledCheckBox = new CheckBox(I18n.tr("configEnableHttpsServer"));
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
     private final Hyperlink wideViewHelpLink = new Hyperlink("(?)");
@@ -109,12 +110,14 @@ public class ConfigurationUI extends VBox {
     private final ComboBox<I18n.SupportedLanguage> languageComboBox = new ComboBox<>();
     private final ComboBox<Integer> themeZoomComboBox = new ComboBox<>();
     private final UIptvText serverPort = new UIptvText("serverPort", "configServerPortPrompt", 3);
+    private final UIptvText httpsServerPort = new UIptvText("httpsServerPort", "configHttpsServerPortPrompt", 3);
     private final UIptvText cacheExpiryDays = new UIptvText("cacheExpiryDays", "configCacheExpiryPrompt", 5);
     private final PasswordField tmdbReadAccessToken = new PasswordField();
     private final Hyperlink tmdbApiGuideLink = new Hyperlink(I18n.tr("configTmdbApiGuideLink"));
     private final Hyperlink tmdbApiKeyPageLink = new Hyperlink(I18n.tr("configTmdbApiKeyPageLink"));
     private final Button startServerButton = new Button(I18n.tr("configStartServer"));
     private final Hyperlink openServerLink = new Hyperlink(I18n.tr("configOpenWebApp"));
+    private final Hyperlink openSecureServerLink = new Hyperlink(I18n.tr("configOpenSecureWebApp"));
     private final Button publishM3u8Button = new Button(I18n.tr("configPublishM3u8"));
     private final Button clearCacheButton = new Button(I18n.tr("configClearCache"));
     private final Button clearWatchingNowButton = new Button(I18n.tr("configClearWatchingNow"));
@@ -197,6 +200,8 @@ public class ConfigurationUI extends VBox {
         if (cacheExpiryDays.getText() == null || cacheExpiryDays.getText().isBlank()) {
             cacheExpiryDays.setText(String.valueOf(ConfigurationService.DEFAULT_CACHE_EXPIRY_DAYS));
         }
+        installDigitsOnlyFilter(serverPort);
+        installDigitsOnlyFilter(httpsServerPort);
         cacheExpiryDays.textProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal == null) {
                 return;
@@ -274,13 +279,20 @@ public class ConfigurationUI extends VBox {
 
         openServerLink.setVisible(false);
         openServerLink.setManaged(false);
+        openSecureServerLink.setVisible(false);
+        openSecureServerLink.setManaged(false);
         HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, openServerLink);
         publishM3u8Button.setMaxWidth(Double.MAX_VALUE);
         publishM3u8Button.setPrefWidth(440);
         HBox autoRunServerOnStartupRow = new HBox(6, autoRunServerOnStartupCheckBox);
         autoRunServerOnStartupRow.setAlignment(Pos.CENTER_LEFT);
         autoRunServerOnStartupCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
-        VBox serverGroup = new VBox(10, serverButtonWrapper, publishM3u8Button, autoRunServerOnStartupRow);
+        HBox httpsServerRow = new HBox(10, httpsServerEnabledCheckBox, httpsServerPort, openSecureServerLink);
+        httpsServerRow.setAlignment(Pos.CENTER_LEFT);
+        httpsServerEnabledCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
+        httpsServerPort.disableProperty().bind(httpsServerEnabledCheckBox.selectedProperty().not());
+        httpsServerEnabledCheckBox.selectedProperty().addListener((_, _, _) -> refreshServerStatusUI());
+        VBox serverGroup = new VBox(10, serverButtonWrapper, httpsServerRow, publishM3u8Button, autoRunServerOnStartupRow);
         serverGroup.setFillWidth(true);
         VBox databaseSyncGroup = buildDatabaseSyncGroup();
 
@@ -353,6 +365,18 @@ public class ConfigurationUI extends VBox {
         pane.setPadding(new Insets(10));
         pane.getStyleClass().add("uiptv-card");
         return pane;
+    }
+
+    private void installDigitsOnlyFilter(TextInputControl control) {
+        control.textProperty().addListener((_, _, newVal) -> {
+            if (newVal == null) {
+                return;
+            }
+            String normalized = newVal.replaceAll("\\D", "");
+            if (!newVal.equals(normalized)) {
+                control.setText(normalized);
+            }
+        });
     }
 
     private HBox createFilterLockDurationRow() {
@@ -591,6 +615,9 @@ public class ConfigurationUI extends VBox {
         startServerButton.setText(running ? I18n.tr("configStopServer") : I18n.tr("configStartServer"));
         openServerLink.setVisible(running);
         openServerLink.setManaged(running);
+        boolean secureLinkVisible = running && httpsServerEnabledCheckBox.isSelected();
+        openSecureServerLink.setVisible(secureLinkVisible);
+        openSecureServerLink.setManaged(secureLinkVisible);
     }
 
     private void configurePlayerToggleGroup() {
@@ -632,6 +659,7 @@ public class ConfigurationUI extends VBox {
 
     private void addOpenServerLinkClickHandler() {
         openServerLink.setOnAction(event -> UiServerUrlUtil.openInBrowser(ServerUrlUtil.getLoopbackServerUrl() + "/"));
+        openSecureServerLink.setOnAction(event -> UiServerUrlUtil.openInBrowser(ServerUrlUtil.getLoopbackSecureServerUrl() + "/"));
     }
 
     private void addTmdbGuideLinkClickHandler() {
@@ -841,6 +869,8 @@ public class ConfigurationUI extends VBox {
         enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
         wideViewCheckBox.setSelected(configuration.isWideView());
         serverPort.setText(configuration.getServerPort());
+        httpsServerEnabledCheckBox.setSelected(configuration.isHttpsServerEnabled());
+        httpsServerPort.setText(defaultHttpsServerPort(configuration.getHttpsServerPort()));
         autoRunServerOnStartupCheckBox.setSelected(configuration.isAutoRunServerOnStartup());
         resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
         cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
@@ -855,6 +885,12 @@ public class ConfigurationUI extends VBox {
         vlcHttpForwardCookiesEnabled = configuration.isEnableVlcHttpForwardCookies();
         languageComboBox.getSelectionModel().select(I18n.resolveSupportedLanguage(configuration.getLanguageLocale()));
         themeZoomComboBox.getSelectionModel().select(Integer.valueOf(service.normalizeUiZoomPercent(configuration.getUiZoomPercent())));
+    }
+
+    private String defaultHttpsServerPort(String configuredPort) {
+        return configuredPort == null || configuredPort.isBlank()
+                ? ServerUrlUtil.DEFAULT_HTTPS_SERVER_PORT
+                : configuredPort.trim();
     }
 
     private void addSaveButtonClickHandler() {
@@ -910,6 +946,8 @@ public class ConfigurationUI extends VBox {
         configuration.setFilterLockUnlockDurationMinutes(saveDuration != null ? String.valueOf(saveDuration) : "15");
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
         configuration.setAutoRunServerOnStartup(autoRunServerOnStartupCheckBox.isSelected());
+        configuration.setHttpsServerEnabled(httpsServerEnabledCheckBox.isSelected());
+        configuration.setHttpsServerPort(httpsServerPort.getText());
         configuration.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
         configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
         configuration.setVlcLiveCachingMs(vlcLiveCachingMs);

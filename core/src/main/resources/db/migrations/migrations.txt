@@ -77,3 +77,5 @@
 0197_add_configuration_filter_lock_unlock_duration_minutes.sql
 0198_add_bookmark_logo.sql
 0199_remove_rss_ffmpeg_lite_player_theme_overrides.sql
+0200_add_configuration_https_server_enabled.sql
+0201_add_configuration_https_server_port.sql

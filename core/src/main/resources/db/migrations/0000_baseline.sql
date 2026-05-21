@@ -42,6 +42,12 @@ CREATE TABLE IF NOT EXISTS Configuration
     TEXT
     default
     '0',
+    httpsServerEnabled
+    TEXT
+    default
+    '0',
+    httpsServerPort
+    TEXT,
     vlcNetworkCachingMs
     TEXT,
     vlcLiveCachingMs

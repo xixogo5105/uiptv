@@ -38,6 +38,9 @@ class ServerUrlUtilTest {
 
             assertEquals("http://" + ServerUrlUtil.getPublishedServerHost() + ":8888", ServerUrlUtil.getLocalServerUrl());
             assertEquals("http://127.0.0.1:8888", ServerUrlUtil.getLoopbackServerUrl());
+            assertEquals("https://" + ServerUrlUtil.getPublishedServerHost() + ":8443", ServerUrlUtil.getLocalSecureServerUrl());
+            assertEquals("https://127.0.0.1:8443", ServerUrlUtil.getLoopbackSecureServerUrl());
+            assertFalse(ServerUrlUtil.isHttpsServerEnabled());
             assertFalse(ServerUrlUtil.getLocalServerUrl().contains("0.0.0.0"));
             assertFalse(ServerUrlUtil.getServerBindAddresses().contains("0.0.0.0"));
         }
@@ -54,6 +57,24 @@ class ServerUrlUtilTest {
 
             assertEquals("http://" + ServerUrlUtil.getPublishedServerHost() + ":9090", ServerUrlUtil.getLocalServerUrl());
             assertEquals("http://127.0.0.1:9090", ServerUrlUtil.getLoopbackServerUrl());
+            assertEquals("https://" + ServerUrlUtil.getPublishedServerHost() + ":8443", ServerUrlUtil.getLocalSecureServerUrl());
+            assertEquals("https://127.0.0.1:8443", ServerUrlUtil.getLoopbackSecureServerUrl());
+        }
+    }
+
+    @Test
+    void secureServerUrl_usesConfiguredHttpsPortWhenEnabled() {
+        try (MockedStatic<ConfigurationService> mockedService = Mockito.mockStatic(ConfigurationService.class)) {
+            ConfigurationService service = mock(ConfigurationService.class);
+            Configuration config = new Configuration();
+            config.setHttpsServerEnabled(true);
+            config.setHttpsServerPort("9443");
+            when(service.read()).thenReturn(config);
+            mockedService.when(ConfigurationService::getInstance).thenReturn(service);
+
+            assertTrue(ServerUrlUtil.isHttpsServerEnabled());
+            assertEquals("https://" + ServerUrlUtil.getPublishedServerHost() + ":9443", ServerUrlUtil.getLocalSecureServerUrl());
+            assertEquals("https://127.0.0.1:9443", ServerUrlUtil.getLoopbackSecureServerUrl());
         }
     }
 
@@ -66,6 +87,8 @@ class ServerUrlUtilTest {
 
             assertEquals("http://" + ServerUrlUtil.getPublishedServerHost() + ":8888", ServerUrlUtil.getLocalServerUrl());
             assertEquals("http://127.0.0.1:8888", ServerUrlUtil.getLoopbackServerUrl());
+            assertEquals("https://" + ServerUrlUtil.getPublishedServerHost() + ":8443", ServerUrlUtil.getLocalSecureServerUrl());
+            assertEquals("https://127.0.0.1:8443", ServerUrlUtil.getLoopbackSecureServerUrl());
         }
     }
 

@@ -70,6 +70,8 @@ public class DatabaseUtils {
                 new DataColumn("filterLockHash", "TEXT"),
                 new DataColumn("uiZoomPercent", "TEXT"),
                 new DataColumn("autoRunServerOnStartup", "TEXT"),
+                new DataColumn("httpsServerEnabled", "TEXT"),
+                new DataColumn("httpsServerPort", "TEXT"),
                 new DataColumn("vlcNetworkCachingMs", "TEXT"),
                 new DataColumn("vlcLiveCachingMs", "TEXT"),
                 new DataColumn("publishedM3uCategoryMode", "TEXT"),

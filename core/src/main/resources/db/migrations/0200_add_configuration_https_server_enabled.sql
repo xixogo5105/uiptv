@@ -1,0 +1,1 @@
+--@add_column Configuration httpsServerEnabled TEXT default '0'

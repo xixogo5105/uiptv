@@ -20,6 +20,8 @@ import java.util.Locale;
 import java.util.Set;
 
 public class ServerUrlUtil {
+    public static final String DEFAULT_HTTP_SERVER_PORT = "8888";
+    public static final String DEFAULT_HTTPS_SERVER_PORT = "8443";
     private static final String SERVER_RUNTIME_CLASS = "com.uiptv.server.UIptvServer";
     private static final String LOOPBACK_BROWSER_HOST = "127.0.0.1";
 
@@ -30,6 +32,10 @@ public class ServerUrlUtil {
         return "http://" + getPublishedServerHost() + ":" + getConfiguredServerPort();
     }
 
+    public static String getLocalSecureServerUrl() {
+        return "https://" + getPublishedServerHost() + ":" + getConfiguredHttpsServerPort();
+    }
+
     /**
      * Browsers treat loopback HTTP as a secure context, which is required for EME/DRM playback.
      */
@@ -37,23 +43,46 @@ public class ServerUrlUtil {
         return "http://" + LOOPBACK_BROWSER_HOST + ":" + getConfiguredServerPort();
     }
 
-    private static String getConfiguredServerPort() {
-        String port = "8888";
+    public static String getLoopbackSecureServerUrl() {
+        return "https://" + LOOPBACK_BROWSER_HOST + ":" + getConfiguredHttpsServerPort();
+    }
+
+    public static String getConfiguredServerPort() {
+        return configuredPort(DEFAULT_HTTP_SERVER_PORT, false);
+    }
+
+    public static String getConfiguredHttpsServerPort() {
+        return configuredPort(DEFAULT_HTTPS_SERVER_PORT, true);
+    }
+
+    public static boolean isHttpsServerEnabled() {
         try {
-            ConfigurationService service = ConfigurationService.getInstance();
-            if (service != null) {
-                Configuration config = service.read();
-                if (config != null) {
-                    String configured = config.getServerPort();
-                    if (configured != null && !configured.trim().isEmpty()) {
-                        port = configured.trim();
-                    }
+            Configuration configuration = readConfiguration();
+            return configuration != null && configuration.isHttpsServerEnabled();
+        } catch (DatabaseAccessException | IllegalStateException _) {
+            return false;
+        }
+    }
+
+    private static String configuredPort(String defaultPort, boolean https) {
+        String port = defaultPort;
+        try {
+            Configuration config = readConfiguration();
+            if (config != null) {
+                String configured = https ? config.getHttpsServerPort() : config.getServerPort();
+                if (configured != null && !configured.trim().isEmpty()) {
+                    port = configured.trim();
                 }
             }
         } catch (DatabaseAccessException | IllegalStateException _) {
             // Fall back to the default local server port when configuration cannot be read.
         }
         return port;
+    }
+
+    private static Configuration readConfiguration() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        return service == null ? null : service.read();
     }
 
     public static String getPublishedServerHost() {

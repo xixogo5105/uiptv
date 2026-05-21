@@ -17,6 +17,7 @@ public class Configuration extends BaseJson {
     private String filterCategoriesList;
     private String filterChannelsList;
     private String serverPort;
+    private String httpsServerPort;
     private String cacheExpiryDays;
     private String languageLocale;
     private String tmdbReadAccessToken;
@@ -32,6 +33,7 @@ public class Configuration extends BaseJson {
     private boolean embeddedPlayer;
     private boolean wideView;
     private boolean autoRunServerOnStartup;
+    private boolean httpsServerEnabled;
     private boolean enableThumbnails = true;
     private boolean enableVlcHttpUserAgent = true;
     private boolean enableVlcHttpForwardCookies = true;

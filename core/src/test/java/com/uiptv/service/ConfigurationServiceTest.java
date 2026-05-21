@@ -55,6 +55,21 @@ class ConfigurationServiceTest extends DbBackedTest {
     }
 
     @Test
+    void httpsServerSettings_defaultDisabled_andPersistWhenEnabled() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        assertFalse(service.read().isHttpsServerEnabled());
+
+        Configuration configuration = service.read();
+        configuration.setHttpsServerEnabled(true);
+        configuration.setHttpsServerPort("9443");
+        service.save(configuration);
+
+        Configuration saved = service.read();
+        assertTrue(saved.isHttpsServerEnabled());
+        assertEquals("9443", saved.getHttpsServerPort());
+    }
+
+    @Test
     void vlcSettings_defaultToOneSecondCaching_andEnabledFlags() {
         Configuration configuration = ConfigurationService.getInstance().read();
 

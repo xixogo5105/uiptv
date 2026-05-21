@@ -2,14 +2,18 @@ package com.uiptv.server;
 
 import com.uiptv.server.api.json.*;
 import com.uiptv.server.html.HttpSpaHtmlServer;
-import com.uiptv.service.ConfigurationService;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.PathHandler;
 
+import java.io.IOException;
+import java.util.List;
+
 import static com.uiptv.util.AppLog.addInfoLog;
+import static com.uiptv.util.ServerUrlUtil.getConfiguredHttpsServerPort;
+import static com.uiptv.util.ServerUrlUtil.getConfiguredServerPort;
 import static com.uiptv.util.ServerUrlUtil.getServerBindAddresses;
-import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.util.ServerUrlUtil.isHttpsServerEnabled;
 
 public class UIptvServer {
     private static final int MIN_HTTP_WORKERS = 20;
@@ -18,16 +22,29 @@ public class UIptvServer {
     private UIptvServer() {
     }
 
-    private static void initialiseServer() {
+    private static void initialiseServer() throws IOException {
         stop();
         String httpPort = getHttpPort();
         int port = Integer.parseInt(httpPort);
+        boolean httpsEnabled = isHttpsServerEnabled();
+        String httpsPort = getHttpsPort();
+        int securePort = Integer.parseInt(httpsPort);
+        if (httpsEnabled && securePort == port) {
+            throw new IOException("HTTPS server port must be different from HTTP server port.");
+        }
         int workerThreads = Math.max(MIN_HTTP_WORKERS, Runtime.getRuntime().availableProcessors() * 4);
         int ioThreads = Math.max(2, Runtime.getRuntime().availableProcessors());
 
         Undertow.Builder builder = Undertow.builder();
-        for (String bindAddress : getServerBindAddresses()) {
+        List<String> bindAddresses = getServerBindAddresses();
+        for (String bindAddress : bindAddresses) {
             builder.addHttpListener(port, bindAddress);
+        }
+        if (httpsEnabled) {
+            var sslContext = LocalHttpsCertificateStore.sslContext(bindAddresses);
+            for (String bindAddress : bindAddresses) {
+                builder.addHttpsListener(securePort, bindAddress, sslContext);
+            }
         }
         httpServer = builder.setIoThreads(ioThreads)
                 .setWorkerThreads(workerThreads)
@@ -104,22 +121,26 @@ public class UIptvServer {
     }
 
     private static String getHttpPort() {
-        return isBlank(ConfigurationService.getInstance().read().getServerPort()) ? "8888" : ConfigurationService.getInstance().read().getServerPort();
+        return getConfiguredServerPort();
     }
 
-    public static synchronized void start() {
+    private static String getHttpsPort() {
+        return getConfiguredHttpsServerPort();
+    }
+
+    public static synchronized void start() throws IOException {
         initialiseServer();
         httpServer.start();
-        addInfoLog(UIptvServer.class, "Server Started on port " + getHttpPort());
+        addServerStartedLog();
     }
 
-    public static synchronized boolean ensureStarted() {
+    public static synchronized boolean ensureStarted() throws IOException {
         if (isRunning()) {
             return false;
         }
         initialiseServer();
         httpServer.start();
-        addInfoLog(UIptvServer.class, "Server Started on port " + getHttpPort());
+        addServerStartedLog();
         return true;
     }
 
@@ -133,5 +154,13 @@ public class UIptvServer {
 
     public static synchronized boolean isRunning() {
         return httpServer != null;
+    }
+
+    private static void addServerStartedLog() {
+        String message = "Server Started on HTTP port " + getHttpPort();
+        if (isHttpsServerEnabled()) {
+            message += " and HTTPS port " + getHttpsPort();
+        }
+        addInfoLog(UIptvServer.class, message);
     }
 }

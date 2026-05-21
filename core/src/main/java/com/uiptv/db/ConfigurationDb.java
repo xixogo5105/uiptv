@@ -107,6 +107,8 @@ public class ConfigurationDb extends BaseDb {
         c.setFilterLockHash(nullSafeString(resultSet, "filterLockHash"));
         c.setUiZoomPercent(nullSafeString(resultSet, "uiZoomPercent"));
         c.setAutoRunServerOnStartup(safeBoolean(resultSet, "autoRunServerOnStartup"));
+        c.setHttpsServerEnabled(safeBoolean(resultSet, "httpsServerEnabled"));
+        c.setHttpsServerPort(nullSafeString(resultSet, "httpsServerPort"));
         c.setVlcNetworkCachingMs(nullSafeString(resultSet, "vlcNetworkCachingMs"));
         c.setVlcLiveCachingMs(nullSafeString(resultSet, "vlcLiveCachingMs"));
         c.setPublishedM3uCategoryMode(nullSafeString(resultSet, "publishedM3uCategoryMode"));
@@ -132,7 +134,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(26, current.getDbId());
+                statement.setString(28, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -168,13 +170,15 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(16, configuration.getFilterLockHash());
         statement.setString(17, configuration.getUiZoomPercent());
         statement.setString(18, configuration.isAutoRunServerOnStartup() ? "1" : "0");
-        statement.setString(19, configuration.getVlcNetworkCachingMs());
-        statement.setString(20, configuration.getVlcLiveCachingMs());
-        statement.setString(21, configuration.getPublishedM3uCategoryMode());
-        statement.setString(22, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
-        statement.setString(23, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
-        statement.setString(24, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
-        statement.setString(25, configuration.getFilterLockUnlockDurationMinutes());
+        statement.setString(19, configuration.isHttpsServerEnabled() ? "1" : "0");
+        statement.setString(20, configuration.getHttpsServerPort());
+        statement.setString(21, configuration.getVlcNetworkCachingMs());
+        statement.setString(22, configuration.getVlcLiveCachingMs());
+        statement.setString(23, configuration.getPublishedM3uCategoryMode());
+        statement.setString(24, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
+        statement.setString(25, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
+        statement.setString(26, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
+        statement.setString(27, configuration.getFilterLockUnlockDurationMinutes());
      }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {
