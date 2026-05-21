@@ -2063,7 +2063,15 @@ class EmbeddedPlayerActivity : Activity() {
         private const val PreferredAudioOutput = "opensles"
         private const val LogTag = "UIPTV-Embedded"
         private const val ChromeUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-        private val StreamInfoStartupRefreshDelaysMs = longArrayOf(5_000L, 10_000L, 15_000L, 30_000L, 60_000L)
+        private val StreamInfoStartupRefreshDelaysMs = longArrayOf(
+            5_000L,
+            10_000L,
+            15_000L,
+            30_000L,
+            60_000L,
+            90_000L,
+            120_000L
+        )
         private const val ProgressBarMax = 1_000
         private const val DefaultVlcVolume = 100
         private const val MinAudibleVlcVolume = 1
