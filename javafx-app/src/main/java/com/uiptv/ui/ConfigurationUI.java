@@ -25,6 +25,7 @@ import com.uiptv.widget.UIptvTextArea;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -1430,8 +1431,14 @@ public class ConfigurationUI extends VBox {
                 importMode,
                 fileModeButton.isSelected()
         );
-        fileModeButton.selectedProperty().addListener((obs, oldValue, newValue) -> textUpdater.run());
-        remoteModeButton.selectedProperty().addListener((obs, oldValue, newValue) -> textUpdater.run());
+        fileModeButton.selectedProperty().addListener((obs, oldValue, newValue) -> {
+            textUpdater.run();
+            resizeDatabaseSyncPopup(popupStage);
+        });
+        remoteModeButton.selectedProperty().addListener((obs, oldValue, newValue) -> {
+            textUpdater.run();
+            resizeDatabaseSyncPopup(popupStage);
+        });
         textUpdater.run();
 
         VBox root = new VBox(
@@ -1453,9 +1460,22 @@ public class ConfigurationUI extends VBox {
         UiI18n.applySceneOrientation(scene);
         scene.getStylesheets().add(RootApplication.getCurrentTheme());
         popupStage.setScene(scene);
+        popupStage.setOnShown(event -> resizeDatabaseSyncPopup(popupStage));
         popupStage.setOnHidden(hiddenEvent -> activeDatabaseSyncPopupStage.compareAndSet(popupStage, null));
         activeDatabaseSyncPopupStage.set(popupStage);
         popupStage.showAndWait();
+    }
+
+    private void resizeDatabaseSyncPopup(Stage popupStage) {
+        if (popupStage.getScene() == null) {
+            return;
+        }
+        popupStage.sizeToScene();
+        Platform.runLater(() -> {
+            if (popupStage.isShowing()) {
+                popupStage.sizeToScene();
+            }
+        });
     }
 
     private void updateDatabaseSyncDirectionalText(Stage popupStage,
