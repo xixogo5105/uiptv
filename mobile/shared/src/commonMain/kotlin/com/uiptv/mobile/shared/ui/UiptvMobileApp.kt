@@ -195,7 +195,6 @@ private val LightUiptvPalette = UiptvPalette(
 
 private val LocalUiptvPalette = staticCompositionLocalOf { DarkUiptvPalette }
 private val LocalWidePhoneLayout = staticCompositionLocalOf { false }
-private const val DesktopDownloadUrl = "https://github.com/xixogo5105/uiptv/releases/latest"
 
 private enum class UiptvLayoutMode {
     Compact,
@@ -4399,10 +4398,6 @@ private fun RemoteSyncScreen(
     var channelFilterText by remember { mutableStateOf("") }
     var filterEditorVisible by remember { mutableStateOf(false) }
     var confirmRestore by remember { mutableStateOf(false) }
-    val uriHandler = LocalUriHandler.current
-    fun openDesktopDownload() {
-        uriHandler.openUri(DesktopDownloadUrl)
-    }
 
     LaunchedEffect(syncActions) {
         val snapshot = syncActions.loadPreferences()
@@ -4618,7 +4613,6 @@ private fun RemoteSyncScreen(
                 }
             },
             onReset = { confirmReset = true },
-            onDownloadDesktop = { openDesktopDownload() },
             modifier = modifier
         )
     } else {
@@ -4630,7 +4624,7 @@ private fun RemoteSyncScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("Config", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        ConfigurationIntro(onDownloadDesktop = { openDesktopDownload() })
+        ConfigurationIntro()
         CompactOutlinedTextField(
             value = host,
             onValueChange = { host = it },
@@ -5031,7 +5025,6 @@ private fun WideRemoteSyncContent(
     onChannelFiltersChange: (String) -> Unit,
     onSaveFilters: () -> Unit,
     onReset: () -> Unit,
-    onDownloadDesktop: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val compactWide = LocalWidePhoneLayout.current
@@ -5066,7 +5059,7 @@ private fun WideRemoteSyncContent(
                 verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
             ) {
                 Text("Config", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                ConfigurationIntro(onDownloadDesktop = onDownloadDesktop, compact = compactWide)
+                ConfigurationIntro(compact = compactWide)
                 CompactOutlinedTextField(
                     value = host,
                     onValueChange = onHostChange,
@@ -5286,28 +5279,15 @@ private fun WideRemoteSyncContent(
 
 @Composable
 private fun ConfigurationIntro(
-    onDownloadDesktop: () -> Unit,
     compact: Boolean = false
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)) {
-        Text("About", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Text(
-            "Use this page for desktop sync, mobile backup and restore, player preference, thumbnails, content filters, and local reset.",
-            color = DeepNightMutedText,
-            style = MaterialTheme.typography.bodySmall
-        )
         Text("Sync help", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Text(
-            "Sync needs UIPTV Desktop running on the computer that has your library. Install the desktop version, start its web server, then enter that computer's IP address and server port here. Approve the request on desktop when prompted.",
+            "To sync this Android app, run UIPTV Desktop on the computer that has your library, start its web server, then enter that computer's IP address and server port here. Approve the request on desktop when prompted.",
             color = DeepNightMutedText,
             style = MaterialTheme.typography.bodySmall
         )
-        OutlinedButton(
-            modifier = Modifier.semantics { contentDescription = "Open UIPTV desktop download page" },
-            onClick = onDownloadDesktop
-        ) {
-            Text("Download Desktop")
-        }
     }
 }
 
