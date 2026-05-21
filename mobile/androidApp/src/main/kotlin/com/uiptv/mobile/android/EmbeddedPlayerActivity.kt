@@ -44,6 +44,8 @@ import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import com.uiptv.mobile.shared.settings.EmbeddedPlayerPreference
 import java.lang.reflect.Field
 import java.util.Locale
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -120,6 +122,8 @@ class EmbeddedPlayerActivity : Activity() {
     private var startupVolumeFallbackApplied = false
     private var muted = false
     private var lastAudibleVlcVolume = DefaultVlcVolume
+    private var lastAudioStateApplyAt = 0L
+    private var lastAudioTrackSnapshot = ""
     private var touchStartX = 0f
     private var touchStartY = 0f
     private var twoFingerStartSpanX = 0f
@@ -135,12 +139,16 @@ class EmbeddedPlayerActivity : Activity() {
     private var streamInfoRefreshStopsAt = 0L
     private var startupStreamInfoRefreshScheduled = false
     private var cachedStreamInfoLabel = ""
+    private var lastAudioEventSyncAt = 0L
     @Volatile
     private var renderedVideoDetails: VideoTrackDetails? = null
     @Volatile
     private var nativeProbeVideoDetails: VideoTrackDetails? = null
     private var videoLayoutListenerWrapped = false
     private val playbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val playerCleanupExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "UIPTV-PlayerCleanup").apply { isDaemon = true }
+    }
     private var currentTarget: PlaybackTarget? = null
     private var currentBingeSession: AndroidBingeWatchSession? = null
     private var currentBingeIndex = -1
@@ -255,7 +263,7 @@ class EmbeddedPlayerActivity : Activity() {
                             keepLoadingVisible()
                             messageView.visibility = View.GONE
                             updatePlayPauseButton()
-                            updateStreamInfo(force = true, refreshTrackButtons = true)
+                            updateStreamInfo(force = true, refreshTrackButtons = controlsVisible)
                         }
                     }
                     MediaPlayer.Event.Vout -> {
@@ -335,14 +343,20 @@ class EmbeddedPlayerActivity : Activity() {
         cancelStartupStreamInfoRefreshes()
         detachNativeProbe()
         overlayHandler.removeCallbacks(updateProgressRunnable)
-        mediaPlayer?.runCatchingStop()
+        val player = mediaPlayer
         if (attached) {
-            mediaPlayer?.detachViews()
+            player?.detachViews()
             attached = false
             videoLayoutListenerWrapped = false
             renderedVideoDetails = null
         }
+        if (!isInPictureInPictureModeCompat()) {
+            stopPlayerInBackground(player)
+        }
         super.onStop()
+        if (!isChangingConfigurations && !isInPictureInPictureModeCompat() && !isFinishing) {
+            finish()
+        }
     }
 
     override fun onDestroy() {
@@ -353,13 +367,14 @@ class EmbeddedPlayerActivity : Activity() {
             intent.getStringExtra(NativePlayerActivity.EXTRA_BINGE_SESSION_ID).orEmpty().takeIf { it.isNotBlank() }?.let(AndroidBingeWatchSessionStore::remove)
         }
         detachNativeProbe()
-        mediaPlayer?.release()
+        val player = mediaPlayer
         mediaPlayer = null
         abandonAudioFocus()
-        libVlc?.release()
+        val vlc = libVlc
         libVlc = null
         playbackScope.cancel()
         overlayHandler.removeCallbacksAndMessages(null)
+        releasePlayerInBackground(player, vlc)
         super.onDestroy()
     }
 
@@ -400,6 +415,9 @@ class EmbeddedPlayerActivity : Activity() {
         renderedVideoDetails = null
         nativeProbeVideoDetails = null
         lastNativeProbeDetailsKey = ""
+        lastAudioEventSyncAt = 0L
+        lastAudioStateApplyAt = 0L
+        lastAudioTrackSnapshot = ""
         resetStreamInfoRefreshState()
         attachNativeProbeIfSupported(createdPlayer)
         beginStreamLoading()
@@ -422,7 +440,7 @@ class EmbeddedPlayerActivity : Activity() {
         scheduleAudioStateStartupSync(audioRequestVersion)
         createdPlayer.play()
         scheduleStartupStreamInfoRefreshes()
-        updateStreamInfo(force = true, refreshTrackButtons = true)
+        updateStreamInfo(force = true, refreshTrackButtons = controlsVisible)
     }
 
     private fun playNextBingeIfNeeded(): Boolean {
@@ -449,18 +467,19 @@ class EmbeddedPlayerActivity : Activity() {
         reconnectAttempt = 0
         reconnectScheduled = false
         cancelReconnect()
-        mediaPlayer?.runCatchingStop()
         beginStreamLoading()
         val rawTarget = session.targets[index]
-        playbackScope.launch {
-            val resolved = resolveForPlayback(rawTarget)
-            if (!resolved.url.isPlayableNetworkUrl()) {
-                completeStreamLoading()
-                showMessage("Unable to resolve ${rawTarget.title}.")
-                return@launch
+        stopPlayerForRestart {
+            playbackScope.launch {
+                val resolved = resolveForPlayback(rawTarget)
+                if (!resolved.url.isPlayableNetworkUrl()) {
+                    completeStreamLoading()
+                    showMessage("Unable to resolve ${rawTarget.title}.")
+                    return@launch
+                }
+                currentTarget = resolved
+                startPlayback()
             }
-            currentTarget = resolved
-            startPlayback()
         }
     }
 
@@ -801,6 +820,9 @@ class EmbeddedPlayerActivity : Activity() {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
             packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
 
+    private fun isInPictureInPictureModeCompat(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode
+
     private fun enterPictureInPicture() {
         if (!isPictureInPictureAvailable()) {
             showFeedback("PiP unavailable")
@@ -916,14 +938,13 @@ class EmbeddedPlayerActivity : Activity() {
         messageView.visibility = View.GONE
         hidePlaylistOverlay()
         showFeedback("Reloading")
-        mediaPlayer?.let { player ->
-            runCatching { player.stop() }
-        }
-        val session = currentBingeSession
-        if (currentTarget == null && session != null) {
-            playBingeIndex(if (currentBingeIndex >= 0) currentBingeIndex else session.startIndex)
-        } else {
-            startPlayback()
+        stopPlayerForRestart {
+            val session = currentBingeSession
+            if (currentTarget == null && session != null) {
+                playBingeIndex(if (currentBingeIndex >= 0) currentBingeIndex else session.startIndex)
+            } else {
+                startPlayback()
+            }
         }
     }
 
@@ -1151,7 +1172,7 @@ class EmbeddedPlayerActivity : Activity() {
         }
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, bounded, 0)
         val percent = (bounded * 100f / maxVolume).roundToInt()
-        applyDesiredAudioState()
+        applyDesiredAudioState(force = true)
         showFeedback("Volume $percent%")
     }
 
@@ -1165,11 +1186,17 @@ class EmbeddedPlayerActivity : Activity() {
 
     private fun syncAudioStateAtStartup() {
         val version = markAudioStateSyncRequested()
-        if (!muted) {
-            ensureAudioTrackSelected()
-        }
         applyDesiredAudioState()
         scheduleAudioStateStartupSync(version)
+    }
+
+    private fun syncAudioStateFromStreamEvent() {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastAudioEventSyncAt < AudioEventSyncMinIntervalMs) {
+            return
+        }
+        lastAudioEventSyncAt = now
+        syncAudioStateAtStartup()
     }
 
     private fun scheduleAudioStateStartupSync(requestVersion: Long) {
@@ -1188,6 +1215,11 @@ class EmbeddedPlayerActivity : Activity() {
 
     private fun applyDesiredAudioState(force: Boolean = false) {
         mediaPlayer?.let { player ->
+            val now = SystemClock.uptimeMillis()
+            if (!force && now - lastAudioStateApplyAt < AudioStateApplyMinIntervalMs) {
+                return
+            }
+            lastAudioStateApplyAt = now
             runCatching { player.setAudioDigitalOutputEnabled(false) }
             if (muted) {
                 rememberAudibleVlcVolume(player)
@@ -1230,7 +1262,9 @@ class EmbeddedPlayerActivity : Activity() {
         val player = mediaPlayer ?: return
         val currentTrack = runCatching { player.getAudioTrack() }.getOrDefault(UnknownTrackId)
         val tracks = runCatching { player.getAudioTracks()?.toList().orEmpty() }.getOrDefault(emptyList())
-        if (tracks.isNotEmpty()) {
+        val snapshot = "$currentTrack|${tracks.joinToString { "${it.id}:${it.name}" }}"
+        if (tracks.isNotEmpty() && snapshot != lastAudioTrackSnapshot) {
+            lastAudioTrackSnapshot = snapshot
             Log.i(
                 LogTag,
                 "Audio tracks current=$currentTrack available=${tracks.joinToString { "${it.id}:${it.name}" }}"
@@ -1486,16 +1520,15 @@ class EmbeddedPlayerActivity : Activity() {
     }
 
     private inline fun <reified T : IMedia.Track> mediaTrackById(player: MediaPlayer, trackId: Int): T? {
-        val media = runCatching { player.media }.getOrNull() ?: return null
-        return runCatching {
+        return withPlayerMedia(player) { media ->
             for (index in 0 until media.trackCount) {
                 val track = media.getTrack(index)
                 if (track is T && track.id == trackId) {
-                    return@runCatching track
+                    return@withPlayerMedia track
                 }
             }
             null
-        }.getOrNull()
+        }
     }
 
     private fun trackMenuLabel(
@@ -1578,7 +1611,7 @@ class EmbeddedPlayerActivity : Activity() {
 
     private fun handleElementaryStreamChanged(event: MediaPlayer.Event) {
         if (event.esChangedType == IMedia.Track.Type.Audio) {
-            syncAudioStateAtStartup()
+            syncAudioStateFromStreamEvent()
         }
         if (event.esChangedType == IMedia.Track.Type.Video) {
             when (event.type) {
@@ -1591,7 +1624,7 @@ class EmbeddedPlayerActivity : Activity() {
             }
         }
         if (isStartupStreamInfoRefreshActive() || controlsVisible) {
-            updateStreamInfo(force = true, refreshTrackButtons = true)
+            updateStreamInfo(force = true, refreshTrackButtons = controlsVisible)
         }
     }
 
@@ -1671,7 +1704,7 @@ class EmbeddedPlayerActivity : Activity() {
         StreamInfoStartupRefreshDelaysMs.forEach { delayMs ->
             overlayHandler.postDelayed({
                 if (generation == streamInfoRefreshGeneration && !stoppingForLifecycle && !isFinishing) {
-                    updateStreamInfo(force = true, refreshTrackButtons = true)
+                    updateStreamInfo(force = true, refreshTrackButtons = controlsVisible)
                     if (delayMs == StreamInfoStartupRefreshDelaysMs.last()) {
                         cancelStartupStreamInfoRefreshes()
                         detachNativeProbe()
@@ -1697,6 +1730,9 @@ class EmbeddedPlayerActivity : Activity() {
         nativeProbeHandle = LibVlcNativeProbe.attach(player) { event ->
             handleNativeProbeEvent(event)
         }
+        if (nativeProbeHandle != 0L) {
+            Log.i(LogTag, "Attached native libVLC event probe for stream info")
+        }
     }
 
     private fun detachNativeProbe() {
@@ -1721,7 +1757,6 @@ class EmbeddedPlayerActivity : Activity() {
 
     private fun currentVideoTrackDetails(): VideoTrackDetails? {
         val player = mediaPlayer ?: return null
-        val media = runCatching { player.media }.getOrNull()
         val rendered = renderedVideoDetails
         val nativeProbe = nativeProbeVideoDetails
         rendered
@@ -1743,10 +1778,12 @@ class EmbeddedPlayerActivity : Activity() {
 
         val selectedTrackId = selectedVideoTrackId.takeIf { it != UnknownTrackId }
             ?: runCatching { player.videoTrack }.getOrNull()?.takeIf { it != UnknownTrackId }
-        if (media != null && selectedTrackId != null) {
-            findVideoTrackById(media, selectedTrackId)?.let { return it }
+        return withPlayerMedia(player) { media ->
+            if (selectedTrackId != null) {
+                findVideoTrackById(media, selectedTrackId)?.let { return@withPlayerMedia it }
+            }
+            bestUsefulVideoTrack(media)
         }
-        return media?.let { bestUsefulVideoTrack(it) }
     }
 
     private fun installVideoLayoutObserver(player: MediaPlayer) {
@@ -1838,7 +1875,16 @@ class EmbeddedPlayerActivity : Activity() {
             .getOrNull()
             ?.codec
             ?.takeIf { it.isNotBlank() }
-            ?: runCatching { player.media }.getOrNull()?.let(::bestUsefulVideoTrack)?.codec.orEmpty()
+            ?: withPlayerMedia(player) { media -> bestUsefulVideoTrack(media)?.codec }.orEmpty()
+
+    private inline fun <T> withPlayerMedia(player: MediaPlayer, block: (IMedia) -> T): T? {
+        val media = runCatching { player.media }.getOrNull() ?: return null
+        return try {
+            block(media)
+        } finally {
+            media.release()
+        }
+    }
 
     private fun Any.intField(name: String): Int =
         runCatching {
@@ -1995,6 +2041,51 @@ class EmbeddedPlayerActivity : Activity() {
         }
     }
 
+    private fun stopPlayerForRestart(onStopped: () -> Unit) {
+        val player = mediaPlayer
+        if (player == null) {
+            onStopped()
+            return
+        }
+        runPlayerCleanup {
+            player.runCatchingStop()
+            overlayHandler.post {
+                if (!isFinishing && !stoppingForLifecycle && mediaPlayer === player) {
+                    onStopped()
+                }
+            }
+        }
+    }
+
+    private fun stopPlayerInBackground(player: MediaPlayer?) {
+        if (player == null) {
+            return
+        }
+        runPlayerCleanup {
+            Log.i(LogTag, "Stopping libVLC player on background cleanup thread")
+            player.runCatchingStop()
+        }
+    }
+
+    private fun releasePlayerInBackground(player: MediaPlayer?, vlc: LibVLC?) {
+        runPlayerCleanup {
+            Log.i(LogTag, "Releasing libVLC player on background cleanup thread")
+            player?.runCatchingStop()
+            player?.let { runCatching { it.release() } }
+            vlc?.let { runCatching { it.release() } }
+            playerCleanupExecutor.shutdown()
+        }
+    }
+
+    private fun runPlayerCleanup(action: () -> Unit) {
+        try {
+            playerCleanupExecutor.execute(action)
+        } catch (_: RejectedExecutionException) {
+            Log.w(LogTag, "Player cleanup executor rejected work; running cleanup inline")
+            action()
+        }
+    }
+
     private data class ZoomMode(
         val label: String,
         val scaleType: MediaPlayer.ScaleType,
@@ -2069,6 +2160,8 @@ class EmbeddedPlayerActivity : Activity() {
             90_000L,
             120_000L
         )
+        private const val AudioEventSyncMinIntervalMs = 1_500L
+        private const val AudioStateApplyMinIntervalMs = 750L
         private const val ProgressBarMax = 1_000
         private const val DefaultVlcVolume = 100
         private const val MinAudibleVlcVolume = 1
