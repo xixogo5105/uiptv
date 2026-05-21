@@ -24,15 +24,17 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 final class LocalHttpsCertificateStore {
-    private static final String KEYSTORE_FILENAME = "uiptv-local-https.p12";
-    private static final String KEY_ALIAS = "uiptv-local-https";
-    private static final char[] KEYSTORE_PASSWORD = "uiptv-local-https".toCharArray();
+    private static final String KEYSTORE_BASENAME = "uiptv-local-https";
+    private static final String KEYSTORE_FILENAME = KEYSTORE_BASENAME + ".p12";
+    private static final String KEYSTORE_PROTECTION_FILENAME = KEYSTORE_BASENAME + ".bin";
+    private static final String KEY_ALIAS = KEYSTORE_BASENAME;
     private static final Pattern IPV4_LITERAL = Pattern.compile("\\d{1,3}(?:\\.\\d{1,3}){3}");
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -41,9 +43,10 @@ final class LocalHttpsCertificateStore {
 
     static SSLContext sslContext(Collection<String> bindHosts) throws IOException {
         try {
-            KeyStore keyStore = loadOrCreateKeyStore(bindHosts);
+            char[] protection = loadOrCreateKeyStoreProtection();
+            KeyStore keyStore = loadOrCreateKeyStore(bindHosts, protection);
             KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            keyManagerFactory.init(keyStore, KEYSTORE_PASSWORD);
+            keyManagerFactory.init(keyStore, protection);
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(keyManagerFactory.getKeyManagers(), null, SECURE_RANDOM);
             return sslContext;
@@ -52,29 +55,53 @@ final class LocalHttpsCertificateStore {
         }
     }
 
-    private static KeyStore loadOrCreateKeyStore(Collection<String> bindHosts) throws IOException, GeneralSecurityException {
+    private static KeyStore loadOrCreateKeyStore(Collection<String> bindHosts, char[] protection)
+            throws IOException, GeneralSecurityException {
         Path keyStorePath = keyStorePath();
         KeyStore keyStore = KeyStore.getInstance("PKCS12");
         if (Files.exists(keyStorePath)) {
             try (var input = Files.newInputStream(keyStorePath)) {
-                keyStore.load(input, KEYSTORE_PASSWORD);
+                keyStore.load(input, protection);
+                return keyStore;
+            } catch (IOException | GeneralSecurityException _) {
+                Files.deleteIfExists(keyStorePath);
             }
-            return keyStore;
         }
 
         Files.createDirectories(keyStorePath.getParent());
-        keyStore.load(null, KEYSTORE_PASSWORD);
+        keyStore.load(null, protection);
         KeyPair keyPair = generateKeyPair();
         X509Certificate certificate = generateCertificate(keyPair, certificateHosts(bindHosts));
-        keyStore.setKeyEntry(KEY_ALIAS, keyPair.getPrivate(), KEYSTORE_PASSWORD, new Certificate[]{certificate});
+        keyStore.setKeyEntry(KEY_ALIAS, keyPair.getPrivate(), protection, new Certificate[]{certificate});
         try (OutputStream output = Files.newOutputStream(keyStorePath)) {
-            keyStore.store(output, KEYSTORE_PASSWORD);
+            keyStore.store(output, protection);
         }
         return keyStore;
     }
 
+    private static char[] loadOrCreateKeyStoreProtection() throws IOException {
+        Path path = keyStoreProtectionPath();
+        if (Files.exists(path)) {
+            String value = Files.readString(path, StandardCharsets.US_ASCII).trim();
+            if (!value.isBlank()) {
+                return value.toCharArray();
+            }
+        }
+
+        Files.createDirectories(path.getParent());
+        byte[] randomBytes = new byte[32];
+        SECURE_RANDOM.nextBytes(randomBytes);
+        String value = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+        Files.writeString(path, value, StandardCharsets.US_ASCII);
+        return value.toCharArray();
+    }
+
     private static Path keyStorePath() {
         return Path.of(Platform.getUserHomeDirPath(), KEYSTORE_FILENAME);
+    }
+
+    private static Path keyStoreProtectionPath() {
+        return Path.of(Platform.getUserHomeDirPath(), KEYSTORE_PROTECTION_FILENAME);
     }
 
     private static KeyPair generateKeyPair() throws GeneralSecurityException {
