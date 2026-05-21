@@ -109,6 +109,9 @@ import androidx.compose.ui.unit.sp
 import com.uiptv.mobile.shared.accounts.AccountCacheSummary
 import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
+import com.uiptv.mobile.shared.accounts.XtremeCredential
+import com.uiptv.mobile.shared.accounts.withXtremeCredentialSelection
+import com.uiptv.mobile.shared.accounts.xtremeCredentialOptions
 import com.uiptv.mobile.shared.browse.BrowseAccountOption
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.browse.MobileCategoryCacheRemovalResult
@@ -6421,6 +6424,9 @@ private fun AccountEditor(
     val macOptions = remember(account.macAddress, account.macAddressList) {
         account.stalkerMacOptions()
     }
+    val xtremeCredentialOptions = remember(account.xtremeCredentialsJson, account.username, account.password) {
+        account.xtremeCredentialOptions()
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -6443,10 +6449,12 @@ private fun AccountEditor(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             mobileAccountTypeChoices.forEach { type ->
+                val selected = selectedType == type ||
+                    (type == MobileAccountType.M3U8_URL && selectedType.isM3uPlaylistType())
                 SelectableChip(
-                    label = type.name.shortAccountType(),
-                    selected = selectedType == type,
-                    description = "Use ${type.displayName} account type",
+                    label = type.choiceLabel(),
+                    selected = selected,
+                    description = "Use ${type.choiceLabel()} account type",
                     onClick = { onTypeChange(type) }
                 )
             }
@@ -6491,38 +6499,58 @@ private fun AccountEditor(
             }
             MobileAccountType.XTREME_API -> {
                 AccountTextField("Server URL", account.url) { onAccountChange(account.copy(url = it)) }
-                AccountTextField("Username", account.username) { onAccountChange(account.copy(username = it)) }
-                AccountTextField("Password", account.password) { onAccountChange(account.copy(password = it)) }
-            }
-            MobileAccountType.M3U8_URL -> {
-                AccountTextField("Playlist URL", account.m3u8Path.ifBlank { account.url }) {
-                    onAccountChange(account.copy(m3u8Path = it))
-                }
-                AccountTextField("EPG URL (optional)", account.epg) { onAccountChange(account.copy(epg = it)) }
-            }
-            MobileAccountType.M3U8_LOCAL -> {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CompactOutlinedTextField(
-                        value = account.m3u8Path.ifBlank { account.url },
-                        onValueChange = { onAccountChange(account.copy(m3u8Path = it)) },
-                        modifier = Modifier.weight(1f),
-                        label = "Playlist file"
+                if (!isNewAccount && xtremeCredentialOptions.size > 1) {
+                    XtremeCredentialSelector(
+                        selectedUsername = account.username,
+                        selectedPassword = account.password,
+                        credentials = xtremeCredentialOptions,
+                        onCredentialSelected = { onAccountChange(account.withXtremeCredentialSelection(it)) }
                     )
-                    Button(
-                        modifier = Modifier.semantics { contentDescription = "Browse for local M3U playlist file" },
-                        enabled = onBrowseLocalPlaylist != null,
-                        onClick = {
-                            onBrowseLocalPlaylist?.invoke { selectedUri ->
-                                onAccountChange(account.copy(m3u8Path = selectedUri))
-                            }
+                    CompactOutlinedTextField(
+                        value = account.password,
+                        onValueChange = {},
+                        modifier = Modifier.fillMaxWidth(),
+                        label = "Password",
+                        enabled = false
+                    )
+                    Text(
+                        "Select the username/password pair to use for cache refresh and playback.",
+                        color = DeepNightMutedText,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else {
+                    AccountTextField("Username", account.username) { onAccountChange(account.copy(username = it)) }
+                    AccountTextField("Password", account.password) { onAccountChange(account.copy(password = it)) }
+                }
+            }
+            MobileAccountType.M3U8_URL,
+            MobileAccountType.M3U8_LOCAL -> {
+                AccountTextField("Playlist URL", account.m3uPlaylistUrlInput()) {
+                    onAccountChange(account.copy(url = it))
+                }
+                Text(
+                    "Or choose a local M3U file. If both fields are filled, the URL is used.",
+                    color = DeepNightMutedText,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                CompactOutlinedTextField(
+                    value = account.m3uPlaylistFileInput(),
+                    onValueChange = { onAccountChange(account.copy(m3u8Path = it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = "Playlist file"
+                )
+                Button(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = "Browse for local M3U playlist file" },
+                    enabled = onBrowseLocalPlaylist != null,
+                    onClick = {
+                        onBrowseLocalPlaylist?.invoke { selectedUri ->
+                            onAccountChange(account.copy(m3u8Path = selectedUri))
                         }
-                    ) {
-                        Text("Browse")
                     }
+                ) {
+                    Text("Browse")
                 }
                 AccountTextField("EPG URL (optional)", account.epg) { onAccountChange(account.copy(epg = it)) }
             }
@@ -6621,6 +6649,60 @@ private fun StalkerMacSelector(
                         onClick = {
                             expanded = false
                             onMacSelected(mac)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun XtremeCredentialSelector(
+    selectedUsername: String,
+    selectedPassword: String,
+    credentials: List<XtremeCredential>,
+    onCredentialSelected: (XtremeCredential) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = credentials.firstOrNull {
+        it.username == selectedUsername && it.password == selectedPassword
+    } ?: credentials.firstOrNull { it.username == selectedUsername }
+        ?: credentials.firstOrNull { it.isDefault }
+        ?: credentials.firstOrNull()
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            "Credentials",
+            color = DeepNightMutedText,
+            style = MaterialTheme.typography.bodySmall
+        )
+        Box {
+            OutlinedButton(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = "Select Xtreme username and password" },
+                enabled = credentials.isNotEmpty(),
+                onClick = { expanded = true }
+            ) {
+                Text(
+                    selected?.displayLabel(credentials).orEmpty().ifBlank { "No credentials" },
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Start,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text("v")
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                credentials.forEach { credential ->
+                    DropdownMenuItem(
+                        text = { Text(credential.displayLabel(credentials)) },
+                        onClick = {
+                            expanded = false
+                            onCredentialSelected(credential)
                         }
                     )
                 }
@@ -6795,8 +6877,7 @@ private fun MacAddressManagerRow(
 private val mobileAccountTypeChoices = listOf(
     MobileAccountType.STALKER_PORTAL,
     MobileAccountType.XTREME_API,
-    MobileAccountType.M3U8_URL,
-    MobileAccountType.M3U8_LOCAL
+    MobileAccountType.M3U8_URL
 )
 
 private fun accountEditorHelpText(type: MobileAccountType, isNewAccount: Boolean): String =
@@ -6807,8 +6888,8 @@ private fun accountEditorHelpText(type: MobileAccountType, isNewAccount: Boolean
             "Update portal details and manage the saved MAC addresses for this account."
         }
         MobileAccountType.XTREME_API -> "Enter the server URL plus username and password from your provider."
-        MobileAccountType.M3U8_URL -> "Paste the remote M3U playlist URL. Add an EPG URL only if you have one."
-        MobileAccountType.M3U8_LOCAL -> "Choose a local M3U file stored on this device."
+        MobileAccountType.M3U8_URL,
+        MobileAccountType.M3U8_LOCAL -> "Paste a playlist URL or choose a local M3U file. If both are filled, the URL is used."
     }
 
 private fun MobileAccount.canSaveForType(type: MobileAccountType): Boolean =
@@ -6818,6 +6899,42 @@ private fun MobileAccount.canSaveForType(type: MobileAccountType): Boolean =
         MobileAccountType.M3U8_URL,
         MobileAccountType.M3U8_LOCAL -> m3u8Path.isNotBlank() || url.isNotBlank()
     }
+
+private fun MobileAccountType.choiceLabel(): String =
+    if (isM3uPlaylistType()) "M3U Playlist" else name.shortAccountType()
+
+private fun MobileAccountType.isM3uPlaylistType(): Boolean =
+    this == MobileAccountType.M3U8_URL || this == MobileAccountType.M3U8_LOCAL
+
+private fun MobileAccount.m3uPlaylistUrlInput(): String =
+    url.ifBlank {
+        m3u8Path
+            .takeIf { type == MobileAccountType.M3U8_URL && it.isRemotePlaylistUrl() }
+            .orEmpty()
+    }
+
+private fun MobileAccount.m3uPlaylistFileInput(): String =
+    if (type == MobileAccountType.M3U8_URL && url.isBlank() && m3u8Path.isRemotePlaylistUrl()) {
+        ""
+    } else {
+        m3u8Path
+    }
+
+private fun String.isRemotePlaylistUrl(): Boolean =
+    startsWith("http://", ignoreCase = true) || startsWith("https://", ignoreCase = true)
+
+private fun XtremeCredential.displayLabel(credentials: List<XtremeCredential>): String {
+    val duplicateUsername = credentials.count { it.username == username } > 1
+    val base = if (duplicateUsername) {
+        "$username / ${password.maskedCredentialPassword()}"
+    } else {
+        username
+    }
+    return if (isDefault) "$base (default)" else base
+}
+
+private fun String.maskedCredentialPassword(): String =
+    if (isBlank()) "" else "*".repeat(length.coerceIn(4, 8))
 
 private fun MobileAccount.hasAdvancedStalkerFields(): Boolean =
     username.isNotBlank() ||
@@ -6917,11 +7034,15 @@ private fun CompactOutlinedTextField(
     label: String,
     modifier: Modifier = Modifier,
     placeholder: String? = null,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    enabled: Boolean = true,
+    readOnly: Boolean = false
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
+        enabled = enabled,
+        readOnly = readOnly,
         modifier = modifier.heightIn(min = 56.dp),
         singleLine = true,
         textStyle = MaterialTheme.typography.bodySmall,
@@ -7445,8 +7566,8 @@ private fun String.shortAccountType(): String =
     when (this) {
         "STALKER_PORTAL" -> "Stalker"
         "XTREME_API" -> "Xtreme"
-        "M3U8_URL" -> "M3U URL"
-        "M3U8_LOCAL" -> "M3U File"
+        "M3U8_URL",
+        "M3U8_LOCAL" -> "M3U Playlist"
         else -> this
     }
 
