@@ -1,6 +1,7 @@
 package com.uiptv.service;
 
 import com.uiptv.db.DatabasePatchesUtils;
+import com.uiptv.service.remotesync.SecureTempFileSupport;
 import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
@@ -90,7 +91,7 @@ public class DatabaseBackupArchiveService {
         Path sourceBackup = Path.of(backupPath);
         Path targetDatabase = Path.of(targetDatabasePath);
         requireExistingFile(sourceBackup, "Backup file does not exist.");
-        Path restoreDir = Files.createTempDirectory("uiptv-db-restore-");
+        Path restoreDir = SecureTempFileSupport.createTempDirectory("uiptv-db-restore-");
         try {
             Path stagedDatabase = restoreDir.resolve(DATABASE_ENTRY);
             stageRestoreDatabase(sourceBackup, stagedDatabase);

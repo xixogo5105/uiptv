@@ -7,7 +7,6 @@ import com.uiptv.service.CategoryCacheRemovalService;
 import com.uiptv.service.CategoryResolver;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ChannelService;
-import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.SearchableTableView;
 import com.uiptv.widget.UIptvAlert;

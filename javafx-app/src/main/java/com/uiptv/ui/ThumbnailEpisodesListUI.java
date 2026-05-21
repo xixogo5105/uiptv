@@ -1,7 +1,5 @@
 package com.uiptv.ui;
 
-import com.uiptv.player.api.VideoPlayerInterface;
-import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.model.Account;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.ImdbMetadataService;

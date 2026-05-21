@@ -25,6 +25,16 @@ class SecureTempFileSupportTest {
     }
 
     @Test
+    void createTempDirectory_usesApplicationTempDirectory() throws Exception {
+        Path tempDirectory = SecureTempFileSupport.createTempDirectory("restore-");
+
+        assertTrue(Files.isDirectory(tempDirectory));
+        assertTrue(tempDirectory.getFileName().toString().startsWith("restore-"));
+        assertTrue(tempDirectory.toString().contains(Path.of(".uiptv", "tmp").toString()));
+        Files.deleteIfExists(tempDirectory);
+    }
+
+    @Test
     void resolvePermissionFailure_reportsSpecificFailure() throws Exception {
         assertEquals("owner-only", invoke("resolvePermissionFailure", false, true, true));
         assertEquals("read", invoke("resolvePermissionFailure", true, false, true));

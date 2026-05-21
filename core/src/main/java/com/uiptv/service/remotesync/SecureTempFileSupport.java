@@ -11,7 +11,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Set;
 
-final class SecureTempFileSupport {
+public final class SecureTempFileSupport {
     private static final String READ_PERMISSION = "read";
     private static final String WRITE_PERMISSION = "write";
     private static final String EXECUTE_PERMISSION = "execute";
@@ -33,7 +33,7 @@ final class SecureTempFileSupport {
     private SecureTempFileSupport() {
     }
 
-    static Path createTempFile(String prefix, String suffix) throws IOException {
+    public static Path createTempFile(String prefix, String suffix) throws IOException {
         Path tempDirectory = ensureAppTempDirectory();
         try {
             FileAttribute<Set<PosixFilePermission>> permissions =
@@ -42,6 +42,19 @@ final class SecureTempFileSupport {
         } catch (UnsupportedOperationException _) {
             Path path = Files.createTempFile(tempDirectory, prefix, suffix);
             ensureOwnerOnlyFileAccess(path);
+            return path;
+        }
+    }
+
+    public static Path createTempDirectory(String prefix) throws IOException {
+        Path tempDirectory = ensureAppTempDirectory();
+        try {
+            FileAttribute<Set<PosixFilePermission>> permissions =
+                    PosixFilePermissions.asFileAttribute(OWNER_ONLY_DIRECTORY_PERMISSIONS);
+            return Files.createTempDirectory(tempDirectory, prefix, permissions);
+        } catch (UnsupportedOperationException _) {
+            Path path = Files.createTempDirectory(tempDirectory, prefix);
+            ensureOwnerOnlyDirectoryAccess(path);
             return path;
         }
     }

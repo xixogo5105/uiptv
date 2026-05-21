@@ -12,6 +12,8 @@ import java.sql.Statement;
 import java.util.Objects;
 
 public class DatabaseSnapshotService {
+    private static final String REMOTE_SYNC_TEMP_PREFIX = "uiptv-remote-sync-";
+
     private final DatabaseBackupArchiveService backupArchiveService;
 
     public DatabaseSnapshotService() {
@@ -24,7 +26,7 @@ public class DatabaseSnapshotService {
 
     public Path createSnapshot(String databasePath) throws IOException, SQLException {
         Objects.requireNonNull(databasePath, "databasePath");
-        Path snapshotPath = SecureTempFileSupport.createTempFile("uiptv-remote-sync-", ".db");
+        Path snapshotPath = SecureTempFileSupport.createTempFile(REMOTE_SYNC_TEMP_PREFIX, ".db");
         try {
             runVacuumInto(databasePath, snapshotPath);
             return snapshotPath;
@@ -36,7 +38,7 @@ public class DatabaseSnapshotService {
 
     public Path createSnapshotArchive(String databasePath) throws IOException, SQLException {
         Path snapshotPath = createSnapshot(databasePath);
-        Path archivePath = SecureTempFileSupport.createTempFile("uiptv-remote-sync-", ".zip");
+        Path archivePath = SecureTempFileSupport.createTempFile(REMOTE_SYNC_TEMP_PREFIX, ".zip");
         try {
             backupArchiveService.createBackupArchive(snapshotPath.toString(), archivePath.toString());
             return archivePath;
@@ -50,7 +52,7 @@ public class DatabaseSnapshotService {
 
     public Path extractSnapshotDatabase(Path transferPath) throws IOException, SQLException {
         Objects.requireNonNull(transferPath, "transferPath");
-        Path snapshotPath = SecureTempFileSupport.createTempFile("uiptv-remote-sync-", ".db");
+        Path snapshotPath = SecureTempFileSupport.createTempFile(REMOTE_SYNC_TEMP_PREFIX, ".db");
         try {
             backupArchiveService.extractBackupDatabase(transferPath.toString(), snapshotPath.toString());
             return snapshotPath;

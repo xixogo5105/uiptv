@@ -65,7 +65,7 @@ public final class WebActivityLog {
         }
         Map<String, String> params = queryToMap(rawQuery);
         String requestMethod = isBlank(method) ? "GET" : method.trim().toUpperCase(Locale.ROOT);
-        String action = describePath(requestMethod, normalizedPath, params);
+        String action = describePath(normalizedPath, params);
         if (!"GET".equals(requestMethod) && !action.startsWith(requestMethod + " request")) {
             return requestMethod + " request - " + action;
         }
@@ -113,7 +113,7 @@ public final class WebActivityLog {
         }
     }
 
-    private static String describePath(String method, String path, Map<String, String> params) {
+    private static String describePath(String path, Map<String, String> params) {
         String staticPage = describeStaticPage(path);
         if (isNotBlank(staticPage)) {
             return staticPage;

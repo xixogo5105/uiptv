@@ -1594,13 +1594,6 @@ public class ConfigurationUI extends VBox {
         }
     }
 
-    private String formatDatabaseSyncProgressMessage(boolean importMode, String currentStep) {
-        if (currentStep == null || currentStep.isBlank()) {
-            return I18n.tr("configDatabaseSyncFinalizing");
-        }
-        return I18n.tr(importMode ? "configDatabaseImportingStep" : "configDatabaseExportingStep", currentStep);
-    }
-
     private record DatabaseSyncDialogControls(TextField databasePathField,
                                               TextField remoteHostField,
                                               TextField remotePortField,
