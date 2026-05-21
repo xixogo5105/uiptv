@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
@@ -30,6 +31,7 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.SeekBar
@@ -40,6 +42,7 @@ import com.uiptv.mobile.shared.playback.PlaybackTarget
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import com.uiptv.mobile.shared.settings.EmbeddedPlayerPreference
 import java.lang.reflect.Field
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -54,6 +57,7 @@ import org.videolan.libvlc.interfaces.IVLCVout
 import org.videolan.libvlc.util.HWDecoderUtil
 import org.videolan.libvlc.util.VLCVideoLayout
 import kotlin.math.abs
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 class EmbeddedPlayerActivity : Activity() {
@@ -73,16 +77,18 @@ class EmbeddedPlayerActivity : Activity() {
     private lateinit var titleLabel: TextView
     private lateinit var timeLabel: TextView
     private lateinit var zoomButton: ImageButton
+    private lateinit var audioTrackButton: ImageButton
+    private lateinit var subtitleTrackButton: ImageButton
     private lateinit var repeatButton: ImageButton
     private lateinit var muteButton: ImageButton
     private val overlayHandler = Handler(Looper.getMainLooper())
     private val zoomModes = listOf(
         ZoomMode("Default", MediaPlayer.ScaleType.SURFACE_BEST_FIT, R.drawable.aspect_ratio),
-        ZoomMode("Zoom fill", MediaPlayer.ScaleType.SURFACE_FIT_SCREEN, R.drawable.aspect_ratio_fill),
         ZoomMode("Stretch fill", MediaPlayer.ScaleType.SURFACE_FILL, R.drawable.aspect_ratio_stretch),
         ZoomMode("16:9", MediaPlayer.ScaleType.SURFACE_16_9, R.drawable.aspect_ratio),
         ZoomMode("4:3", MediaPlayer.ScaleType.SURFACE_4_3, R.drawable.aspect_ratio),
-        ZoomMode("Original", MediaPlayer.ScaleType.SURFACE_ORIGINAL, R.drawable.aspect_ratio)
+        ZoomMode("Original", MediaPlayer.ScaleType.SURFACE_ORIGINAL, R.drawable.aspect_ratio),
+        ZoomMode("Zoom fill", MediaPlayer.ScaleType.SURFACE_FIT_SCREEN, R.drawable.aspect_ratio_fill)
     )
     private val hideControlsRunnable = Runnable {
         controlsOverlay.visibility = View.GONE
@@ -665,11 +671,16 @@ class EmbeddedPlayerActivity : Activity() {
             updateRepeatButton()
             addView(repeatButton, compactControlLayoutParams())
             addView(iconControlButton(R.drawable.reload, "Reload stream") { reloadCurrentStream() }, compactControlLayoutParams())
-            zoomButton = iconControlButton(zoomModes[zoomModeIndex].iconRes, "Zoom ${zoomModes[zoomModeIndex].label}") { cycleZoomMode() }
+            zoomButton = iconControlButton(zoomModes[zoomModeIndex].iconRes, zoomControlDescription(zoomModes[zoomModeIndex])) { cycleZoomMode() }
             addView(zoomButton, compactControlLayoutParams())
             if (isPictureInPictureAvailable()) {
                 addView(iconControlButton(R.drawable.picture_in_picture, "Picture in picture") { enterPictureInPicture() }, compactControlLayoutParams())
             }
+            audioTrackButton = iconControlButton(R.drawable.audio_track, "Audio tracks") { showAudioTrackMenu(audioTrackButton) }
+            addView(audioTrackButton, compactControlLayoutParams())
+            subtitleTrackButton = iconControlButton(R.drawable.subtitle_track, "Subtitle tracks") { showSubtitleTrackMenu(subtitleTrackButton) }
+            addView(subtitleTrackButton, compactControlLayoutParams())
+            updateTrackMenuButtons()
         }
         val controlsScroller = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
@@ -1281,8 +1292,252 @@ class EmbeddedPlayerActivity : Activity() {
         val mode = zoomModes[zoomModeIndex]
         mediaPlayer?.setVideoScale(mode.scaleType)
         setButtonIcon(zoomButton, mode.iconRes)
-        zoomButton.contentDescription = "Zoom ${mode.label}"
+        zoomButton.contentDescription = zoomControlDescription(mode)
         showFeedback("Zoom ${mode.label}")
+    }
+
+    private fun zoomControlDescription(mode: ZoomMode): String =
+        "Zoom ${mode.label}"
+
+    private fun showAudioTrackMenu(anchor: View) {
+        val player = mediaPlayer
+        if (player == null) {
+            showFeedback("Audio unavailable")
+            return
+        }
+        val items = audioTrackMenuItems(player)
+        if (items.isEmpty()) {
+            showFeedback("No audio tracks")
+            return
+        }
+        showOptionMenu(
+            title = "Audio",
+            options = items.map { item ->
+                PlayerMenuOption(label = item.label, selected = item.selected) {
+                    val selected = runCatching { player.setAudioTrack(item.id) }.getOrDefault(false)
+                    if (selected) {
+                        updateTrackMenuButtons()
+                        showFeedback("Audio ${item.label}")
+                    } else {
+                        showFeedback("Audio unavailable")
+                    }
+                }
+            },
+            anchor = anchor
+        )
+    }
+
+    private fun showSubtitleTrackMenu(anchor: View) {
+        val player = mediaPlayer
+        if (player == null) {
+            showFeedback("Subtitles unavailable")
+            return
+        }
+        val items = subtitleTrackMenuItems(player)
+        if (items.isEmpty()) {
+            showFeedback("No subtitles")
+            return
+        }
+        showOptionMenu(
+            title = "Subtitles",
+            options = items.map { item ->
+                PlayerMenuOption(label = item.label, selected = item.selected) {
+                    val selected = runCatching { player.setSpuTrack(item.id) }.getOrDefault(false)
+                    if (selected) {
+                        updateTrackMenuButtons()
+                        showFeedback(if (item.id >= 0) "Subtitles ${item.label}" else "Subtitles off")
+                    } else {
+                        showFeedback("Subtitles unavailable")
+                    }
+                }
+            },
+            anchor = anchor
+        )
+    }
+
+    private fun showOptionMenu(title: String, options: List<PlayerMenuOption>, anchor: View) {
+        if (options.isEmpty() || !::rootLayout.isInitialized) {
+            return
+        }
+        val menuWidth = min(dp(320), (rootLayout.width - dp(32)).coerceAtLeast(dp(220)))
+        val maxMenuHeight = (rootLayout.height - controlsOverlay.height - dp(56)).coerceAtLeast(dp(180))
+        val menuHeight = min(dp(58) + options.size * dp(46), maxMenuHeight)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            background = roundedBackground(
+                color = Color.argb(245, 12, 16, 20),
+                radius = dp(8),
+                strokeColor = Color.argb(180, 79, 216, 235)
+            )
+            addView(
+                TextView(this@EmbeddedPlayerActivity).apply {
+                    text = title
+                    setTextColor(Color.WHITE)
+                    setTextSize(13f)
+                    setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+                    setPadding(dp(8), dp(6), dp(8), dp(8))
+                },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            )
+        }
+        val popup = PopupWindow(this)
+        options.forEach { option ->
+            content.addView(
+                TextView(this).apply {
+                    text = "${if (option.selected) "[x]" else "[ ]"} ${option.label}"
+                    setTextColor(if (option.enabled) Color.WHITE else Color.rgb(132, 143, 153))
+                    setTextSize(14f)
+                    gravity = Gravity.CENTER_VERTICAL
+                    minHeight = dp(44)
+                    setPadding(dp(8), dp(6), dp(8), dp(6))
+                    isEnabled = option.enabled
+                    if (option.enabled) {
+                        isClickable = true
+                        isFocusable = true
+                        background = roundedBackground(
+                            color = if (option.selected) Color.argb(210, 34, 83, 93) else Color.TRANSPARENT,
+                            radius = dp(6)
+                        )
+                        setOnClickListener {
+                            popup.dismiss()
+                            option.onSelect()
+                        }
+                    }
+                },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44))
+            )
+        }
+        val scrollView = ScrollView(this).apply {
+            isFillViewport = false
+            addView(content)
+        }
+        popup.apply {
+            contentView = scrollView
+            width = menuWidth
+            height = menuHeight
+            isFocusable = true
+            isOutsideTouchable = true
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                elevation = dp(8).toFloat()
+            }
+            setOnDismissListener { scheduleControlsHide() }
+        }
+        hidePlaylistOverlay()
+        overlayHandler.post { overlayHandler.removeCallbacks(hideControlsRunnable) }
+        val bottomOffset = controlsOverlay.height.takeIf { it > 0 } ?: dp(116)
+        popup.showAtLocation(rootLayout, Gravity.BOTTOM or Gravity.END, dp(12), bottomOffset + dp(10))
+        anchor.isPressed = false
+    }
+
+    private fun audioTrackMenuItems(player: MediaPlayer): List<TrackMenuItem> {
+        val descriptions = runCatching { player.audioTracks?.toList().orEmpty() }.getOrDefault(emptyList())
+        if (descriptions.isEmpty()) {
+            return emptyList()
+        }
+        val currentTrack = runCatching { player.audioTrack }.getOrDefault(UnknownTrackId)
+        return descriptions
+            .filter { it.id >= 0 }
+            .mapIndexed { index, description ->
+                TrackMenuItem(
+                    id = description.id,
+                    label = trackMenuLabel(
+                        kind = AudioTrackKind,
+                        index = index,
+                        description = description,
+                        mediaTrack = mediaTrackById<IMedia.AudioTrack>(player, description.id)
+                    ),
+                    selected = description.id == currentTrack
+                )
+            }
+    }
+
+    private fun subtitleTrackMenuItems(player: MediaPlayer): List<TrackMenuItem> {
+        val descriptions = runCatching { player.spuTracks?.toList().orEmpty() }.getOrDefault(emptyList())
+        val subtitleDescriptions = descriptions.filter { it.id >= 0 }
+        if (subtitleDescriptions.isEmpty()) {
+            return emptyList()
+        }
+        val currentTrack = runCatching { player.spuTrack }.getOrDefault(UnknownTrackId)
+        val offTrackId = descriptions.firstOrNull { it.id < 0 }?.id ?: DisabledTrackId
+        return listOf(TrackMenuItem(id = offTrackId, label = "Off", selected = currentTrack < 0)) +
+            subtitleDescriptions.mapIndexed { index, description ->
+                TrackMenuItem(
+                    id = description.id,
+                    label = trackMenuLabel(
+                        kind = SubtitleTrackKind,
+                        index = index,
+                        description = description,
+                        mediaTrack = mediaTrackById<IMedia.SubtitleTrack>(player, description.id)
+                    ),
+                    selected = description.id == currentTrack
+                )
+            }
+    }
+
+    private inline fun <reified T : IMedia.Track> mediaTrackById(player: MediaPlayer, trackId: Int): T? {
+        val media = runCatching { player.media }.getOrNull() ?: return null
+        return runCatching {
+            for (index in 0 until media.trackCount) {
+                val track = media.getTrack(index)
+                if (track is T && track.id == trackId) {
+                    return@runCatching track
+                }
+            }
+            null
+        }.getOrNull()
+    }
+
+    private fun trackMenuLabel(
+        kind: String,
+        index: Int,
+        description: MediaPlayer.TrackDescription,
+        mediaTrack: IMedia.Track?
+    ): String {
+        val fallback = "$kind ${index + 1}"
+        val name = description.name
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && it != "Disable" && it != "Disabled" }
+        val language = languageLabel(mediaTrack?.language)
+        val mediaDescription = mediaTrack?.description?.trim()?.takeIf { it.isNotBlank() }
+        val primary = language ?: mediaDescription ?: name ?: fallback
+        val suffix = name
+            ?.takeIf { candidate -> !primary.contains(candidate, ignoreCase = true) }
+            ?.takeIf { candidate -> !candidate.contains(primary, ignoreCase = true) }
+        return listOfNotNull(primary, suffix).joinToString(" - ")
+    }
+
+    private fun languageLabel(language: String?): String? {
+        val normalized = language
+            ?.trim()
+            ?.replace('_', '-')
+            ?.takeIf { it.isNotBlank() && it != "und" }
+            ?: return null
+        KnownLanguageLabels[normalized.lowercase(Locale.ROOT)]?.let { return it }
+        val locale = Locale.forLanguageTag(normalized)
+        val displayLanguage = locale.getDisplayLanguage(Locale.getDefault())
+        return displayLanguage
+            .takeIf { it.isNotBlank() && !it.equals(normalized, ignoreCase = true) }
+            ?: normalized.uppercase(Locale.ROOT)
+    }
+
+    private fun updateTrackMenuButtons() {
+        val player = mediaPlayer
+        if (::audioTrackButton.isInitialized) {
+            val audioCount = player?.let { audioTrackMenuItems(it).size } ?: 0
+            audioTrackButton.alpha = if (audioCount > 0) 1f else 0.55f
+            audioTrackButton.background = controlButtonBackground(active = audioCount > 1)
+            audioTrackButton.contentDescription = if (audioCount > 1) "Audio tracks" else "Audio"
+        }
+        if (::subtitleTrackButton.isInitialized) {
+            val subtitleItems = player?.let { subtitleTrackMenuItems(it) } ?: emptyList()
+            val subtitleCount = subtitleItems.count { it.id >= 0 }
+            val subtitlesActive = subtitleItems.any { it.id >= 0 && it.selected }
+            subtitleTrackButton.alpha = if (subtitleCount > 0) 1f else 0.55f
+            subtitleTrackButton.background = controlButtonBackground(active = subtitlesActive)
+            subtitleTrackButton.contentDescription = if (subtitleCount > 0) "Subtitle tracks" else "Subtitles"
+        }
     }
 
     private fun updateStreamInfo() {
@@ -1295,6 +1550,7 @@ class EmbeddedPlayerActivity : Activity() {
                 ?: intent.getStringExtra(NativePlayerActivity.EXTRA_TITLE).orEmpty().ifBlank { "Embedded player" }
         }
         streamInfoLabel.text = buildStreamInfoLabel()
+        updateTrackMenuButtons()
     }
 
     private fun handleElementaryStreamChanged(event: MediaPlayer.Event) {
@@ -1314,6 +1570,7 @@ class EmbeddedPlayerActivity : Activity() {
         } else {
             updateStreamInfo()
         }
+        updateTrackMenuButtons()
     }
 
     private fun handleNativeProbeEvent(event: LibVlcNativeProbe.NativeEvent) {
@@ -1668,6 +1925,19 @@ class EmbeddedPlayerActivity : Activity() {
         val iconRes: Int
     )
 
+    private data class PlayerMenuOption(
+        val label: String,
+        val selected: Boolean,
+        val enabled: Boolean = true,
+        val onSelect: () -> Unit
+    )
+
+    private data class TrackMenuItem(
+        val id: Int,
+        val label: String,
+        val selected: Boolean
+    )
+
     private data class VideoTrackDetails(
         val displayWidth: Int,
         val displayHeight: Int,
@@ -1705,7 +1975,7 @@ class EmbeddedPlayerActivity : Activity() {
 
     private companion object {
         private const val DefaultZoomModeIndex = 0
-        private const val FillZoomModeIndex = 1
+        private const val FillZoomModeIndex = 5
         private const val ControlsAutoHideMs = 3_500L
         private const val GestureFeedbackMs = 900L
         private const val ProgressUpdateMs = 1_000L
@@ -1738,7 +2008,56 @@ class EmbeddedPlayerActivity : Activity() {
         private const val VideoOrientationRightTop = 3
         private const val LiveTimeLabel = "Live"
         private const val PlaylistIcon = "List"
+        private const val AudioTrackKind = "Audio"
+        private const val SubtitleTrackKind = "Subtitle"
+        private const val DisabledTrackId = -1
         private const val CloseIcon = "\u2715"
+        private val KnownLanguageLabels = mapOf(
+            "en" to "English",
+            "eng" to "English",
+            "es" to "Spanish",
+            "spa" to "Spanish",
+            "fr" to "French",
+            "fre" to "French",
+            "fra" to "French",
+            "de" to "German",
+            "ger" to "German",
+            "deu" to "German",
+            "it" to "Italian",
+            "ita" to "Italian",
+            "pt" to "Portuguese",
+            "por" to "Portuguese",
+            "ar" to "Arabic",
+            "ara" to "Arabic",
+            "hi" to "Hindi",
+            "hin" to "Hindi",
+            "ur" to "Urdu",
+            "urd" to "Urdu",
+            "tr" to "Turkish",
+            "tur" to "Turkish",
+            "ru" to "Russian",
+            "rus" to "Russian",
+            "zh" to "Chinese",
+            "zho" to "Chinese",
+            "chi" to "Chinese",
+            "ja" to "Japanese",
+            "jpn" to "Japanese",
+            "ko" to "Korean",
+            "kor" to "Korean",
+            "nl" to "Dutch",
+            "nld" to "Dutch",
+            "dut" to "Dutch",
+            "sv" to "Swedish",
+            "swe" to "Swedish",
+            "no" to "Norwegian",
+            "nor" to "Norwegian",
+            "da" to "Danish",
+            "dan" to "Danish",
+            "fi" to "Finnish",
+            "fin" to "Finnish",
+            "pl" to "Polish",
+            "pol" to "Polish"
+        )
         private val VideoHelperField: Field? = runCatching {
             MediaPlayer::class.java.getDeclaredField("mVideoHelper").apply { isAccessible = true }
         }.getOrNull()
