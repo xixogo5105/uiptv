@@ -124,6 +124,7 @@ class EmbeddedPlayerActivity : Activity() {
     private var lastAudibleVlcVolume = DefaultVlcVolume
     private var lastAudioStateApplyAt = 0L
     private var lastAudioTrackSnapshot = ""
+    private var lastMutedAudioTrackSnapshot = ""
     private var touchStartX = 0f
     private var touchStartY = 0f
     private var twoFingerStartSpanX = 0f
@@ -418,6 +419,7 @@ class EmbeddedPlayerActivity : Activity() {
         lastAudioEventSyncAt = 0L
         lastAudioStateApplyAt = 0L
         lastAudioTrackSnapshot = ""
+        lastMutedAudioTrackSnapshot = ""
         resetStreamInfoRefreshState()
         attachNativeProbeIfSupported(createdPlayer)
         beginStreamLoading()
@@ -1223,8 +1225,9 @@ class EmbeddedPlayerActivity : Activity() {
             runCatching { player.setAudioDigitalOutputEnabled(false) }
             if (muted) {
                 rememberAudibleVlcVolume(player)
+                disableAudioTrackForMute(player)
                 LibVlcNativeProbe.setMute(player, true)
-                applyVlcVolume(player, 0, "mute", force)
+                applyVlcVolume(player, 0, "mute", force = true)
                 return
             }
             LibVlcNativeProbe.setMute(player, false)
@@ -1270,12 +1273,28 @@ class EmbeddedPlayerActivity : Activity() {
                 "Audio tracks current=$currentTrack available=${tracks.joinToString { "${it.id}:${it.name}" }}"
             )
         }
-        if (currentTrack != UnknownTrackId) {
+        if (currentTrack >= 0) {
             return
         }
         val firstPlayableTrack = tracks.firstOrNull { it.id >= 0 } ?: return
         val selected = runCatching { player.setAudioTrack(firstPlayableTrack.id) }.getOrDefault(false)
         Log.i(LogTag, "Selected audio track id=${firstPlayableTrack.id} name=${firstPlayableTrack.name} result=$selected")
+    }
+
+    private fun disableAudioTrackForMute(player: MediaPlayer) {
+        val currentTrack = runCatching { player.getAudioTrack() }.getOrDefault(UnknownTrackId)
+        val tracks = runCatching { player.getAudioTracks()?.toList().orEmpty() }.getOrDefault(emptyList())
+        val disabledTrackId = tracks.firstOrNull { it.id < 0 }?.id ?: DisabledTrackId
+        val snapshot = "$currentTrack->$disabledTrackId|${tracks.joinToString { "${it.id}:${it.name}" }}"
+        if (currentTrack == disabledTrackId) {
+            lastMutedAudioTrackSnapshot = snapshot
+            return
+        }
+        val selected = runCatching { player.setAudioTrack(disabledTrackId) }.getOrDefault(false)
+        if (snapshot != lastMutedAudioTrackSnapshot) {
+            lastMutedAudioTrackSnapshot = snapshot
+            Log.i(LogTag, "Muted audio track id=$disabledTrackId result=$selected")
+        }
     }
 
     private fun ensureAudibleSystemVolume() {
