@@ -145,6 +145,7 @@ public class ConfigurationUI extends VBox {
     private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
     private final CacheService cacheService = new CacheServiceImpl();
     private final RemoteSyncClientService remoteSyncClientService = new RemoteSyncClientService();
+    private final DatabaseBackupArchiveService databaseBackupArchiveService = DatabaseBackupArchiveService.getInstance();
     private String dbId;
     private String persistedFilterCategoriesValue = "";
     private String persistedFilterChannelsValue = "";
@@ -183,7 +184,7 @@ public class ConfigurationUI extends VBox {
         );
         databaseFileChooser.setTitle(I18n.tr("configSelectDatabaseFile"));
         databaseFileChooser.getExtensionFilters().setAll(
-                new FileChooser.ExtensionFilter(I18n.tr("configDatabaseFiles"), "*.db"),
+                new FileChooser.ExtensionFilter(I18n.tr("configDatabaseFiles"), "*.zip"),
                 new FileChooser.ExtensionFilter(I18n.tr("commonAll"), "*.*")
         );
 
@@ -1314,7 +1315,7 @@ public class ConfigurationUI extends VBox {
         remoteModeButton.setToggleGroup(locationModeGroup);
         fileModeButton.setSelected(true);
         TextField databasePathField = new TextField();
-        databasePathField.setPromptText("uiptv.db");
+        databasePathField.setPromptText(DatabaseBackupArchiveService.defaultFileName(System.currentTimeMillis() / 1000L));
         databasePathField.setPrefWidth(380);
         TextField remoteHostField = new TextField();
         remoteHostField.setPromptText(I18n.tr("configDatabaseSyncRemoteHostPrompt"));
@@ -1355,13 +1356,16 @@ public class ConfigurationUI extends VBox {
         bindManagedVisibility(remoteHostField, remoteModeButton.selectedProperty());
         bindManagedVisibility(remotePortField, remoteModeButton.selectedProperty());
         bindManagedVisibility(testConnectionButton, remoteModeButton.selectedProperty());
+        bindManagedVisibility(syncConfigurationCheckBox, remoteModeButton.selectedProperty());
+        bindManagedVisibility(syncExternalPlayerPathsCheckBox, remoteModeButton.selectedProperty());
 
         browseButton.setOnAction(event -> {
+            configureDatabaseBackupFileChooser(importMode);
             File selected = importMode
                     ? databaseFileChooser.showOpenDialog(popupStage)
                     : databaseFileChooser.showSaveDialog(popupStage);
             if (selected != null) {
-                databasePathField.setText(selected.getAbsolutePath());
+                databasePathField.setText((importMode ? selected : ensureZipExtension(selected)).getAbsolutePath());
             }
         });
         testConnectionButton.setOnAction(event -> testRemoteDatabaseConnection(remoteHostField.getText(), remotePortField.getText(), testConnectionButton));
@@ -1463,7 +1467,7 @@ public class ConfigurationUI extends VBox {
         String destinationLabel = databaseSyncDestinationLabel(importMode, fileMode);
         popupStage.setTitle(I18n.tr("configDatabaseSyncDirectionTitle", sourceLabel, destinationLabel));
         descriptionLabel.setText(I18n.tr("configDatabaseSyncDirectionDescription", sourceLabel, destinationLabel));
-        runButton.setText(I18n.tr("configDatabaseSyncDirectionAction", sourceLabel, destinationLabel));
+        runButton.setText(I18n.tr(databaseSyncActionKey(importMode)));
     }
 
     private String databaseSyncSourceLabel(boolean importMode, boolean fileMode) {
@@ -1493,19 +1497,25 @@ public class ConfigurationUI extends VBox {
             );
             return;
         }
+        runLocalDatabaseBackupAction(request);
+    }
+
+    private void runLocalDatabaseBackupAction(DatabaseSyncRunRequest request) {
         String normalizedPath = normalizeSelectedPath(request.selectedPath());
         if (isMissingDatabasePath(normalizedPath)) {
             showErrorAlert(I18n.tr("configDatabaseSyncPathRequired"));
             return;
         }
-        if (isMissingImportSource(request.importMode(), normalizedPath)) {
+        String selectedBackupPath = request.importMode() ? normalizedPath : ensureZipExtension(normalizedPath);
+        if (isMissingImportSource(request.importMode(), selectedBackupPath)) {
             showErrorAlert(I18n.tr("configDatabaseSyncPathMissing"));
+            return;
+        }
+        if (request.importMode() && !UIptvAlert.showConfirmationAlert(I18n.tr("configRestoreBackupConfirm"))) {
             return;
         }
 
         Configuration previousConfiguration = request.importMode() ? service.read() : null;
-        String sourcePath = resolveDatabaseSyncSourcePath(request.importMode(), normalizedPath);
-        String targetPath = resolveDatabaseSyncTargetPath(request.importMode(), normalizedPath);
 
         DatabaseSyncDialogControls controls = request.controls();
         setDatabaseSyncControlsDisabled(true, controls);
@@ -1524,34 +1534,24 @@ public class ConfigurationUI extends VBox {
         controls.progressLabel().setText(I18n.tr(CONFIG_DATABASE_SYNC_IN_PROGRESS));
         request.popupStage().sizeToScene();
 
-        Task<DatabaseSyncService.DatabaseSyncReport> task = new Task<>() {
+        Task<DatabaseBackupArchiveService.BackupArchiveReport> task = new Task<>() {
             @Override
-            protected DatabaseSyncService.DatabaseSyncReport call() throws Exception {
-                return RootApplication.syncDatabasesWithReport(
-                        sourcePath,
-                        targetPath,
-                        request.syncConfiguration(),
-                        request.syncExternalPlayerPaths(),
-                        (completedSteps, totalSteps, currentStep) -> {
-                            updateProgress(totalSteps == 0 ? 1 : completedSteps, totalSteps == 0 ? 1 : totalSteps);
-                            updateMessage(formatDatabaseSyncProgressMessage(request.importMode(), currentStep));
-                        }
-                );
+            protected DatabaseBackupArchiveService.BackupArchiveReport call() throws Exception {
+                String liveDatabasePath = configurationApplicationService.getDatabasePath();
+                if (request.importMode()) {
+                    return databaseBackupArchiveService.restoreBackupArchive(selectedBackupPath, liveDatabasePath);
+                }
+                return databaseBackupArchiveService.createBackupArchive(liveDatabasePath, selectedBackupPath);
             }
         };
 
-        controls.progressBar().progressProperty().bind(task.progressProperty());
-        controls.progressLabel().textProperty().bind(task.messageProperty());
-
         task.setOnSucceeded(event -> {
-            controls.progressBar().progressProperty().unbind();
-            controls.progressLabel().textProperty().unbind();
             controls.syncRunning().set(false);
-            applyPostDatabaseImport(request.importMode(), previousConfiguration, request.syncConfiguration());
+            applyPostDatabaseImport(request.importMode(), previousConfiguration, true);
             refreshAppDataAfterDatabaseChange(request.importMode());
             controls.progressBar().setProgress(1);
             controls.progressLabel().setText(I18n.tr(request.importMode() ? "configImportDatabaseSuccess" : "configExportDatabaseSuccess"));
-            controls.resultTextArea().setText(buildDatabaseSyncSummary(request.importMode(), task.getValue()));
+            controls.resultTextArea().setText(buildDatabaseBackupSummary(request.importMode(), task.getValue()));
             controls.resultTextArea().setVisible(true);
             controls.resultTextArea().setManaged(true);
             controls.cancelButton().setDisable(false);
@@ -1559,8 +1559,6 @@ public class ConfigurationUI extends VBox {
         });
 
         task.setOnFailed(event -> {
-            controls.progressBar().progressProperty().unbind();
-            controls.progressLabel().textProperty().unbind();
             controls.syncRunning().set(false);
             controls.progressBar().setProgress(1);
             controls.progressLabel().setText(I18n.tr(request.importMode() ? "configImportDatabaseFailed" : "configExportDatabaseFailed"));
@@ -1573,7 +1571,7 @@ public class ConfigurationUI extends VBox {
             request.popupStage().sizeToScene();
         });
 
-        Thread worker = new Thread(task, request.importMode() ? "database-import-task" : "database-export-task");
+        Thread worker = new Thread(task, request.importMode() ? "database-restore-task" : "database-backup-task");
         worker.setDaemon(true);
         worker.start();
     }
@@ -1688,20 +1686,29 @@ public class ConfigurationUI extends VBox {
         return selectedPath == null ? "" : selectedPath.trim();
     }
 
+    private void configureDatabaseBackupFileChooser(boolean restoreMode) {
+        databaseFileChooser.setTitle(I18n.tr("configSelectDatabaseFile"));
+        databaseFileChooser.setInitialFileName(restoreMode
+                ? ""
+                : DatabaseBackupArchiveService.defaultFileName(System.currentTimeMillis() / 1000L));
+    }
+
+    private File ensureZipExtension(File selectedFile) {
+        String normalizedPath = ensureZipExtension(selectedFile.getAbsolutePath());
+        return normalizedPath.equals(selectedFile.getAbsolutePath()) ? selectedFile : new File(normalizedPath);
+    }
+
+    private String ensureZipExtension(String selectedPath) {
+        String normalizedPath = normalizeSelectedPath(selectedPath);
+        return normalizedPath.toLowerCase().endsWith(".zip") ? normalizedPath : normalizedPath + ".zip";
+    }
+
     private boolean isMissingDatabasePath(String normalizedPath) {
         return normalizedPath.isBlank();
     }
 
     private boolean isMissingImportSource(boolean importMode, String normalizedPath) {
         return importMode && !new File(normalizedPath).exists();
-    }
-
-    private String resolveDatabaseSyncSourcePath(boolean importMode, String normalizedPath) {
-        return importMode ? normalizedPath : configurationApplicationService.getDatabasePath();
-    }
-
-    private String resolveDatabaseSyncTargetPath(boolean importMode, String normalizedPath) {
-        return importMode ? configurationApplicationService.getDatabasePath() : normalizedPath;
     }
 
     private void applyPostDatabaseImport(boolean importMode,
@@ -1773,6 +1780,22 @@ public class ConfigurationUI extends VBox {
                     .append(I18n.tr(configurationLineKey, I18n.tr(playerPathPolicyKey)));
         }
         return summary.toString();
+    }
+
+    private String buildDatabaseBackupSummary(boolean restoreMode, DatabaseBackupArchiveService.BackupArchiveReport report) {
+        if (restoreMode) {
+            return I18n.tr(
+                    "configDatabaseRestoreSummary",
+                    report.path(),
+                    DatabaseBackupArchiveService.sizeLabel(report.databaseBytes())
+            );
+        }
+        return I18n.tr(
+                "configDatabaseBackupSummary",
+                report.path(),
+                DatabaseBackupArchiveService.sizeLabel(report.databaseBytes()),
+                DatabaseBackupArchiveService.sizeLabel(report.archiveBytes())
+        );
     }
 
     private String buildRemoteDatabaseSyncSummary(boolean importMode, RemoteSyncExecutionResult result) {

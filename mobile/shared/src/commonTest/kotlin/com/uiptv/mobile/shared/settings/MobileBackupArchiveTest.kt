@@ -9,7 +9,7 @@ class MobileBackupArchiveTest {
     fun defaultBackupFileNameUsesZipExtension() {
         val fileName = MobileBackupArchive.defaultFileName(1_770_000_000L)
 
-        assertEquals("uiptv-mobile-backup-1770000000.zip", fileName)
+        assertEquals("uiptv-backup-1770000000.zip", fileName)
     }
 
     @Test

@@ -14,7 +14,7 @@ object MobileBackupArchive {
     const val FORMAT_VERSION = 1
 
     fun defaultFileName(epochSeconds: Long): String =
-        "uiptv-mobile-backup-$epochSeconds.zip"
+        "uiptv-backup-$epochSeconds.zip"
 
     fun sizeLabel(bytes: Long): String =
         when {

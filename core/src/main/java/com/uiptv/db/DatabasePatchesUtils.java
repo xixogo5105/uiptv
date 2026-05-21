@@ -45,6 +45,23 @@ public class DatabasePatchesUtils {
         return resourceExists(BASELINE_RESOURCE);
     }
 
+    public static String currentSchemaVersion() {
+        List<String> migrationNames = readMigrationNames(MIGRATIONS_LIST_RESOURCE);
+        if (migrationNames.isEmpty()) {
+            return "0000";
+        }
+        String latestMigrationName = migrationNames.getLast();
+        int separatorIndex = latestMigrationName.indexOf('_');
+        if (separatorIndex <= 0) {
+            return latestMigrationName.replaceFirst("\\.sql$", "");
+        }
+        return latestMigrationName.substring(0, separatorIndex);
+    }
+
+    public static int currentSchemaVersionCode() {
+        return Integer.parseInt(currentSchemaVersion());
+    }
+
     private static void applyMigration(Connection conn, String migrationName) throws SQLException {
         String resourcePath = MIGRATIONS_DIR_RESOURCE + migrationName;
         String migrationSql = readResource(resourcePath);
