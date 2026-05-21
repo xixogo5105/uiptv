@@ -1,6 +1,12 @@
 package com.uiptv.service;
 
+import com.uiptv.model.Account;
+import com.uiptv.model.Channel;
+import com.uiptv.util.AccountType;
+import com.uiptv.util.ServerUrlUtil;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -65,5 +71,41 @@ class PlayerServiceTest {
         // Case 5: No query string
         String noQueryUrl = "http://host/path";
         assertEquals(noQueryUrl, service.sanitizeAndEncodeUrl(noQueryUrl));
+    }
+
+    @Test
+    void buildDrmBrowserPlaybackUrl_usesLoopbackOriginForBrowserEme() {
+        PlayerService service = PlayerService.getInstance();
+        Account account = new Account(
+                "M3U",
+                "",
+                "",
+                "http://playlist.test",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                AccountType.M3U8_LOCAL,
+                null,
+                "playlist.m3u",
+                false
+        );
+        account.setDbId("1439");
+        Channel channel = new Channel();
+        channel.setChannelId("Fancode 24/7 CH1");
+        channel.setName("Fancode 1");
+        channel.setCmd("https://stream.test/cenc.mpd");
+        channel.setDrmType("org.w3.clearkey");
+        channel.setClearKeysJson("{\"kid\":\"key\"}");
+
+        try (MockedStatic<ServerUrlUtil> serverUrlUtil = Mockito.mockStatic(ServerUrlUtil.class)) {
+            serverUrlUtil.when(ServerUrlUtil::getLoopbackServerUrl).thenReturn("http://127.0.0.1:9090");
+
+            String url = service.buildDrmBrowserPlaybackUrl(account, channel, "Sports", "itv");
+
+            assertTrue(url.startsWith("http://127.0.0.1:9090/player.html?launch="));
+        }
     }
 }

@@ -138,7 +138,7 @@ public final class PlaybackUIService {
             return false;
         }
         if (!context.browserIsDefaultConfig()) {
-            String localServerUrl = ServerUrlUtil.getLocalServerUrl();
+            String localServerUrl = ServerUrlUtil.getLoopbackServerUrl();
             boolean confirmed = showConfirmationAlert(I18n.tr("autoDrmBrowserOnlyConfirm", localServerUrl));
             if (!confirmed) {
                 return true;
@@ -244,7 +244,7 @@ public final class PlaybackUIService {
         String encoded = Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(payload.toString().getBytes(StandardCharsets.UTF_8));
-        return ServerUrlUtil.getLocalServerUrl()
+        return ServerUrlUtil.getLoopbackServerUrl()
                 + "/player.html?launch="
                 + URLEncoder.encode(encoded, StandardCharsets.UTF_8)
                 + "&v=20260309b";

@@ -37,6 +37,7 @@ class ServerUrlUtilTest {
             mockedService.when(ConfigurationService::getInstance).thenReturn(service);
 
             assertEquals("http://" + ServerUrlUtil.getPublishedServerHost() + ":8888", ServerUrlUtil.getLocalServerUrl());
+            assertEquals("http://127.0.0.1:8888", ServerUrlUtil.getLoopbackServerUrl());
             assertFalse(ServerUrlUtil.getLocalServerUrl().contains("0.0.0.0"));
             assertFalse(ServerUrlUtil.getServerBindAddresses().contains("0.0.0.0"));
         }
@@ -52,6 +53,7 @@ class ServerUrlUtilTest {
             mockedService.when(ConfigurationService::getInstance).thenReturn(service);
 
             assertEquals("http://" + ServerUrlUtil.getPublishedServerHost() + ":9090", ServerUrlUtil.getLocalServerUrl());
+            assertEquals("http://127.0.0.1:9090", ServerUrlUtil.getLoopbackServerUrl());
         }
     }
 
@@ -63,6 +65,7 @@ class ServerUrlUtilTest {
             mockedService.when(ConfigurationService::getInstance).thenReturn(service);
 
             assertEquals("http://" + ServerUrlUtil.getPublishedServerHost() + ":8888", ServerUrlUtil.getLocalServerUrl());
+            assertEquals("http://127.0.0.1:8888", ServerUrlUtil.getLoopbackServerUrl());
         }
     }
 

@@ -184,7 +184,7 @@ public class PlayerService {
     }
 
     private static String localServerOrigin() {
-        return ServerUrlUtil.getLocalServerUrl();
+        return ServerUrlUtil.getLoopbackServerUrl();
     }
 
     private static JSONObject buildChannelPayload(Channel channel) {

@@ -21,11 +21,23 @@ import java.util.Set;
 
 public class ServerUrlUtil {
     private static final String SERVER_RUNTIME_CLASS = "com.uiptv.server.UIptvServer";
+    private static final String LOOPBACK_BROWSER_HOST = "127.0.0.1";
 
     private ServerUrlUtil() {
     }
 
     public static String getLocalServerUrl() {
+        return "http://" + getPublishedServerHost() + ":" + getConfiguredServerPort();
+    }
+
+    /**
+     * Browsers treat loopback HTTP as a secure context, which is required for EME/DRM playback.
+     */
+    public static String getLoopbackServerUrl() {
+        return "http://" + LOOPBACK_BROWSER_HOST + ":" + getConfiguredServerPort();
+    }
+
+    private static String getConfiguredServerPort() {
         String port = "8888";
         try {
             ConfigurationService service = ConfigurationService.getInstance();
@@ -41,7 +53,7 @@ public class ServerUrlUtil {
         } catch (DatabaseAccessException | IllegalStateException _) {
             // Fall back to the default local server port when configuration cannot be read.
         }
-        return "http://" + getPublishedServerHost() + ":" + port;
+        return port;
     }
 
     public static String getPublishedServerHost() {
