@@ -18,6 +18,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.util.Rational
 import android.view.Gravity
@@ -130,6 +131,10 @@ class EmbeddedPlayerActivity : Activity() {
     private var selectedVideoTrackId = UnknownTrackId
     private var nativeProbeHandle = 0L
     private var lastNativeProbeDetailsKey = ""
+    private var streamInfoRefreshGeneration = 0L
+    private var streamInfoRefreshStopsAt = 0L
+    private var startupStreamInfoRefreshScheduled = false
+    private var cachedStreamInfoLabel = ""
     @Volatile
     private var renderedVideoDetails: VideoTrackDetails? = null
     @Volatile
@@ -227,9 +232,7 @@ class EmbeddedPlayerActivity : Activity() {
             "--network-caching=1500",
             "--live-caching=1500",
             "--file-caching=1500",
-            "--rtsp-tcp",
-            "--no-drop-late-frames",
-            "--no-skip-frames"
+            "--rtsp-tcp"
         )
         val createdLibVlc = LibVLC(this, options)
         val createdPlayer = MediaPlayer(createdLibVlc).apply {
@@ -252,7 +255,8 @@ class EmbeddedPlayerActivity : Activity() {
                             keepLoadingVisible()
                             messageView.visibility = View.GONE
                             updatePlayPauseButton()
-                            updateStreamInfo()
+                            scheduleStartupStreamInfoRefreshes()
+                            updateStreamInfo(force = true, refreshTrackButtons = true)
                         }
                     }
                     MediaPlayer.Event.Vout -> {
@@ -262,13 +266,14 @@ class EmbeddedPlayerActivity : Activity() {
                             } else {
                                 keepLoadingVisible()
                             }
-                            updateStreamInfo()
+                            updateStreamInfo(force = true)
                         }
                     }
                     MediaPlayer.Event.TimeChanged -> {
-                        runOnUiThread {
-                            completeStreamLoadingIfClockStarted(event.timeChanged)
-                            updateStreamInfo()
+                        if (streamLoadInProgress) {
+                            runOnUiThread {
+                                completeStreamLoadingIfClockStarted(event.timeChanged)
+                            }
                         }
                     }
                     MediaPlayer.Event.ESAdded,
@@ -311,9 +316,6 @@ class EmbeddedPlayerActivity : Activity() {
         }
         libVlc = createdLibVlc
         mediaPlayer = createdPlayer
-        nativeProbeHandle = LibVlcNativeProbe.attach(createdPlayer) { event ->
-            handleNativeProbeEvent(event)
-        }
     }
 
     override fun onResume() {
@@ -331,6 +333,8 @@ class EmbeddedPlayerActivity : Activity() {
     override fun onStop() {
         stoppingForLifecycle = true
         cancelReconnect()
+        cancelStartupStreamInfoRefreshes()
+        detachNativeProbe()
         overlayHandler.removeCallbacks(updateProgressRunnable)
         mediaPlayer?.runCatchingStop()
         if (attached) {
@@ -349,8 +353,7 @@ class EmbeddedPlayerActivity : Activity() {
         if (isFinishing) {
             intent.getStringExtra(NativePlayerActivity.EXTRA_BINGE_SESSION_ID).orEmpty().takeIf { it.isNotBlank() }?.let(AndroidBingeWatchSessionStore::remove)
         }
-        LibVlcNativeProbe.detach(nativeProbeHandle)
-        nativeProbeHandle = 0L
+        detachNativeProbe()
         mediaPlayer?.release()
         mediaPlayer = null
         abandonAudioFocus()
@@ -398,6 +401,8 @@ class EmbeddedPlayerActivity : Activity() {
         renderedVideoDetails = null
         nativeProbeVideoDetails = null
         lastNativeProbeDetailsKey = ""
+        resetStreamInfoRefreshState()
+        attachNativeProbeIfSupported(createdPlayer)
         beginStreamLoading()
         ensureAudibleSystemVolume()
         val audioRequestVersion = markAudioStateSyncRequested()
@@ -899,6 +904,8 @@ class EmbeddedPlayerActivity : Activity() {
 
     private fun reloadCurrentStream() {
         cancelReconnect()
+        cancelStartupStreamInfoRefreshes()
+        detachNativeProbe()
         reconnectAttempt = 0
         reconnectScheduled = false
         playbackStarted = false
@@ -1007,7 +1014,7 @@ class EmbeddedPlayerActivity : Activity() {
         val length = player.length
         val current = player.time.coerceAtLeast(0L)
         completeStreamLoadingIfClockStarted(current)
-        updateStreamInfo()
+        updateTitleLabel()
         if (length > 0L) {
             progressSeekBar.isEnabled = true
             if (!userSeeking) {
@@ -1100,6 +1107,7 @@ class EmbeddedPlayerActivity : Activity() {
         } else {
             controlsOverlay.visibility = View.VISIBLE
             controlsVisible = true
+            updateStreamInfo(force = true, refreshTrackButtons = true)
             scheduleControlsHide()
         }
     }
@@ -1540,17 +1548,31 @@ class EmbeddedPlayerActivity : Activity() {
         }
     }
 
-    private fun updateStreamInfo() {
-        if (!::streamInfoLabel.isInitialized) {
-            return
-        }
+    private fun updateTitleLabel() {
         if (::titleLabel.isInitialized) {
             titleLabel.text = currentTarget?.title
                 ?.takeIf { it.isNotBlank() }
                 ?: intent.getStringExtra(NativePlayerActivity.EXTRA_TITLE).orEmpty().ifBlank { "Embedded player" }
         }
-        streamInfoLabel.text = buildStreamInfoLabel()
-        updateTrackMenuButtons()
+    }
+
+    private fun updateStreamInfo(force: Boolean = false, refreshTrackButtons: Boolean = false) {
+        if (!::streamInfoLabel.isInitialized) {
+            return
+        }
+        updateTitleLabel()
+        val label = if (force || cachedStreamInfoLabel.isBlank()) {
+            buildStreamInfoLabel()
+        } else {
+            cachedStreamInfoLabel
+        }
+        if (label != cachedStreamInfoLabel || streamInfoLabel.text.toString() != label) {
+            cachedStreamInfoLabel = label
+            streamInfoLabel.text = label
+        }
+        if (refreshTrackButtons) {
+            updateTrackMenuButtons()
+        }
     }
 
     private fun handleElementaryStreamChanged(event: MediaPlayer.Event) {
@@ -1566,20 +1588,25 @@ class EmbeddedPlayerActivity : Activity() {
                     }
                 }
             }
-            scheduleStreamInfoRefreshes()
-        } else {
-            updateStreamInfo()
         }
-        updateTrackMenuButtons()
+        if (isStartupStreamInfoRefreshActive() || controlsVisible) {
+            updateStreamInfo(force = true, refreshTrackButtons = true)
+        }
     }
 
     private fun handleNativeProbeEvent(event: LibVlcNativeProbe.NativeEvent) {
+        if (!isStartupStreamInfoRefreshActive()) {
+            return
+        }
         val details = VideoTrackDetails(
             displayWidth = event.width,
             displayHeight = event.height,
             codec = event.codec
         )
         runOnUiThread {
+            if (!isStartupStreamInfoRefreshActive()) {
+                return@runOnUiThread
+            }
             if (event.esType == IMedia.Track.Type.Video && event.eventType == MediaPlayer.Event.ESSelected) {
                 selectedVideoTrackId = event.esId
             }
@@ -1619,15 +1646,65 @@ class EmbeddedPlayerActivity : Activity() {
                     )
                 }
             }
-            updateStreamInfo()
+            updateStreamInfo(force = true)
         }
     }
 
-    private fun scheduleStreamInfoRefreshes() {
-        updateStreamInfo()
-        overlayHandler.postDelayed({ updateStreamInfo() }, StreamInfoRefreshShortDelayMs)
-        overlayHandler.postDelayed({ updateStreamInfo() }, StreamInfoRefreshMediumDelayMs)
-        overlayHandler.postDelayed({ updateStreamInfo() }, StreamInfoRefreshLongDelayMs)
+    private fun resetStreamInfoRefreshState() {
+        streamInfoRefreshGeneration += 1
+        streamInfoRefreshStopsAt = 0L
+        startupStreamInfoRefreshScheduled = false
+        cachedStreamInfoLabel = ""
+    }
+
+    private fun scheduleStartupStreamInfoRefreshes() {
+        if (startupStreamInfoRefreshScheduled) {
+            return
+        }
+        val player = mediaPlayer ?: return
+        attachNativeProbeIfSupported(player)
+        startupStreamInfoRefreshScheduled = true
+        streamInfoRefreshGeneration += 1
+        val generation = streamInfoRefreshGeneration
+        streamInfoRefreshStopsAt = SystemClock.uptimeMillis() + StreamInfoStartupRefreshDelaysMs.last()
+        StreamInfoStartupRefreshDelaysMs.forEach { delayMs ->
+            overlayHandler.postDelayed({
+                if (generation == streamInfoRefreshGeneration && !stoppingForLifecycle && !isFinishing) {
+                    updateStreamInfo(force = true, refreshTrackButtons = true)
+                    if (delayMs == StreamInfoStartupRefreshDelaysMs.last()) {
+                        cancelStartupStreamInfoRefreshes()
+                        detachNativeProbe()
+                    }
+                }
+            }, delayMs)
+        }
+    }
+
+    private fun cancelStartupStreamInfoRefreshes() {
+        streamInfoRefreshGeneration += 1
+        streamInfoRefreshStopsAt = 0L
+        startupStreamInfoRefreshScheduled = false
+    }
+
+    private fun isStartupStreamInfoRefreshActive(): Boolean =
+        startupStreamInfoRefreshScheduled && SystemClock.uptimeMillis() <= streamInfoRefreshStopsAt
+
+    private fun attachNativeProbeIfSupported(player: MediaPlayer) {
+        if (nativeProbeHandle != 0L) {
+            return
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            Log.i(LogTag, "Skipping native libVLC probe on Android ${Build.VERSION.SDK_INT}")
+            return
+        }
+        nativeProbeHandle = LibVlcNativeProbe.attach(player) { event ->
+            handleNativeProbeEvent(event)
+        }
+    }
+
+    private fun detachNativeProbe() {
+        LibVlcNativeProbe.detach(nativeProbeHandle)
+        nativeProbeHandle = 0L
     }
 
     private fun buildStreamInfoLabel(): String {
@@ -1710,7 +1787,9 @@ class EmbeddedPlayerActivity : Activity() {
             codec = ""
         ) ?: return
         renderedVideoDetails = details
-        overlayHandler.post { updateStreamInfo() }
+        if (isStartupStreamInfoRefreshActive() || controlsVisible) {
+            overlayHandler.post { updateStreamInfo(force = true) }
+        }
     }
 
     private fun currentRenderedVideoLayoutDetails(player: MediaPlayer): VideoTrackDetails? {
@@ -1984,9 +2063,7 @@ class EmbeddedPlayerActivity : Activity() {
         private const val PreferredAudioOutput = "opensles"
         private const val LogTag = "UIPTV-Embedded"
         private const val ChromeUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-        private const val StreamInfoRefreshShortDelayMs = 250L
-        private const val StreamInfoRefreshMediumDelayMs = 1_000L
-        private const val StreamInfoRefreshLongDelayMs = 2_500L
+        private val StreamInfoStartupRefreshDelaysMs = longArrayOf(5_000L, 10_000L, 15_000L, 30_000L, 60_000L)
         private const val ProgressBarMax = 1_000
         private const val DefaultVlcVolume = 100
         private const val MinAudibleVlcVolume = 1
