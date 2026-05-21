@@ -16,7 +16,6 @@ class AccountTypeContractTest {
         assertEquals("Xtreme API", AccountType.XTREME_API.getDisplay());
         assertEquals("M3U8 URL", AccountType.M3U8_URL.getDisplay());
         assertEquals("M3U8 Local", AccountType.M3U8_LOCAL.getDisplay());
-        assertEquals("RSS Feed", AccountType.RSS_FEED.getDisplay());
     }
 
     @Test
@@ -32,17 +31,16 @@ class AccountTypeContractTest {
                 AccountType.STALKER_PORTAL, AccountType.XTREME_API);
 
         assertAccountTypes(AccountType.PREDEFINED_URL_SUPPORTED,
-                AccountType.RSS_FEED, AccountType.M3U8_URL, AccountType.M3U8_LOCAL);
+                AccountType.M3U8_URL, AccountType.M3U8_LOCAL);
 
-        assertFalse(AccountType.CACHE_REFRESH_SUPPORTED.contains(AccountType.RSS_FEED));
         assertFalse(AccountType.VOD_AND_SERIES_SUPPORTED.contains(AccountType.M3U8_URL));
-        assertTrue(AccountType.PREDEFINED_URL_SUPPORTED.contains(AccountType.RSS_FEED));
+        assertTrue(AccountType.PREDEFINED_URL_SUPPORTED.contains(AccountType.M3U8_URL));
     }
 
     @Test
     void capabilitySetsAreImmutable() {
         assertThrows(UnsupportedOperationException.class,
-                () -> AccountType.CACHE_REFRESH_SUPPORTED.add(AccountType.RSS_FEED));
+                () -> AccountType.CACHE_REFRESH_SUPPORTED.add(AccountType.STALKER_PORTAL));
     }
 
     private static void assertAccountTypes(Set<AccountType> actual, AccountType... expected) {

@@ -33,7 +33,6 @@ createApp({
         const currentContext = ref({accountId: null, categoryId: null, accountType: null});
         const currentChannel = ref(null);
         const playbackMode = ref('');
-        const playbackFfmpegMode = ref('');
         const isPlaying = ref(false);
         const playbackError = ref('');
         const showOverlay = ref(false);
@@ -586,7 +585,6 @@ createApp({
             if (filter === 'stalker') return type === 'STALKER_PORTAL';
             if (filter === 'xtreme') return type === 'XTREME_API';
             if (filter === 'm3u') return type === 'M3U8_LOCAL' || type === 'M3U8_URL';
-            if (filter === 'rss') return type === 'RSS_FEED';
             return true;
         };
 
@@ -700,7 +698,7 @@ createApp({
         const playbackUtils = window.UIPTVPlaybackUtils;
         const isTsLikeUrl = (url, manifestType = '') => playbackUtils.isTsLikeUrl(url, manifestType);
         const canUseMpegts = () => playbackUtils.canUseMpegts();
-        const resolvePlaybackModeLabel = (url, engine = '', ffmpegMode = '') => playbackUtils.resolvePlaybackModeLabel(url, engine, ffmpegMode);
+        const resolvePlaybackModeLabel = (url, engine = '') => playbackUtils.resolvePlaybackModeLabel(url, engine);
         const isMaxQualityEnabled = () => playbackUtils?.getShakaMaxQuality?.() === true;
         const setMaxQualityEnabled = (enabled) => playbackUtils?.setShakaMaxQuality?.(!!enabled);
         const notifyPlayerClosed = (reason = 'stop') => {
@@ -922,27 +920,6 @@ createApp({
             mode: bookmark?.accountAction || bookmark?.mode || 'itv',
             bookmarkId: bookmark?.dbId || ''
         });
-
-        const buildForcedHlsPlaybackRequestUrl = (rawUrl) => playbackUtils.buildForcedHlsPlaybackRequestUrl(rawUrl);
-
-        const tryForcedHlsFallback = async (channel) => {
-            const sourceUrl = String(channel?.url || '').trim().toLowerCase();
-            const manifestType = String(channel?.drm?.manifestType || channel?.manifestType || '').trim().toLowerCase();
-            const isMpegTsLike = isTsLikeUrl(sourceUrl, manifestType);
-            const isAdaptive = sourceUrl.includes('.m3u8');
-            if (!sourceUrl || sourceUrl.includes('/hls/stream.m3u8') || (!isAdaptive && !isMpegTsLike)) {
-                return false;
-            }
-            if (channel?.drm) {
-                return false;
-            }
-            const fallbackRequestUrl = buildForcedHlsPlaybackRequestUrl(currentChannel.value?.playRequestUrl || '');
-            if (!fallbackRequestUrl) {
-                return false;
-            }
-            await startPlayback(fallbackRequestUrl, currentChannel.value);
-            return true;
-        };
 
         const resolveLogoUrl = (logo) => {
             if (!thumbnailsEnabled.value) return '';
@@ -2283,13 +2260,6 @@ createApp({
             playbackLoading.value = true;
             playbackMode.value = 'loading';
             playbackError.value = '';
-            if (String(strategyOverride.value || 'auto') === 'hls' && !options.forcedHlsOverride) {
-                const forcedUrl = buildForcedHlsPlaybackRequestUrl(targetChannel?.playRequestUrl || '');
-                if (forcedUrl) {
-                    await startPlayback(forcedUrl, targetChannel, {forcedHlsOverride: true});
-                    return;
-                }
-            }
             const channelDataPromise = fetch(url, {signal: controller.signal}).then(response => response.json());
             if (!switching) {
                 await stopPlayback(true);
@@ -2301,7 +2271,6 @@ createApp({
             try {
                 const channelData = await channelDataPromise;
                 if (requestId !== playbackRequestId) return;
-                playbackFfmpegMode.value = String(channelData?.ffmpegMode || '').trim();
                 await initPlayer(channelData);
                 if (currentChannel.value?.mode === 'series') {
                     await refreshSeriesEpisodeWatchState();
@@ -2410,7 +2379,7 @@ createApp({
             if (youtubeId) {
                 isYoutube.value = true;
                 youtubeSrc.value = `https://www.youtube.com/embed/${youtubeId}?autoplay=1`;
-                playbackMode.value = resolvePlaybackModeLabel(uri, 'youtube', playbackFfmpegMode.value);
+                playbackMode.value = resolvePlaybackModeLabel(uri, 'youtube');
                 return;
             }
 
@@ -2474,25 +2443,6 @@ createApp({
                 return;
             }
 
-            let fallbackAttempted = false;
-            const tryMpegTsHlsFallback = async () => {
-                if (String(strategyOverride.value || 'auto') !== 'auto') {
-                    return false;
-                }
-                if (fallbackAttempted) {
-                    return false;
-                }
-                fallbackAttempted = true;
-                if (mpegtsPlayer.value) {
-                    try {
-                        mpegtsPlayer.value.destroy();
-                    } catch (_) {
-                    }
-                    mpegtsPlayer.value = null;
-                }
-                return tryForcedHlsFallback({...channel, url: sourceUrl});
-            };
-
             try {
                 const player = engine.createPlayer(
                     {
@@ -2508,20 +2458,14 @@ createApp({
                 mpegtsPlayer.value = player;
                 player.on(engine.Events.ERROR, async (_, detail) => {
                     const message = detail?.msg || detail?.message || 'MPEGTS error';
-                    if (await tryMpegTsHlsFallback()) {
-                        return;
-                    }
                     playbackError.value = `Playback error: ${message}`;
                 });
                 player.attachMediaElement(video);
                 player.load();
                 await player.play();
-                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'mpegts', playbackFfmpegMode.value);
+                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'mpegts');
             } catch (e) {
-                console.warn('MPEGTS playback failed, trying /hls fallback.', e);
-                if (await tryMpegTsHlsFallback()) {
-                    return;
-                }
+                console.warn('MPEGTS playback failed, trying native playback.', e);
                 await loadNative({...channel, url: sourceUrl});
             }
         };
@@ -2536,7 +2480,7 @@ createApp({
             video.src = sourceUrl;
             try {
                 await video.play();
-                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native', playbackFfmpegMode.value);
+                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
             } catch (e) {
                 if (String(strategyOverride.value || 'auto') !== 'auto') {
                     playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
@@ -2552,7 +2496,7 @@ createApp({
                         sourceUrl = parsed.toString();
                         video.src = sourceUrl;
                         await video.play();
-                        playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native', playbackFfmpegMode.value);
+                        playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
                         return;
                     } catch (retryProxyErr) {
                         console.warn('Proxy retry failed.', retryProxyErr);
@@ -2566,15 +2510,11 @@ createApp({
                         sourceUrl = downgraded;
                         video.src = sourceUrl;
                         await video.play();
-                        playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native', playbackFfmpegMode.value);
+                        playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
                         return;
                     } catch (retryErr) {
                         console.warn('HTTP fallback failed.', retryErr);
                     }
-                }
-
-                if (await tryForcedHlsFallback(channel)) {
-                    return;
                 }
 
                 playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
@@ -2598,8 +2538,7 @@ createApp({
                 }
             })();
 
-            // Handle ffmpeg prefix if present.
-            const cleaned = decoded.replace(/^ffmpeg\s+/i, '').trim();
+            const cleaned = decoded.trim();
 
             const directPatterns = [
                 /(?:youtube\.com\/watch\?[^#\s]*v=)([A-Za-z0-9_-]{11})/i,
@@ -2677,15 +2616,12 @@ createApp({
             try {
                 await player.attach(video);
                 await player.load(channel.url);
-                playbackMode.value = resolvePlaybackModeLabel(channel.url, 'shaka', playbackFfmpegMode.value);
+                playbackMode.value = resolvePlaybackModeLabel(channel.url, 'shaka');
                 refreshShakaTracks(player);
                 player.addEventListener('trackschanged', () => refreshShakaTracks(player));
                 player.addEventListener('variantchanged', () => refreshShakaTracks(player));
                 player.addEventListener('adaptation', () => refreshShakaTracks(player));
             } catch (e) {
-                if (await tryForcedHlsFallback(channel)) {
-                    return;
-                }
                 console.error('Shaka: Error loading video:', e);
                 playbackError.value = `Playback failed: ${e?.message || 'Unable to load stream'}`;
                 throw e;
@@ -3068,7 +3004,7 @@ createApp({
                 isFullscreen: isFullscreen.value,
                 isFavorite: isCurrentFavorite.value,
                 isPlaying: headerVisible,
-                strategyLabel: strategyOverride.value === 'mpegts' ? 'MPEGTS' : strategyOverride.value === 'hls' ? 'HLS' : strategyOverride.value === 'proxy' ? 'Proxy' : strategyOverride.value === 'direct' ? 'Direct' : 'Auto'
+                strategyLabel: strategyOverride.value === 'mpegts' ? 'MPEGTS' : strategyOverride.value === 'proxy' ? 'Proxy' : strategyOverride.value === 'direct' ? 'Direct' : 'Auto'
             });
             sharedHeader.setTitle({
                 title: baseTitle,
@@ -3143,7 +3079,6 @@ createApp({
                     {label: 'Auto', active: strategyOverride.value === 'auto', onSelect: () => updateStrategyOverride('auto')},
                     {label: 'Direct', active: strategyOverride.value === 'direct', onSelect: () => updateStrategyOverride('direct')},
                     {label: 'MPEGTS', active: strategyOverride.value === 'mpegts', onSelect: () => updateStrategyOverride('mpegts')},
-                    {label: 'HLS', active: strategyOverride.value === 'hls', onSelect: () => updateStrategyOverride('hls')},
                     {label: 'Proxy', active: strategyOverride.value === 'proxy', onSelect: () => updateStrategyOverride('proxy')}
                 ],
                 quality: qualityItems,

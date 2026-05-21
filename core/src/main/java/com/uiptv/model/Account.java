@@ -36,7 +36,7 @@ public class Account extends BaseJson {
     public static final Set<AccountAction> NOT_LIVE_TV_CHANNELS = Collections.unmodifiableSet(EnumSet.of(AccountAction.vod, AccountAction.series));
     public static final Set<AccountType> VOD_AND_SERIES_SUPPORTED = Collections.unmodifiableSet(EnumSet.of(STALKER_PORTAL, XTREME_API));
     public static final Set<AccountType> CACHE_SUPPORTED = Collections.unmodifiableSet(EnumSet.of(STALKER_PORTAL, XTREME_API, M3U8_URL, M3U8_LOCAL));
-    public static final Set<AccountType> PRE_DEFINED_URLS = Collections.unmodifiableSet(EnumSet.of(RSS_FEED, M3U8_URL, M3U8_LOCAL));
+    public static final Set<AccountType> PRE_DEFINED_URLS = Collections.unmodifiableSet(EnumSet.of(M3U8_URL, M3U8_LOCAL));
     public static final String LINE_SEPARATOR = "\n\r";
     private String serverPortalUrl;
     private AccountAction action = itv;

@@ -491,7 +491,7 @@ public class CategoryListUI extends HBox {
             return;
         }
         // Check if channels are already loaded for this account
-        boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(mode) || account.getType() == AccountType.RSS_FEED;
+        boolean noCachingNeeded = NOT_LIVE_TV_CHANNELS.contains(mode);
 
         if (currentRequestCancelled != null) {
             currentRequestCancelled.set(true);

@@ -198,7 +198,7 @@
         document.title = mode ? `${title} [${mode}] | ${APP_TITLE}` : `${title} | ${APP_TITLE}`;
     };
 
-    const resolvePlaybackModeLabel = (url, strategy = '', ffmpegMode = '') => playbackUtils.resolvePlaybackModeLabel(url, strategy, ffmpegMode);
+    const resolvePlaybackModeLabel = (url, strategy = '') => playbackUtils.resolvePlaybackModeLabel(url, strategy);
 
     const launchMode = (launch) => cleanValue(launch?.mode || 'itv').toLowerCase();
 
@@ -611,7 +611,6 @@
         const normalized = String(value || 'auto').toLowerCase();
         if (normalized === 'direct') return 'Direct';
         if (normalized === 'mpegts') return 'MPEGTS';
-        if (normalized === 'hls') return 'HLS';
         if (normalized === 'proxy') return 'Proxy';
         return 'Auto';
     };
@@ -632,7 +631,6 @@
             {label: 'Auto', value: 'auto', active: strategyOverride === 'auto'},
             {label: 'Direct', value: 'direct', active: strategyOverride === 'direct'},
             {label: 'MPEGTS', value: 'mpegts', active: strategyOverride === 'mpegts'},
-            {label: 'HLS', value: 'hls', active: strategyOverride === 'hls'},
             {label: 'Proxy', value: 'proxy', active: strategyOverride === 'proxy'}
         ];
         renderMenuItems(strategyMenuEl, items, (item) => {
@@ -763,23 +761,12 @@
         }
     };
 
-    const addPreferHls = (url) => {
-        try {
-            const parsed = new URL(url, window.location.origin);
-            parsed.searchParams.set('preferHls', '1');
-            return parsed.toString();
-        } catch (_) {
-            const separator = url.includes('?') ? '&' : '?';
-            return `${url}${separator}preferHls=1`;
-        }
-    };
-
-    const buildLaunchRequestUrl = (launch, preferHls = false) => {
+    const buildLaunchRequestUrl = (launch) => {
         const hasInlineLaunch = !!cleanValue(launch?.bingeWatchToken) || !!cleanValue(launch?.directUrl || launch?.url);
         const baseUrl = hasInlineLaunch
             ? buildDirectPlayerRequestUrl(launch)
             : buildPlayerRequestUrl(launch);
-        return preferHls ? addPreferHls(baseUrl) : baseUrl;
+        return baseUrl;
     };
 
     const destroyPlayer = async () => {
@@ -971,7 +958,7 @@
 
     const isAdaptiveUrl = (url) => {
         const lower = String(url || '').toLowerCase();
-        return lower.includes('.m3u8') || lower.includes('.mpd') || lower.includes('/hls/stream.m3u8');
+        return lower.includes('.m3u8') || lower.includes('.mpd');
     };
 
     const isShakaEligibleUrl = (url) => {
@@ -1024,7 +1011,7 @@
         if (isTsLikeResponse(responseData) && canUseMpegts()) {
             return 'mpegts';
         }
-        if (lowerUrl.includes('.mpd') || lowerUrl.includes('/hls/stream.m3u8')) {
+        if (lowerUrl.includes('.mpd')) {
             return 'shaka';
         }
         const canNativeHls = Boolean(videoEl.canPlayType('application/vnd.apple.mpegurl'));
@@ -1041,9 +1028,6 @@
         }
         const normalizedUrl = cleanValue(responseData?.url);
         const plan = [resolvePrimaryStrategy(responseData, launch)];
-        if (isTsLikeResponse(responseData)) {
-            plan.push('prefer-hls');
-        }
         plan.push('native');
         if (buildProxyUrl(normalizedUrl)) {
             plan.push('native-proxy');
@@ -1111,20 +1095,11 @@
     const attemptStrategy = async (strategy, responseData, launch, timeoutMs) => {
         let strategyResponse = responseData;
         let playbackUrl = playbackUrlForStrategy(strategy, responseData?.url);
-        if (strategy === 'prefer-hls') {
-            const forcedResponse = await fetch(buildLaunchRequestUrl(launch, true), {cache: 'no-store'});
-            strategyResponse = await forcedResponse.json();
-            playbackUrl = cleanValue(strategyResponse?.url);
-            if (!playbackUrl || playbackUrl === cleanValue(responseData?.url)) {
-                throw new Error('forced-hls-unavailable');
-            }
-            setMetadata(launch, strategyResponse);
-        }
         if (!playbackUrl) {
             throw new Error('empty-playback-url');
         }
-        const playbackStrategy = strategy === 'prefer-hls' ? resolvePrimaryStrategy(strategyResponse, launch) : strategy;
-        playbackMode = resolvePlaybackModeLabel(playbackUrl, playbackStrategy, strategyResponse?.ffmpegMode || responseData?.ffmpegMode || '');
+        const playbackStrategy = strategy;
+        playbackMode = resolvePlaybackModeLabel(playbackUrl, playbackStrategy);
         renderMediaTitle();
         updateDocumentTitle();
         const shakaPayload = {...strategyResponse, url: playbackUrl};
@@ -1140,9 +1115,7 @@
             return {autoplayBlocked: true, playbackUrl};
         }
         await waitForPlaybackStart(timeoutMs);
-        if (strategy !== 'prefer-hls') {
-            rememberStrategy(launch, responseData, playbackStrategy);
-        }
+        rememberStrategy(launch, responseData, playbackStrategy);
         return {autoplayBlocked: false, playbackUrl};
     };
 
@@ -1152,7 +1125,6 @@
         if (override !== 'auto') {
             if (override === 'direct') plan = ['native'];
             else if (override === 'mpegts') plan = ['mpegts'];
-            else if (override === 'hls') plan = ['prefer-hls'];
             else if (override === 'proxy') plan = ['native-proxy'];
             else plan = [override];
         }
@@ -1219,7 +1191,7 @@
         renderMediaTitle();
         updateDocumentTitle();
         setStatus('Requesting playback URL...');
-        let requestUrl = buildLaunchRequestUrl(launch, options.preferHls);
+        let requestUrl = buildLaunchRequestUrl(launch);
         if (options.cacheBust) {
             requestUrl = addCacheBuster(requestUrl, '_repeatTs');
         }
@@ -1313,7 +1285,7 @@
             return STATUS_AUTOPLAY_BLOCKED;
         }
         if (message.includes('media-error-code 4') || message.includes('src_not_supported')) {
-            return 'Unsupported stream format/codec in browser. Try proxy/transmux.';
+            return 'Unsupported stream format/codec in browser. Try proxy or an external player.';
         }
         if (message.includes('media-error-code 2') || message.includes('network')) {
             return 'Network/auth error while loading stream.';

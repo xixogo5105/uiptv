@@ -241,10 +241,6 @@
                                 @click="selectAccountTypeFilter('m3u')"
                                 class="account-type-chip">M3U
                         </button>
-                        <button :class="{ active: selectedAccountTypeFilter === 'rss' }"
-                                @click="selectAccountTypeFilter('rss')"
-                                class="account-type-chip">RSS
-                        </button>
                     </div>
                     <div class="grid-container" v-if="viewState === 'accounts'">
                         <div class="card-item" v-if="listLoading">

@@ -732,11 +732,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         String season = firstNonBlank(selectedSeason(), "1");
         bingeWatchButton.setText(buildBingeWatchMenuLabel(season));
         bingeWatchButton.getItems().clear();
-        boolean usingLitePlayer = MediaPlayerFactory.getPlayerType() == VideoPlayerInterface.PlayerType.LITE;
         for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
-            if (usingLitePlayer && PlaybackUIService.EMBEDDED_PLAYER_PATH.equals(option.playerPath())) {
-                continue;
-            }
             MenuItem playerItem = new MenuItem(option.label());
             playerItem.getStyleClass().add("binge-watch-menu-item");
             playerItem.setOnAction(event -> bingeWatchSeason(season, option.playerPath()));

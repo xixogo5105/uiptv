@@ -76,7 +76,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     private String providerBaseUrl;
     private String stalkerPortalUrl;
     private String xtremeBaseUrl;
-    private String rssFeedUrl;
 
     private int appPort;
     private String appBaseUrl;
@@ -96,11 +95,9 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
     @BeforeEach
     void setUpServers() throws Exception {
-        System.setProperty("uiptv.hls.ts.delete.grace.millis", "50");
         providerMockServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         providerMockServer.createContext("/portal.php", this::handleStalker);
         providerMockServer.createContext("/xtreme/player_api.php", this::handleXtreme);
-        providerMockServer.createContext("/rss/feed.xml", this::handleRss);
         providerMockServer.createContext("/m3u", this::handleM3uPlaylist);
         providerMockServer.createContext("/upstream", this::handleUpstreamStream);
         providerMockServer.start();
@@ -109,7 +106,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         providerBaseUrl = "http://127.0.0.1:" + providerPort;
         stalkerPortalUrl = providerBaseUrl + "/portal.php";
         xtremeBaseUrl = providerBaseUrl + "/xtreme/";
-        rssFeedUrl = providerBaseUrl + "/rss/feed.xml";
 
         appPort = findFreePort();
         appBaseUrl = "http://127.0.0.1:" + appPort;
@@ -132,7 +128,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
      * End-to-end backend web API coverage:
      *
      * 1) Starts real UIptvServer on a random configured port.
-     * 2) Seeds Stalker/Xtreme/M3U/RSS accounts against a mock provider server.
+     * 2) Seeds Stalker/Xtreme/M3U accounts against a mock provider server.
      * 3) Populates cache and then exercises backend endpoints used by web clients:
      *    - /accounts
      *    - /categories
@@ -200,7 +196,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             assertBookmarksApis();
             assertPlayerApis();
             assertPlaylistApis();
-            assertHlsAndProxyApis();
+            assertProxyApi();
             assertWebChannelJsonServerApi();
         }
     }
@@ -254,13 +250,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         m3uUncategorizedOnly.setAction(itv);
         AccountService.getInstance().save(m3uUncategorizedOnly);
 
-        Account rss = new Account(
-                "web-rss", null, null, rssFeedUrl,
-                null, null, null, null, null, null,
-                AccountType.RSS_FEED, null, rssFeedUrl, false
-        );
-        rss.setAction(itv);
-        AccountService.getInstance().save(rss);
     }
 
     private void warmUpCacheAndData() throws IOException {
@@ -309,7 +298,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
             ChannelService.getInstance().get(c.getCategoryId(), xtreme, c.getDbId(), null, null, null);
         }
 
-        for (String name : List.of("web-m3u-local", "web-m3u-url", WEB_M3U_UNCATEGORIZED_ONLY, "web-rss")) {
+        for (String name : List.of("web-m3u-local", "web-m3u-url", WEB_M3U_UNCATEGORIZED_ONLY)) {
             Account a = accountService.getByName(name);
             a.setAction(itv);
             accountService.save(a);
@@ -404,7 +393,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         Account xtreme = accountService.getByName("web-xtreme");
         Account m3u = accountService.getByName("web-m3u-local");
         Account uncategorizedOnlyM3u = accountService.getByName(WEB_M3U_UNCATEGORIZED_ONLY);
-        Account rss = accountService.getByName("web-rss");
 
         JSONArray stalkerItvCats = jsonArrayBody(get("/categories?accountId=" + stalker.getDbId() + "&mode=itv"));
         JSONArray stalkerVodCats = jsonArrayBody(get("/categories?accountId=" + stalker.getDbId() + "&mode=vod"));
@@ -414,7 +402,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         JSONArray xtremeSeriesCats = jsonArrayBody(get("/categories?accountId=" + xtreme.getDbId() + "&mode=series"));
         JSONArray m3uCats = jsonArrayBody(get("/categories?accountId=" + m3u.getDbId() + "&mode=itv"));
         JSONArray uncategorizedOnlyM3uCats = jsonArrayBody(get("/categories?accountId=" + uncategorizedOnlyM3u.getDbId() + "&mode=itv"));
-        JSONArray rssCats = jsonArrayBody(get("/categories?accountId=" + rss.getDbId() + "&mode=itv"));
 
         assertTrue(stalkerItvCats.length() >= 2);
         assertTrue(stalkerVodCats.length() >= 2);
@@ -425,7 +412,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertTrue(m3uCats.length() >= 1);
         assertEquals(1, uncategorizedOnlyM3uCats.length());
         assertEquals(CategoryType.ALL.displayName(), uncategorizedOnlyM3uCats.getJSONObject(0).optString("title"));
-        assertTrue(rssCats.length() >= 1);
     }
 
     private void assertChannelsApi() throws Exception {
@@ -857,43 +843,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertTrue(iptvM3u.body().contains("#EXTM3U"));
     }
 
-    private void assertHlsAndProxyApis() throws Exception {
-        System.setProperty("uiptv.hls.ts.delete.grace.millis", "50");
-        String playlistBody = """
-                #EXTM3U
-                #EXT-X-VERSION:3
-                #EXTINF:6.0,
-                segment-1.ts
-                """;
-        HttpTextResponse putPlaylist = send(appBaseUrl + "/hls-upload/sample.m3u8", "PUT", playlistBody, "application/vnd.apple.mpegurl");
-        assertEquals(200, putPlaylist.statusCode());
-
-        HttpTextResponse putSegment = send(appBaseUrl + "/hls-upload/segment-1.ts", "PUT", "UPSTREAM-TS-DATA", "video/mp2t");
-        assertEquals(200, putSegment.statusCode());
-
-        HttpTextResponse playlistNoHvec = get("/hls/sample.m3u8");
-        assertEquals(200, playlistNoHvec.statusCode());
-        assertTrue(playlistNoHvec.body().contains("segment-1.ts"));
-        assertFalse(playlistNoHvec.body().contains("hvec=1"));
-
-        HttpTextResponse playlistHvec = get("/hls/sample.m3u8?hvec=1");
-        assertEquals(200, playlistHvec.statusCode());
-        assertTrue(playlistHvec.body().contains("segment-1.ts?hvec=1"));
-
-        HttpTextResponse segment = get("/hls/segment-1.ts");
-        assertEquals(200, segment.statusCode());
-        assertTrue(segment.body().contains("UPSTREAM-TS-DATA"));
-
-        HttpTextResponse deleteSegment = send(appBaseUrl + "/hls-upload/segment-1.ts", "DELETE", null, null);
-        assertEquals(200, deleteSegment.statusCode());
-
-        HttpTextResponse recentlyDeletedSegmentFetch = get("/hls/segment-1.ts");
-        assertEquals(200, recentlyDeletedSegmentFetch.statusCode());
-
-        com.uiptv.service.InMemoryHlsService.getInstance().clear();
-        HttpTextResponse deletedSegmentFetch = get("/hls/segment-1.ts");
-        assertEquals(404, deletedSegmentFetch.statusCode());
-
+    private void assertProxyApi() throws Exception {
         HttpTextResponse missingProxyParam = get("/proxy-stream");
         assertEquals(400, missingProxyParam.statusCode());
 
@@ -1239,22 +1189,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         };
 
         writeResponse(exchange, 200, body, "application/json; charset=utf-8");
-    }
-
-    private void handleRss(HttpExchange exchange) throws IOException {
-        String body = """
-                <?xml version="1.0" encoding="UTF-8" ?>
-                <rss version="2.0">
-                  <channel>
-                    <title>Mock RSS</title>
-                    <link>%s</link>
-                    <description>Mock feed</description>
-                    <item><title>RSS Live One</title><link>%s/rss/stream/one.ts</link></item>
-                    <item><title>RSS Live Two</title><link>%s/rss/stream/two.ts</link></item>
-                  </channel>
-                </rss>
-                """.formatted(providerBaseUrl, providerBaseUrl, providerBaseUrl);
-        writeResponse(exchange, 200, body, "application/rss+xml; charset=utf-8");
     }
 
     private void handleM3uPlaylist(HttpExchange exchange) throws IOException {

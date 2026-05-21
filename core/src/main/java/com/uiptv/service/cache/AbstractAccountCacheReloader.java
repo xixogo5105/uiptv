@@ -11,7 +11,6 @@ import com.uiptv.model.Channel;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.shared.PlaylistEntry;
-import com.uiptv.util.RssParser;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.M3U8Parser;
 
@@ -222,20 +221,6 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
             }
         }
 
-        return channels.stream().toList();
-    }
-
-    protected List<Channel> rssChannels(String category, Account account) {
-        Set<Channel> channels = new LinkedHashSet<>();
-        String rssUrl = account.getM3u8Path();
-        if (isBlank(rssUrl)) {
-            return List.of();
-        }
-        List<PlaylistEntry> rssEntries = RssParser.parse(rssUrl);
-        rssEntries.stream().filter(e -> CategoryType.ALL.displayName().equalsIgnoreCase(category) || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
-            Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(), entry.getInputstreamaddon(), entry.getManifestType());
-            channels.add(c);
-        });
         return channels.stream().toList();
     }
 

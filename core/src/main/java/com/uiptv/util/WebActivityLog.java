@@ -125,7 +125,7 @@ public final class WebActivityLog {
         if (isNotBlank(playlist)) {
             return playlist;
         }
-        String streaming = describeStreamingRequest(method, path, params);
+        String streaming = describeStreamingRequest(path, params);
         if (isNotBlank(streaming)) {
             return streaming;
         }
@@ -160,15 +160,9 @@ public final class WebActivityLog {
         };
     }
 
-    private static String describeStreamingRequest(String method, String path, Map<String, String> params) {
+    private static String describeStreamingRequest(String path, Map<String, String> params) {
         if (path.startsWith("/proxy-stream")) {
             return "Streamed media through the web player" + sourceSummary(params.get("src"));
-        }
-        if (path.startsWith("/hls-upload")) {
-            return describeHlsUpload(method, path);
-        }
-        if (path.startsWith("/hls")) {
-            return describeHlsRequest(path);
         }
         return "";
     }
@@ -261,28 +255,6 @@ public final class WebActivityLog {
             return " for one account";
         }
         return "";
-    }
-
-    private static String describeHlsUpload(String method, String path) {
-        String file = fileName(path);
-        if ("DELETE".equals(method)) {
-            return "Removed temporary stream file: " + file;
-        }
-        if ("PUT".equals(method) || "POST".equals(method)) {
-            return "Uploaded temporary stream file: " + file;
-        }
-        return "Used temporary stream upload storage: " + file;
-    }
-
-    private static String describeHlsRequest(String path) {
-        String file = fileName(path);
-        if (file.endsWith(".m3u8")) {
-            return "Loaded the web stream playlist: " + file;
-        }
-        if (file.endsWith(".ts")) {
-            return "Loaded a web stream segment: " + file;
-        }
-        return "Loaded a temporary web stream file: " + file;
     }
 
     private static String sourceSummary(String source) {

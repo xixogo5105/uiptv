@@ -20,7 +20,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class M3uAndRssCacheReloaderTest extends DbBackedTest {
+class M3uCacheReloaderTest extends DbBackedTest {
 
     @Test
     void m3uReloader_skipsPersistenceWhenCategoryFetchIsEmpty() {
@@ -92,66 +92,6 @@ class M3uAndRssCacheReloaderTest extends DbBackedTest {
 
         assertEquals(1, reloader.loadMapInvocationCount, "Should build the M3U channel map once per reload");
         assertEquals(3, CategoryDb.get().getCategories(account).size());
-    }
-
-    @Test
-    void rssReloader_keepsExistingCacheWhenEveryCategoryHasNoChannels() {
-        Account account = persistAccount("rss-empty", AccountType.RSS_FEED);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
-        List<String> logs = new ArrayList<>();
-
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
-            categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
-                    .thenReturn(List.of(new Category("1", "Feed", "feed", false, 0)));
-
-            new StubRssCacheReloader().reloadCache(account, logs::add);
-        }
-
-        assertTrue(CategoryDb.get().getCategories(account).isEmpty());
-        assertTrue(logs.stream().anyMatch(message -> message.contains("No channels found in any category")));
-    }
-
-    @Test
-    void rssReloader_persistsFetchedChannels() {
-        Account account = persistAccount("rss-success", AccountType.RSS_FEED);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
-        Category category = new Category("1", "Feed", "feed", false, 0);
-        StubRssCacheReloader reloader = new StubRssCacheReloader();
-        reloader.channelsByCategory.put("Feed", List.of(channel("feed-1", "Feed One"), channel("feed-2", "Feed Two")));
-
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
-            categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any())).thenReturn(List.of(category));
-
-            reloader.reloadCache(account, null);
-        }
-
-        assertEquals(1, CategoryDb.get().getCategories(account).size());
-        assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
-    }
-
-    @Test
-    void rssReloader_ignoresPerCategoryFailure_andSavesSuccessfulCategories() {
-        Account account = persistAccount("rss-partial", AccountType.RSS_FEED);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
-        StubRssCacheReloader reloader = new StubRssCacheReloader();
-        reloader.failOn = "Broken";
-        reloader.channelsByCategory.put("Working", List.of(channel("work-1", "Working One")));
-
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
-            categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
-                    .thenReturn(List.of(
-                            new Category("1", "Broken", "broken", false, 0),
-                            new Category("2", "Working", "working", false, 0)
-                    ));
-
-            reloader.reloadCache(account, null);
-        }
-
-        assertEquals(2, CategoryDb.get().getCategories(account).size());
-        assertEquals(1, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
     }
 
     @Test
@@ -418,19 +358,6 @@ class M3uAndRssCacheReloaderTest extends DbBackedTest {
                 }
             }
             return result;
-        }
-    }
-
-    private static final class StubRssCacheReloader extends RssCacheReloader {
-        private final java.util.Map<String, List<Channel>> channelsByCategory = new java.util.HashMap<>();
-        private String failOn;
-
-        @Override
-        protected List<Channel> rssChannels(String category, Account account) {
-            if (category.equals(failOn)) {
-                throw new IllegalStateException("boom");
-            }
-            return channelsByCategory.getOrDefault(category, List.of());
         }
     }
 }

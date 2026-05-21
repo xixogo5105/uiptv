@@ -4,7 +4,6 @@ import com.uiptv.api.Callback;
 import com.uiptv.application.ConfigurationApplicationService;
 import com.uiptv.player.api.VideoPlayerInterface;
 import com.uiptv.model.Configuration;
-import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.DatabaseSyncService;
 import com.uiptv.service.ConfigurationChangeListener;
@@ -13,7 +12,6 @@ import com.uiptv.service.remotesync.RemoteSyncExecutionResult;
 import com.uiptv.service.remotesync.RemoteSyncOptions;
 import com.uiptv.service.remotesync.RemoteSyncProgressStep;
 import com.uiptv.service.*;
-import com.uiptv.ui.util.ThemeStylesheetResolver;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
@@ -40,8 +38,6 @@ import javafx.util.Duration;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -54,7 +50,6 @@ public class ConfigurationUI extends VBox {
     private static final String EMBEDDED_PLAYER_PATH = PlaybackUIService.EMBEDDED_PLAYER_PATH;
     private static final String TMDB_API_GUIDE_URL = "https://developer.themoviedb.org/docs/getting-started";
     private static final String TMDB_API_KEY_URL = "https://www.themoviedb.org/settings/api";
-    private static final String CONFIG_DEFAULT_RESOURCE_IN_USE = "configDefaultResourceInUse";
     private static final String CONFIG_FILTER_CATEGORIES_PROMPT = "configFilterCategoriesPrompt";
     private static final String CONFIG_FILTER_CHANNELS_PROMPT = "configFilterChannelsPrompt";
     private static final String CONFIG_EMBED_PLAYER_RESTART_NEEDED = "configEmbedPlayerRestartNeeded";
@@ -97,34 +92,22 @@ public class ConfigurationUI extends VBox {
     private HBox filterLockDurationRow;
     private final VBox filterAdminControls = new VBox(10);
     private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
-    private final CheckBox enableFfmpegCheckBox = new CheckBox(stripTrailingHelp(I18n.tr("configEnableFfmpeg")));
-    private final CheckBox enableLitePlayerFfmpegCheckBox = new CheckBox(stripTrailingHelp(I18n.tr("configEnableLitePlayerFfmpeg")));
     private final CheckBox autoRunServerOnStartupCheckBox = new CheckBox(I18n.tr("configAutoRunServerOnStartup"));
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
     private final Hyperlink wideViewHelpLink = new Hyperlink("(?)");
     private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox(I18n.tr("configResolveChainAndDeepRedirects"));
     private final Hyperlink resolveChainAndDeepRedirectsHelpLink = new Hyperlink("(?)");
-    private final Hyperlink ffmpegTranscodingHelpLink = new Hyperlink("(?)");
-    private final Hyperlink litePlayerFfmpegHelpLink = new Hyperlink("(?)");
     private final Hyperlink videoPlayersHelpLink = new Hyperlink("(?)");
     private final Hyperlink filtersHelpLink = new Hyperlink("(?)");
     private final Hyperlink themeHelpLink = new Hyperlink("(?)");
     private final Hyperlink cacheFilteringHelpLink = new Hyperlink("(?)");
     private final Hyperlink databaseSyncHelpLink = new Hyperlink("(?)");
-    private final Hyperlink ffmpegAndWebServerHelpLink = new Hyperlink("(?)");
+    private final Hyperlink webServerHelpLink = new Hyperlink("(?)");
     private final Hyperlink tmdbMetadataHelpLink = new Hyperlink("(?)");
     private final Hyperlink vlcOptionsLink = new Hyperlink(I18n.tr("configVlcOptionsLink"));
     private final ComboBox<I18n.SupportedLanguage> languageComboBox = new ComboBox<>();
     private final ComboBox<Integer> themeZoomComboBox = new ComboBox<>();
-    private final TextField lightThemeCssStatus = new TextField(I18n.tr(CONFIG_DEFAULT_RESOURCE_IN_USE));
-    private final TextField darkThemeCssStatus = new TextField(I18n.tr(CONFIG_DEFAULT_RESOURCE_IN_USE));
-    private final Button uploadLightThemeCssButton = new Button(I18n.tr("configCssUploadLight"));
-    private final Button uploadDarkThemeCssButton = new Button(I18n.tr("configCssUploadDark"));
-    private final Hyperlink downloadLightThemeCssLink = new Hyperlink(I18n.tr("configLightCss"));
-    private final Hyperlink downloadDarkThemeCssLink = new Hyperlink(I18n.tr("configDarkCss"));
-    private final Button resetThemeOverridesButton = new Button(I18n.tr("configResetThemeOverrides"));
-    private final FileChooser cssFileChooser = new FileChooser();
     private final UIptvText serverPort = new UIptvText("serverPort", "configServerPortPrompt", 3);
     private final UIptvText cacheExpiryDays = new UIptvText("cacheExpiryDays", "configCacheExpiryPrompt", 5);
     private final PasswordField tmdbReadAccessToken = new PasswordField();
@@ -143,7 +126,6 @@ public class ConfigurationUI extends VBox {
     private final Callback<Object> onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
     private final ConfigurationApplicationService configurationApplicationService = ConfigurationApplicationService.getInstance();
-    private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
     private final CacheService cacheService = new CacheServiceImpl();
     private final RemoteSyncClientService remoteSyncClientService = new RemoteSyncClientService();
     private final DatabaseBackupArchiveService databaseBackupArchiveService = DatabaseBackupArchiveService.getInstance();
@@ -152,7 +134,6 @@ public class ConfigurationUI extends VBox {
     private String persistedFilterChannelsValue = "";
     private boolean persistedPauseFilteringValue = false;
     private boolean ignorePlayerSelectionPrompt = false;
-    private ThemeCssOverride currentThemeCssOverride = new ThemeCssOverride();
     private String vlcNetworkCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
     private String vlcLiveCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
     private boolean vlcHttpUserAgentEnabled = true;
@@ -178,11 +159,6 @@ public class ConfigurationUI extends VBox {
         startServerButton.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
         contentContainer.setPadding(new Insets(5));
         contentContainer.setSpacing(10);
-        cssFileChooser.setTitle(I18n.tr("configCssSelectFile"));
-        cssFileChooser.getExtensionFilters().setAll(
-                new FileChooser.ExtensionFilter(I18n.tr("configCssFiles"), "*.css"),
-                new FileChooser.ExtensionFilter(I18n.tr("commonAll"), "*.*")
-        );
         databaseFileChooser.setTitle(I18n.tr("configSelectDatabaseFile"));
         databaseFileChooser.getExtensionFilters().setAll(
                 new FileChooser.ExtensionFilter(I18n.tr("configDatabaseFiles"), "*.zip"),
@@ -201,18 +177,16 @@ public class ConfigurationUI extends VBox {
         Configuration configuration = service.read();
         initializeLanguageSelection(configuration);
         initializeThemeZoomSelection(configuration);
-        currentThemeCssOverride = themeCssOverrideService.read();
         configurePlayerToggleGroup();
         updateEmbeddedPlayerTitle();
         configurePlayerUserData();
         addWideViewHelpClickHandler();
-        addFfmpegHelpClickHandlers();
         addVideoPlayersHelpClickHandler();
         addThemeHelpClickHandler();
         addDatabaseSyncHelpClickHandler();
         addFiltersHelpClickHandler();
         addCacheFilteringHelpClickHandler();
-        addFfmpegAndWebServerHelpClickHandler();
+        addWebServerHelpClickHandler();
         addTmdbMetadataHelpClickHandler();
         configureHelpLinks();
         defaultEmbedPlayer.setSelected(true);
@@ -293,7 +267,6 @@ public class ConfigurationUI extends VBox {
         VBox filtersGroup = new VBox(10, filterLockStatusLabel, filterLockActions, filterDisablePasswordCheckBox, filterLockDurationRow, filterAdminControls);
 
         VBox themeOverridesGroup = buildThemeOverrideGroup();
-        updateThemeCssStatusLabels();
 
         HBox clearButtons = new HBox(10, clearCacheButton, clearWatchingNowButton);
         reloadCacheButton.setMaxWidth(Double.MAX_VALUE);
@@ -304,19 +277,11 @@ public class ConfigurationUI extends VBox {
         HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, openServerLink);
         publishM3u8Button.setMaxWidth(Double.MAX_VALUE);
         publishM3u8Button.setPrefWidth(440);
-        HBox ffmpegTranscodingRow = new HBox(4, enableFfmpegCheckBox, ffmpegTranscodingHelpLink);
-        HBox litePlayerFfmpegRow = new HBox(4, enableLitePlayerFfmpegCheckBox, litePlayerFfmpegHelpLink);
         HBox autoRunServerOnStartupRow = new HBox(6, autoRunServerOnStartupCheckBox);
-        ffmpegTranscodingRow.setAlignment(Pos.CENTER_LEFT);
-        litePlayerFfmpegRow.setAlignment(Pos.CENTER_LEFT);
         autoRunServerOnStartupRow.setAlignment(Pos.CENTER_LEFT);
-        enableFfmpegCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
-        enableLitePlayerFfmpegCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
         autoRunServerOnStartupCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
-        VBox serverGroup = new VBox(10, ffmpegTranscodingRow, litePlayerFfmpegRow, serverButtonWrapper, publishM3u8Button, autoRunServerOnStartupRow);
+        VBox serverGroup = new VBox(10, serverButtonWrapper, publishM3u8Button, autoRunServerOnStartupRow);
         serverGroup.setFillWidth(true);
-        ffmpegTranscodingHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
-        litePlayerFfmpegHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
         VBox databaseSyncGroup = buildDatabaseSyncGroup();
 
         contentContainer.getChildren().addAll(
@@ -325,7 +290,7 @@ public class ConfigurationUI extends VBox {
                 createCollapsibleGroupPane(I18n.tr("configDarkTheme"), themeOverridesGroup, true, themeHelpLink),
                 createCollapsibleGroupPane(I18n.tr("configCacheFiltering"), cacheGroup, true, cacheFilteringHelpLink),
                 createCollapsibleGroupPane(I18n.tr("configDatabaseSyncTitle"), databaseSyncGroup, true, databaseSyncHelpLink),
-                createCollapsibleGroupPane(I18n.tr("configFfmpegAndWebServer"), serverGroup, true, ffmpegAndWebServerHelpLink),
+                createCollapsibleGroupPane(I18n.tr("configWebServer"), serverGroup, true, webServerHelpLink),
                 createCollapsibleGroupPane(I18n.tr("configTmdbMetadata"), tmdbConfigSection, true, tmdbMetadataHelpLink),
                 saveButton
         );
@@ -419,7 +384,6 @@ public class ConfigurationUI extends VBox {
     }
 
     private VBox buildThemeOverrideGroup() {
-        // ...existing code...
         languageComboBox.setMaxWidth(Double.MAX_VALUE);
         Label languageLabel = new Label(I18n.tr("configLanguage"));
         HBox.setHgrow(languageComboBox, Priority.ALWAYS);
@@ -428,34 +392,6 @@ public class ConfigurationUI extends VBox {
         themeZoomComboBox.setMaxWidth(Double.MAX_VALUE);
         Label themeZoomLabel = new Label(I18n.tr("configThemeZoom"));
         HBox.setHgrow(themeZoomComboBox, Priority.ALWAYS);
-
-        lightThemeCssStatus.setEditable(false);
-        darkThemeCssStatus.setEditable(false);
-        lightThemeCssStatus.setFocusTraversable(false);
-        darkThemeCssStatus.setFocusTraversable(false);
-        lightThemeCssStatus.setMaxWidth(Double.MAX_VALUE);
-        darkThemeCssStatus.setMaxWidth(Double.MAX_VALUE);
-
-        HBox lightUploadRow = new HBox(8, lightThemeCssStatus, uploadLightThemeCssButton);
-        HBox.setHgrow(lightThemeCssStatus, Priority.ALWAYS);
-        lightUploadRow.setFillHeight(true);
-        lightUploadRow.setMaxWidth(Double.MAX_VALUE);
-        VBox lightBox = new VBox(6, new Label(I18n.tr("configLightThemeCssOverride")), lightUploadRow);
-
-        HBox darkUploadRow = new HBox(8, darkThemeCssStatus, uploadDarkThemeCssButton);
-        HBox.setHgrow(darkThemeCssStatus, Priority.ALWAYS);
-        darkUploadRow.setFillHeight(true);
-        darkUploadRow.setMaxWidth(Double.MAX_VALUE);
-        VBox darkBox = new VBox(6, new Label(I18n.tr("configDarkThemeCssOverride")), darkUploadRow);
-
-        Label downloadLabel = new Label(I18n.tr("configCssDownload"));
-        HBox downloadRow = new HBox(8, downloadLabel, downloadLightThemeCssLink, downloadDarkThemeCssLink);
-        downloadRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        downloadRow.setMaxWidth(Double.MAX_VALUE);
-
-        VBox themeCssSection = new VBox(10, lightBox, darkBox, downloadRow, resetThemeOverridesButton);
-        themeCssSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
-        themeCssSection.setMaxWidth(Double.MAX_VALUE);
 
         GridPane languageAndZoomGrid = new GridPane();
         languageAndZoomGrid.setHgap(8);
@@ -479,8 +415,7 @@ public class ConfigurationUI extends VBox {
         languageAndZoomSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         languageAndZoomSection.setMaxWidth(Double.MAX_VALUE);
 
-        addThemeCssButtonHandlers();
-        return new VBox(10, darkThemeCheckBox, enableThumbnailsCheckBox, themeCssSection, languageAndZoomSection);
+        return new VBox(10, darkThemeCheckBox, enableThumbnailsCheckBox, languageAndZoomSection);
     }
 
     private void initializeLanguageSelection(Configuration configuration) {
@@ -529,14 +464,6 @@ public class ConfigurationUI extends VBox {
         return selected == null ? I18n.DEFAULT_LANGUAGE_TAG : selected.languageTag();
     }
 
-    private void addThemeCssButtonHandlers() {
-        uploadLightThemeCssButton.setOnAction(event -> uploadThemeCss(false));
-        uploadDarkThemeCssButton.setOnAction(event -> uploadThemeCss(true));
-        downloadLightThemeCssLink.setOnAction(event -> downloadDefaultThemeCss(false));
-        downloadDarkThemeCssLink.setOnAction(event -> downloadDefaultThemeCss(true));
-        resetThemeOverridesButton.setOnAction(event -> resetThemeOverrides());
-    }
-
     private void addThemePreviewHandlers() {
         themeZoomComboBox.valueProperty().addListener((obs, oldValue, newValue) -> applyThemePreview());
     }
@@ -549,72 +476,6 @@ public class ConfigurationUI extends VBox {
                 darkThemeCheckBox.isSelected(),
                 getSelectedThemeZoomPercent()
         );
-    }
-
-    private void uploadThemeCss(boolean darkTheme) {
-        File file = cssFileChooser.showOpenDialog(RootApplication.getPrimaryStage());
-        if (file == null) {
-            return;
-        }
-        try {
-            String cssContents = Files.readString(file.toPath(), StandardCharsets.UTF_8);
-            if (darkTheme) {
-                currentThemeCssOverride.setDarkThemeCssName(file.getName());
-                currentThemeCssOverride.setDarkThemeCssContent(cssContents);
-            } else {
-                currentThemeCssOverride.setLightThemeCssName(file.getName());
-                currentThemeCssOverride.setLightThemeCssContent(cssContents);
-            }
-            updateThemeCssStatusLabels();
-        } catch (Exception _) {
-            showErrorAlert(I18n.tr("configUnableToReadCss"));
-        }
-    }
-
-    @SuppressWarnings("unused")
-    private void clearThemeCssOverride(boolean darkTheme) {
-        if (darkTheme) {
-            currentThemeCssOverride.setDarkThemeCssName(null);
-            currentThemeCssOverride.setDarkThemeCssContent(null);
-        } else {
-            currentThemeCssOverride.setLightThemeCssName(null);
-            currentThemeCssOverride.setLightThemeCssContent(null);
-        }
-        updateThemeCssStatusLabels();
-    }
-
-    private void resetThemeOverrides() {
-        clearThemeCssOverride(false);
-        clearThemeCssOverride(true);
-    }
-
-    private void downloadDefaultThemeCss(boolean darkTheme) {
-        try {
-            String cssContent = ThemeStylesheetResolver.readDefaultStylesheetContent(getClass(), darkTheme);
-            FileChooser chooser = new FileChooser();
-            chooser.setTitle(I18n.tr("configCssTemplateSave"));
-            chooser.getExtensionFilters().setAll(new FileChooser.ExtensionFilter(I18n.tr("configCssFiles"), "*.css"));
-            chooser.setInitialFileName(darkTheme ? "dark-application.css" : "application.css");
-            File target = chooser.showSaveDialog(RootApplication.getPrimaryStage());
-            if (target == null) {
-                return;
-            }
-            Files.writeString(target.toPath(), cssContent, StandardCharsets.UTF_8);
-            showMessageAlert(I18n.tr("configCssExportSuccess"));
-        } catch (Exception _) {
-            showErrorAlert(I18n.tr("configCssExportFailed"));
-        }
-    }
-
-    private void updateThemeCssStatusLabels() {
-        String lightName = currentThemeCssOverride.getLightThemeCssName();
-        String darkName = currentThemeCssOverride.getDarkThemeCssName();
-        lightThemeCssStatus.setText(lightName == null || lightName.isBlank()
-                ? I18n.tr(CONFIG_DEFAULT_RESOURCE_IN_USE)
-                : I18n.tr("configUsingOverridePrefix") + " " + lightName);
-        darkThemeCssStatus.setText(darkName == null || darkName.isBlank()
-                ? I18n.tr(CONFIG_DEFAULT_RESOURCE_IN_USE)
-                : I18n.tr("configUsingOverridePrefix") + " " + darkName);
     }
 
     private void addReloadCacheButtonClickHandler() {
@@ -632,8 +493,6 @@ public class ConfigurationUI extends VBox {
         String title = I18n.tr("configEmbeddedPlayer");
         if (playerType == VideoPlayerInterface.PlayerType.VLC) {
             title = I18n.tr("configEmbeddedPlayerVlc");
-        } else if (playerType == VideoPlayerInterface.PlayerType.LITE) {
-            title = I18n.tr("configEmbeddedPlayerLite");
         }
         defaultEmbedPlayer.setText(title);
     }
@@ -826,14 +685,12 @@ public class ConfigurationUI extends VBox {
         java.util.List.of(
                 wideViewHelpLink,
                 resolveChainAndDeepRedirectsHelpLink,
-                ffmpegTranscodingHelpLink,
-                litePlayerFfmpegHelpLink,
                 videoPlayersHelpLink,
                 filtersHelpLink,
                 themeHelpLink,
                 cacheFilteringHelpLink,
                 databaseSyncHelpLink,
-                ffmpegAndWebServerHelpLink,
+                webServerHelpLink,
                 tmdbMetadataHelpLink
         ).forEach(this::configureHelpLink);
     }
@@ -850,11 +707,6 @@ public class ConfigurationUI extends VBox {
 
     private void addWideViewHelpClickHandler() {
         wideViewHelpLink.setOnAction(event -> showWideViewHelp());
-    }
-
-    private void addFfmpegHelpClickHandlers() {
-        ffmpegTranscodingHelpLink.setOnAction(event -> showFfmpegTranscodingHelp());
-        litePlayerFfmpegHelpLink.setOnAction(event -> showLitePlayerFfmpegHelp());
     }
 
     private void addVideoPlayersHelpClickHandler() {
@@ -877,8 +729,8 @@ public class ConfigurationUI extends VBox {
         cacheFilteringHelpLink.setOnAction(event -> showCacheFilteringHelp());
     }
 
-    private void addFfmpegAndWebServerHelpClickHandler() {
-        ffmpegAndWebServerHelpLink.setOnAction(event -> showFfmpegAndWebServerHelp());
+    private void addWebServerHelpClickHandler() {
+        webServerHelpLink.setOnAction(event -> showWebServerHelp());
     }
 
     private void addTmdbMetadataHelpClickHandler() {
@@ -989,8 +841,6 @@ public class ConfigurationUI extends VBox {
         enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
         wideViewCheckBox.setSelected(configuration.isWideView());
         serverPort.setText(configuration.getServerPort());
-        enableFfmpegCheckBox.setSelected(configuration.isEnableFfmpegTranscoding());
-        enableLitePlayerFfmpegCheckBox.setSelected(configuration.isEnableLitePlayerFfmpeg());
         autoRunServerOnStartupCheckBox.setSelected(configuration.isAutoRunServerOnStartup());
         resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
         cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
@@ -1048,7 +898,6 @@ public class ConfigurationUI extends VBox {
                 resolvePauseFilteringValueForSave(),
                 darkThemeCheckBox.isSelected(), serverPort.getText(),
                 defaultEmbedPlayer.isSelected(),
-                enableFfmpegCheckBox.isSelected(),
                 sanitizeCacheExpiryDaysText(),
                 enableThumbnailsCheckBox.isSelected()
         );
@@ -1060,7 +909,6 @@ public class ConfigurationUI extends VBox {
         Integer saveDuration = filterLockUnlockDurationComboBox.getValue();
         configuration.setFilterLockUnlockDurationMinutes(saveDuration != null ? String.valueOf(saveDuration) : "15");
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
-        configuration.setEnableLitePlayerFfmpeg(enableLitePlayerFfmpegCheckBox.isSelected());
         configuration.setAutoRunServerOnStartup(autoRunServerOnStartupCheckBox.isSelected());
         configuration.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
         configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
@@ -1128,8 +976,6 @@ public class ConfigurationUI extends VBox {
     private void saveConfiguration(Configuration configuration) {
         service.save(configuration);
         I18n.setLocale(configuration.getLanguageLocale());
-        currentThemeCssOverride.setUpdatedAt(String.valueOf(System.currentTimeMillis()));
-        themeCssOverrideService.save(currentThemeCssOverride);
         if (onSaveCallback != null) {
             onSaveCallback.call(null);
         }
@@ -1942,22 +1788,6 @@ public class ConfigurationUI extends VBox {
         return I18n.tr("configWideViewHelpTitle");
     }
 
-    static String ffmpegTranscodingHelpText() {
-        return I18n.tr("configEnableFfmpegHelp");
-    }
-
-    static String ffmpegTranscodingHelpTitle() {
-        return I18n.tr("configEnableFfmpegHelpTitle");
-    }
-
-    static String litePlayerFfmpegHelpText() {
-        return I18n.tr("configEnableLitePlayerFfmpegHelp");
-    }
-
-    static String litePlayerFfmpegHelpTitle() {
-        return I18n.tr("configEnableLitePlayerFfmpegHelpTitle");
-    }
-
     static String videoPlayersHelpText() {
         return I18n.tr("configVideoPlayersHelp");
     }
@@ -1998,12 +1828,12 @@ public class ConfigurationUI extends VBox {
         return I18n.tr("configCacheFilteringHelpTitle");
     }
 
-    static String ffmpegAndWebServerHelpText() {
-        return I18n.tr("configFfmpegAndWebServerHelpText");
+    static String webServerHelpText() {
+        return I18n.tr("configWebServerHelpText");
     }
 
-    static String ffmpegAndWebServerHelpTitle() {
-        return I18n.tr("configFfmpegAndWebServerHelpTitle");
+    static String webServerHelpTitle() {
+        return I18n.tr("configWebServerHelpTitle");
     }
 
     static String tmdbMetadataHelpText() {
@@ -2020,14 +1850,6 @@ public class ConfigurationUI extends VBox {
 
     private void showWideViewHelp() {
         showHelpDialog(wideViewHelpTitle(), wideViewHelpText());
-    }
-
-    private void showFfmpegTranscodingHelp() {
-        showHelpDialog(ffmpegTranscodingHelpTitle(), ffmpegTranscodingHelpText());
-    }
-
-    private void showLitePlayerFfmpegHelp() {
-        showHelpDialog(litePlayerFfmpegHelpTitle(), litePlayerFfmpegHelpText());
     }
 
     private void showVideoPlayersHelp() {
@@ -2050,8 +1872,8 @@ public class ConfigurationUI extends VBox {
         showHelpDialog(cacheFilteringHelpTitle(), cacheFilteringHelpText());
     }
 
-    private void showFfmpegAndWebServerHelp() {
-        showHelpDialog(ffmpegAndWebServerHelpTitle(), ffmpegAndWebServerHelpText());
+    private void showWebServerHelp() {
+        showHelpDialog(webServerHelpTitle(), webServerHelpText());
     }
 
     private void showTmdbMetadataHelp() {
@@ -2068,18 +1890,6 @@ public class ConfigurationUI extends VBox {
         alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
         alert.showAndWait();
     }
-    static String stripTrailingHelp(String label) {
-        if (label == null) {
-            return "";
-        }
-        String trimmed = label.trim();
-        int idx = trimmed.lastIndexOf(" (");
-        if (idx > 0 && trimmed.endsWith(")")) {
-            return trimmed.substring(0, idx).trim();
-        }
-        return trimmed;
-    }
-
     private record VlcCachingOption(String value, String label) {
         private static java.util.List<VlcCachingOption> all() {
             return java.util.List.of(

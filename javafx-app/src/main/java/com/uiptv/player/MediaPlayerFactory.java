@@ -41,12 +41,16 @@ public class MediaPlayerFactory {
                 playerType = VideoPlayerInterface.PlayerType.VLC;
                 AppLog.addInfoLog(MediaPlayerFactory.class, "VLC found. Using it for embedded player");
             } catch (Exception e) {
-                AppLog.addWarningLog(MediaPlayerFactory.class, "VLC not found. Using Lite player that plays limited set of videos. Error: " + e.getMessage());
-                instance = new LiteVideoPlayer();
-                playerType = VideoPlayerInterface.PlayerType.LITE;
+                AppLog.addWarningLog(MediaPlayerFactory.class, "VLC not found. Embedded playback is unavailable. Error: " + e.getMessage());
+                instance = new DummyVideoPlayer();
+                playerType = VideoPlayerInterface.PlayerType.DUMMY;
             }
             if (instance.getPlayerContainer() instanceof Region playerContainer) {
-                definePlayerRegion(playerContainer);
+                if (playerType == VideoPlayerInterface.PlayerType.VLC) {
+                    definePlayerRegion(playerContainer);
+                } else {
+                    defineDummyRegion(playerContainer);
+                }
             }
         } else {
             instance = new DummyVideoPlayer();

@@ -43,18 +43,6 @@ class ConfigurationServiceTest extends DbBackedTest {
     }
 
     @Test
-    void litePlayerFfmpegFlag_defaultsToFalse_andPersistsWhenEnabled() {
-        ConfigurationService service = ConfigurationService.getInstance();
-        assertFalse(service.read().isEnableLitePlayerFfmpeg());
-
-        Configuration configuration = service.read();
-        configuration.setEnableLitePlayerFfmpeg(true);
-        service.save(configuration);
-
-        assertTrue(service.read().isEnableLitePlayerFfmpeg());
-    }
-
-    @Test
     void autoRunServerOnStartup_defaultsToFalse_andPersistsWhenEnabled() {
         ConfigurationService service = ConfigurationService.getInstance();
         assertFalse(service.read().isAutoRunServerOnStartup());

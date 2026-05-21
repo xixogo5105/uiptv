@@ -205,7 +205,7 @@ public class ManageAccountUI extends VBox {
             case M3U8_LOCAL:
                 formContainer.getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
                 break;
-            case M3U8_URL, RSS_FEED:
+            case M3U8_URL:
                 formContainer.getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
                 break;
             case XTREME_API:

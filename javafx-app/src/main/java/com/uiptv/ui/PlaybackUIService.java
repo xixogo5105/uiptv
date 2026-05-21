@@ -21,6 +21,8 @@ import java.util.Base64;
 import java.util.List;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
+import static com.uiptv.player.MediaPlayerFactory.getPlayerType;
+import static com.uiptv.player.api.VideoPlayerInterface.PlayerType.DUMMY;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
@@ -196,6 +198,10 @@ public final class PlaybackUIService {
             return;
         }
         var player = getPlayer();
+        if (getPlayerType() == DUMMY) {
+            showErrorAlert(I18n.tr("autoEmbeddedPlayerUnavailable"));
+            return;
+        }
         player.stopForReload();
         player.play(response);
     }

@@ -8,7 +8,6 @@ import java.util.List;
 import java.sql.SQLException;
 
 import static com.uiptv.util.SQLiteTableSync.ensureDatabaseReady;
-import static com.uiptv.util.SQLiteTableSync.replaceTable;
 import static com.uiptv.util.SQLiteTableSync.syncPublishedM3uCategorySelections;
 import static com.uiptv.util.SQLiteTableSync.syncPublishedM3uChannelSelections;
 import static com.uiptv.util.SQLiteTableSync.syncPublishedM3uSelections;
@@ -16,7 +15,6 @@ import static com.uiptv.util.SQLiteTableSync.syncTables;
 
 public class DatabaseSyncService {
     private static final List<DatabaseUtils.DbTable> CONFIGURATION_SYNCABLE = List.of(
-            DatabaseUtils.DbTable.THEME_CSS_OVERRIDE_TABLE,
             DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE,
             DatabaseUtils.DbTable.PUBLISHED_M3U_CATEGORY_SELECTION_TABLE,
             DatabaseUtils.DbTable.PUBLISHED_M3U_CHANNEL_SELECTION_TABLE
@@ -61,13 +59,6 @@ public class DatabaseSyncService {
             notifyProgress(progressListener, completedSteps, totalSteps, DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName());
             configurationCopied = com.uiptv.util.SQLiteTableSync.syncConfiguration(sourceDB, targetDB, syncExternalPlayerPaths);
             completedSteps++;
-            notifyProgress(progressListener, completedSteps, totalSteps, DatabaseUtils.DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName());
-            tableResults.add(new TableSyncResult(
-                    DatabaseUtils.DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName(),
-                    replaceTable(sourceDB, targetDB, DatabaseUtils.DbTable.THEME_CSS_OVERRIDE_TABLE)
-            ));
-            completedSteps++;
-
             notifyProgress(progressListener, completedSteps, totalSteps, DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName());
             tableResults.add(new TableSyncResult(
                     DatabaseUtils.DbTable.PUBLISHED_M3U_SELECTION_TABLE.getTableName(),

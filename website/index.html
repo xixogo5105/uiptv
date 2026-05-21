@@ -5,7 +5,7 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <meta content="UIPTV is an open-source IPTV player for Windows, Linux, and macOS with desktop + web SPA support, Live/VOD/Series playback, parental lock controls, approval-based remote sync, playlist publishing, binge-watch playback, and bulk account import tooling."
           name="description">
-    <meta content="UIPTV, IPTV Player, Stalker Portal, Xtreme Codes, M3U, HLS, FFmpeg, VLC, JavaFX, Open Source"
+    <meta content="UIPTV, IPTV Player, Stalker Portal, Xtreme Codes, M3U, HLS, VLC, JavaFX, Open Source"
           name="keywords">
     <meta content="UIPTV" name="author">
 
@@ -91,7 +91,7 @@
         </div>
         <ul class="hero-badges">
             <li><i class="fas fa-circle-check"></i> Desktop + Web SPA</li>
-            <li><i class="fas fa-circle-check"></i> Stalker, Xtreme, M3U, RSS</li>
+            <li><i class="fas fa-circle-check"></i> Stalker, Xtreme, M3U</li>
             <li><i class="fas fa-circle-check"></i> Live / VOD / Series + Watching Now</li>
             <li><i class="fas fa-circle-check"></i> Windows, Linux, macOS packages</li>
         </ul>
@@ -143,9 +143,8 @@
             <p>Multiple language bundles, right-to-left layout handling, and localized season/episode/tab numbering are
                 available for supported locales.</p></article>
         <article class="release-card"><i class="fas fa-palette"></i>
-            <h3>Theme Zoom + CSS Overrides</h3>
-            <p>Light/dark themes now include saved zoom scaling, zoom-fill playback mode, live preview, and per-theme
-                CSS override files with baseline templates.</p></article>
+            <h3>Theme Zoom</h3>
+            <p>Built-in light/dark themes include saved zoom scaling, zoom-fill playback mode, and live preview.</p></article>
     </div>
 </section>
 
@@ -157,11 +156,11 @@
     <div class="feature-grid">
         <article class="feature-card"><i class="fas fa-tv"></i>
             <h3>Multi-Protocol Playback</h3>
-            <p>Stalker Portal, Xtreme Codes, M3U (local/remote), and RSS feeds including YouTube channel feeds for mixed
-                content libraries.</p></article>
+            <p>Stalker Portal, Xtreme Codes, and M3U playlists support live, VOD, and series workflows for mixed content
+                libraries.</p></article>
         <article class="feature-card"><i class="fas fa-play-circle"></i>
             <h3>Flexible Player Routing</h3>
-            <p>Choose embedded VLC, embedded Lite, up to three external players, or browser playback without changing
+            <p>Choose embedded VLC, up to three external players, or browser playback without changing
                 account structures.</p></article>
         <article class="feature-card"><i class="fas fa-filter"></i>
             <h3>Content Filtering Controls</h3>
@@ -169,8 +168,7 @@
                 respected by web routes.</p></article>
         <article class="feature-card"><i class="fas fa-server"></i>
             <h3>Local-Network Web Server</h3>
-            <p>Serve channels, series, and playlists to browsers on phones, tablets, and TVs, with optional FFmpeg
-                compatibility mode for TS streams.</p></article>
+            <p>Serve channels, series, and playlists to browsers on phones, tablets, and TVs on your local network.</p></article>
         <article class="feature-card"><i class="fas fa-shield-halved"></i>
             <h3>Parental Lock + Censored Content Control</h3>
             <p>Password-protect filter management and require a local unlock step before opening Stalker categories or
@@ -242,10 +240,6 @@
             <li><i class="fab fa-java"></i><span><strong>Java 25</strong> bundled in packaged release builds</span></li>
             <li>
                 <i class="fas fa-file-video"></i><span><strong>VLC</strong> recommended for best embedded playback</span>
-            </li>
-            <li><i class="fab fa-youtube"></i><span><strong>yt-dlp</strong> required for YouTube RSS playback</span>
-            </li>
-            <li><i class="fas fa-film"></i><span><strong>FFmpeg</strong> required for TS-oriented web compatibility mode</span>
             </li>
             <li><i class="fas fa-hammer"></i><span><strong>WiX Toolset (build-time)</strong> required on Windows for `jpackage` `.exe`/`.msi` creation (`candle.exe`, `light.exe`)</span>
             </li>

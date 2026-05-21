@@ -62,7 +62,6 @@ public class DatabaseUtils {
                 new DataColumn("darkTheme", "TEXT"),
                 new DataColumn("serverPort", "TEXT"),
                 new DataColumn("embeddedPlayer", "TEXT"),
-                new DataColumn("enableFfmpegTranscoding", "TEXT"),
                 new DataColumn("cacheExpiryDays", "TEXT"),
                 new DataColumn("enableThumbnails", "TEXT"),
                 new DataColumn("wideView", "TEXT"),
@@ -70,7 +69,6 @@ public class DatabaseUtils {
                 new DataColumn("tmdbReadAccessToken", "TEXT"),
                 new DataColumn("filterLockHash", "TEXT"),
                 new DataColumn("uiZoomPercent", "TEXT"),
-                new DataColumn("enableLitePlayerFfmpeg", "TEXT"),
                 new DataColumn("autoRunServerOnStartup", "TEXT"),
                 new DataColumn("vlcNetworkCachingMs", "TEXT"),
                 new DataColumn("vlcLiveCachingMs", "TEXT"),
@@ -79,14 +77,6 @@ public class DatabaseUtils {
                 new DataColumn("enableVlcHttpForwardCookies", "TEXT"),
                 new DataColumn("resolveChainAndDeepRedirects", "TEXT"),
                 new DataColumn("filterLockUnlockDurationMinutes", "TEXT")
-        )));
-        dbStructure.put(DbTable.THEME_CSS_OVERRIDE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("id", INTEGER_PRIMARY_KEY),
-                new DataColumn("lightThemeCssName", "TEXT"),
-                new DataColumn("lightThemeCssContent", "TEXT"),
-                new DataColumn("darkThemeCssName", "TEXT"),
-                new DataColumn("darkThemeCssContent", "TEXT"),
-                new DataColumn(COLUMN_UPDATED_AT, "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
@@ -409,7 +399,6 @@ public class DatabaseUtils {
 
     public enum DbTable {
         CONFIGURATION_TABLE("Configuration"),
-        THEME_CSS_OVERRIDE_TABLE("ThemeCssOverride"),
         ACCOUNT_TABLE("Account"),
         ACCOUNT_INFO_TABLE("AccountInfo"),
         BOOKMARK_TABLE("Bookmark"),

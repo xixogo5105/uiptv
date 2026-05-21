@@ -11,7 +11,6 @@ import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
-import com.uiptv.util.RssParser;
 import com.uiptv.util.ServerUtils;
 import com.uiptv.util.XtremeApiParser;
 import org.json.JSONArray;
@@ -74,12 +73,6 @@ public class CategoryService {
     }
 
     public List<Category> get(Account account, boolean censor, LoggerCallback logger) {
-        if (account.getType() == RSS_FEED) {
-            hardReloadCategories(account, logger);
-            List<Category> cats = CategoryDb.get().getCategories(account);
-            return maybeFilterCategories(cats, censor);
-        }
-
         if (usesVodSeriesCategoryCache(account)) {
             return getVodSeriesCategories(account, censor, logger);
         }
@@ -193,8 +186,6 @@ public class CategoryService {
             } else if (account.getType() == AccountType.XTREME_API) {
                 log(logger, "Fetching categories from Xtreme API...");
                 categories.addAll(xtremeAPICategories(account));
-            } else if (account.getType() == AccountType.RSS_FEED) {
-                categories.addAll(rssCategories());
             } else {
                 log(logger, "Fetching categories from Stalker Portal...");
                 List<Category> s = stalkerPortalCategories(account, logger);
@@ -214,16 +205,6 @@ public class CategoryService {
     private List<Category> m3u8Categories(Account account) {
         Set<Category> categories = new LinkedHashSet<>();
         Set<PlaylistEntry> m3uEntries = account.getType() == M3U8_URL ? parseSourceCategory(account.getM3u8Path()) : parsePathCategory(account.getM3u8Path());
-        m3uEntries.forEach(entry -> {
-            Category c = new Category(entry.getId(), entry.getGroupTitle(), entry.getGroupTitle(), false, 0);
-            categories.add(c);
-        });
-        return categories.stream().toList();
-    }
-
-    private List<Category> rssCategories() {
-        Set<Category> categories = new LinkedHashSet<>();
-        Set<PlaylistEntry> m3uEntries = RssParser.getCategories();
         m3uEntries.forEach(entry -> {
             Category c = new Category(entry.getId(), entry.getGroupTitle(), entry.getGroupTitle(), false, 0);
             categories.add(c);

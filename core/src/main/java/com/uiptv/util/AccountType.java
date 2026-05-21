@@ -10,8 +10,7 @@ public enum AccountType {
 
     M3U8_URL("M3U8 URL"),
 
-    XTREME_API("Xtreme API"),
-    RSS_FEED("RSS Feed");
+    XTREME_API("Xtreme API");
 
     private final String display;
 

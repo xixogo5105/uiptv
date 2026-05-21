@@ -7,7 +7,6 @@ public interface VideoPlayerInterface {
 
     enum PlayerType {
         VLC,
-        LITE,
         DUMMY
     }
 

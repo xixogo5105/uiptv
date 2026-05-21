@@ -22,7 +22,6 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
    - [Stalker Portal](#stalker-portal)
    - [Xtreme Codes](#xtreme-codes)
    - [M3U Playlists (Remote & Local)](#m3u-playlists-remote--local)
-   - [RSS Feeds (YouTube Support)](#rss-feeds-youtube-support)
    - [Account Maintenance](#account-maintenance)
    - [Bulk Account Import](#bulk-account-import)
 5. [Using the Player](#5-using-the-player)
@@ -38,7 +37,6 @@ Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IP
 7. [Advanced Features & Tips](#7-advanced-features--tips)
    - [External Player Integration](#external-player-integration)
    - [Kodi Integration](#kodi-integration)
-   - [YouTube Integration](#youtube-integration)
    - [Database Synchronization](#database-synchronization)
    - [Troubleshooting](#troubleshooting)
 
@@ -66,12 +64,10 @@ Key highlights include:
 - **Series binge-watch**: Series playback can now follow a binge-watch playlist/session flow for episode-to-episode viewing.
 - **Update window**: The About page now opens a custom GitHub Releases-backed update dialog.
 - **Localized UI**: UIPTV now ships with multiple language bundles, RTL layout support, and localized season/episode numbering where supported.
-- **Theme zoom + overrides**: The Theme section supports saved zoom, live preview, light/dark CSS overrides, and zoom-fill playback mode.
+- **Theme controls**: The Theme section supports built-in light/dark themes, saved zoom, live preview, and zoom-fill playback mode.
 - **Browser player path**: Desktop context menus and default playback settings can route playback through the local web player when needed.
 - **Watching Now improvements**: Series watch-state and resume flows are available in both desktop and web experiences.
 - **Import tooling refresh**: The Stalker, M3U, and Xtreme import guides have been aligned with current parser behavior.
-
-For advanced desktop theming, see [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md).
 
 ---
 
@@ -81,8 +77,6 @@ For advanced desktop theming, see [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUI
 To ensure a smooth experience, please verify your system meets the following requirements:
 - **Java**: Java 25 is bundled with the installer, so no separate installation is required.
 - **VLC Media Player**: Highly recommended for the best video compatibility. Ensure it is installed and added to your system's PATH.
-- **yt-dlp**: Required if you plan to watch YouTube videos via RSS feeds.
-- **FFmpeg**: Required if you plan to stream `.ts` files via the web interface.
 
 ### Installing on Windows
 **Important:** Before installing a new version or upgrading, you **must manually uninstall the previously installed version** of UIPTV. The installer does not automatically remove older versions, and failure to do so may result in the upgrade not being applied correctly.
@@ -90,15 +84,6 @@ To ensure a smooth experience, please verify your system meets the following req
 1. Download the latest Windows release archive from the [Releases Page](https://github.com/xixogo5105/uiptv/releases/latest).
 2. Extract the archive.
 3. Open the extracted folder and launch UIPTV using the packaged Windows executable.
-
-#### Installing Dependencies (FFmpeg & yt-dlp)
-To enable YouTube support and web streaming of TS files, you need to install these tools and ensure they are in your system PATH.
-- **Using Winget (Recommended)**: Open PowerShell and run:
-  ```powershell
-  winget install Gyan.FFmpeg
-  winget install yt-dlp.yt-dlp
-  ```
-- **Manual Installation**: Download the executables from their official websites, place them in a permanent folder (e.g., `C:\Tools`), and add that folder to your System Environment Variables (PATH).
 
 #### Windows Installer Build Dependency (WiX Toolset)
 If you build Windows `.exe`/`.msi` installers locally with `jpackage`, install WiX Toolset and ensure `candle.exe` and `light.exe` are on `PATH`.
@@ -126,17 +111,8 @@ If you build Windows `.exe`/`.msi` installers locally with `jpackage`, install W
 3. Launch the application from your application menu or terminal.
 
 #### Installing Dependencies
-- **FFmpeg**:
-  - **Debian/Ubuntu**: `sudo apt install ffmpeg`
-  - **Fedora**: `sudo dnf install ffmpeg`
 - **fakeroot** (required for Debian/Ubuntu `.deb` packaging workflows):
   - **Debian/Ubuntu**: `sudo apt install fakeroot`
-- **yt-dlp**:
-  It is recommended to install the latest binary directly to ensure compatibility with YouTube's latest changes:
-  ```bash
-  sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-  sudo chmod a+rx /usr/local/bin/yt-dlp
-  ```
 
 ### Installing on macOS
 1. Download the macOS release archive.
@@ -145,10 +121,7 @@ If you build Windows `.exe`/`.msi` installers locally with `jpackage`, install W
 4. You may need to allow the application to run in **System Settings > Privacy & Security** if it's not signed by an identified developer.
 
 #### Installing Dependencies
-The easiest way to install the required dependencies on macOS is using **Homebrew**. Open your terminal and run:
-```bash
-brew install ffmpeg yt-dlp
-```
+Install **VLC Media Player** if you want embedded playback. No additional media tools are required for current desktop releases.
 
 ---
 
@@ -159,7 +132,7 @@ The **Configuration** tab is your central hub for customizing UIPTV.
 ### Player Settings
 UIPTV offers flexibility in how you watch your content:
 - **Embedded VLC Player**: This is the default and most robust option. It uses the VLC libraries installed on your system.
-- **Embedded Lite Player**: A fallback player with basic functionality, useful if VLC is unavailable.
+- **Embedded unavailable fallback**: If VLC cannot be started, UIPTV disables embedded playback and prompts you to use an external player or install VLC correctly.
 - **Web Browser Player**: You can select browser playback as a default route for compatible workflows.
 - **External Players**: You can configure up to three external players.
   1. Click **Browse...** to locate the executable of your preferred player (e.g., `mpv.exe`, `smplayer`).
@@ -182,8 +155,6 @@ Make UIPTV look the way you want:
 - **Language**: Choose the UI language from the Theme section.
 - **Dark Theme**: Enable this for a modern, eye-friendly dark interface.
 - **Zoom**: Save a browser-style font zoom value for the desktop UI and preview it immediately from the Theme section.
-- **Theme CSS Overrides**: Upload custom light/dark CSS files from Settings -> Theme.
-- **Template Export**: Download default light/dark CSS files and use them as baseline templates.
 - **Thumbnails**: Enable/disable thumbnail-heavy series and watching-now cards.
 
 ### Cache Management
@@ -196,7 +167,6 @@ UIPTV uses a local SQLite database to cache account, category, channel, bookmark
 ### Web Server Settings
 - **Server Port**: Configure the listening port.
 - **Start/Stop/Open**: Manage server lifecycle from the Configuration tab.
-- **FFmpeg Transcoding**: Enable optional TS-friendly web playback compatibility.
 - **Publish M3U8**: Generate merged playlists for remote-player consumption, with account/category/channel selection controls for narrower exports.
 
 ### Updates & About
@@ -235,13 +205,6 @@ See [M3U_IMPORT_GUIDE.md](M3U_IMPORT_GUIDE.md) for bulk import examples and M3U 
 
 - **Remote URL**: Paste the http/https link to your M3U playlist.
 - **Local File**: Browse your computer to select a downloaded `.m3u` or `.m3u8` file.
-
-### RSS Feeds (YouTube Support)
-Turn UIPTV into a news or video feed reader.
-1. Select **RSS Feed**.
-2. Enter the RSS URL.
-   - **YouTube Tip**: To follow a YouTube channel, use: `https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID`
-3. Click **Add Account**.
 
 **Note**: After adding an account, click **Parse Accounts** to load the channels.
 
@@ -311,9 +274,9 @@ The **Import Bulk Accounts** tab allows you to add multiple accounts at once.
 - **Watched Markers**: Series and episode rows show watched/in-progress states.
 
 ### Embedded Players Explained
-UIPTV comes with two embedded players, each serving a different purpose.
+UIPTV uses the VLC embedded player when VLC can be started successfully.
 
-#### 1. Embedded VLC Player (Recommended)
+#### Embedded VLC Player (Recommended)
 This is the primary and most powerful player. It leverages the **VLC Media Player** libraries installed on your system.
 - **Features**:
   - **Broad Format Support**: Plays almost any video or audio format supported by VLC.
@@ -322,14 +285,9 @@ This is the primary and most powerful player. It leverages the **VLC Media Playe
   - **Overlay Controls**: Controls appear on mouse hover and fade out when idle.
   - **PiP Mode**: Allows you to detach the video into a floating, resizable window that stays on top of other applications.
 
-#### 2. Embedded Lite Player (Fallback)
-This is a lightweight player based on JavaFX's built-in media engine. It is used as a fallback if VLC is not detected or if you prefer a simpler experience.
-- **Features**:
-  - **Basic Playback**: Supports standard web formats (HLS/m3u8, MP4).
-  - **Simple Interface**: Includes essential controls like Play/Pause, Stop, Repeat, Reload, Fullscreen, PiP, Mute, Volume, and Aspect Ratio.
-  - **Limitations**: Does not support as many codecs or advanced streaming protocols as the VLC player. It is best suited for standard HLS streams.
+If VLC is unavailable, embedded playback is disabled and UIPTV shows a warning recommending an external player or a correct VLC installation.
 
-**Note**: Both players support standard keyboard shortcuts:
+**Note**: The embedded VLC player supports standard keyboard shortcuts:
 - **F**: Toggle Fullscreen
 - **M**: Toggle Mute
 - **Esc**: Exit Fullscreen
@@ -355,7 +313,7 @@ UIPTV includes a built-in web server, allowing you to watch IPTV content on othe
 - **SPA Web UI**: The main web entry is `/` or `/index.html` with additional views like `/myflix.html`.
 - **Playlist Exports**: You can download published playlists from `/iptv.m3u` and `/iptv.m3u8`.
 - **Bookmarks Playlist**: Export favorites as `/bookmarks.m3u8`.
-- **TS Support**: To play MPEG-TS (`.ts`) streams in the browser, install **FFmpeg** on the host and enable FFmpeg transcoding in Configuration.
+- **Browser Compatibility**: Browser playback support depends on the stream format supported by the browser and device. Use an external player for streams your browser cannot decode.
 
 ### Headless Mode
 If you want to run UIPTV on a server without a graphical interface:
@@ -410,12 +368,6 @@ fi
 ```
 Save this as `kodi.sh`, make it executable (`chmod +x kodi.sh`), and set it as an external player in UIPTV.
 
-### YouTube Integration
-To watch YouTube videos seamlessly:
-1. Install **yt-dlp** and add it to your PATH.
-2. Add YouTube RSS feeds as described in the [Accounts section](#rss-feeds-youtube-support).
-3. When you play a video, UIPTV uses `yt-dlp` to fetch the stream URL and plays it in your chosen player.
-
 ### Database Synchronization
 UIPTV supports synchronizing its database between two instances or backups. This is useful for keeping your settings and accounts consistent across devices.
 
@@ -441,7 +393,7 @@ A: This is often a codec issue. We strongly recommend using **VLC** as your back
 
 **Q: Web player says "Error loading media".**
 A:
-- If it's a `.ts` stream, ensure **FFmpeg** is installed.
+- Use an external player for stream formats your browser cannot decode.
 - Ensure the device you are watching on is on the same local network.
 - Check if your firewall is blocking the configured server port (default 8888).
 

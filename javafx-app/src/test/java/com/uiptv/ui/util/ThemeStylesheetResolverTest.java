@@ -1,10 +1,6 @@
 package com.uiptv.ui.util;
 
-import com.uiptv.model.ThemeCssOverride;
-import com.uiptv.service.ThemeCssOverrideService;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -39,53 +35,19 @@ class ThemeStylesheetResolverTest {
     }
 
     @Test
-    void resolveStylesheetUrl_withOverrides_encodesToDataUrl() {
-        ThemeCssOverrideService overrideService = Mockito.mock(ThemeCssOverrideService.class);
-        ThemeCssOverride override = new ThemeCssOverride();
-        override.setLightThemeCssContent(".root { -fx-accent: red; }");
-        override.setDarkThemeCssContent(".root { -fx-accent: blue; }");
-        Mockito.when(overrideService.read()).thenReturn(override);
-
-        try (MockedStatic<ThemeCssOverrideService> serviceStatic = Mockito.mockStatic(ThemeCssOverrideService.class)) {
-            serviceStatic.when(ThemeCssOverrideService::getInstance).thenReturn(overrideService);
-            String lightUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), false);
-            String darkUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), true);
-            assertTrue(lightUrl.startsWith("data:text/css;base64,"));
-            assertTrue(darkUrl.startsWith("data:text/css;base64,"));
-            assertEquals(".root { -fx-accent: red; }", decodeCss(lightUrl));
-            assertEquals(".root { -fx-accent: blue; }", decodeCss(darkUrl));
-        }
-    }
-
-    @Test
     void resolveStylesheetUrl_withZoom_includesFontOverride() {
-        ThemeCssOverrideService overrideService = Mockito.mock(ThemeCssOverrideService.class);
-        ThemeCssOverride override = new ThemeCssOverride();
-        override.setLightThemeCssContent(".root { -fx-accent: green; }");
-        Mockito.when(overrideService.read()).thenReturn(override);
-
-        try (MockedStatic<ThemeCssOverrideService> serviceStatic = Mockito.mockStatic(ThemeCssOverrideService.class)) {
-            serviceStatic.when(ThemeCssOverrideService::getInstance).thenReturn(overrideService);
-            String url = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), false, 110);
-            String css = decodeCss(url);
-            assertTrue(css.contains("-fx-accent: green"));
-            assertTrue(css.contains("-fx-font-size: 14.300"));
-        }
+        String url = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), false, 110);
+        String css = decodeCss(url);
+        assertTrue(css.contains(".root"));
+        assertTrue(css.contains("-fx-font-size: 14.300"));
     }
 
     @Test
-    void resolveStylesheetUrl_withoutOverrides_returnsResourceUrl() {
-        ThemeCssOverrideService overrideService = Mockito.mock(ThemeCssOverrideService.class);
-        ThemeCssOverride override = new ThemeCssOverride();
-        Mockito.when(overrideService.read()).thenReturn(override);
-
-        try (MockedStatic<ThemeCssOverrideService> serviceStatic = Mockito.mockStatic(ThemeCssOverrideService.class)) {
-            serviceStatic.when(ThemeCssOverrideService::getInstance).thenReturn(overrideService);
-            String lightUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), false);
-            String darkUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), true);
-            assertTrue(lightUrl.contains("application.css"));
-            assertTrue(darkUrl.contains("dark-application.css"));
-        }
+    void resolveStylesheetUrl_returnsBuiltInResourceUrl() {
+        String lightUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), false);
+        String darkUrl = ThemeStylesheetResolver.resolveStylesheetUrl(getClass(), true);
+        assertTrue(lightUrl.contains("application.css"));
+        assertTrue(darkUrl.contains("dark-application.css"));
     }
 
     private static String decodeCss(String dataUrl) {

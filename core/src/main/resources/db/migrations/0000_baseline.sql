@@ -24,8 +24,6 @@ CREATE TABLE IF NOT EXISTS Configuration
     TEXT,
     embeddedPlayer
     TEXT,
-    enableFfmpegTranscoding
-    TEXT,
     cacheExpiryDays
     TEXT,
     enableThumbnails
@@ -40,10 +38,6 @@ CREATE TABLE IF NOT EXISTS Configuration
     TEXT,
     uiZoomPercent
     TEXT,
-    enableLitePlayerFfmpeg
-    TEXT
-    default
-    '0',
     autoRunServerOnStartup
     TEXT
     default
@@ -70,24 +64,6 @@ CREATE TABLE IF NOT EXISTS Configuration
     TEXT
     default
        '15'
-);
-
-CREATE TABLE IF NOT EXISTS ThemeCssOverride
-(
-    id
-    INTEGER
-    PRIMARY
-    KEY,
-    lightThemeCssName
-    TEXT,
-    lightThemeCssContent
-    TEXT,
-    darkThemeCssName
-    TEXT,
-    darkThemeCssContent
-    TEXT,
-    updatedAt
-    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS Account

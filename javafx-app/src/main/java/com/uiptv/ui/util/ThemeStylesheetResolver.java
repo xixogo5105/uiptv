@@ -1,8 +1,5 @@
 package com.uiptv.ui.util;
 
-import com.uiptv.model.ThemeCssOverride;
-import com.uiptv.service.ThemeCssOverrideService;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -18,22 +15,12 @@ public final class ThemeStylesheetResolver {
     }
 
     public static String resolveStylesheetUrl(Class<?> resourceAnchor, boolean darkTheme) {
-        ThemeCssOverride override = ThemeCssOverrideService.getInstance().read();
-        String overrideCss = darkTheme ? override.getDarkThemeCssContent() : override.getLightThemeCssContent();
-        if (overrideCss != null && !overrideCss.isBlank()) {
-            return toDataUrl(overrideCss);
-        }
         String resourcePath = getDefaultResourcePath(darkTheme);
         java.net.URL themeUrl = resourceAnchor.getResource(resourcePath);
         return themeUrl != null ? themeUrl.toExternalForm() : resourcePath;
     }
 
     public static String resolveStylesheetUrl(Class<?> resourceAnchor, boolean darkTheme, int zoomPercent) {
-        ThemeCssOverride override = ThemeCssOverrideService.getInstance().read();
-        String overrideCss = darkTheme ? override.getDarkThemeCssContent() : override.getLightThemeCssContent();
-        if (overrideCss != null && !overrideCss.isBlank()) {
-            return toDataUrl(overrideCss + "\n" + buildZoomOverrideCss(zoomPercent));
-        }
         return toDataUrl(readDefaultStylesheetContentUnchecked(resourceAnchor, darkTheme) + "\n" + buildZoomOverrideCss(zoomPercent));
     }
 

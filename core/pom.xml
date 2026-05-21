@@ -45,10 +45,6 @@
             <artifactId>sqlite-jdbc</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.rometools</groupId>
-            <artifactId>rome</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
         </dependency>

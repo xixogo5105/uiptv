@@ -20,7 +20,6 @@ Release assets are currently published for Windows (x86_64), Linux (x86_64 and a
 ## Documentation
 
 - User guide: [GUIDE.md](GUIDE.md)
-- CSS/theming guide: [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md)
 - Import format reference: [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md)
 - Release notes: [release_notes.md](release_notes.md)
 
@@ -46,30 +45,27 @@ Build from the repository root. Maven resolves the module graph automatically.
 - **Update experience**: The About/update flow now uses a custom GitHub Releases-backed update window.
 - **Localized UI**: Multiple bundled UI languages are available, including RTL support and localized season/episode/tab numbering for supported locales.
 - **Theme controls**: Built-in light/dark themes now support saved zoom scaling, zoom-fill playback mode, and live preview from Configuration -> Theme.
-- **CSS customization**: Theme overrides, exported baseline CSS templates, and a documented JavaFX styling contract are available for deeper customization.
 
 
 ## Features:
 - **Simple by Design**: UIPTV prioritizes a plain, low-friction interface and practical defaults over visual clutter or complex workflows.
-- **Embedded & External Player Support**: UIPTV now includes two embedded video players: a full-featured player powered by **VLC** and a limited, lightweight alternative.
+- **Embedded & External Player Support**: UIPTV includes embedded playback through **VLC** and configurable external player support.
   - For the best experience, it is highly recommended to have **VLC** installed on your system and available in the system's PATH.
-  - If VLC is not found, the player will fall back to a basic, lightweight player with fewer features.
+  - If VLC is not found, embedded playback is disabled and UIPTV will prompt you to use an external player or install VLC correctly.
   - You can still configure an external player (like MPV, SMPlayer, etc.) for maximum control.
 - **Watching Now + Series Resume**: Track watched series/episodes and continue from where you left off on desktop and web.
 - **VOD/Series Metadata**: Enhanced details for movies/series including richer cards and IMDb-oriented metadata flows.
 - **Parental Lock & Filtering**: Protect blocked keywords and Stalker censored content with a local password, while still supporting category/channel filtering and pause/unpause controls. These restrictions also affect content exposed through the web server.
-- **Theme Modes & Styling**: Built-in light/dark themes are included, theme zoom can be saved from Settings, and users can override each theme with full CSS files. See [CSS_APPLICATION_GUIDE.md](CSS_APPLICATION_GUIDE.md).
+- **Theme Modes & Styling**: Built-in light/dark themes are included, and theme zoom can be saved from Settings.
 - **Web Server**: Expose your accounts, bookmarks, watching-now data, and published playlists to any device on your local network through a browser.
   - **SPA Routes**: Main UI is served from `/` and `/index.html` with additional views (`/myflix.html`, `/player.html`).
   - **Extra Endpoints**: Includes playlist exports (`/iptv.m3u`, `/iptv.m3u8`) and bookmarks playlist (`/bookmarks.m3u8`).
-  - **FFmpeg Requirement**: For TS-style streams in web playback, install **ffmpeg** and enable FFmpeg transcoding in Configuration.
 - **DRM-aware Web Playback**: Playback payloads now include DRM fields (type/license/clear keys/manifest hints) where available.
 - **Web Server Headless Support**: Run UIPTV in headless mode if you only intend to access channels through a browser.
 - **Multiple IPTV Protocols**: The player supports the following protocols and formats:
   - **Stalker Portal**: Live Channels, Video On Demand, and Series.
   - **M3U Playlists**: Supports local and remote M3U files (EPG is not yet supported).
   - **Xtreme Codes**: Live Channels, Video On Demand, and Series.
-  - **RSS Feeds**: Add and watch content from RSS feeds. This includes support for YouTube channels by using their RSS feed URL (e.g., `https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID`). For YouTube videos to play, **yt-dlp** must be installed and accessible in the system's PATH.
 - **Bulk Account Import**: Add multiple accounts at once for Stalker, Xtreme, and M3U, with optional post-import verification.
 - **Account Tools**: MAC verify/manage flows, account pinning, timezone and HTTP method support for Stalker, browser-playback routing, and account-level cache reload.
 - **Database Synchronization**: Synchronize your configuration and accounts between two database files locally or through the approved remote sync flow.

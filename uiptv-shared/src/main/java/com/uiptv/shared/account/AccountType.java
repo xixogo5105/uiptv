@@ -8,8 +8,7 @@ public enum AccountType {
     STALKER_PORTAL("Stalker Portal"),
     XTREME_API("Xtreme API"),
     M3U8_URL("M3U8 URL"),
-    M3U8_LOCAL("M3U8 Local"),
-    RSS_FEED("RSS Feed");
+    M3U8_LOCAL("M3U8 Local");
 
     public static final Set<AccountType> CACHE_REFRESH_SUPPORTED = immutableSet(
             STALKER_PORTAL,
@@ -18,7 +17,7 @@ public enum AccountType {
             M3U8_LOCAL
     );
     public static final Set<AccountType> VOD_AND_SERIES_SUPPORTED = immutableSet(STALKER_PORTAL, XTREME_API);
-    public static final Set<AccountType> PREDEFINED_URL_SUPPORTED = immutableSet(RSS_FEED, M3U8_URL, M3U8_LOCAL);
+    public static final Set<AccountType> PREDEFINED_URL_SUPPORTED = immutableSet(M3U8_URL, M3U8_LOCAL);
 
     private final String display;
 

@@ -8,13 +8,11 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.model.SeriesWatchingNowSnapshot;
-import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.model.VodWatchState;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DbBackedTest;
-import com.uiptv.service.ThemeCssOverrideService;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 
@@ -61,15 +59,11 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
         }
 
         ConfigurationService configurationService = ConfigurationService.getInstance();
-        ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
         AccountService accountService = AccountService.getInstance();
         BookmarkService bookmarkService = BookmarkService.getInstance();
 
         Configuration savedConfiguration = saveAndReadConfiguration(configurationService);
         assertConfigurationPersistence(savedConfiguration);
-
-        ThemeCssOverride savedOverride = saveAndReadThemeOverride(themeCssOverrideService);
-        assertThemeOverridePersistence(savedOverride);
 
         Account savedAccount = saveAndReadAccount(accountService);
         assertAccountPersistence(savedAccount);
@@ -96,7 +90,6 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
                 true,
                 "8899",
                 true,
-                true,
                 "45",
                 true
         );
@@ -115,22 +108,6 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
         assertEquals("125", savedConfiguration.getUiZoomPercent());
         assertTrue(savedConfiguration.isWideView());
         assertTrue(savedConfiguration.isAutoRunServerOnStartup());
-    }
-
-    private ThemeCssOverride saveAndReadThemeOverride(ThemeCssOverrideService themeCssOverrideService) {
-        ThemeCssOverride override = new ThemeCssOverride();
-        override.setLightThemeCssName("light.css");
-        override.setLightThemeCssContent(".root { -fx-font-size: 14px; }");
-        override.setDarkThemeCssName("dark.css");
-        override.setDarkThemeCssContent(".root { -fx-font-size: 15px; }");
-        override.setUpdatedAt("123456");
-        themeCssOverrideService.save(override);
-        return themeCssOverrideService.read();
-    }
-
-    private void assertThemeOverridePersistence(ThemeCssOverride savedOverride) {
-        assertEquals("light.css", savedOverride.getLightThemeCssName());
-        assertEquals("dark.css", savedOverride.getDarkThemeCssName());
     }
 
     private Account saveAndReadAccount(AccountService accountService) {

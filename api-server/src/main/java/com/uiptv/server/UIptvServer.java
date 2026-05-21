@@ -57,9 +57,7 @@ public class UIptvServer {
         routes.addPrefixPath("/js", adapt(new HttpJavascriptServer()));
         routes.addPrefixPath("/css", adapt(new HttpCssServer()));
 
-        // HLS Stream Server (Memory-based)
-        routes.addPrefixPath("/hls", adapt(new HttpHlsFileServer()));
-        routes.addPrefixPath("/hls-upload", adapt(new HttpHlsUploadServer()));
+        // Local stream proxy for web playback.
         routes.addPrefixPath("/proxy-stream", adapt(new HttpProxyStreamServer()));
         routes.addExactPath("/bingewatch.m3u8", adapt(new HttpBingeWatchPlaylistServer()));
         routes.addPrefixPath("/bingwatch", adapt(new HttpBingeWatchEntryServer()));

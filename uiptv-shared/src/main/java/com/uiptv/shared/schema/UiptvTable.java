@@ -2,7 +2,6 @@ package com.uiptv.shared.schema;
 
 public enum UiptvTable {
     CONFIGURATION("Configuration"),
-    THEME_CSS_OVERRIDE("ThemeCssOverride"),
     ACCOUNT("Account"),
     ACCOUNT_INFO("AccountInfo"),
     BOOKMARK("Bookmark"),

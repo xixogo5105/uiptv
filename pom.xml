@@ -203,47 +203,6 @@
             </dependency>
 
             <dependency>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-media</artifactId>
-                <version>${javafx.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-media</artifactId>
-                <version>${javafx.version}</version>
-                <classifier>win</classifier>
-            </dependency>
-            <dependency>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-media</artifactId>
-                <version>${javafx.version}</version>
-                <classifier>win-aarch64</classifier>
-            </dependency>
-            <dependency>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-media</artifactId>
-                <version>${javafx.version}</version>
-                <classifier>mac</classifier>
-            </dependency>
-            <dependency>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-media</artifactId>
-                <version>${javafx.version}</version>
-                <classifier>mac-aarch64</classifier>
-            </dependency>
-            <dependency>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-media</artifactId>
-                <version>${javafx.version}</version>
-                <classifier>linux</classifier>
-            </dependency>
-            <dependency>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-media</artifactId>
-                <version>${javafx.version}</version>
-                <classifier>linux-aarch64</classifier>
-            </dependency>
-            <dependency>
                 <groupId>org.controlsfx</groupId>
                 <artifactId>controlsfx</artifactId>
                 <version>11.2.3</version>
@@ -267,11 +226,6 @@
                 <groupId>io.github.willena</groupId>
                 <artifactId>sqlite-jdbc</artifactId>
                 <version>3.51.2.0</version>
-            </dependency>
-            <dependency>
-                <groupId>com.rometools</groupId>
-                <artifactId>rome</artifactId>
-                <version>2.1.0</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.httpcomponents.client5</groupId>

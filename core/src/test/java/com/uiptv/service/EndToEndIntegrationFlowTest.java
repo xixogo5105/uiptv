@@ -12,7 +12,6 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
-import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
@@ -57,14 +56,12 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     private String baseUrl;
     private String stalkerPortalUrl;
     private String xtremeBaseUrl;
-    private String rssFeedUrl;
 
     @BeforeEach
     void startMockServer() throws IOException {
         mockServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         mockServer.createContext("/portal.php", this::handleStalker);
         mockServer.createContext("/xtreme/player_api.php", this::handleXtreme);
-        mockServer.createContext("/rss/feed.xml", this::handleRss);
         mockServer.createContext("/m3u", this::handleM3uPlaylist);
         mockServer.start();
 
@@ -72,7 +69,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         baseUrl = "http://127.0.0.1:" + port;
         stalkerPortalUrl = baseUrl + "/portal.php";
         xtremeBaseUrl = baseUrl + "/xtreme/";
-        rssFeedUrl = baseUrl + "/rss/feed.xml";
     }
 
     @AfterEach
@@ -95,15 +91,13 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
      *    - Create 1 Stalker account.
      *    - Create 1 Xtreme account.
      *    - Create 1 M3U account.
-     *    - Create 1 RSS account.
-     *    - Assert counts == 1 for each account type bucket.
+     *    - Assert counts == 1 for each supported account type bucket.
      *
      * 3) Parser/import expansion to full sets
      *    - Import Stalker accounts through TextParserService MODE_STALKER.
      *    - Import Xtreme accounts through TextParserService MODE_XTREME.
      *    - Import M3U accounts through TextParserService MODE_M3U.
-     *    - Add RSS accounts to reach same final cardinality.
-     *    - Assert counts == 3 per type bucket.
+     *    - Assert counts == 3 per supported type bucket.
      *
      * 4) Account update assertions
      *    - Update timezone/http method and provider URLs as applicable.
@@ -165,7 +159,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
      *
      * Test infrastructure notes:
      * - Uses an embedded mock HttpServer to emulate:
-     *   Stalker portal endpoints, Xtreme player_api.php endpoints, RSS feed, M3U files.
+     *   Stalker portal endpoints, Xtreme player_api.php endpoints, and M3U files.
      * - Uses DbBackedTest temp SQLite path for isolated DB per test run.
      * - Mocks LogUtil.httpLog to avoid JavaFX LogDisplayUI initialization in headless CI.
      */
@@ -207,7 +201,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         Configuration updated = configurationService.read();
         updated.setServerPort("10001");
         updated.setDarkTheme(true);
-        updated.setEnableFfmpegTranscoding(true);
         updated.setEnableThumbnails(true);
         updated.setEmbeddedPlayer(true);
         updated.setWideView(true);
@@ -215,21 +208,12 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         updated.setLanguageLocale("ar-SA");
         updated.setTmdbReadAccessToken("tmdb-token-e2e");
         updated.setUiZoomPercent("133");
-        updated.setEnableLitePlayerFfmpeg(true);
         updated.setAutoRunServerOnStartup(true);
         configurationService.save(updated);
-
-        ThemeCssOverride themeOverride = new ThemeCssOverride();
-        themeOverride.setLightThemeCssName("light-e2e.css");
-        themeOverride.setLightThemeCssContent(".root { -fx-base: #fafafa; }");
-        themeOverride.setDarkThemeCssName("dark-e2e.css");
-        themeOverride.setDarkThemeCssContent(".root { -fx-base: #111111; }");
-        ThemeCssOverrideService.getInstance().save(themeOverride);
 
         Configuration persisted = configurationService.read();
         assertEquals("10001", persisted.getServerPort());
         assertTrue(persisted.isDarkTheme());
-        assertTrue(persisted.isEnableFfmpegTranscoding());
         assertTrue(persisted.isEnableThumbnails());
         assertTrue(persisted.isEmbeddedPlayer());
         assertTrue(persisted.isWideView());
@@ -237,7 +221,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertEquals("ar-SA", persisted.getLanguageLocale());
         assertEquals("tmdb-token-e2e", persisted.getTmdbReadAccessToken());
         assertEquals("133", persisted.getUiZoomPercent());
-        assertTrue(persisted.isEnableLitePlayerFfmpeg());
         assertTrue(persisted.isAutoRunServerOnStartup());
 
         assertEquals(14, configurationService.getCacheExpiryDays());
@@ -249,10 +232,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertTrue(I18n.isCurrentLocaleRtl());
         assertNotEquals("123", I18n.formatNumber("123"));
         assertFalse(I18n.formatEpisodeLabel("7").isBlank());
-
-        ThemeCssOverride savedOverride = ThemeCssOverrideService.getInstance().read();
-        assertEquals("light-e2e.css", savedOverride.getLightThemeCssName());
-        assertEquals("dark-e2e.css", savedOverride.getDarkThemeCssName());
     }
 
     private void seedAndImportAccounts() throws Exception {
@@ -260,15 +239,12 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         saveStalker("stalker-seed-1", "00:11:22:33:44:51");
         saveXtreme("xtreme-seed-1", "xtuser1", "xtpass1");
         saveM3uLocal("m3u-seed-1", drmLocalPlaylist);
-        saveRss("rss-seed-1", rssFeedUrl);
-        assertTypeCounts(1, 1, 1, 1);
+        assertTypeCounts(1, 1, 1);
 
         TextParserService.saveBulkAccounts(stalkerBulkText(), TextParserService.MODE_STALKER, false, false);
         TextParserService.saveBulkAccounts(xtremeBulkText(), TextParserService.MODE_XTREME, false, false);
         TextParserService.saveBulkAccounts(m3uBulkText(), TextParserService.MODE_M3U, false, false);
-        saveRss("rss-seed-2", rssFeedUrl + "?r=2");
-        saveRss("rss-seed-3", rssFeedUrl + "?r=3");
-        assertTypeCounts(3, 3, 3, 3);
+        assertTypeCounts(3, 3, 3);
     }
 
     private void updateAccountsAndAssert(AccountService accountService) {
@@ -284,22 +260,16 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
                 account.setM3u8Path(xtremeBaseUrl);
                 account.setUrl(xtremeBaseUrl);
             }
-            if (account.getType() == AccountType.RSS_FEED) {
-                account.setM3u8Path(rssFeedUrl);
-                account.setUrl(rssFeedUrl);
-            }
             accountService.save(account);
         }
 
         Account updatedStalker = getAccountsByType(AccountType.STALKER_PORTAL).get(0);
         Account updatedXtreme = getAccountsByType(AccountType.XTREME_API).get(0);
         Account updatedM3u = getM3uAccounts().get(0);
-        Account updatedRss = getAccountsByType(AccountType.RSS_FEED).get(0);
         assertEquals("America/New_York", updatedStalker.getTimezone());
         assertEquals(stalkerPortalUrl, updatedStalker.getServerPortalUrl());
         assertTrue(updatedXtreme.getM3u8Path().startsWith(xtremeBaseUrl));
         assertNotNull(updatedM3u.getM3u8Path());
-        assertTrue(updatedRss.getM3u8Path().contains("/rss/feed.xml"));
         assertXtremeCredentialsPersistence(updatedXtreme);
     }
 
@@ -349,10 +319,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             cacheLive(m3u, cacheService);
         }
         assertM3uUncategorizedAllCategoryCoverage();
-
-        for (Account rss : getAccountsByType(AccountType.RSS_FEED)) {
-            cacheLive(rss, cacheService);
-        }
 
         assertCategoryAndChannelCacheHitPaths();
         assertStalkerPageIndexFallback();
@@ -478,8 +444,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         List<Account> removeSet = List.of(
                 getAccountsByType(AccountType.STALKER_PORTAL).get(0),
                 getAccountsByType(AccountType.XTREME_API).get(0),
-                getM3uAccounts().get(0),
-                getAccountsByType(AccountType.RSS_FEED).get(0)
+                getM3uAccounts().get(0)
         );
 
         for (Account account : removeSet) {
@@ -489,7 +454,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             assertNull(accountService.getById(account.getDbId()));
         }
 
-        assertTypeCounts(2, 2, 2, 2);
+        assertTypeCounts(2, 2, 2);
     }
 
     private void clearAllCacheAndDeleteRemaining(CacheService cacheService, AccountService accountService) {
@@ -800,11 +765,10 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
                 .toList();
     }
 
-    private void assertTypeCounts(int stalker, int xtreme, int m3u, int rss) {
+    private void assertTypeCounts(int stalker, int xtreme, int m3u) {
         assertEquals(stalker, getAccountsByType(AccountType.STALKER_PORTAL).size());
         assertEquals(xtreme, getAccountsByType(AccountType.XTREME_API).size());
         assertEquals(m3u, getM3uAccounts().size());
-        assertEquals(rss, getAccountsByType(AccountType.RSS_FEED).size());
     }
 
     private List<Account> getM3uAccounts() {
@@ -843,8 +807,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         seedAccountOnly(targetPath.toString(), "999", "sync-a");
         seedConfigurationRow(sourcePath.toString(), "/source/player-1", "/source/player-2", "1");
         seedConfigurationRow(targetPath.toString(), "/target/player-1", "/target/player-2", "0");
-        seedThemeCssOverrideRow(sourcePath.toString(), "source-light.css", "source-dark.css");
-        seedThemeCssOverrideRow(targetPath.toString(), "target-light.css", "target-dark.css");
         seedPublishedM3uSelectionRow(sourcePath.toString(), "100");
         seedPublishedM3uSelectionRow(targetPath.toString(), "200");
 
@@ -860,12 +822,10 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
         assertAccountInfoSynced(targetPath.toString());
         assertConfigurationSynced(targetPath.toString(), false);
-        assertThemeCssOverrideSynced(targetPath.toString());
         assertPublishedM3uSelectionSynced(targetPath.toString());
 
         DatabaseSyncService.getInstance().syncDatabases(sourcePath.toString(), targetPath.toString(), true, true);
         assertConfigurationSynced(targetPath.toString(), true);
-        assertThemeCssOverrideSynced(targetPath.toString());
         assertPublishedM3uSelectionSynced(targetPath.toString());
     }
 
@@ -979,8 +939,8 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     private void seedConfigurationRow(String dbPath, String playerPath1, String playerPath2, String resolveChainEnabled) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
              PreparedStatement ps = conn.prepareStatement(
-                     "INSERT OR REPLACE INTO Configuration (id, playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, enableFfmpegTranscoding, cacheExpiryDays, enableThumbnails, wideView, languageLocale, tmdbReadAccessToken, uiZoomPercent, enableLitePlayerFfmpeg, autoRunServerOnStartup, vlcNetworkCachingMs, vlcLiveCachingMs, enableVlcHttpUserAgent, enableVlcHttpForwardCookies, resolveChainAndDeepRedirects) " +
-                             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                     "INSERT OR REPLACE INTO Configuration (id, playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, cacheExpiryDays, enableThumbnails, wideView, languageLocale, tmdbReadAccessToken, uiZoomPercent, autoRunServerOnStartup, vlcNetworkCachingMs, vlcLiveCachingMs, enableVlcHttpUserAgent, enableVlcHttpForwardCookies, resolveChainAndDeepRedirects) " +
+                             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
             ps.setInt(1, 1);
             ps.setString(2, playerPath1);
             ps.setString(3, playerPath2);
@@ -992,34 +952,18 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             ps.setString(9, "1");
             ps.setString(10, "8080");
             ps.setString(11, "1");
-            ps.setString(12, "0");
-            ps.setString(13, "9");
+            ps.setString(12, "9");
+            ps.setString(13, "1");
             ps.setString(14, "1");
-            ps.setString(15, "1");
-            ps.setString(16, "en-GB");
-            ps.setString(17, "tmdb-sync");
-            ps.setString(18, "133");
-            ps.setString(19, "1");
-            ps.setString(20, "1");
-            ps.setString(21, "3000");
-            ps.setString(22, "5000");
-            ps.setString(23, "1");
-            ps.setString(24, "0");
-            ps.setString(25, resolveChainEnabled);
-            ps.executeUpdate();
-        }
-    }
-
-    private void seedThemeCssOverrideRow(String dbPath, String lightThemeCssName, String darkThemeCssName) throws SQLException {
-        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
-             PreparedStatement ps = conn.prepareStatement(
-                     "INSERT OR REPLACE INTO ThemeCssOverride (id, lightThemeCssName, lightThemeCssContent, darkThemeCssName, darkThemeCssContent, updatedAt) VALUES (?,?,?,?,?,?)")) {
-            ps.setInt(1, 1);
-            ps.setString(2, lightThemeCssName);
-            ps.setString(3, ".root { -fx-base: #eeeeee; }");
-            ps.setString(4, darkThemeCssName);
-            ps.setString(5, ".root { -fx-base: #111111; }");
-            ps.setString(6, "1700000000000");
+            ps.setString(15, "en-GB");
+            ps.setString(16, "tmdb-sync");
+            ps.setString(17, "133");
+            ps.setString(18, "1");
+            ps.setString(19, "3000");
+            ps.setString(20, "5000");
+            ps.setString(21, "1");
+            ps.setString(22, "0");
+            ps.setString(23, resolveChainEnabled);
             ps.executeUpdate();
         }
     }
@@ -1076,17 +1020,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             assertEquals("en-GB", rs.getString("languageLocale"));
             assertEquals("1", rs.getString("autoRunServerOnStartup"));
             assertEquals("1", rs.getString("resolveChainAndDeepRedirects"));
-        }
-    }
-
-    private void assertThemeCssOverrideSynced(String dbPath) throws SQLException {
-        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
-             PreparedStatement statement = conn.prepareStatement(
-                     "SELECT lightThemeCssName, darkThemeCssName FROM ThemeCssOverride LIMIT 1");
-             ResultSet rs = statement.executeQuery()) {
-            assertTrue(rs.next(), "Expected theme css override row in target sync database");
-            assertEquals("source-light.css", rs.getString("lightThemeCssName"));
-            assertEquals("source-dark.css", rs.getString("darkThemeCssName"));
         }
     }
 
@@ -1242,27 +1175,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
                 AccountType.M3U8_LOCAL,
                 null,
                 path,
-                false
-        );
-        account.setAction(itv);
-        AccountService.getInstance().save(account);
-    }
-
-    private void saveRss(String name, String feedUrl) {
-        Account account = new Account(
-                name,
-                null,
-                null,
-                feedUrl,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                AccountType.RSS_FEED,
-                null,
-                feedUrl,
                 false
         );
         account.setAction(itv);
@@ -1498,28 +1410,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         }
 
         writeResponse(exchange, 200, body, "application/json; charset=utf-8");
-    }
-
-    private void handleRss(HttpExchange exchange) throws IOException {
-        String body = """
-                <?xml version="1.0" encoding="UTF-8" ?>
-                <rss version="2.0">
-                  <channel>
-                    <title>Mock RSS</title>
-                    <link>%s</link>
-                    <description>Mock feed</description>
-                    <item>
-                      <title>RSS Live One</title>
-                      <link>%s/rss/stream/one.ts</link>
-                    </item>
-                    <item>
-                      <title>RSS Live Two</title>
-                      <link>%s/rss/stream/two.ts</link>
-                    </item>
-                  </channel>
-                </rss>
-                """.formatted(baseUrl, baseUrl, baseUrl);
-        writeResponse(exchange, 200, body, "application/rss+xml; charset=utf-8");
     }
 
     private void handleM3uPlaylist(HttpExchange exchange) throws IOException {

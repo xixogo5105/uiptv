@@ -40,9 +40,6 @@ self.addEventListener('fetch', event => {
     event.respondWith(fetch(event.request));
     return;
   }
-  if (requestUrl.pathname.startsWith('/hls/')) {
-    return;
-  }
   event.respondWith(
     caches.match(event.request)
       .then(response => {

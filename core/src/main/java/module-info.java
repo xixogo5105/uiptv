@@ -7,7 +7,6 @@ module com.uiptv.core {
     requires jdk.httpserver;
     requires net.bjoernpetersen.m3u;
     requires java.sql;
-    requires com.rometools.rome;
     requires org.slf4j;
     requires io.github.willena.sqlitejdbc;
     requires annotations;

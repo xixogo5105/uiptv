@@ -6,23 +6,16 @@ import com.uiptv.db.SeriesChannelDb;
 import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
-import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.shared.Pagination;
-import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.util.AccountType;
-import com.uiptv.util.RssParser;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -259,28 +252,6 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
         assertEquals(2, progress.totalItems());
         assertEquals(3, progress.pageNumber());
         assertEquals(4, progress.pageCount());
-    }
-
-    @Test
-    void getOverloadsUseRssFeedBranchAndPublishCallback() {
-        ChannelService service = ChannelService.getInstance();
-        Account rss = new Account("rss-account", "", "", "", null, null, null, null, null, null, AccountType.RSS_FEED, null, "rss://feed", false);
-        rss.setAction(Account.AccountAction.itv);
-        PlaylistEntry entry = new PlaylistEntry("rss-id", "RSS Title", "RSS Title", "http://stream/rss.mp4", "http://logo/rss.png");
-
-        try (MockedStatic<RssParser> rssParser = Mockito.mockStatic(RssParser.class)) {
-            rssParser.when(() -> RssParser.parse("rss://feed")).thenReturn(List.of(entry));
-
-            assertEquals(1, assertDoesNotThrow(() -> service.get(CategoryType.ALL.displayName(), rss, "db-id")).size());
-            assertEquals(1, assertDoesNotThrow(() -> service.get("RSS Title", rss, "db-id", message -> { })).size());
-
-            List<List<Channel>> published = new ArrayList<>();
-            List<Channel> channels = assertDoesNotThrow(() -> service.get("rss-id", rss, "db-id", message -> { }, published::add));
-
-            assertEquals(1, channels.size());
-            assertEquals(1, published.size());
-            assertEquals("RSS Title", published.getFirst().getFirst().getName());
-        }
     }
 
     private Account saveAccount(String name, Account.AccountAction action) {

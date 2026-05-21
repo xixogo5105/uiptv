@@ -19,23 +19,15 @@
         return !!engine && typeof engine.isSupported === 'function' && engine.isSupported();
     };
 
-    const resolvePlaybackModeLabel = (url, engine = '', ffmpegMode = '') => {
+    const resolvePlaybackModeLabel = (url, engine = '') => {
         const lowerUrl = String(url || '').trim().toLowerCase();
         const normalizedEngine = String(engine || '').trim().toLowerCase();
-        const normalizedFfmpeg = String(ffmpegMode || '').trim().toLowerCase();
-        const buildHlsLabel = () => {
-            if (!normalizedFfmpeg) return 'hls';
-            if (normalizedFfmpeg.startsWith('transmux')) return 'HLS Transmux';
-            if (normalizedFfmpeg.startsWith('transcod')) return 'HLS Transcoding';
-            return `HLS ${normalizedFfmpeg}`;
-        };
         if (normalizedEngine === 'youtube') return 'youtube';
         if (lowerUrl.includes('/proxy-stream')) return 'proxy';
-        if (lowerUrl.includes('/hls/stream.m3u8')) return buildHlsLabel();
         if (normalizedEngine === 'mpegts') return 'mpegts';
         if (normalizedEngine === 'shaka') {
             if (lowerUrl.includes('.mpd')) return 'dash';
-            if (lowerUrl.includes('.m3u8')) return buildHlsLabel();
+            if (lowerUrl.includes('.m3u8')) return 'hls';
             return 'shaka';
         }
         return 'direct';
@@ -54,21 +46,6 @@
         const value = String(rawUrl || '').trim();
         if (!value) return value;
         return downgradeHttpsToHttpForKnownPaths(value);
-    };
-
-    const buildForcedHlsPlaybackRequestUrl = (rawUrl) => {
-        const baseUrl = String(rawUrl || '').trim();
-        if (!baseUrl) return '';
-        try {
-            const parsed = new URL(baseUrl, window.location.origin);
-            if (String(parsed.searchParams.get('preferHls') || '').trim() === '1') {
-                return '';
-            }
-            parsed.searchParams.set('preferHls', '1');
-            return parsed.toString();
-        } catch (_) {
-            return '';
-        }
     };
 
     const normalizeDisplayText = (value) => {
@@ -134,7 +111,6 @@
         resolvePlaybackModeLabel,
         downgradeHttpsToHttpForKnownPaths,
         normalizeWebPlaybackUrl,
-        buildForcedHlsPlaybackRequestUrl,
         normalizeDisplayText,
         getShakaMaxQuality,
         setShakaMaxQuality,

@@ -12,7 +12,6 @@ import com.uiptv.model.Channel;
 import com.uiptv.shared.Pagination;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.util.AppLog;
-import com.uiptv.util.RssParser;
 import com.uiptv.util.XtremeApiParser;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
@@ -105,9 +104,6 @@ public class ChannelService {
                              Supplier<Boolean> isCancelled, Consumer<PageProgress> progressCallback) throws IOException {
         if (NOT_LIVE_TV_CHANNELS.contains(account.getAction())) {
             return getNonLiveChannels(categoryId, account, dbId, logger, callback, isCancelled, progressCallback);
-        }
-        if (account.getType() == AccountType.RSS_FEED) {
-            return publishChannels(maybeFilterChannels(rssChannels(categoryId, account), true), callback);
         }
         List<Channel> channels = loadCachedLiveChannels(categoryId, dbId, account, logger);
         if (account.getAction() == itv && !channels.isEmpty()) {
@@ -328,17 +324,6 @@ public class ChannelService {
         }
         channels.forEach(this::resolveLogoIfNeeded);
         return channels;
-    }
-
-    private List<Channel> rssChannels(String category, Account account) {
-        Set<Channel> channels = new LinkedHashSet<>();
-        List<PlaylistEntry> rssEntries = RssParser.parse(account.getM3u8Path());
-        rssEntries.stream().filter(e -> CategoryType.ALL.displayName().equalsIgnoreCase(category) || e.getGroupTitle().equalsIgnoreCase(category) || e.getId().equalsIgnoreCase(category)).forEach(entry -> {
-            Channel c = new Channel(entry.getId(), entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null, entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(), entry.getInputstreamaddon(), entry.getManifestType());
-            resolveLogoIfNeeded(c);
-            channels.add(c);
-        });
-        return channels.stream().toList();
     }
 
     public void reloadCache(Account account, LoggerCallback logger) throws IOException {

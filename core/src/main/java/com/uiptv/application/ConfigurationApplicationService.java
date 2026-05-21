@@ -2,11 +2,9 @@ package com.uiptv.application;
 
 import com.uiptv.db.SQLConnection;
 import com.uiptv.model.Configuration;
-import com.uiptv.model.ThemeCssOverride;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.service.SeriesWatchingNowSnapshotService;
-import com.uiptv.service.ThemeCssOverrideService;
 import com.uiptv.service.VodWatchStateService;
 import com.uiptv.util.ServerUrlUtil;
 
@@ -15,7 +13,6 @@ import java.io.IOException;
 @SuppressWarnings("java:S6548")
 public class ConfigurationApplicationService {
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
-    private final ThemeCssOverrideService themeCssOverrideService = ThemeCssOverrideService.getInstance();
 
     private ConfigurationApplicationService() {
     }
@@ -30,14 +27,6 @@ public class ConfigurationApplicationService {
 
     public void saveConfiguration(Configuration configuration) {
         configurationService.save(configuration);
-    }
-
-    public ThemeCssOverride readThemeOverrides() {
-        return themeCssOverrideService.read();
-    }
-
-    public void saveThemeOverrides(ThemeCssOverride override) {
-        themeCssOverrideService.save(override);
     }
 
     public String getDatabasePath() {

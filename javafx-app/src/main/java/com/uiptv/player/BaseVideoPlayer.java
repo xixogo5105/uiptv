@@ -37,7 +37,6 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
-import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.SVGPath;
@@ -1250,9 +1249,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             if (videoView instanceof ImageView imageView) {
                 imageView.fitWidthProperty().bind(playerContainer.widthProperty());
                 imageView.fitHeightProperty().bind(playerContainer.heightProperty());
-            } else if (videoView instanceof MediaView mediaView) {
-                mediaView.fitWidthProperty().bind(playerContainer.widthProperty());
-                mediaView.fitHeightProperty().bind(playerContainer.heightProperty());
             }
 
             controlsContainer.setVisible(false);
@@ -1380,9 +1376,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (videoView instanceof ImageView imageView) {
             imageView.fitWidthProperty().bind(pipRoot.widthProperty());
             imageView.fitHeightProperty().bind(pipRoot.heightProperty());
-        } else if (videoView instanceof MediaView mediaView) {
-            mediaView.fitWidthProperty().bind(pipRoot.widthProperty());
-            mediaView.fitHeightProperty().bind(pipRoot.heightProperty());
         }
     }
 
