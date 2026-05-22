@@ -41,12 +41,6 @@ export UIPTV_ANDROID_KEY_PASSWORD=...
 
 If these variables are missing, the release build falls back to debug signing so CI can still assemble the artifact.
 
-For the Android 7/API 24 experimental build, run from the repository root:
-
-```bash
-./scripts/build-mobile-with-libmpv.sh :androidApp:assembleRelease
-```
-
 ## Artifacts
 
 - Debug APK: `androidApp/build/outputs/apk/debug/`

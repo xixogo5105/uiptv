@@ -8,23 +8,11 @@ plugins {
     alias(libs.plugins.kover)
 }
 
-val libmpvProfile = providers.gradleProperty("uiptv.libmpv.profile")
-    .orElse("maven")
-    .map(String::trim)
-    .get()
-val androidMinSdk = when (libmpvProfile) {
-    "maven" -> libs.versions.android.min.sdk.maven.get().toInt()
-    "api24Local" -> libs.versions.android.min.sdk.api24.get().toInt()
-    else -> throw GradleException(
-        "Unsupported uiptv.libmpv.profile '$libmpvProfile'. Use 'maven' or 'api24Local'."
-    )
-}
-
 kotlin {
     android {
         namespace = "com.uiptv.mobile.shared"
         compileSdk = libs.versions.android.compile.sdk.get().toInt()
-        minSdk = androidMinSdk
+        minSdk = libs.versions.android.min.sdk.get().toInt()
 
         withHostTestBuilder {}
         withDeviceTestBuilder {

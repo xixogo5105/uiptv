@@ -7802,6 +7802,7 @@ private fun AndroidPlayerPreference.playerLabel(): String =
         AndroidPlayerPreference.ASK_EVERY_TIME -> "Ask Every Time"
         AndroidPlayerPreference.EMBEDDED_PLAYER -> "Embedded"
         AndroidPlayerPreference.NATIVE -> "Android Media"
+        AndroidPlayerPreference.VLC -> "VLC"
         AndroidPlayerPreference.MX_PLAYER_PRO,
         AndroidPlayerPreference.MX_PLAYER_FREE -> "MX Player"
         AndroidPlayerPreference.KODI -> "Kodi"
@@ -7815,6 +7816,7 @@ private fun AndroidPlayerPreference.playerBadge(): String =
         AndroidPlayerPreference.ASK_EVERY_TIME -> "?"
         AndroidPlayerPreference.EMBEDDED_PLAYER -> "EP"
         AndroidPlayerPreference.NATIVE -> "AM"
+        AndroidPlayerPreference.VLC -> "VLC"
         AndroidPlayerPreference.MX_PLAYER_PRO,
         AndroidPlayerPreference.MX_PLAYER_FREE -> "MX"
         AndroidPlayerPreference.KODI -> "K"
@@ -7828,6 +7830,7 @@ private fun AndroidPlayerPreference.playerIconColor(): Color =
         AndroidPlayerPreference.ASK_EVERY_TIME -> Color(0xFF374151)
         AndroidPlayerPreference.EMBEDDED_PLAYER -> DeepNightAccentBase
         AndroidPlayerPreference.NATIVE -> Color(0xFF3DDC84)
+        AndroidPlayerPreference.VLC -> Color(0xFFFF9800)
         AndroidPlayerPreference.MX_PLAYER_PRO,
         AndroidPlayerPreference.MX_PLAYER_FREE -> Color(0xFF2563EB)
         AndroidPlayerPreference.KODI -> Color(0xFF2F9ED8)
@@ -7853,6 +7856,7 @@ private fun AndroidPlayerPreference.isMxPlayer(): Boolean =
     when (this) {
         AndroidPlayerPreference.MX_PLAYER_PRO,
         AndroidPlayerPreference.MX_PLAYER_FREE -> true
+        AndroidPlayerPreference.VLC,
         AndroidPlayerPreference.ASK_EVERY_TIME,
         AndroidPlayerPreference.EMBEDDED_PLAYER,
         AndroidPlayerPreference.NATIVE,

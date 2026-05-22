@@ -6,6 +6,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <queries>
+        <package android:name="org.videolan.vlc" />
         <package android:name="com.mxtech.videoplayer.pro" />
         <package android:name="com.mxtech.videoplayer.ad" />
         <package android:name="com.brouken.player" />
@@ -35,11 +36,10 @@
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:exported="false" />
         <activity
-            android:name=".MpvEmbeddedPlayerActivity"
+            android:name=".EmbeddedPlayerActivity"
             android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
             android:exported="false"
             android:resizeableActivity="true"
-            android:screenOrientation="sensorLandscape"
             android:supportsPictureInPicture="true" />
         <activity
             android:name=".MainActivity"

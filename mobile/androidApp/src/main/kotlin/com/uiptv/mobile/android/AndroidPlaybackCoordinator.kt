@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
 import android.os.Build
-import android.util.Log
 import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
 import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
@@ -46,16 +45,17 @@ class AndroidPlaybackCoordinator(
     private val activityStarter: (Intent) -> Unit = { intent -> context.startActivity(intent) }
 ) {
     companion object {
+        private const val VLC_PACKAGE = "org.videolan.vlc"
         private const val MX_PLAYER_PRO_PACKAGE = "com.mxtech.videoplayer.pro"
         private const val MX_PLAYER_FREE_PACKAGE = "com.mxtech.videoplayer.ad"
         private const val KODI_PACKAGE = "org.xbmc.kodi"
         private const val JUST_PLAYER_PACKAGE = "com.brouken.player"
         private const val XPLAYER_PACKAGE = "video.player.videoplayer"
 
+        private const val VLC_STORE_URL = "https://play.google.com/store/apps/details?id=org.videolan.vlc"
         private const val MX_PLAYER_STORE_URL = "https://play.google.com/store/apps/details?id=com.mxtech.videoplayer.ad"
         private const val JUST_PLAYER_STORE_URL = "https://play.google.com/store/apps/details?id=com.brouken.player"
         private const val XPLAYER_STORE_URL = "https://play.google.com/store/apps/details?id=video.player.videoplayer"
-        private const val LOG_TAG = "UIPTV-Playback"
     }
 
     suspend fun loadPlayerPreference(): PlayerPreference =
@@ -92,6 +92,7 @@ class AndroidPlaybackCoordinator(
         listOf(
             PlayerChoice(AndroidPlayerPreference.EMBEDDED_PLAYER, "Embedded", true),
             PlayerChoice(AndroidPlayerPreference.NATIVE, "Android Media", true),
+            PlayerChoice(AndroidPlayerPreference.VLC, "VLC", isInstalled(VLC_PACKAGE), VLC_PACKAGE, VLC_STORE_URL),
             PlayerChoice(mxPlayer, "MX Player", mxInstalled, mxPackage, MX_PLAYER_STORE_URL),
             PlayerChoice(AndroidPlayerPreference.JUST_PLAYER, "Just Player", isInstalled(JUST_PLAYER_PACKAGE), JUST_PLAYER_PACKAGE, JUST_PLAYER_STORE_URL),
             PlayerChoice(AndroidPlayerPreference.XPLAYER, "XPlayer", isInstalled(XPLAYER_PACKAGE), XPLAYER_PACKAGE, XPLAYER_STORE_URL)
@@ -222,7 +223,7 @@ class AndroidPlaybackCoordinator(
         if (!playableTarget.url.isPlayableNetworkUrl()) {
             return PlaybackLaunchResult(false, "No direct playable URL is cached for ${target.title}. Refresh this account on Android or choose a direct stream.")
         }
-        if (player == AndroidPlayerPreference.NATIVE && !playableTarget.nativeSupported()) {
+        if (player == AndroidPlayerPreference.NATIVE && !target.nativeSupported()) {
             return PlaybackLaunchResult(false, "Native player cannot open this DRM or inputstream metadata yet. Use an external player.")
         }
         val intent = when (player) {
@@ -230,6 +231,7 @@ class AndroidPlaybackCoordinator(
             AndroidPlayerPreference.NATIVE,
             AndroidPlayerPreference.ASK_EVERY_TIME -> nativePlayerIntent(playableTarget)
             AndroidPlayerPreference.SYSTEM_CHOOSER -> Intent.createChooser(viewIntent(playableTarget, null), "Open stream")
+            AndroidPlayerPreference.VLC,
             AndroidPlayerPreference.MX_PLAYER_PRO,
             AndroidPlayerPreference.MX_PLAYER_FREE,
             AndroidPlayerPreference.KODI,
@@ -261,6 +263,7 @@ class AndroidPlaybackCoordinator(
             AndroidPlayerPreference.NATIVE,
             AndroidPlayerPreference.ASK_EVERY_TIME -> nativePlayerIntent(target)
             AndroidPlayerPreference.SYSTEM_CHOOSER,
+            AndroidPlayerPreference.VLC,
             AndroidPlayerPreference.MX_PLAYER_PRO,
             AndroidPlayerPreference.MX_PLAYER_FREE,
             AndroidPlayerPreference.KODI,
@@ -284,7 +287,7 @@ class AndroidPlaybackCoordinator(
     }
 
     private fun embeddedPlayerIntent(target: PlaybackTarget): Intent =
-        playbackIntent(target, MpvEmbeddedPlayerActivity::class.java)
+        playbackIntent(target, EmbeddedPlayerActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
     private fun nativePlayerIntent(target: PlaybackTarget): Intent =
@@ -387,34 +390,23 @@ class AndroidPlaybackCoordinator(
         if (account.type != MobileAccountType.STALKER_PORTAL) {
             return direct
         }
-        if (target.url.isBlank() && target.channelId.isBlank()) {
+        if (target.url.isBlank()) {
+            return direct
+        }
+        if (direct.url.isPlayableNetworkUrl() && !shouldResolveStalkerPortalCommand(target.url)) {
             return direct
         }
 
         val candidates = stalkerCommandCandidates(account, target)
-        Log.d(
-            LOG_TAG,
-            "Resolving Stalker playback mode=${target.mode} accountId=${account.id ?: 0} " +
-                "channelId=${target.channelId} candidates=${candidates.size} " +
-                "direct=${direct.url.safeUrlDescriptor()}"
-        )
         for (candidate in candidates) {
-            val resolved = runCatching { resolveStalkerCreateLink(account, target.copy(url = candidate)) }
-                .onFailure { Log.w(LOG_TAG, "Stalker create_link failed for ${candidate.stalkerCommandKind()}", it) }
-                .getOrNull()
-                .orEmpty()
+            val resolved = runCatching { resolveStalkerCreateLink(account, target.copy(url = candidate)) }.getOrNull().orEmpty()
             val normalized = normalizeStalkerStreamUrl(
                 account,
                 extractPlayableStreamUrl(resolved.normalizeSeriesStreamPlaceholder(target.stalkerSeriesParam()))
             )
             if (normalized.isPlayableNetworkUrl()) {
-                Log.d(LOG_TAG, "Stalker playback resolved via ${candidate.stalkerCommandKind()} to ${normalized.safeUrlDescriptor()}")
                 return target.copy(url = normalized)
             }
-        }
-        if (direct.url.isPlayableNetworkUrl() && !shouldResolveStalkerPortalCommand(direct.url)) {
-            Log.d(LOG_TAG, "Falling back to cached Stalker direct URL ${direct.url.safeUrlDescriptor()}")
-            return direct
         }
         return if (shouldResolveStalkerPortalCommand(direct.url)) direct.copy(url = "") else direct
     }
@@ -443,7 +435,7 @@ class AndroidPlaybackCoordinator(
             }
         }
         target.url.takeIf { it.isNotBlank() }?.let(commands::add)
-        return commands.toList().sortedBy { it.stalkerCommandRank() }
+        return commands.toList()
     }
 
     private fun resolveStalkerCreateLink(account: MobileAccount, target: PlaybackTarget): String {
@@ -687,6 +679,7 @@ class AndroidPlaybackCoordinator(
 
     private fun AndroidPlayerPreference.packageName(): String =
         when (this) {
+            AndroidPlayerPreference.VLC -> VLC_PACKAGE
             AndroidPlayerPreference.MX_PLAYER_PRO -> MX_PLAYER_PRO_PACKAGE
             AndroidPlayerPreference.MX_PLAYER_FREE -> MX_PLAYER_FREE_PACKAGE
             AndroidPlayerPreference.KODI -> KODI_PACKAGE
@@ -719,6 +712,7 @@ class AndroidPlaybackCoordinator(
             AndroidPlayerPreference.ASK_EVERY_TIME -> "Player picker"
             AndroidPlayerPreference.EMBEDDED_PLAYER -> "Embedded"
             AndroidPlayerPreference.NATIVE -> "Android Media"
+            AndroidPlayerPreference.VLC -> "VLC"
             AndroidPlayerPreference.MX_PLAYER_PRO,
             AndroidPlayerPreference.MX_PLAYER_FREE -> "MX Player"
             AndroidPlayerPreference.KODI -> "Kodi"
@@ -780,34 +774,6 @@ class AndroidPlaybackCoordinator(
             .removePrefix("ffmpeg ")
             .lowercase()
         return !normalized.contains("stream=&")
-    }
-
-    private fun String.stalkerCommandRank(): Int =
-        when {
-            shouldResolveStalkerPortalCommand(this) -> 0
-            !extractPlayableStreamUrl(this).isPlayableNetworkUrl() -> 1
-            else -> 2
-        }
-
-    private fun String.stalkerCommandKind(): String =
-        when {
-            shouldResolveStalkerPortalCommand(this) -> "portal-command"
-            !extractPlayableStreamUrl(this).isPlayableNetworkUrl() -> "opaque-command"
-            else -> "direct-url"
-        }
-
-    private fun String.safeUrlDescriptor(): String {
-        if (isBlank()) {
-            return "blank"
-        }
-        val uri = runCatching { Uri.parse(extractPlayableStreamUrl(this)) }.getOrNull()
-        val scheme = uri?.scheme?.lowercase().orEmpty()
-        val host = uri?.host.orEmpty()
-        return if (scheme in setOf("http", "https") && host.isNotBlank()) {
-            "$scheme://$host"
-        } else {
-            "non-url"
-        }
     }
 
     private fun Cursor.commandOrBlank(column: String): String {
