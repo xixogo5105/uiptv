@@ -65,7 +65,7 @@ dependencies {
     implementation(compose.ui)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
-    implementation(libs.libmpv.android.api24)
+    implementation(files("libs/libmpv-android-api24.aar"))
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.kotlinx.coroutines.core)

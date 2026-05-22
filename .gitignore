@@ -17,6 +17,7 @@ mobile/.gradle/
 mobile/build/
 mobile/**/build/
 mobile/local.properties
+mobile/androidApp/libs/
 
 # Android/CMake native build output
 mobile/**/.cxx/

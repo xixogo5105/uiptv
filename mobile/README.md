@@ -11,31 +11,20 @@ This is the Android-first Kotlin Multiplatform workspace for UIPTV mobile.
 
 - End users installing a built APK do not need Android SDK, Gradle, or any other build tools. The APK packages the required libmpv and FFmpeg native libraries.
 - Developers compiling from source need Android SDK with API 36 installed.
-- Developers compiling from source need the Android 7/API 24 libmpv artifact available as `com.uiptv.thirdparty:libmpv-android-api24`.
 - `ANDROID_HOME` set, or `sdk.dir=/path/to/android/sdk` in `mobile/local.properties`.
 - Xcode command-line tools are required only for iOS framework linking. iOS targets are deferred and only enabled automatically when `xcrun xcodebuild -version` works, or explicitly with `-Puiptv.enableIosTargets=true`.
 
 ### libmpv Dependency
 
-The app depends on an Android 7/API 24 rebuild of `dev.jdtech.mpv:libmpv`. The public Maven Central releases currently target API 26+, so the Android 7-compatible build is consumed through an internal Maven coordinate:
-
-```text
-com.uiptv.thirdparty:libmpv-android-api24:1.0.0-api24-uiptv.1
-```
-
-For local builds, publish the rebuilt AAR into Maven local before running Gradle:
+The app depends on an Android 7/API 24 rebuild of `dev.jdtech.mpv:libmpv`. The public Maven Central releases currently target API 26+, so local and CI builds generate the Android 7-compatible AAR before compiling the mobile app.
 
 ```bash
-mvn install:install-file \
-  -Dfile=/path/to/libmpv-release.aar \
-  -DgroupId=com.uiptv.thirdparty \
-  -DartifactId=libmpv-android-api24 \
-  -Dversion=1.0.0-api24-uiptv.1 \
-  -Dpackaging=aar \
-  -DgeneratePom=true
+./scripts/build-mobile-with-libmpv.sh :androidApp:assembleDebug
 ```
 
-For CI and team builds, publish the same coordinate to a private Maven repository instead of relying on one developer machine's `~/.m2` cache.
+Run this command from the repository root. The script clones or updates `../libmpv-android`, applies the API 24 compatibility patch, builds `libmpv-release.aar`, copies it to `mobile/androidApp/libs/libmpv-android-api24.aar`, then runs the requested Gradle tasks.
+
+To update libmpv later, run the same script. It pulls the sibling checkout before rebuilding. The generated `mobile/androidApp/libs/` directory is intentionally ignored by git.
 
 ### Android SDK Setup
 
@@ -90,19 +79,19 @@ Run all mobile commands from the `mobile/` directory.
 Check shared Kotlin code, coverage, Android compilation, APK packaging, and Android test compilation:
 
 ```bash
-./gradlew :shared:allTests :shared:koverVerify :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
+../scripts/build-mobile-with-libmpv.sh :shared:allTests :shared:koverVerify :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
 ```
 
 Build a debug APK only:
 
 ```bash
-./gradlew :androidApp:assembleDebug
+../scripts/build-mobile-with-libmpv.sh :androidApp:assembleDebug
 ```
 
 Build a release APK:
 
 ```bash
-./gradlew :androidApp:assembleRelease
+../scripts/build-mobile-with-libmpv.sh :androidApp:assembleRelease
 ```
 
 Run instrumented Android tests on an attached device or emulator:
