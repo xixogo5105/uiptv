@@ -5,7 +5,7 @@
 Run from `mobile/`:
 
 ```bash
-../scripts/build-mobile-with-libmpv.sh :shared:allTests :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
+./gradlew :shared:allTests :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
 ./gradlew :androidApp:connectedDebugAndroidTest
 ```
 
@@ -36,10 +36,16 @@ export UIPTV_ANDROID_KEYSTORE=/absolute/path/uiptv-release.jks
 export UIPTV_ANDROID_KEYSTORE_PASSWORD=...
 export UIPTV_ANDROID_KEY_ALIAS=...
 export UIPTV_ANDROID_KEY_PASSWORD=...
-../scripts/build-mobile-with-libmpv.sh :androidApp:assembleRelease
+./gradlew :androidApp:assembleRelease
 ```
 
 If these variables are missing, the release build falls back to debug signing so CI can still assemble the artifact.
+
+For the Android 7/API 24 experimental build, run from the repository root:
+
+```bash
+./scripts/build-mobile-with-libmpv.sh :androidApp:assembleRelease
+```
 
 ## Artifacts
 

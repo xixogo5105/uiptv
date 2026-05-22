@@ -16,7 +16,9 @@ This is the Android-first Kotlin Multiplatform workspace for UIPTV mobile.
 
 ### libmpv Dependency
 
-The app depends on an Android 7/API 24 rebuild of `dev.jdtech.mpv:libmpv`. The public Maven Central releases currently target API 26+, so local and CI builds generate the Android 7-compatible AAR before compiling the mobile app.
+The default Gradle profile uses the published `dev.jdtech.mpv:libmpv` dependency from Maven Central and targets Android 8/API 26+ devices. This is the fast path used by normal local builds and CI.
+
+An Android 7/API 24 experimental profile is still available when needed. It rebuilds libmpv locally, copies the generated AAR into the app, and compiles with `-Puiptv.libmpv.profile=api24Local`:
 
 ```bash
 ./scripts/build-mobile-with-libmpv.sh :androidApp:assembleDebug
@@ -24,7 +26,7 @@ The app depends on an Android 7/API 24 rebuild of `dev.jdtech.mpv:libmpv`. The p
 
 Run this command from the repository root. The script clones or updates `../libmpv-android`, applies the API 24 compatibility patch, builds `libmpv-release.aar`, copies it to `mobile/androidApp/libs/libmpv-android-api24.aar`, then runs the requested Gradle tasks.
 
-To update libmpv later, run the same script. It pulls the sibling checkout before rebuilding. The generated `mobile/androidApp/libs/` directory is intentionally ignored by git.
+To update the Android 7 libmpv build later, run the same script. It pulls the sibling checkout before rebuilding. The generated `mobile/androidApp/libs/` directory is intentionally ignored by git.
 
 ### Android SDK Setup
 
@@ -79,19 +81,25 @@ Run all mobile commands from the `mobile/` directory.
 Check shared Kotlin code, coverage, Android compilation, APK packaging, and Android test compilation:
 
 ```bash
-../scripts/build-mobile-with-libmpv.sh :shared:allTests :shared:koverVerify :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
+./gradlew :shared:allTests :shared:koverVerify :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
 ```
 
 Build a debug APK only:
 
 ```bash
-../scripts/build-mobile-with-libmpv.sh :androidApp:assembleDebug
+./gradlew :androidApp:assembleDebug
 ```
 
 Build a release APK:
 
 ```bash
-../scripts/build-mobile-with-libmpv.sh :androidApp:assembleRelease
+./gradlew :androidApp:assembleRelease
+```
+
+Build the Android 7/API 24 experimental APK from the repository root:
+
+```bash
+./scripts/build-mobile-with-libmpv.sh :androidApp:assembleDebug
 ```
 
 Run instrumented Android tests on an attached device or emulator:
@@ -125,7 +133,7 @@ A separate APK per CPU architecture is not required unless we choose to reduce d
 
 ## CI Build
 
-`.github/workflows/mobile.yml` runs the mobile checks on every push and pull request. It builds the debug APK and uploads it as a workflow artifact named `uiptv-mobile-debug-apk`.
+`.github/workflows/mobile.yml` runs the default Android 8+/API 26 mobile checks on every push and pull request. It builds the debug APK and uploads it as a workflow artifact named `uiptv-mobile-debug-apk`.
 
 ## User And Release Docs
 

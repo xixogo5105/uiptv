@@ -15,13 +15,29 @@ val hasReleaseSigning = listOf(
     releaseKeyPassword
 ).all { !it.isNullOrBlank() }
 
+val libmpvProfile = providers.gradleProperty("uiptv.libmpv.profile")
+    .orElse("maven")
+    .map(String::trim)
+    .get()
+val useApi24LocalLibmpv = when (libmpvProfile) {
+    "maven" -> false
+    "api24Local" -> true
+    else -> throw GradleException(
+        "Unsupported uiptv.libmpv.profile '$libmpvProfile'. Use 'maven' or 'api24Local'."
+    )
+}
+
 android {
     namespace = "com.uiptv.mobile.android"
     compileSdk = libs.versions.android.compile.sdk.get().toInt()
 
     defaultConfig {
         applicationId = "com.uiptv.mobile"
-        minSdk = libs.versions.android.min.sdk.get().toInt()
+        minSdk = if (useApi24LocalLibmpv) {
+            libs.versions.android.min.sdk.api24.get().toInt()
+        } else {
+            libs.versions.android.min.sdk.maven.get().toInt()
+        }
         targetSdk = libs.versions.android.target.sdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
@@ -65,7 +81,17 @@ dependencies {
     implementation(compose.ui)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
-    implementation(files("libs/libmpv-android-api24.aar"))
+    if (useApi24LocalLibmpv) {
+        val api24Aar = file("libs/libmpv-android-api24.aar")
+        if (!api24Aar.isFile) {
+            throw GradleException(
+                "Missing $api24Aar. Run ../scripts/build-mobile-with-libmpv.sh or use -Puiptv.libmpv.profile=maven."
+            )
+        }
+        implementation(files(api24Aar))
+    } else {
+        implementation(libs.libmpv)
+    }
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.kotlinx.coroutines.core)

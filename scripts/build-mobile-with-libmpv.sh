@@ -154,7 +154,7 @@ build_mobile() {
   log "Running mobile Gradle tasks: ${gradle_tasks[*]}"
   (
     cd "$mobile_dir"
-    ./gradlew "${gradle_tasks[@]}"
+    ./gradlew -Puiptv.libmpv.profile=api24Local "${gradle_tasks[@]}"
   )
 }
 
