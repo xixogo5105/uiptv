@@ -572,10 +572,10 @@ private fun ChannelsScreen(
 ) {
     val scope = rememberCoroutineScope()
     var snapshot by remember { mutableStateOf(MobileBrowseSnapshot()) }
-    var mode by remember { mutableStateOf(BrowseMode.LIVE) }
-    var categoryQuery by remember { mutableStateOf("") }
-    var channelQuery by remember { mutableStateOf("") }
-    var selectedCategoryRowId by remember { mutableStateOf<Long?>(null) }
+    var mode by rememberSaveable(requestedAccountId) { mutableStateOf(BrowseMode.LIVE) }
+    var categoryQuery by rememberSaveable(requestedAccountId) { mutableStateOf("") }
+    var channelQuery by rememberSaveable(requestedAccountId) { mutableStateOf("") }
+    var selectedCategoryRowId by rememberSaveable(requestedAccountId) { mutableStateOf<Long?>(null) }
     var statusText by remember { mutableStateOf("Loading") }
     var running by remember { mutableStateOf(false) }
     var reloadGeneration by remember { mutableStateOf(0L) }
@@ -584,7 +584,7 @@ private fun ChannelsScreen(
     var selectedBrowseSeries by remember { mutableStateOf<MobileWatchingNowItem?>(null) }
     var browseSeriesEpisodes by remember { mutableStateOf<List<MobileWatchingNowEpisode>>(emptyList()) }
     var pendingEpisodeMenu by remember { mutableStateOf<MobileWatchingNowEpisode?>(null) }
-    var searchVisible by remember { mutableStateOf(false) }
+    var searchVisible by rememberSaveable(requestedAccountId) { mutableStateOf(false) }
     var categorySelectionMode by remember { mutableStateOf(false) }
     var selectedCategoryIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var pendingCategoryRemoval by remember { mutableStateOf(false) }
@@ -653,14 +653,18 @@ private fun ChannelsScreen(
         reload(snapshot.selectedAccountId, null, "", mode)
     }
     LaunchedEffect(browseActions, requestedAccountId, selectedAccountType, refreshSignal) {
-        val activeMode = if (mode in visibleModes) mode else BrowseMode.LIVE
+        val previousMode = mode
+        val activeMode = if (previousMode in visibleModes) previousMode else BrowseMode.LIVE
+        val activeCategoryRowId = if (activeMode == previousMode) selectedCategoryRowId else null
         mode = activeMode
-        selectedCategoryRowId = null
+        selectedCategoryRowId = activeCategoryRowId
         categorySelectionMode = false
         selectedCategoryIds = emptySet()
         pendingCategoryRemoval = false
-        channelQuery = ""
-        reload(requestedAccountId, null, "", activeMode)
+        if (activeCategoryRowId == null) {
+            channelQuery = ""
+        }
+        reload(requestedAccountId, activeCategoryRowId, activeChannelQuery(), activeMode)
     }
     LaunchedEffect(wideLayout, wideSearchVisible) {
         if (wideLayout && !wideSearchVisible && (categoryQuery.isNotBlank() || channelQuery.isNotBlank())) {

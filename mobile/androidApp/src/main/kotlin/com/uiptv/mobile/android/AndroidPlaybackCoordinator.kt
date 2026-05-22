@@ -32,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.net.URL
 import java.util.UUID
@@ -393,22 +394,56 @@ class AndroidPlaybackCoordinator(
         if (target.url.isBlank()) {
             return direct
         }
-        if (direct.url.isPlayableNetworkUrl() && !shouldResolveStalkerPortalCommand(target.url)) {
+        if (
+            direct.url.isPlayableNetworkUrl() &&
+            !shouldResolveStalkerPortalCommand(target.url) &&
+            (target.mode != BrowseMode.LIVE || direct.url.isUsableResolvedStalkerLiveUrl())
+        ) {
             return direct
         }
 
         val candidates = stalkerCommandCandidates(account, target)
         for (candidate in candidates) {
             val resolved = runCatching { resolveStalkerCreateLink(account, target.copy(url = candidate)) }.getOrNull().orEmpty()
-            val normalized = normalizeStalkerStreamUrl(
-                account,
-                extractPlayableStreamUrl(resolved.normalizeSeriesStreamPlaceholder(target.stalkerSeriesParam()))
-            )
-            if (normalized.isPlayableNetworkUrl()) {
+            val normalized = prepareResolvedStalkerStreamUrl(account, target, resolved, candidate, candidates)
+            if (
+                normalized.isPlayableNetworkUrl() &&
+                (target.mode != BrowseMode.LIVE || normalized.isUsableResolvedStalkerLiveUrl())
+            ) {
                 return target.copy(url = normalized)
             }
         }
+        if (target.mode == BrowseMode.LIVE) {
+            candidates.firstNotNullOfOrNull { candidate ->
+                normalizeStalkerStreamUrl(account, extractPlayableStreamUrl(candidate))
+                    .takeIf { it.isPlayableNetworkUrl() && it.isUsableResolvedStalkerLiveUrl() }
+            }?.let { fallbackUrl ->
+                return target.copy(url = fallbackUrl)
+            }
+        }
         return if (shouldResolveStalkerPortalCommand(direct.url)) direct.copy(url = "") else direct
+    }
+
+    private fun prepareResolvedStalkerStreamUrl(
+        account: MobileAccount,
+        target: PlaybackTarget,
+        resolved: String,
+        candidate: String,
+        candidates: List<String>
+    ): String {
+        var command = resolved.normalizeSeriesStreamPlaceholder(target.stalkerSeriesParam())
+        if (target.mode == BrowseMode.LIVE) {
+            command = command.mergeMissingQueryParams(candidate)
+            if (!command.isUsableResolvedStalkerLiveUrl()) {
+                for (fallback in candidates) {
+                    command = command.mergeMissingQueryParams(fallback)
+                    if (command.isUsableResolvedStalkerLiveUrl()) {
+                        break
+                    }
+                }
+            }
+        }
+        return normalizeStalkerStreamUrl(account, extractPlayableStreamUrl(command))
     }
 
     private fun stalkerCommandCandidates(account: MobileAccount, target: PlaybackTarget): List<String> {
@@ -773,8 +808,96 @@ class AndroidPlaybackCoordinator(
         val normalized = trim()
             .removePrefix("ffmpeg ")
             .lowercase()
-        return !normalized.contains("stream=&")
+        return !normalized.hasEmptyStalkerStreamParam()
     }
+
+    private fun String.isUsableResolvedStalkerLiveUrl(): Boolean =
+        isNotBlank() && !hasEmptyStalkerStreamParam()
+
+    private fun String.mergeMissingQueryParams(original: String): String {
+        if (isBlank() || original.isBlank()) {
+            return this
+        }
+        val resolvedPrefix = cmdPrefix()
+        val originalPrefix = original.cmdPrefix()
+        val resolvedUrl = cmdUrl()
+        val originalUrl = original.cmdUrl()
+        val resolvedQueryIndex = resolvedUrl.indexOf('?')
+        val originalQueryIndex = originalUrl.indexOf('?')
+        if (resolvedQueryIndex < 0 || originalQueryIndex < 0) {
+            return this
+        }
+
+        val resolvedBase = resolvedUrl.substring(0, resolvedQueryIndex)
+        val resolvedParams = parseQueryParams(resolvedUrl.substring(resolvedQueryIndex + 1))
+        val originalParams = parseQueryParams(originalUrl.substring(originalQueryIndex + 1))
+        originalParams.forEach { (key, value) ->
+            val existing = resolvedParams[key]
+            if (existing.isNullOrBlank() && value.isNotBlank()) {
+                resolvedParams[key] = value
+            }
+        }
+
+        val mergedUrl = "$resolvedBase?${resolvedParams.toQueryString()}"
+        val prefix = resolvedPrefix.ifBlank { originalPrefix }
+        return if (prefix.isBlank()) mergedUrl else "$prefix $mergedUrl"
+    }
+
+    private fun String.cmdPrefix(): String {
+        val value = trim()
+        return when {
+            value.startsWith("ffmpeg ", ignoreCase = true) -> "ffmpeg"
+            else -> ""
+        }
+    }
+
+    private fun String.cmdUrl(): String {
+        val value = trim()
+        return when {
+            value.startsWith("ffmpeg ", ignoreCase = true) -> value.substring("ffmpeg ".length).trim()
+            else -> value
+        }
+    }
+
+    private fun String.hasEmptyQueryParam(name: String): Boolean {
+        val query = extractPlayableStreamUrl(this).substringAfter('?', missingDelimiterValue = "")
+        if (query.isBlank()) {
+            return false
+        }
+        return query.split("&").any { pair ->
+            if (pair.isBlank()) {
+                false
+            } else {
+                val key = pair.substringBefore("=").urlDecode()
+                val value = pair.substringAfter("=", missingDelimiterValue = "").urlDecode()
+                key == name && (value.isBlank() || value == ".")
+            }
+        }
+    }
+
+    private fun String.hasEmptyStalkerStreamParam(): Boolean {
+        val normalized = lowercase()
+        return normalized.contains("stream=&") ||
+            normalized.contains("stream=.&") ||
+            normalized.endsWith("stream=") ||
+            normalized.endsWith("stream=.") ||
+            hasEmptyQueryParam("stream")
+    }
+
+    private fun parseQueryParams(query: String): LinkedHashMap<String, String> {
+        val params = linkedMapOf<String, String>()
+        query.split("&")
+            .filter { it.isNotBlank() }
+            .forEach { pair ->
+                val key = pair.substringBefore("=").urlDecode()
+                val value = pair.substringAfter("=", missingDelimiterValue = "").urlDecode()
+                params[key] = value
+            }
+        return params
+    }
+
+    private fun String.urlDecode(): String =
+        runCatching { URLDecoder.decode(this, Charsets.UTF_8.name()) }.getOrDefault(this)
 
     private fun Cursor.commandOrBlank(column: String): String {
         val index = getColumnIndex(column)

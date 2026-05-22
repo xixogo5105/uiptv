@@ -702,6 +702,64 @@ class AndroidUiptvDatabaseCompatibilityTest {
     }
 
     @Test
+    fun playbackCoordinatorMergesMissingStalkerLiveStreamFromOriginalCommand() = runBlocking {
+        TestHttpServer(
+            mapOf(
+                "handshake" to """{"js":{"token":"abc123"}}""",
+                "get_profile" to """{"js":{}}""",
+                "create_link" to """{"js":{"cmd":"ffmpeg http://stream.test/live.php?mac=00:1A:79:00:00:01&stream=&extension=ts&play_token=new-token"}}"""
+            )
+        ).use { server ->
+            val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+                MobileAccount(
+                    accountName = "Portal Live",
+                    type = MobileAccountType.STALKER_PORTAL,
+                    url = "http://127.0.0.1:${server.port}",
+                    macAddress = "00:1A:79:00:00:01"
+                )
+            )
+            val accountId = requireNotNull(account.id)
+            val db = helper.writableDatabase
+            db.execSQL(
+                "INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(6101, 'uk', ?, 'itv', 'UK')",
+                arrayOf(accountId.toString())
+            )
+            db.execSQL(
+                """
+                INSERT INTO Channel(id, channelId, categoryId, name, cmd)
+                VALUES(6102, '30581', '6101', 'UK BBC 1 HD', 'ffmpeg http://stream.test/live.php?mac=00:1A:79:00:00:01&stream=30581&extension=ts&play_token=old-token')
+                """.trimIndent()
+            )
+            val startedIntents = mutableListOf<Intent>()
+            val coordinator = AndroidPlaybackCoordinator(
+                context = context,
+                preferences = AndroidDataStorePreferencesRepository(context),
+                databaseHelper = helper,
+                activityStarter = { startedIntents += it }
+            )
+
+            val result = coordinator.playBrowseItem(
+                playbackItem(
+                    accountId = accountId,
+                    mode = BrowseMode.LIVE,
+                    categoryId = "uk",
+                    channelId = "30581",
+                    title = "UK BBC 1 HD",
+                    command = "ffmpeg http://stream.test/live.php?mac=00:1A:79:00:00:01&stream=30581&extension=ts&play_token=old-token"
+                ),
+                AndroidPlayerPreference.EMBEDDED_PLAYER,
+                remember = false
+            )
+
+            assertTrue(result.launched)
+            assertEquals(
+                "http://stream.test/live.php?mac=00%3A1A%3A79%3A00%3A00%3A01&stream=30581&extension=ts&play_token=new-token",
+                startedIntents.single().getStringExtra(NativePlayerActivity.EXTRA_URL)
+            )
+        }
+    }
+
+    @Test
     fun browseRepositoryEnrichesWatchingNowAndSeriesEpisodesFromMetadataProvider() = runBlocking {
         val provider = object : AndroidImdbMetadataProvider {
             override fun findSeriesDetails(title: String, preferredImdbId: String, hints: List<String>): AndroidImdbMetadata =

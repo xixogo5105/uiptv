@@ -2074,17 +2074,14 @@ class EmbeddedPlayerActivity : Activity() {
             return listOfNotNull(adaptiveLabel, codec, decoderModeLabel()).joinToString(" | ")
         }
         val video = currentVideoTrackDetails()
-        val resolution = if (video != null) {
-            video.resolutionLabel()
-        } else {
-            "Resolution pending"
-        }
+        val resolution = video
+            ?.takeIf { it.hasResolution() }
+            ?.resolutionLabel()
         val codec = video?.codec
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             ?.uppercase()
-            ?: "codec pending"
-        return "$resolution | $codec | ${decoderModeLabel()}"
+        return listOfNotNull(resolution, codec, decoderModeLabel()).joinToString(" | ")
     }
 
     private fun currentVideoTrackDetails(): VideoTrackDetails? {
@@ -2409,7 +2406,7 @@ class EmbeddedPlayerActivity : Activity() {
                 }
                 "$displayWidth x $displayHeight$tier"
             } else {
-                "Resolution pending"
+                ""
             }
     }
 
