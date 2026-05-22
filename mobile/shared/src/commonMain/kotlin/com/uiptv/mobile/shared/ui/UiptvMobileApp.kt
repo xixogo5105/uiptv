@@ -479,12 +479,6 @@ private fun CurrentTab(
                     wideLayout,
                     wideSearchVisible,
                     resumeSignal,
-                    panelVisibilityPreference.bookmarksCategoryPanelVisible,
-                    { visible ->
-                        onPanelVisibilityPreferenceChange(
-                            panelVisibilityPreference.copy(bookmarksCategoryPanelVisible = visible)
-                        )
-                    },
                     Modifier.fillMaxSize()
                 )
             }
@@ -498,12 +492,6 @@ private fun CurrentTab(
                         wideLayout,
                         wideSearchVisible,
                         resumeSignal,
-                        panelVisibilityPreference.accountsActionsPanelVisible,
-                        { visible ->
-                            onPanelVisibilityPreferenceChange(
-                                panelVisibilityPreference.copy(accountsActionsPanelVisible = visible)
-                            )
-                        },
                         Modifier.fillMaxSize()
                     )
                 } else {
@@ -743,6 +731,42 @@ private fun ChannelsScreen(
             running = false
         }
     }
+
+    fun openBrowseItem(item: MobileBrowseItem, forcePlayerPicker: Boolean = false) {
+        scope.launch {
+            running = true
+            if (!forcePlayerPicker && item.mode == BrowseMode.SERIES && item.command.isBlank()) {
+                val series = item.toWatchingNowSeriesItem()
+                runCatching { browseActions.listWatchingNowEpisodes(series) }
+                    .onSuccess { episodes ->
+                        selectedBrowseSeries = series
+                        browseSeriesEpisodes = episodes
+                        statusText = if (episodes.isEmpty()) "No episodes for ${item.name}" else "${episodes.size} episodes"
+                        runCatching { browseActions.enrichSeriesDetails(series, episodes) }
+                            .onSuccess { details ->
+                                selectedBrowseSeries = details.series
+                                browseSeriesEpisodes = details.episodes
+                            }
+                    }
+                    .onFailure { statusText = it.message ?: "Unable to open series" }
+            } else if (!forcePlayerPicker) {
+                val preference = playbackActions.loadPlayerPreference()
+                if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
+                    runCatching { playbackActions.playBrowseItem(item, preference.selectedPlayer, false) }
+                        .onSuccess { statusText = it.message }
+                        .onFailure { statusText = it.message ?: "Unable to open stream" }
+                } else {
+                    playerChoices = playbackActions.playerChoices()
+                    pendingPlayback = PendingPlayback.Browse(item)
+                }
+            } else {
+                playerChoices = playbackActions.playerChoices()
+                pendingPlayback = PendingPlayback.Browse(item)
+            }
+            running = false
+        }
+    }
+
     if (browseSeries != null) {
         backHandler(true) {
             selectedBrowseSeries = null
@@ -1024,37 +1048,8 @@ private fun ChannelsScreen(
             onCategoryLongPress = { category -> beginCategorySelection(category) },
             onClearCategorySelection = { clearCategorySelection() },
             onRemoveSelectedCategories = { requestCategoryRemoval() },
-            onPlayItem = { item ->
-                scope.launch {
-                    running = true
-                    if (item.mode == BrowseMode.SERIES && item.command.isBlank()) {
-                        val series = item.toWatchingNowSeriesItem()
-                        runCatching { browseActions.listWatchingNowEpisodes(series) }
-                            .onSuccess { episodes ->
-                                selectedBrowseSeries = series
-                                browseSeriesEpisodes = episodes
-                                statusText = if (episodes.isEmpty()) "No episodes for ${item.name}" else "${episodes.size} episodes"
-                                runCatching { browseActions.enrichSeriesDetails(series, episodes) }
-                                    .onSuccess { details ->
-                                        selectedBrowseSeries = details.series
-                                        browseSeriesEpisodes = details.episodes
-                                    }
-                            }
-                            .onFailure { statusText = it.message ?: "Unable to open series" }
-                    } else {
-                        val preference = playbackActions.loadPlayerPreference()
-                        if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
-                            runCatching { playbackActions.playBrowseItem(item, preference.selectedPlayer, false) }
-                                .onSuccess { statusText = it.message }
-                                .onFailure { statusText = it.message ?: "Unable to open stream" }
-                        } else {
-                            playerChoices = playbackActions.playerChoices()
-                            pendingPlayback = PendingPlayback.Browse(item)
-                        }
-                    }
-                    running = false
-                }
-            },
+            onPlayItem = { item -> openBrowseItem(item) },
+            onChooseItemPlayer = { item -> openBrowseItem(item, forcePlayerPicker = true) },
             onToggleBookmark = { item ->
                 scope.launch {
                     running = true
@@ -1367,37 +1362,8 @@ private fun ChannelsScreen(
                                     item = item,
                                     showThumbnail = showThumbnails,
                                     logoRenderer = logoRenderer,
-                                    onPlay = {
-                                        scope.launch {
-                                            running = true
-                                            if (item.mode == BrowseMode.SERIES && item.command.isBlank()) {
-                                                val series = item.toWatchingNowSeriesItem()
-                                                runCatching { browseActions.listWatchingNowEpisodes(series) }
-                                                    .onSuccess { episodes ->
-                                                        selectedBrowseSeries = series
-                                                        browseSeriesEpisodes = episodes
-                                                        statusText = if (episodes.isEmpty()) "No episodes for ${item.name}" else "${episodes.size} episodes"
-                                                        runCatching { browseActions.enrichSeriesDetails(series, episodes) }
-                                                            .onSuccess { details ->
-                                                                selectedBrowseSeries = details.series
-                                                                browseSeriesEpisodes = details.episodes
-                                                            }
-                                                    }
-                                                    .onFailure { statusText = it.message ?: "Unable to open series" }
-                                            } else {
-                                                val preference = playbackActions.loadPlayerPreference()
-                                                if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
-                                                    runCatching { playbackActions.playBrowseItem(item, preference.selectedPlayer, false) }
-                                                        .onSuccess { statusText = it.message }
-                                                        .onFailure { statusText = it.message ?: "Unable to open stream" }
-                                                } else {
-                                                    playerChoices = playbackActions.playerChoices()
-                                                    pendingPlayback = PendingPlayback.Browse(item)
-                                                }
-                                            }
-                                            running = false
-                                        }
-                                    },
+                                    onPlay = { openBrowseItem(item) },
+                                    onChoosePlayer = { openBrowseItem(item, forcePlayerPicker = true) },
                                     onToggleBookmark = {
                                         scope.launch {
                                             running = true
@@ -1502,6 +1468,7 @@ private fun WideChannelsContent(
     onClearCategorySelection: () -> Unit,
     onRemoveSelectedCategories: () -> Unit,
     onPlayItem: (MobileBrowseItem) -> Unit,
+    onChooseItemPlayer: (MobileBrowseItem) -> Unit,
     onToggleBookmark: (MobileBrowseItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1698,6 +1665,7 @@ private fun WideChannelsContent(
                                         showThumbnail = showThumbnails,
                                         logoRenderer = logoRenderer,
                                         onPlay = { onPlayItem(item) },
+                                        onChoosePlayer = { onChooseItemPlayer(item) },
                                         onToggleBookmark = { onToggleBookmark(item) }
                                     )
                                 }
@@ -1909,13 +1877,19 @@ private fun BrowseItemRow(
     showThumbnail: Boolean,
     logoRenderer: LogoRenderer,
     onPlay: () -> Unit,
+    onChoosePlayer: () -> Unit,
     onToggleBookmark: () -> Unit
 ) {
+    val canPlay = item.mode == BrowseMode.SERIES || item.command.isNotBlank()
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 64.dp)
-            .clickable(enabled = item.mode == BrowseMode.SERIES || item.command.isNotBlank(), onClick = onPlay),
+            .combinedClickable(
+                enabled = canPlay,
+                onClick = onPlay,
+                onLongClick = if (item.command.isNotBlank()) onChoosePlayer else null
+            ),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
     ) {
@@ -2031,8 +2005,6 @@ private fun BookmarksScreen(
     wideLayout: Boolean,
     wideSearchVisible: Boolean,
     refreshSignal: Int,
-    categoryPanelVisible: Boolean,
-    onCategoryPanelVisibleChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -2091,6 +2063,28 @@ private fun BookmarksScreen(
         }
     }
 
+    fun openBookmark(bookmark: MobileBookmark, forcePlayerPicker: Boolean = false) {
+        scope.launch {
+            running = true
+            if (!forcePlayerPicker) {
+                val preference = playbackActions.loadPlayerPreference()
+                if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
+                    runCatching { playbackActions.playBookmark(bookmark, preference.selectedPlayer, false) }
+                        .onSuccess {
+                            statusText = it.message
+                            if (it.launched) reload()
+                        }
+                        .onFailure { statusText = it.message ?: "Unable to open bookmark" }
+                    running = false
+                    return@launch
+                }
+            }
+            playerChoices = playbackActions.playerChoices()
+            pendingPlayback = PendingPlayback.Bookmark(bookmark)
+            running = false
+        }
+    }
+
     LaunchedEffect(browseActions, refreshSignal) {
         reload()
     }
@@ -2112,7 +2106,6 @@ private fun BookmarksScreen(
             showThumbnails = showThumbnails,
             logoRenderer = logoRenderer,
             searchVisible = wideSearchVisible,
-            categoryPanelVisible = categoryPanelVisible,
             onQueryChange = {
                 query = it
                 reload(search = it)
@@ -2121,25 +2114,8 @@ private fun BookmarksScreen(
                 selectedCategoryId = category.id
                 reload(category.id)
             },
-            onToggleCategoryPanel = { onCategoryPanelVisibleChange(!categoryPanelVisible) },
-            onPlay = { bookmark ->
-                scope.launch {
-                    running = true
-                    val preference = playbackActions.loadPlayerPreference()
-                    if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
-                        runCatching { playbackActions.playBookmark(bookmark, preference.selectedPlayer, false) }
-                            .onSuccess {
-                                statusText = it.message
-                                if (it.launched) reload()
-                            }
-                            .onFailure { statusText = it.message ?: "Unable to open bookmark" }
-                    } else {
-                        playerChoices = playbackActions.playerChoices()
-                        pendingPlayback = PendingPlayback.Bookmark(bookmark)
-                    }
-                    running = false
-                }
-            },
+            onPlay = { bookmark -> openBookmark(bookmark) },
+            onChoosePlayer = { bookmark -> openBookmark(bookmark, forcePlayerPicker = true) },
             onRemove = { bookmark ->
                 removeBookmarkFromActiveList(bookmark)
             },
@@ -2254,24 +2230,8 @@ private fun BookmarksScreen(
                 recentlyPlayed = selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID,
                 showThumbnail = showThumbnails,
                 logoRenderer = logoRenderer,
-                onPlay = {
-                    scope.launch {
-                        running = true
-                        val preference = playbackActions.loadPlayerPreference()
-                        if (preference.rememberForFutureStreams && preference.selectedPlayer != AndroidPlayerPreference.ASK_EVERY_TIME) {
-                            runCatching { playbackActions.playBookmark(bookmark, preference.selectedPlayer, false) }
-                                .onSuccess {
-                                    statusText = it.message
-                                    if (it.launched) reload()
-                                }
-                                .onFailure { statusText = it.message ?: "Unable to open bookmark" }
-                        } else {
-                            playerChoices = playbackActions.playerChoices()
-                            pendingPlayback = PendingPlayback.Bookmark(bookmark)
-                        }
-                        running = false
-                    }
-                },
+                onPlay = { openBookmark(bookmark) },
+                onChoosePlayer = { openBookmark(bookmark, forcePlayerPicker = true) },
                 onRemove = {
                     removeBookmarkFromActiveList(bookmark)
                 }
@@ -2347,13 +2307,18 @@ private fun BookmarkRow(
     showThumbnail: Boolean,
     logoRenderer: LogoRenderer,
     onPlay: () -> Unit,
+    onChoosePlayer: () -> Unit,
     onRemove: () -> Unit
 ) {
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 64.dp)
-            .clickable(enabled = bookmark.command.isNotBlank(), onClick = onPlay),
+            .combinedClickable(
+                enabled = bookmark.command.isNotBlank(),
+                onClick = onPlay,
+                onLongClick = onChoosePlayer
+            ),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = DeepNightSurfaceHigh)
     ) {
@@ -2423,160 +2388,77 @@ private fun WideBookmarksContent(
     showThumbnails: Boolean,
     logoRenderer: LogoRenderer,
     searchVisible: Boolean,
-    categoryPanelVisible: Boolean,
     onQueryChange: (String) -> Unit,
     onCategorySelect: (MobileBookmarkCategory) -> Unit,
-    onToggleCategoryPanel: () -> Unit,
     onPlay: (MobileBookmark) -> Unit,
+    onChoosePlayer: (MobileBookmark) -> Unit,
     onRemove: (MobileBookmark) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val compactWide = LocalWidePhoneLayout.current
     val outerPadding = if (compactWide) 6.dp else 12.dp
-    val gap = if (compactWide) 8.dp else 12.dp
-    val sideWidth = if (compactWide) 216.dp else 280.dp
-    val itemColumns = if (compactWide) 1 else 2
-    Row(
+    val gap = if (compactWide) 8.dp else 10.dp
+    val itemColumns = if (compactWide) 2 else 3
+    Column(
         modifier = modifier
             .fillMaxSize()
             .padding(outerPadding),
-        horizontalArrangement = Arrangement.spacedBy(gap)
+        verticalArrangement = Arrangement.spacedBy(gap)
     ) {
-        if (categoryPanelVisible) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(sideWidth),
-                shape = RoundedCornerShape(14.dp),
-                color = DeepNightSurface,
-                contentColor = DeepNightText
-            ) {
-                Column(
-                    modifier = Modifier.padding(if (compactWide) 8.dp else 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            "Bookmarks",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        TextButton(onClick = onToggleCategoryPanel) {
-                            Text("Hide")
-                        }
-                    }
-                    if (searchVisible) {
-                        CompactOutlinedTextField(
-                            value = query,
-                            onValueChange = onQueryChange,
-                            modifier = Modifier.fillMaxWidth(),
-                            label = "Search bookmarks"
-                        )
-                    }
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (categories.isEmpty()) {
-                            item {
-                                EmptyState(
-                                    title = "No bookmark categories",
-                                    detail = "Saved channels appear here.",
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
-                        items(categories, key = { it.id ?: it.name }) { category ->
-                            FilterChip(
-                                modifier = Modifier.fillMaxWidth(),
-                                selected = selectedCategoryId == category.id,
-                                onClick = { onCategorySelect(category) },
-                                label = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(categories, key = { it.id ?: it.name }) { category ->
+                FilterChip(
+                    selected = selectedCategoryId == category.id,
+                    onClick = { onCategorySelect(category) },
+                    label = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                )
+            }
+        }
+        if (searchVisible) {
+            CompactOutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = "Search bookmarks"
+            )
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(gap)
+        ) {
+            if (bookmarks.isEmpty()) {
+                item {
+                    EmptyState(
+                        title = bookmarkEmptyTitle(query, selectedCategoryId),
+                        detail = bookmarkEmptyDetail(query, selectedCategoryId)
+                    )
+                }
+            }
+            items(bookmarks.chunked(itemColumns)) { rowBookmarks ->
+                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    rowBookmarks.forEach { bookmark ->
+                        Box(modifier = Modifier.weight(1f)) {
+                            BookmarkRow(
+                                bookmark = bookmark,
+                                recentlyPlayed = selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID,
+                                showThumbnail = showThumbnails,
+                                logoRenderer = logoRenderer,
+                                onPlay = { onPlay(bookmark) },
+                                onChoosePlayer = { onChoosePlayer(bookmark) },
+                                onRemove = { onRemove(bookmark) }
                             )
                         }
                     }
-                    if (running) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    repeat(itemColumns - rowBookmarks.size) {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
-                    Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
-        ) {
-            if (!categoryPanelVisible || searchVisible) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (!categoryPanelVisible) {
-                        OutlinedButton(onClick = onToggleCategoryPanel) {
-                            Text("Categories")
-                        }
-                    }
-                    if (searchVisible && !categoryPanelVisible) {
-                        CompactOutlinedTextField(
-                            value = query,
-                            onValueChange = onQueryChange,
-                            modifier = Modifier.weight(1f),
-                            label = "Search bookmarks"
-                        )
-                    } else {
-                        Spacer(Modifier.weight(1f))
-                    }
-                }
-            }
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
-            ) {
-                if (bookmarks.isEmpty()) {
-                    item {
-                        EmptyState(
-                            title = bookmarkEmptyTitle(query, selectedCategoryId),
-                            detail = bookmarkEmptyDetail(query, selectedCategoryId)
-                        )
-                    }
-                }
-                items(bookmarks.chunked(itemColumns)) { rowBookmarks ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)) {
-                        rowBookmarks.forEach { bookmark ->
-                            Box(modifier = Modifier.weight(1f)) {
-                                BookmarkRow(
-                                    bookmark = bookmark,
-                                    recentlyPlayed = selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID,
-                                    showThumbnail = showThumbnails,
-                                    logoRenderer = logoRenderer,
-                                    onPlay = { onPlay(bookmark) },
-                                    onRemove = { onRemove(bookmark) }
-                                )
-                            }
-                        }
-                        repeat(itemColumns - rowBookmarks.size) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-            if (!categoryPanelVisible) {
-                if (running) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
-            }
+        if (running) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
+        Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -5310,8 +5192,6 @@ private fun AccountsScreen(
     wideLayout: Boolean,
     wideSearchVisible: Boolean,
     refreshSignal: Int,
-    actionsPanelVisible: Boolean,
-    onActionsPanelVisibleChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -5437,12 +5317,10 @@ private fun AccountsScreen(
                 accountFilter = accountFilter,
                 accountSearchVisible = effectiveAccountSearchVisible,
                 accountSearchQuery = accountSearchQuery,
-                actionsPanelVisible = actionsPanelVisible,
                 running = running,
                 statusText = statusText,
                 onFilterSelect = { accountFilter = it },
                 onSearchChange = { accountSearchQuery = it },
-                onToggleActionsPanel = { onActionsPanelVisibleChange(!actionsPanelVisible) },
                 onNewAccount = {
                     editing = MobileAccount()
                     selectedType = MobileAccountType.STALKER_PORTAL
@@ -5862,12 +5740,10 @@ private fun WideAccountsContent(
     accountFilter: AccountFilter,
     accountSearchVisible: Boolean,
     accountSearchQuery: String,
-    actionsPanelVisible: Boolean,
     running: Boolean,
     statusText: String,
     onFilterSelect: (AccountFilter) -> Unit,
     onSearchChange: (String) -> Unit,
-    onToggleActionsPanel: () -> Unit,
     onNewAccount: () -> Unit,
     onReload: () -> Unit,
     onClearAllCache: () -> Unit,
@@ -5880,9 +5756,9 @@ private fun WideAccountsContent(
     modifier: Modifier = Modifier
 ) {
     val compactWide = LocalWidePhoneLayout.current
+    var actionsMenuExpanded by remember { mutableStateOf(false) }
     val outerPadding = if (compactWide) 6.dp else 12.dp
     val gap = if (compactWide) 8.dp else 12.dp
-    val actionWidth = if (compactWide) 220.dp else 320.dp
     val accountColumns = if (compactWide) 1 else 2
     Row(
         modifier = modifier
@@ -5923,13 +5799,50 @@ private fun WideAccountsContent(
                         )
                     }
                 }
-                if (!actionsPanelVisible) {
-                    OutlinedButton(
-                        modifier = Modifier.semantics { contentDescription = "Show account page actions" },
+                Box {
+                    IconButton(
+                        modifier = Modifier.semantics { contentDescription = "Account page actions" },
                         enabled = !running,
-                        onClick = onToggleActionsPanel
+                        onClick = { actionsMenuExpanded = true }
                     ) {
-                        Text("Actions")
+                        Icon(Icons.Outlined.MoreVert, contentDescription = null)
+                    }
+                    DropdownMenu(
+                        expanded = actionsMenuExpanded,
+                        onDismissRequest = { actionsMenuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            leadingIcon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                            text = { Text("New account") },
+                            onClick = {
+                                actionsMenuExpanded = false
+                                onNewAccount()
+                            }
+                        )
+                        DropdownMenuItem(
+                            leadingIcon = { Icon(Icons.Outlined.Refresh, contentDescription = null) },
+                            text = { Text("Reload accounts") },
+                            onClick = {
+                                actionsMenuExpanded = false
+                                onReload()
+                            }
+                        )
+                        DropdownMenuItem(
+                            leadingIcon = { Icon(Icons.Outlined.DeleteSweep, contentDescription = null) },
+                            text = { Text("Clear all cache") },
+                            onClick = {
+                                actionsMenuExpanded = false
+                                onClearAllCache()
+                            }
+                        )
+                        DropdownMenuItem(
+                            leadingIcon = { Icon(Icons.Outlined.Sync, contentDescription = null) },
+                            text = { Text("Refresh all caches") },
+                            onClick = {
+                                actionsMenuExpanded = false
+                                onRefreshAllCaches()
+                            }
+                        )
                     }
                 }
             }
@@ -5988,58 +5901,6 @@ private fun WideAccountsContent(
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
             Text(statusText, color = DeepNightMutedText, style = MaterialTheme.typography.bodySmall)
-        }
-        if (actionsPanelVisible) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(actionWidth),
-                shape = RoundedCornerShape(14.dp),
-                color = DeepNightSurface,
-                contentColor = DeepNightText
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(if (compactWide) 8.dp else 12.dp)
-                        .then(if (compactWide) Modifier.verticalScroll(rememberScrollState()) else Modifier),
-                    verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            "Account page actions",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        TextButton(onClick = onToggleActionsPanel) {
-                            Text("Hide")
-                        }
-                    }
-                    Button(modifier = Modifier.fillMaxWidth(), enabled = !running, onClick = onNewAccount) {
-                        Text("New account")
-                    }
-                    OutlinedButton(modifier = Modifier.fillMaxWidth(), enabled = !running, onClick = onReload) {
-                        Text("Reload accounts")
-                    }
-                    OutlinedButton(modifier = Modifier.fillMaxWidth(), enabled = !running, onClick = onClearAllCache) {
-                        Text("Clear all cache")
-                    }
-                    OutlinedButton(modifier = Modifier.fillMaxWidth(), enabled = !running, onClick = onRefreshAllCaches) {
-                        Text("Refresh all caches")
-                    }
-                    Text(
-                        "Use each account row menu for Open, Edit, Clear cache, Refresh cache, and Delete.",
-                        color = DeepNightMutedText,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
         }
     }
 }
