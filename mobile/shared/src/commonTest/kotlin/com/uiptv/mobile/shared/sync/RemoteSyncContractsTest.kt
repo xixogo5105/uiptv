@@ -11,12 +11,12 @@ import kotlin.test.assertTrue
 
 class RemoteSyncContractsTest {
     @Test
-    fun androidPortablePullOptionsSyncConfigurationButNotPlayerPaths() {
-        val options = androidPortablePullOptions()
+    fun androidFullClonePullOptionsSyncAllConfiguration() {
+        val options = androidFullClonePullOptions()
 
         assertTrue(options.syncConfiguration)
-        assertFalse(options.syncExternalPlayerPaths)
-        assertEquals(ConfigurationSyncProfile.ANDROID_PORTABLE, options.configurationProfile)
+        assertTrue(options.syncExternalPlayerPaths)
+        assertEquals(ConfigurationSyncProfile.DESKTOP_FULL, options.configurationProfile)
         assertTrue(options.archiveTransfer)
         assertTrue(options.encryptedTransfer)
     }
@@ -53,7 +53,7 @@ class RemoteSyncContractsTest {
     }
 
     @Test
-    fun requestPullUsesAndroidPortableImportRequest() = runBlocking {
+    fun requestPullUsesAndroidFullCloneImportRequest() = runBlocking {
         val client = RecordingRemoteSyncClient()
         val useCase = PullFromDesktopSyncUseCase(client, NoopSnapshotApplier())
 
@@ -65,9 +65,9 @@ class RemoteSyncContractsTest {
         assertEquals(RemoteSyncDirection.IMPORT_FROM_REMOTE, request.direction)
         assertEquals("1234", request.verificationCode)
         assertEquals("UIPTV Android", request.requesterName)
-        assertEquals(ConfigurationSyncProfile.ANDROID_PORTABLE, request.options.configurationProfile)
+        assertEquals(ConfigurationSyncProfile.DESKTOP_FULL, request.options.configurationProfile)
         assertTrue(request.options.syncConfiguration)
-        assertFalse(request.options.syncExternalPlayerPaths)
+        assertTrue(request.options.syncExternalPlayerPaths)
         assertFalse(request.options.archiveTransfer)
         assertFalse(request.options.encryptedTransfer)
     }

@@ -31,6 +31,8 @@ class MpvEmbeddedPlayerActivityControlTest {
         clickControl(player, "Reload stream")
         clickAnyControl(player, "Mute", "Unmute")
         clickAnyControl(player, "Mute", "Unmute")
+        clickControl(player, "Audio track")
+        clickControl(player, "Subtitles")
         clickAnyControl(player, "Repeat off", "Repeat on")
         clickAnyControl(player, "Repeat off", "Repeat on")
         clickControl(player, "Zoom Default")
@@ -42,9 +44,11 @@ class MpvEmbeddedPlayerActivityControlTest {
     fun liveControlButtonsDoNotExposeSeeking() {
         val player = launchPlayer("LIVE")
 
-        waitForControl(player, "Pause")
+        waitForAnyControl(player, listOf("Pause", "Play", "Play/pause"))
         assertNull(findViewByDescription(player.window.decorView, "Rewind 15 seconds"))
         assertNull(findViewByDescription(player.window.decorView, "Fast forward 15 seconds"))
+        clickControl(player, "Audio track")
+        clickControl(player, "Subtitles")
         clickControl(player, "Close player")
     }
 

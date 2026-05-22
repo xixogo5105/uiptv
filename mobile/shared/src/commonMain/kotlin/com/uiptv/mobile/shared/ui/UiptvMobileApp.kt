@@ -4884,7 +4884,9 @@ private fun RemoteSyncScreen(
             }
         }
         Button(
-            modifier = Modifier.semantics { contentDescription = "Reset local UIPTV database" },
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { contentDescription = "Reset local UIPTV database" },
             enabled = !running,
             onClick = { confirmReset = true }
         ) {
@@ -5121,7 +5123,7 @@ private fun WideRemoteSyncContent(
             Column(
                 modifier = Modifier
                     .padding(if (compactWide) 8.dp else 12.dp)
-                    .then(if (compactWide) Modifier.verticalScroll(rememberScrollState()) else Modifier),
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
             ) {
                 Text("Backup & Restore", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -5189,7 +5191,9 @@ private fun WideRemoteSyncContent(
                 }
                 Text("Reset", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Button(
-                    modifier = Modifier.semantics { contentDescription = "Reset local UIPTV database" },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = "Reset local UIPTV database" },
                     enabled = !running,
                     onClick = onReset
                 ) {
@@ -5227,16 +5231,20 @@ private fun WideRemoteSyncContent(
                     color = DeepNightMutedText,
                     style = MaterialTheme.typography.bodySmall
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
-                        modifier = Modifier.semantics { contentDescription = if (filters.paused) "Resume content filters" else "Pause content filters" },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics { contentDescription = if (filters.paused) "Resume content filters" else "Pause content filters" },
                         enabled = !running,
                         onClick = onPausedToggle
                     ) {
                         Text(if (filters.paused) "Resume Filtering" else "Pause Filtering")
                     }
                     OutlinedButton(
-                        modifier = Modifier.semantics { contentDescription = if (filterEditorVisible) "Hide content filters" else "View or edit content filters" },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics { contentDescription = if (filterEditorVisible) "Hide content filters" else "View or edit content filters" },
                         enabled = !running,
                         onClick = onFilterEditorToggle
                     ) {

@@ -141,7 +141,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
      *    - Create two isolated sqlite databases.
      *    - Seed source and target databases with different rows.
      *    - Execute RootApplication.syncDatabases in one-way source -> target mode.
-     *    - Assert target gains source rows, keeps its existing rows, and optionally merges configuration.
+     *    - Assert target becomes a source clone, with desktop checkbox policy preserving configuration/player paths.
      *
      * 7) Account-level cache clear and partial deletion
      *    - Select one account from each type bucket.
@@ -809,32 +809,38 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         seedConfigurationRow(targetPath.toString(), "/target/player-1", "/target/player-2", "0");
         seedPublishedM3uSelectionRow(sourcePath.toString(), "100");
         seedPublishedM3uSelectionRow(targetPath.toString(), "200");
+        seedCacheRows(sourcePath.toString(), "100", 1000);
+        seedCacheRows(targetPath.toString(), "200", 2000);
 
         DatabaseSyncService.getInstance().syncDatabases(sourcePath.toString(), targetPath.toString(), true, false);
 
-        for (DatabaseUtils.DbTable table : DatabaseUtils.Syncable) {
-            int sourceCount = countRowsInDatabase(sourcePath.toString(), table.getTableName());
-            int targetCount = countRowsInDatabase(targetPath.toString(), table.getTableName());
-            assertTrue(targetCount >= sourceCount, "Expected target row count to include source rows for " + table.getTableName());
-            assertTrue(targetCount >= 2 || table == DatabaseUtils.DbTable.BOOKMARK_ORDER_TABLE,
-                    "Expected merged rows in " + table.getTableName());
-        }
+        assertDatabaseTableCountsMatch(sourcePath.toString(), targetPath.toString());
+        assertClonedAccountRows(targetPath.toString());
+        assertAccountInfoCloned(targetPath.toString());
+        assertCacheRowsCloned(targetPath.toString(), "100", "200");
 
-        assertAccountInfoSynced(targetPath.toString());
         assertConfigurationSynced(targetPath.toString(), false);
         assertPublishedM3uSelectionSynced(targetPath.toString());
 
         DatabaseSyncService.getInstance().syncDatabases(sourcePath.toString(), targetPath.toString(), true, true);
+        assertDatabaseTableCountsMatch(sourcePath.toString(), targetPath.toString());
         assertConfigurationSynced(targetPath.toString(), true);
         assertPublishedM3uSelectionSynced(targetPath.toString());
+
+        seedAccountOnly(targetPath.toString(), "999", "target-only");
+        seedCacheRows(targetPath.toString(), "200", 2000);
+        updateConfigurationRow(targetPath.toString(), "/preserve/player-1", "/preserve/player-2", "target-filter", "ur-PK", "0");
+
+        DatabaseSyncService.getInstance().syncDatabases(sourcePath.toString(), targetPath.toString(), false, false);
+        assertDatabaseTableCountsMatch(sourcePath.toString(), targetPath.toString());
+        assertClonedAccountRows(targetPath.toString());
+        assertCacheRowsCloned(targetPath.toString(), "100", "200");
+        assertConfigurationPreserved(targetPath.toString());
     }
 
     private void createSyncSchema(String dbPath) throws SQLException {
-        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
-             Statement statement = conn.createStatement()) {
-            for (DatabaseUtils.DbTable table : DatabaseUtils.DbTable.values()) {
-                statement.execute(DatabaseUtils.createTableSql(table));
-            }
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath)) {
+            DatabasePatchesUtils.applyPatches(conn);
         }
     }
 
@@ -977,6 +983,41 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         }
     }
 
+    private void seedCacheRows(String dbPath, String accountId, int idBase) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             Statement statement = conn.createStatement()) {
+            statement.executeUpdate("INSERT OR REPLACE INTO Category (id, categoryId, accountId, accountType, title) VALUES (" + idBase + ", 'live-" + accountId + "', '" + accountId + "', 'itv', 'Live " + accountId + "')");
+            statement.executeUpdate("INSERT OR REPLACE INTO Channel (id, channelId, categoryId, name, cmd) VALUES (" + (idBase + 1) + ", 'channel-" + accountId + "', '" + idBase + "', 'Channel " + accountId + "', 'http://sync/live/" + accountId + "')");
+            statement.executeUpdate("INSERT OR REPLACE INTO VodCategory (id, categoryId, accountId, accountType, title, cachedAt) VALUES (" + (idBase + 2) + ", 'vod-" + accountId + "', '" + accountId + "', 'vod', 'Vod " + accountId + "', 1)");
+            statement.executeUpdate("INSERT OR REPLACE INTO VodChannel (id, channelId, categoryId, accountId, name, cachedAt) VALUES (" + (idBase + 3) + ", 'vod-channel-" + accountId + "', 'vod-" + accountId + "', '" + accountId + "', 'Vod Channel " + accountId + "', 1)");
+            statement.executeUpdate("INSERT OR REPLACE INTO VodWatchState (id, accountId, categoryId, vodId, vodName, updatedAt) VALUES (" + (idBase + 4) + ", '" + accountId + "', 'vod-" + accountId + "', 'vod-channel-" + accountId + "', 'Vod Channel " + accountId + "', 1)");
+            statement.executeUpdate("INSERT OR REPLACE INTO SeriesCategory (id, categoryId, accountId, accountType, title, cachedAt) VALUES (" + (idBase + 5) + ", 'series-" + accountId + "', '" + accountId + "', 'series', 'Series " + accountId + "', 1)");
+            statement.executeUpdate("INSERT OR REPLACE INTO SeriesChannel (id, channelId, categoryId, accountId, name, cachedAt) VALUES (" + (idBase + 6) + ", 'series-channel-" + accountId + "', 'series-" + accountId + "', '" + accountId + "', 'Series Channel " + accountId + "', 1)");
+            statement.executeUpdate("INSERT OR REPLACE INTO SeriesEpisode (id, accountId, categoryId, seriesId, channelId, name, cachedAt) VALUES (" + (idBase + 7) + ", '" + accountId + "', 'series-" + accountId + "', 'series-channel-" + accountId + "', 'episode-" + accountId + "', 'Episode " + accountId + "', 1)");
+            statement.executeUpdate("INSERT OR REPLACE INTO SeriesWatchState (id, accountId, mode, categoryId, seriesId, episodeId, episodeName, updatedAt) VALUES (" + (idBase + 8) + ", '" + accountId + "', 'series', 'series-" + accountId + "', 'series-channel-" + accountId + "', 'episode-" + accountId + "', 'Episode " + accountId + "', 1)");
+            statement.executeUpdate("INSERT OR REPLACE INTO SeriesWatchingNowSnapshot (id, accountId, categoryId, seriesId, categoryDbId, seriesTitle, episodesJson, updatedAt) VALUES (" + (idBase + 9) + ", '" + accountId + "', 'series-" + accountId + "', 'series-channel-" + accountId + "', '" + (idBase + 5) + "', 'Series " + accountId + "', '[]', 1)");
+        }
+    }
+
+    private void updateConfigurationRow(String dbPath,
+                                        String playerPath1,
+                                        String playerPath2,
+                                        String filterCategoriesList,
+                                        String languageLocale,
+                                        String resolveChainEnabled) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE Configuration SET playerPath1 = ?, playerPath2 = ?, defaultPlayerPath = ?, filterCategoriesList = ?, languageLocale = ?, resolveChainAndDeepRedirects = ? WHERE id = 1")) {
+            ps.setString(1, playerPath1);
+            ps.setString(2, playerPath2);
+            ps.setString(3, playerPath1);
+            ps.setString(4, filterCategoriesList);
+            ps.setString(5, languageLocale);
+            ps.setString(6, resolveChainEnabled);
+            assertEquals(1, ps.executeUpdate());
+        }
+    }
+
     private int countRowsInDatabase(String dbPath, String tableName) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
              PreparedStatement statement = conn.prepareStatement("SELECT COUNT(*) FROM " + tableName);
@@ -985,26 +1026,48 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         }
     }
 
-    private void assertAccountInfoSynced(String dbPath) throws SQLException {
+    private void assertDatabaseTableCountsMatch(String sourceDbPath, String targetDbPath) throws SQLException {
+        for (DatabaseUtils.DbTable table : DatabaseUtils.DbTable.values()) {
+            int sourceCount = countRowsInDatabase(sourceDbPath, table.getTableName());
+            int targetCount = countRowsInDatabase(targetDbPath, table.getTableName());
+            assertEquals(sourceCount, targetCount, "Expected cloned row count for " + table.getTableName());
+        }
+    }
+
+    private void assertClonedAccountRows(String dbPath) throws SQLException {
+        assertEquals(1, countRowsWhere(dbPath, "Account", "id = '100'"));
+        assertEquals(0, countRowsWhere(dbPath, "Account", "id IN ('200', '999')"));
+    }
+
+    private void assertAccountInfoCloned(String dbPath) throws SQLException {
         Map<String, String> accountInfo100 = getAccountInfoRow(dbPath, "100");
-        Map<String, String> accountInfo200 = getAccountInfoRow(dbPath, "200");
 
         assertEquals("ACTIVE", accountInfo100.get("accountStatus"));
-        assertEquals("ACTIVE", accountInfo200.get("accountStatus"));
         assertEquals("2027-02-16 00:00:00", accountInfo100.get("expireDate"));
-        assertEquals("2027-02-16 00:00:00", accountInfo200.get("expireDate"));
         assertEquals("sync-tariff", accountInfo100.get("tariffName"));
-        assertEquals("sync-tariff", accountInfo200.get("tariffName"));
         assertEquals("sync-plan", accountInfo100.get("tariffPlan"));
-        assertEquals("sync-plan", accountInfo200.get("tariffPlan"));
         assertEquals("UTC", accountInfo100.get("defaultTimezone"));
-        assertEquals("UTC", accountInfo200.get("defaultTimezone"));
         assertEquals("{\"js\":{\"id\":\"sync\"}}", accountInfo100.get("profileJson"));
-        assertEquals("{\"js\":{\"id\":\"sync\"}}", accountInfo200.get("profileJson"));
         assertEquals("[\"mag250\",\"mag270\"]", accountInfo100.get("allowedStbTypesJson"));
-        assertEquals("[\"mag250\",\"mag270\"]", accountInfo200.get("allowedStbTypesJson"));
         assertEquals("mag270", accountInfo100.get("preferredStbType"));
-        assertEquals("mag270", accountInfo200.get("preferredStbType"));
+        assertEquals(0, countRowsWhere(dbPath, "AccountInfo", "accountId = '200'"));
+    }
+
+    private void assertCacheRowsCloned(String dbPath, String sourceAccountId, String staleAccountId) throws SQLException {
+        assertEquals(1, countRowsWhere(dbPath, "Category", "accountId = '" + sourceAccountId + "'"));
+        assertEquals(1, countRowsWhere(dbPath, "Channel", "channelId = 'channel-" + sourceAccountId + "'"));
+        assertEquals(1, countRowsWhere(dbPath, "VodCategory", "accountId = '" + sourceAccountId + "'"));
+        assertEquals(1, countRowsWhere(dbPath, "VodChannel", "accountId = '" + sourceAccountId + "'"));
+        assertEquals(1, countRowsWhere(dbPath, "VodWatchState", "accountId = '" + sourceAccountId + "'"));
+        assertEquals(1, countRowsWhere(dbPath, "SeriesCategory", "accountId = '" + sourceAccountId + "'"));
+        assertEquals(1, countRowsWhere(dbPath, "SeriesChannel", "accountId = '" + sourceAccountId + "'"));
+        assertEquals(1, countRowsWhere(dbPath, "SeriesEpisode", "accountId = '" + sourceAccountId + "'"));
+        assertEquals(1, countRowsWhere(dbPath, "SeriesWatchState", "accountId = '" + sourceAccountId + "'"));
+        assertEquals(1, countRowsWhere(dbPath, "SeriesWatchingNowSnapshot", "accountId = '" + sourceAccountId + "'"));
+
+        assertEquals(0, countRowsWhere(dbPath, "Category", "accountId = '" + staleAccountId + "'"));
+        assertEquals(0, countRowsWhere(dbPath, "VodCategory", "accountId = '" + staleAccountId + "'"));
+        assertEquals(0, countRowsWhere(dbPath, "SeriesCategory", "accountId = '" + staleAccountId + "'"));
     }
 
     private void assertConfigurationSynced(String dbPath, boolean externalPathsExpected) throws SQLException {
@@ -1035,6 +1098,28 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             assertTrue(accountIds.contains("100"));
             assertFalse(accountIds.contains("200"));
             assertFalse(accountIds.contains("999"));
+        }
+    }
+
+    private void assertConfigurationPreserved(String dbPath) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement statement = conn.prepareStatement(
+                     "SELECT playerPath1, playerPath2, filterCategoriesList, languageLocale, resolveChainAndDeepRedirects FROM Configuration LIMIT 1");
+             ResultSet rs = statement.executeQuery()) {
+            assertTrue(rs.next(), "Expected preserved configuration row in target sync database");
+            assertEquals("/preserve/player-1", rs.getString("playerPath1"));
+            assertEquals("/preserve/player-2", rs.getString("playerPath2"));
+            assertEquals("target-filter", rs.getString("filterCategoriesList"));
+            assertEquals("ur-PK", rs.getString("languageLocale"));
+            assertEquals("0", rs.getString("resolveChainAndDeepRedirects"));
+        }
+    }
+
+    private int countRowsWhere(String dbPath, String tableName, String whereClause) throws SQLException {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement statement = conn.prepareStatement("SELECT COUNT(*) FROM " + tableName + " WHERE " + whereClause);
+             ResultSet rs = statement.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
         }
     }
 

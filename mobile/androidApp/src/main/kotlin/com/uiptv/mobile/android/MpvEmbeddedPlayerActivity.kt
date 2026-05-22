@@ -72,6 +72,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private lateinit var zoomButton: ImageButton
     private lateinit var repeatButton: ImageButton
     private lateinit var muteButton: ImageButton
+    private lateinit var audioTrackButton: ImageButton
+    private lateinit var subtitleTrackButton: ImageButton
     private val overlayHandler = Handler(Looper.getMainLooper())
     private val zoomModes = listOf(
         ZoomMode("Default", keepAspect = true, aspectOverride = "no", unscaled = false, R.drawable.aspect_ratio),
@@ -668,6 +670,11 @@ class MpvEmbeddedPlayerActivity : Activity() {
             muteButton = iconControlButton(R.drawable.mute_off, "Mute") { toggleMute() }
             updateMuteButton()
             addView(muteButton, compactControlLayoutParams())
+            audioTrackButton = iconControlButton(R.drawable.audio_track, "Audio track") { cycleAudioTrack() }
+            addView(audioTrackButton, compactControlLayoutParams())
+            subtitleTrackButton = iconControlButton(R.drawable.subtitle_track, "Subtitles") { cycleSubtitleTrack() }
+            updateTrackButtons()
+            addView(subtitleTrackButton, compactControlLayoutParams())
             repeatButton = iconControlButton(R.drawable.repeat_off, "Repeat") { toggleRepeat() }
             updateRepeatButton()
             addView(repeatButton, compactControlLayoutParams())
@@ -927,6 +934,58 @@ class MpvEmbeddedPlayerActivity : Activity() {
         setButtonIcon(muteButton, if (muted) R.drawable.mute_on else R.drawable.mute_off)
         muteButton.contentDescription = if (muted) "Unmute" else "Mute"
         muteButton.background = controlButtonBackground(active = muted)
+    }
+
+    private fun cycleAudioTrack() {
+        val player = mpv ?: return
+        player.runCatchingCommand("cycle", "aid")
+        overlayHandler.postDelayed({
+            updateTrackButtons()
+            showFeedback(currentTrackFeedback("audio", "aid", "Audio"))
+        }, TrackFeedbackDelayMs)
+    }
+
+    private fun cycleSubtitleTrack() {
+        val player = mpv ?: return
+        player.runCatchingCommand("cycle", "sid")
+        overlayHandler.postDelayed({
+            updateTrackButtons()
+            showFeedback(currentTrackFeedback("sub", "sid", "Subtitles"))
+        }, TrackFeedbackDelayMs)
+    }
+
+    private fun updateTrackButtons() {
+        if (::audioTrackButton.isInitialized) {
+            audioTrackButton.background = controlButtonBackground(active = false)
+        }
+        if (::subtitleTrackButton.isInitialized) {
+            subtitleTrackButton.background = controlButtonBackground(active = currentTrackIsEnabled("sid"))
+        }
+    }
+
+    private fun currentTrackFeedback(trackType: String, idProperty: String, label: String): String {
+        val player = mpv ?: return label
+        if (!currentTrackIsEnabled(idProperty)) {
+            return "$label off"
+        }
+        val trackLabel = player.firstNonBlankString(
+            "current-tracks/$trackType/title",
+            "current-tracks/$trackType/lang",
+            "current-tracks/$trackType/codec"
+        )
+        val id = player.firstString(idProperty)
+            .takeIf { it.isNotBlank() && !it.equals("no", ignoreCase = true) }
+            ?.let { "#$it" }
+        return listOf(trackLabel, id)
+            .filterNot { it.isNullOrBlank() }
+            .joinToString(" ")
+            .ifBlank { "selected" }
+            .let { "$label $it" }
+    }
+
+    private fun currentTrackIsEnabled(idProperty: String): Boolean {
+        val value = mpv?.firstString(idProperty).orEmpty()
+        return value.isNotBlank() && !value.equals("no", ignoreCase = true)
     }
 
     private fun toggleRepeat() {
@@ -1377,6 +1436,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 refreshMpvTrackDetails()
                 scheduleStreamInfoRefreshes()
             }
+            "aid",
+            "sid" -> updateTrackButtons()
         }
         updatePlaybackProgressLabelOnly()
         updatePlayPauseButton()
@@ -1544,6 +1605,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
         player.observe("video-codec", MPVLib.MpvFormat.MPV_FORMAT_STRING)
         player.observe("hwdec-current", MPVLib.MpvFormat.MPV_FORMAT_STRING)
         player.observe("current-vo", MPVLib.MpvFormat.MPV_FORMAT_STRING)
+        player.observe("aid", MPVLib.MpvFormat.MPV_FORMAT_STRING)
+        player.observe("sid", MPVLib.MpvFormat.MPV_FORMAT_STRING)
     }
 
     private fun attachMpvSurface(surface: Surface) {
@@ -1765,6 +1828,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         private const val StreamInfoRefreshShortDelayMs = 250L
         private const val StreamInfoRefreshMediumDelayMs = 1_000L
         private const val StreamInfoRefreshLongDelayMs = 2_500L
+        private const val TrackFeedbackDelayMs = 120L
         private const val ProgressBarMax = 1_000
         private const val MpvAudibleVolume = 100.0
         private const val SeekStepSeconds = 15

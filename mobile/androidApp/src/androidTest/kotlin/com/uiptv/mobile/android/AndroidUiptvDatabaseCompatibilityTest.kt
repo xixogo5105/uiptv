@@ -24,6 +24,7 @@ import com.uiptv.mobile.shared.cache.CacheRefreshJobStatus
 import com.uiptv.mobile.shared.db.AndroidMigrationSource
 import com.uiptv.mobile.shared.db.AndroidSQLiteSnapshotSyncApplier
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
+import com.uiptv.mobile.shared.db.AndroidUiptvMigrationApplier
 import com.uiptv.mobile.shared.db.UiptvSchemaInfo
 import com.uiptv.mobile.shared.db.UiptvSyncSchema
 import com.uiptv.mobile.shared.playback.PlaybackTarget
@@ -75,21 +76,19 @@ class AndroidUiptvDatabaseCompatibilityTest {
     }
 
     @Test
-    fun appliesFixtureSnapshotUsingCommonColumnsOnly() {
+    fun appliesFixtureSnapshotAsFullDatabaseClone() {
         val snapshot = File.createTempFile("uiptv-sync-fixture-", ".db", context.cacheDir)
         try {
             SQLiteDatabase.openOrCreateDatabase(snapshot, null).use { source ->
-                source.execSQL("CREATE TABLE Account(id INTEGER PRIMARY KEY, accountName TEXT, type TEXT, futureDesktopColumn TEXT)")
-                source.execSQL("CREATE TABLE AccountInfo(id INTEGER PRIMARY KEY, accountId TEXT, expireDate TEXT)")
-                source.execSQL("CREATE TABLE Bookmark(id INTEGER PRIMARY KEY, accountName TEXT, channelId TEXT, channelName TEXT)")
-                source.execSQL("CREATE TABLE BookmarkCategory(id INTEGER PRIMARY KEY, name TEXT)")
-                source.execSQL("CREATE TABLE BookmarkOrder(id INTEGER PRIMARY KEY, bookmark_db_id TEXT, category_id TEXT, display_order INTEGER)")
-                source.execSQL("CREATE TABLE Configuration(id INTEGER PRIMARY KEY, defaultPlayerPath TEXT, embeddedPlayer TEXT, filterCategoriesList TEXT, filterChannelsList TEXT, pauseFiltering TEXT, cacheExpiryDays TEXT, enableThumbnails TEXT, publishedM3uCategoryMode TEXT, filterLockUnlockDurationMinutes TEXT)")
+                AndroidUiptvMigrationApplier(AndroidMigrationSource(context)).applyAll(source)
+                source.execSQL("ALTER TABLE Account ADD COLUMN futureDesktopColumn TEXT")
                 source.execSQL("INSERT INTO Account(id, accountName, type, futureDesktopColumn) VALUES(7, 'Desktop Account', 'M3U8_URL', 'ignored')")
                 source.execSQL("INSERT INTO AccountInfo(id, accountId, expireDate) VALUES(8, '7', '1893456000')")
                 source.execSQL("INSERT INTO Bookmark(id, accountName, channelId, channelName) VALUES(9, 'Desktop Account', 'c1', 'News One')")
                 source.execSQL("INSERT INTO BookmarkCategory(id, name) VALUES(10, 'News')")
                 source.execSQL("INSERT INTO BookmarkOrder(id, bookmark_db_id, category_id, display_order) VALUES(11, '9', '10', 1)")
+                source.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(12, 'live-desktop', '7', 'itv', 'Live Desktop')")
+                source.execSQL("INSERT INTO Channel(id, channelId, categoryId, name, cmd) VALUES(13, 'live-one', '12', 'Live One', 'http://desktop/live-one')")
                 source.execSQL("INSERT INTO Configuration(id, defaultPlayerPath, embeddedPlayer, filterCategoriesList, filterChannelsList, pauseFiltering, cacheExpiryDays, enableThumbnails, publishedM3uCategoryMode, filterLockUnlockDurationMinutes) VALUES(1, '/desktop/player', '1', 'sports,news', 'kids', '1', '9', '1', 'ALL', '30')")
             }
             helper.writableDatabase.execSQL("INSERT INTO Configuration(id, defaultPlayerPath, embeddedPlayer, enableThumbnails) VALUES(1, 'mobile-player', '0', '0')")
@@ -97,12 +96,14 @@ class AndroidUiptvDatabaseCompatibilityTest {
             val report = AndroidSQLiteSnapshotSyncApplier(helper, context.cacheDir).apply(snapshot)
             val target = helper.writableDatabase
 
-            assertEquals(6, report.totalRowsSynced)
+            assertEquals(8, report.totalRowsSynced)
             assertEquals(1, target.countRows("Account", "id = 7 AND accountName = 'Desktop Account' AND type = 'M3U8_URL'"))
             assertEquals(1, target.countRows("Bookmark", "id = 9 AND channelName = 'News One'"))
+            assertEquals(1, target.countRows("Category", "id = 12 AND accountId = '7' AND title = 'Live Desktop'"))
+            assertEquals(1, target.countRows("Channel", "id = 13 AND categoryId = '12' AND name = 'Live One'"))
             assertEquals(1, target.countRows("Configuration", "filterCategoriesList = 'sports,news' AND filterChannelsList = 'kids' AND pauseFiltering = '1' AND cacheExpiryDays = '9' AND enableThumbnails = '1' AND publishedM3uCategoryMode = 'ALL' AND filterLockUnlockDurationMinutes = '30'"))
-            assertEquals(1, target.countRows("Configuration", "defaultPlayerPath = 'mobile-player' AND embeddedPlayer = '0'"))
-            assertFalse(target.tableColumns("Account").contains("futureDesktopColumn"))
+            assertEquals(1, target.countRows("Configuration", "defaultPlayerPath = '/desktop/player' AND embeddedPlayer = '1'"))
+            assertTrue(target.tableColumns("Account").contains("futureDesktopColumn"))
         } finally {
             snapshot.delete()
         }

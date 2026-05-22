@@ -1,7 +1,5 @@
 package com.uiptv.mobile.shared.db
 
-import android.content.ContentValues
-import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import com.uiptv.mobile.shared.sync.RemoteSnapshotApplier
 import kotlinx.coroutines.Dispatchers
@@ -36,190 +34,97 @@ class AndroidSQLiteSnapshotSyncApplier(
         applySnapshotFile(snapshotFile)
 
     private fun applySnapshotFile(snapshotFile: File): DatabaseSyncReport {
-        val target = databaseHelper.writableDatabase
-        val source = SQLiteDatabase.openDatabase(
-            snapshotFile.absolutePath,
-            null,
-            SQLiteDatabase.OPEN_READONLY
-        )
-        return source.use {
-            syncDatabases(source, target)
-        }
-    }
-
-    private fun syncDatabases(source: SQLiteDatabase, target: SQLiteDatabase): DatabaseSyncReport {
-        val results = mutableListOf<TableSyncResult>()
-        target.beginTransaction()
+        val stagedSnapshot = File.createTempFile("uiptv-remote-sync-staged-", ".db", tempDirectory)
         try {
-            UiptvSyncSchema.syncableTables.forEach { table ->
-                results += if (table == "Configuration") {
-                    TableSyncResult(table, syncFilterConfiguration(source, target))
-                } else {
-                    TableSyncResult(table, syncTable(source, target, table))
-                }
-            }
-            removeUnsupportedSyncedAccounts(target)
-            target.setTransactionSuccessful()
+            snapshotFile.copyTo(stagedSnapshot, overwrite = true)
+            migrateAndValidate(stagedSnapshot)
+            val report = buildCloneReport(stagedSnapshot)
+            checkpointLiveDatabase()
+            databaseHelper.close()
+            replaceLiveDatabase(stagedSnapshot)
+            reopenAndValidateLiveDatabase()
+            return report
         } finally {
-            target.endTransaction()
+            stagedSnapshot.delete()
         }
-        return DatabaseSyncReport(results)
     }
 
-    private fun syncTable(source: SQLiteDatabase, target: SQLiteDatabase, table: String): Int {
-        val sourceColumns = tableColumns(source, table)
-        if (sourceColumns.isEmpty()) {
-            return 0
+    private fun migrateAndValidate(databaseFile: File) {
+        val db = SQLiteDatabase.openDatabase(databaseFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
+        try {
+            requireIntegrity(db)
+            databaseHelper.applyMigrations(db)
+            requireIntegrity(db)
+            db.version = UiptvSchemaInfo.SCHEMA_VERSION_CODE
+        } finally {
+            db.close()
         }
-        val targetColumns = tableColumns(target, table)
-        val commonColumns = UiptvSyncSchema.commonSyncColumns(sourceColumns, targetColumns)
-        require(commonColumns.isNotEmpty()) { "No common columns found for table $table" }
-
-        val quotedColumns = commonColumns.joinToString(", ") { quoteIdentifier(it) }
-
-        var syncedRows = 0
-        val whereClause = if (table == "Account" && "type" in sourceColumns) {
-            " WHERE UPPER(COALESCE(type, '')) <> 'RSS_FEED'"
-        } else {
-            ""
-        }
-        source.rawQuery("SELECT $quotedColumns FROM ${quoteIdentifier(table)}$whereClause", null).use { cursor ->
-            if (table in replaceOnSyncTables) {
-                target.delete(table, null, null)
-            }
-            while (cursor.moveToNext()) {
-                val values = ContentValues(commonColumns.size)
-                commonColumns.forEachIndexed { index, column ->
-                    values.putCursorValue(column, cursor, index)
-                }
-                target.insertWithOnConflict(
-                    table,
-                    null,
-                    values,
-                    SQLiteDatabase.CONFLICT_REPLACE
-                )
-                syncedRows++
-            }
-        }
-        return syncedRows
     }
 
-    private fun syncFilterConfiguration(source: SQLiteDatabase, target: SQLiteDatabase): Int {
-        val sourceColumns = tableColumns(source, "Configuration")
-        val targetColumns = tableColumns(target, "Configuration")
-        val commonColumns = UiptvSyncSchema.commonSyncColumns(sourceColumns, targetColumns)
-            .filterNot { it == "id" || it in UiptvSyncSchema.androidNeverSyncConfigurationColumns }
-        if (commonColumns.isEmpty()) {
-            return 0
-        }
-        val selectColumns = commonColumns.joinToString(", ") { quoteIdentifier(it) }
-        source.rawQuery("SELECT $selectColumns FROM Configuration ORDER BY id LIMIT 1", null).use { cursor ->
-            if (!cursor.moveToFirst()) {
-                return 0
-            }
-            val values = ContentValues(commonColumns.size)
-            commonColumns.forEachIndexed { index, column ->
-                values.putCursorValue(column, cursor, index)
-            }
-            val targetId = ensureConfigurationRow(target)
-            val updatedRows = target.update(
-                "Configuration",
-                values,
-                "id = ?",
-                arrayOf(targetId.toString())
+    private fun buildCloneReport(databaseFile: File): DatabaseSyncReport {
+        val db = SQLiteDatabase.openDatabase(databaseFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+        return db.use {
+            DatabaseSyncReport(
+                tableResults = UiptvSyncSchema.syncableTables
+                    .filter { table -> tableExists(db, table) }
+                    .map { table -> TableSyncResult(table, countRows(db, table)) },
+                configurationRequested = true,
+                configurationCopied = tableExists(db, "Configuration") && countRows(db, "Configuration") > 0,
+                externalPlayerPathsIncluded = true
             )
-            if (updatedRows == 0) {
-                values.put("id", targetId)
-                target.insertWithOnConflict("Configuration", null, values, SQLiteDatabase.CONFLICT_REPLACE)
-            }
-            return 1
         }
     }
 
-    private fun ensureConfigurationRow(db: SQLiteDatabase): Long {
-        db.rawQuery("SELECT id FROM Configuration ORDER BY id LIMIT 1", null).use { cursor ->
+    private fun checkpointLiveDatabase() {
+        databaseHelper.writableDatabase.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).use { cursor ->
             if (cursor.moveToFirst()) {
-                return cursor.getLong(0)
+                // Reading the row forces SQLite to finish the checkpoint before file replacement.
             }
         }
-        return db.insertWithOnConflict(
-            "Configuration",
-            null,
-            ContentValues().apply {
-                put("id", 1L)
-                put("filterCategoriesList", "")
-                put("filterChannelsList", "")
-                put("pauseFiltering", "0")
-                put("enableThumbnails", "0")
-            },
-            SQLiteDatabase.CONFLICT_REPLACE
-        ).takeIf { it > 0 } ?: 1L
     }
 
-    private fun removeUnsupportedSyncedAccounts(db: SQLiteDatabase) {
-        val rssAccountIds = mutableListOf<String>()
+    private fun replaceLiveDatabase(stagedSnapshot: File) {
+        val databaseFile = databaseHelper.databaseFile()
+        databaseFile.parentFile?.mkdirs()
+        deleteDatabaseSidecars(databaseFile)
+        stagedSnapshot.copyTo(databaseFile, overwrite = true)
+        deleteDatabaseSidecars(databaseFile)
+    }
+
+    private fun reopenAndValidateLiveDatabase() {
+        val db = databaseHelper.writableDatabase
+        databaseHelper.applyMigrations(db)
+        requireIntegrity(db)
+    }
+
+    private fun requireIntegrity(db: SQLiteDatabase) {
+        db.rawQuery("PRAGMA integrity_check", null).use { cursor ->
+            require(cursor.moveToFirst() && cursor.getString(0).equals("ok", ignoreCase = true)) {
+                "Synced database failed integrity check."
+            }
+        }
+    }
+
+    private fun deleteDatabaseSidecars(databaseFile: File) {
+        File(databaseFile.absolutePath + "-wal").delete()
+        File(databaseFile.absolutePath + "-shm").delete()
+    }
+
+    private fun countRows(db: SQLiteDatabase, table: String): Int {
+        db.rawQuery("SELECT COUNT(*) FROM ${quoteIdentifier(table)}", null).use { cursor ->
+            return if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+    }
+
+    private fun tableExists(db: SQLiteDatabase, table: String): Boolean {
         db.rawQuery(
-            "SELECT id FROM Account WHERE UPPER(COALESCE(type, '')) = 'RSS_FEED'",
-            null
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            arrayOf(table)
         ).use { cursor ->
-            while (cursor.moveToNext()) {
-                rssAccountIds += cursor.getLong(0).toString()
-            }
-        }
-        rssAccountIds.forEach { accountId ->
-            db.execSQL(
-                "DELETE FROM Channel WHERE categoryId IN (SELECT id FROM Category WHERE accountId = ?)",
-                arrayOf(accountId)
-            )
-            db.execSQL(
-                "DELETE FROM VodChannel WHERE categoryId IN (SELECT categoryId FROM VodCategory WHERE accountId = ?)",
-                arrayOf(accountId)
-            )
-            db.execSQL(
-                "DELETE FROM SeriesEpisode WHERE accountId = ? OR seriesId IN (SELECT channelId FROM SeriesChannel WHERE accountId = ?)",
-                arrayOf(accountId, accountId)
-            )
-            db.delete("SeriesChannel", "accountId = ?", arrayOf(accountId))
-            db.delete("AccountInfo", "accountId = ?", arrayOf(accountId))
-            db.delete("VodWatchState", "accountId = ?", arrayOf(accountId))
-            db.delete("SeriesWatchState", "accountId = ?", arrayOf(accountId))
-            db.delete("SeriesWatchingNowSnapshot", "accountId = ?", arrayOf(accountId))
-            db.delete("Category", "accountId = ?", arrayOf(accountId))
-            db.delete("VodCategory", "accountId = ?", arrayOf(accountId))
-            db.delete("SeriesCategory", "accountId = ?", arrayOf(accountId))
-            db.delete("Account", "id = ?", arrayOf(accountId))
-        }
-    }
-
-    private fun tableColumns(db: SQLiteDatabase, table: String): List<String> {
-        db.rawQuery("PRAGMA table_info(${quoteIdentifier(table)})", null).use { cursor ->
-            val nameIndex = cursor.getColumnIndexOrThrow("name")
-            val columns = mutableListOf<String>()
-            while (cursor.moveToNext()) {
-                columns += cursor.getString(nameIndex)
-            }
-            return columns
-        }
-    }
-
-    private fun ContentValues.putCursorValue(column: String, cursor: Cursor, index: Int) {
-        when (cursor.getType(index)) {
-            Cursor.FIELD_TYPE_NULL -> putNull(column)
-            Cursor.FIELD_TYPE_INTEGER -> put(column, cursor.getLong(index))
-            Cursor.FIELD_TYPE_FLOAT -> put(column, cursor.getDouble(index))
-            Cursor.FIELD_TYPE_BLOB -> put(column, cursor.getBlob(index))
-            else -> put(column, cursor.getString(index))
+            return cursor.moveToFirst()
         }
     }
 
     private fun quoteIdentifier(identifier: String): String =
         "\"" + identifier.replace("\"", "\"\"") + "\""
-
-    private companion object {
-        private val replaceOnSyncTables = setOf(
-            "PublishedM3uSelection",
-            "PublishedM3uCategorySelection",
-            "PublishedM3uChannelSelection"
-        )
-    }
 }

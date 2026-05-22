@@ -66,7 +66,7 @@ class AndroidRemoteSyncPullService(
                 request = RemoteSyncRequest(
                     direction = RemoteSyncDirection.IMPORT_FROM_REMOTE,
                     verificationCode = verificationCode,
-                    options = androidPortablePullOptions()
+                    options = androidFullClonePullOptions()
                 )
             )
             sessionId = session.sessionId

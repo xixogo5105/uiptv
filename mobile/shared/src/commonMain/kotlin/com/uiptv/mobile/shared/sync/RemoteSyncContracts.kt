@@ -43,6 +43,18 @@ fun androidPortablePullOptions(
         encryptedTransfer = encryptedTransfer
     )
 
+fun androidFullClonePullOptions(
+    archiveTransfer: Boolean = true,
+    encryptedTransfer: Boolean = true
+): RemoteSyncOptions =
+    RemoteSyncOptions(
+        syncConfiguration = true,
+        syncExternalPlayerPaths = true,
+        configurationProfile = ConfigurationSyncProfile.DESKTOP_FULL,
+        archiveTransfer = archiveTransfer,
+        encryptedTransfer = encryptedTransfer
+    )
+
 data class RemoteSyncRequest(
     val direction: RemoteSyncDirection = RemoteSyncDirection.IMPORT_FROM_REMOTE,
     val verificationCode: String,
@@ -107,7 +119,7 @@ class PullFromDesktopSyncUseCase(
             request = RemoteSyncRequest(
                 direction = RemoteSyncDirection.IMPORT_FROM_REMOTE,
                 verificationCode = verificationCode,
-                options = androidPortablePullOptions(archiveTransfer = false, encryptedTransfer = false)
+                options = androidFullClonePullOptions(archiveTransfer = false, encryptedTransfer = false)
             )
         )
     }
