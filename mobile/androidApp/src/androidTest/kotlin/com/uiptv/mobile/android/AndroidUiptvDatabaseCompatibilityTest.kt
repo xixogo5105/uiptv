@@ -289,6 +289,55 @@ class AndroidUiptvDatabaseCompatibilityTest {
     }
 
     @Test
+    fun stalkerReloaderDefersLiveChannelsWhenGetAllChannelsIsEmpty() = runBlocking {
+        TestHttpServer(
+            mapOf(
+                "handshake" to """{"js":{"token":"abc123"}}""",
+                "get_profile" to """{"js":{}}""",
+                "get_genres" to """
+                    {"js":[
+                      {"id":"1","title":"News","alias":"News","active_sub":false,"censored":0}
+                    ]}
+                """.trimIndent(),
+                "get_all_channels" to """{"js":{"data":[]}}""",
+                "get_categories" to """{"js":[]}""",
+                "get_ordered_list" to """
+                    {"js":{"data":[
+                      {"id":"100","name":"Deferred News HD","number":"1","cmd":"ffmpeg http://stream.test/deferred-news","cmd_1":"","cmd_2":"","cmd_3":"","logo":"https://logo.test/news.png","censored":0,"status":1,"hd":1,"tv_genre_id":"1"}
+                    ]}}
+                """.trimIndent()
+            )
+        ).use { server ->
+            val repository = AndroidSQLiteAccountRepository(helper)
+            val account = repository.saveAccount(
+                MobileAccount(
+                    accountName = "Deferred Portal",
+                    type = MobileAccountType.STALKER_PORTAL,
+                    url = "http://127.0.0.1:${server.port}",
+                    macAddress = "00:1A:79:00:00:01"
+                )
+            )
+            val accountId = requireNotNull(account.id)
+
+            val result = AndroidStalkerCacheReloader(helper).refreshAccount(accountId)
+            val db = helper.writableDatabase
+
+            assertEquals(CacheRefreshJobStatus.SUCCEEDED, result.status)
+            assertTrue(result.message.contains("will load when a category is opened"))
+            assertEquals(2, db.countRows("Category", "accountId = '$accountId'"))
+            assertEquals(0, db.countRows("Channel", "1 = 1"))
+            assertFalse(server.requests.any { it.contains("action=get_ordered_list") })
+
+            val newsCategoryRowId = db.singleString("Category", "id", "accountId = '$accountId' AND categoryId = '1'").toLong()
+            val snapshot = AndroidSQLiteBrowseRepository(helper).loadBrowse(accountId, BrowseMode.LIVE, newsCategoryRowId, "")
+
+            assertEquals("Deferred News HD", snapshot.items.single().name)
+            assertEquals(1, db.countRows("Channel", "categoryId = '$newsCategoryRowId'"))
+            assertTrue(server.requests.any { it.contains("action=get_ordered_list") && it.contains("genre=1") })
+        }
+    }
+
+    @Test
     fun browseRepositoryFetchesVodSeriesContentsAndWatchingNowEpisodesOnDemand() = runBlocking {
         TestHttpServer(
             mapOf(

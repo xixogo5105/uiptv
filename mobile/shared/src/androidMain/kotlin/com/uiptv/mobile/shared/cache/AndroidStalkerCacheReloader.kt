@@ -57,9 +57,13 @@ class AndroidStalkerCacheReloader(
                 seriesCategories = seriesCategoryRows
             )
             db.setTransactionSuccessful()
+            val liveMessage = if (summary.liveChannels > 0) {
+                "Saved ${summary.liveCategories} live categories, ${summary.liveChannels} live channels, "
+            } else {
+                "Saved ${summary.liveCategories} live categories; live channels will load when a category is opened. "
+            }
             M3uRefreshResult.succeeded(
-                "Saved ${summary.liveCategories} live categories, ${summary.liveChannels} live channels, " +
-                    "${summary.vodCategories} VOD categories and ${summary.seriesCategories} series categories.",
+                liveMessage + "Saved ${summary.vodCategories} VOD categories and ${summary.seriesCategories} series categories.",
                 summary
             )
         } finally {
@@ -69,6 +73,7 @@ class AndroidStalkerCacheReloader(
 
     private fun loadRefreshPayload(account: MobileAccount): StalkerRefreshPayload {
         var lastFailure = "Unable to load Stalker portal."
+        var deferredPayload: StalkerRefreshPayload? = null
         for (mac in account.stalkerMacCandidates()) {
             val candidate = account.withStalkerMac(mac)
             try {
@@ -78,17 +83,58 @@ class AndroidStalkerCacheReloader(
                     lastFailure = "No Stalker categories found. Existing cache was kept."
                     continue
                 }
-                val streams = fetchChannels(candidate, session, categories)
-                if (streams.isEmpty()) {
-                    lastFailure = "No Stalker channels found. Existing cache was kept."
-                    continue
+                val streams = runCatching {
+                    fetchGlobalChannels(candidate, session)
+                }.getOrElse { error ->
+                    lastFailure = error.message ?: "Unable to load Stalker channels from get_all_channels."
+                    emptyList()
                 }
-                return StalkerRefreshPayload(candidate, categories, streams)
+                if (streams.isNotEmpty()) {
+                    return StalkerRefreshPayload(candidate, categories, streams)
+                }
+                lastFailure = "No Stalker channels found from get_all_channels. Live channels will load by category."
+                if (deferredPayload == null) {
+                    deferredPayload = StalkerRefreshPayload(candidate, categories, emptyList())
+                }
             } catch (e: Exception) {
                 lastFailure = e.message ?: "Unable to connect to Stalker portal."
             }
         }
-        error(lastFailure)
+        return deferredPayload ?: error(lastFailure)
+    }
+
+    internal fun fetchAndSaveLiveCategory(
+        account: MobileAccount,
+        categoryRowId: Long,
+        categoryProviderId: String
+    ): Int {
+        if (account.type != MobileAccountType.STALKER_PORTAL || categoryProviderId.isBlank() || categoryProviderId == "all") {
+            return 0
+        }
+        for (mac in account.stalkerMacCandidates()) {
+            val candidate = account.withStalkerMac(mac)
+            try {
+                val session = connect(candidate)
+                val streams = fetchCategoryChannels(candidate, session, categoryProviderId)
+                    .distinctBy { "${it.channelId}|${it.command}|${it.name.lowercase()}" }
+                if (streams.isEmpty()) {
+                    continue
+                }
+                val db = databaseHelper.writableDatabase
+                db.beginTransaction()
+                try {
+                    db.delete("Channel", "categoryId = ?", arrayOf(categoryRowId.toString()))
+                    streams.forEach { stream -> insertChannel(db, categoryRowId, stream) }
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
+                return streams.size
+            } catch (e: Exception) {
+                // Try the next saved MAC candidate before giving up on lazy category load.
+            }
+        }
+        return 0
     }
 
     private fun connect(account: MobileAccount): StalkerSession {
@@ -134,21 +180,38 @@ class AndroidStalkerCacheReloader(
         }
     }
 
-    private fun fetchChannels(
-        account: MobileAccount,
-        session: StalkerSession,
-        categories: List<StalkerCategory>
-    ): List<StalkerChannel> {
-        val categoryChannels = runCatching {
-            fetchChannelsByCategory(account, session, categories)
-        }.getOrDefault(emptyList())
-        if (categoryChannels.isNotEmpty()) {
-            return categoryChannels
+    private fun fetchGlobalChannels(account: MobileAccount, session: StalkerSession): List<StalkerChannel> {
+        val fastChannels = fetchGlobalChannelsFast(account, session)
+        if (fastChannels.isNotEmpty()) {
+            return fastChannels
         }
-        return fetchGlobalChannels(account, session)
+        return fetchGlobalChannelsPaged(account, session)
     }
 
-    private fun fetchGlobalChannels(account: MobileAccount, session: StalkerSession): List<StalkerChannel> {
+    private fun fetchGlobalChannelsFast(account: MobileAccount, session: StalkerSession): List<StalkerChannel> {
+        val attempts = listOf(
+            emptyMap(),
+            mapOf("p" to "0", "per_page" to "99999"),
+            mapOf("p" to "1", "per_page" to "99999")
+        )
+        attempts.forEach { paging ->
+            val parsed = runCatching {
+                val body = readPortal(
+                    portalUrl = session.portalUrl,
+                    account = account,
+                    token = session.token,
+                    params = mapOf("type" to "itv", "action" to "get_all_channels") + paging
+                )
+                parseChannels(body)
+            }.getOrDefault(emptyList())
+            if (parsed.isNotEmpty()) {
+                return parsed.distinctBy { "${it.channelId}|${it.command}|${it.name.lowercase()}" }
+            }
+        }
+        return emptyList()
+    }
+
+    private fun fetchGlobalChannelsPaged(account: MobileAccount, session: StalkerSession): List<StalkerChannel> {
         for (startPage in listOf(0, 1)) {
             val firstPage = readGlobalChannelsPage(
                 account,
@@ -191,20 +254,6 @@ class AndroidStalkerCacheReloader(
         val root = JSONObject(body)
         val js = root.optJSONObject("js") ?: root
         return StalkerPage(parseChannels(body), resolveStalkerPageCount(root, js))
-    }
-
-    private fun fetchChannelsByCategory(
-        account: MobileAccount,
-        session: StalkerSession,
-        categories: List<StalkerCategory>
-    ): List<StalkerChannel> {
-        val uniqueChannels = linkedMapOf<String, StalkerChannel>()
-        categories.forEach { category ->
-            fetchCategoryChannels(account, session, category.id).forEach { channel ->
-                uniqueChannels.putIfAbsent("${channel.channelId}|${channel.command}|${channel.name.lowercase()}", channel)
-            }
-        }
-        return uniqueChannels.values.toList()
     }
 
     private fun fetchCategoryChannels(

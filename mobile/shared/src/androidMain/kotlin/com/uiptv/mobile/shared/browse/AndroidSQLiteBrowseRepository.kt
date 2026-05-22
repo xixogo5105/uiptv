@@ -9,6 +9,7 @@ import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.cache.AndroidCatalogMode
 import com.uiptv.mobile.shared.cache.AndroidPortalChannel
 import com.uiptv.mobile.shared.cache.AndroidPortalEpisode
+import com.uiptv.mobile.shared.cache.AndroidStalkerCacheReloader
 import com.uiptv.mobile.shared.cache.AndroidVodSeriesCatalogClient
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import kotlinx.coroutines.Dispatchers
@@ -43,9 +44,14 @@ class AndroidSQLiteBrowseRepository(
             loadCategories(db, selectedAccountId, mode).filterByCategoryFilters(filters)
         }
         val selectedCategoryRowId = categoryRowId?.takeIf { selected -> categories.any { it.rowId == selected } }
-        if (selectedAccountId != null && selectedCategoryRowId != null && mode != BrowseMode.LIVE) {
+        if (selectedAccountId != null && selectedCategoryRowId != null) {
             val selectedCategory = categories.firstOrNull { it.rowId == selectedCategoryRowId }
-            if (selectedCategory != null && ensureNonLiveCategoryLoaded(db, selectedAccountId, mode, selectedCategory)) {
+            val loaded = when (mode) {
+                BrowseMode.LIVE -> selectedCategory?.let { ensureLiveCategoryLoaded(selectedAccountId, it) } == true
+                BrowseMode.VOD,
+                BrowseMode.SERIES -> selectedCategory?.let { ensureNonLiveCategoryLoaded(db, selectedAccountId, mode, it) } == true
+            }
+            if (loaded) {
                 categories = loadCategories(db, selectedAccountId, mode).filterByCategoryFilters(filters)
             }
         }
@@ -616,6 +622,29 @@ class AndroidSQLiteBrowseRepository(
         }
         saveVodSeriesChannels(db, account, mode, category.providerId, channels)
         return true
+    }
+
+    private suspend fun ensureLiveCategoryLoaded(
+        accountId: Long,
+        category: MobileBrowseCategory
+    ): Boolean {
+        if (category.itemCount > 0 || category.providerId.isBlank() || category.providerId == "all") {
+            return false
+        }
+        val account = AndroidSQLiteAccountRepository(databaseHelper)
+            .listAccounts()
+            .firstOrNull { it.id == accountId }
+            ?: return false
+        if (account.type != MobileAccountType.STALKER_PORTAL) {
+            return false
+        }
+        return runCatching {
+            AndroidStalkerCacheReloader(databaseHelper).fetchAndSaveLiveCategory(
+                account = account,
+                categoryRowId = category.rowId,
+                categoryProviderId = category.providerId
+            )
+        }.getOrDefault(0) > 0
     }
 
     private fun isVodSeriesChannelCacheFresh(
