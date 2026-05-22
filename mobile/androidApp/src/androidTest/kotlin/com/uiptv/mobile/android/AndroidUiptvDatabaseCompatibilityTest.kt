@@ -647,6 +647,44 @@ class AndroidUiptvDatabaseCompatibilityTest {
     }
 
     @Test
+    fun playbackCoordinatorSanitizesAdsQueryParamsLikeDesktop() = runBlocking {
+        val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+            MobileAccount(
+                accountName = "Ads Account",
+                type = MobileAccountType.M3U8_URL,
+                m3u8Path = "https://example.test/list.m3u"
+            )
+        )
+        val accountId = requireNotNull(account.id)
+        val startedIntents = mutableListOf<Intent>()
+        val coordinator = AndroidPlaybackCoordinator(
+            context = context,
+            preferences = AndroidDataStorePreferencesRepository(context),
+            databaseHelper = helper,
+            activityStarter = { startedIntents += it }
+        )
+
+        val result = coordinator.playBrowseItem(
+            playbackItem(
+                accountId = accountId,
+                mode = BrowseMode.LIVE,
+                categoryId = "news",
+                channelId = "ads-1",
+                title = "Ads Stream",
+                command = "https://cdn.test/playlist.m3u8?ads.deviceid=[DEVICE_ID]&ads.ifa=[IFA]&coppa=0"
+            ),
+            AndroidPlayerPreference.EMBEDDED_PLAYER,
+            remember = false
+        )
+
+        assertTrue(result.launched)
+        assertEquals(
+            "https://cdn.test/playlist.m3u8?ads.deviceid=%5BDEVICE_ID%5D&ads.ifa=%5BIFA%5D&coppa=0",
+            startedIntents.single().getStringExtra(NativePlayerActivity.EXTRA_URL)
+        )
+    }
+
+    @Test
     fun playbackCoordinatorResolvesStalkerSeriesEpisodeCreateLink() = runBlocking {
         TestHttpServer(
             mapOf(
@@ -754,6 +792,53 @@ class AndroidUiptvDatabaseCompatibilityTest {
             assertTrue(result.launched)
             assertEquals(
                 "http://stream.test/live.php?mac=00%3A1A%3A79%3A00%3A00%3A01&stream=30581&extension=ts&play_token=new-token",
+                startedIntents.single().getStringExtra(NativePlayerActivity.EXTRA_URL)
+            )
+        }
+    }
+
+    @Test
+    fun playbackCoordinatorNormalizesRelativeStalkerCreateLinkBaseLikeDesktop() = runBlocking {
+        TestHttpServer(
+            mapOf(
+                "handshake" to """{"js":{"token":"abc123"}}""",
+                "get_profile" to """{"js":{}}""",
+                "create_link" to """{"js":{"cmd":"ffmpeg live.php?stream=&play_token=new-token"}}"""
+            )
+        ).use { server ->
+            val account = AndroidSQLiteAccountRepository(helper).saveAccount(
+                MobileAccount(
+                    accountName = "Portal Relative Live",
+                    type = MobileAccountType.STALKER_PORTAL,
+                    url = "http://127.0.0.1:${server.port}",
+                    macAddress = "00:1A:79:00:00:01"
+                )
+            )
+            val accountId = requireNotNull(account.id)
+            val startedIntents = mutableListOf<Intent>()
+            val coordinator = AndroidPlaybackCoordinator(
+                context = context,
+                preferences = AndroidDataStorePreferencesRepository(context),
+                databaseHelper = helper,
+                activityStarter = { startedIntents += it }
+            )
+
+            val result = coordinator.playBrowseItem(
+                playbackItem(
+                    accountId = accountId,
+                    mode = BrowseMode.LIVE,
+                    categoryId = "uk",
+                    channelId = "30581",
+                    title = "Relative Live",
+                    command = "ffmpeg http://origin.test/path/original.php?stream=30581&play_token=old-token"
+                ),
+                AndroidPlayerPreference.EMBEDDED_PLAYER,
+                remember = false
+            )
+
+            assertTrue(result.launched)
+            assertEquals(
+                "http://origin.test/path/live.php?stream=30581&play_token=new-token",
                 startedIntents.single().getStringExtra(NativePlayerActivity.EXTRA_URL)
             )
         }

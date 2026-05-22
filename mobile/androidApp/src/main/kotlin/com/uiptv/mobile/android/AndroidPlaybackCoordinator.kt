@@ -32,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.net.URL
@@ -220,7 +221,7 @@ class AndroidPlaybackCoordinator(
     }
 
     private suspend fun launch(target: PlaybackTarget, player: AndroidPlayerPreference): PlaybackLaunchResult {
-        val playableTarget = resolvePlayableTarget(target)
+        val playableTarget = resolvePlayableTarget(target).withSanitizedPlaybackUrl()
         if (!playableTarget.url.isPlayableNetworkUrl()) {
             return PlaybackLaunchResult(false, "No direct playable URL is cached for ${target.title}. Refresh this account on Android or choose a direct stream.")
         }
@@ -767,7 +768,10 @@ class AndroidPlaybackCoordinator(
         }
 
     private fun PlaybackTarget.resolved(): PlaybackTarget =
-        copy(url = extractPlayableStreamUrl(url))
+        copy(url = sanitizeAndEncodeUrl(extractPlayableStreamUrl(url)))
+
+    private fun PlaybackTarget.withSanitizedPlaybackUrl(): PlaybackTarget =
+        copy(url = sanitizeAndEncodeUrl(url))
 
     private fun PlaybackTarget.stalkerSeriesParam(): String =
         if (mode == BrowseMode.SERIES) {
@@ -829,6 +833,8 @@ class AndroidPlaybackCoordinator(
         }
 
         val resolvedBase = resolvedUrl.substring(0, resolvedQueryIndex)
+        val originalBase = originalUrl.substring(0, originalQueryIndex)
+        val normalizedResolvedBase = normalizeResolvedBase(resolvedBase, originalBase)
         val resolvedParams = parseQueryParams(resolvedUrl.substring(resolvedQueryIndex + 1))
         val originalParams = parseQueryParams(originalUrl.substring(originalQueryIndex + 1))
         originalParams.forEach { (key, value) ->
@@ -838,9 +844,45 @@ class AndroidPlaybackCoordinator(
             }
         }
 
-        val mergedUrl = "$resolvedBase?${resolvedParams.toQueryString()}"
+        val mergedUrl = "$normalizedResolvedBase?${resolvedParams.toQueryString()}"
         val prefix = resolvedPrefix.ifBlank { originalPrefix }
         return if (prefix.isBlank()) mergedUrl else "$prefix $mergedUrl"
+    }
+
+    private fun normalizeResolvedBase(resolvedBase: String, originalBase: String): String {
+        val trimmed = resolvedBase.trim()
+        if (trimmed.isBlank()) {
+            return trimmed
+        }
+        if (trimmed.matches(Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) || trimmed.startsWith("//")) {
+            return trimmed
+        }
+        if (originalBase.isBlank()) {
+            return trimmed
+        }
+        return runCatching {
+            val originalUri = URI.create(originalBase.trim())
+            if (originalUri.scheme.isNullOrBlank() || originalUri.host.isNullOrBlank()) {
+                return@runCatching trimmed
+            }
+            val path = originalUri.path.orEmpty()
+            val directoryPath = if (path.endsWith("/")) {
+                path
+            } else {
+                val index = path.lastIndexOf('/')
+                if (index >= 0) path.substring(0, index + 1) else "/"
+            }
+            val directoryUri = URI(
+                originalUri.scheme,
+                originalUri.userInfo,
+                originalUri.host,
+                originalUri.port,
+                directoryPath,
+                null,
+                null
+            )
+            directoryUri.resolve(trimmed).toString()
+        }.getOrDefault(trimmed)
     }
 
     private fun String.cmdPrefix(): String {
@@ -933,6 +975,43 @@ class AndroidPlaybackCoordinator(
 
     private fun String.url(): String =
         URLEncoder.encode(this, Charsets.UTF_8.name())
+
+    private fun sanitizeAndEncodeUrl(url: String): String {
+        if (url.isBlank()) {
+            return url
+        }
+        val queryIndex = url.indexOf('?')
+        if (queryIndex < 0) {
+            return url
+        }
+        val baseUrl = url.substring(0, queryIndex)
+        val query = url.substring(queryIndex + 1)
+        if (query.isBlank()) {
+            return url
+        }
+        val sanitizedQuery = query
+            .split("&")
+            .filter { it.isNotBlank() }
+            .joinToString("&") { param -> param.sanitizedQueryParam() }
+        return "$baseUrl?$sanitizedQuery"
+    }
+
+    private fun String.sanitizedQueryParam(): String =
+        runCatching {
+            val separatorIndex = indexOf('=')
+            if (separatorIndex >= 0) {
+                substring(0, separatorIndex).reencodeQueryPart() + "=" +
+                    substring(separatorIndex + 1).reencodeQueryPart()
+            } else {
+                reencodeQueryPart()
+            }
+        }.getOrDefault(this)
+
+    private fun String.reencodeQueryPart(): String =
+        URLEncoder.encode(
+            URLDecoder.decode(this, Charsets.UTF_8.name()),
+            Charsets.UTF_8.name()
+        )
 
     private fun getStalkerProfileParams(account: MobileAccount): Map<String, String> {
         val serial = account.serialNumber.ifBlank { randomId().take(32).uppercase() }

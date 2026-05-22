@@ -685,6 +685,9 @@ private fun ChannelsScreen(
     val screenTitle = "$selectedAccountName - $currentTitle"
     val browseSeries = selectedBrowseSeries
     val selectedCategoryCount = selectedCategoryIds.count { id -> snapshot.categories.any { it.rowId == id } }
+    val singleCategory = snapshot.categories.singleOrNull()
+    val bypassSingleCategory = singleCategory != null && !categorySelectionMode
+    val canNavigateBackToCategories = showingChannelList && !bypassSingleCategory
 
     fun clearCategorySelection() {
         categorySelectionMode = false
@@ -733,6 +736,15 @@ private fun ChannelsScreen(
                 }
                 .onFailure { statusText = it.message ?: "Unable to remove categories" }
             running = false
+        }
+    }
+
+    LaunchedEffect(snapshot.selectedAccountId, snapshot.mode, singleCategory?.rowId, categorySelectionMode) {
+        val onlyCategory = singleCategory
+        if (!categorySelectionMode && selectedCategoryRowId == null && onlyCategory != null) {
+            selectedCategoryRowId = onlyCategory.rowId
+            channelQuery = ""
+            reload(snapshot.selectedAccountId, onlyCategory.rowId, "", snapshot.mode)
         }
     }
 
@@ -955,7 +967,7 @@ private fun ChannelsScreen(
         )
         return
     }
-    backHandler(categorySelectionMode || selectedCategoryRowId != null) {
+    backHandler(categorySelectionMode || canNavigateBackToCategories) {
         if (categorySelectionMode) {
             clearCategorySelection()
         } else {
@@ -1010,14 +1022,15 @@ private fun ChannelsScreen(
             categorySelectionMode = categorySelectionMode,
             selectedCategoryIds = selectedCategoryIds,
             selectedCategoryCount = selectedCategoryCount,
+            showCategoryPane = !bypassSingleCategory,
             onBack = {
-                if (showingChannelList) {
+                if (canNavigateBackToCategories) {
                     backToCategories()
                 } else {
                     onBackToAccounts?.invoke()
                 }
             },
-            showBack = showingChannelList || onBackToAccounts != null,
+            showBack = canNavigateBackToCategories || onBackToAccounts != null,
             onCategoryQueryChange = { categoryQuery = it },
             onChannelQueryChange = {
                 channelQuery = it
@@ -1131,13 +1144,13 @@ private fun ChannelsScreen(
                                 actionIconContentColor = DeepNightPrimary
                             ),
                             navigationIcon = {
-                                if (showingChannelList || onBackToAccounts != null) {
+                                if (canNavigateBackToCategories || onBackToAccounts != null) {
                                     IconButton(
                                         modifier = Modifier.semantics {
-                                            contentDescription = if (showingChannelList) "Back to categories" else "Back to accounts"
+                                            contentDescription = if (canNavigateBackToCategories) "Back to categories" else "Back to accounts"
                                         },
                                         onClick = {
-                                            if (showingChannelList) {
+                                            if (canNavigateBackToCategories) {
                                                 backToCategories()
                                             } else {
                                                 onBackToAccounts?.invoke()
@@ -1181,10 +1194,10 @@ private fun ChannelsScreen(
                 ) {
                     if (compactChrome) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (showingChannelList || onBackToAccounts != null) {
+                            if (canNavigateBackToCategories || onBackToAccounts != null) {
                                 item {
-                                    CompactChromeIcon("←", if (showingChannelList) "Back to categories" else "Back to accounts") {
-                                        if (showingChannelList) {
+                                    CompactChromeIcon("←", if (canNavigateBackToCategories) "Back to categories" else "Back to accounts") {
+                                        if (canNavigateBackToCategories) {
                                             backToCategories()
                                         } else {
                                             onBackToAccounts?.invoke()
@@ -1216,7 +1229,7 @@ private fun ChannelsScreen(
                                     )
                                 }
                             }
-                            if (!showingChannelList && visibleModes.size > 1) {
+                            if ((!showingChannelList || bypassSingleCategory) && visibleModes.size > 1) {
                                 items(visibleModes, key = { it.name }) { entry ->
                                     FilterChip(
                                         selected = mode == entry,
@@ -1251,7 +1264,7 @@ private fun ChannelsScreen(
                             }
                         }
                     }
-                    if (!showingChannelList && visibleModes.size > 1) {
+                    if ((!showingChannelList || bypassSingleCategory) && visibleModes.size > 1) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(visibleModes, key = { it.name }) { entry ->
                                 FilterChip(
@@ -1461,6 +1474,7 @@ private fun WideChannelsContent(
     categorySelectionMode: Boolean,
     selectedCategoryIds: Set<Long>,
     selectedCategoryCount: Int,
+    showCategoryPane: Boolean,
     showBack: Boolean,
     onBack: () -> Unit,
     onCategoryQueryChange: (String) -> Unit,
@@ -1480,7 +1494,7 @@ private fun WideChannelsContent(
     val outerPadding = if (compactWide) 6.dp else 12.dp
     val gap = if (compactWide) 8.dp else 12.dp
     val sideWidth = if (compactWide) 224.dp else 300.dp
-    val itemColumns = if (compactWide) 1 else 2
+    val itemColumns = if (compactWide) 1 else if (showCategoryPane) 2 else 3
     Column(modifier = modifier.fillMaxSize()) {
         if (!compactWide) {
             CenterAlignedTopAppBar(
@@ -1514,105 +1528,107 @@ private fun WideChannelsContent(
                 .padding(outerPadding),
             horizontalArrangement = Arrangement.spacedBy(gap)
         ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(sideWidth),
-                shape = RoundedCornerShape(14.dp),
-                color = DeepNightSurface,
-                contentColor = DeepNightText
-            ) {
-                Column(
-                    modifier = Modifier.padding(if (compactWide) 8.dp else 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
+            if (showCategoryPane) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(sideWidth),
+                    shape = RoundedCornerShape(14.dp),
+                    color = DeepNightSurface,
+                    contentColor = DeepNightText
                 ) {
-                    if (compactWide) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (showBack) {
-                                OutlinedButton(onClick = onBack) {
-                                    Text("Back")
+                    Column(
+                        modifier = Modifier.padding(if (compactWide) 8.dp else 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
+                    ) {
+                        if (compactWide) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (showBack) {
+                                    OutlinedButton(onClick = onBack) {
+                                        Text("Back")
+                                    }
+                                }
+                                Text(
+                                    screenTitle,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        if (showAccountSelector) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(snapshot.accounts, key = { it.id }) { account ->
+                                    FilterChip(
+                                        selected = snapshot.selectedAccountId == account.id,
+                                        onClick = { onAccountSelect(account) },
+                                        label = { Text(account.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                    )
                                 }
                             }
-                            Text(
-                                screenTitle,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                        }
+                        if (visibleModes.size > 1) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(visibleModes, key = { it.name }) { entry ->
+                                    FilterChip(
+                                        selected = mode == entry,
+                                        onClick = { onModeSelect(entry) },
+                                        label = { Text(entry.displayLabel()) }
+                                    )
+                                }
+                            }
+                        }
+                        if (searchVisible) {
+                            CompactOutlinedTextField(
+                                value = categoryQuery,
+                                onValueChange = onCategoryQueryChange,
+                                modifier = Modifier.fillMaxWidth(),
+                                label = "Search categories"
                             )
                         }
-                    }
-                    if (showAccountSelector) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(snapshot.accounts, key = { it.id }) { account ->
-                                FilterChip(
-                                    selected = snapshot.selectedAccountId == account.id,
-                                    onClick = { onAccountSelect(account) },
-                                    label = { Text(account.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                )
-                            }
-                        }
-                    }
-                    if (visibleModes.size > 1) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(visibleModes, key = { it.name }) { entry ->
-                                FilterChip(
-                                    selected = mode == entry,
-                                    onClick = { onModeSelect(entry) },
-                                    label = { Text(entry.displayLabel()) }
-                                )
-                            }
-                        }
-                    }
-                    if (searchVisible) {
-                        CompactOutlinedTextField(
-                            value = categoryQuery,
-                            onValueChange = onCategoryQueryChange,
-                            modifier = Modifier.fillMaxWidth(),
-                            label = "Search categories"
-                        )
-                    }
-                    if (categorySelectionMode) {
-                        CategorySelectionToolbar(
-                            selectedCount = selectedCategoryCount,
-                            onRemove = onRemoveSelectedCategories,
-                            onCancel = onClearCategorySelection
-                        )
-                    }
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (visibleCategories.isEmpty()) {
-                            item {
-                                EmptyState(
-                                    title = when {
-                                        snapshot.accounts.isEmpty() -> "No accounts"
-                                        snapshot.categories.isEmpty() -> "No ${mode.displayLabel()} categories"
-                                        categoryQuery.isNotBlank() -> "No categories match"
-                                        else -> "No ${mode.displayLabel()} categories"
-                                    },
-                                    detail = when {
-                                        snapshot.accounts.isEmpty() -> "Add an account or pull data from desktop sync."
-                                        snapshot.categories.isEmpty() -> "Refresh this account cache after adding or syncing it."
-                                        else -> "Try a shorter search term."
-                                    }
-                                )
-                            }
-                        }
-                        items(visibleCategories, key = { it.rowId }) { category ->
-                            CategoryListRow(
-                                category = category,
-                                selected = category.rowId in selectedCategoryIds,
-                                selectionMode = categorySelectionMode,
-                                onClick = { onCategorySelect(category) },
-                                onLongClick = { onCategoryLongPress(category) }
+                        if (categorySelectionMode) {
+                            CategorySelectionToolbar(
+                                selectedCount = selectedCategoryCount,
+                                onRemove = onRemoveSelectedCategories,
+                                onCancel = onClearCategorySelection
                             )
+                        }
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (visibleCategories.isEmpty()) {
+                                item {
+                                    EmptyState(
+                                        title = when {
+                                            snapshot.accounts.isEmpty() -> "No accounts"
+                                            snapshot.categories.isEmpty() -> "No ${mode.displayLabel()} categories"
+                                            categoryQuery.isNotBlank() -> "No categories match"
+                                            else -> "No ${mode.displayLabel()} categories"
+                                        },
+                                        detail = when {
+                                            snapshot.accounts.isEmpty() -> "Add an account or pull data from desktop sync."
+                                            snapshot.categories.isEmpty() -> "Refresh this account cache after adding or syncing it."
+                                            else -> "Try a shorter search term."
+                                        }
+                                    )
+                                }
+                            }
+                            items(visibleCategories, key = { it.rowId }) { category ->
+                                CategoryListRow(
+                                    category = category,
+                                    selected = category.rowId in selectedCategoryIds,
+                                    selectionMode = categorySelectionMode,
+                                    onClick = { onCategorySelect(category) },
+                                    onLongClick = { onCategoryLongPress(category) }
+                                )
+                            }
                         }
                     }
                 }
@@ -1623,6 +1639,28 @@ private fun WideChannelsContent(
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                if (!showCategoryPane && (showAccountSelector || visibleModes.size > 1)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (showAccountSelector) {
+                            items(snapshot.accounts, key = { it.id }) { account ->
+                                FilterChip(
+                                    selected = snapshot.selectedAccountId == account.id,
+                                    onClick = { onAccountSelect(account) },
+                                    label = { Text(account.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                )
+                            }
+                        }
+                        if (visibleModes.size > 1) {
+                            items(visibleModes, key = { it.name }) { entry ->
+                                FilterChip(
+                                    selected = mode == entry,
+                                    onClick = { onModeSelect(entry) },
+                                    label = { Text(entry.displayLabel()) }
+                                )
+                            }
+                        }
+                    }
+                }
                 if (searchVisible) {
                     CompactOutlinedTextField(
                         value = channelQuery,
