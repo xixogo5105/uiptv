@@ -45,14 +45,12 @@ class AndroidPlaybackCoordinator(
     private val activityStarter: (Intent) -> Unit = { intent -> context.startActivity(intent) }
 ) {
     companion object {
-        private const val VLC_PACKAGE = "org.videolan.vlc"
         private const val MX_PLAYER_PRO_PACKAGE = "com.mxtech.videoplayer.pro"
         private const val MX_PLAYER_FREE_PACKAGE = "com.mxtech.videoplayer.ad"
         private const val KODI_PACKAGE = "org.xbmc.kodi"
         private const val JUST_PLAYER_PACKAGE = "com.brouken.player"
         private const val XPLAYER_PACKAGE = "video.player.videoplayer"
 
-        private const val VLC_STORE_URL = "https://play.google.com/store/apps/details?id=org.videolan.vlc"
         private const val MX_PLAYER_STORE_URL = "https://play.google.com/store/apps/details?id=com.mxtech.videoplayer.ad"
         private const val JUST_PLAYER_STORE_URL = "https://play.google.com/store/apps/details?id=com.brouken.player"
         private const val XPLAYER_STORE_URL = "https://play.google.com/store/apps/details?id=video.player.videoplayer"
@@ -92,7 +90,6 @@ class AndroidPlaybackCoordinator(
         listOf(
             PlayerChoice(AndroidPlayerPreference.EMBEDDED_PLAYER, "Embedded", true),
             PlayerChoice(AndroidPlayerPreference.NATIVE, "Android Media", true),
-            PlayerChoice(AndroidPlayerPreference.VLC, "VLC", isInstalled(VLC_PACKAGE), VLC_PACKAGE, VLC_STORE_URL),
             PlayerChoice(mxPlayer, "MX Player", mxInstalled, mxPackage, MX_PLAYER_STORE_URL),
             PlayerChoice(AndroidPlayerPreference.JUST_PLAYER, "Just Player", isInstalled(JUST_PLAYER_PACKAGE), JUST_PLAYER_PACKAGE, JUST_PLAYER_STORE_URL),
             PlayerChoice(AndroidPlayerPreference.XPLAYER, "XPlayer", isInstalled(XPLAYER_PACKAGE), XPLAYER_PACKAGE, XPLAYER_STORE_URL)
@@ -231,7 +228,6 @@ class AndroidPlaybackCoordinator(
             AndroidPlayerPreference.NATIVE,
             AndroidPlayerPreference.ASK_EVERY_TIME -> nativePlayerIntent(playableTarget)
             AndroidPlayerPreference.SYSTEM_CHOOSER -> Intent.createChooser(viewIntent(playableTarget, null), "Open stream")
-            AndroidPlayerPreference.VLC,
             AndroidPlayerPreference.MX_PLAYER_PRO,
             AndroidPlayerPreference.MX_PLAYER_FREE,
             AndroidPlayerPreference.KODI,
@@ -263,7 +259,6 @@ class AndroidPlaybackCoordinator(
             AndroidPlayerPreference.NATIVE,
             AndroidPlayerPreference.ASK_EVERY_TIME -> nativePlayerIntent(target)
             AndroidPlayerPreference.SYSTEM_CHOOSER,
-            AndroidPlayerPreference.VLC,
             AndroidPlayerPreference.MX_PLAYER_PRO,
             AndroidPlayerPreference.MX_PLAYER_FREE,
             AndroidPlayerPreference.KODI,
@@ -287,7 +282,7 @@ class AndroidPlaybackCoordinator(
     }
 
     private fun embeddedPlayerIntent(target: PlaybackTarget): Intent =
-        playbackIntent(target, EmbeddedPlayerActivity::class.java)
+        playbackIntent(target, MpvEmbeddedPlayerActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
     private fun nativePlayerIntent(target: PlaybackTarget): Intent =
@@ -679,7 +674,6 @@ class AndroidPlaybackCoordinator(
 
     private fun AndroidPlayerPreference.packageName(): String =
         when (this) {
-            AndroidPlayerPreference.VLC -> VLC_PACKAGE
             AndroidPlayerPreference.MX_PLAYER_PRO -> MX_PLAYER_PRO_PACKAGE
             AndroidPlayerPreference.MX_PLAYER_FREE -> MX_PLAYER_FREE_PACKAGE
             AndroidPlayerPreference.KODI -> KODI_PACKAGE
@@ -712,7 +706,6 @@ class AndroidPlaybackCoordinator(
             AndroidPlayerPreference.ASK_EVERY_TIME -> "Player picker"
             AndroidPlayerPreference.EMBEDDED_PLAYER -> "Embedded"
             AndroidPlayerPreference.NATIVE -> "Android Media"
-            AndroidPlayerPreference.VLC -> "VLC"
             AndroidPlayerPreference.MX_PLAYER_PRO,
             AndroidPlayerPreference.MX_PLAYER_FREE -> "MX Player"
             AndroidPlayerPreference.KODI -> "Kodi"

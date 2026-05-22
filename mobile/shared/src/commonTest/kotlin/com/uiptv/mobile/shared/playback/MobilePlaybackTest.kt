@@ -10,18 +10,18 @@ class MobilePlaybackTest {
     fun playbackModelsCarryLaunchAndPlayerMetadata() {
         val result = PlaybackLaunchResult(launched = true, message = "Opening")
         val choice = PlayerChoice(
-            player = AndroidPlayerPreference.VLC,
-            label = "VLC",
+            player = AndroidPlayerPreference.MX_PLAYER_FREE,
+            label = "MX Player",
             installed = false,
-            packageName = "org.videolan.vlc",
-            storeUrl = "https://play.google.com/store/apps/details?id=org.videolan.vlc"
+            packageName = "com.mxtech.videoplayer.ad",
+            storeUrl = "https://play.google.com/store/apps/details?id=com.mxtech.videoplayer.ad"
         )
 
         assertEquals(true, result.launched)
         assertEquals("Opening", result.message)
-        assertEquals(AndroidPlayerPreference.VLC, choice.player)
+        assertEquals(AndroidPlayerPreference.MX_PLAYER_FREE, choice.player)
         assertEquals(false, choice.installed)
-        assertEquals("org.videolan.vlc", choice.packageName)
+        assertEquals("com.mxtech.videoplayer.ad", choice.packageName)
     }
 
     @Test

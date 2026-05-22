@@ -10,7 +10,6 @@ enum class AndroidPlayerPreference {
     ASK_EVERY_TIME,
     EMBEDDED_PLAYER,
     NATIVE,
-    VLC,
     MX_PLAYER_PRO,
     MX_PLAYER_FREE,
     KODI,

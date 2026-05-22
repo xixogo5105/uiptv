@@ -9,10 +9,33 @@ This is the Android-first Kotlin Multiplatform workspace for UIPTV mobile.
 
 ## Local Requirements
 
-- End users installing a built APK do not need Android SDK, Gradle, or any other build tools. The APK packages the required LibVLC native libraries.
+- End users installing a built APK do not need Android SDK, Gradle, or any other build tools. The APK packages the required libmpv and FFmpeg native libraries.
 - Developers compiling from source need Android SDK with API 36 installed.
+- Developers compiling from source need the Android 7/API 24 libmpv artifact available as `com.uiptv.thirdparty:libmpv-android-api24`.
 - `ANDROID_HOME` set, or `sdk.dir=/path/to/android/sdk` in `mobile/local.properties`.
 - Xcode command-line tools are required only for iOS framework linking. iOS targets are deferred and only enabled automatically when `xcrun xcodebuild -version` works, or explicitly with `-Puiptv.enableIosTargets=true`.
+
+### libmpv Dependency
+
+The app depends on an Android 7/API 24 rebuild of `dev.jdtech.mpv:libmpv`. The public Maven Central releases currently target API 26+, so the Android 7-compatible build is consumed through an internal Maven coordinate:
+
+```text
+com.uiptv.thirdparty:libmpv-android-api24:1.0.0-api24-uiptv.1
+```
+
+For local builds, publish the rebuilt AAR into Maven local before running Gradle:
+
+```bash
+mvn install:install-file \
+  -Dfile=/path/to/libmpv-release.aar \
+  -DgroupId=com.uiptv.thirdparty \
+  -DartifactId=libmpv-android-api24 \
+  -Dversion=1.0.0-api24-uiptv.1 \
+  -Dpackaging=aar \
+  -DgeneratePom=true
+```
+
+For CI and team builds, publish the same coordinate to a private Maven repository instead of relying on one developer machine's `~/.m2` cache.
 
 ### Android SDK Setup
 

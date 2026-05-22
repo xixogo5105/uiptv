@@ -65,7 +65,7 @@ dependencies {
     implementation(compose.ui)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
-    implementation(libs.libvlc.all)
+    implementation(libs.libmpv.android.api24)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.kotlinx.coroutines.core)

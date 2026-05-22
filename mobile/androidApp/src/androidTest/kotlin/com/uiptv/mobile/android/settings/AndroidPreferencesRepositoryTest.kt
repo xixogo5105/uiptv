@@ -47,8 +47,8 @@ class AndroidPreferencesRepositoryTest {
         repository.saveRemoteEndpoint("192.168.1.20", 8888)
         repository.savePlayerPreference(
             PlayerPreference(
-                selectedPlayer = AndroidPlayerPreference.VLC,
-                packageName = "org.videolan.vlc",
+                selectedPlayer = AndroidPlayerPreference.MX_PLAYER_FREE,
+                packageName = "com.mxtech.videoplayer.ad",
                 rememberForFutureStreams = true
             )
         )
@@ -73,8 +73,8 @@ class AndroidPreferencesRepositoryTest {
         assertEquals("192.168.1.20", snapshot.remoteEndpoint.host)
         assertEquals(8888, snapshot.remoteEndpoint.port)
         assertEquals(1_893_456_000L, snapshot.remoteEndpoint.lastSuccessfulSyncEpochSeconds)
-        assertEquals(AndroidPlayerPreference.VLC, snapshot.playerPreference.selectedPlayer)
-        assertEquals("org.videolan.vlc", snapshot.playerPreference.packageName)
+        assertEquals(AndroidPlayerPreference.MX_PLAYER_FREE, snapshot.playerPreference.selectedPlayer)
+        assertEquals("com.mxtech.videoplayer.ad", snapshot.playerPreference.packageName)
         assertEquals(true, snapshot.playerPreference.rememberForFutureStreams)
         assertEquals(true, snapshot.embeddedPlayerPreference.repeatReconnect)
         assertEquals(true, snapshot.embeddedPlayerPreference.muted)
