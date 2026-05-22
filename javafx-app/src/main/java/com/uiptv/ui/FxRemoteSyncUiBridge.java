@@ -11,13 +11,24 @@ import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 public class FxRemoteSyncUiBridge implements RemoteSyncApprovalPrompt, RemoteSyncNotifier {
+    private final ExecutorService approvalDecisionExecutor = Executors.newCachedThreadPool(runnable -> {
+        Thread thread = new Thread(runnable, "uiptv-remote-sync-approval");
+        thread.setDaemon(true);
+        return thread;
+    });
+
     @Override
     public void requestApproval(RemoteSyncApprovalRequest request, Consumer<Boolean> decisionConsumer) {
         try {
-            Platform.runLater(() -> decisionConsumer.accept(showApprovalDialog(request)));
+            Platform.runLater(() -> {
+                boolean approved = showApprovalDialog(request);
+                Platform.runLater(() -> approvalDecisionExecutor.execute(() -> decisionConsumer.accept(approved)));
+            });
         } catch (IllegalStateException _) {
             decisionConsumer.accept(false);
         }

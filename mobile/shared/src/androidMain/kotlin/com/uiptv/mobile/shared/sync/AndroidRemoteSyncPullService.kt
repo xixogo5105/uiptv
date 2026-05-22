@@ -3,7 +3,9 @@ package com.uiptv.mobile.shared.sync
 import com.uiptv.mobile.shared.db.AndroidSQLiteSnapshotSyncApplier
 import com.uiptv.mobile.shared.settings.AndroidPreferencesRepository
 import com.uiptv.mobile.shared.settings.MobileBackupArchive
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.zip.ZipInputStream
 import kotlin.random.Random
@@ -66,7 +68,7 @@ class AndroidRemoteSyncPullService(
                 request = RemoteSyncRequest(
                     direction = RemoteSyncDirection.IMPORT_FROM_REMOTE,
                     verificationCode = verificationCode,
-                    options = androidFullClonePullOptions()
+                    options = androidFullClonePullOptions(encryptedTransfer = false)
                 )
             )
             sessionId = session.sessionId
@@ -78,12 +80,17 @@ class AndroidRemoteSyncPullService(
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.DOWNLOADING, verificationCode))
             streamingClient.downloadToFile(baseUrl, sessionId, transferFile)
             val transferOptions = readySession.options
-            val payloadForSync = prepareInboundPayload(transferFile, verificationCode, sessionId, transferOptions)
+            onProgress(RemoteSyncProgress(RemoteSyncProgressStep.APPLYING_SYNC, verificationCode, "Preparing backup"))
+            val payloadForSync = withContext(Dispatchers.IO) {
+                prepareInboundPayload(transferFile, verificationCode, sessionId, transferOptions)
+            }
             payloadFile = payloadForSync
-            val snapshotForSync = extractTransferSnapshot(payloadForSync, transferOptions)
+            val snapshotForSync = withContext(Dispatchers.IO) {
+                extractTransferSnapshot(payloadForSync, transferOptions)
+            }
             snapshotFile = snapshotForSync
 
-            onProgress(RemoteSyncProgress(RemoteSyncProgressStep.APPLYING_SYNC, verificationCode))
+            onProgress(RemoteSyncProgress(RemoteSyncProgressStep.APPLYING_SYNC, verificationCode, "Applying"))
             val report = snapshotApplier.applyFile(snapshotForSync)
 
             onProgress(RemoteSyncProgress(RemoteSyncProgressStep.COMPLETING_REMOTE, verificationCode))

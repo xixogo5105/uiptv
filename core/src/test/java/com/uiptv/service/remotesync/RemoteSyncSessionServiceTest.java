@@ -9,14 +9,18 @@ import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -261,6 +265,55 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
     }
 
     @Test
+    void importApproval_reportsApprovedWhilePreparingDownloadSnapshot() throws Exception {
+        Path remoteDb = tempDir.resolve("remote-preparing-import.db");
+        initializeDatabase(remoteDb);
+        BlockingSnapshotService blockingSnapshotService = new BlockingSnapshotService();
+        RemoteSyncSessionService service = new RemoteSyncSessionService(
+                blockingSnapshotService,
+                DatabaseSyncService.getInstance(),
+                Clock.systemUTC(),
+                (request, decisionConsumer) -> {
+                    Thread thread = new Thread(() -> decisionConsumer.accept(true), "remote-sync-test-approval");
+                    thread.setDaemon(true);
+                    thread.start();
+                },
+                new RecordingNotifier()
+        );
+
+        String originalPath = com.uiptv.db.SQLConnection.getDatabasePath();
+        String sessionId;
+        com.uiptv.db.SQLConnection.setDatabasePath(remoteDb.toString());
+        try {
+            sessionId = service.createSession(
+                    new RemoteSyncRequest(
+                            RemoteSyncDirection.IMPORT_FROM_REMOTE,
+                            "1357",
+                            "machine-a",
+                            new RemoteSyncOptions(true, true)
+                    ),
+                    "10.0.0.8"
+            ).sessionId();
+
+            assertTrue(blockingSnapshotService.preparationStarted.await(2, TimeUnit.SECONDS));
+            RemoteSyncSessionState preparing = service.getSessionState(sessionId);
+            assertEquals(RemoteSyncStatus.APPROVED, preparing.status());
+            assertEquals("Approved. Preparing snapshot.", preparing.message());
+
+            blockingSnapshotService.continuePreparation.countDown();
+            RemoteSyncSessionState ready = waitForStatus(service, sessionId, RemoteSyncStatus.READY_FOR_DOWNLOAD);
+            assertEquals("Approved. Snapshot ready.", ready.message());
+            Path preparedDownload = service.getDownloadSnapshot(sessionId);
+            assertTrue(Files.exists(preparedDownload));
+            service.completeImport(sessionId, false, "test cleanup");
+            assertFalse(Files.exists(preparedDownload));
+        } finally {
+            blockingSnapshotService.continuePreparation.countDown();
+            com.uiptv.db.SQLConnection.setDatabasePath(originalPath);
+        }
+    }
+
+    @Test
     void createSession_rejectsInvalidCode_andExpiresPendingRequest() {
         MutableClock clock = new MutableClock(Instant.parse("2026-05-01T10:00:00Z"));
         RemoteSyncSessionService service = new RemoteSyncSessionService(
@@ -345,6 +398,24 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         });
     }
 
+    private RemoteSyncSessionState waitForStatus(
+            RemoteSyncSessionService service,
+            String sessionId,
+            RemoteSyncStatus expectedStatus
+    ) throws InterruptedException {
+        Instant deadline = Instant.now().plusSeconds(5);
+        RemoteSyncSessionState state;
+        do {
+            state = service.getSessionState(sessionId);
+            if (state.status() == expectedStatus) {
+                return state;
+            }
+            Thread.sleep(50);
+        } while (Instant.now().isBefore(deadline));
+        fail("Timed out waiting for remote sync status " + expectedStatus);
+        return state;
+    }
+
     @FunctionalInterface
     private interface ThrowingRunnable {
         void run() throws Exception;
@@ -353,6 +424,25 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
     @FunctionalInterface
     private interface ThrowingSupplier<T> {
         T get() throws Exception;
+    }
+
+    private static final class BlockingSnapshotService extends DatabaseSnapshotService {
+        private final CountDownLatch preparationStarted = new CountDownLatch(1);
+        private final CountDownLatch continuePreparation = new CountDownLatch(1);
+
+        @Override
+        public Path createSnapshotArchive(String databasePath) throws IOException, SQLException {
+            preparationStarted.countDown();
+            try {
+                if (!continuePreparation.await(3, TimeUnit.SECONDS)) {
+                    throw new IOException("Timed out waiting to continue snapshot preparation.");
+                }
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Interrupted while preparing snapshot.", ex);
+            }
+            return super.createSnapshotArchive(databasePath);
+        }
     }
 
     private static final class RecordingNotifier implements RemoteSyncNotifier {

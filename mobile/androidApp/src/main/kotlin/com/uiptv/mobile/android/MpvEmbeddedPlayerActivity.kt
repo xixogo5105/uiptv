@@ -51,11 +51,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class MpvEmbeddedPlayerActivity : Activity() {
     private var mpv: MPVLib? = null
+    @Volatile
+    private var activityDestroyed = false
     private lateinit var audioManager: AudioManager
     private lateinit var rootLayout: FrameLayout
     private lateinit var videoSurface: TextureView
@@ -108,6 +111,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var reconnectScheduled = false
     private var stoppingForLifecycle = false
     private var reconnectAttempt = 0
+    private var softResolveInProgress = false
+    private var softResolveVersion = 0L
     private var audioStateRequestVersion = 0L
     private var audioFocusRequest: AudioFocusRequest? = null
     private var reconnectRunnable: Runnable? = null
@@ -134,36 +139,48 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var currentBingeSession: AndroidBingeWatchSession? = null
     private var currentBingeIndex = -1
     private var markedTargetKey = ""
+    private val softResolvedUrlCache = mutableMapOf<String, String>()
     private val preferencesRepository by lazy { AndroidDataStorePreferencesRepository(this) }
     private val mpvObserver = object : MPVLib.EventObserver {
         override fun eventProperty(property: String) {
-            runOnUiThread { handleMpvPropertyChanged(property, null) }
+            postMpvEvent { handleMpvPropertyChanged(property, null) }
         }
 
         override fun eventProperty(property: String, value: Long) {
-            runOnUiThread { handleMpvPropertyChanged(property, value) }
+            postMpvEvent { handleMpvPropertyChanged(property, value) }
         }
 
         override fun eventProperty(property: String, value: Double) {
-            runOnUiThread { handleMpvPropertyChanged(property, value) }
+            postMpvEvent { handleMpvPropertyChanged(property, value) }
         }
 
         override fun eventProperty(property: String, value: Boolean) {
-            runOnUiThread { handleMpvPropertyChanged(property, value) }
+            postMpvEvent { handleMpvPropertyChanged(property, value) }
         }
 
         override fun eventProperty(property: String, value: String) {
-            runOnUiThread { handleMpvPropertyChanged(property, value) }
+            postMpvEvent { handleMpvPropertyChanged(property, value) }
         }
 
         override fun event(eventId: Int) {
-            runOnUiThread { handleMpvEvent(eventId) }
+            postMpvEvent { handleMpvEvent(eventId) }
         }
     }
     private val mpvLogObserver = object : MPVLib.LogObserver {
         override fun logMessage(prefix: String, level: Int, text: String) {
             if (level <= MPVLib.MpvLogLevel.MPV_LOG_LEVEL_INFO) {
                 Log.d(LogTag, "mpv[$prefix] ${text.trim()}")
+            }
+        }
+    }
+
+    private fun postMpvEvent(action: () -> Unit) {
+        if (activityDestroyed) {
+            return
+        }
+        runOnUiThread {
+            if (!activityDestroyed) {
+                action()
             }
         }
     }
@@ -210,10 +227,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
                     surfaceReady = false
                     attached = false
-                    mpv?.runCatchingCommand("set", "vid", "no")
-                    runCatching { mpv?.detachSurface() }
-                    mpvRenderSurface?.release()
-                    mpvRenderSurface = null
+                    if (!stoppingForLifecycle && !activityDestroyed) {
+                        stopMpvPlayback(async = true)
+                    }
                     return true
                 }
 
@@ -316,26 +332,30 @@ class MpvEmbeddedPlayerActivity : Activity() {
     override fun onStop() {
         stoppingForLifecycle = true
         cancelReconnect()
+        invalidateSoftResolve()
         overlayHandler.removeCallbacks(updateProgressRunnable)
-        stopMpvPlayback()
-        runCatching { mpv?.detachSurface() }
+        stopMpvPlayback(async = true)
         attached = false
-        mpvRenderSurface?.release()
-        mpvRenderSurface = null
         super.onStop()
     }
 
     override fun onDestroy() {
+        activityDestroyed = true
         if (playbackStarted || playbackTimeMs > 0L) {
             (currentTarget ?: targetFromIntent())?.let(::markOpened)
         }
         if (isFinishing) {
             intent.getStringExtra(NativePlayerActivity.EXTRA_BINGE_SESSION_ID).orEmpty().takeIf { it.isNotBlank() }?.let(AndroidBingeWatchSessionStore::remove)
         }
-        mpv?.removeObserver(mpvObserver)
-        mpv?.removeLogObserver(mpvLogObserver)
-        runCatching { mpv?.destroy() }
+        val player = mpv
+        val renderSurface = mpvRenderSurface
         mpv = null
+        mpvRenderSurface = null
+        player?.let {
+            runCatching { it.removeObserver(mpvObserver) }
+            runCatching { it.removeLogObserver(mpvLogObserver) }
+            destroyMpvAsync(it, renderSurface)
+        } ?: renderSurface?.release()
         abandonAudioFocus()
         playbackScope.cancel()
         overlayHandler.removeCallbacksAndMessages(null)
@@ -388,7 +408,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
             }
             return
         }
-        currentTarget = target
+        val playbackTarget = target ?: return
+        currentTarget = playbackTarget
         if (!surfaceReady) {
             pendingPlayback = true
             beginStreamLoading()
@@ -403,6 +424,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
             }
             attachMpvSurface(Surface(surfaceTexture))
         }
+        val loadUrl = softResolvedUrlCache[streamUrl] ?: streamUrl
+        if (loadUrl == streamUrl && maybeResolveStreamBeforeMpvLoad(playbackTarget, streamUrl)) {
+            return
+        }
         requestAudioFocus()
         mpvVideoDetails = null
         lastLoggedVideoDetailsKey = ""
@@ -416,7 +441,44 @@ class MpvEmbeddedPlayerActivity : Activity() {
         applyZoomMode(zoomModeIndex, showFeedback = false)
         applyDesiredAudioState()
         scheduleAudioStateStartupSync(audioRequestVersion)
-        player.runCatchingCommand("loadfile", streamUrl, "replace")
+        if (loadUrl != streamUrl) {
+            Log.d(LogTag, "mpv loading resolved stream ${streamUrl.safeStreamDescriptor()} -> ${loadUrl.safeStreamDescriptor()}")
+        }
+        player.runCatchingCommand("loadfile", loadUrl, "replace")
+    }
+
+    private fun maybeResolveStreamBeforeMpvLoad(target: PlaybackTarget, streamUrl: String): Boolean {
+        if (!SoftStreamUrlResolver.shouldResolve(streamUrl)) {
+            return false
+        }
+        if (softResolveInProgress) {
+            return true
+        }
+        softResolveInProgress = true
+        val requestVersion = ++softResolveVersion
+        beginStreamLoading()
+        playbackScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                SoftStreamUrlResolver.resolve(streamUrl, ChromeUserAgent)
+            }
+            if (activityDestroyed || stoppingForLifecycle || requestVersion != softResolveVersion) {
+                return@launch
+            }
+            softResolveInProgress = false
+            val resolvedUrl = result.resolvedUrl.takeIf { it.isPlayableNetworkUrl() } ?: streamUrl
+            softResolvedUrlCache[streamUrl] = resolvedUrl
+            currentTarget = target
+            if (resolvedUrl != streamUrl) {
+                Log.d(
+                    LogTag,
+                    "soft resolved stream ${streamUrl.safeStreamDescriptor()} -> ${resolvedUrl.safeStreamDescriptor()} (${result.reason})"
+                )
+            } else {
+                Log.d(LogTag, "soft resolver kept ${streamUrl.safeStreamDescriptor()} (${result.reason})")
+            }
+            startPlayback()
+        }
+        return true
     }
 
     private fun playNextBingeIfNeeded(): Boolean {
@@ -442,6 +504,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         playbackStarted = false
         reconnectAttempt = 0
         reconnectScheduled = false
+        invalidateSoftResolve()
         cancelReconnect()
         stopMpvPlayback()
         beginStreamLoading()
@@ -901,6 +964,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun reloadCurrentStream() {
         cancelReconnect()
+        currentTarget?.url?.let(softResolvedUrlCache::remove)
+        invalidateSoftResolve()
         reconnectAttempt = 0
         reconnectScheduled = false
         playbackStarted = false
@@ -1407,6 +1472,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 mpvPaused = false
                 updatePlayPauseButton()
                 if (!playNextBingeIfNeeded()) {
+                    currentTarget?.url?.let(softResolvedUrlCache::remove)
                     scheduleReconnectIfNeeded("Stream stopped")
                 }
             }
@@ -1578,7 +1644,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
         player.setMpvOption("interpolation", "no")
         player.setMpvOption("deband", "no")
         player.setMpvOption("video-sync", "audio")
+        player.setMpvOption("ytdl", "no")
         player.setMpvOption("user-agent", ChromeUserAgent)
+        player.setMpvOption("tls-verify", "no")
+        player.setMpvOption("stream-lavf-o", "timeout=10000000,reconnect=1,reconnect_on_network_error=1,reconnect_streamed=1,reconnect_delay_max=2,reconnect_max_retries=1,multiple_requests=0")
         player.setMpvOption("hls-bitrate", "max")
         player.setMpvOption("cache", "yes")
         player.setMpvOption("cache-secs", "20")
@@ -1627,12 +1696,39 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
     }
 
-    private fun stopMpvPlayback() {
-        runCatching { mpv?.runCatchingCommand("stop") }
+    private fun stopMpvPlayback(async: Boolean = false) {
+        val player = mpv
+        if (async && player != null) {
+            runMpvCommandAsync(player, "stop")
+        } else {
+            runCatching { player?.runCatchingCommand("stop") }
+        }
         playbackTimeMs = 0L
         playbackLengthMs = 0L
         mpvPaused = false
         updatePlayPauseButton()
+    }
+
+    private fun invalidateSoftResolve() {
+        softResolveVersion += 1
+        softResolveInProgress = false
+    }
+
+    private fun runMpvCommandAsync(player: MPVLib, vararg args: String) {
+        MpvReleaseExecutor.execute {
+            runCatching { player.command(args.toList().toTypedArray()) }
+                .onFailure { Log.w(LogTag, "mpv async command failed: ${args.joinToString(" ")}", it) }
+        }
+    }
+
+    private fun destroyMpvAsync(player: MPVLib, surface: Surface?) {
+        MpvReleaseExecutor.execute {
+            runCatching { player.command(arrayOf("stop")) }
+                .onFailure { Log.w(LogTag, "Unable to stop mpv before destroy", it) }
+            runCatching { player.destroy() }
+                .onFailure { Log.w(LogTag, "Unable to destroy mpv", it) }
+            surface?.release()
+        }
     }
 
     private fun refreshMpvPlaybackState() {
@@ -1850,6 +1946,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
         private const val ForwardIcon = "\u23E9"
         private const val PlaylistIcon = "List"
         private const val CloseIcon = "\u2715"
+        private val MpvReleaseExecutor = Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "uiptv-mpv-release").apply { isDaemon = true }
+        }
     }
 }
 

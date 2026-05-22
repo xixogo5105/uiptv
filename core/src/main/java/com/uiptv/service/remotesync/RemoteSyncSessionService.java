@@ -174,6 +174,7 @@ public class RemoteSyncSessionService {
         if (session == null) {
             return;
         }
+        boolean prepareDownload = false;
         synchronized (session) {
             expireIfNeeded(session);
             if (session.status != RemoteSyncStatus.PENDING_APPROVAL) {
@@ -183,26 +184,46 @@ public class RemoteSyncSessionService {
                 session.reject();
                 return;
             }
-            Path payloadPath = null;
-            try {
-                if (session.direction == RemoteSyncDirection.IMPORT_FROM_REMOTE) {
-                    payloadPath = createTransferPayload(SQLConnection.getDatabasePath(), session.options);
-                    session.snapshotPath = prepareOutboundTransfer(payloadPath, session);
-                    if (!session.snapshotPath.equals(payloadPath)) {
-                        deleteIfExists(payloadPath);
-                        payloadPath = null;
-                    }
-                    session.status = RemoteSyncStatus.READY_FOR_DOWNLOAD;
-                    session.message = "Approved. Snapshot ready.";
-                } else {
-                    session.status = RemoteSyncStatus.APPROVED;
-                    session.message = "Approved. Ready for upload.";
-                }
-                session.expiresAt = clock.instant().plus(TRANSFER_TTL);
-            } catch (IOException | SQLException ex) {
+            session.status = RemoteSyncStatus.APPROVED;
+            session.message = session.direction == RemoteSyncDirection.IMPORT_FROM_REMOTE
+                    ? "Approved. Preparing snapshot."
+                    : "Approved. Ready for upload.";
+            session.expiresAt = clock.instant().plus(TRANSFER_TTL);
+            prepareDownload = session.direction == RemoteSyncDirection.IMPORT_FROM_REMOTE;
+        }
+
+        if (prepareDownload) {
+            prepareDownloadSnapshot(session);
+        }
+    }
+
+    private void prepareDownloadSnapshot(SessionState session) {
+        Path payloadPath = null;
+        Path outboundPath = null;
+        try {
+            payloadPath = createTransferPayload(SQLConnection.getDatabasePath(), session.options);
+            outboundPath = prepareOutboundTransfer(payloadPath, session);
+            if (!outboundPath.equals(payloadPath)) {
                 deleteIfExists(payloadPath);
+                payloadPath = null;
+            }
+            synchronized (session) {
+                if (session.status != RemoteSyncStatus.APPROVED) {
+                    return;
+                }
+                session.snapshotPath = outboundPath;
+                outboundPath = null;
+                payloadPath = null;
+                session.status = RemoteSyncStatus.READY_FOR_DOWNLOAD;
+                session.message = "Approved. Snapshot ready.";
+            }
+        } catch (IOException | SQLException ex) {
+            synchronized (session) {
                 session.fail(ex.getMessage());
             }
+        } finally {
+            deleteIfExists(payloadPath);
+            deleteIfExists(outboundPath);
         }
     }
 

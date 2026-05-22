@@ -5,7 +5,6 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.util.Arrays
 import javax.crypto.Cipher
-import javax.crypto.CipherInputStream
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
@@ -20,6 +19,7 @@ internal object AndroidRemoteSyncTransferCipher {
     private const val saltBytes = 16
     private const val nonceBytes = 12
     private const val tagBits = 128
+    private const val bufferBytes = 256 * 1024
 
     fun decrypt(source: File, destination: File, verificationCode: String, sessionId: String) {
         BufferedInputStream(source.inputStream()).use { input ->
@@ -28,9 +28,30 @@ internal object AndroidRemoteSyncTransferCipher {
             val salt = input.readExact(saltBytes, "salt")
             val nonce = input.readExact(nonceBytes, "nonce")
             val cipher = initCipher(Cipher.DECRYPT_MODE, verificationCode, sessionId, salt, nonce)
-            CipherInputStream(input, cipher).use { cipherInput ->
-                BufferedOutputStream(destination.outputStream()).use { output ->
-                    cipherInput.copyTo(output)
+            BufferedOutputStream(destination.outputStream()).use { output ->
+                val inputBuffer = ByteArray(bufferBytes)
+                var outputBuffer = ByteArray(cipher.getOutputSize(inputBuffer.size))
+                while (true) {
+                    val bytesRead = input.read(inputBuffer)
+                    if (bytesRead < 0) {
+                        break
+                    }
+                    val requiredOutputSize = cipher.getOutputSize(bytesRead)
+                    if (outputBuffer.size < requiredOutputSize) {
+                        outputBuffer = ByteArray(requiredOutputSize)
+                    }
+                    val bytesDecrypted = cipher.update(inputBuffer, 0, bytesRead, outputBuffer, 0)
+                    if (bytesDecrypted > 0) {
+                        output.write(outputBuffer, 0, bytesDecrypted)
+                    }
+                }
+                val finalOutputSize = cipher.getOutputSize(0)
+                if (outputBuffer.size < finalOutputSize) {
+                    outputBuffer = ByteArray(finalOutputSize)
+                }
+                val finalBytes = cipher.doFinal(outputBuffer, 0)
+                if (finalBytes > 0) {
+                    output.write(outputBuffer, 0, finalBytes)
                 }
             }
         }

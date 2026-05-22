@@ -7561,13 +7561,15 @@ private fun failedRefreshAccounts(
 }
 
 private fun RemoteSyncProgress.label(): String =
-    when (step) {
-        RemoteSyncProgressStep.CONNECTING -> "Connecting"
-        RemoteSyncProgressStep.WAITING_FOR_APPROVAL -> "Waiting for desktop approval"
-        RemoteSyncProgressStep.DOWNLOADING -> "Downloading"
-        RemoteSyncProgressStep.APPLYING_SYNC -> "Applying"
-        RemoteSyncProgressStep.COMPLETING_REMOTE -> "Completing"
-        RemoteSyncProgressStep.FINISHED -> "Finished"
+    message.ifBlank {
+        when (step) {
+            RemoteSyncProgressStep.CONNECTING -> "Connecting"
+            RemoteSyncProgressStep.WAITING_FOR_APPROVAL -> "Waiting for desktop approval"
+            RemoteSyncProgressStep.DOWNLOADING -> "Downloading"
+            RemoteSyncProgressStep.APPLYING_SYNC -> "Applying"
+            RemoteSyncProgressStep.COMPLETING_REMOTE -> "Completing"
+            RemoteSyncProgressStep.FINISHED -> "Finished"
+        }
     }
 
 private fun String.shortAccountType(): String =

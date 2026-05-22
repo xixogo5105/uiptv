@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import com.uiptv.mobile.shared.accounts.AndroidSQLiteAccountRepository
 import com.uiptv.mobile.shared.accounts.MobileAccount
 import com.uiptv.mobile.shared.accounts.MobileAccountType
@@ -54,6 +55,7 @@ class AndroidPlaybackCoordinator(
         private const val MX_PLAYER_STORE_URL = "https://play.google.com/store/apps/details?id=com.mxtech.videoplayer.ad"
         private const val JUST_PLAYER_STORE_URL = "https://play.google.com/store/apps/details?id=com.brouken.player"
         private const val XPLAYER_STORE_URL = "https://play.google.com/store/apps/details?id=video.player.videoplayer"
+        private const val LOG_TAG = "UIPTV-Playback"
     }
 
     suspend fun loadPlayerPreference(): PlayerPreference =
@@ -220,7 +222,7 @@ class AndroidPlaybackCoordinator(
         if (!playableTarget.url.isPlayableNetworkUrl()) {
             return PlaybackLaunchResult(false, "No direct playable URL is cached for ${target.title}. Refresh this account on Android or choose a direct stream.")
         }
-        if (player == AndroidPlayerPreference.NATIVE && !target.nativeSupported()) {
+        if (player == AndroidPlayerPreference.NATIVE && !playableTarget.nativeSupported()) {
             return PlaybackLaunchResult(false, "Native player cannot open this DRM or inputstream metadata yet. Use an external player.")
         }
         val intent = when (player) {
@@ -385,23 +387,34 @@ class AndroidPlaybackCoordinator(
         if (account.type != MobileAccountType.STALKER_PORTAL) {
             return direct
         }
-        if (target.url.isBlank()) {
-            return direct
-        }
-        if (direct.url.isPlayableNetworkUrl() && !shouldResolveStalkerPortalCommand(target.url)) {
+        if (target.url.isBlank() && target.channelId.isBlank()) {
             return direct
         }
 
         val candidates = stalkerCommandCandidates(account, target)
+        Log.d(
+            LOG_TAG,
+            "Resolving Stalker playback mode=${target.mode} accountId=${account.id ?: 0} " +
+                "channelId=${target.channelId} candidates=${candidates.size} " +
+                "direct=${direct.url.safeUrlDescriptor()}"
+        )
         for (candidate in candidates) {
-            val resolved = runCatching { resolveStalkerCreateLink(account, target.copy(url = candidate)) }.getOrNull().orEmpty()
+            val resolved = runCatching { resolveStalkerCreateLink(account, target.copy(url = candidate)) }
+                .onFailure { Log.w(LOG_TAG, "Stalker create_link failed for ${candidate.stalkerCommandKind()}", it) }
+                .getOrNull()
+                .orEmpty()
             val normalized = normalizeStalkerStreamUrl(
                 account,
                 extractPlayableStreamUrl(resolved.normalizeSeriesStreamPlaceholder(target.stalkerSeriesParam()))
             )
             if (normalized.isPlayableNetworkUrl()) {
+                Log.d(LOG_TAG, "Stalker playback resolved via ${candidate.stalkerCommandKind()} to ${normalized.safeUrlDescriptor()}")
                 return target.copy(url = normalized)
             }
+        }
+        if (direct.url.isPlayableNetworkUrl() && !shouldResolveStalkerPortalCommand(direct.url)) {
+            Log.d(LOG_TAG, "Falling back to cached Stalker direct URL ${direct.url.safeUrlDescriptor()}")
+            return direct
         }
         return if (shouldResolveStalkerPortalCommand(direct.url)) direct.copy(url = "") else direct
     }
@@ -430,7 +443,7 @@ class AndroidPlaybackCoordinator(
             }
         }
         target.url.takeIf { it.isNotBlank() }?.let(commands::add)
-        return commands.toList()
+        return commands.toList().sortedBy { it.stalkerCommandRank() }
     }
 
     private fun resolveStalkerCreateLink(account: MobileAccount, target: PlaybackTarget): String {
@@ -767,6 +780,34 @@ class AndroidPlaybackCoordinator(
             .removePrefix("ffmpeg ")
             .lowercase()
         return !normalized.contains("stream=&")
+    }
+
+    private fun String.stalkerCommandRank(): Int =
+        when {
+            shouldResolveStalkerPortalCommand(this) -> 0
+            !extractPlayableStreamUrl(this).isPlayableNetworkUrl() -> 1
+            else -> 2
+        }
+
+    private fun String.stalkerCommandKind(): String =
+        when {
+            shouldResolveStalkerPortalCommand(this) -> "portal-command"
+            !extractPlayableStreamUrl(this).isPlayableNetworkUrl() -> "opaque-command"
+            else -> "direct-url"
+        }
+
+    private fun String.safeUrlDescriptor(): String {
+        if (isBlank()) {
+            return "blank"
+        }
+        val uri = runCatching { Uri.parse(extractPlayableStreamUrl(this)) }.getOrNull()
+        val scheme = uri?.scheme?.lowercase().orEmpty()
+        val host = uri?.host.orEmpty()
+        return if (scheme in setOf("http", "https") && host.isNotBlank()) {
+            "$scheme://$host"
+        } else {
+            "non-url"
+        }
     }
 
     private fun Cursor.commandOrBlank(column: String): String {
