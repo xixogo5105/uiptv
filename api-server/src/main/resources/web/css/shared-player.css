@@ -13,7 +13,7 @@
     gap: 12px;
     min-width: 0;
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
     flex-wrap: wrap;
 }
 
@@ -25,39 +25,6 @@
     align-items: center;
 }
 
-.uiptv-player-title {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1 1 60%;
-}
-
-.uiptv-title-line {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    flex-wrap: wrap;
-}
-
-.uiptv-title-line #media-title-text {
-    overflow: visible;
-    text-overflow: clip;
-    white-space: normal;
-    word-break: break-word;
-    line-height: 1.2;
-    font-weight: 600;
-}
-
-.uiptv-subtitle {
-    font-size: 0.8rem;
-    opacity: 0.7;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .uiptv-player-controls {
     display: inline-flex;
     align-items: center;
@@ -65,7 +32,7 @@
     gap: 4px;
     padding: 4px 6px;
     border-radius: 6px;
-    margin-left: auto;
+    margin-left: 0;
     max-width: 100%;
     flex: 0 1 auto;
 }
@@ -176,17 +143,8 @@
     background: rgba(13, 110, 253, 0.12);
 }
 
-.uiptv-player-header[data-variant="compact"] .uiptv-subtitle {
-    display: none;
-}
-
-.uiptv-player-header[data-variant="compact"] .uiptv-player-title {
-    flex-direction: row;
-    align-items: center;
-}
-
 .uiptv-player-header[data-variant="compact"] .uiptv-player-controls {
-    margin-left: auto;
+    margin-left: 0;
 }
 
 @media (max-width: 860px) {

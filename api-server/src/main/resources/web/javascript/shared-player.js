@@ -1,13 +1,6 @@
 (function () {
     const TEMPLATE = `
 <div class="uiptv-player-header" data-uiptv-header>
-    <div class="uiptv-player-title" data-uiptv-title>
-        <div id="media-title" class="uiptv-title-line">
-            <span id="media-title-text"></span>
-            <span id="media-loading-spinner" class="spinner-border spinner-border-sm text-info" role="status" aria-hidden="true" hidden></span>
-        </div>
-        <div id="media-subtitle" class="uiptv-subtitle"></div>
-    </div>
     <div class="uiptv-player-controls" aria-label="Player controls">
         <button id="favorite-btn" class="uiptv-control-btn" type="button" title="Add favorite" data-action="favorite" data-label="Favorite">
             <i class="bi bi-heart uiptv-favorite-icon uiptv-favorite-off"></i>
@@ -61,14 +54,6 @@
 </div>
 `;
 
-    const resolveTitle = (title, mode) => {
-        const clean = (value) => String(value || '').trim();
-        const base = clean(title);
-        const suffix = clean(mode);
-        if (!base) return '';
-        return suffix ? `${base} [${suffix}]` : base;
-    };
-
     const mount = (root, options = {}) => {
         if (!root) return null;
         root.innerHTML = TEMPLATE;
@@ -82,9 +67,6 @@
 
         const nodes = {
             header,
-            titleText: root.querySelector('#media-title-text'),
-            titleSpinner: root.querySelector('#media-loading-spinner'),
-            subtitle: root.querySelector('#media-subtitle'),
             controls: root.querySelector('.uiptv-player-controls'),
             buttons: Array.from(root.querySelectorAll('[data-action]')),
             menus: {
@@ -219,19 +201,7 @@
             setMenuAvailability('subtitle', subtitle);
         };
 
-        const setTitle = ({title, mode, subtitle, loading} = {}) => {
-            if (nodes.titleText) {
-                nodes.titleText.textContent = resolveTitle(title, mode);
-            }
-            if (nodes.subtitle) {
-                nodes.subtitle.textContent = String(subtitle || '').trim();
-            }
-            if (nodes.titleSpinner) {
-                const isLoading = !!loading;
-                nodes.titleSpinner.hidden = !isLoading;
-                nodes.titleSpinner.style.display = isLoading ? 'inline-block' : 'none';
-            }
-        };
+        const setTitle = () => {};
 
         const setState = ({repeatEnabled, isMuted, isFullscreen, isFavorite, isPlaying, isPanelExpanded} = {}) => {
             const repeatBtn = root.querySelector('#repeat-btn');

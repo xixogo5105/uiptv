@@ -934,15 +934,8 @@ a[href] {
     min-width: 0;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 10px;
-}
-
-.player-topline-actions {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 6px;
 }
 
 #player-wrapper {

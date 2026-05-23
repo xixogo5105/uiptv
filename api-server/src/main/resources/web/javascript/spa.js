@@ -15,7 +15,7 @@ createApp({
         const episodes = ref([]);
         const bookmarks = ref([]);
         const bookmarkCategories = ref([]);
-        const selectedBookmarkCategoryId = ref('');
+        const selectedBookmarkCategoryId = ref('__recently_played_bookmarks__');
         const watchingNowRows = ref([]);
         const selectedWatchingNowKey = ref('');
         const watchingNowTab = ref('series');
@@ -87,7 +87,7 @@ createApp({
         };
         const SUPPORTED_MULTI_MODE_TYPES = new Set(['STALKER_PORTAL', 'XTREME_API']);
         const RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID = '__recently_played_bookmarks__';
-        const RECENTLY_PLAYED_BOOKMARKS_CATEGORY_NAME = 'Recently Played Channels';
+        const RECENTLY_PLAYED_BOOKMARKS_CATEGORY_NAME = 'Recent';
         const RECENT_BOOKMARK_LIMIT = 15;
         const RECENT_BOOKMARK_STORAGE_KEY = 'uiptv_recently_played_bookmarks_v1';
 
@@ -827,12 +827,12 @@ createApp({
 
         const bookmarkCategoryTabs = computed(() => {
             const tabs = [
-                {id: '', name: 'All'},
                 {
                     id: RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID,
                     name: RECENTLY_PLAYED_BOOKMARKS_CATEGORY_NAME,
                     itemCount: recentlyPlayedBookmarks.value.length
-                }
+                },
+                {id: '', name: 'All'}
             ];
             for (const category of (bookmarkCategories.value || [])) {
                 const id = String(category?.id || '').trim();
@@ -1759,7 +1759,7 @@ createApp({
             const selectedId = String(selectedBookmarkCategoryId.value || '');
             const exists = bookmarkCategoryTabs.value.some(tab => String(tab.id || '') === selectedId);
             if (!exists) {
-                selectedBookmarkCategoryId.value = '';
+                selectedBookmarkCategoryId.value = RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID;
             }
         };
 
@@ -3876,7 +3876,7 @@ createApp({
             selectedAccountId.value = null;
             currentContext.value = {accountId: null, categoryId: null, accountType: null};
             clearSearch();
-            selectedBookmarkCategoryId.value = '';
+            selectedBookmarkCategoryId.value = RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID;
             watchingNowRows.value = [];
             selectedWatchingNowKey.value = '';
             watchingNowDrilldown.value = false;
