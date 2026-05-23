@@ -21,10 +21,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class RemoteSyncSessionServiceTest extends DbBackedTest {
+    private static final long STATUS_POLL_INTERVAL_NANOS = TimeUnit.MILLISECONDS.toNanos(50);
+
     private final DatabaseSnapshotService snapshotService = new DatabaseSnapshotService();
 
     @Test
@@ -410,7 +413,10 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
             if (state.status() == expectedStatus) {
                 return state;
             }
-            Thread.sleep(50);
+            LockSupport.parkNanos(STATUS_POLL_INTERVAL_NANOS);
+            if (Thread.interrupted()) {
+                throw new InterruptedException("Interrupted while waiting for remote sync status.");
+            }
         } while (Instant.now().isBefore(deadline));
         fail("Timed out waiting for remote sync status " + expectedStatus);
         return state;

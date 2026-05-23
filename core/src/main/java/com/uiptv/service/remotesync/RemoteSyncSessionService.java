@@ -76,7 +76,7 @@ public class RemoteSyncSessionService {
 
     public RemoteSyncSessionState getSessionState(String sessionId) {
         SessionState session = requireSession(sessionId);
-        synchronized (session) {
+        synchronized (session.monitor) {
             expireIfNeeded(session);
             return session.toPublicState();
         }
@@ -87,7 +87,7 @@ public class RemoteSyncSessionService {
         Path uploadedTransfer = null;
         Path payloadPath = null;
         Path uploadedSnapshot = null;
-        synchronized (session) {
+        synchronized (session.monitor) {
             expireIfNeeded(session);
             session.ensureStatus(RemoteSyncDirection.EXPORT_TO_REMOTE, RemoteSyncStatus.APPROVED);
             uploadedTransfer = SecureTempFileSupport.createTempFile("uiptv-remote-upload-", ".bin");
@@ -107,7 +107,7 @@ public class RemoteSyncSessionService {
                     null
             );
             AppDataRefreshService.getInstance().refreshAfterDatabaseChange();
-            synchronized (session) {
+            synchronized (session.monitor) {
                 session.complete(REMOTE_SYNC_COMPLETED_MESSAGE);
             }
             notifier.get().showInfo("remoteSyncRemoteCompletedMessage");
@@ -117,7 +117,7 @@ public class RemoteSyncSessionService {
                     RemoteSyncSessionService.class,
                     "Remote database sync failed while accepting upload: " + ex.getMessage()
             );
-            synchronized (session) {
+            synchronized (session.monitor) {
                 session.fail(REMOTE_SYNC_FAILED_MESSAGE);
             }
             notifier.get().showError("remoteSyncRemoteFailedMessage");
@@ -133,7 +133,7 @@ public class RemoteSyncSessionService {
 
     public Path getDownloadSnapshot(String sessionId) {
         SessionState session = requireSession(sessionId);
-        synchronized (session) {
+        synchronized (session.monitor) {
             expireIfNeeded(session);
             session.ensureStatus(RemoteSyncDirection.IMPORT_FROM_REMOTE, RemoteSyncStatus.READY_FOR_DOWNLOAD);
             return session.snapshotPath;
@@ -142,7 +142,7 @@ public class RemoteSyncSessionService {
 
     public void completeImport(String sessionId, boolean success, String message) {
         SessionState session = requireSession(sessionId);
-        synchronized (session) {
+        synchronized (session.monitor) {
             expireIfNeeded(session);
             if (success) {
                 AppDataRefreshService.getInstance().refreshAfterDatabaseChange();
@@ -175,7 +175,7 @@ public class RemoteSyncSessionService {
             return;
         }
         boolean prepareDownload = false;
-        synchronized (session) {
+        synchronized (session.monitor) {
             expireIfNeeded(session);
             if (session.status != RemoteSyncStatus.PENDING_APPROVAL) {
                 return;
@@ -207,7 +207,7 @@ public class RemoteSyncSessionService {
                 deleteIfExists(payloadPath);
                 payloadPath = null;
             }
-            synchronized (session) {
+            synchronized (session.monitor) {
                 if (session.status != RemoteSyncStatus.APPROVED) {
                     return;
                 }
@@ -218,7 +218,7 @@ public class RemoteSyncSessionService {
                 session.message = "Approved. Snapshot ready.";
             }
         } catch (IOException | SQLException ex) {
-            synchronized (session) {
+            synchronized (session.monitor) {
                 session.fail(ex.getMessage());
             }
         } finally {
@@ -325,6 +325,7 @@ public class RemoteSyncSessionService {
     }
 
     private static final class SessionState {
+        private final Object monitor = new Object();
         private final String sessionId;
         private final RemoteSyncDirection direction;
         private final String verificationCode;

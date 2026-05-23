@@ -1,6 +1,7 @@
 package com.uiptv.service;
 
 import com.uiptv.db.DatabaseUtils;
+import com.uiptv.service.remotesync.SecureTempFileSupport;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,6 +25,10 @@ import static com.uiptv.util.SQLiteTableSync.ensureDatabaseReady;
 
 public class DatabaseSyncService {
     private static final String SQLITE_PREFIX = "jdbc:sqlite:";
+    private static final String SELECT_SQL = "SELECT ";
+    private static final String FROM_SQL = " FROM ";
+    private static final String ORDER_BY_SQL = " ORDER BY ";
+    private static final String LIMIT_ONE_SQL = " LIMIT 1";
     private static final String CONFIGURATION_TABLE = DatabaseUtils.DbTable.CONFIGURATION_TABLE.getTableName();
     private static final Set<String> EXTERNAL_PLAYER_PATH_COLUMNS = Set.of(
             "playerPath1",
@@ -108,7 +113,7 @@ public class DatabaseSyncService {
     private Path createSourceSnapshot(String sourceDB) throws SQLException {
         Path snapshotPath = null;
         try {
-            snapshotPath = Files.createTempFile("uiptv-db-sync-", ".db");
+            snapshotPath = SecureTempFileSupport.createTempFile("uiptv-db-sync-", ".db");
             try (Connection sourceConn = DriverManager.getConnection(SQLITE_PREFIX + sourceDB);
                  Statement statement = sourceConn.createStatement()) {
                 statement.execute("VACUUM INTO '" + escapeSqlLiteral(snapshotPath.toAbsolutePath().toString()) + "'");
@@ -144,7 +149,7 @@ public class DatabaseSyncService {
         try (Connection conn = DriverManager.getConnection(SQLITE_PREFIX + databasePath);
              Statement statement = conn.createStatement()) {
             statement.execute("PRAGMA wal_checkpoint(TRUNCATE)");
-        } catch (SQLException ignored) {
+        } catch (SQLException _) {
             // The replacement below is still authoritative; this only reduces stale WAL sidecars.
         }
     }
@@ -164,7 +169,8 @@ public class DatabaseSyncService {
             List<Map<String, Object>> rows = new ArrayList<>();
             try (Statement statement = conn.createStatement();
                  ResultSet resultSet = statement.executeQuery(
-                         "SELECT " + columnList + " FROM " + quoteIdentifier(CONFIGURATION_TABLE) + " ORDER BY " + quoteIdentifier("id"))) {
+                         SELECT_SQL + columnList + FROM_SQL + quoteIdentifier(CONFIGURATION_TABLE)
+                                 + ORDER_BY_SQL + quoteIdentifier("id"))) {
                 while (resultSet.next()) {
                     Map<String, Object> row = new LinkedHashMap<>();
                     for (String column : columns) {
@@ -188,8 +194,8 @@ public class DatabaseSyncService {
             String columnList = columns.stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
             try (Statement statement = conn.createStatement();
                  ResultSet resultSet = statement.executeQuery(
-                         "SELECT " + columnList + " FROM " + quoteIdentifier(CONFIGURATION_TABLE)
-                                 + " ORDER BY " + quoteIdentifier("id") + " LIMIT 1")) {
+                         SELECT_SQL + columnList + FROM_SQL + quoteIdentifier(CONFIGURATION_TABLE)
+                                 + ORDER_BY_SQL + quoteIdentifier("id") + LIMIT_ONE_SQL)) {
                 if (!resultSet.next()) {
                     return Map.of();
                 }
@@ -265,7 +271,7 @@ public class DatabaseSyncService {
             return;
         }
         String columnList = columns.stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
-        String placeholders = columns.stream().map(ignored -> "?").collect(Collectors.joining(", "));
+        String placeholders = columns.stream().map(_ -> "?").collect(Collectors.joining(", "));
         try (PreparedStatement insert = conn.prepareStatement(
                 "INSERT INTO " + quoteIdentifier(tableName) + " (" + columnList + ") VALUES (" + placeholders + ")")) {
             for (Map<String, Object> row : rows) {
@@ -281,8 +287,8 @@ public class DatabaseSyncService {
     private Object firstConfigurationId(Connection conn) throws SQLException {
         try (Statement statement = conn.createStatement();
              ResultSet resultSet = statement.executeQuery(
-                     "SELECT " + quoteIdentifier("id") + " FROM " + quoteIdentifier(CONFIGURATION_TABLE)
-                             + " ORDER BY " + quoteIdentifier("id") + " LIMIT 1")) {
+                     SELECT_SQL + quoteIdentifier("id") + FROM_SQL + quoteIdentifier(CONFIGURATION_TABLE)
+                             + ORDER_BY_SQL + quoteIdentifier("id") + LIMIT_ONE_SQL)) {
             return resultSet.next() ? resultSet.getObject(1) : null;
         }
     }
@@ -291,7 +297,7 @@ public class DatabaseSyncService {
         try (Connection conn = DriverManager.getConnection(SQLITE_PREFIX + dbPath);
              Statement statement = conn.createStatement();
              ResultSet resultSet = statement.executeQuery(
-                     "SELECT 1 FROM " + quoteIdentifier(CONFIGURATION_TABLE) + " LIMIT 1")) {
+                     "SELECT 1 FROM " + quoteIdentifier(CONFIGURATION_TABLE) + LIMIT_ONE_SQL)) {
             return resultSet.next();
         }
     }
