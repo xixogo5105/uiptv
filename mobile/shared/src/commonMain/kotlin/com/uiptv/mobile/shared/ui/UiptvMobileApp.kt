@@ -5864,7 +5864,7 @@ private fun WideAccountsContent(
     var actionsMenuExpanded by remember { mutableStateOf(false) }
     val outerPadding = if (compactWide) 6.dp else 12.dp
     val gap = if (compactWide) 8.dp else 12.dp
-    val accountColumns = if (compactWide) 1 else 2
+    val accountColumns = 2
     Row(
         modifier = modifier
             .fillMaxSize()
@@ -5983,11 +5983,15 @@ private fun WideAccountsContent(
                     }
                 }
                 items(visibleAccounts.chunked(accountColumns)) { rowAccounts ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(if (compactWide) 8.dp else 10.dp)
+                    ) {
                         rowAccounts.forEach { account ->
                             Box(modifier = Modifier.weight(1f)) {
                                 AccountRow(
                                     account = account,
+                                    dense = compactWide,
                                     onOpen = { onOpen(account) },
                                     onEdit = { onEdit(account) },
                                     onClearCache = { onClearCache(account) },
@@ -6017,16 +6021,17 @@ private fun AccountRow(
     onEdit: () -> Unit,
     onClearCache: () -> Unit,
     onRefreshCache: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    dense: Boolean = false
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = 64.dp)
+            .defaultMinSize(minHeight = if (dense) 58.dp else 64.dp)
             .background(DeepNightSurfaceHigh)
             .clickable(onClick = onOpen)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = if (dense) 8.dp else 12.dp, vertical = if (dense) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -6047,7 +6052,7 @@ private fun AccountRow(
                     color = DeepNightText,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
+                    maxLines = if (dense) 3 else 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -6055,7 +6060,9 @@ private fun AccountRow(
         }
         Box {
             IconButton(
-                modifier = Modifier.semantics { contentDescription = "Account actions for ${account.accountName}" },
+                modifier = Modifier
+                    .size(if (dense) 40.dp else 48.dp)
+                    .semantics { contentDescription = "Account actions for ${account.accountName}" },
                 onClick = { menuExpanded = true }
             ) {
                 Icon(Icons.Outlined.MoreVert, contentDescription = null, tint = DeepNightMutedText)
