@@ -856,6 +856,55 @@ a[href] {
     min-height: 98px;
 }
 
+.media-card {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 10px;
+}
+
+.episode-card {
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 10px;
+}
+
+.resume-card {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 10px;
+}
+
+.media-card > .logo-img,
+.media-card > .logo-box,
+.episode-card > .logo-img,
+.episode-card > .logo-box,
+.resume-card > .poster-thumb,
+.resume-card > .poster-fallback {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.media-card > .content-copy,
+.episode-card > .content-copy,
+.resume-card > .content-copy {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.media-card > .row-action-button {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: center;
+}
+
+.episode-card .logo-box {
+    width: 74px;
+    height: 48px;
+}
+
 .player-panel {
     display: grid;
     grid-template-rows: auto auto auto;

@@ -1182,6 +1182,10 @@ createApp({
             if (!thumbnailsEnabled.value) return '';
             const raw = String(logo || '').trim();
             if (!raw) return '';
+            const lower = raw.toLowerCase();
+            if (lower === 'null' || lower === 'undefined' || lower === 'none' || lower === 'n/a' || lower === 'na' || lower === '-') {
+                return '';
+            }
             if (/^(data:|blob:|https?:\/\/|file:)/i.test(raw)) return raw;
             if (raw.startsWith('//')) return `${window.location.protocol}${raw}`;
             if (raw.startsWith('/')) return `${window.location.origin}${raw}`;
