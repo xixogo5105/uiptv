@@ -26,6 +26,8 @@ class AndroidSQLiteBrowseRepository(
     private var bookmarkCache: BookmarkCache? = null
     @Volatile
     private var bookmarkIndexesEnsured = false
+    private val metadataCacheLock = Any()
+    private val imdbMetadataCache = LinkedHashMap<MetadataCacheKey, AndroidImdbMetadata>()
 
     override suspend fun loadBrowse(
         accountId: Long?,
@@ -108,6 +110,9 @@ class AndroidSQLiteBrowseRepository(
         synchronized(bookmarkCacheLock) {
             bookmarkCache = null
             bookmarkIndexesEnsured = false
+        }
+        synchronized(metadataCacheLock) {
+            imdbMetadataCache.clear()
         }
     }
 
@@ -479,23 +484,28 @@ class AndroidSQLiteBrowseRepository(
     override suspend fun enrichWatchingNowItem(item: MobileWatchingNowItem): MobileWatchingNowItem = withContext(Dispatchers.IO) {
         when (item.mode) {
             BrowseMode.VOD -> {
-                val metadata = runCatching {
-                    metadataProvider.findMovieDetails(
-                        title = item.title,
-                        preferredImdbId = item.imdbIdCandidate(),
-                        hints = buildVodMetadataHints(item)
-                    )
-                }.getOrDefault(AndroidImdbMetadata())
+                val metadata = cachedMetadata(item.metadataCacheKey(buildVodMetadataHints(item))) {
+                    runCatching {
+                        metadataProvider.findMovieDetails(
+                            title = item.title,
+                            preferredImdbId = item.imdbIdCandidate(),
+                            hints = buildVodMetadataHints(item)
+                        )
+                    }.getOrDefault(AndroidImdbMetadata())
+                }
                 item.mergeMetadata(metadata, replaceTitle = false)
             }
             BrowseMode.SERIES -> {
-                val metadata = runCatching {
-                    metadataProvider.findSeriesDetails(
-                        title = item.title,
-                        preferredImdbId = item.imdbIdCandidate(),
-                        hints = buildSeriesMetadataHints(item, emptyList())
-                    )
-                }.getOrDefault(AndroidImdbMetadata())
+                val hints = buildSeriesMetadataHints(item, emptyList())
+                val metadata = cachedMetadata(item.metadataCacheKey(hints)) {
+                    runCatching {
+                        metadataProvider.findSeriesDetails(
+                            title = item.title,
+                            preferredImdbId = item.imdbIdCandidate(),
+                            hints = hints
+                        )
+                    }.getOrDefault(AndroidImdbMetadata())
+                }
                 item.mergeMetadata(metadata, replaceTitle = true)
             }
             BrowseMode.LIVE -> item
@@ -509,18 +519,50 @@ class AndroidSQLiteBrowseRepository(
         if (series.mode != BrowseMode.SERIES) {
             return@withContext MobileSeriesDetails(series, episodes)
         }
-        val metadata = runCatching {
-            metadataProvider.findSeriesDetails(
-                title = series.title,
-                preferredImdbId = series.imdbIdCandidate(),
-                hints = buildSeriesMetadataHints(series, episodes)
-            )
-        }.getOrDefault(AndroidImdbMetadata())
+        val hints = buildSeriesMetadataHints(series, episodes)
+        val metadata = cachedMetadata(series.metadataCacheKey(hints)) {
+            runCatching {
+                metadataProvider.findSeriesDetails(
+                    title = series.title,
+                    preferredImdbId = series.imdbIdCandidate(),
+                    hints = hints
+                )
+            }.getOrDefault(AndroidImdbMetadata())
+        }
         MobileSeriesDetails(
             series = series.mergeMetadata(metadata, replaceTitle = true),
             episodes = episodes.mergeEpisodeMetadata(metadata.episodesMeta)
         )
     }
+
+    private fun cachedMetadata(
+        key: MetadataCacheKey,
+        fetch: () -> AndroidImdbMetadata
+    ): AndroidImdbMetadata {
+        synchronized(metadataCacheLock) {
+            imdbMetadataCache[key]?.let { return it }
+        }
+        val metadata = fetch()
+        synchronized(metadataCacheLock) {
+            imdbMetadataCache[key]?.let { return it }
+            while (imdbMetadataCache.size >= MAX_IMDB_METADATA_CACHE_ENTRIES) {
+                val oldest = imdbMetadataCache.keys.firstOrNull() ?: break
+                imdbMetadataCache.remove(oldest)
+            }
+            imdbMetadataCache[key] = metadata
+        }
+        return metadata
+    }
+
+    private fun MobileWatchingNowItem.metadataCacheKey(hints: List<String>): MetadataCacheKey =
+        MetadataCacheKey(
+            mode = mode,
+            title = title.trim().lowercase(),
+            preferredImdbId = imdbIdCandidate().trim().lowercase(),
+            categoryProviderId = categoryProviderId.trim(),
+            contentId = contentId.trim(),
+            hints = hints.map { it.trim().lowercase() }.filter { it.isNotBlank() }
+        )
 
     override suspend fun markWatchingNowEpisode(episode: MobileWatchingNowEpisode): Unit = withContext(Dispatchers.IO) {
         if (episode.accountId <= 0 || episode.seriesId.isBlank()) {
@@ -2023,6 +2065,15 @@ class AndroidSQLiteBrowseRepository(
         val channelId: String
     )
 
+    private data class MetadataCacheKey(
+        val mode: BrowseMode,
+        val title: String,
+        val preferredImdbId: String,
+        val categoryProviderId: String,
+        val contentId: String,
+        val hints: List<String>
+    )
+
     private data class WatchingMarker(
         val episodeId: String,
         val season: String,
@@ -2033,6 +2084,7 @@ class AndroidSQLiteBrowseRepository(
         const val DEFAULT_CACHE_EXPIRY_DAYS = 30L
         const val MILLIS_PER_DAY = 86_400_000L
         const val BOOKMARK_FALLBACK_CHUNK_SIZE = 250
+        const val MAX_IMDB_METADATA_CACHE_ENTRIES = 128
         val IMDB_ID_PATTERN = Regex("""tt\d+""")
     }
 }

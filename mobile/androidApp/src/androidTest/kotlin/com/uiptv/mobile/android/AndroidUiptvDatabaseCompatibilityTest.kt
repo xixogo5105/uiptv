@@ -992,6 +992,86 @@ class AndroidUiptvDatabaseCompatibilityTest {
     }
 
     @Test
+    fun browseRepositoryCachesWatchingNowImdbMetadataUntilInvalidated() = runBlocking {
+        var movieRequests = 0
+        var seriesRequests = 0
+        val provider = object : AndroidImdbMetadataProvider {
+            override fun findSeriesDetails(title: String, preferredImdbId: String, hints: List<String>): AndroidImdbMetadata {
+                seriesRequests += 1
+                return AndroidImdbMetadata(
+                    name = "Cached Series $seriesRequests",
+                    plot = "Series plot $seriesRequests",
+                    episodesMeta = listOf(
+                        AndroidEpisodeMetadata(
+                            title = "Episode $seriesRequests",
+                            season = "1",
+                            episodeNumber = "1",
+                            plot = "Episode plot $seriesRequests"
+                        )
+                    )
+                )
+            }
+
+            override fun findMovieDetails(title: String, preferredImdbId: String, hints: List<String>): AndroidImdbMetadata {
+                movieRequests += 1
+                return AndroidImdbMetadata(plot = "Movie plot $movieRequests")
+            }
+        }
+        val repository = AndroidSQLiteBrowseRepository(helper, provider)
+        val movie = MobileWatchingNowItem(
+            rowId = 1,
+            accountId = 2,
+            accountName = "Demo",
+            mode = BrowseMode.VOD,
+            title = "Cached Movie",
+            subtitle = "Demo",
+            contentId = "tt7654321"
+        )
+        val series = MobileWatchingNowItem(
+            rowId = 2,
+            accountId = 2,
+            accountName = "Demo",
+            mode = BrowseMode.SERIES,
+            title = "Cached Show",
+            subtitle = "Demo",
+            contentId = "tt1234567"
+        )
+        val episodes = listOf(
+            MobileWatchingNowEpisode(
+                rowId = 3,
+                parentRowId = 2,
+                accountId = 2,
+                accountName = "Demo",
+                seriesId = "tt1234567",
+                seriesTitle = "Cached Show",
+                categoryProviderId = "series",
+                categoryRowId = 4,
+                episodeId = "episode-1",
+                title = "Season 1 - Episode 1",
+                season = "1",
+                episodeNumber = "1"
+            )
+        )
+
+        assertEquals("Movie plot 1", repository.enrichWatchingNowItem(movie).plot)
+        assertEquals("Movie plot 1", repository.enrichWatchingNowItem(movie.copy(updatedAtEpochSeconds = 999)).plot)
+        assertEquals(1, movieRequests)
+
+        val firstDetails = repository.enrichSeriesDetails(series, episodes)
+        val secondDetails = repository.enrichSeriesDetails(series.copy(updatedAtEpochSeconds = 999), episodes)
+        assertEquals("Series plot 1", firstDetails.series.plot)
+        assertEquals("Episode plot 1", secondDetails.episodes.single().plot)
+        assertEquals(1, seriesRequests)
+
+        repository.enrichWatchingNowItem(movie.copy(title = "Changed Movie"))
+        assertEquals(2, movieRequests)
+
+        repository.invalidateCaches()
+        repository.enrichWatchingNowItem(movie)
+        assertEquals(3, movieRequests)
+    }
+
+    @Test
     fun playbackCoordinatorStartsBingeWatchWithoutResolvingEpisodeUrlsUpfront() = runBlocking {
         AndroidBingeWatchSessionStore.clear()
         val account = AndroidSQLiteAccountRepository(helper).saveAccount(
