@@ -90,6 +90,24 @@
     font-size: 1.05rem;
 }
 
+.uiptv-favorite-icon {
+    transition: color 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+}
+
+.uiptv-favorite-icon.uiptv-favorite-on {
+    color: #e03131;
+    opacity: 1;
+}
+
+.uiptv-favorite-icon.uiptv-favorite-off {
+    color: #8a97a5;
+    opacity: 0.72;
+}
+
+.uiptv-favorite-selected {
+    border-color: rgba(224, 49, 49, 0.45);
+}
+
 .uiptv-control-menu {
     position: relative;
 }

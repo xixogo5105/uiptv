@@ -9,8 +9,8 @@
         <div id="media-subtitle" class="uiptv-subtitle"></div>
     </div>
     <div class="uiptv-player-controls" aria-label="Player controls">
-        <button id="favorite-btn" class="uiptv-control-btn" type="button" title="Favorite" data-action="favorite" data-label="Favorite">
-            <i class="bi bi-heart"></i>
+        <button id="favorite-btn" class="uiptv-control-btn" type="button" title="Add favorite" data-action="favorite" data-label="Favorite">
+            <i class="bi bi-heart uiptv-favorite-icon uiptv-favorite-off"></i>
         </button>
         <button id="reload-btn" class="uiptv-control-btn" type="button" title="Reload" data-action="reload" data-label="Reload">
             <i class="bi bi-arrow-clockwise"></i>
@@ -279,8 +279,14 @@
             }
             if (favoriteBtn) {
                 favoriteBtn.setAttribute('aria-pressed', isFavorite ? 'true' : 'false');
+                favoriteBtn.title = isFavorite ? 'Remove favorite' : 'Add favorite';
+                favoriteBtn.classList.toggle('uiptv-favorite-selected', !!isFavorite);
                 const icon = favoriteBtn.querySelector('i');
-                if (icon) icon.className = isFavorite ? 'bi bi-heart-fill text-danger' : 'bi bi-heart';
+                if (icon) {
+                    icon.className = isFavorite
+                        ? 'bi bi-heart-fill uiptv-favorite-icon uiptv-favorite-on'
+                        : 'bi bi-heart uiptv-favorite-icon uiptv-favorite-off';
+                }
             }
         };
 
