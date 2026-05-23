@@ -956,6 +956,7 @@ createApp({
         const resolveMpegTsPlaybackUrl = (url) => playbackUtils.resolveMpegTsPlaybackUrl(url);
         const describeMpegTsFailure = (error) => playbackUtils.describeMpegTsFailure(error);
         const isBrowserUnsupportedMediaError = (error) => playbackUtils.isBrowserUnsupportedMediaError(error);
+        const describeUnsupportedHlsManifest = (manifest) => playbackUtils?.describeUnsupportedHlsManifest?.(manifest) || '';
         const isMaxQualityEnabled = () => playbackUtils?.getShakaMaxQuality?.() === true;
         const setMaxQualityEnabled = (enabled) => playbackUtils?.setShakaMaxQuality?.(!!enabled);
         const notifyPlayerClosed = (reason = 'stop') => {
@@ -3127,7 +3128,41 @@ createApp({
                 }
             }
             console.warn('Proxy playback fallback failed.', lastError);
+            const compatibilityIssue = await detectHlsBrowserCompatibilityIssue(sourceUrl);
+            if (compatibilityIssue) {
+                throw new Error(compatibilityIssue);
+            }
             return false;
+        };
+
+        const detectHlsBrowserCompatibilityIssue = async (url) => {
+            const sourceUrl = String(url || '').trim();
+            if (!sourceUrl || /^(blob:|data:|file:)/i.test(sourceUrl)) {
+                return '';
+            }
+            const probeUrl = buildProxyStreamUrl(sourceUrl) || sourceUrl;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            try {
+                const response = await fetch(probeUrl, {
+                    signal: controller.signal,
+                    headers: {Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*'}
+                });
+                const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+                const responseUrl = String(response.url || probeUrl).toLowerCase();
+                const lowerSource = sourceUrl.toLowerCase();
+                const looksHls = contentType.includes('mpegurl')
+                    || responseUrl.includes('.m3u8')
+                    || lowerSource.includes('.m3u8');
+                if (!response.ok || !looksHls) {
+                    return '';
+                }
+                return describeUnsupportedHlsManifest(await response.text());
+            } catch (_) {
+                return '';
+            } finally {
+                clearTimeout(timeoutId);
+            }
         };
 
         const loadMpegTs = async (channel) => {

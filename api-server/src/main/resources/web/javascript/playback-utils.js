@@ -82,6 +82,76 @@
             || text.includes('media-error-code code 4');
     };
 
+    const canPlayMimeType = (mimeType) => {
+        const value = String(mimeType || '').trim();
+        if (!value) return false;
+        const mediaSource = window.ManagedMediaSource || window.MediaSource;
+        if (mediaSource && typeof mediaSource.isTypeSupported === 'function' && mediaSource.isTypeSupported(value)) {
+            return true;
+        }
+        try {
+            const video = document.createElement('video');
+            if (video && typeof video.canPlayType === 'function' && video.canPlayType(value)) {
+                return true;
+            }
+        } catch (_) {
+            // Browser probing only; fall through to unsupported.
+        }
+        try {
+            const audio = document.createElement('audio');
+            return !!(audio && typeof audio.canPlayType === 'function' && audio.canPlayType(value));
+        } catch (_) {
+            return false;
+        }
+    };
+
+    const normalizeCodecToken = (codec) => String(codec || '').trim().toLowerCase();
+
+    const isAc3Codec = (codec) => {
+        const normalized = normalizeCodecToken(codec);
+        return normalized === 'ac-3'
+            || normalized === 'ac3'
+            || normalized === 'mp4a.a5'
+            || normalized === 'mp4a.a6'
+            || normalized === 'ec-3'
+            || normalized === 'eac3'
+            || normalized === 'ec3';
+    };
+
+    const browserSupportsHlsCodec = (codec) => {
+        const normalized = normalizeCodecToken(codec);
+        if (!normalized) return true;
+        if (normalized === 'ac3') return browserSupportsHlsCodec('ac-3');
+        if (normalized === 'eac3' || normalized === 'ec3') return browserSupportsHlsCodec('ec-3');
+        return canPlayMimeType(`audio/mp4; codecs="${normalized}"`)
+            || canPlayMimeType(`video/mp2t; codecs="${normalized}"`)
+            || canPlayMimeType(`video/mp4; codecs="${normalized}"`);
+    };
+
+    const extractHlsCodecs = (manifestText) => {
+        const manifest = String(manifestText || '');
+        const codecs = new Set();
+        const regex = /CODECS="([^"]+)"/gi;
+        let match;
+        while ((match = regex.exec(manifest)) !== null) {
+            String(match[1] || '')
+                .split(',')
+                .map(normalizeCodecToken)
+                .filter(Boolean)
+                .forEach(codec => codecs.add(codec));
+        }
+        return Array.from(codecs);
+    };
+
+    const describeUnsupportedHlsManifest = (manifestText) => {
+        const codecs = extractHlsCodecs(manifestText);
+        const unsupportedAc3 = codecs.find(codec => isAc3Codec(codec) && !browserSupportsHlsCodec(codec));
+        if (unsupportedAc3) {
+            return 'This HLS stream uses AC-3 audio, which this browser cannot decode. It can play in VLC, Android, or the desktop app; web playback needs an AAC audio stream or server-side transcoding.';
+        }
+        return '';
+    };
+
     const describeMpegTsFailure = (error) => {
         if (isBrowserUnsupportedMediaError(error)) {
             return 'This MPEG-TS stream is not browser-compatible. Use VLC/external playback; web transcoding is no longer available.';
@@ -156,6 +226,7 @@
         buildProxyStreamUrl,
         resolveMpegTsPlaybackUrl,
         isBrowserUnsupportedMediaError,
+        describeUnsupportedHlsManifest,
         describeMpegTsFailure,
         normalizeDisplayText,
         getShakaMaxQuality,
