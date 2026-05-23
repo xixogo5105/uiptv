@@ -13,7 +13,7 @@
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260523a" rel="stylesheet">
-    <link href="/css/spa.css?v=20260523r" rel="stylesheet">
+    <link href="/css/spa.css?v=20260523s" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
@@ -634,14 +634,14 @@
                 </div>
 
                 <div id="player-wrapper">
-                    <div id="player-placeholder" v-if="!isPlaying">
+                    <div id="player-placeholder" v-show="!isPlaying || playbackLoading">
                         <span aria-hidden="true" class="spinner-border player-spinner" role="status" v-if="playbackLoading"></span>
                         <i class="bi bi-play-circle player-placeholder-icon" v-else></i>
                         <h2>{{ playbackLoading ? 'Starting stream...' : 'Select content to play' }}</h2>
                         <p v-if="playbackError">{{ playbackError }}</p>
                     </div>
 
-                    <div class="player-frame" id="player" v-else>
+                    <div :class="{ 'player-frame-hidden': playbackLoading }" class="player-frame" id="player" v-show="isPlaying">
                         <video autoplay controls playsinline ref="videoPlayer"></video>
                     </div>
                 </div>
