@@ -112,6 +112,7 @@ a[href] {
     padding: 12px;
     display: grid;
     grid-template-rows: auto auto;
+    align-content: start;
     gap: 12px;
     overflow: visible;
 }
