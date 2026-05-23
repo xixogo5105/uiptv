@@ -969,15 +969,6 @@ a[href] {
     background: #050607;
 }
 
-.player-loading-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    display: grid;
-    place-items: center;
-    background: rgba(5, 6, 7, 0.76);
-}
-
 .player-spinner {
     width: 3.5rem;
     height: 3.5rem;
