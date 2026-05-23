@@ -93,6 +93,10 @@ a {
     color: inherit;
 }
 
+a[href] {
+    cursor: pointer;
+}
+
 .uiptv-svg-sprite {
     position: absolute;
     width: 0;
@@ -264,6 +268,7 @@ a {
     gap: 8px;
     padding: 6px 12px;
     line-height: 1.1;
+    cursor: pointer;
 }
 
 .theme-toggle {
@@ -436,6 +441,10 @@ a {
     padding: 10px;
 }
 
+.row-card:not(.loading-card):not(.disabled) {
+    cursor: pointer;
+}
+
 .row-card:not(.loading-card):hover {
     border-color: color-mix(in srgb, var(--accent) 54%, transparent);
 }
@@ -447,6 +456,10 @@ a {
 
 .row-card.draggable {
     cursor: grab;
+}
+
+.row-card.disabled {
+    cursor: not-allowed;
 }
 
 .row-card.drag-source {
@@ -624,6 +637,7 @@ a {
     color: var(--muted);
     display: grid;
     place-items: center;
+    cursor: pointer;
 }
 
 .row-action-button:hover {
