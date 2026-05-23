@@ -34,6 +34,8 @@
     const APP_TITLE = 'UIPTV Player';
     const playbackUtils = window.UIPTVPlaybackUtils;
     const normalizeDisplayText = (value) => playbackUtils.normalizeDisplayText(value);
+    const describeMpegTsFailure = (error) => playbackUtils.describeMpegTsFailure(error);
+    const isBrowserUnsupportedMediaError = (error) => playbackUtils.isBrowserUnsupportedMediaError(error);
     const headerEl = document.querySelector('[data-uiptv-header]');
     const isMaxQualityEnabled = () => playbackUtils?.getShakaMaxQuality?.() === true;
     const setMaxQualityEnabled = (enabled) => playbackUtils?.setShakaMaxQuality?.(!!enabled);
@@ -47,6 +49,8 @@
     let playbackResolution = '';
     let repeatEnabled = false;
     let repeatReloadInFlight = false;
+    let mpegtsStartupActive = false;
+    let pendingMpegTsStartupError = '';
     let strategyOverride = 'auto';
     let lastLaunchKey = '';
     let stallMonitorTimer = null;
@@ -943,6 +947,9 @@
     };
 
     const buildProxyUrl = (url) => {
+        if (playbackUtils.buildProxyStreamUrl) {
+            return playbackUtils.buildProxyStreamUrl(url);
+        }
         const normalized = cleanValue(url);
         if (!normalized) {
             return '';
@@ -954,6 +961,13 @@
             return '';
         }
         return `${window.location.origin}/proxy-stream?src=${encodeURIComponent(normalized)}`;
+    };
+
+    const resolveMpegTsUrl = (url) => {
+        if (playbackUtils.resolveMpegTsPlaybackUrl) {
+            return playbackUtils.resolveMpegTsPlaybackUrl(url);
+        }
+        return buildProxyUrl(url) || cleanValue(url);
     };
 
     const isAdaptiveUrl = (url) => {
@@ -1028,6 +1042,10 @@
         }
         const normalizedUrl = cleanValue(responseData?.url);
         const plan = [resolvePrimaryStrategy(responseData, launch)];
+        if (isTsLikeResponse(responseData) && canUseMpegts()) {
+            plan.push('mpegts');
+            return uniqueStrategies(plan);
+        }
         plan.push('native');
         if (buildProxyUrl(normalizedUrl)) {
             plan.push('native-proxy');
@@ -1065,16 +1083,27 @@
                 const code = mediaError?.code ? `code ${mediaError.code}` : 'unknown';
                 finish(reject, new Error(`media-error-${code}`));
             };
+            const onMpegTsError = (event) => {
+                const message = cleanValue(event?.detail?.message || pendingMpegTsStartupError) || 'MPEGTS error';
+                pendingMpegTsStartupError = '';
+                finish(reject, new Error(`mpegts-error: ${message}`));
+            };
             const cleanup = () => {
                 videoEl.removeEventListener('playing', onPlaying);
                 videoEl.removeEventListener('error', onError);
+                videoEl.removeEventListener('uiptv:mpegts-error', onMpegTsError);
                 if (timeoutId !== null) {
                     clearTimeout(timeoutId);
                 }
             };
             videoEl.addEventListener('playing', onPlaying, {once: true});
             videoEl.addEventListener('error', onError, {once: true});
+            videoEl.addEventListener('uiptv:mpegts-error', onMpegTsError, {once: true});
             timeoutId = window.setTimeout(() => finish(reject, new Error('startup-timeout')), timeoutMs);
+            if (pendingMpegTsStartupError) {
+                onMpegTsError({detail: {message: pendingMpegTsStartupError}});
+                return;
+            }
             if (!videoEl.paused && videoEl.readyState >= 2) {
                 onPlaying();
             }
@@ -1085,6 +1114,9 @@
         const normalized = cleanValue(originalUrl);
         if (!normalized) {
             return '';
+        }
+        if (strategy === 'mpegts') {
+            return resolveMpegTsUrl(normalized);
         }
         if (strategy === 'native-proxy') {
             return buildProxyUrl(normalized);
@@ -1104,17 +1136,28 @@
         updateDocumentTitle();
         const shakaPayload = {...strategyResponse, url: playbackUrl};
         let started;
-        if (playbackStrategy === 'shaka') {
-            started = await loadShaka(shakaPayload);
-        } else if (playbackStrategy === 'mpegts') {
-            started = await loadMpegTs(playbackUrl);
-        } else {
-            started = await loadNative(playbackUrl);
+        const isMpegTsStartup = playbackStrategy === 'mpegts';
+        if (isMpegTsStartup) {
+            pendingMpegTsStartupError = '';
+            mpegtsStartupActive = true;
         }
-        if (started === false) {
-            return {autoplayBlocked: true, playbackUrl};
+        try {
+            if (playbackStrategy === 'shaka') {
+                started = await loadShaka(shakaPayload);
+            } else if (playbackStrategy === 'mpegts') {
+                started = await loadMpegTs(playbackUrl);
+            } else {
+                started = await loadNative(playbackUrl);
+            }
+            if (started === false) {
+                return {autoplayBlocked: true, playbackUrl};
+            }
+            await waitForPlaybackStart(timeoutMs);
+        } finally {
+            if (isMpegTsStartup) {
+                mpegtsStartupActive = false;
+            }
         }
-        await waitForPlaybackStart(timeoutMs);
         rememberStrategy(launch, responseData, playbackStrategy);
         return {autoplayBlocked: false, playbackUrl};
     };
@@ -1181,7 +1224,9 @@
         }
         lastLaunchKey = nextKey;
         activeLaunch = launch;
-        repeatReloadInFlight = false;
+        if (!options.cacheBust) {
+            repeatReloadInFlight = false;
+        }
         if (videoEl) {
             videoEl.muted = true;
         }
@@ -1247,27 +1292,36 @@
         if (!canUseMpegts()) {
             throw new Error('mpegts-not-supported');
         }
-        const player = engine.createPlayer(
-            {
-                type: 'mpegts',
-                isLive: launchMode(activeLaunch) === 'itv',
-                url
-            },
-            {
-                enableWorker: true,
-                lazyLoad: false
-            }
-        );
-        mpegtsPlayer = player;
-        player.on(engine.Events.ERROR, (_, detail) => {
-            const message = detail?.msg || detail?.message || 'MPEGTS error';
-            setStatus('Playback error: ' + message);
-            triggerRepeatReload();
-        });
-        player.attachMediaElement(videoEl);
-        player.load();
-        await player.play();
-        return true;
+        try {
+            const player = engine.createPlayer(
+                {
+                    type: 'mpegts',
+                    isLive: launchMode(activeLaunch) === 'itv',
+                    url
+                },
+                {
+                    enableWorker: true,
+                    lazyLoad: false
+                }
+            );
+            mpegtsPlayer = player;
+            player.on(engine.Events.ERROR, (_, detail) => {
+                const message = detail?.msg || detail?.message || 'MPEGTS error';
+                setStatus('Playback error: ' + message);
+                if (mpegtsStartupActive) {
+                    pendingMpegTsStartupError = message;
+                    videoEl.dispatchEvent(new CustomEvent('uiptv:mpegts-error', {detail: {message}}));
+                    return;
+                }
+                triggerRepeatReload('Playback error: ' + message);
+            });
+            player.attachMediaElement(videoEl);
+            player.load();
+            await player.play();
+            return true;
+        } catch (error) {
+            throw new Error(describeMpegTsFailure(error));
+        }
     };
 
     const isAutoplayBlockError = (error) => {
@@ -1284,8 +1338,11 @@
         if (message.includes('notallowederror') || message.includes('user gesture') || message.includes('request is not allowed')) {
             return STATUS_AUTOPLAY_BLOCKED;
         }
-        if (message.includes('media-error-code 4') || message.includes('src_not_supported')) {
-            return 'Unsupported stream format/codec in browser. Try proxy or an external player.';
+        if (isBrowserUnsupportedMediaError(error)) {
+            return 'This MPEG-TS stream is not browser-compatible. Use VLC/external playback; web transcoding is no longer available.';
+        }
+        if (message.includes('mpegts-not-supported')) {
+            return 'This browser cannot initialize MPEG-TS playback.';
         }
         if (message.includes('media-error-code 2') || message.includes('network')) {
             return 'Network/auth error while loading stream.';

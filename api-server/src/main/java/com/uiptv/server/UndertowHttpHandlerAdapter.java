@@ -114,7 +114,9 @@ final class UndertowHttpHandlerAdapter implements io.undertow.server.HttpHandler
             this.responseLength = responseLength;
             exchange.setStatusCode(rCode);
             copyHeaders(responseHeaders, exchange.getResponseHeaders());
-            if (responseLength >= 0) {
+            // HttpExchange uses 0 for chunked/unknown length; only positive
+            // lengths should become a Content-Length header.
+            if (responseLength > 0) {
                 exchange.setResponseContentLength(responseLength);
             } else {
                 exchange.getResponseHeaders().remove(HttpString.tryFromString("Content-Length"));
@@ -165,7 +167,7 @@ final class UndertowHttpHandlerAdapter implements io.undertow.server.HttpHandler
             if (!responseCommitted) {
                 sendResponseHeaders(responseCode, responseLength == Long.MIN_VALUE ? -1 : responseLength);
             }
-            if (responseLength < 0) {
+            if (responseLength <= 0) {
                 exchange.endExchange();
             } else if (!exchange.isComplete()) {
                 responseBody.flush();

@@ -23,6 +23,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 @SuppressWarnings({"java:S1075", "java:S135"})
 public class HttpProxyStreamServer implements HttpHandler {
     private static final String PATH_LIVE_PLAY = "/live/play/";
+    private static final String PATH_PLAY_LIVE = "/play/live.php";
     private static final String PATH_PLAY_MOVIE = "/play/movie.php";
     private static final String HEADER_ACCEPT = "Accept";
     private static final String HEADER_ACCEPT_RANGES = "Accept-Ranges";
@@ -237,8 +238,7 @@ public class HttpProxyStreamServer implements HttpHandler {
             return false;
         }
         String lower = currentUrl.toLowerCase();
-        return lower.contains(PATH_LIVE_PLAY)
-                || lower.contains(PATH_PLAY_MOVIE)
+        return isPortalPlaybackPath(lower)
                 || hasNumericLastPathSegment(lower);
     }
 
@@ -247,8 +247,17 @@ public class HttpProxyStreamServer implements HttpHandler {
             return false;
         }
         String lower = currentUrl.toLowerCase();
-        return (lower.contains(PATH_LIVE_PLAY) || lower.contains(PATH_PLAY_MOVIE))
+        return isPortalPlaybackPath(lower)
                 && (lower.contains("play_token=") || lower.contains("mac="));
+    }
+
+    private boolean isPortalPlaybackPath(String lowerUrl) {
+        if (isBlank(lowerUrl)) {
+            return false;
+        }
+        return lowerUrl.contains(PATH_LIVE_PLAY)
+                || lowerUrl.contains(PATH_PLAY_LIVE)
+                || lowerUrl.contains(PATH_PLAY_MOVIE);
     }
 
     private boolean sameOrigin(String left, String right) {
@@ -372,7 +381,7 @@ public class HttpProxyStreamServer implements HttpHandler {
     private String downgradeHttpsToHttp(String url) {
         if (isBlank(url)) return url;
         String lower = url.toLowerCase();
-        if (lower.startsWith("https://") && (lower.contains(PATH_LIVE_PLAY) || lower.contains(PATH_PLAY_MOVIE) || hasNumericLastPathSegment(lower))) {
+        if (lower.startsWith("https://") && (isPortalPlaybackPath(lower) || hasNumericLastPathSegment(lower))) {
             return "http://" + url.substring("https://".length());
         }
         return url;

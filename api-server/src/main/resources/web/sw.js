@@ -1,21 +1,87 @@
-const CACHE_NAME = 'uiptv-cache-v10';
+const CACHE_NAME = 'uiptv-cache-v19';
 const urlsToCache = [
   '/',
   '/index.html',
   '/myflix.html',
-  '/player.html',
+  '/manifest.json',
+  '/icon.ico',
+  '/icon.png',
+  '/css/shared-player.css',
   '/css/player.css',
   '/css/spa.css',
   '/css/myflix.css',
+  '/javascript/playback-utils.js',
+  '/javascript/player-controls.js',
+  '/javascript/shared-player.js',
+  '/javascript/bookmark-watch-utils.js',
   '/javascript/spa.js',
   '/javascript/myflix.js',
-  '/javascript/player.js',
-  'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js',
+  'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css',
+  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css',
+  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js',
   'https://unpkg.com/vue@3/dist/vue.global.prod.js',
-  'https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js'
+  'https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js',
+  'https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js'
 ];
+
+const urlsToCacheSet = new Set(urlsToCache);
+
+const isVersionedStaticAsset = (requestUrl) => {
+  if (requestUrl.origin !== self.location.origin) {
+    return false;
+  }
+  if (requestUrl.pathname === '/javascript/player.js') {
+    return false;
+  }
+  return requestUrl.pathname.startsWith('/css/')
+    || requestUrl.pathname.startsWith('/javascript/')
+    || requestUrl.pathname === '/manifest.json'
+    || requestUrl.pathname === '/icon.ico'
+    || requestUrl.pathname === '/icon.png';
+};
+
+const isPrecachedRequest = (requestUrl) => {
+  if (requestUrl.origin === self.location.origin) {
+    return urlsToCacheSet.has(requestUrl.pathname);
+  }
+  return urlsToCacheSet.has(requestUrl.href);
+};
+
+const isAppShellNavigation = (request, requestUrl) => {
+  if (requestUrl.origin !== self.location.origin) {
+    return false;
+  }
+  return request.mode === 'navigate'
+    || (request.headers.get('accept') || '').includes('text/html');
+};
+
+const cacheFirst = async (request, requestUrl) => {
+  const cached = await caches.match(request, isVersionedStaticAsset(requestUrl) ? {ignoreSearch: true} : undefined);
+  if (cached) {
+    return cached;
+  }
+
+  const response = await fetch(request);
+  if (response && (response.ok || response.type === 'opaque')) {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, response.clone());
+  }
+  return response;
+};
+
+const networkFirstAppShell = async (request) => {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch (_) {
+    return (await caches.match(request, {ignoreSearch: true}))
+      || (await caches.match('/index.html'));
+  }
+};
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -31,30 +97,15 @@ self.addEventListener('fetch', event => {
     return;
   }
   const requestUrl = new URL(event.request.url);
-  if (
-    requestUrl.pathname === '/player.html'
-    || requestUrl.pathname === '/drm.html'
-    || requestUrl.pathname === '/javascript/player.js'
-    || requestUrl.pathname === '/javascript/drm-player.js'
-  ) {
-    event.respondWith(fetch(event.request));
+
+  if (isAppShellNavigation(event.request, requestUrl)) {
+    event.respondWith(networkFirstAppShell(event.request));
     return;
   }
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request).catch(() => {
-          // Avoid unhandled rejections for unreachable remote images/streams.
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
-          return new Response('', { status: 504, statusText: 'Gateway Timeout' });
-        });
-      })
-  );
+
+  if (isPrecachedRequest(requestUrl) || isVersionedStaticAsset(requestUrl)) {
+    event.respondWith(cacheFirst(event.request, requestUrl));
+  }
 });
 
 self.addEventListener('activate', event => {

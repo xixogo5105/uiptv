@@ -163,6 +163,18 @@ html, body {
     overflow: hidden;
 }
 
+.uiptv-svg-sprite {
+    display: none;
+}
+
+.desktop-channel-icon {
+    width: 24px;
+    height: 24px;
+    display: inline-block;
+    vertical-align: middle;
+    fill: currentColor;
+}
+
 body {
     background-color: var(--bg-color);
     color: var(--text-color);
@@ -571,6 +583,24 @@ body {
     border-color: #0d6efd;
 }
 
+.card-item.bookmark-card {
+    position: relative;
+}
+
+.card-item.bookmark-card .channel-live-marker {
+    position: absolute;
+    left: 4px;
+    top: 4px;
+    width: 18px;
+    min-width: 0;
+    margin-right: 0;
+    z-index: 1;
+}
+
+.card-item.bookmark-card .channel-live-marker:not(.active) {
+    display: none;
+}
+
 .card-item.channel-on-air,
 .card-item.channel-on-air:hover {
     background-color: var(--card-bg);
@@ -666,6 +696,21 @@ body {
     min-height: 180px;
 }
 
+.series-header-card .icon-placeholder {
+    width: 112px;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: normal;
+}
+
+.series-header-card .desktop-channel-icon {
+    width: 48px;
+    height: 48px;
+    opacity: 0.78;
+}
+
 .series-header-poster {
     width: 112px !important;
     height: auto !important;
@@ -680,6 +725,10 @@ body {
 
 .vod-detail-wrap .series-header-poster {
     width: 160px !important;
+}
+
+.vod-detail-wrap .series-header-card .icon-placeholder {
+    width: 160px;
 }
 
 .vod-detail-wrap .content-wrapper {
@@ -697,6 +746,21 @@ body {
 .episode-row-card {
     align-items: stretch;
     min-height: 112px;
+}
+
+.episode-row-card .icon-placeholder {
+    width: 72px;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: normal;
+}
+
+.episode-row-card .desktop-channel-icon {
+    width: 40px;
+    height: 40px;
+    opacity: 0.78;
 }
 
 .episode-row-thumb {
@@ -744,6 +808,7 @@ body {
     color: var(--icon-color);
     margin-right: 10px;
     width: 32px;
+    line-height: 32px;
     text-align: center;
     flex-shrink: 0;
 }

@@ -354,10 +354,23 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertEquals(200, manifest.statusCode());
         assertTrue(manifest.body().contains("\"name\": \"UIPTV Web\""));
         assertTrue(manifest.body().contains("\"start_url\": \"index.html\""));
+        assertTrue(manifest.body().contains("\"src\": \"icon.png\""));
+
+        HttpTextResponse ico = get("/icon.ico");
+        assertEquals(200, ico.statusCode());
+        assertTrue(ico.firstHeader("Content-Type").contains("image/x-icon"));
+
+        HttpTextResponse png = get("/icon.png");
+        assertEquals(200, png.statusCode());
+        assertTrue(png.firstHeader("Content-Type").contains("image/png"));
 
         HttpTextResponse serviceWorker = get("/sw.js");
         assertEquals(200, serviceWorker.statusCode());
-        assertTrue(serviceWorker.body().contains("const CACHE_NAME = 'uiptv-cache-v10';"));
+        assertTrue(serviceWorker.body().contains("const CACHE_NAME = 'uiptv-cache-v19';"));
+        assertTrue(serviceWorker.body().contains("/javascript/bookmark-watch-utils.js"));
+        assertFalse(serviceWorker.body().contains("drm-player.js"));
+        assertFalse(serviceWorker.body().contains("Gateway Timeout"));
+        assertTrue(serviceWorker.body().contains("networkFirstAppShell"));
         assertTrue(serviceWorker.body().contains("self.addEventListener('fetch'"));
     }
 
@@ -851,6 +864,12 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         HttpTextResponse proxyStream = get("/proxy-stream?src=" + src);
         assertEquals(200, proxyStream.statusCode());
         assertEquals("UPSTREAM-TS-DATA", proxyStream.body());
+
+        String chunkedSrc = URLEncoder.encode(providerBaseUrl + "/upstream/stream.ts?chunked=1", StandardCharsets.UTF_8);
+        HttpTextResponse chunkedProxyStream = get("/proxy-stream?src=" + chunkedSrc);
+        assertEquals(200, chunkedProxyStream.statusCode());
+        assertEquals("UPSTREAM-TS-DATA", chunkedProxyStream.body());
+        assertNotEquals("0", chunkedProxyStream.firstHeader("Content-Length"));
     }
 
     private void assertWebChannelJsonServerApi() throws Exception {
@@ -1236,7 +1255,11 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         byte[] data = "UPSTREAM-TS-DATA".getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "video/mp2t");
         exchange.getResponseHeaders().set("Accept-Ranges", "bytes");
-        exchange.sendResponseHeaders(200, data.length);
+        if ("chunked=1".equals(uri.getRawQuery())) {
+            exchange.sendResponseHeaders(200, 0);
+        } else {
+            exchange.sendResponseHeaders(200, data.length);
+        }
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(data);
         }

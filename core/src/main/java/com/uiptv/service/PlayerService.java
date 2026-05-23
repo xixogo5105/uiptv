@@ -19,6 +19,7 @@ import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class PlayerService {
+    public static final String WEB_PLAYER_VERSION = "20260523d";
     private final Set<PlaybackResolvedListener> playbackResolvedListeners = new CopyOnWriteArraySet<>();
 
     private final XtremePlayerService xtremePlayerService = new XtremePlayerService();
@@ -176,7 +177,8 @@ public class PlayerService {
         String encoded = Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(payload.toString().getBytes(StandardCharsets.UTF_8));
-        return localServerOrigin() + "/player.html?launch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8) + "&v=20260301f";
+        return localServerOrigin() + "/player.html?launch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8)
+                + "&v=" + WEB_PLAYER_VERSION;
     }
 
     public String buildDrmBrowserPlaybackUrl(Account account, Channel channel, String categoryId, String mode) {

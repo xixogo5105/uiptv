@@ -12,9 +12,26 @@ import java.nio.file.Path;
 
 public class HttpIconServer implements HttpHandler {
     private static final String RESOURCE_ICON = "/icon.ico";
+    private static final String ICON_PATH = "/icon.ico";
+    private static final String PNG_ICON_PATH = "/icon.png";
+    private static final String CONTENT_TYPE_ICON = "image/x-icon";
+    private static final String CONTENT_TYPE_PNG = "image/png";
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
+        if (!"GET".equalsIgnoreCase(ex.getRequestMethod())) {
+            ex.getResponseHeaders().set("Allow", "GET");
+            ex.sendResponseHeaders(405, -1);
+            return;
+        }
+
+        String requestPath = ex.getRequestURI().getPath();
+        String contentType = contentTypeFor(requestPath);
+        if (contentType == null) {
+            ex.sendResponseHeaders(404, -1);
+            return;
+        }
+
         byte[] bytes = null;
 
         try {
@@ -24,7 +41,7 @@ public class HttpIconServer implements HttpHandler {
             // Fall through to classpath.
         }
 
-        if (bytes == null) {
+        if (bytes == null && ICON_PATH.equals(requestPath)) {
             try (InputStream is = HttpIconServer.class.getResourceAsStream(RESOURCE_ICON)) {
                 if (is != null) {
                     bytes = IOUtils.toByteArray(is);
@@ -37,10 +54,18 @@ public class HttpIconServer implements HttpHandler {
             return;
         }
 
-        ex.getResponseHeaders().add("Content-Type", "image/x-icon");
+        ex.getResponseHeaders().add("Content-Type", contentType);
         ex.sendResponseHeaders(200, bytes.length);
         try (OutputStream os = ex.getResponseBody()) {
             os.write(bytes);
         }
+    }
+
+    private static String contentTypeFor(String path) {
+        return switch (path) {
+            case ICON_PATH -> CONTENT_TYPE_ICON;
+            case PNG_ICON_PATH -> CONTENT_TYPE_PNG;
+            default -> null;
+        };
     }
 }

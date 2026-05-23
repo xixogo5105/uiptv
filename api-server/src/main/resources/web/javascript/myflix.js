@@ -144,6 +144,10 @@ createApp({
         };
         const normalizeWebPlaybackUrl = (rawUrl) => playbackUtils.normalizeWebPlaybackUrl(rawUrl);
         const downgradeHttpsToHttpForKnownPaths = (url) => playbackUtils.downgradeHttpsToHttpForKnownPaths(url);
+        const buildProxyStreamUrl = (url) => playbackUtils.buildProxyStreamUrl(url);
+        const resolveMpegTsPlaybackUrl = (url) => playbackUtils.resolveMpegTsPlaybackUrl(url);
+        const describeMpegTsFailure = (error) => playbackUtils.describeMpegTsFailure(error);
+        const isBrowserUnsupportedMediaError = (error) => playbackUtils.isBrowserUnsupportedMediaError(error);
 
         const theme = ref('system');
         const selectedSeriesSeason = ref('');
@@ -1195,8 +1199,11 @@ createApp({
 
         const appendPlaybackCompatParams = (query, mode) => {
             if (!query) return;
-            if (mode !== 'itv' && mode !== 'vod' && mode !== 'series') return;
-            query.set('hvec', canDecodeHevc() ? '1' : '0');
+            const resolvedMode = String(mode || '').toLowerCase();
+            if (resolvedMode !== 'itv' && resolvedMode !== 'vod' && resolvedMode !== 'series') return;
+            query.set('mode', resolvedMode);
+            query.set('streamType', resolvedMode === 'itv' ? 'live' : 'video');
+            query.set('action', resolvedMode);
         };
 
         const resolvePlaybackCategoryIdForChannel = (channel, mode, browserState) => {
@@ -1694,7 +1701,11 @@ createApp({
             } catch (e) {
                 if (!isPlaybackRequestActive(lifecycleId)) return;
                 if (e?.name === 'AbortError') return;
-                console.error('Failed to start playback', e);
+                if (isBrowserUnsupportedMediaError(e)) {
+                    console.warn(`Failed to start playback: ${e?.message || e}`);
+                } else {
+                    console.error('Failed to start playback', e);
+                }
                 playbackError.value = `Playback failed: ${e?.message || 'Unknown error'}`;
                 isPlaying.value = false;
             } finally {
@@ -1897,7 +1908,7 @@ createApp({
             const isTs = isTsLikeUrl(normalizedUri, manifestType);
 
             if (override === 'proxy') {
-                const proxyUrl = `${window.location.origin}/proxy-stream?src=${encodeURIComponent(uri)}`;
+                const proxyUrl = buildProxyStreamUrl(uri) || uri;
                 await loadNative({...channel, url: proxyUrl}, lifecycleId);
                 return;
             }
@@ -1906,14 +1917,14 @@ createApp({
                 return;
             }
             if (override === 'mpegts') {
-                await loadMpegTs({...channel, url: uri}, lifecycleId);
+                await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)}, lifecycleId);
                 return;
             }
 
             if (hasDRM) {
                 await loadShaka({...channel, url: uri}, lifecycleId);
             } else if (isTs) {
-                await loadMpegTs({...channel, url: uri}, lifecycleId);
+                await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)}, lifecycleId);
             } else if (isApple && canNative) {
                 await loadNative({...channel, url: uri}, lifecycleId);
             } else if (canNative && uri.endsWith('.m3u8')) {
@@ -1932,7 +1943,8 @@ createApp({
             const sourceUrl = normalizeWebPlaybackUrl(channel.url);
             const engine = window.mpegts;
             if (!canUseMpegts()) {
-                await loadNative({...channel, url: sourceUrl}, lifecycleId);
+                const fallbackUrl = buildProxyStreamUrl(channel.url) || sourceUrl;
+                await loadNative({...channel, url: fallbackUrl}, lifecycleId);
                 return;
             }
 
@@ -1968,7 +1980,12 @@ createApp({
                 await player.play();
                 playbackMode.value = playbackUtils.resolvePlaybackModeLabel(sourceUrl, 'mpegts');
             } catch (e) {
-                console.warn('MPEGTS playback failed, trying native playback.', e);
+                const message = describeMpegTsFailure(e);
+                if (isBrowserUnsupportedMediaError(e)) {
+                    console.warn(message);
+                } else {
+                    console.warn(message, e);
+                }
                 if (mpegtsPlayer.value) {
                     try {
                         mpegtsPlayer.value.destroy();
@@ -1976,7 +1993,7 @@ createApp({
                     }
                     mpegtsPlayer.value = null;
                 }
-                await loadNative({...channel, url: sourceUrl}, lifecycleId);
+                throw new Error(message);
             }
         };
 
@@ -2291,7 +2308,9 @@ createApp({
             e.target.style.display = 'none';
             const fallback =
                 e.target.parentElement?.querySelector('.nf-media-fallback') ||
-                e.target.parentElement?.querySelector('.nf-episode-thumb-fallback');
+                e.target.parentElement?.querySelector('.nf-episode-thumb-fallback') ||
+                e.target.parentElement?.querySelector('.nf-inline-side-thumb-fallback') ||
+                e.target.parentElement?.querySelector('.nf-series-poster-fallback');
             if (fallback) fallback.classList.add('show');
         };
 
@@ -2299,7 +2318,9 @@ createApp({
             e.target.style.display = '';
             const fallback =
                 e.target.parentElement?.querySelector('.nf-media-fallback') ||
-                e.target.parentElement?.querySelector('.nf-episode-thumb-fallback');
+                e.target.parentElement?.querySelector('.nf-episode-thumb-fallback') ||
+                e.target.parentElement?.querySelector('.nf-inline-side-thumb-fallback') ||
+                e.target.parentElement?.querySelector('.nf-series-poster-fallback');
             if (fallback) fallback.classList.remove('show');
         };
 

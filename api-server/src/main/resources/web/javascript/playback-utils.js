@@ -22,20 +22,20 @@
     const resolvePlaybackModeLabel = (url, engine = '') => {
         const lowerUrl = String(url || '').trim().toLowerCase();
         const normalizedEngine = String(engine || '').trim().toLowerCase();
-        if (lowerUrl.includes('/proxy-stream')) return 'proxy';
-        if (normalizedEngine === 'mpegts') return 'mpegts';
+        if (normalizedEngine === 'mpegts') return lowerUrl.includes('/proxy-stream') ? 'mpegts proxy' : 'mpegts';
         if (normalizedEngine === 'shaka') {
             if (lowerUrl.includes('.mpd')) return 'dash';
             if (lowerUrl.includes('.m3u8')) return 'hls';
             return 'shaka';
         }
+        if (lowerUrl.includes('/proxy-stream')) return 'proxy';
         return 'direct';
     };
 
     const downgradeHttpsToHttpForKnownPaths = (url) => {
         const value = String(url || '').trim();
         const lower = value.toLowerCase();
-        if (lower.startsWith('https://') && (lower.includes('/live/play/') || lower.includes('/play/movie.php'))) {
+        if (lower.startsWith('https://') && (lower.includes('/live/play/') || lower.includes('/play/live.php') || lower.includes('/play/movie.php'))) {
             return `http://${value.slice('https://'.length)}`;
         }
         return value;
@@ -45,6 +45,49 @@
         const value = String(rawUrl || '').trim();
         if (!value) return value;
         return downgradeHttpsToHttpForKnownPaths(value);
+    };
+
+    const buildProxyStreamUrl = (rawUrl) => {
+        const normalized = normalizeWebPlaybackUrl(rawUrl);
+        if (!normalized) {
+            return '';
+        }
+        if (normalized.includes('/proxy-stream?src=')) {
+            return normalized;
+        }
+        if (/^(blob:|data:|file:)/i.test(normalized)) {
+            return '';
+        }
+        try {
+            const parsed = new URL(normalized, window.location.origin);
+            if (parsed.origin === window.location.origin) {
+                return '';
+            }
+            return `${window.location.origin}/proxy-stream?src=${encodeURIComponent(normalized)}`;
+        } catch (_) {
+            return '';
+        }
+    };
+
+    const resolveMpegTsPlaybackUrl = (rawUrl) => buildProxyStreamUrl(rawUrl) || normalizeWebPlaybackUrl(rawUrl);
+
+    const isBrowserUnsupportedMediaError = (error) => {
+        const text = `${error?.name || ''} ${error?.message || error || ''}`.toLowerCase();
+        return text.includes('notsupportederror')
+            || text.includes('no supported source')
+            || text.includes('not browser-compatible')
+            || text.includes('src_not_supported')
+            || text.includes('media-error-code 4')
+            || text.includes('media-error-4')
+            || text.includes('media-error-code code 4');
+    };
+
+    const describeMpegTsFailure = (error) => {
+        if (isBrowserUnsupportedMediaError(error)) {
+            return 'This MPEG-TS stream is not browser-compatible. Use VLC/external playback; web transcoding is no longer available.';
+        }
+        const message = String(error?.message || error || '').trim();
+        return message ? `MPEGTS playback failed: ${message}` : 'MPEGTS playback failed.';
     };
 
     const normalizeDisplayText = (value) => {
@@ -110,6 +153,10 @@
         resolvePlaybackModeLabel,
         downgradeHttpsToHttpForKnownPaths,
         normalizeWebPlaybackUrl,
+        buildProxyStreamUrl,
+        resolveMpegTsPlaybackUrl,
+        isBrowserUnsupportedMediaError,
+        describeMpegTsFailure,
         normalizeDisplayText,
         getShakaMaxQuality,
         setShakaMaxQuality,

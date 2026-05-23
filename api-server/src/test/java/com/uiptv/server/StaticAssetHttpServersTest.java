@@ -87,18 +87,45 @@ class StaticAssetHttpServersTest {
     }
 
     @Test
-    void iconServer_servesIcon_andHandlesMissingIcon() throws Exception {
+    void iconServer_servesIcons_andHandlesMissingIcon() throws Exception {
         HttpIconServer handler = new HttpIconServer();
-        TestHttpExchange exchange = new TestHttpExchange("/icon.ico", "GET");
-        handler.handle(exchange);
+
         Path iconPath = Path.of(com.uiptv.util.Platform.getWebServerRootPath(), "icon.ico");
         if (Files.exists(iconPath)) {
-            assertEquals(200, exchange.getResponseCode());
-            assertTrue(exchange.getResponseHeaders().getFirst("Content-Type").contains("image/x-icon"));
-            assertTrue(exchange.getResponseBodyBytes().length > 0);
+            TestHttpExchange icoExchange = new TestHttpExchange("/icon.ico", "GET");
+            handler.handle(icoExchange);
+            assertEquals(200, icoExchange.getResponseCode());
+            assertTrue(icoExchange.getResponseHeaders().getFirst("Content-Type").contains("image/x-icon"));
+            assertTrue(icoExchange.getResponseBodyBytes().length > 0);
         } else {
-            assertEquals(404, exchange.getResponseCode());
+            TestHttpExchange icoExchange = new TestHttpExchange("/icon.ico", "GET");
+            handler.handle(icoExchange);
+            assertEquals(404, icoExchange.getResponseCode());
         }
+
+        Path pngPath = Path.of(com.uiptv.util.Platform.getWebServerRootPath(), "icon.png");
+        TestHttpExchange pngExchange = new TestHttpExchange("/icon.png", "GET");
+        handler.handle(pngExchange);
+        if (Files.exists(pngPath)) {
+            assertEquals(200, pngExchange.getResponseCode());
+            assertTrue(pngExchange.getResponseHeaders().getFirst("Content-Type").contains("image/png"));
+            assertTrue(pngExchange.getResponseBodyBytes().length > 0);
+        } else {
+            assertEquals(404, pngExchange.getResponseCode());
+        }
+
+        TestHttpExchange missingExchange = new TestHttpExchange("/missing-icon.png", "GET");
+        handler.handle(missingExchange);
+        assertEquals(404, missingExchange.getResponseCode());
+    }
+
+    @Test
+    void iconServer_rejectsNonGetRequests() throws Exception {
+        HttpIconServer handler = new HttpIconServer();
+        TestHttpExchange exchange = new TestHttpExchange("/icon.png", "POST");
+        handler.handle(exchange);
+        assertEquals(405, exchange.getResponseCode());
+        assertEquals("GET", exchange.getResponseHeaders().getFirst("Allow"));
     }
 
     private static final class UserDirScope implements AutoCloseable {

@@ -83,7 +83,7 @@ class HttpProxyStreamServerTest {
         AtomicReference<String> upstreamCookie = new AtomicReference<>();
 
         upstreamServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        upstreamServer.createContext("/play/movie.php", exchange -> {
+        upstreamServer.createContext("/play/live.php", exchange -> {
             upstreamOrigin.set(exchange.getRequestHeaders().getFirst("Origin"));
             upstreamReferer.set(exchange.getRequestHeaders().getFirst("Referer"));
             upstreamUserAgent.set(exchange.getRequestHeaders().getFirst("User-Agent"));
@@ -110,7 +110,7 @@ class HttpProxyStreamServerTest {
         proxyServer.start();
 
         String upstreamUrl = "http://127.0.0.1:" + upstreamServer.getAddress().getPort()
-                + "/play/movie.php?mac=00%3A1A%3A79%3AA1%3A32%3AEB&stream=246761.mkv&play_token=pt246761&type=movie";
+                + "/play/live.php?mac=00%3A1A%3A79%3AA1%3A32%3AEB&stream=30583&extension=ts&play_token=pt30583";
         String proxyUrl = "http://127.0.0.1:" + proxyServer.getAddress().getPort() + "/proxy-stream?src="
                 + URLEncoder.encode(upstreamUrl, StandardCharsets.UTF_8);
 
@@ -183,8 +183,14 @@ class HttpProxyStreamServerTest {
 
         assertEquals("http://host/live/play/123",
                 invoke(handler, "downgradeHttpsToHttp", new Class[]{String.class}, "https://host/live/play/123"));
+        assertEquals("http://host/play/live.php?stream=123&extension=ts",
+                invoke(handler, "downgradeHttpsToHttp", new Class[]{String.class}, "https://host/play/live.php?stream=123&extension=ts"));
         assertEquals("https://host/static/file.mp4",
                 invoke(handler, "downgradeHttpsToHttp", new Class[]{String.class}, "https://host/static/file.mp4"));
+        assertTrue((Boolean) invoke(handler, "isPortalPlaybackPath", new Class[]{String.class}, "http://host/play/live.php?stream=1"));
+        assertTrue((Boolean) invoke(handler, "isPortalPlaybackPath", new Class[]{String.class}, "http://host/play/movie.php?stream=1"));
+        assertTrue((Boolean) invoke(handler, "isPortalPlaybackPath", new Class[]{String.class}, "http://host/live/play/1"));
+        assertFalse((Boolean) invoke(handler, "isPortalPlaybackPath", new Class[]{String.class}, "http://host/static/file.ts"));
         assertEquals("http://host/user/pass/123.ts?token=a",
                 invoke(handler, "build406Fallback", new Class[]{String.class}, "http://host/user/pass/123?token=a"));
         assertEquals("http://host/user/pass/123.ts",

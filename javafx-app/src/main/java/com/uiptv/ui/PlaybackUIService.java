@@ -247,7 +247,7 @@ public final class PlaybackUIService {
         return ServerUrlUtil.getLoopbackServerUrl()
                 + "/player.html?launch="
                 + URLEncoder.encode(encoded, StandardCharsets.UTF_8)
-                + "&v=20260309b";
+                + "&v=" + PlayerService.WEB_PLAYER_VERSION;
     }
 
     private static String extractBingeWatchToken(String url) {

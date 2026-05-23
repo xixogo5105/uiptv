@@ -11,24 +11,30 @@
     <meta content="#212529" name="theme-color">
     <link href="icon.ico" rel="icon" type="image/x-icon">
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css" rel="stylesheet">
-    <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
-          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+          integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" rel="stylesheet">
     <script crossorigin="anonymous"
-            integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
-            src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+            integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+            src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
     <link href="/css/shared-player.css?v=20260311d" rel="stylesheet">
-    <link href="/css/myflix.css?v=20260224a" rel="stylesheet">
+    <link href="/css/myflix.css?v=20260523a" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
-    <script src="/javascript/playback-utils.js?v=20260312a"></script>
+    <script src="/javascript/playback-utils.js?v=20260523d"></script>
     <script src="/javascript/player-controls.js?v=20260310a"></script>
     <script src="/javascript/shared-player.js?v=20260311c"></script>
     <script src="/javascript/bookmark-watch-utils.js?v=20260310d"></script>
 </head>
 <body>
 <div class="myflix-app" id="app">
+    <svg aria-hidden="true" class="uiptv-svg-sprite" focusable="false">
+        <symbol id="desktop-channel-icon" viewBox="0 0 256 256">
+            <path d="M95.9,106.4l74.8,43.2l-74.8,42.7V106.4L95.9,106.4z M224.4,213.9V85.3H31.6v128.5H224.4z M224.4,63.7c5.7,0,10.7,2.1,15.1,6.3c4.4,4.2,6.5,9.3,6.5,15.3v128.5c0,5.7-2.2,10.6-6.5,14.8c-4.4,4.2-9.4,6.3-15.1,6.3H31.6c-5.7,0-10.7-2.1-15.1-6.3c-4.4-4.2-6.5-9.1-6.5-14.8V85.3c0-6,2.2-11.1,6.5-15.3c4.4-4.2,9.4-6.3,15.1-6.3h81.3L77.8,28.6l7.5-7.5L128,63.7L170.7,21l7.5,7.5l-35.2,35.2H224.4z"></path>
+        </symbol>
+    </svg>
+
     <header class="nf-topbar">
         <div @click="resetApp" class="nf-brand" title="Home">
             <img alt="UIPTV" src="icon.ico">
@@ -98,10 +104,15 @@
                                 class="nf-inline-side-item"
                                 type="button"
                                 v-for="bookmark in filteredBookmarks">
-                            <div class="nf-inline-side-thumb">
-                                <img :src="bookmark.logo" alt="bookmark logo" v-if="bookmark.logo">
-                                <div class="nf-inline-side-thumb-fallback" v-else>{{ bookmark.channelName }}</div>
-                            </div>
+                                <div class="nf-inline-side-thumb">
+                                    <img :src="bookmark.logo" @error="mediaImageError" @load="mediaImageLoad"
+                                         alt="bookmark logo" v-if="bookmark.logo">
+                                    <div :class="{ show: !bookmark.logo }" class="nf-inline-side-thumb-fallback">
+                                        <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                            <use href="#desktop-channel-icon"></use>
+                                        </svg>
+                                    </div>
+                                </div>
                             <div class="nf-inline-side-meta">
                                 <div class="nf-inline-side-item-title">{{ bookmark.channelName }}</div>
                                 <div class="nf-inline-side-item-sub">{{ bookmark.categoryName || 'Category' }}</div>
@@ -126,10 +137,15 @@
                                 class="nf-inline-side-item"
                                 type="button"
                                 v-for="row in filteredWatchingNowRows">
-                            <div class="nf-inline-side-thumb">
-                                <img :src="row.seriesPoster" alt="series poster" v-if="row.seriesPoster">
-                                <div class="nf-inline-side-thumb-fallback" v-else>{{ row.seriesTitle }}</div>
-                            </div>
+                                <div class="nf-inline-side-thumb">
+                                    <img :src="row.seriesPoster" @error="mediaImageError" @load="mediaImageLoad"
+                                         alt="series poster" v-if="row.seriesPoster">
+                                    <div :class="{ show: !row.seriesPoster }" class="nf-inline-side-thumb-fallback">
+                                        <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                            <use href="#desktop-channel-icon"></use>
+                                        </svg>
+                                    </div>
+                                </div>
                             <div class="nf-inline-side-meta">
                                 <div class="nf-inline-side-item-title">{{ row.seriesTitle }}</div>
                                 <div class="nf-inline-side-item-sub">{{ row.categoryName || 'Category' }}</div>
@@ -154,10 +170,15 @@
                                 class="nf-inline-side-item"
                                 type="button"
                                 v-for="row in filteredWatchingNowVodRows">
-                            <div class="nf-inline-side-thumb">
-                                <img :src="row.vodLogo" alt="vod logo" v-if="row.vodLogo">
-                                <div class="nf-inline-side-thumb-fallback" v-else>{{ row.vodName }}</div>
-                            </div>
+                                <div class="nf-inline-side-thumb">
+                                    <img :src="row.vodLogo" @error="mediaImageError" @load="mediaImageLoad"
+                                         alt="vod logo" v-if="row.vodLogo">
+                                    <div :class="{ show: !row.vodLogo }" class="nf-inline-side-thumb-fallback">
+                                        <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                            <use href="#desktop-channel-icon"></use>
+                                        </svg>
+                                    </div>
+                                </div>
                             <div class="nf-inline-side-meta">
                                 <div class="nf-inline-side-item-title">{{ row.vodName }}</div>
                                 <div class="nf-inline-side-item-sub">{{ row.categoryName || 'Category' }}</div>
@@ -181,10 +202,15 @@
                                 class="nf-inline-side-item"
                                 type="button"
                                 v-for="channel in visibleModeChannels('itv')">
-                            <div class="nf-inline-side-thumb">
-                                <img :src="channel.logo" alt="channel logo" v-if="channel.logo">
-                                <div class="nf-inline-side-thumb-fallback" v-else>{{ channel.name }}</div>
-                            </div>
+                                <div class="nf-inline-side-thumb">
+                                    <img :src="channel.logo" @error="mediaImageError" @load="mediaImageLoad"
+                                         alt="channel logo" v-if="channel.logo">
+                                    <div :class="{ show: !channel.logo }" class="nf-inline-side-thumb-fallback">
+                                        <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                            <use href="#desktop-channel-icon"></use>
+                                        </svg>
+                                    </div>
+                                </div>
                             <div class="nf-inline-side-meta">
                                 <div class="nf-inline-side-item-title">{{ channel.name }}</div>
                                 <div class="nf-inline-side-item-sub">
@@ -225,11 +251,13 @@
                         <div class="nf-strip" id="row-saved">
                             <button :key="'saved-server-' + bookmark.dbId" @click="playBookmark(bookmark)"
                                     class="nf-card nf-card-media" v-for="bookmark in filteredBookmarks">
-                                <img :src="bookmark.logo" @error="mediaImageError" @load="mediaImageLoad"
-                                     alt="bookmark image" class="nf-media-image" v-if="bookmark.logo">
-                                <div :class="{ show: !bookmark.logo }" class="nf-media-fallback">
-                                    {{ bookmark.channelName }}
-                                </div>
+                                    <img :src="bookmark.logo" @error="mediaImageError" @load="mediaImageLoad"
+                                         alt="bookmark image" class="nf-media-image" v-if="bookmark.logo">
+                                    <div :class="{ show: !bookmark.logo }" class="nf-media-fallback">
+                                        <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                            <use href="#desktop-channel-icon"></use>
+                                        </svg>
+                                    </div>
                                 <div class="nf-media-gradient"></div>
                                 <div class="nf-card-title nf-media-title">{{ bookmark.channelName }}</div>
                                 <div class="nf-card-subtitle nf-media-subtitle"><small>{{ bookmark.accountName
@@ -265,11 +293,13 @@
                                     @click="openWatchingNowSeriesDetail(row)"
                                     class="nf-card nf-card-media"
                                     v-for="row in filteredWatchingNowRows">
-                                <img :src="row.seriesPoster" @error="mediaImageError" @load="mediaImageLoad"
-                                     alt="series poster" class="nf-media-image" loading="lazy" v-if="row.seriesPoster">
-                                <div :class="{ show: !row.seriesPoster }" class="nf-media-fallback">{{ row.seriesTitle
-                                    }}
-                                </div>
+                                    <img :src="row.seriesPoster" @error="mediaImageError" @load="mediaImageLoad"
+                                         alt="series poster" class="nf-media-image" loading="lazy" v-if="row.seriesPoster">
+                                    <div :class="{ show: !row.seriesPoster }" class="nf-media-fallback">
+                                        <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                            <use href="#desktop-channel-icon"></use>
+                                        </svg>
+                                    </div>
                                 <div class="nf-media-gradient"></div>
                                 <div class="nf-card-title nf-media-title">{{ row.seriesTitle }}</div>
                                 <div class="nf-card-subtitle nf-media-subtitle"><small>{{ row.accountName }}</small>
@@ -306,9 +336,13 @@
                                     @click="playWatchingNowVodRow(row)"
                                     class="nf-card nf-card-media"
                                     v-for="row in filteredWatchingNowVodRows">
-                                <img :src="row.vodLogo" @error="mediaImageError" @load="mediaImageLoad" alt="vod poster"
-                                     class="nf-media-image" loading="lazy" v-if="row.vodLogo">
-                                <div :class="{ show: !row.vodLogo }" class="nf-media-fallback">{{ row.vodName }}</div>
+                                    <img :src="row.vodLogo" @error="mediaImageError" @load="mediaImageLoad" alt="vod poster"
+                                         class="nf-media-image" loading="lazy" v-if="row.vodLogo">
+                                    <div :class="{ show: !row.vodLogo }" class="nf-media-fallback">
+                                        <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                            <use href="#desktop-channel-icon"></use>
+                                        </svg>
+                                    </div>
                                 <div class="nf-media-gradient"></div>
                                 <div class="nf-card-title nf-media-title">{{ row.vodName }}</div>
                                 <div class="nf-card-subtitle nf-media-subtitle"><small>{{ row.accountName }}</small>
@@ -405,9 +439,13 @@
                             <button :key="'itv-ch-' + (channel.dbId || channel.channelId || channel.id)" @click="handleModeSelection('itv', channel)"
                                     class="nf-card nf-card-media"
                                     v-for="channel in visibleModeChannels('itv')" v-if="isModeState('itv','channels')">
-                                <img :src="channel.logo" @error="mediaImageError" @load="mediaImageLoad" alt="channel image"
-                                     class="nf-media-image" loading="lazy" v-if="channel.logo">
-                                <div :class="{ show: !channel.logo }" class="nf-media-fallback">{{ channel.name }}</div>
+                                    <img :src="channel.logo" @error="mediaImageError" @load="mediaImageLoad" alt="channel image"
+                                         class="nf-media-image" loading="lazy" v-if="channel.logo">
+                                    <div :class="{ show: !channel.logo }" class="nf-media-fallback">
+                                        <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                            <use href="#desktop-channel-icon"></use>
+                                        </svg>
+                                    </div>
                                 <div class="nf-media-gradient"></div>
                                 <div class="nf-card-title nf-media-title">{{ channel.name }}</div>
                             </button>
@@ -460,9 +498,13 @@
                             <button :key="'vod-ch-' + (channel.dbId || channel.channelId || channel.id)" @click="handleModeSelection('vod', channel)"
                                     class="nf-card nf-card-media"
                                     v-for="channel in visibleModeChannels('vod')" v-if="isModeState('vod','channels')">
-                                <img :src="channel.logo" @error="mediaImageError" @load="mediaImageLoad" alt="vod image"
-                                     class="nf-media-image" loading="lazy" v-if="channel.logo">
-                                <div :class="{ show: !channel.logo }" class="nf-media-fallback">{{ channel.name }}</div>
+                                    <img :src="channel.logo" @error="mediaImageError" @load="mediaImageLoad" alt="vod image"
+                                         class="nf-media-image" loading="lazy" v-if="channel.logo">
+                                    <div :class="{ show: !channel.logo }" class="nf-media-fallback">
+                                        <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                            <use href="#desktop-channel-icon"></use>
+                                        </svg>
+                                    </div>
                                 <div class="nf-media-gradient"></div>
                                 <div class="nf-card-title nf-media-title">{{ channel.name }}</div>
                             </button>
@@ -517,9 +559,13 @@
                                     @click="handleModeSelection('series', channel)"
                                     class="nf-card nf-card-media"
                                     v-for="channel in visibleModeChannels('series')" v-if="isModeState('series','channels')">
-                                <img :src="channel.logo" @error="mediaImageError" @load="mediaImageLoad" alt="series image"
-                                     class="nf-media-image" loading="lazy" v-if="channel.logo">
-                                <div :class="{ show: !channel.logo }" class="nf-media-fallback">{{ channel.name }}</div>
+                                    <img :src="channel.logo" @error="mediaImageError" @load="mediaImageLoad" alt="series image"
+                                         class="nf-media-image" loading="lazy" v-if="channel.logo">
+                                    <div :class="{ show: !channel.logo }" class="nf-media-fallback">
+                                        <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                            <use href="#desktop-channel-icon"></use>
+                                        </svg>
+                                    </div>
                                 <div class="nf-media-gradient"></div>
                                 <div class="nf-card-title nf-media-title">
                                     {{ channel.name }}
@@ -535,9 +581,13 @@
                                     @click="handleModeSelection('series', episode)"
                                     class="nf-card nf-card-media"
                                     v-for="episode in visibleModeEpisodes('series')" v-if="isModeState('series','episodes')">
-                                <img :src="episode.logo" @error="mediaImageError" @load="mediaImageLoad" alt="episode image"
-                                     class="nf-media-image" loading="lazy" v-if="episode.logo">
-                                <div :class="{ show: !episode.logo }" class="nf-media-fallback">{{ episode.name }}</div>
+                                    <img :src="episode.logo" @error="mediaImageError" @load="mediaImageLoad" alt="episode image"
+                                         class="nf-media-image" loading="lazy" v-if="episode.logo">
+                                    <div :class="{ show: !episode.logo }" class="nf-media-fallback">
+                                        <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                            <use href="#desktop-channel-icon"></use>
+                                        </svg>
+                                    </div>
                                 <div class="nf-media-gradient"></div>
                                 <div class="nf-card-title nf-media-title">
                                     {{ episode.name }}
@@ -591,7 +641,12 @@
                                 <img :src="getVodDetail().cover" @error="mediaImageError"
                                      @load="mediaImageLoad" alt="vod poster" class="nf-series-poster"
                                      v-if="getVodDetail() && getVodDetail().cover">
-                                <div class="nf-series-poster-fallback" v-else>No Poster</div>
+                                <div :class="{ show: !(getVodDetail() && getVodDetail().cover) }"
+                                     class="nf-series-poster-fallback">
+                                    <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                        <use href="#desktop-channel-icon"></use>
+                                    </svg>
+                                </div>
                             </div>
                             <div class="nf-series-meta">
                                 <p v-if="getVodDetail() && getVodDetail().plot">{{ getVodDetail().plot }}</p>
@@ -650,7 +705,12 @@
                                 <img :src="getSeriesDetail().cover" @error="mediaImageError"
                                      @load="mediaImageLoad" alt="series poster" class="nf-series-poster"
                                      v-if="getSeriesDetail() && getSeriesDetail().cover">
-                                <div class="nf-series-poster-fallback" v-else>No Poster</div>
+                                <div :class="{ show: !(getSeriesDetail() && getSeriesDetail().cover) }"
+                                     class="nf-series-poster-fallback">
+                                    <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                        <use href="#desktop-channel-icon"></use>
+                                    </svg>
+                                </div>
                             </div>
                             <div class="nf-series-meta">
                                 <p v-if="getSeriesDetail() && getSeriesDetail().plot">{{ getSeriesDetail().plot }}</p>
@@ -715,11 +775,13 @@
                                     v-for="(episode, idx) in visibleSeriesDetailEpisodes">
                                 <div class="nf-episode-index">{{ idx + 1 }}</div>
                                 <div class="nf-episode-thumb-wrap">
-                                    <img :src="episode.logo" @error="mediaImageError" @load="mediaImageLoad"
-                                         alt="episode image" class="nf-episode-thumb" v-if="episode.logo">
-                                    <div :class="{ show: !episode.logo }" class="nf-episode-thumb-fallback">
-                                        {{ episode.name }}
-                                    </div>
+                                        <img :src="episode.logo" @error="mediaImageError" @load="mediaImageLoad"
+                                             alt="episode image" class="nf-episode-thumb" v-if="episode.logo">
+                                        <div :class="{ show: !episode.logo }" class="nf-episode-thumb-fallback">
+                                            <svg aria-hidden="true" class="desktop-channel-icon" focusable="false">
+                                                <use href="#desktop-channel-icon"></use>
+                                            </svg>
+                                        </div>
                                 </div>
                                 <div class="nf-episode-main">
                                     <div class="nf-episode-title">
@@ -779,7 +841,7 @@
     </div>
 </div>
 
-<script src="/javascript/myflix.js?v=20260312a"></script>
+<script src="/javascript/myflix.js?v=20260523e"></script>
 <script>
     function scrollRow(id, direction) {
         const row = document.getElementById(id);

@@ -697,6 +697,10 @@ createApp({
         const isTsLikeUrl = (url, manifestType = '') => playbackUtils.isTsLikeUrl(url, manifestType);
         const canUseMpegts = () => playbackUtils.canUseMpegts();
         const resolvePlaybackModeLabel = (url, engine = '') => playbackUtils.resolvePlaybackModeLabel(url, engine);
+        const buildProxyStreamUrl = (url) => playbackUtils.buildProxyStreamUrl(url);
+        const resolveMpegTsPlaybackUrl = (url) => playbackUtils.resolveMpegTsPlaybackUrl(url);
+        const describeMpegTsFailure = (error) => playbackUtils.describeMpegTsFailure(error);
+        const isBrowserUnsupportedMediaError = (error) => playbackUtils.isBrowserUnsupportedMediaError(error);
         const isMaxQualityEnabled = () => playbackUtils?.getShakaMaxQuality?.() === true;
         const setMaxQualityEnabled = (enabled) => playbackUtils?.setShakaMaxQuality?.(!!enabled);
         const notifyPlayerClosed = (reason = 'stop') => {
@@ -2276,7 +2280,11 @@ createApp({
                 }
             } catch (e) {
                 if (e?.name === 'AbortError') return;
-                console.error('Failed to start playback', e);
+                if (isBrowserUnsupportedMediaError(e)) {
+                    console.warn(`Failed to start playback: ${e?.message || e}`);
+                } else {
+                    console.error('Failed to start playback', e);
+                }
                 playbackError.value = `Playback failed: ${e?.message || 'Unknown error'}`;
                 isPlaying.value = false;
             } finally {
@@ -2386,7 +2394,7 @@ createApp({
             const isTs = isTsLikeUrl(normalizedUri, manifestType);
 
             if (override === 'proxy') {
-                const proxyUrl = `${window.location.origin}/proxy-stream?src=${encodeURIComponent(uri)}`;
+                const proxyUrl = buildProxyStreamUrl(uri) || uri;
                 await loadNative({...channel, url: proxyUrl});
                 return;
             }
@@ -2395,14 +2403,14 @@ createApp({
                 return;
             }
             if (override === 'mpegts') {
-                await loadMpegTs(channel);
+                await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)});
                 return;
             }
 
             if (hasDRM) {
                 await loadShaka(channel);
             } else if (isTs) {
-                await loadMpegTs(channel);
+                await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)});
             } else if (isApple && canNative) {
                 await loadNative(channel);
             } else if (canNative && uri.endsWith('.m3u8')) {
@@ -2421,7 +2429,8 @@ createApp({
             const sourceUrl = normalizeWebPlaybackUrl(channel.url);
             const engine = window.mpegts;
             if (!canUseMpegts()) {
-                await loadNative({...channel, url: sourceUrl});
+                const fallbackUrl = buildProxyStreamUrl(channel.url) || sourceUrl;
+                await loadNative({...channel, url: fallbackUrl});
                 return;
             }
 
@@ -2447,8 +2456,13 @@ createApp({
                 await player.play();
                 playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'mpegts');
             } catch (e) {
-                console.warn('MPEGTS playback failed, trying native playback.', e);
-                await loadNative({...channel, url: sourceUrl});
+                const message = describeMpegTsFailure(e);
+                if (isBrowserUnsupportedMediaError(e)) {
+                    console.warn(message);
+                } else {
+                    console.warn(message, e);
+                }
+                throw new Error(message);
             }
         };
 
@@ -3018,7 +3032,7 @@ createApp({
             e.target.style.display = 'none';
             const icon = e.target.nextElementSibling;
             if (icon && icon.classList.contains('icon-placeholder')) {
-                icon.style.display = 'block';
+                icon.style.display = '';
             }
         };
 

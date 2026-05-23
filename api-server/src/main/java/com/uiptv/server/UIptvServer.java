@@ -68,6 +68,7 @@ public class UIptvServer {
 
         // Assets
         routes.addExactPath("/icon.ico", adapt(new HttpIconServer()));
+        routes.addExactPath("/icon.png", adapt(new HttpIconServer()));
 
         // Static file servers
         routes.addPrefixPath("/javascript", adapt(new HttpJavascriptServer()));

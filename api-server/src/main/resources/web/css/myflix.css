@@ -52,6 +52,18 @@ body {
     color: var(--text);
 }
 
+.uiptv-svg-sprite {
+    display: none;
+}
+
+.desktop-channel-icon {
+    width: 24px;
+    height: 24px;
+    display: inline-block;
+    vertical-align: middle;
+    fill: currentColor;
+}
+
 [data-theme="light"] body {
     background: linear-gradient(180deg, rgba(249, 251, 255, 0.96), rgba(240, 245, 251, 0.98)),
     radial-gradient(1000px 560px at 8% -14%, rgba(var(--accent-rgb), 0.1), transparent 60%),
@@ -436,11 +448,21 @@ body {
 }
 
 .nf-inline-side-thumb-fallback {
-    font-size: 0.55rem;
-    line-height: 1.1;
-    text-align: center;
+    width: 100%;
+    height: 100%;
+    display: none;
+    align-items: center;
+    justify-content: center;
     color: var(--muted);
-    padding: 2px;
+}
+
+.nf-inline-side-thumb-fallback.show {
+    display: flex;
+}
+
+.nf-inline-side-thumb-fallback .desktop-channel-icon {
+    width: 24px;
+    height: 24px;
 }
 
 .nf-inline-side-meta {
@@ -985,10 +1007,10 @@ body {
     display: flex;
 }
 
-.nf-media-fallback.show ~ .nf-media-gradient,
-.nf-media-fallback.show ~ .nf-media-title,
-.nf-media-fallback.show ~ .nf-media-subtitle {
-    display: none;
+.nf-media-fallback .desktop-channel-icon {
+    width: 62px;
+    height: 62px;
+    opacity: 0.74;
 }
 
 .nf-media-gradient {
@@ -1226,10 +1248,20 @@ body {
 .nf-series-poster-fallback {
     width: 100%;
     height: 100%;
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: center;
     color: var(--muted);
+}
+
+.nf-series-poster-fallback.show {
+    display: flex;
+}
+
+.nf-series-poster-fallback .desktop-channel-icon {
+    width: 96px;
+    height: 96px;
+    opacity: 0.74;
 }
 
 .nf-series-meta h3 {
@@ -1434,6 +1466,12 @@ body {
 
 .nf-episode-thumb-fallback.show {
     display: flex;
+}
+
+.nf-episode-thumb-fallback .desktop-channel-icon {
+    width: 44px;
+    height: 44px;
+    opacity: 0.78;
 }
 
 .nf-episode-main {
