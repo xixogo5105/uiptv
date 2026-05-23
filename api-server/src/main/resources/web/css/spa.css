@@ -874,6 +874,10 @@ a[href] {
     column-gap: 10px;
 }
 
+.media-card.has-row-status-action {
+    grid-template-columns: 48px minmax(0, 1fr) 32px 32px;
+}
+
 .episode-card {
     display: grid;
     grid-template-columns: 74px minmax(0, 1fr);
@@ -905,10 +909,22 @@ a[href] {
     grid-row: 1;
 }
 
+.media-card.has-row-status-action > .live-marker {
+    position: static;
+    grid-column: 3;
+    grid-row: 1;
+    align-self: center;
+    justify-self: center;
+}
+
 .media-card > .row-action-button {
     grid-column: 3;
     grid-row: 1;
     align-self: center;
+}
+
+.media-card.has-row-status-action > .row-action-button {
+    grid-column: 4;
 }
 
 .episode-card .logo-box {
