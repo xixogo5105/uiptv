@@ -58,7 +58,7 @@ Build from the repository root. Maven resolves the module graph automatically.
 - **Parental Lock & Filtering**: Protect blocked keywords and Stalker censored content with a local password, while still supporting category/channel filtering and pause/unpause controls. These restrictions also affect content exposed through the web server.
 - **Theme Modes & Styling**: Built-in light/dark themes are included, and theme zoom can be saved from Settings.
 - **Web Server**: Expose your accounts, bookmarks, watching-now data, and published playlists to any device on your local network through a browser.
-  - **SPA Routes**: Main UI is served from `/` and `/index.html` with additional views (`/myflix.html`, `/player.html`).
+  - **SPA Routes**: Main UI is served from `/` and `/index.html`.
   - **Extra Endpoints**: Includes playlist exports (`/iptv.m3u`, `/iptv.m3u8`) and bookmarks playlist (`/bookmarks.m3u8`).
 - **DRM-aware Web Playback**: Playback payloads now include DRM fields (type/license/clear keys/manifest hints) where available.
 - **Web Server Headless Support**: Run UIPTV in headless mode if you only intend to access channels through a browser.

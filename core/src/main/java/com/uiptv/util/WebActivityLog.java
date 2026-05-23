@@ -143,8 +143,7 @@ public final class WebActivityLog {
     private static String describeStaticPage(String path) {
         return switch (path) {
             case "/", "/index.html" -> "Opened the UIPTV web app";
-            case "/myflix.html" -> "Opened the MyFlix web page";
-            case "/player.html", "/drm.html" -> "Opened the web player";
+            case "/drm.html" -> "Opened the UIPTV web app";
             default -> "";
         };
     }

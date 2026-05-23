@@ -177,7 +177,7 @@ public class PlayerService {
         String encoded = Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(payload.toString().getBytes(StandardCharsets.UTF_8));
-        return localServerOrigin() + "/player.html?launch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8)
+        return localServerOrigin() + "/index.html?launch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8)
                 + "&v=" + WEB_PLAYER_VERSION;
     }
 

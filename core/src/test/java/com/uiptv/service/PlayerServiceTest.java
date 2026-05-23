@@ -105,7 +105,7 @@ class PlayerServiceTest {
 
             String url = service.buildDrmBrowserPlaybackUrl(account, channel, "Sports", "itv");
 
-            assertTrue(url.startsWith("http://127.0.0.1:9090/player.html?launch="));
+            assertTrue(url.startsWith("http://127.0.0.1:9090/index.html?launch="));
             assertTrue(url.contains("&v=" + PlayerService.WEB_PLAYER_VERSION));
         }
     }

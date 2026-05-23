@@ -245,7 +245,7 @@ public final class PlaybackUIService {
                 .withoutPadding()
                 .encodeToString(payload.toString().getBytes(StandardCharsets.UTF_8));
         return ServerUrlUtil.getLoopbackServerUrl()
-                + "/player.html?launch="
+                + "/index.html?launch="
                 + URLEncoder.encode(encoded, StandardCharsets.UTF_8)
                 + "&v=" + PlayerService.WEB_PLAYER_VERSION;
     }

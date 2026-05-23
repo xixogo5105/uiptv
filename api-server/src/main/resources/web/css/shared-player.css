@@ -3,6 +3,10 @@
     min-width: 0;
 }
 
+.uiptv-shared-player [hidden] {
+    display: none !important;
+}
+
 .uiptv-player-header {
     display: flex;
     align-items: center;

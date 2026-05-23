@@ -145,8 +145,6 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
      * 4) Verifies SPA pages wired in UIptvServer:
      *    - /
      *    - /index.html
-     *    - /myflix.html
-     *    - /player.html
      *    - /drm.html
      * 5) Covers HttpWebChannelJsonServer via dedicated temporary HTTP context:
      *    - Stalker paged response shape
@@ -342,7 +340,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     }
 
     private void assertSpaPages() throws Exception {
-        for (String path : List.of("/", "/index.html", "/myflix.html", "/player.html", "/drm.html")) {
+        for (String path : List.of("/", "/index.html", "/drm.html")) {
             HttpTextResponse response = get(path);
             assertEquals(200, response.statusCode(), "Expected 200 for " + path);
             assertTrue(response.body().toLowerCase().contains("<html"), "Expected html body for " + path);
@@ -366,9 +364,8 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         HttpTextResponse serviceWorker = get("/sw.js");
         assertEquals(200, serviceWorker.statusCode());
-        assertTrue(serviceWorker.body().contains("const CACHE_NAME = 'uiptv-cache-v19';"));
+        assertTrue(serviceWorker.body().contains("const CACHE_NAME = 'uiptv-cache-v26';"));
         assertTrue(serviceWorker.body().contains("/javascript/bookmark-watch-utils.js"));
-        assertFalse(serviceWorker.body().contains("drm-player.js"));
         assertFalse(serviceWorker.body().contains("Gateway Timeout"));
         assertTrue(serviceWorker.body().contains("networkFirstAppShell"));
         assertTrue(serviceWorker.body().contains("self.addEventListener('fetch'"));

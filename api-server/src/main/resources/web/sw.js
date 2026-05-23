@@ -1,24 +1,18 @@
-const CACHE_NAME = 'uiptv-cache-v19';
+const CACHE_NAME = 'uiptv-cache-v26';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/myflix.html',
   '/manifest.json',
   '/icon.ico',
   '/icon.png',
   '/css/shared-player.css',
-  '/css/player.css',
   '/css/spa.css',
-  '/css/myflix.css',
   '/javascript/playback-utils.js',
   '/javascript/player-controls.js',
   '/javascript/shared-player.js',
   '/javascript/bookmark-watch-utils.js',
   '/javascript/spa.js',
-  '/javascript/myflix.js',
   'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js',
   'https://unpkg.com/vue@3/dist/vue.global.prod.js',
   'https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js',
   'https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js'
@@ -28,9 +22,6 @@ const urlsToCacheSet = new Set(urlsToCache);
 
 const isVersionedStaticAsset = (requestUrl) => {
   if (requestUrl.origin !== self.location.origin) {
-    return false;
-  }
-  if (requestUrl.pathname === '/javascript/player.js') {
     return false;
   }
   return requestUrl.pathname.startsWith('/css/')
@@ -56,17 +47,27 @@ const isAppShellNavigation = (request, requestUrl) => {
 };
 
 const cacheFirst = async (request, requestUrl) => {
-  const cached = await caches.match(request, isVersionedStaticAsset(requestUrl) ? {ignoreSearch: true} : undefined);
+  const cached = await caches.match(request);
   if (cached) {
     return cached;
   }
 
-  const response = await fetch(request);
-  if (response && (response.ok || response.type === 'opaque')) {
-    const cache = await caches.open(CACHE_NAME);
-    await cache.put(request, response.clone());
+  try {
+    const response = await fetch(request);
+    if (response && (response.ok || response.type === 'opaque')) {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    if (isVersionedStaticAsset(requestUrl)) {
+      const fallback = await caches.match(requestUrl.pathname);
+      if (fallback) {
+        return fallback;
+      }
+    }
+    throw error;
   }
-  return response;
 };
 
 const networkFirstAppShell = async (request) => {
@@ -84,6 +85,7 @@ const networkFirstAppShell = async (request) => {
 };
 
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
@@ -112,6 +114,6 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.map(key => (key !== CACHE_NAME ? caches.delete(key) : Promise.resolve())))
-    )
+    ).then(() => self.clients.claim())
   );
 });

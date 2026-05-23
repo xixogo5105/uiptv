@@ -58,9 +58,7 @@ public class UIptvServer {
         // SPA routes
         routes.addExactPath("/", adapt(new HttpSpaHtmlServer()));
         routes.addExactPath("/index.html", adapt(new HttpSpaHtmlServer()));
-        routes.addExactPath("/myflix.html", adapt(new HttpSpaHtmlServer("myflix.html")));
-        routes.addExactPath("/player.html", adapt(new HttpSpaHtmlServer("player.html")));
-        routes.addExactPath("/drm.html", adapt(new HttpSpaHtmlServer("player.html")));
+        routes.addExactPath("/drm.html", adapt(new HttpSpaHtmlServer()));
 
         // PWA routes
         routes.addExactPath("/manifest.json", adapt(new HttpManifestServer()));
@@ -86,6 +84,7 @@ public class UIptvServer {
         routes.addExactPath("/channels", adapt(new HttpChannelJsonServer()));
         routes.addExactPath("/seriesEpisodes", adapt(new HttpSeriesEpisodesJsonServer()));
         routes.addExactPath("/seriesDetails", adapt(new HttpSeriesDetailsJsonServer()));
+        routes.addExactPath("/bingeWatchSession", adapt(new HttpBingeWatchSessionJsonServer()));
         routes.addExactPath("/watchingNow", adapt(new HttpWatchingNowJsonServer()));
         routes.addExactPath("/watchingNowSeriesEpisodes", adapt(new HttpWatchingNowSeriesEpisodesJsonServer()));
         routes.addExactPath("/watchingNowSeriesAction", adapt(new HttpWatchingNowSeriesActionServer()));

@@ -310,7 +310,7 @@ UIPTV includes a built-in web server, allowing you to watch IPTV content on othe
 3. You will see a web interface where you can browse categories and play channels.
 
 **Important Notes**:
-- **SPA Web UI**: The main web entry is `/` or `/index.html` with additional views like `/myflix.html`.
+- **SPA Web UI**: The main web entry is `/` or `/index.html`.
 - **Playlist Exports**: You can download published playlists from `/iptv.m3u` and `/iptv.m3u8`.
 - **Bookmarks Playlist**: Export favorites as `/bookmarks.m3u8`.
 - **Browser Compatibility**: Browser playback support depends on the stream format supported by the browser and device. Use an external player for streams your browser cannot decode.

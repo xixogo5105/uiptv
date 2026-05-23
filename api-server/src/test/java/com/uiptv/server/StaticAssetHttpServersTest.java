@@ -70,23 +70,6 @@ class StaticAssetHttpServersTest {
     }
 
     @Test
-    void spaHtmlServer_rendersMyflixFromRepositoryRoot() throws Exception {
-        Path repositoryRoot = Path.of(System.getProperty("user.dir")).toAbsolutePath();
-        if ("api-server".equals(repositoryRoot.getFileName().toString())) {
-            repositoryRoot = repositoryRoot.getParent();
-        }
-        try (UserDirScope userDirScope = UserDirScope.open(repositoryRoot)) {
-            HttpSpaHtmlServer handler = new HttpSpaHtmlServer("myflix.html");
-            TestHttpExchange exchange = new TestHttpExchange("/myflix.html", "GET");
-            handler.handle(exchange);
-
-            assertEquals(repositoryRoot.toString(), userDirScope.currentUserDir());
-            assertEquals(200, exchange.getResponseCode());
-            assertTrue(exchange.getResponseBodyText().toLowerCase().contains("<html"));
-        }
-    }
-
-    @Test
     void iconServer_servesIcons_andHandlesMissingIcon() throws Exception {
         HttpIconServer handler = new HttpIconServer();
 
@@ -128,25 +111,4 @@ class StaticAssetHttpServersTest {
         assertEquals("GET", exchange.getResponseHeaders().getFirst("Allow"));
     }
 
-    private static final class UserDirScope implements AutoCloseable {
-        private final String previousUserDir;
-
-        private UserDirScope(Path userDir) {
-            previousUserDir = System.getProperty("user.dir");
-            System.setProperty("user.dir", userDir.toString());
-        }
-
-        static UserDirScope open(Path userDir) {
-            return new UserDirScope(userDir);
-        }
-
-        String currentUserDir() {
-            return System.getProperty("user.dir");
-        }
-
-        @Override
-        public void close() {
-            System.setProperty("user.dir", previousUserDir);
-        }
-    }
 }
