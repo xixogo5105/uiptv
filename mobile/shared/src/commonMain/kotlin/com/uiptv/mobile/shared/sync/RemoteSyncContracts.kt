@@ -187,14 +187,19 @@ class PullFromDesktopSyncUseCase(
 
 fun buildRemoteSyncBaseUrl(host: String, port: Int): String {
     require(port in 1..65_535) { "Port must be between 1 and 65535." }
-    val normalizedHost = host.trim()
-        .removePrefix("http://")
-        .removePrefix("https://")
+    val trimmedHost = host.trim()
+    val scheme = when {
+        trimmedHost.startsWith("https://", ignoreCase = true) -> "https"
+        else -> "http"
+    }
+    val normalizedHost = trimmedHost
+        .removePrefixIgnoringCase("http://")
+        .removePrefixIgnoringCase("https://")
         .substringBefore("/")
         .removeSuffix(":")
         .withoutPort()
     require(normalizedHost.isNotBlank()) { "Host is required." }
-    return "http://$normalizedHost:$port"
+    return "$scheme://$normalizedHost:$port"
 }
 
 fun createFourDigitVerificationCode(randomInt: (Int) -> Int): String =
@@ -206,3 +211,10 @@ private fun String.withoutPort(): String {
     }
     return substringBefore(":")
 }
+
+private fun String.removePrefixIgnoringCase(prefix: String): String =
+    if (startsWith(prefix, ignoreCase = true)) {
+        substring(prefix.length)
+    } else {
+        this
+    }

@@ -10,6 +10,14 @@ import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.net.URL
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 class AndroidRemoteSyncClient : RemoteSyncClient {
     override suspend fun health(baseUrl: String): Boolean {
@@ -71,6 +79,7 @@ class AndroidRemoteSyncClient : RemoteSyncClient {
         var connection: HttpURLConnection? = null
         try {
             connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                trustDesktopLocalHttpsCertificate()
                 requestMethod = method
                 connectTimeout = 10_000
                 readTimeout = 120_000
@@ -93,6 +102,8 @@ class AndroidRemoteSyncClient : RemoteSyncClient {
             throw IOException("Cannot resolve desktop sync host ${url.endpointLabel()}. Use localhost with adb reverse, 10.0.2.2 on the emulator, or the desktop LAN IP.", ex)
         } catch (ex: ConnectException) {
             throw IOException("Cannot connect to desktop sync server at ${url.endpointLabel()}. Check that the listener is running and the emulator port mapping is active.", ex)
+        } catch (ex: SSLException) {
+            throw IOException("Could not establish HTTPS with desktop sync server at ${url.endpointLabel()}. Check that the desktop HTTPS listener is enabled and the HTTPS port is selected.", ex)
         } catch (ex: SocketTimeoutException) {
             throw IOException("Timed out connecting to desktop sync server at ${url.endpointLabel()}. Check the host, port, and desktop firewall.", ex)
         } finally {
@@ -104,6 +115,7 @@ class AndroidRemoteSyncClient : RemoteSyncClient {
         var connection: HttpURLConnection? = null
         try {
             connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                trustDesktopLocalHttpsCertificate()
                 requestMethod = "GET"
                 connectTimeout = 10_000
                 readTimeout = 120_000
@@ -127,6 +139,8 @@ class AndroidRemoteSyncClient : RemoteSyncClient {
             throw IOException("Cannot resolve desktop sync host ${url.endpointLabel()}. Use localhost with adb reverse, 10.0.2.2 on the emulator, or the desktop LAN IP.", ex)
         } catch (ex: ConnectException) {
             throw IOException("Cannot connect to desktop sync server at ${url.endpointLabel()}. Check that the listener is running and the emulator port mapping is active.", ex)
+        } catch (ex: SSLException) {
+            throw IOException("Could not establish HTTPS with desktop sync server at ${url.endpointLabel()}. Check that the desktop HTTPS listener is enabled and the HTTPS port is selected.", ex)
         } catch (ex: SocketTimeoutException) {
             throw IOException("Timed out connecting to desktop sync server at ${url.endpointLabel()}. Check the host, port, and desktop firewall.", ex)
         } finally {
@@ -167,4 +181,28 @@ class AndroidRemoteSyncClient : RemoteSyncClient {
             val port = parsed.port.takeIf { it > 0 } ?: parsed.defaultPort
             "${parsed.host}:$port"
         }.getOrElse { this }
+
+    private fun HttpURLConnection.trustDesktopLocalHttpsCertificate() {
+        if (this is HttpsURLConnection) {
+            sslSocketFactory = DesktopLocalHttpsTrust.sslSocketFactory
+            hostnameVerifier = DesktopLocalHttpsTrust.hostnameVerifier
+        }
+    }
+
+    private object DesktopLocalHttpsTrust {
+        private val trustManager = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+
+            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+        }
+
+        val sslSocketFactory = SSLContext.getInstance("TLS").apply {
+            // The desktop app generates a local self-signed certificate for its HTTPS listener.
+            init(null, arrayOf<TrustManager>(trustManager), SecureRandom())
+        }.socketFactory
+
+        val hostnameVerifier = HostnameVerifier { _, _ -> true }
+    }
 }

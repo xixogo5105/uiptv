@@ -4335,6 +4335,7 @@ private fun RemoteSyncScreen(
     val scope = rememberCoroutineScope()
     var host by remember { mutableStateOf("") }
     var portText by remember { mutableStateOf("") }
+    var useHttps by remember { mutableStateOf(false) }
     var verificationCode by remember { mutableStateOf("") }
     var statusText by remember { mutableStateOf("Enter the desktop host and sync port.") }
     var running by remember { mutableStateOf(false) }
@@ -4352,8 +4353,13 @@ private fun RemoteSyncScreen(
 
     LaunchedEffect(syncActions) {
         val snapshot = syncActions.loadPreferences()
-        val savedHost = snapshot.remoteEndpoint.host.takeUnless { it.isLoopbackHost() }.orEmpty()
+        val savedEndpointHost = snapshot.remoteEndpoint.host
+        val savedHost = savedEndpointHost
+            .withoutRemoteSyncScheme()
+            .takeUnless { it.isLoopbackHost() }
+            .orEmpty()
         host = savedHost
+        useHttps = savedEndpointHost.hasRemoteSyncHttpsScheme()
         portText = if (savedHost.isBlank()) {
             ""
         } else {
@@ -4380,6 +4386,17 @@ private fun RemoteSyncScreen(
         }
         return port
     }
+
+    fun updateHost(value: String) {
+        when {
+            value.hasRemoteSyncHttpsScheme() -> useHttps = true
+            value.hasRemoteSyncHttpScheme() -> useHttps = false
+        }
+        host = value.withoutRemoteSyncScheme()
+    }
+
+    fun requestHost(): String =
+        remoteSyncRequestHost(host, useHttps)
 
     suspend fun reloadFiltersFromDatabase() {
         val loadedFilters = filterActions.load()
@@ -4467,15 +4484,17 @@ private fun RemoteSyncScreen(
             selectedPlayerChoice = selectedPlayerChoice,
             selectedPlayer = selectedPlayer,
             playerIconRenderer = playerIconRenderer,
-            onHostChange = { host = it },
+            useHttps = useHttps,
+            onHostChange = ::updateHost,
             onPortChange = { portText = it.filter(Char::isDigit).take(5) },
+            onUseHttpsChange = { useHttps = it },
             onTest = {
                 scope.launch {
                     val port = parsedPort() ?: return@launch
                     running = true
                     statusText = "Connecting"
                     runCatching {
-                        syncActions.checkConnection(host.trim(), port)
+                        syncActions.checkConnection(requestHost(), port)
                     }.onSuccess {
                         statusText = "Connected"
                     }.onFailure { ex ->
@@ -4492,7 +4511,7 @@ private fun RemoteSyncScreen(
                     verificationCode = ""
                     runCatching {
                         syncActions.pullFromDesktop(
-                            host.trim(),
+                            requestHost(),
                             port
                         ) { progress ->
                             verificationCode = progress.verificationCode
@@ -4578,7 +4597,7 @@ private fun RemoteSyncScreen(
         ConfigurationIntro()
         CompactOutlinedTextField(
             value = host,
-            onValueChange = { host = it },
+            onValueChange = ::updateHost,
             modifier = Modifier.fillMaxWidth(),
             label = "Host",
             placeholder = "Desktop IP or hostname"
@@ -4591,6 +4610,15 @@ private fun RemoteSyncScreen(
             placeholder = "Desktop sync port",
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
         )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                modifier = Modifier.semantics { contentDescription = "Use HTTPS for desktop sync" },
+                checked = useHttps,
+                enabled = !running,
+                onCheckedChange = { useHttps = it }
+            )
+            Text("Use HTTPS")
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
                 modifier = Modifier.semantics { contentDescription = "Test desktop sync connection" },
@@ -4601,7 +4629,7 @@ private fun RemoteSyncScreen(
                         running = true
                         statusText = "Connecting"
                         runCatching {
-                            syncActions.checkConnection(host.trim(), port)
+                            syncActions.checkConnection(requestHost(), port)
                         }.onSuccess {
                             statusText = "Connected"
                         }.onFailure { ex ->
@@ -4624,7 +4652,7 @@ private fun RemoteSyncScreen(
                         verificationCode = ""
                         runCatching {
                             syncActions.pullFromDesktop(
-                                host.trim(),
+                                requestHost(),
                                 port
                             ) { progress ->
                                 verificationCode = progress.verificationCode
@@ -4963,8 +4991,10 @@ private fun WideRemoteSyncContent(
     selectedPlayerChoice: PlayerChoice,
     selectedPlayer: AndroidPlayerPreference,
     playerIconRenderer: PlayerIconRenderer,
+    useHttps: Boolean,
     onHostChange: (String) -> Unit,
     onPortChange: (String) -> Unit,
+    onUseHttpsChange: (Boolean) -> Unit,
     onTest: () -> Unit,
     onPull: () -> Unit,
     onBackup: () -> Unit,
@@ -5028,6 +5058,15 @@ private fun WideRemoteSyncContent(
                     placeholder = "Desktop sync port",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        modifier = Modifier.semantics { contentDescription = "Use HTTPS for desktop sync" },
+                        checked = useHttps,
+                        enabled = !running,
+                        onCheckedChange = onUseHttpsChange
+                    )
+                    Text("Use HTTPS")
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
                         modifier = Modifier.weight(1f).semantics { contentDescription = "Test desktop sync connection" },
@@ -7906,4 +7945,28 @@ private fun cacheProgressLines(message: String): List<String> =
 private fun String.isLoopbackHost(): Boolean {
     val normalized = trim().lowercase()
     return normalized == "localhost" || normalized == "127.0.0.1" || normalized == "::1"
+}
+
+private fun String.hasRemoteSyncHttpsScheme(): Boolean =
+    trim().startsWith("https://", ignoreCase = true)
+
+private fun String.hasRemoteSyncHttpScheme(): Boolean =
+    trim().startsWith("http://", ignoreCase = true)
+
+private fun String.withoutRemoteSyncScheme(): String {
+    val trimmed = trim()
+    return when {
+        trimmed.startsWith("https://", ignoreCase = true) -> trimmed.substring("https://".length)
+        trimmed.startsWith("http://", ignoreCase = true) -> trimmed.substring("http://".length)
+        else -> trimmed
+    }.substringBefore("/")
+}
+
+private fun remoteSyncRequestHost(host: String, useHttps: Boolean): String {
+    val normalizedHost = host.withoutRemoteSyncScheme()
+    return if (useHttps && normalizedHost.isNotBlank()) {
+        "https://$normalizedHost"
+    } else {
+        normalizedHost
+    }
 }

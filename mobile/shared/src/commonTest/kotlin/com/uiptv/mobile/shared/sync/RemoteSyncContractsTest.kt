@@ -24,8 +24,9 @@ class RemoteSyncContractsTest {
     @Test
     fun buildRemoteSyncBaseUrlNormalizesHosts() {
         assertEquals("http://192.168.1.20:8888", buildRemoteSyncBaseUrl(" 192.168.1.20 ", 8888))
-        assertEquals("http://desktop.local:9000", buildRemoteSyncBaseUrl("https://desktop.local/path", 9000))
+        assertEquals("https://desktop.local:9000", buildRemoteSyncBaseUrl("https://desktop.local/path", 9000))
         assertEquals("http://desktop.local:9001", buildRemoteSyncBaseUrl("http://desktop.local:1234", 9001))
+        assertEquals("https://desktop.local:9443", buildRemoteSyncBaseUrl("HTTPS://desktop.local:1234", 9443))
         assertEquals("http://[::1]:9002", buildRemoteSyncBaseUrl("[::1]:1234", 9002))
     }
 
