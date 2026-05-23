@@ -64,6 +64,8 @@ dependencies {
     implementation(compose.runtime)
     implementation(compose.ui)
     implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.exoplayer.dash)
+    implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.ui)
     implementation(libs.libvlc.all)
     androidTestImplementation(libs.androidx.test.runner)

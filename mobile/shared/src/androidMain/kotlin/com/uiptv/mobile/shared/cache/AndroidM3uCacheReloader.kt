@@ -11,6 +11,7 @@ import com.uiptv.mobile.shared.accounts.MobileAccountType
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -145,11 +146,11 @@ class AndroidM3uCacheReloader(
                 put("censored", 0)
                 put("status", 1)
                 put("hd", if (entry.name.contains("HD", ignoreCase = true)) 1 else 0)
-                put("drmType", "")
-                put("drmLicenseUrl", "")
-                put("clearKeysJson", "")
-                put("inputstreamaddon", "")
-                put("manifestType", "")
+                put("drmType", entry.drmType)
+                put("drmLicenseUrl", entry.drmLicenseUrl)
+                put("clearKeysJson", entry.clearKeysJson)
+                put("inputstreamaddon", entry.inputstreamaddon)
+                put("manifestType", entry.manifestType)
             }
         )
     }
@@ -183,32 +184,59 @@ data class M3uEntry(
     val url: String,
     val groupTitle: String = "",
     val logo: String = "",
-    val tvgId: String = ""
+    val tvgId: String = "",
+    val drmType: String = "",
+    val drmLicenseUrl: String = "",
+    val clearKeysJson: String = "",
+    val inputstreamaddon: String = "",
+    val manifestType: String = ""
 )
 
 object M3uPlaylistParser {
+    private const val DRM_TYPE_WIDEVINE = "com.widevine.alpha"
+    private const val DRM_TYPE_CLEARKEY = "org.w3.clearkey"
+    private const val KODIPROP_INPUTSTREAM_ADDON = "#KODIPROP:inputstreamaddon="
+    private const val KODIPROP_MANIFEST_TYPE = "#KODIPROP:inputstream.adaptive.manifest_type="
+    private const val KODIPROP_LICENSE_TYPE = "#KODIPROP:inputstream.adaptive.license_type="
+    private const val KODIPROP_LICENSE_KEY = "#KODIPROP:inputstream.adaptive.license_key="
     private val attributeRegex = Regex("([A-Za-z0-9_-]+)=\"([^\"]*)\"")
 
     fun parse(playlist: String): List<M3uEntry> {
         val entries = mutableListOf<M3uEntry>()
-        var pendingInfo: ExtInf? = null
+        var state = EntryState()
         playlist.lineSequence()
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .forEach { line ->
                 when {
-                    line.startsWith("#EXTINF", ignoreCase = true) -> pendingInfo = parseExtInf(line)
+                    line.startsWith("#EXTINF", ignoreCase = true) ->
+                        state = EntryState(info = parseExtInf(line))
+                    line.startsWith("#EXT-X-KEY", ignoreCase = true) ->
+                        state = state.withExtXKey(line)
+                    line.startsWith(KODIPROP_INPUTSTREAM_ADDON, ignoreCase = true) ->
+                        state = state.copy(inputstreamaddon = line.substringAfter("=").trim())
+                    line.startsWith(KODIPROP_MANIFEST_TYPE, ignoreCase = true) ->
+                        state = state.copy(manifestType = line.substringAfter("=").trim())
+                    line.startsWith(KODIPROP_LICENSE_TYPE, ignoreCase = true) ->
+                        state = state.copy(drmType = normalizeLicenseType(line.substringAfter("=").trim(), state.drmType))
+                    line.startsWith(KODIPROP_LICENSE_KEY, ignoreCase = true) ->
+                        state = state.withLicenseKey(line.substringAfter("=").trim())
                     line.startsWith("#") -> Unit
                     else -> {
-                        val info = pendingInfo
-                        pendingInfo = null
+                        val info = state.info
                         entries += M3uEntry(
                             name = info?.name?.takeIf { it.isNotBlank() } ?: line,
                             url = line,
                             groupTitle = info?.groupTitle.orEmpty(),
                             logo = info?.logo.orEmpty(),
-                            tvgId = info?.tvgId.orEmpty()
+                            tvgId = info?.tvgId.orEmpty(),
+                            drmType = state.drmType,
+                            drmLicenseUrl = state.drmLicenseUrl,
+                            clearKeysJson = state.clearKeysJson,
+                            inputstreamaddon = state.inputstreamaddon,
+                            manifestType = state.manifestType
                         )
+                        state = EntryState()
                     }
                 }
             }
@@ -225,6 +253,81 @@ object M3uPlaylistParser {
             tvgId = attributes["tvg-id"].orEmpty()
         )
     }
+
+    private fun EntryState.withExtXKey(line: String): EntryState {
+        val drmType = parseExtXKeyDrmType(line) ?: this.drmType
+        val licenseUrl = parseAttribute(line, "URI").ifBlank { drmLicenseUrl }
+        return copy(drmType = drmType, drmLicenseUrl = licenseUrl)
+    }
+
+    private fun EntryState.withLicenseKey(key: String): EntryState =
+        if (drmType.equals(DRM_TYPE_CLEARKEY, ignoreCase = true)) {
+            copy(clearKeysJson = parseClearKeysJson(key))
+        } else {
+            copy(drmLicenseUrl = key)
+        }
+
+    private fun parseExtXKeyDrmType(line: String): String? =
+        parseAttribute(line, "KEYFORMAT")
+            .takeIf { it.equals(DRM_TYPE_WIDEVINE, ignoreCase = true) }
+            ?.let { DRM_TYPE_WIDEVINE }
+
+    private fun parseAttribute(line: String, name: String): String =
+        attributeRegex.findAll(line)
+            .firstOrNull { it.groupValues[1].equals(name, ignoreCase = true) }
+            ?.groupValues
+            ?.getOrNull(2)
+            .orEmpty()
+
+    private fun normalizeLicenseType(type: String, currentType: String): String =
+        when {
+            type.equals(DRM_TYPE_WIDEVINE, ignoreCase = true) -> DRM_TYPE_WIDEVINE
+            type.equals("widevine", ignoreCase = true) -> DRM_TYPE_WIDEVINE
+            type.equals("clearkey", ignoreCase = true) -> DRM_TYPE_CLEARKEY
+            type.equals(DRM_TYPE_CLEARKEY, ignoreCase = true) -> DRM_TYPE_CLEARKEY
+            type.equals("com.clearkey.alpha", ignoreCase = true) -> DRM_TYPE_CLEARKEY
+            else -> currentType
+        }
+
+    private fun parseClearKeysJson(keyString: String): String {
+        val normalized = keyString.trim()
+        if (normalized.isBlank()) {
+            return ""
+        }
+        if (normalized.startsWith("{") && normalized.endsWith("}")) {
+            val json = runCatching { JSONObject(normalized) }.getOrNull()
+            if (json != null) {
+                val keys = JSONObject()
+                json.keys().forEach { key ->
+                    val value = json.optString(key).trim()
+                    if (key.isNotBlank() && value.isNotBlank()) {
+                        keys.put(key, value)
+                    }
+                }
+                return if (keys.length() > 0) keys.toString() else ""
+            }
+        }
+        val keys = JSONObject()
+        normalized.split(";")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .forEach { pair ->
+                val parts = pair.split(":", limit = 2)
+                if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                    keys.put(parts[0].trim(), parts[1].trim())
+                }
+            }
+        return if (keys.length() > 0) keys.toString() else ""
+    }
+
+    private data class EntryState(
+        val info: ExtInf? = null,
+        val drmType: String = "",
+        val drmLicenseUrl: String = "",
+        val clearKeysJson: String = "",
+        val inputstreamaddon: String = "",
+        val manifestType: String = ""
+    )
 
     private data class ExtInf(
         val name: String,

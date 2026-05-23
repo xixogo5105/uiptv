@@ -3,6 +3,7 @@ package com.uiptv.mobile.android
 import android.app.Activity
 import android.net.Uri
 import android.os.Bundle
+import android.util.Base64
 import android.view.Window
 import android.view.WindowManager
 import android.widget.TextView
@@ -10,11 +11,19 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
+import androidx.media3.exoplayer.drm.DefaultDrmSessionManagerProvider
+import androidx.media3.exoplayer.drm.DrmSessionManager
+import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
+import androidx.media3.exoplayer.drm.FrameworkMediaDrm
+import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlaybackTarget
+import com.uiptv.mobile.shared.playback.isDrmProtected
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +31,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
 
 class NativePlayerActivity : Activity() {
     private var player: ExoPlayer? = null
@@ -47,28 +59,33 @@ class NativePlayerActivity : Activity() {
             return
         }
 
-        val exoPlayer = ExoPlayer.Builder(this).build().also { created ->
-            created.addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (playbackState == Player.STATE_READY) {
-                        playbackStarted = true
-                        currentTarget?.let(::markOpened)
-                    } else if (playbackState == Player.STATE_ENDED && currentBingeSession != null) {
-                        playBingeIndex(currentBingeIndex + 1)
-                    }
-                }
-
-                override fun onPlayerError(error: PlaybackException) {
-                    setContentView(
-                        TextView(this@NativePlayerActivity).apply {
-                            text = error.message ?: "Playback failed."
-                            setPadding(32, 32, 32, 32)
+        val mediaSourceFactory = DefaultMediaSourceFactory(this)
+            .setDrmSessionManagerProvider(TargetDrmSessionManagerProvider { currentTarget })
+        val exoPlayer = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .build()
+            .also { created ->
+                created.addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == Player.STATE_READY) {
+                            playbackStarted = true
+                            currentTarget?.let(::markOpened)
+                        } else if (playbackState == Player.STATE_ENDED && currentBingeSession != null) {
+                            playBingeIndex(currentBingeIndex + 1)
                         }
-                    )
-                }
-            })
-            created.playWhenReady = true
-        }
+                    }
+
+                    override fun onPlayerError(error: PlaybackException) {
+                        setContentView(
+                            TextView(this@NativePlayerActivity).apply {
+                                text = error.message ?: "Playback failed."
+                                setPadding(32, 32, 32, 32)
+                            }
+                        )
+                    }
+                })
+                created.playWhenReady = true
+            }
         player = exoPlayer
         setContentView(
             PlayerView(this).apply {
@@ -145,6 +162,7 @@ class NativePlayerActivity : Activity() {
     private fun setMediaTarget(target: PlaybackTarget, mimeTypeOverride: String = "") {
         val exoPlayer = player ?: return
         val mimeType = mimeTypeOverride.ifBlank { target.mimeType() }
+        applySecureWindowPolicy(target)
         exoPlayer.setMediaItem(
             MediaItem.Builder()
                 .setUri(Uri.parse(target.url))
@@ -153,7 +171,7 @@ class NativePlayerActivity : Activity() {
                     if (mimeType.isNotBlank() && mimeType != "video/*") {
                         builder.setMimeType(mimeType)
                     }
-                    buildDrmConfiguration(target.drmType, target.drmLicenseUrl)?.let(builder::setDrmConfiguration)
+                    buildDrmConfiguration(target)?.let(builder::setDrmConfiguration)
                 }
                 .build()
         )
@@ -189,6 +207,11 @@ class NativePlayerActivity : Activity() {
             title = intent.getStringExtra(EXTRA_TITLE).orEmpty(),
             url = intent.getStringExtra(EXTRA_URL).orEmpty(),
             logo = intent.getStringExtra(EXTRA_LOGO).orEmpty(),
+            drmType = intent.getStringExtra(EXTRA_DRM_TYPE).orEmpty(),
+            drmLicenseUrl = intent.getStringExtra(EXTRA_DRM_LICENSE_URL).orEmpty(),
+            clearKeysJson = intent.getStringExtra(EXTRA_CLEAR_KEYS_JSON).orEmpty(),
+            inputstreamAddon = intent.getStringExtra(EXTRA_INPUTSTREAM_ADDON).orEmpty(),
+            manifestType = intent.getStringExtra(EXTRA_MANIFEST_TYPE).orEmpty(),
             seriesId = intent.getStringExtra(EXTRA_SERIES_ID).orEmpty(),
             seriesTitle = intent.getStringExtra(EXTRA_SERIES_TITLE).orEmpty(),
             episodeId = intent.getStringExtra(EXTRA_EPISODE_ID).orEmpty(),
@@ -197,19 +220,22 @@ class NativePlayerActivity : Activity() {
         )
     }
 
-    private fun buildDrmConfiguration(drmType: String, drmLicenseUrl: String): MediaItem.DrmConfiguration? {
-        if (drmLicenseUrl.isBlank()) {
-            return null
+    private fun applySecureWindowPolicy(target: PlaybackTarget) {
+        if (target.isDrmProtected()) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
-        val scheme = when {
-            drmType.equals("widevine", ignoreCase = true) ||
-                drmType.equals("com.widevine.alpha", ignoreCase = true) -> C.WIDEVINE_UUID
-            drmType.equals("clearkey", ignoreCase = true) ||
-                drmType.equals("org.w3.clearkey", ignoreCase = true) -> C.CLEARKEY_UUID
-            else -> null
-        } ?: return null
+    }
+
+    private fun buildDrmConfiguration(target: PlaybackTarget): MediaItem.DrmConfiguration? {
+        val scheme = target.drmSchemeUuid() ?: return null
         return MediaItem.DrmConfiguration.Builder(scheme)
-            .setLicenseUri(drmLicenseUrl)
+            .also { builder ->
+                if (target.drmLicenseUrl.isNotBlank()) {
+                    builder.setLicenseUri(target.drmLicenseUrl)
+                }
+            }
             .build()
     }
 
@@ -219,6 +245,9 @@ class NativePlayerActivity : Activity() {
         const val EXTRA_MIME_TYPE = "mime_type"
         const val EXTRA_DRM_TYPE = "drm_type"
         const val EXTRA_DRM_LICENSE_URL = "drm_license_url"
+        const val EXTRA_CLEAR_KEYS_JSON = "clear_keys_json"
+        const val EXTRA_INPUTSTREAM_ADDON = "inputstream_addon"
+        const val EXTRA_MANIFEST_TYPE = "manifest_type"
         const val EXTRA_ACCOUNT_ID = "account_id"
         const val EXTRA_ACCOUNT_NAME = "account_name"
         const val EXTRA_MODE = "mode"
@@ -249,3 +278,106 @@ private fun String.isPlayableNetworkUrl(): Boolean {
     val scheme = uri.scheme?.lowercase()
     return (scheme == "http" || scheme == "https") && !uri.host.isNullOrBlank()
 }
+
+private fun PlaybackTarget.drmSchemeUuid(): UUID? =
+    when {
+        drmType.equals("widevine", ignoreCase = true) ||
+            drmType.equals("com.widevine.alpha", ignoreCase = true) -> C.WIDEVINE_UUID
+        drmType.equals("clearkey", ignoreCase = true) ||
+            drmType.equals("org.w3.clearkey", ignoreCase = true) ||
+            drmType.equals("com.clearkey.alpha", ignoreCase = true) -> C.CLEARKEY_UUID
+        clearKeysJson.isNotBlank() -> C.CLEARKEY_UUID
+        else -> null
+    }
+
+private class TargetDrmSessionManagerProvider(
+    private val targetProvider: () -> PlaybackTarget?
+) : DrmSessionManagerProvider {
+    private val defaultProvider = DefaultDrmSessionManagerProvider()
+
+    override fun get(mediaItem: MediaItem): DrmSessionManager {
+        val clearKeyResponse = targetProvider()?.clearKeyLicenseResponse()
+        if (clearKeyResponse != null) {
+            return DefaultDrmSessionManager.Builder()
+                .setUuidAndExoMediaDrmProvider(C.CLEARKEY_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                .build(LocalMediaDrmCallback(clearKeyResponse))
+        }
+        return defaultProvider.get(mediaItem)
+    }
+}
+
+private fun PlaybackTarget.clearKeyLicenseResponse(): ByteArray? {
+    if (clearKeysJson.isBlank() || drmSchemeUuid() != C.CLEARKEY_UUID) {
+        return null
+    }
+    runCatching { JSONObject(clearKeysJson) }.getOrNull()
+        ?.takeIf { (it.optJSONArray("keys")?.length() ?: 0) > 0 }
+        ?.let { return it.toString().toByteArray(Charsets.UTF_8) }
+
+    val clearKeys = parseClearKeys(clearKeysJson)
+    if (clearKeys.isEmpty()) {
+        return null
+    }
+    val keys = JSONArray()
+    clearKeys.forEach { (kid, key) ->
+        keys.put(
+            JSONObject()
+                .put("kty", "oct")
+                .put("kid", clearKeyValueToBase64Url(kid))
+                .put("k", clearKeyValueToBase64Url(key))
+        )
+    }
+    return JSONObject()
+        .put("keys", keys)
+        .put("type", "temporary")
+        .toString()
+        .toByteArray(Charsets.UTF_8)
+}
+
+private fun parseClearKeys(raw: String): Map<String, String> {
+    val value = raw.trim()
+    if (value.isBlank()) {
+        return emptyMap()
+    }
+    val parsedJson = runCatching { JSONObject(value) }.getOrNull()
+    if (parsedJson != null) {
+        if (parsedJson.has("keys")) {
+            return emptyMap()
+        }
+        val keys = linkedMapOf<String, String>()
+        parsedJson.keys().forEach { kid ->
+            val key = parsedJson.optString(kid).trim()
+            if (kid.isNotBlank() && key.isNotBlank()) {
+                keys[kid] = key
+            }
+        }
+        return keys
+    }
+    return value.split(";")
+        .mapNotNull { pair ->
+            val parts = pair.split(":", limit = 2)
+            if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                parts[0].trim() to parts[1].trim()
+            } else {
+                null
+            }
+        }
+        .toMap()
+}
+
+private fun clearKeyValueToBase64Url(value: String): String {
+    val trimmed = value.trim()
+    val hex = trimmed.removePrefix("0x").removePrefix("0X")
+    return if (hex.length % 2 == 0 && hex.matches(HexPattern)) {
+        Base64.encodeToString(hexToBytes(hex), Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+    } else {
+        trimmed.replace('+', '-').replace('/', '_').trimEnd('=')
+    }
+}
+
+private fun hexToBytes(hex: String): ByteArray =
+    ByteArray(hex.length / 2) { index ->
+        hex.substring(index * 2, index * 2 + 2).toInt(16).toByte()
+    }
+
+private val HexPattern = Regex("[0-9a-fA-F]+")

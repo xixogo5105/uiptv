@@ -48,6 +48,27 @@ class MobilePlaybackTest {
     }
 
     @Test
+    fun playbackTargetDetectsDesktopStyleDrmMetadata() {
+        val base = PlaybackTarget(
+            accountId = 1,
+            accountName = "Demo",
+            mode = BrowseMode.LIVE,
+            categoryProviderId = "live",
+            categoryRowId = 2,
+            channelId = "channel",
+            title = "Channel",
+            url = "http://stream.test/channel.m3u8"
+        )
+
+        assertEquals(false, base.isDrmProtected())
+        assertEquals(true, base.copy(drmType = "widevine").isDrmProtected())
+        assertEquals(true, base.copy(drmLicenseUrl = "https://license.test/wv").isDrmProtected())
+        assertEquals(true, base.copy(clearKeysJson = "{\"kid\":\"key\"}").isDrmProtected())
+        assertEquals(true, base.copy(inputstreamAddon = "inputstream.adaptive").isDrmProtected())
+        assertEquals(true, base.copy(manifestType = "mpd").isDrmProtected())
+    }
+
+    @Test
     fun extractPlayableStreamUrlReturnsBlankForBlankInput() {
         assertEquals("", extractPlayableStreamUrl("   "))
     }

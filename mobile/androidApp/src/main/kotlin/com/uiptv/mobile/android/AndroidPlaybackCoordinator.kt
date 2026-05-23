@@ -24,6 +24,7 @@ import com.uiptv.mobile.shared.playback.PlaybackLaunchResult
 import com.uiptv.mobile.shared.playback.PlaybackTarget
 import com.uiptv.mobile.shared.playback.PlayerChoice
 import com.uiptv.mobile.shared.playback.extractPlayableStreamUrl
+import com.uiptv.mobile.shared.playback.isDrmProtected
 import com.uiptv.mobile.shared.playback.shouldResolveStalkerPortalCommand
 import com.uiptv.mobile.shared.settings.AndroidPlayerPreference
 import com.uiptv.mobile.shared.settings.AndroidPreferencesRepository
@@ -225,10 +226,11 @@ class AndroidPlaybackCoordinator(
         if (!playableTarget.url.isPlayableNetworkUrl()) {
             return PlaybackLaunchResult(false, "No direct playable URL is cached for ${target.title}. Refresh this account on Android or choose a direct stream.")
         }
-        if (player == AndroidPlayerPreference.NATIVE && !target.nativeSupported()) {
-            return PlaybackLaunchResult(false, "Native player cannot open this DRM or inputstream metadata yet. Use an external player.")
+        val playbackPlayer = player.inAppDrmCapablePlayer(playableTarget)
+        if (playbackPlayer.usesAndroidMediaActivity() && !playableTarget.nativeSupported()) {
+            return PlaybackLaunchResult(false, "Android Media cannot open this DRM metadata yet. Check the DRM type, license URL, or ClearKey data.")
         }
-        val intent = when (player) {
+        val intent = when (playbackPlayer) {
             AndroidPlayerPreference.EMBEDDED_PLAYER -> embeddedPlayerIntent(playableTarget)
             AndroidPlayerPreference.NATIVE,
             AndroidPlayerPreference.ASK_EVERY_TIME -> nativePlayerIntent(playableTarget)
@@ -243,7 +245,12 @@ class AndroidPlaybackCoordinator(
 
         return try {
             activityStarter(intent)
-            PlaybackLaunchResult(true, "Opening ${playableTarget.title}.")
+            val playerSuffix = if (player == AndroidPlayerPreference.EMBEDDED_PLAYER && playbackPlayer == AndroidPlayerPreference.NATIVE) {
+                " with Android Media"
+            } else {
+                ""
+            }
+            PlaybackLaunchResult(true, "Opening ${playableTarget.title}$playerSuffix.")
         } catch (_: ActivityNotFoundException) {
             PlaybackLaunchResult(false, "${player.displayLabel()} is not available.")
         } catch (ex: Exception) {
@@ -257,10 +264,11 @@ class AndroidPlaybackCoordinator(
     ): PlaybackLaunchResult {
         val target = session.targets.getOrNull(session.startIndex)
             ?: return PlaybackLaunchResult(false, "No episodes are cached for this season.")
-        if (player == AndroidPlayerPreference.NATIVE && !target.nativeSupported()) {
-            return PlaybackLaunchResult(false, "Android Media cannot open this DRM or inputstream metadata yet. Use Embedded for binge watch.")
+        val playbackPlayer = player.inAppDrmCapablePlayer(target)
+        if (playbackPlayer.usesAndroidMediaActivity() && !target.nativeSupported()) {
+            return PlaybackLaunchResult(false, "Android Media cannot open this DRM metadata yet. Check the DRM type, license URL, or ClearKey data.")
         }
-        val intent = when (player) {
+        val intent = when (playbackPlayer) {
             AndroidPlayerPreference.EMBEDDED_PLAYER -> embeddedPlayerIntent(target)
             AndroidPlayerPreference.NATIVE,
             AndroidPlayerPreference.ASK_EVERY_TIME -> nativePlayerIntent(target)
@@ -302,6 +310,9 @@ class AndroidPlaybackCoordinator(
             .putExtra(NativePlayerActivity.EXTRA_MIME_TYPE, target.mimeType())
             .putExtra(NativePlayerActivity.EXTRA_DRM_TYPE, target.drmType)
             .putExtra(NativePlayerActivity.EXTRA_DRM_LICENSE_URL, target.drmLicenseUrl)
+            .putExtra(NativePlayerActivity.EXTRA_CLEAR_KEYS_JSON, target.clearKeysJson)
+            .putExtra(NativePlayerActivity.EXTRA_INPUTSTREAM_ADDON, target.inputstreamAddon)
+            .putExtra(NativePlayerActivity.EXTRA_MANIFEST_TYPE, target.manifestType)
             .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_ID, target.accountId)
             .putExtra(NativePlayerActivity.EXTRA_ACCOUNT_NAME, target.accountName)
             .putExtra(NativePlayerActivity.EXTRA_MODE, target.mode.name)
@@ -743,6 +754,16 @@ class AndroidPlaybackCoordinator(
             this == AndroidPlayerPreference.EMBEDDED_PLAYER ||
             this == AndroidPlayerPreference.ASK_EVERY_TIME
 
+    private fun AndroidPlayerPreference.usesAndroidMediaActivity(): Boolean =
+        this == AndroidPlayerPreference.NATIVE || this == AndroidPlayerPreference.ASK_EVERY_TIME
+
+    private fun AndroidPlayerPreference.inAppDrmCapablePlayer(target: PlaybackTarget): AndroidPlayerPreference =
+        if (this == AndroidPlayerPreference.EMBEDDED_PLAYER && target.hasMediaDrmMetadata()) {
+            AndroidPlayerPreference.NATIVE
+        } else {
+            this
+        }
+
     private fun AndroidPlayerPreference.displayLabel(): String =
         when (this) {
             AndroidPlayerPreference.ASK_EVERY_TIME -> "Player picker"
@@ -1046,18 +1067,29 @@ class AndroidPlaybackCoordinator(
         (UUID.randomUUID().toString() + UUID.randomUUID().toString()).replace("-", "")
 
     private fun PlaybackTarget.nativeSupported(): Boolean =
-        inputstreamAddon.isBlank() &&
-            clearKeysJson.isBlank() &&
-            (
-                drmType.isBlank() && drmLicenseUrl.isBlank() ||
-                    drmLicenseUrl.isNotBlank() && drmType.isLicenseUrlDrmType()
-                )
+        when {
+            !isDrmProtected() -> true
+            drmLicenseUrl.isNotBlank() && drmType.isLicenseUrlDrmType() -> true
+            clearKeysJson.isNotBlank() -> drmType.isBlank() || drmType.isClearKeyDrmType()
+            drmLicenseUrl.isNotBlank() -> false
+            drmType.isNotBlank() -> false
+            else -> true
+        }
+
+    private fun PlaybackTarget.hasMediaDrmMetadata(): Boolean =
+        drmType.isNotBlank() || drmLicenseUrl.isNotBlank() || clearKeysJson.isNotBlank()
 
     private fun String.isLicenseUrlDrmType(): Boolean =
         equals("widevine", ignoreCase = true) ||
             equals("com.widevine.alpha", ignoreCase = true) ||
+            equals("com.clearkey.alpha", ignoreCase = true) ||
             equals("clearkey", ignoreCase = true) ||
             equals("org.w3.clearkey", ignoreCase = true)
+
+    private fun String.isClearKeyDrmType(): Boolean =
+        equals("clearkey", ignoreCase = true) ||
+            equals("org.w3.clearkey", ignoreCase = true) ||
+            equals("com.clearkey.alpha", ignoreCase = true)
 
     private data class LastWatchedEpisode(
         val episodeId: String,

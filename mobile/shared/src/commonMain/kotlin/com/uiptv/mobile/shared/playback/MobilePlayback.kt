@@ -38,6 +38,13 @@ data class PlaybackTarget(
     val episodeNumber: String = ""
 )
 
+fun PlaybackTarget.isDrmProtected(): Boolean =
+    drmType.isCleanNotBlank() ||
+        drmLicenseUrl.isCleanNotBlank() ||
+        clearKeysJson.isCleanNotBlank() ||
+        inputstreamAddon.isCleanNotBlank() ||
+        manifestType.isCleanNotBlank()
+
 fun extractPlayableStreamUrl(raw: String): String {
     val value = raw.trim()
     if (value.isBlank()) {
@@ -52,6 +59,13 @@ fun extractPlayableStreamUrl(raw: String): String {
     }
     val parts = withoutPrefix.split(Regex("\\s+")).filter { it.isNotBlank() }
     return if (parts.size > 1) parts.last() else withoutPrefix
+}
+
+private fun String.isCleanNotBlank(): Boolean {
+    val value = trim()
+    return value.isNotBlank() &&
+        !value.equals("null", ignoreCase = true) &&
+        !value.equals("undefined", ignoreCase = true)
 }
 
 fun shouldResolveStalkerPortalCommand(raw: String): Boolean {

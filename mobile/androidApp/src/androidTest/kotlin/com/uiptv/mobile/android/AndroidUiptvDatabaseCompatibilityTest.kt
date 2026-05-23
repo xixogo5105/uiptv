@@ -160,6 +160,16 @@ class AndroidUiptvDatabaseCompatibilityTest {
                 https://stream.test/news.m3u8
                 #EXTINF:-1 group-title="Sports",Sports One
                 https://stream.test/sports.ts
+                #EXTINF:-1 group-title="DRM",Widevine Dash
+                #KODIPROP:inputstreamaddon=inputstream.adaptive
+                #KODIPROP:inputstream.adaptive.manifest_type=mpd
+                #KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha
+                #KODIPROP:inputstream.adaptive.license_key=https://license.test/widevine
+                https://stream.test/widevine.mpd
+                #EXTINF:-1 group-title="DRM",ClearKey Dash
+                #KODIPROP:inputstream.adaptive.license_type=clearkey
+                #KODIPROP:inputstream.adaptive.license_key=00112233445566778899aabbccddeeff:ffeeddccbbaa99887766554433221100
+                https://stream.test/clearkey.mpd
                 """.trimIndent()
             )
         }
@@ -177,10 +187,16 @@ class AndroidUiptvDatabaseCompatibilityTest {
             val db = helper.writableDatabase
 
             assertEquals(CacheRefreshJobStatus.SUCCEEDED, result.status)
-            assertEquals(3, db.countRows("Category", "accountId = '${account.id}'"))
-            assertEquals(4, db.countRows("Channel", "cmd LIKE 'https://stream.test/%'"))
+            assertEquals(4, db.countRows("Category", "accountId = '${account.id}'"))
+            assertEquals(8, db.countRows("Channel", "cmd LIKE 'https://stream.test/%'"))
             assertEquals(2, db.countRows("Channel", "name = 'News One HD'"))
             assertEquals(2, db.countRows("Channel", "name = 'Sports One'"))
+            assertEquals("com.widevine.alpha", db.singleString("Channel", "drmType", "name = 'Widevine Dash'"))
+            assertEquals("https://license.test/widevine", db.singleString("Channel", "drmLicenseUrl", "name = 'Widevine Dash'"))
+            assertEquals("inputstream.adaptive", db.singleString("Channel", "inputstreamaddon", "name = 'Widevine Dash'"))
+            assertEquals("mpd", db.singleString("Channel", "manifestType", "name = 'Widevine Dash'"))
+            assertEquals("org.w3.clearkey", db.singleString("Channel", "drmType", "name = 'ClearKey Dash'"))
+            assertTrue(db.singleString("Channel", "clearKeysJson", "name = 'ClearKey Dash'").contains("00112233445566778899aabbccddeeff"))
         } finally {
             playlist.delete()
         }
@@ -630,7 +646,9 @@ class AndroidUiptvDatabaseCompatibilityTest {
                 "Licensed DRM Movie",
                 command = "https://stream.test/movie.mpd",
                 drmType = "widevine",
-                drmLicenseUrl = "https://license.test/widevine"
+                drmLicenseUrl = "https://license.test/widevine",
+                inputstreamAddon = "inputstream.adaptive",
+                manifestType = "mpd"
             ),
             AndroidPlayerPreference.NATIVE,
             remember = false
@@ -640,6 +658,48 @@ class AndroidUiptvDatabaseCompatibilityTest {
         assertEquals(0, helper.writableDatabase.countRows("VodWatchState", "accountId = '$accountId' AND vodId = 'vod-3'"))
         assertEquals("widevine", startedIntents.last().getStringExtra(NativePlayerActivity.EXTRA_DRM_TYPE))
         assertEquals("https://license.test/widevine", startedIntents.last().getStringExtra(NativePlayerActivity.EXTRA_DRM_LICENSE_URL))
+        assertEquals("inputstream.adaptive", startedIntents.last().getStringExtra(NativePlayerActivity.EXTRA_INPUTSTREAM_ADDON))
+        assertEquals("mpd", startedIntents.last().getStringExtra(NativePlayerActivity.EXTRA_MANIFEST_TYPE))
+
+        val clearKeyResult = coordinator.playBrowseItem(
+            playbackItem(
+                accountId,
+                BrowseMode.VOD,
+                "vod-cat",
+                "vod-4",
+                "ClearKey Movie",
+                command = "https://stream.test/clearkey.mpd",
+                drmType = "org.w3.clearkey",
+                clearKeysJson = "{\"00112233445566778899aabbccddeeff\":\"ffeeddccbbaa99887766554433221100\"}",
+                inputstreamAddon = "inputstream.adaptive",
+                manifestType = "mpd"
+            ),
+            AndroidPlayerPreference.NATIVE,
+            remember = false
+        )
+
+        assertTrue(clearKeyResult.launched)
+        assertEquals("org.w3.clearkey", startedIntents.last().getStringExtra(NativePlayerActivity.EXTRA_DRM_TYPE))
+        assertTrue(startedIntents.last().getStringExtra(NativePlayerActivity.EXTRA_CLEAR_KEYS_JSON).orEmpty().contains("00112233445566778899aabbccddeeff"))
+        assertEquals("application/dash+xml", startedIntents.last().getStringExtra(NativePlayerActivity.EXTRA_MIME_TYPE))
+
+        val embeddedDrmResult = coordinator.playBrowseItem(
+            playbackItem(
+                accountId,
+                BrowseMode.VOD,
+                "vod-cat",
+                "vod-5",
+                "Embedded DRM Movie",
+                command = "https://stream.test/embedded-drm.mpd",
+                drmType = "widevine",
+                drmLicenseUrl = "https://license.test/widevine"
+            ),
+            AndroidPlayerPreference.EMBEDDED_PLAYER,
+            remember = false
+        )
+
+        assertTrue(embeddedDrmResult.launched)
+        assertEquals(NativePlayerActivity::class.java.name, startedIntents.last().component?.className)
 
         coordinator.clearPlayerPreference()
 
@@ -1222,7 +1282,10 @@ class AndroidUiptvDatabaseCompatibilityTest {
         title: String,
         command: String = "ffmpeg https://stream.test/$channelId.m3u8",
         drmType: String = "",
-        drmLicenseUrl: String = ""
+        drmLicenseUrl: String = "",
+        clearKeysJson: String = "",
+        inputstreamAddon: String = "",
+        manifestType: String = ""
     ): MobileBrowseItem =
         MobileBrowseItem(
             rowId = channelId.hashCode().toLong(),
@@ -1236,7 +1299,10 @@ class AndroidUiptvDatabaseCompatibilityTest {
             name = title,
             command = command,
             drmType = drmType,
-            drmLicenseUrl = drmLicenseUrl
+            drmLicenseUrl = drmLicenseUrl,
+            clearKeysJson = clearKeysJson,
+            inputstreamAddon = inputstreamAddon,
+            manifestType = manifestType
         )
 
 }

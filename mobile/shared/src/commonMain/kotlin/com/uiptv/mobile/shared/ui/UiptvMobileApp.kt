@@ -1965,6 +1965,9 @@ private fun BrowseItemRow(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (item.hasDrmMetadata()) {
+                        DrmBadge(Modifier.padding(start = 8.dp))
+                    }
                 }
             },
             supportingContent = {
@@ -2405,6 +2408,9 @@ private fun BookmarkRow(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (bookmark.hasDrmMetadata()) {
+                        DrmBadge(Modifier.padding(start = 8.dp))
+                    }
                 }
             },
             supportingContent = {
@@ -2415,6 +2421,24 @@ private fun BookmarkRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+        )
+    }
+}
+
+@Composable
+private fun DrmBadge(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.semantics { contentDescription = "DRM protected" },
+        shape = RoundedCornerShape(6.dp),
+        color = Color(0xFFFFD54F),
+        contentColor = Color(0xFF151515)
+    ) {
+        Text(
+            "DRM",
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
         )
     }
 }
@@ -7533,6 +7557,27 @@ private fun MobileBrowseItem.subtitle(): String =
         "HD".takeIf { isHd },
         metadataLine().takeIf { it.isNotBlank() }
     ).filterNotNull().joinToString(" - ")
+
+private fun MobileBrowseItem.hasDrmMetadata(): Boolean =
+    drmType.isCleanMetadataValue() ||
+        drmLicenseUrl.isCleanMetadataValue() ||
+        clearKeysJson.isCleanMetadataValue() ||
+        inputstreamAddon.isCleanMetadataValue() ||
+        manifestType.isCleanMetadataValue()
+
+private fun MobileBookmark.hasDrmMetadata(): Boolean =
+    drmType.isCleanMetadataValue() ||
+        drmLicenseUrl.isCleanMetadataValue() ||
+        clearKeysJson.isCleanMetadataValue() ||
+        inputstreamAddon.isCleanMetadataValue() ||
+        manifestType.isCleanMetadataValue()
+
+private fun String.isCleanMetadataValue(): Boolean {
+    val value = trim()
+    return value.isNotBlank() &&
+        !value.equals("null", ignoreCase = true) &&
+        !value.equals("undefined", ignoreCase = true)
+}
 
 private fun MobileBrowseItem.toWatchingNowSeriesItem(): MobileWatchingNowItem =
     MobileWatchingNowItem(
