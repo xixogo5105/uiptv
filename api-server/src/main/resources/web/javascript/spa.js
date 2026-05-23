@@ -3085,17 +3085,49 @@ createApp({
                 return;
             }
 
-            if (hasDRM) {
-                await loadShaka(channel);
-            } else if (isTs) {
-                await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)});
-            } else if (isApple && canNative) {
-                await loadNative(channel);
-            } else if (canNative && uri.endsWith('.m3u8')) {
-                await loadNative(channel);
-            } else {
-                await loadShaka(channel);
+            const preferShakaFallback = !(isApple && canNative) && !(canNative && uri.endsWith('.m3u8'));
+            try {
+                if (hasDRM) {
+                    await loadShaka(channel);
+                } else if (isTs) {
+                    await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)});
+                } else if (isApple && canNative) {
+                    await loadNative(channel);
+                } else if (canNative && uri.endsWith('.m3u8')) {
+                    await loadNative(channel);
+                } else {
+                    await loadShaka(channel);
+                }
+            } catch (e) {
+                if (!hasDRM && !isTs && await tryProxyPlaybackFallback(channel, preferShakaFallback, e)) {
+                    return;
+                }
+                throw e;
             }
+        };
+
+        const tryProxyPlaybackFallback = async (channel, preferShaka, previousError) => {
+            const sourceUrl = String(channel?.url || '').trim();
+            const proxyUrl = buildProxyStreamUrl(sourceUrl);
+            if (!proxyUrl || proxyUrl === sourceUrl) {
+                return false;
+            }
+            console.warn('Playback failed, retrying through local proxy.', previousError);
+            const attempts = preferShaka
+                ? [loadShaka, loadNative]
+                : [loadNative, loadShaka];
+            let lastError = previousError;
+            for (const attempt of attempts) {
+                await stopPlayback(true);
+                try {
+                    await attempt({...channel, url: proxyUrl});
+                    return true;
+                } catch (e) {
+                    lastError = e;
+                }
+            }
+            console.warn('Proxy playback fallback failed.', lastError);
+            return false;
         };
 
         const loadMpegTs = async (channel) => {

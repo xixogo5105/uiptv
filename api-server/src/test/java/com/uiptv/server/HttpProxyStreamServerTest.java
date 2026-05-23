@@ -129,6 +129,46 @@ class HttpProxyStreamServerTest {
     }
 
     @Test
+    void rewritesHlsPlaylistUrisThroughProxy() throws Exception {
+        upstreamServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        upstreamServer.createContext("/hls/master.m3u8", exchange -> {
+            byte[] body = """
+                    #EXTM3U
+                    #EXT-X-STREAM-INF:BANDWIDTH=1000
+                    tracks/mono.m3u8?token=abc
+                    #EXT-X-KEY:METHOD=AES-128,URI="keys/key.bin"
+                    #EXTINF:4,
+                    segments/one.ts?token=abc
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/vnd.apple.mpegurl");
+            exchange.getResponseHeaders().add("Content-Length", String.valueOf(body.length));
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(body);
+            }
+        });
+        upstreamServer.start();
+
+        proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        proxyServer.createContext("/proxy-stream", new HttpProxyStreamServer());
+        proxyServer.start();
+
+        String upstreamBase = "http://127.0.0.1:" + upstreamServer.getAddress().getPort();
+        String upstreamUrl = upstreamBase + "/hls/master.m3u8";
+        String proxyUrl = "http://127.0.0.1:" + proxyServer.getAddress().getPort() + "/proxy-stream?src="
+                + URLEncoder.encode(upstreamUrl, StandardCharsets.UTF_8);
+
+        HttpURLConnection connection = (HttpURLConnection) URI.create(proxyUrl).toURL().openConnection();
+        assertEquals(200, connection.getResponseCode());
+        String body = new String(connection.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+        assertTrue(body.contains(PROXY_PREFIX + URLEncoder.encode(upstreamBase + "/hls/tracks/mono.m3u8?token=abc", StandardCharsets.UTF_8)));
+        assertTrue(body.contains("URI=\"" + PROXY_PREFIX + URLEncoder.encode(upstreamBase + "/hls/keys/key.bin", StandardCharsets.UTF_8) + "\""));
+        assertTrue(body.contains(PROXY_PREFIX + URLEncoder.encode(upstreamBase + "/hls/segments/one.ts?token=abc", StandardCharsets.UTF_8)));
+        assertFalse(body.contains("\ntracks/mono.m3u8"));
+    }
+
+    @Test
     void privateHelpers_coverHeaderCookiesAndForwardedHeaders() throws Exception {
         HttpProxyStreamServer handler = new HttpProxyStreamServer();
 
@@ -209,4 +249,6 @@ class HttpProxyStreamServerTest {
         method.setAccessible(true);
         return (T) method.invoke(target, args);
     }
+
+    private static final String PROXY_PREFIX = "/proxy-stream?src=";
 }

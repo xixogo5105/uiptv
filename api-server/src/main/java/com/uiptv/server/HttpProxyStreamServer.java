@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -44,6 +45,7 @@ public class HttpProxyStreamServer implements HttpHandler {
     private static final String MAG_USER_AGENT = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3";
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
     private static final long UNKNOWN_CONTENT_LENGTH = 0L;
+    private static final String PROXY_STREAM_PATH = "/proxy-stream?src=";
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
@@ -64,16 +66,29 @@ public class HttpProxyStreamServer implements HttpHandler {
                     return;
                 }
 
+                byte[] responseBody = null;
+                boolean rewriteHlsPlaylist = shouldRewriteHlsPlaylist(upstream);
+                if (rewriteHlsPlaylist && !"HEAD".equalsIgnoreCase(requestMethod)) {
+                    responseBody = rewriteHlsPlaylist(resolvedBodyStream(upstream).readAllBytes(), upstream.requestUri());
+                }
+
                 writeResponseHeaders(ex, upstream.responseHeaders());
                 ex.sendResponseHeaders(
                         upstream.statusCode(),
-                        resolveContentLength(firstHeader(upstream.responseHeaders(), HEADER_CONTENT_LENGTH))
+                        responseBody == null
+                                ? resolveContentLength(firstHeader(upstream.responseHeaders(), HEADER_CONTENT_LENGTH))
+                                : responseBody.length
                 );
 
                 if (!"HEAD".equalsIgnoreCase(requestMethod)) {
-                    try (InputStream is = resolvedBodyStream(upstream);
-                         OutputStream os = ex.getResponseBody()) {
-                        copyStream(is, os);
+                    try (OutputStream os = ex.getResponseBody()) {
+                        if (responseBody == null) {
+                            try (InputStream is = resolvedBodyStream(upstream)) {
+                                copyStream(is, os);
+                            }
+                        } else {
+                            os.write(responseBody);
+                        }
                     }
                 }
             }
@@ -354,6 +369,105 @@ public class HttpProxyStreamServer implements HttpHandler {
         String value = firstHeader(upstreamHeaders, headerName);
         if (!isBlank(value)) {
             ex.getResponseHeaders().add(headerName, value);
+        }
+    }
+
+    private boolean shouldRewriteHlsPlaylist(HttpUtil.StreamResult upstream) {
+        if (upstream == null || upstream.statusCode() < 200 || upstream.statusCode() >= 300) {
+            return false;
+        }
+        String contentType = firstHeader(upstream.responseHeaders(), HEADER_CONTENT_TYPE).toLowerCase();
+        if (contentType.contains("mpegurl") || contentType.contains("application/vnd.apple")) {
+            return true;
+        }
+        try {
+            String path = URI.create(upstream.requestUri()).getPath();
+            if (isBlank(path)) {
+                return false;
+            }
+            String lowerPath = path.toLowerCase();
+            return lowerPath.endsWith(".m3u8") || lowerPath.endsWith(".m3u");
+        } catch (Exception _) {
+            return false;
+        }
+    }
+
+    private byte[] rewriteHlsPlaylist(byte[] data, String playlistUrl) {
+        if (data == null || data.length == 0 || isBlank(playlistUrl)) {
+            return data;
+        }
+        String body = new String(data, StandardCharsets.UTF_8);
+        if (!body.trim().startsWith("#EXTM3U")) {
+            return data;
+        }
+
+        String[] lines = body.split("\\r?\\n", -1);
+        StringBuilder rewritten = new StringBuilder(body.length() + 128);
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            String trimmed = line.trim();
+            if (trimmed.startsWith("#")) {
+                line = rewriteHlsUriAttributes(line, playlistUrl);
+            } else if (!trimmed.isEmpty()) {
+                line = buildProxiedHlsUri(trimmed, playlistUrl);
+            }
+            rewritten.append(line);
+            if (i < lines.length - 1) {
+                rewritten.append('\n');
+            }
+        }
+        return rewritten.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private String rewriteHlsUriAttributes(String line, String playlistUrl) {
+        String marker = "URI=\"";
+        int searchFrom = 0;
+        StringBuilder rewritten = null;
+        while (true) {
+            int start = line.indexOf(marker, searchFrom);
+            if (start < 0) {
+                if (rewritten == null) {
+                    return line;
+                }
+                rewritten.append(line.substring(searchFrom));
+                return rewritten.toString();
+            }
+            int valueStart = start + marker.length();
+            int valueEnd = line.indexOf('"', valueStart);
+            if (valueEnd < 0) {
+                return rewritten == null ? line : rewritten.append(line.substring(searchFrom)).toString();
+            }
+            if (rewritten == null) {
+                rewritten = new StringBuilder(line.length() + 64);
+            }
+            rewritten.append(line, searchFrom, valueStart);
+            rewritten.append(buildProxiedHlsUri(line.substring(valueStart, valueEnd), playlistUrl));
+            rewritten.append('"');
+            searchFrom = valueEnd + 1;
+        }
+    }
+
+    private String buildProxiedHlsUri(String candidate, String playlistUrl) {
+        if (isBlank(candidate)) {
+            return candidate;
+        }
+        String trimmed = candidate.trim();
+        String lower = trimmed.toLowerCase();
+        if (lower.startsWith("data:")
+                || lower.startsWith("blob:")
+                || lower.startsWith("file:")
+                || trimmed.contains(PROXY_STREAM_PATH)) {
+            return candidate;
+        }
+        try {
+            URI resolved = URI.create(playlistUrl).resolve(trimmed);
+            String absolute = resolved.toString();
+            if (isBlank(absolute)) {
+                return candidate;
+            }
+            return PROXY_STREAM_PATH + URLEncoder.encode(absolute, StandardCharsets.UTF_8);
+        } catch (Exception _) {
+            return candidate;
         }
     }
 
