@@ -118,6 +118,7 @@ a[href] {
 
 .topbar {
     min-width: 0;
+    min-height: 64px;
     display: grid;
     grid-template-columns: auto auto minmax(260px, 1fr) auto;
     gap: 6px;
