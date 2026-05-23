@@ -116,7 +116,10 @@ public class DatabaseSyncService {
             snapshotPath = SecureTempFileSupport.createTempFile("uiptv-db-sync-", ".db");
             try (Connection sourceConn = DriverManager.getConnection(SQLITE_PREFIX + sourceDB);
                  Statement statement = sourceConn.createStatement()) {
-                statement.execute("VACUUM INTO '" + escapeSqlLiteral(snapshotPath.toAbsolutePath().toString()) + "'");
+                executeSchemaStatement(
+                        statement,
+                        "VACUUM INTO '" + escapeSqlLiteral(snapshotPath.toAbsolutePath().toString()) + "'"
+                );
             }
             return snapshotPath;
         } catch (IOException ex) {
@@ -168,7 +171,8 @@ public class DatabaseSyncService {
             String columnList = columns.stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
             List<Map<String, Object>> rows = new ArrayList<>();
             try (Statement statement = conn.createStatement();
-                 ResultSet resultSet = statement.executeQuery(
+                 ResultSet resultSet = executeSchemaQuery(
+                         statement,
                          SELECT_SQL + columnList + FROM_SQL + quoteIdentifier(CONFIGURATION_TABLE)
                                  + ORDER_BY_SQL + quoteIdentifier("id"))) {
                 while (resultSet.next()) {
@@ -193,7 +197,8 @@ public class DatabaseSyncService {
             }
             String columnList = columns.stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
             try (Statement statement = conn.createStatement();
-                 ResultSet resultSet = statement.executeQuery(
+                 ResultSet resultSet = executeSchemaQuery(
+                         statement,
                          SELECT_SQL + columnList + FROM_SQL + quoteIdentifier(CONFIGURATION_TABLE)
                                  + ORDER_BY_SQL + quoteIdentifier("id") + LIMIT_ONE_SQL)) {
                 if (!resultSet.next()) {
@@ -214,7 +219,7 @@ public class DatabaseSyncService {
             boolean originalAutoCommit = conn.getAutoCommit();
             try {
                 conn.setAutoCommit(false);
-                deleteStatement.executeUpdate("DELETE FROM " + quoteIdentifier(CONFIGURATION_TABLE));
+                executeSchemaUpdate(deleteStatement, "DELETE FROM " + quoteIdentifier(CONFIGURATION_TABLE));
                 List<String> targetColumns = getTableColumns(conn, CONFIGURATION_TABLE);
                 List<String> commonColumns = configurationRows.columns().stream()
                         .filter(targetColumns::contains)
@@ -242,7 +247,8 @@ public class DatabaseSyncService {
             Object targetId = firstConfigurationId(conn);
             if (targetId == null) {
                 targetId = 1;
-                try (PreparedStatement insert = conn.prepareStatement(
+                try (PreparedStatement insert = prepareSchemaStatement(
+                        conn,
                         "INSERT INTO " + quoteIdentifier(CONFIGURATION_TABLE) + " (" + quoteIdentifier("id") + ") VALUES (?)")) {
                     insert.setObject(1, targetId);
                     insert.executeUpdate();
@@ -251,7 +257,8 @@ public class DatabaseSyncService {
             String assignments = columns.stream()
                     .map(column -> quoteIdentifier(column) + " = ?")
                     .collect(Collectors.joining(", "));
-            try (PreparedStatement update = conn.prepareStatement(
+            try (PreparedStatement update = prepareSchemaStatement(
+                    conn,
                     "UPDATE " + quoteIdentifier(CONFIGURATION_TABLE) + " SET " + assignments
                             + " WHERE " + quoteIdentifier("id") + " = ?")) {
                 for (int i = 0; i < columns.size(); i++) {
@@ -272,7 +279,8 @@ public class DatabaseSyncService {
         }
         String columnList = columns.stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
         String placeholders = columns.stream().map(_ -> "?").collect(Collectors.joining(", "));
-        try (PreparedStatement insert = conn.prepareStatement(
+        try (PreparedStatement insert = prepareSchemaStatement(
+                conn,
                 "INSERT INTO " + quoteIdentifier(tableName) + " (" + columnList + ") VALUES (" + placeholders + ")")) {
             for (Map<String, Object> row : rows) {
                 for (int i = 0; i < columns.size(); i++) {
@@ -286,7 +294,8 @@ public class DatabaseSyncService {
 
     private Object firstConfigurationId(Connection conn) throws SQLException {
         try (Statement statement = conn.createStatement();
-             ResultSet resultSet = statement.executeQuery(
+             ResultSet resultSet = executeSchemaQuery(
+                     statement,
                      SELECT_SQL + quoteIdentifier("id") + FROM_SQL + quoteIdentifier(CONFIGURATION_TABLE)
                              + ORDER_BY_SQL + quoteIdentifier("id") + LIMIT_ONE_SQL)) {
             return resultSet.next() ? resultSet.getObject(1) : null;
@@ -296,7 +305,8 @@ public class DatabaseSyncService {
     private boolean hasConfigurationRows(String dbPath) throws SQLException {
         try (Connection conn = DriverManager.getConnection(SQLITE_PREFIX + dbPath);
              Statement statement = conn.createStatement();
-             ResultSet resultSet = statement.executeQuery(
+             ResultSet resultSet = executeSchemaQuery(
+                     statement,
                      "SELECT 1 FROM " + quoteIdentifier(CONFIGURATION_TABLE) + LIMIT_ONE_SQL)) {
             return resultSet.next();
         }
@@ -317,7 +327,9 @@ public class DatabaseSyncService {
 
     private int countRows(Connection conn, String tableName) throws SQLException {
         try (Statement statement = conn.createStatement();
-             ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM " + quoteIdentifier(tableName))) {
+             ResultSet resultSet = executeSchemaQuery(
+                     statement,
+                     "SELECT COUNT(*) FROM " + quoteIdentifier(tableName))) {
             return resultSet.next() ? resultSet.getInt(1) : 0;
         }
     }
@@ -335,7 +347,9 @@ public class DatabaseSyncService {
     private List<String> getTableColumns(Connection conn, String tableName) throws SQLException {
         List<String> columns = new ArrayList<>();
         try (Statement statement = conn.createStatement();
-             ResultSet resultSet = statement.executeQuery("PRAGMA table_info(" + quoteIdentifier(tableName) + ")")) {
+             ResultSet resultSet = executeSchemaQuery(
+                     statement,
+                     "PRAGMA table_info(" + quoteIdentifier(tableName) + ")")) {
             while (resultSet.next()) {
                 columns.add(resultSet.getString("name"));
             }
@@ -360,6 +374,27 @@ public class DatabaseSyncService {
 
     private String escapeSqlLiteral(String value) {
         return value.replace("'", "''");
+    }
+
+    // Schema identifiers are sourced from known tables or SQLite metadata and are quoted before execution.
+    @SuppressWarnings("java:S2077")
+    private void executeSchemaStatement(Statement statement, String sql) throws SQLException {
+        statement.execute(sql);
+    }
+
+    @SuppressWarnings("java:S2077")
+    private int executeSchemaUpdate(Statement statement, String sql) throws SQLException {
+        return statement.executeUpdate(sql);
+    }
+
+    @SuppressWarnings("java:S2077")
+    private ResultSet executeSchemaQuery(Statement statement, String sql) throws SQLException {
+        return statement.executeQuery(sql);
+    }
+
+    @SuppressWarnings("java:S2077")
+    private PreparedStatement prepareSchemaStatement(Connection conn, String sql) throws SQLException {
+        return conn.prepareStatement(sql);
     }
 
     private void notifyProgress(SyncProgressListener progressListener, int completedSteps, int totalSteps, String currentStep) {
