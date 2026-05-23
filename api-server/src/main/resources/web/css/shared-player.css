@@ -61,10 +61,12 @@
 .uiptv-player-controls {
     display: inline-flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 4px;
     padding: 4px 6px;
     border-radius: 6px;
     margin-left: auto;
+    max-width: 100%;
     flex: 0 1 auto;
 }
 
@@ -112,26 +114,8 @@
     position: relative;
 }
 
-.uiptv-control-menu.uiptv-strategy-menu {
-    order: 99;
-    margin-left: auto;
-}
-
 .uiptv-control-menu span {
     display: none;
-}
-
-.uiptv-control-menu.uiptv-strategy-menu span {
-    display: inline;
-    font-size: 0.78rem;
-    margin-left: 4px;
-    white-space: nowrap;
-}
-
-.uiptv-control-menu.uiptv-strategy-menu .uiptv-control-btn {
-    width: auto;
-    padding: 0 6px;
-    gap: 4px;
 }
 
 .uiptv-menu {

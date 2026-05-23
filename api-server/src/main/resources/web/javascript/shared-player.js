@@ -15,12 +15,6 @@
         <button id="reload-btn" class="uiptv-control-btn" type="button" title="Reload" data-action="reload" data-label="Reload">
             <i class="bi bi-arrow-clockwise"></i>
         </button>
-        <div class="uiptv-control-menu uiptv-strategy-menu" data-menu="strategy">
-            <button id="strategy-menu-btn" class="uiptv-control-btn" type="button" title="Reload strategy" data-action="strategy-menu" data-label="Strategy">
-                <span id="strategy-label">Auto</span>
-            </button>
-            <div id="strategy-menu" class="uiptv-menu top-menu" hidden></div>
-        </div>
         <button id="repeat-btn" class="uiptv-control-btn" type="button" title="Repeat" data-action="repeat" data-label="Repeat">
             <i class="bi bi-repeat"></i>
         </button>
@@ -32,6 +26,12 @@
         </button>
         <button id="fullscreen-btn" class="uiptv-control-btn" type="button" title="Fullscreen" data-action="fullscreen" data-label="Fullscreen">
             <i class="bi bi-fullscreen"></i>
+        </button>
+        <button id="hide-panel-btn" class="uiptv-control-btn" type="button" title="Hide player" data-action="hide-panel" data-label="Hide player">
+            <i class="bi bi-eye-slash"></i>
+        </button>
+        <button id="expand-panel-btn" class="uiptv-control-btn" type="button" title="Expand player" data-action="expand-panel" data-label="Expand player">
+            <i class="bi bi-arrows-angle-expand"></i>
         </button>
         <div class="uiptv-control-menu" data-menu="quality">
             <button id="quality-menu-btn" class="uiptv-control-btn" type="button" title="Resolutions" data-action="quality-menu" data-label="Quality">
@@ -88,19 +88,16 @@
             controls: root.querySelector('.uiptv-player-controls'),
             buttons: Array.from(root.querySelectorAll('[data-action]')),
             menus: {
-                strategy: root.querySelector('#strategy-menu'),
                 quality: root.querySelector('#quality-menu'),
                 audio: root.querySelector('#audio-menu'),
                 subtitle: root.querySelector('#subtitle-menu')
             },
             menuButtons: {
-                strategy: root.querySelector('#strategy-menu-btn'),
                 quality: root.querySelector('#quality-menu-btn'),
                 audio: root.querySelector('#audio-menu-btn'),
                 subtitle: root.querySelector('#subtitle-menu-btn')
             },
             menuWrappers: {
-                strategy: root.querySelector('[data-menu="strategy"]'),
                 quality: root.querySelector('[data-menu="quality"]'),
                 audio: root.querySelector('[data-menu="audio"]'),
                 subtitle: root.querySelector('[data-menu="subtitle"]')
@@ -124,7 +121,7 @@
         };
 
         const bindActions = (actions = {}, options = {}) => {
-            const alwaysEnabledActions = new Set(['reload', 'strategy-menu']);
+            const alwaysEnabledActions = new Set(['reload']);
             actionHandlers = actions || {};
             const hideMissing = options.hideMissing === true;
             nodes.buttons.forEach((button) => {
@@ -156,7 +153,6 @@
                     if (button.classList.contains('uiptv-disabled')) {
                         return;
                     }
-                    if (action === 'strategy-menu') return toggleMenu('strategy');
                     if (action === 'quality-menu') return toggleMenu('quality');
                     if (action === 'audio-menu') return toggleMenu('audio');
                     if (action === 'subtitle-menu') return toggleMenu('subtitle');
@@ -199,20 +195,13 @@
             });
         };
 
-        const setMenus = ({strategy = [], quality = [], audio = [], subtitle = []} = {}) => {
-            renderMenuItems(nodes.menus.strategy, strategy);
+        const setMenus = ({quality = [], audio = [], subtitle = []} = {}) => {
             renderMenuItems(nodes.menus.quality, quality);
             renderMenuItems(nodes.menus.audio, audio);
             renderMenuItems(nodes.menus.subtitle, subtitle);
             const setMenuAvailability = (key, items) => {
                 const btn = nodes.menuButtons[key];
                 if (!btn) return;
-                if (key === 'strategy') {
-                    btn.classList.remove('uiptv-disabled');
-                    btn.removeAttribute('aria-disabled');
-                    btn.title = btn.dataset.label || btn.title;
-                    return;
-                }
                 const hasItems = items && items.length > 0;
                 if (hasItems) {
                     btn.classList.remove('uiptv-disabled');
@@ -225,7 +214,6 @@
                     btn.title = `${label} is not available`;
                 }
             };
-            setMenuAvailability('strategy', strategy);
             setMenuAvailability('quality', quality);
             setMenuAvailability('audio', audio);
             setMenuAvailability('subtitle', subtitle);
@@ -245,20 +233,17 @@
             }
         };
 
-        const setState = ({repeatEnabled, isMuted, isFullscreen, isFavorite, isPlaying, strategyLabel} = {}) => {
+        const setState = ({repeatEnabled, isMuted, isFullscreen, isFavorite, isPlaying, isPanelExpanded} = {}) => {
             const repeatBtn = root.querySelector('#repeat-btn');
             const muteBtn = root.querySelector('#mute-btn');
             const fullscreenBtn = root.querySelector('#fullscreen-btn');
             const favoriteBtn = root.querySelector('#favorite-btn');
-            const strategyLabelEl = root.querySelector('#strategy-label');
+            const expandPanelBtn = root.querySelector('#expand-panel-btn');
             if (nodes.header && typeof isPlaying !== 'undefined') {
                 nodes.header.dataset.state = isPlaying ? 'active' : 'inactive';
                 if (!isPlaying) {
                     closeMenus();
                 }
-            }
-            if (strategyLabelEl && strategyLabel) {
-                strategyLabelEl.textContent = strategyLabel;
             }
             if (repeatBtn) {
                 repeatBtn.setAttribute('aria-pressed', repeatEnabled ? 'true' : 'false');
@@ -276,6 +261,12 @@
                 fullscreenBtn.title = isFullscreen ? 'Exit fullscreen' : 'Fullscreen';
                 const icon = fullscreenBtn.querySelector('i');
                 if (icon) icon.className = isFullscreen ? 'bi bi-fullscreen-exit' : 'bi bi-fullscreen';
+            }
+            if (expandPanelBtn) {
+                expandPanelBtn.setAttribute('aria-pressed', isPanelExpanded ? 'true' : 'false');
+                expandPanelBtn.title = isPanelExpanded ? 'Restore player panel' : 'Expand player';
+                const icon = expandPanelBtn.querySelector('i');
+                if (icon) icon.className = isPanelExpanded ? 'bi bi-layout-sidebar-inset-reverse' : 'bi bi-arrows-angle-expand';
             }
             if (favoriteBtn) {
                 favoriteBtn.setAttribute('aria-pressed', isFavorite ? 'true' : 'false');

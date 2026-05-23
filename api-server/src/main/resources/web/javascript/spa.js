@@ -2855,12 +2855,6 @@ createApp({
             return [accountId, id, url].join('|');
         };
 
-        const updateStrategyOverride = (value) => {
-            strategyOverride.value = String(value || 'auto').toLowerCase();
-            syncSharedHeader();
-            syncSharedMenus();
-        };
-
         const clearVideoElement = (video) => {
             if (!video) return;
             video.onended = null;
@@ -3669,11 +3663,12 @@ createApp({
                 pip: (event) => onPlayerControlClick(event, togglePictureInPicture),
                 mute: (event) => onPlayerControlClick(event, toggleMute),
                 fullscreen: (event) => onPlayerControlClick(event, requestFullscreenPlayer),
+                'hide-panel': hidePlayerPanel,
+                'expand-panel': togglePlayerExpanded,
                 stop: (event) => onPlayerControlClick(event, stopPlaybackAndHide),
                 'quality-menu': () => {},
                 'audio-menu': () => {},
-                'subtitle-menu': () => {},
-                'strategy-menu': () => {}
+                'subtitle-menu': () => {}
             }, {hideMissing: false});
             syncSharedHeader();
             syncSharedMenus();
@@ -3690,7 +3685,7 @@ createApp({
                 isFullscreen: isFullscreen.value,
                 isFavorite: isCurrentFavorite.value,
                 isPlaying: headerVisible,
-                strategyLabel: strategyOverride.value === 'mpegts' ? 'MPEGTS' : strategyOverride.value === 'proxy' ? 'Proxy' : strategyOverride.value === 'direct' ? 'Direct' : 'Auto'
+                isPanelExpanded: playerExpanded.value
             });
             sharedHeader.setTitle({
                 title: baseTitle,
@@ -3761,12 +3756,6 @@ createApp({
             }
 
             sharedHeader.setMenus({
-                strategy: [
-                    {label: 'Auto', active: strategyOverride.value === 'auto', onSelect: () => updateStrategyOverride('auto')},
-                    {label: 'Direct', active: strategyOverride.value === 'direct', onSelect: () => updateStrategyOverride('direct')},
-                    {label: 'MPEGTS', active: strategyOverride.value === 'mpegts', onSelect: () => updateStrategyOverride('mpegts')},
-                    {label: 'Proxy', active: strategyOverride.value === 'proxy', onSelect: () => updateStrategyOverride('proxy')}
-                ],
                 quality: qualityItems,
                 audio: audioItems,
                 subtitle: subtitleItems
