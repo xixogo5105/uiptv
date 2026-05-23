@@ -64,10 +64,9 @@
 html,
 body {
     width: 100%;
-    min-height: 100%;
+    height: 100%;
     margin: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
     background: var(--bg);
     color: var(--text);
     font-family: Inter, Roboto, "Segoe UI", Arial, sans-serif;
@@ -99,22 +98,24 @@ a[href] {
 
 .app-shell {
     width: 100%;
-    min-height: 100vh;
+    min-height: 0;
+    height: 100vh;
+    height: 100dvh;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     background: var(--bg);
-    overflow: visible;
+    overflow: hidden;
 }
 
 .workspace {
     min-width: 0;
-    min-height: 100vh;
+    min-height: 0;
+    height: 100%;
     padding: 12px;
     display: grid;
-    grid-template-rows: auto auto;
-    align-content: start;
+    grid-template-rows: auto minmax(0, 1fr);
     gap: 12px;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .topbar {
@@ -170,7 +171,6 @@ a[href] {
     color: var(--text);
 }
 
-.brand small,
 .player-topline span {
     display: block;
     max-width: 460px;
@@ -315,11 +315,12 @@ a[href] {
 .content-shell {
     min-width: 0;
     min-height: 0;
+    height: 100%;
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
     gap: 12px;
-    align-items: start;
-    overflow: visible;
+    align-items: stretch;
+    overflow: hidden;
 }
 
 .content-shell.player-hidden {
@@ -339,19 +340,21 @@ a[href] {
     background: var(--surface);
     border: 1px solid color-mix(in srgb, var(--outline) 28%, transparent);
     box-shadow: 0 8px 24px var(--shadow);
-    overflow: visible;
+    overflow: hidden;
 }
 
 .content-stage {
     display: block;
+    height: 100%;
 }
 
 .content-screen {
     display: grid;
-    grid-template-rows: auto auto auto;
+    height: 100%;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 10px;
     padding: 12px;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .screen-heading {
@@ -399,8 +402,11 @@ a[href] {
 .panel-list {
     min-width: 0;
     min-height: 0;
-    overflow: visible;
-    padding-right: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
 }
 
 .content-grid,
@@ -498,6 +504,19 @@ a[href] {
 .logo-img {
     object-fit: contain;
     background: var(--surface-highest);
+}
+
+.logo-img.image-load-failed,
+.poster-img.image-load-failed,
+.poster-thumb.image-load-failed {
+    display: none !important;
+}
+
+.logo-img.image-load-failed + .logo-box,
+.poster-img.image-load-failed + .poster-fallback,
+.poster-thumb.image-load-failed + .poster-fallback,
+.image-fallback-visible {
+    display: grid !important;
 }
 
 .poster-img,
@@ -688,30 +707,33 @@ a[href] {
 .accounts-drilldown {
     min-width: 0;
     min-height: 0;
+    height: 100%;
     display: grid;
     grid-template-columns: minmax(240px, 0.55fr) minmax(320px, 1fr);
     gap: 10px;
-    align-items: start;
-    overflow: visible;
+    align-items: stretch;
+    overflow: hidden;
 }
 
 .watching-layout {
     min-width: 0;
     min-height: 0;
+    height: 100%;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 10px;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .watching-detail-layout {
     min-width: 0;
     min-height: 0;
+    height: 100%;
     display: grid;
     grid-template-columns: minmax(260px, 0.42fr) minmax(360px, 1fr);
     gap: 10px;
-    align-items: start;
-    overflow: visible;
+    align-items: stretch;
+    overflow: hidden;
 }
 
 .browser-panel {
@@ -721,10 +743,10 @@ a[href] {
     background: var(--surface-high);
     border: 1px solid color-mix(in srgb, var(--outline) 24%, transparent);
     display: grid;
-    grid-template-rows: auto auto;
+    grid-template-rows: auto minmax(0, 1fr);
     gap: 8px;
     padding: 10px;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .account-category-panel {
@@ -897,9 +919,15 @@ a[href] {
 .player-panel {
     display: grid;
     grid-template-rows: auto auto auto;
+    align-content: start;
     gap: 10px;
     padding: 12px;
-    align-self: start;
+    align-self: stretch;
+    max-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
 }
 
 .player-topline {
@@ -1014,16 +1042,16 @@ a[href] {
     height: 6px;
     border-radius: 999px;
     overflow: hidden;
-    background: var(--surface-highest);
+    background: color-mix(in srgb, var(--muted) 18%, var(--surface-highest));
+    opacity: 0.72;
 }
 
 .player-live-progress span {
     display: block;
-    width: 42%;
+    width: 100%;
     height: 100%;
     border-radius: inherit;
-    background: var(--accent);
-    animation: live-progress-pulse 1.6s ease-in-out infinite;
+    background: color-mix(in srgb, var(--muted) 18%, transparent);
 }
 
 .uiptv-shared-player {
@@ -1105,18 +1133,6 @@ a[href] {
     }
 }
 
-@keyframes live-progress-pulse {
-    0%,
-    100% {
-        transform: translateX(-8%);
-        opacity: 0.58;
-    }
-    50% {
-        transform: translateX(138%);
-        opacity: 1;
-    }
-}
-
 .app-shell.player-expanded {
     grid-template-columns: minmax(0, 1fr);
     min-height: 100vh;
@@ -1190,43 +1206,45 @@ a[href] {
 
     .content-shell {
         grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
     }
 
     .content-shell.player-hidden {
         grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .content-shell:not(.player-hidden) .content-stage {
+        grid-row: 2;
+    }
+
+    .content-shell.player-hidden .content-stage {
+        grid-row: 1;
     }
 
     .player-panel {
         grid-row: 1;
+        max-height: min(42vh, 420px);
     }
 }
 
 @media (max-width: 920px) {
     html,
     body {
-        overflow-x: hidden;
-        overflow-y: auto;
+        overflow: hidden;
     }
 
     .app-shell {
-        min-height: 100vh;
-        height: auto;
+        min-height: 0;
+        height: 100vh;
+        height: 100dvh;
         grid-template-columns: minmax(0, 1fr);
     }
 
     .workspace {
-        height: auto;
-        overflow: visible;
-    }
-
-    .content-shell,
-    .content-stage,
-    .content-screen,
-    .accounts-drilldown,
-    .watching-layout,
-    .watching-detail-layout {
-        overflow: visible;
-        min-height: auto;
+        min-height: 0;
+        height: 100%;
+        overflow: hidden;
     }
 
     .topbar {
@@ -1241,7 +1259,7 @@ a[href] {
     .top-tabs {
         grid-row: 2;
         flex-wrap: wrap;
-        overflow: visible;
+        overflow: hidden;
         padding-bottom: 2px;
     }
 
@@ -1268,6 +1286,7 @@ a[href] {
     }
 
     .player-panel {
-        grid-row: auto;
+        grid-row: 1;
+        max-height: min(46vh, 380px);
     }
 }

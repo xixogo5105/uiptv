@@ -608,16 +608,6 @@ createApp({
             return contentModeLabels[contentMode.value] || 'Content';
         });
 
-        const activeSurfaceSubtitle = computed(() => {
-            if (playerExpanded.value) return 'Expanded player';
-            if (activeTab.value === 'bookmarks') return 'Bookmarks';
-            if (activeTab.value === 'accounts') {
-                return viewState.value === 'accounts' ? 'Accounts' : currentAccountName.value;
-            }
-            if (activeTab.value === 'watchingNow') return 'Watching Now';
-            return 'Content browser';
-        });
-
         const supportsVodSeriesForSelectedAccount = computed(() => {
             const accountType = String(currentContext.value.accountType || '').toUpperCase();
             return SUPPORTED_MULTI_MODE_TYPES.has(accountType);
@@ -3065,12 +3055,19 @@ createApp({
             bindPlaybackEvents(video);
 
             const override = String(strategyOverride.value || 'auto').toLowerCase();
-            const isApple = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
+            const userAgent = navigator.userAgent || '';
+            const isIos = /iPhone|iPad|iPod/i.test(userAgent);
+            const isSafari = /Safari/i.test(userAgent) && !/Chrome|CriOS|Chromium|Edg|OPR|Firefox|FxiOS/i.test(userAgent);
             const canNative = Boolean(video.canPlayType('application/vnd.apple.mpegurl'));
             const hasDRM = channel.drm != null;
             const normalizedUri = String(uri || '').toLowerCase();
             const manifestType = String(channel?.drm?.manifestType || channel?.manifestType || '').toLowerCase();
             const isTs = isTsLikeUrl(normalizedUri, manifestType);
+            const isHls = manifestType === 'hls'
+                || manifestType === 'm3u8'
+                || normalizedUri.includes('.m3u8')
+                || normalizedUri.includes('.m3u?');
+            const prefersNativeHls = canNative && (isIos || isSafari);
 
             if (override === 'proxy') {
                 const proxyUrl = buildProxyStreamUrl(uri) || uri;
@@ -3086,15 +3083,17 @@ createApp({
                 return;
             }
 
-            const preferShakaFallback = !(isApple && canNative) && !(canNative && uri.endsWith('.m3u8'));
+            const preferShakaFallback = isHls && !prefersNativeHls;
             try {
                 if (hasDRM) {
                     await loadShaka(channel);
                 } else if (isTs) {
                     await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)});
-                } else if (isApple && canNative) {
+                } else if (isHls && prefersNativeHls) {
                     await loadNative(channel);
-                } else if (canNative && uri.endsWith('.m3u8')) {
+                } else if (isHls) {
+                    await loadShaka(channel);
+                } else if (canNative) {
                     await loadNative(channel);
                 } else {
                     await loadShaka(channel);
@@ -3302,6 +3301,7 @@ createApp({
             try {
                 await player.attach(video);
                 await player.load(channel.url);
+                await video.play();
                 playbackMode.value = resolvePlaybackModeLabel(channel.url, 'shaka');
                 refreshShakaTracks(player);
                 player.addEventListener('trackschanged', () => refreshShakaTracks(player));
@@ -3782,18 +3782,24 @@ createApp({
         };
 
         const imageError = (e) => {
-            e.target.style.display = 'none';
-            const icon = e.target.nextElementSibling;
-            if (isImageFallbackElement(icon)) {
-                icon.style.display = '';
+            const image = e.target;
+            image.classList.add('image-load-failed');
+            image.style.display = 'none';
+            const fallback = image.nextElementSibling;
+            if (isImageFallbackElement(fallback)) {
+                fallback.classList.add('image-fallback-visible');
+                fallback.style.display = '';
             }
         };
 
         const imageLoad = (e) => {
-            e.target.style.display = '';
-            const icon = e.target.nextElementSibling;
-            if (isImageFallbackElement(icon)) {
-                icon.style.display = 'none';
+            const image = e.target;
+            image.classList.remove('image-load-failed');
+            image.style.display = '';
+            const fallback = image.nextElementSibling;
+            if (isImageFallbackElement(fallback)) {
+                fallback.classList.remove('image-fallback-visible');
+                fallback.style.display = 'none';
             }
         };
 
@@ -3958,7 +3964,6 @@ createApp({
             searchVisible,
             searchPlaceholder,
             searchFieldVisible,
-            activeSurfaceSubtitle,
             selectedAccountTypeFilter,
             filteredAccounts,
             filteredCategories,
