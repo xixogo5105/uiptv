@@ -1192,6 +1192,18 @@ createApp({
             return `${window.location.origin}/${raw.replace(/^\.?\//, '')}`;
         };
 
+        const fallbackInitials = (label, fallback = 'TV') => {
+            const clean = normalizeDisplayText(label).replace(/[^\p{L}\p{N}\s]+/gu, ' ').trim();
+            const words = clean.split(/\s+/).filter(Boolean);
+            if (words.length >= 2) {
+                return words.slice(0, 2).map(word => word.charAt(0).toUpperCase()).join('');
+            }
+            if (words.length === 1) {
+                return words[0].slice(0, 2).toUpperCase();
+            }
+            return String(fallback || 'TV').slice(0, 3).toUpperCase();
+        };
+
         const normalizeChannel = (channel = {}) => ({
             ...channel,
             name: resolveDisplayName(channel) || normalizeDisplayText(channel.name) || channel.name || '',
@@ -3980,6 +3992,7 @@ createApp({
             getVodPlot,
             getImdbUrl,
             formatShortDate,
+            fallbackInitials,
             playVodFromDetail,
             startBingeWatchSeason,
             selectBookmarkCategory,
