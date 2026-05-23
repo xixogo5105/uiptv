@@ -63,6 +63,9 @@ createApp({
         const controlsVisible = ref(false);
         const isFullscreen = ref(false);
         const playbackLoading = ref(false);
+        const playbackCurrentTime = ref(0);
+        const playbackDuration = ref(0);
+        const playbackProgressDragging = ref(false);
         const pendingPlaybackKey = ref('');
         const strategyOverride = ref('auto');
         let strategyOverrideKey = '';
@@ -937,6 +940,8 @@ createApp({
             !!currentChannel.value || !!isPlaying.value || !!playbackLoading.value || !!playbackError.value
         );
         const playerPanelVisible = computed(() => hasPlayerContent.value && !playerManuallyHidden.value);
+        const playbackSeekable = computed(() => Number.isFinite(playbackDuration.value) && playbackDuration.value > 0);
+        const widePlayerProgressVisible = computed(() => playerExpanded.value && isPlaying.value);
 
         const setBrowserTitle = () => {
             const channelTitle = String(currentChannelDebugTitle.value || '').trim();
@@ -2663,6 +2668,56 @@ createApp({
             }
         };
 
+        const readFiniteDuration = (video) => {
+            const duration = Number(video?.duration || 0);
+            return Number.isFinite(duration) && duration > 0 ? duration : 0;
+        };
+
+        const resetPlaybackProgress = () => {
+            playbackCurrentTime.value = 0;
+            playbackDuration.value = 0;
+            playbackProgressDragging.value = false;
+        };
+
+        const syncPlaybackProgress = () => {
+            const video = videoPlayer.value;
+            if (!video) {
+                resetPlaybackProgress();
+                return;
+            }
+            playbackDuration.value = readFiniteDuration(video);
+            if (!playbackProgressDragging.value) {
+                const currentTime = Number(video.currentTime || 0);
+                playbackCurrentTime.value = Number.isFinite(currentTime) && currentTime > 0 ? currentTime : 0;
+            }
+        };
+
+        const formatPlaybackTime = (seconds) => {
+            const totalSeconds = Math.max(0, Math.floor(Number(seconds || 0)));
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const secs = totalSeconds % 60;
+            const pad = (value) => String(value).padStart(2, '0');
+            return hours > 0
+                ? `${hours}:${pad(minutes)}:${pad(secs)}`
+                : `${minutes}:${pad(secs)}`;
+        };
+
+        const seekPlayback = (event) => {
+            const video = videoPlayer.value;
+            if (!video || !playbackSeekable.value) return;
+            const requestedTime = Number(event?.target?.value || 0);
+            if (!Number.isFinite(requestedTime)) return;
+            const nextTime = Math.min(Math.max(requestedTime, 0), playbackDuration.value);
+            playbackProgressDragging.value = true;
+            playbackCurrentTime.value = nextTime;
+            try {
+                video.currentTime = nextTime;
+            } finally {
+                playbackProgressDragging.value = false;
+            }
+        };
+
         const bindPlaybackEvents = (video) => {
             if (!video) return;
             applyMutePreference(video);
@@ -2675,7 +2730,12 @@ createApp({
             video.onvolumechange = () => {
                 isMuted.value = video.muted || video.volume === 0;
             };
+            video.ontimeupdate = syncPlaybackProgress;
+            video.ondurationchange = syncPlaybackProgress;
+            video.onloadedmetadata = syncPlaybackProgress;
+            video.onprogress = syncPlaybackProgress;
             isMuted.value = video.muted || video.volume === 0;
+            syncPlaybackProgress();
         };
 
         const clearActiveBingeWatch = () => {
@@ -2797,10 +2857,17 @@ createApp({
         const clearVideoElement = (video) => {
             if (!video) return;
             video.onended = null;
+            video.onerror = null;
+            video.onvolumechange = null;
+            video.ontimeupdate = null;
+            video.ondurationchange = null;
+            video.onloadedmetadata = null;
+            video.onprogress = null;
             video.pause();
             video.src = '';
             video.removeAttribute('src');
             video.load();
+            resetPlaybackProgress();
         };
 
         const isSamePlaybackTarget = (a, b) => {
@@ -3845,6 +3912,10 @@ createApp({
             currentCategoryTitle,
             contentPanelTitle,
             playbackMode,
+            playbackCurrentTime,
+            playbackDuration,
+            playbackSeekable,
+            widePlayerProgressVisible,
             isActiveChannel,
             isActiveBookmark,
             isActiveWatchingNowRow,
@@ -3921,6 +3992,8 @@ createApp({
             hidePlayerPanel,
             togglePlayerPanel,
             togglePlayerExpanded,
+            formatPlaybackTime,
+            seekPlayback,
             removeRecentlyPlayedBookmark,
             onBookmarkCardClick,
             onBookmarkDragStart,
