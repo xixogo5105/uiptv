@@ -598,7 +598,7 @@ class AndroidUiptvDatabaseCompatibilityTest {
 
         assertTrue(embeddedResult.launched)
         assertEquals(0, helper.writableDatabase.countRows("VodWatchState", "accountId = '$accountId' AND vodId = 'vod-embedded'"))
-        assertEquals(EmbeddedPlayerActivity::class.java.name, startedIntents.last().component?.className)
+        assertEquals(MpvEmbeddedPlayerActivity::class.java.name, startedIntents.last().component?.className)
 
         val nativeResult = coordinator.playBrowseItem(
             playbackItem(accountId, BrowseMode.VOD, "vod-cat", "vod-native", "Native Movie"),
@@ -1126,7 +1126,7 @@ class AndroidUiptvDatabaseCompatibilityTest {
         assertEquals(1, session.startIndex)
         assertEquals("ffrt http://localhost/ch/ep-2", intent.getStringExtra(NativePlayerActivity.EXTRA_URL))
         assertEquals(listOf("ffrt http://localhost/ch/ep-1", "ffrt http://localhost/ch/ep-2"), session.targets.map { it.url })
-        assertEquals(EmbeddedPlayerActivity::class.java.name, intent.component?.className)
+        assertEquals(MpvEmbeddedPlayerActivity::class.java.name, intent.component?.className)
         AndroidBingeWatchSessionStore.clear()
     }
 

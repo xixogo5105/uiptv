@@ -36,10 +36,11 @@
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:exported="false" />
         <activity
-            android:name=".EmbeddedPlayerActivity"
+            android:name=".MpvEmbeddedPlayerActivity"
             android:configChanges="keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
             android:exported="false"
             android:resizeableActivity="true"
+            android:screenOrientation="sensorLandscape"
             android:supportsPictureInPicture="true" />
         <activity
             android:name=".MainActivity"

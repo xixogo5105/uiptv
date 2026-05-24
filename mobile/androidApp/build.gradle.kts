@@ -67,7 +67,11 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer.dash)
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.ui)
-    implementation(libs.libvlc.all)
+    val api24LibmpvAar = file("libs/libmpv-android-api24.aar")
+    if (!api24LibmpvAar.isFile) {
+        throw GradleException("Missing $api24LibmpvAar. Build or copy the Android 7/API 24 libmpv AAR before assembling the app.")
+    }
+    implementation(files(api24LibmpvAar))
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.kotlinx.coroutines.core)

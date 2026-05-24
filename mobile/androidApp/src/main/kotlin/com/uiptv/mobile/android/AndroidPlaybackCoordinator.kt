@@ -297,7 +297,7 @@ class AndroidPlaybackCoordinator(
     }
 
     private fun embeddedPlayerIntent(target: PlaybackTarget): Intent =
-        playbackIntent(target, EmbeddedPlayerActivity::class.java)
+        playbackIntent(target, MpvEmbeddedPlayerActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
     private fun nativePlayerIntent(target: PlaybackTarget): Intent =

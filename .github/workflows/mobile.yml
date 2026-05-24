@@ -28,9 +28,8 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Run Android checks
-        working-directory: mobile
-        run: ./gradlew :shared:allTests :shared:koverVerify :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
+      - name: Build libmpv and run Android checks
+        run: ./scripts/build-mobile-with-libmpv.sh :shared:allTests :shared:koverVerify :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
