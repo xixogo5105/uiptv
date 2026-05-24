@@ -125,7 +125,7 @@ A separate APK per CPU architecture is not required unless we choose to reduce d
 
 ## CI Build
 
-`.github/workflows/mobile.yml` runs the mobile checks on every push and pull request. It builds the debug APK and uploads it as a workflow artifact named `uiptv-mobile-debug-apk`.
+`.github/workflows/mobile.yml` packages the debug APK on every push and pull request, using the prebuilt API 24 libmpv AAR, and uploads it as a workflow artifact named `uiptv-mobile-debug-apk`. Shared mobile tests and coverage run in the main build workflow.
 
 ## User And Release Docs
 

@@ -49,11 +49,11 @@ jobs:
             --dir mobile/androidApp/libs
           echo "880cb9cbbdc36c2fdadc9cc075f5743e1d284a19a8805c4f7e8f71585dcf1047  mobile/androidApp/libs/libmpv-android-api24.aar" | sha256sum -c -
 
-      - name: Run Android checks with prebuilt libmpv
+      - name: Package Android debug APK with prebuilt libmpv
         env:
           UIPTV_LIBMPV_REQUIRE_AAR: "1"
           UIPTV_LIBMPV_REUSE_AAR: "1"
-        run: ./scripts/build-mobile-with-libmpv.sh :shared:allTests :shared:koverVerify :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
+        run: ./scripts/build-mobile-with-libmpv.sh :androidApp:assembleDebug
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
