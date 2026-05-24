@@ -37,14 +37,21 @@ jobs:
           restore-keys: |
             libmpv-api24-aar-${{ runner.os }}-v1-
 
-      - name: Install libmpv native build tools
+      - name: Download API 24 libmpv AAR
         if: steps.libmpv-aar-cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gperf
-
-      - name: Build libmpv and run Android checks
         env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p mobile/androidApp/libs
+          gh release download libmpv-android-api24 \
+            --repo xixogo5105/uiptv \
+            --pattern libmpv-android-api24.aar \
+            --dir mobile/androidApp/libs
+          echo "880cb9cbbdc36c2fdadc9cc075f5743e1d284a19a8805c4f7e8f71585dcf1047  mobile/androidApp/libs/libmpv-android-api24.aar" | sha256sum -c -
+
+      - name: Run Android checks with prebuilt libmpv
+        env:
+          UIPTV_LIBMPV_REQUIRE_AAR: "1"
           UIPTV_LIBMPV_REUSE_AAR: "1"
         run: ./scripts/build-mobile-with-libmpv.sh :shared:allTests :shared:koverVerify :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
 

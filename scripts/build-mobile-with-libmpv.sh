@@ -32,6 +32,10 @@ reuse_existing_mobile_aar() {
     return
   fi
   if [ ! -f "$mobile_aar" ]; then
+    if [ "${UIPTV_LIBMPV_REQUIRE_AAR:-0}" = "1" ]; then
+      printf 'Expected prebuilt API 24 libmpv AAR was not found: %s\n' "$mobile_aar" >&2
+      exit 1
+    fi
     log "No cached API 24 libmpv AAR found at $mobile_aar; rebuilding."
     return
   fi

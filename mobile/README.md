@@ -16,13 +16,13 @@ This is the Android-first Kotlin Multiplatform workspace for UIPTV mobile.
 
 ### libmpv Dependency
 
-The app depends on an Android 7/API 24 rebuild of `dev.jdtech.mpv:libmpv`. Local and CI builds generate the Android 7-compatible AAR before compiling the mobile app.
+The app depends on an Android 7/API 24 rebuild of `dev.jdtech.mpv:libmpv`. CI restores the prebuilt AAR from cache or downloads the `libmpv-android-api24` GitHub release asset before compiling the mobile app.
 
 ```bash
 ./scripts/build-mobile-with-libmpv.sh :androidApp:assembleDebug
 ```
 
-Run this command from the repository root. The script clones or updates `../libmpv-android`, applies the API 24 compatibility patch, builds `libmpv-release.aar`, copies it to `mobile/androidApp/libs/libmpv-android-api24.aar`, then runs the requested Gradle tasks.
+Run this command from the repository root. If `mobile/androidApp/libs/libmpv-android-api24.aar` already exists and `UIPTV_LIBMPV_REUSE_AAR=1` is set, the script reuses it. Otherwise it clones or updates `../libmpv-android`, applies the API 24 compatibility patch, builds `libmpv-release.aar`, copies it to `mobile/androidApp/libs/libmpv-android-api24.aar`, then runs the requested Gradle tasks.
 
 To update libmpv later, run the same script. It pulls the sibling checkout before rebuilding. The generated `mobile/androidApp/libs/` directory is intentionally ignored by git.
 
