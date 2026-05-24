@@ -3,23 +3,30 @@ package com.uiptv.server;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.testsupport.DbBackedTest;
+import com.uiptv.util.Platform;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.ServerSocket;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
+import java.security.KeyStore;
+import java.security.cert.Certificate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class UIptvServerTest extends DbBackedTest {
+    private static final String HTTPS_KEYSTORE_FILENAME = "uiptv-local-https.p12";
+    private static final String HTTPS_KEYSTORE_PROTECTION_FILENAME = "uiptv-local-https.bin";
+    private static final String HTTPS_KEY_ALIAS = "uiptv-local-https";
+    private static final String TRUSTED_CERTIFICATE_ALIAS = "uiptv-local-https-test";
+
     @TempDir
     Path tempDir;
 
@@ -106,8 +113,7 @@ class UIptvServerTest extends DbBackedTest {
     }
 
     private int httpsStatus(int port) throws Exception {
-        SSLContext sslContext = SSLContext.getInstance("TLS");
-        sslContext.init(null, new TrustManager[]{trustAllManager()}, new SecureRandom());
+        SSLContext sslContext = trustedLocalHttpsContext();
         HttpsURLConnection connection = (HttpsURLConnection) URI.create("https://127.0.0.1:" + port + "/manifest.json")
                 .toURL()
                 .openConnection();
@@ -117,22 +123,27 @@ class UIptvServerTest extends DbBackedTest {
         return connection.getResponseCode();
     }
 
-    private X509TrustManager trustAllManager() {
-        return new X509TrustManager() {
-            @Override
-            public void checkClientTrusted(X509Certificate[] chain, String authType) {
-                // Test-only trust manager.
-            }
+    private SSLContext trustedLocalHttpsContext() throws Exception {
+        KeyStore serverKeyStore = KeyStore.getInstance("PKCS12");
+        Path certificateDirectory = Path.of(Platform.getUserHomeDirPath());
+        char[] protection = Files.readString(certificateDirectory.resolve(HTTPS_KEYSTORE_PROTECTION_FILENAME), StandardCharsets.US_ASCII)
+                .trim()
+                .toCharArray();
+        try (var input = Files.newInputStream(certificateDirectory.resolve(HTTPS_KEYSTORE_FILENAME))) {
+            serverKeyStore.load(input, protection);
+        }
 
-            @Override
-            public void checkServerTrusted(X509Certificate[] chain, String authType) {
-                // Test-only trust manager.
-            }
+        Certificate certificate = serverKeyStore.getCertificate(HTTPS_KEY_ALIAS);
+        assertNotNull(certificate);
 
-            @Override
-            public X509Certificate[] getAcceptedIssuers() {
-                return new X509Certificate[0];
-            }
-        };
+        KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        trustStore.load(null, null);
+        trustStore.setCertificateEntry(TRUSTED_CERTIFICATE_ALIAS, certificate);
+
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        trustManagerFactory.init(trustStore);
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, trustManagerFactory.getTrustManagers(), null);
+        return sslContext;
     }
 }
