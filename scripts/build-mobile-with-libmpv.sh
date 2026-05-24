@@ -27,6 +27,20 @@ patch_files=(
   "libmpv/build.gradle.kts"
 )
 
+reuse_existing_mobile_aar() {
+  if [ "${UIPTV_LIBMPV_REUSE_AAR:-0}" != "1" ]; then
+    return
+  fi
+  if [ ! -f "$mobile_aar" ]; then
+    log "No cached API 24 libmpv AAR found at $mobile_aar; rebuilding."
+    return
+  fi
+
+  log "Reusing cached API 24 libmpv AAR at $mobile_aar"
+  build_mobile
+  exit 0
+}
+
 detect_android_home() {
   if [ -n "${ANDROID_HOME:-}" ]; then
     return
@@ -158,6 +172,7 @@ build_mobile() {
   )
 }
 
+reuse_existing_mobile_aar
 detect_android_home
 ensure_libmpv_checkout
 link_existing_android_sdk

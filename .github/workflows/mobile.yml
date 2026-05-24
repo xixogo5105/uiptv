@@ -28,7 +28,24 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Restore API 24 libmpv AAR
+        id: libmpv-aar-cache
+        uses: actions/cache@v5
+        with:
+          path: mobile/androidApp/libs/libmpv-android-api24.aar
+          key: libmpv-api24-aar-${{ runner.os }}-v1-${{ hashFiles('scripts/build-mobile-with-libmpv.sh', 'mobile/androidApp/build.gradle.kts') }}
+          restore-keys: |
+            libmpv-api24-aar-${{ runner.os }}-v1-
+
+      - name: Install libmpv native build tools
+        if: steps.libmpv-aar-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gperf
+
       - name: Build libmpv and run Android checks
+        env:
+          UIPTV_LIBMPV_REUSE_AAR: "1"
         run: ./scripts/build-mobile-with-libmpv.sh :shared:allTests :shared:koverVerify :androidApp:assembleDebug :androidApp:compileDebugAndroidTestKotlin
 
       - name: Upload debug APK
