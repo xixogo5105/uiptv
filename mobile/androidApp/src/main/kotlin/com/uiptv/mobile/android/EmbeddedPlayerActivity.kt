@@ -122,6 +122,12 @@ class EmbeddedPlayerActivity : Activity() {
             }
         }
     }
+    private val playbackHealthRunnable = object : Runnable {
+        override fun run() {
+            inspectPlaybackHealth()
+            schedulePlaybackHealthCheck()
+        }
+    }
     private var playbackStarted = false
     private var streamLoadInProgress = false
     private var attached = false
@@ -144,6 +150,13 @@ class EmbeddedPlayerActivity : Activity() {
     private var lastAudioTrackSnapshot = ""
     private var lastMutedAudioTrackSnapshot = ""
     private var adaptiveProbeGeneration = 0L
+    private var playbackHealthStreamUrl = ""
+    private var playbackHealthStartedAt = 0L
+    private var playbackStallStartedAt = 0L
+    private var playbackStallLimitReported = false
+    private var lastPlaybackHealthSnapshot: PlaybackHealthSnapshot? = null
+    @Volatile
+    private var videoOutputSeen = false
     @Volatile
     private var playerStopInProgress = false
     @Volatile
@@ -254,95 +267,7 @@ class EmbeddedPlayerActivity : Activity() {
         elevatePlayerOverlays()
         enterImmersiveMode()
 
-        val options = arrayListOf(
-            "--aout=$PreferredAudioOutput",
-            "--http-reconnect",
-            "--network-caching=1500",
-            "--live-caching=1500",
-            "--file-caching=1500",
-            "--rtsp-tcp"
-        )
-        val createdLibVlc = LibVLC(this, options)
-        val createdPlayer = MediaPlayer(createdLibVlc).apply {
-            configureAudioOutput()
-            setEventListener { event ->
-                cachePlaybackEvent(event)
-                when (event.type) {
-                    MediaPlayer.Event.Opening -> {
-                        runOnUiThread { keepLoadingVisible() }
-                    }
-                    MediaPlayer.Event.Buffering -> {
-                        runOnUiThread { keepLoadingVisible() }
-                    }
-                    MediaPlayer.Event.Playing -> {
-                        playbackStarted = true
-                        reconnectAttempt = 0
-                        reconnectScheduled = false
-                        currentTarget?.let(::markOpened)
-                        runOnUiThread {
-                            syncAudioStateAtStartup()
-                            keepLoadingVisible()
-                            messageView.visibility = View.GONE
-                            updatePlayPauseButton()
-                            updateStreamInfo()
-                        }
-                    }
-                    MediaPlayer.Event.Vout -> {
-                        runOnUiThread {
-                            if (event.voutCount > 0) {
-                                completeStreamLoading()
-                            } else {
-                                keepLoadingVisible()
-                            }
-                            updateStreamInfo()
-                        }
-                    }
-                    MediaPlayer.Event.TimeChanged -> {
-                        runOnUiThread {
-                            completeStreamLoadingIfClockStarted(event.timeChanged)
-                        }
-                    }
-                    MediaPlayer.Event.LengthChanged -> {
-                        runOnUiThread { updatePlaybackProgress() }
-                    }
-                    MediaPlayer.Event.ESAdded,
-                    MediaPlayer.Event.ESDeleted,
-                    MediaPlayer.Event.ESSelected -> {
-                        runOnUiThread { handleElementaryStreamChanged(event) }
-                    }
-                    MediaPlayer.Event.Paused -> {
-                        runOnUiThread {
-                            completeStreamLoading()
-                            updatePlayPauseButton()
-                        }
-                    }
-                    MediaPlayer.Event.EndReached -> {
-                        runOnUiThread {
-                            completeStreamLoading()
-                            updatePlayPauseButton()
-                            if (!playNextBingeIfNeeded()) {
-                                scheduleReconnectIfNeeded("Stream stopped")
-                            }
-                        }
-                    }
-                    MediaPlayer.Event.Stopped -> {
-                        runOnUiThread {
-                            completeStreamLoading()
-                            updatePlayPauseButton()
-                            scheduleReconnectIfNeeded("Stream stopped")
-                        }
-                    }
-                    MediaPlayer.Event.EncounteredError -> {
-                        runOnUiThread {
-                            completeStreamLoading()
-                            if (!scheduleReconnectIfNeeded("Stream error")) {
-                                showMessage("Embedded player could not open this stream.")
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        val (createdLibVlc, createdPlayer) = createPlayerPair()
         libVlc = createdLibVlc
         mediaPlayer = createdPlayer
     }
@@ -408,6 +333,100 @@ class EmbeddedPlayerActivity : Activity() {
         }
     }
 
+    private fun createPlayerPair(): Pair<LibVLC, MediaPlayer> {
+        val options = arrayListOf(
+            "--aout=$PreferredAudioOutput",
+            "--http-reconnect",
+            "--network-caching=1500",
+            "--live-caching=1500",
+            "--file-caching=1500",
+            "--rtsp-tcp"
+        )
+        val createdLibVlc = LibVLC(this, options)
+        val createdPlayer = MediaPlayer(createdLibVlc).apply {
+            configureAudioOutput()
+            setEventListener { event ->
+                cachePlaybackEvent(event)
+                when (event.type) {
+                    MediaPlayer.Event.Opening -> {
+                        runOnUiThread { keepLoadingVisible() }
+                    }
+                    MediaPlayer.Event.Buffering -> {
+                        runOnUiThread { keepLoadingVisible() }
+                    }
+                    MediaPlayer.Event.Playing -> {
+                        playbackStarted = true
+                        reconnectAttempt = 0
+                        reconnectScheduled = false
+                        currentTarget?.let(::markOpened)
+                        runOnUiThread {
+                            syncAudioStateAtStartup()
+                            keepLoadingVisible()
+                            messageView.visibility = View.GONE
+                            updatePlayPauseButton()
+                            updateStreamInfo()
+                        }
+                    }
+                    MediaPlayer.Event.Vout -> {
+                        runOnUiThread {
+                            if (event.voutCount > 0) {
+                                videoOutputSeen = true
+                                completeStreamLoading()
+                            } else {
+                                keepLoadingVisible()
+                            }
+                            updateStreamInfo()
+                        }
+                    }
+                    MediaPlayer.Event.TimeChanged -> {
+                        runOnUiThread {
+                            completeStreamLoadingIfClockStarted(event.timeChanged)
+                        }
+                    }
+                    MediaPlayer.Event.LengthChanged -> {
+                        runOnUiThread { updatePlaybackProgress() }
+                    }
+                    MediaPlayer.Event.ESAdded,
+                    MediaPlayer.Event.ESDeleted,
+                    MediaPlayer.Event.ESSelected -> {
+                        runOnUiThread { handleElementaryStreamChanged(event) }
+                    }
+                    MediaPlayer.Event.Paused -> {
+                        runOnUiThread {
+                            completeStreamLoading()
+                            updatePlayPauseButton()
+                        }
+                    }
+                    MediaPlayer.Event.EndReached -> {
+                        runOnUiThread {
+                            completeStreamLoading()
+                            updatePlayPauseButton()
+                            if (!playNextBingeIfNeeded()) {
+                                scheduleReconnectIfNeeded("Stream stopped")
+                            }
+                        }
+                    }
+                    MediaPlayer.Event.Stopped -> {
+                        runOnUiThread {
+                            completeStreamLoading()
+                            updatePlayPauseButton()
+                            scheduleReconnectIfNeeded("Stream stopped")
+                        }
+                    }
+                    MediaPlayer.Event.EncounteredError -> {
+                        runOnUiThread {
+                            completeStreamLoading()
+                            if (!scheduleReconnectIfNeeded("Stream error")) {
+                                showMessage("Embedded player could not open this stream.")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return createdLibVlc to createdPlayer
+    }
+
     private fun startPlayback() {
         if (playerStopInProgress || stoppingForLifecycle || isFinishing) {
             pendingPlaybackStart = !stoppingForLifecycle && !isFinishing
@@ -454,6 +473,7 @@ class EmbeddedPlayerActivity : Activity() {
         lastAudioTrackSnapshot = ""
         lastMutedAudioTrackSnapshot = ""
         resetCachedPlaybackState()
+        preparePlaybackHealthForStream(streamUrl)
         beginStreamLoading()
         ensureAudibleSystemVolume()
         val audioRequestVersion = markAudioStateSyncRequested()
@@ -474,6 +494,7 @@ class EmbeddedPlayerActivity : Activity() {
         scheduleAudioStateStartupSync(audioRequestVersion)
         createdPlayer.play()
         startProgressUpdates()
+        startPlaybackHealthWatchdog()
     }
 
     private fun playNextBingeIfNeeded(): Boolean {
@@ -1148,6 +1169,93 @@ class EmbeddedPlayerActivity : Activity() {
         playPauseButton.contentDescription = if (isPlaying) "Pause" else "Play"
     }
 
+    private fun preparePlaybackHealthForStream(streamUrl: String) {
+        if (playbackHealthStreamUrl != streamUrl) {
+            playbackHealthStreamUrl = streamUrl
+        }
+        playbackHealthStartedAt = SystemClock.elapsedRealtime()
+        playbackStallStartedAt = 0L
+        playbackStallLimitReported = false
+        lastPlaybackHealthSnapshot = null
+        videoOutputSeen = false
+    }
+
+    private fun startPlaybackHealthWatchdog() {
+        overlayHandler.removeCallbacks(playbackHealthRunnable)
+        schedulePlaybackHealthCheck()
+    }
+
+    private fun stopPlaybackHealthWatchdog() {
+        overlayHandler.removeCallbacks(playbackHealthRunnable)
+        playbackStallStartedAt = 0L
+        lastPlaybackHealthSnapshot = null
+        videoOutputSeen = false
+    }
+
+    private fun schedulePlaybackHealthCheck() {
+        if (playerStopInProgress || stoppingForLifecycle || isFinishing || mediaPlayer == null) {
+            return
+        }
+        overlayHandler.postDelayed(playbackHealthRunnable, PlaybackHealthCheckMs)
+    }
+
+    private fun inspectPlaybackHealth() {
+        val player = mediaPlayer ?: return
+        if (!canUsePlayer(player) || !lastKnownPlaying || !videoOutputSeen) {
+            playbackStallStartedAt = 0L
+            lastPlaybackHealthSnapshot = null
+            return
+        }
+        val snapshot = playbackHealthSnapshot(player) ?: return
+        val now = snapshot.elapsedRealtimeMs
+        val previous = lastPlaybackHealthSnapshot
+        lastPlaybackHealthSnapshot = snapshot
+        if (now - playbackHealthStartedAt < PlaybackWatchdogWarmupMs) {
+            return
+        }
+        if (previous == null || snapshot.displayedPictures > previous.displayedPictures) {
+            playbackStallStartedAt = 0L
+            return
+        }
+        if (snapshot.displayedPictures <= 0 && previous.displayedPictures <= 0) {
+            return
+        }
+        if (playbackStallStartedAt == 0L) {
+            playbackStallStartedAt = now
+            return
+        }
+        if (now - playbackStallStartedAt >= PlaybackStallTimeoutMs) {
+            recoverFromPlaybackStall(snapshot, previous)
+        }
+    }
+
+    private fun playbackHealthSnapshot(player: MediaPlayer): PlaybackHealthSnapshot? {
+        val stats = withPlayerMedia(player) { media ->
+            runCatching { media.stats }.getOrNull()
+        } ?: return null
+        return PlaybackHealthSnapshot(
+            elapsedRealtimeMs = SystemClock.elapsedRealtime(),
+            playerTimeMs = runCatching { player.time }.getOrDefault(lastKnownPlaybackPositionMs),
+            displayedPictures = stats.displayedPictures,
+            decodedVideo = stats.decodedVideo,
+            readBytes = stats.readBytes,
+            demuxReadBytes = stats.demuxReadBytes
+        )
+    }
+
+    private fun recoverFromPlaybackStall(current: PlaybackHealthSnapshot, previous: PlaybackHealthSnapshot) {
+        if (playerStopInProgress || stoppingForLifecycle || isFinishing || reconnectScheduled) {
+            return
+        }
+        if (playbackStallLimitReported) {
+            return
+        }
+        playbackStallLimitReported = true
+        Log.w(LogTag, "Embedded playback stalled: previous=$previous current=$current")
+        showMessage("Embedded player stalled.")
+        stopPlaybackHealthWatchdog()
+    }
+
     private fun scheduleReconnectIfNeeded(reason: String): Boolean {
         if (!repeatEnabled || playerStopInProgress || stoppingForLifecycle || isFinishing || !playbackStarted) {
             return false
@@ -1212,6 +1320,7 @@ class EmbeddedPlayerActivity : Activity() {
         playerStopInProgress = true
         lastKnownPlaying = false
         overlayHandler.removeCallbacks(updateProgressRunnable)
+        stopPlaybackHealthWatchdog()
         updatePlayPauseButton()
     }
 
@@ -2415,6 +2524,15 @@ class EmbeddedPlayerActivity : Activity() {
             }
     }
 
+    private data class PlaybackHealthSnapshot(
+        val elapsedRealtimeMs: Long,
+        val playerTimeMs: Long,
+        val displayedPictures: Int,
+        val decodedVideo: Int,
+        val readBytes: Int,
+        val demuxReadBytes: Int
+    )
+
     private enum class PlayerGesture {
         None,
         Brightness,
@@ -2428,6 +2546,9 @@ class EmbeddedPlayerActivity : Activity() {
         private const val ControlsAutoHideMs = 3_500L
         private const val GestureFeedbackMs = 900L
         private const val ProgressUpdateMs = 1_000L
+        private const val PlaybackHealthCheckMs = 3_000L
+        private const val PlaybackWatchdogWarmupMs = 15_000L
+        private const val PlaybackStallTimeoutMs = 10_000L
         private const val ReconnectDelayMs = 10_000L
         private const val MaxReconnectAttempts = 5
         private const val PreferredAudioOutput = "opensles"

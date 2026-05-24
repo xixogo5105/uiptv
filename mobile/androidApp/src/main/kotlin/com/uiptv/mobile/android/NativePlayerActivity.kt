@@ -3,7 +3,10 @@ package com.uiptv.mobile.android
 import android.app.Activity
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Base64
+import android.util.Log
 import android.view.Window
 import android.view.WindowManager
 import android.widget.TextView
@@ -19,6 +22,7 @@ import androidx.media3.exoplayer.drm.FrameworkMediaDrm
 import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.ui.PlayerView
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
@@ -38,16 +42,22 @@ import java.util.UUID
 class NativePlayerActivity : Activity() {
     private var player: ExoPlayer? = null
     private var playbackStarted = false
+    private val playerHandler = Handler(Looper.getMainLooper())
+    private val retryPlaybackRunnable = Runnable { retryCurrentStream() }
     private val playbackScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var currentTarget: PlaybackTarget? = null
+    private var currentMimeTypeOverride = ""
     private var currentBingeSession: AndroidBingeWatchSession? = null
     private var currentBingeIndex = -1
     private var markedTargetKey = ""
+    private var playbackRetryAttempt = 0
 
+    @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
         val streamUrl = intent.getStringExtra(EXTRA_URL).orEmpty()
         val session = intent.getStringExtra(EXTRA_BINGE_SESSION_ID)
@@ -60,6 +70,7 @@ class NativePlayerActivity : Activity() {
         }
 
         val mediaSourceFactory = DefaultMediaSourceFactory(this)
+            .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(NativeLiveLoadRetryCount))
             .setDrmSessionManagerProvider(TargetDrmSessionManagerProvider { currentTarget })
         val exoPlayer = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
@@ -69,6 +80,7 @@ class NativePlayerActivity : Activity() {
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         if (playbackState == Player.STATE_READY) {
                             playbackStarted = true
+                            playbackRetryAttempt = 0
                             currentTarget?.let(::markOpened)
                         } else if (playbackState == Player.STATE_ENDED && currentBingeSession != null) {
                             playBingeIndex(currentBingeIndex + 1)
@@ -76,12 +88,7 @@ class NativePlayerActivity : Activity() {
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
-                        setContentView(
-                            TextView(this@NativePlayerActivity).apply {
-                                text = error.message ?: "Playback failed."
-                                setPadding(32, 32, 32, 32)
-                            }
-                        )
+                        scheduleCurrentStreamRetry(error)
                     }
                 })
                 created.playWhenReady = true
@@ -114,6 +121,7 @@ class NativePlayerActivity : Activity() {
         if (isFinishing) {
             intent.getStringExtra(EXTRA_BINGE_SESSION_ID).orEmpty().takeIf { it.isNotBlank() }?.let(AndroidBingeWatchSessionStore::remove)
         }
+        playerHandler.removeCallbacksAndMessages(null)
         playbackScope.cancel()
         currentPlayer?.release()
         player = null
@@ -160,6 +168,14 @@ class NativePlayerActivity : Activity() {
         }
 
     private fun setMediaTarget(target: PlaybackTarget, mimeTypeOverride: String = "") {
+        currentTarget = target
+        currentMimeTypeOverride = mimeTypeOverride
+        playbackRetryAttempt = 0
+        playerHandler.removeCallbacks(retryPlaybackRunnable)
+        prepareMediaTarget(target, mimeTypeOverride)
+    }
+
+    private fun prepareMediaTarget(target: PlaybackTarget, mimeTypeOverride: String = "") {
         val exoPlayer = player ?: return
         val mimeType = mimeTypeOverride.ifBlank { target.mimeType() }
         applySecureWindowPolicy(target)
@@ -177,6 +193,46 @@ class NativePlayerActivity : Activity() {
         )
         exoPlayer.prepare()
         exoPlayer.playWhenReady = true
+    }
+
+    private fun scheduleCurrentStreamRetry(error: PlaybackException) {
+        val target = currentTarget
+        if (target == null || !target.url.isPlayableNetworkUrl() || isFinishing) {
+            showPlaybackError(error)
+            return
+        }
+        if (playbackRetryAttempt >= MaxNativePlaybackRetries) {
+            Log.w(LogTag, "Android Media playback failed after $playbackRetryAttempt retries", error)
+            showPlaybackError(error)
+            return
+        }
+        playbackRetryAttempt += 1
+        val delayMs = minOf(
+            NativePlaybackRetryMaxDelayMs,
+            NativePlaybackRetryBaseDelayMs * playbackRetryAttempt
+        )
+        Log.w(LogTag, "Android Media source error; retrying stream in ${delayMs}ms attempt=$playbackRetryAttempt", error)
+        playerHandler.removeCallbacks(retryPlaybackRunnable)
+        playerHandler.postDelayed(retryPlaybackRunnable, delayMs)
+    }
+
+    private fun retryCurrentStream() {
+        val target = currentTarget ?: return
+        val exoPlayer = player ?: return
+        runCatching {
+            exoPlayer.stop()
+            exoPlayer.clearMediaItems()
+        }
+        prepareMediaTarget(target, currentMimeTypeOverride)
+    }
+
+    private fun showPlaybackError(error: PlaybackException) {
+        setContentView(
+            TextView(this).apply {
+                text = error.message ?: "Playback failed."
+                setPadding(32, 32, 32, 32)
+            }
+        )
     }
 
     private fun markOpened(target: PlaybackTarget) {
@@ -240,6 +296,11 @@ class NativePlayerActivity : Activity() {
     }
 
     companion object {
+        private const val LogTag = "UIPTV-Native"
+        private const val NativeLiveLoadRetryCount = 12
+        private const val MaxNativePlaybackRetries = 6
+        private const val NativePlaybackRetryBaseDelayMs = 1_500L
+        private const val NativePlaybackRetryMaxDelayMs = 10_000L
         const val EXTRA_URL = "url"
         const val EXTRA_TITLE = "title"
         const val EXTRA_MIME_TYPE = "mime_type"
