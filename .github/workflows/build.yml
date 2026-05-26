@@ -359,7 +359,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download release artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: UIPTV-*
           path: downloaded-artifacts
