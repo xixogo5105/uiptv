@@ -12,6 +12,7 @@ import android.graphics.SurfaceTexture
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.net.Uri
@@ -111,8 +112,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var reconnectScheduled = false
     private var stoppingForLifecycle = false
     private var reconnectAttempt = 0
-    private var softResolveInProgress = false
-    private var softResolveVersion = 0L
     private var audioStateRequestVersion = 0L
     private var audioFocusRequest: AudioFocusRequest? = null
     private var reconnectRunnable: Runnable? = null
@@ -139,7 +138,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var currentBingeSession: AndroidBingeWatchSession? = null
     private var currentBingeIndex = -1
     private var markedTargetKey = ""
-    private val softResolvedUrlCache = mutableMapOf<String, String>()
     private val preferencesRepository by lazy { AndroidDataStorePreferencesRepository(this) }
     private val mpvObserver = object : MPVLib.EventObserver {
         override fun eventProperty(property: String) {
@@ -332,7 +330,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
     override fun onStop() {
         stoppingForLifecycle = true
         cancelReconnect()
-        invalidateSoftResolve()
         overlayHandler.removeCallbacks(updateProgressRunnable)
         stopMpvPlayback(async = true)
         attached = false
@@ -424,10 +421,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
             }
             attachMpvSurface(Surface(surfaceTexture))
         }
-        val loadUrl = softResolvedUrlCache[streamUrl] ?: streamUrl
-        if (loadUrl == streamUrl && maybeResolveStreamBeforeMpvLoad(playbackTarget, streamUrl)) {
-            return
-        }
         requestAudioFocus()
         mpvVideoDetails = null
         lastLoggedVideoDetailsKey = ""
@@ -441,44 +434,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
         applyZoomMode(zoomModeIndex, showFeedback = false)
         applyDesiredAudioState()
         scheduleAudioStateStartupSync(audioRequestVersion)
-        if (loadUrl != streamUrl) {
-            Log.d(LogTag, "mpv loading resolved stream ${streamUrl.safeStreamDescriptor()} -> ${loadUrl.safeStreamDescriptor()}")
-        }
-        player.runCatchingCommand("loadfile", loadUrl, "replace")
-    }
-
-    private fun maybeResolveStreamBeforeMpvLoad(target: PlaybackTarget, streamUrl: String): Boolean {
-        if (!SoftStreamUrlResolver.shouldResolve(streamUrl)) {
-            return false
-        }
-        if (softResolveInProgress) {
-            return true
-        }
-        softResolveInProgress = true
-        val requestVersion = ++softResolveVersion
-        beginStreamLoading()
-        playbackScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                SoftStreamUrlResolver.resolve(streamUrl, ChromeUserAgent)
-            }
-            if (activityDestroyed || stoppingForLifecycle || requestVersion != softResolveVersion) {
-                return@launch
-            }
-            softResolveInProgress = false
-            val resolvedUrl = result.resolvedUrl.takeIf { it.isPlayableNetworkUrl() } ?: streamUrl
-            softResolvedUrlCache[streamUrl] = resolvedUrl
-            currentTarget = target
-            if (resolvedUrl != streamUrl) {
-                Log.d(
-                    LogTag,
-                    "soft resolved stream ${streamUrl.safeStreamDescriptor()} -> ${resolvedUrl.safeStreamDescriptor()} (${result.reason})"
-                )
-            } else {
-                Log.d(LogTag, "soft resolver kept ${streamUrl.safeStreamDescriptor()} (${result.reason})")
-            }
-            startPlayback()
-        }
-        return true
+        Log.d(LogTag, "mpv loading stream ${streamUrl.safeStreamDescriptor()}")
+        player.runCatchingCommand("loadfile", streamUrl, "replace")
     }
 
     private fun playNextBingeIfNeeded(): Boolean {
@@ -504,7 +461,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
         playbackStarted = false
         reconnectAttempt = 0
         reconnectScheduled = false
-        invalidateSoftResolve()
         cancelReconnect()
         stopMpvPlayback()
         beginStreamLoading()
@@ -964,8 +920,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun reloadCurrentStream() {
         cancelReconnect()
-        currentTarget?.url?.let(softResolvedUrlCache::remove)
-        invalidateSoftResolve()
         reconnectAttempt = 0
         reconnectScheduled = false
         playbackStarted = false
@@ -1472,7 +1426,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 mpvPaused = false
                 updatePlayPauseButton()
                 if (!playNextBingeIfNeeded()) {
-                    currentTarget?.url?.let(softResolvedUrlCache::remove)
                     scheduleReconnectIfNeeded("Stream stopped")
                 }
             }
@@ -1625,12 +1578,19 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun configureMpvOptions(player: MPVLib) {
+        val stableMobileAudio = shouldUseStableMobileAudioProfile()
+        Log.d(LogTag, "mpv stable mobile audio profile=$stableMobileAudio outputDevices=${audioOutputDeviceTypes()}")
         player.setMpvOption("profile", "fast")
         player.setMpvOption("vo", "mediacodec_embed,gpu")
         player.setMpvOption("gpu-context", "android")
         player.setMpvOption("opengl-es", "yes")
-        player.setMpvOption("ao", "audiotrack,opensles")
+        player.setMpvOption("ao", if (stableMobileAudio) "opensles,audiotrack" else "audiotrack,opensles")
         player.setMpvOption("audio-set-media-role", "yes")
+        player.setMpvOption("audio-buffer", if (stableMobileAudio) StableMobileAudioBufferSeconds else DefaultAudioBufferSeconds)
+        if (stableMobileAudio) {
+            player.setMpvOption("audio-channels", "stereo")
+            player.setMpvOption("audio-format", "s16")
+        }
         player.setMpvOption("hwdec", "mediacodec,mediacodec-copy")
         player.setMpvOption("hwdec-codecs", "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1")
         player.setMpvOption("hwdec-software-fallback", "yes")
@@ -1662,6 +1622,49 @@ class MpvEmbeddedPlayerActivity : Activity() {
         player.setMpvOption("network-timeout", "15")
         player.setMpvOption("keep-open", "no")
     }
+
+    private fun shouldUseStableMobileAudioProfile(): Boolean {
+        val outputDevices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        if (outputDevices.any { it.isExternalMultichannelSink() }) {
+            return false
+        }
+        if (outputDevices.any { it.isPhoneClassOutput() }) {
+            return true
+        }
+        return Build.HARDWARE.equals("qcom", ignoreCase = true) &&
+            Build.BOARD.contains("sdm660", ignoreCase = true)
+    }
+
+    private fun audioOutputDeviceTypes(): String =
+        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            .joinToString(",") { it.type.toString() }
+            .ifBlank { "none" }
+
+    private fun AudioDeviceInfo.isExternalMultichannelSink(): Boolean =
+        when (type) {
+            AudioDeviceInfo.TYPE_HDMI,
+            AudioDeviceInfo.TYPE_HDMI_ARC,
+            AudioDeviceInfo.TYPE_HDMI_EARC,
+            AudioDeviceInfo.TYPE_USB_DEVICE,
+            AudioDeviceInfo.TYPE_USB_ACCESSORY -> true
+            else -> false
+        }
+
+    private fun AudioDeviceInfo.isPhoneClassOutput(): Boolean =
+        when (type) {
+            AudioDeviceInfo.TYPE_BUILTIN_EARPIECE,
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER_SAFE,
+            AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            AudioDeviceInfo.TYPE_BLE_HEADSET,
+            AudioDeviceInfo.TYPE_BLE_SPEAKER,
+            AudioDeviceInfo.TYPE_HEARING_AID,
+            AudioDeviceInfo.TYPE_USB_HEADSET -> true
+            else -> false
+        }
 
     private fun observeMpvProperties(player: MPVLib) {
         player.observe("time-pos", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
@@ -1707,11 +1710,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
         playbackLengthMs = 0L
         mpvPaused = false
         updatePlayPauseButton()
-    }
-
-    private fun invalidateSoftResolve() {
-        softResolveVersion += 1
-        softResolveInProgress = false
     }
 
     private fun runMpvCommandAsync(player: MPVLib, vararg args: String) {
@@ -1939,6 +1937,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
         private const val TwoFingerZoomSlopDp = 56
         private const val TapSlopPx = 14f
         private const val LiveTimeLabel = "Live"
+        private const val DefaultAudioBufferSeconds = "0.35"
+        private const val StableMobileAudioBufferSeconds = "0.85"
         private const val PlayIcon = "\u25B6"
         private const val PauseIcon = "\u23F8"
         private const val StopIcon = "\u25A0"
@@ -1956,4 +1956,19 @@ private fun String.isPlayableNetworkUrl(): Boolean {
     val uri = runCatching { Uri.parse(this) }.getOrNull() ?: return false
     val scheme = uri.scheme?.lowercase()
     return (scheme == "http" || scheme == "https") && !uri.host.isNullOrBlank()
+}
+
+private fun String.safeStreamDescriptor(): String {
+    val uri = runCatching { Uri.parse(trim()) }.getOrNull() ?: return "non-url"
+    val scheme = uri.scheme?.lowercase()
+    if ((scheme != "http" && scheme != "https") || uri.host.isNullOrBlank()) {
+        return "non-url"
+    }
+    val lastSegment = uri.lastPathSegment.orEmpty()
+    val pathHint = when {
+        uri.path.isNullOrBlank() -> ""
+        lastSegment.isNotBlank() -> "/$lastSegment"
+        else -> uri.path.orEmpty().take(24)
+    }
+    return "$scheme://${uri.host}$pathHint"
 }
