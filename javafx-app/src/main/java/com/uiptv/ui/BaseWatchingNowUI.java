@@ -38,7 +38,6 @@ import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
 @SuppressWarnings("java:S5843")
 public abstract class BaseWatchingNowUI extends VBox {
-    public static final String AUTO_RELOAD_FROM_SERVER = "autoReloadFromServer";
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_COVER = "cover";
     private static final String KEY_RELEASE_DATE = "releaseDate";
@@ -506,31 +505,38 @@ public abstract class BaseWatchingNowUI extends VBox {
         contentBox.getChildren().clear();
         contentBox.setPadding(Insets.EMPTY);
 
-        boolean thumbnailsEnabled = thumbnailsEnabled();
-        HBox topBar = new HBox(8);
-        topBar.setAlignment(Pos.CENTER_LEFT);
-        topBar.setPadding(Insets.EMPTY);
-        topBar.setMaxWidth(Double.MAX_VALUE);
+        String initialTitle = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle);
+        EpisodesListUI episodesListUI = new EpisodesListUI(
+                data.account,
+                initialTitle,
+                data.state.getSeriesId(),
+                data.state.getCategoryId()
+        );
+        episodesListUI.applyWatchingNowDetailStyling();
+        boolean plainEpisodeMode = episodesListUI.isPlainMode();
+        if (plainEpisodeMode) {
+            episodesListUI.useExternalSeriesTitle();
+        }
+
         Button back = new Button(I18n.tr("autoBack"));
         back.setOnAction(event -> {
             selectedSeriesKey = "";
             renderCurrentView();
         });
-        topBar.getChildren().add(back);
+
+        Label detailTitle = new Label(initialTitle);
+        VBox plainHeader = new VBox(4);
+        HBox topBar = new HBox(8);
+        if (plainEpisodeMode) {
+            EpisodeDetailHeaderUI.configurePlainHeader(plainHeader, back, detailTitle, episodesListUI.getBingeWatchButton());
+        } else {
+            EpisodeDetailHeaderUI.configureBackOnlyHeader(topBar, back);
+        }
 
         VBox body = new VBox(10);
         body.setPadding(Insets.EMPTY);
         body.setMaxWidth(Double.MAX_VALUE);
         body.setMaxHeight(Double.MAX_VALUE);
-        EpisodesListUI episodesListUI = new EpisodesListUI(
-                data.account,
-                firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
-                data.state.getSeriesId(),
-                data.state.getCategoryId()
-        );
-        if (thumbnailsEnabled) {
-            episodesListUI.applyWatchingNowDetailStyling();
-        }
         if (data.episodeList != null) {
             episodesListUI.setItems(data.episodeList);
         }
@@ -540,6 +546,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             }
             Platform.runLater(() -> {
                 mergeMissingSeasonInfo(data.seasonInfo, seasonInfo);
+                detailTitle.setText(firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle));
                 String cover = seasonInfo.optString(KEY_COVER, "");
                 if (!isBlank(cover)) {
                     data.seasonInfo.put(KEY_COVER, cover);
@@ -549,17 +556,12 @@ public abstract class BaseWatchingNowUI extends VBox {
         });
         episodesListUI.navigateToLastWatched(data.state);
         episodesListUI.setLoadingComplete();
-        if (episodesListUI.canReloadFromServer()) {
-            Button reload = new Button(I18n.tr(AUTO_RELOAD_FROM_SERVER));
-            reload.setOnAction(event -> episodesListUI.reloadFromServer());
-            topBar.getChildren().add(reload);
-        }
         body.getChildren().add(episodesListUI);
         VBox.setVgrow(body, Priority.ALWAYS);
         VBox.setVgrow(episodesListUI, Priority.ALWAYS);
         HBox.setHgrow(episodesListUI, Priority.ALWAYS);
 
-        contentBox.getChildren().addAll(topBar, body);
+        contentBox.getChildren().addAll(plainEpisodeMode ? plainHeader : topBar, body);
         VBox.setVgrow(contentBox, Priority.ALWAYS);
     }
 
@@ -581,11 +583,10 @@ public abstract class BaseWatchingNowUI extends VBox {
         data.titleNode.setText(firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle));
         addImdbHeaderNodes(details, data);
         addSeasonMetadataText(details, data);
-        details.getChildren().add(resolveReloadEpisodesButton(data));
     }
 
     private void clearSeasonHeaderDetails(VBox details, SeriesPanelData data) {
-        details.getChildren().removeAll(data.ratingNode, data.genreNode, data.releaseNode, data.plotNode, data.reloadEpisodesButton);
+        details.getChildren().removeAll(data.ratingNode, data.genreNode, data.releaseNode, data.plotNode);
         if (data.imdbLoadingNode != null) {
             details.getChildren().remove(data.imdbLoadingNode);
         }
@@ -637,15 +638,6 @@ public abstract class BaseWatchingNowUI extends VBox {
             data.plotNode.setText(plot);
             details.getChildren().add(data.plotNode);
         }
-    }
-
-    private Button resolveReloadEpisodesButton(SeriesPanelData data) {
-        if (data.reloadEpisodesButton == null) {
-            data.reloadEpisodesButton = new Button(I18n.tr(AUTO_RELOAD_FROM_SERVER));
-            data.reloadEpisodesButton.setFocusTraversable(true);
-            data.reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal(data));
-        }
-        return data.reloadEpisodesButton;
     }
 
     private void populateSeasonTabs(TabPane tabPane, SeriesPanelData data) {
@@ -1205,51 +1197,6 @@ public abstract class BaseWatchingNowUI extends VBox {
             return;
         }
         populateSeasonTabs(data.seasonTabs, data);
-    }
-
-    private void reloadEpisodesFromPortal(SeriesPanelData data) {
-        if (data == null || data.account == null || data.state == null || isBlank(data.state.getSeriesId())) {
-            return;
-        }
-        long generation = lifecycleGeneration.get();
-        if (data.reloadEpisodesButton != null) {
-            data.reloadEpisodesButton.setDisable(true);
-            data.reloadEpisodesButton.setText(I18n.tr("autoReloading"));
-        }
-        new Thread(() -> {
-            EpisodeList refreshed = SeriesEpisodeService.getInstance()
-                    .reloadEpisodesFromPortal(data.account, data.state.getCategoryId(), data.state.getSeriesId(), () -> false);
-            SeriesWatchingNowSnapshotService.getInstance().save(
-                    data.account,
-                    data.state.getCategoryId(),
-                    data.state.getSeriesId(),
-                    "",
-                    data.seriesTitle,
-                    resolveSeriesPosterUrl(data),
-                    refreshed
-            );
-            List<WatchingEpisode> refreshedEpisodes = mapEpisodesFromCache(data.account, data.state, refreshed);
-            Platform.runLater(() -> {
-                if (!isPanelCurrent(data, generation)) {
-                    return;
-                }
-                // Always discard old episodes on reload and rebuild tabs from the latest response.
-                data.episodes.clear();
-                data.episodes.addAll(refreshedEpisodes);
-                data.episodeList = refreshed;
-                refreshSeasonTables(data);
-                // Reload complete: invalidate prior IMDb merge and fetch fresh metadata for updated episodes/seasons.
-                imdbCacheByPanelKey.remove(panelCacheKey(data.account, data.state));
-                data.imdbLoaded = false;
-                data.imdbLoading = true;
-                applySeasonInfoToHeader(data);
-                lazyLoadImdb(data, null);
-                if (data.reloadEpisodesButton != null) {
-                    data.reloadEpisodesButton.setText(I18n.tr(AUTO_RELOAD_FROM_SERVER));
-                    data.reloadEpisodesButton.setDisable(false);
-                }
-            });
-        }, "watching-now-portal-reload").start();
     }
 
     private void enrichEpisodesFromMeta(List<WatchingEpisode> episodes, JSONArray metaRows) {
@@ -2023,7 +1970,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         private Label plotNode;
         private HBox imdbBadgeNode;
         private HBox imdbLoadingNode;
-        private Button reloadEpisodesButton;
         private ImageView seriesPosterNode;
         private ImageView seriesListPosterNode;
         private TabPane seasonTabs;
@@ -2059,7 +2005,6 @@ public abstract class BaseWatchingNowUI extends VBox {
             plotNode = null;
             imdbBadgeNode = null;
             imdbLoadingNode = null;
-            reloadEpisodesButton = null;
             seriesPosterNode = null;
             seriesListPosterNode = null;
             seasonTabs = null;

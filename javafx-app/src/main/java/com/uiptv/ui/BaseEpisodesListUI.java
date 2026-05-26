@@ -73,6 +73,7 @@ public abstract class BaseEpisodesListUI extends HBox {
     private String pendingTargetEpisodeId = "";
     private String pendingTargetEpisodeNumber = "";
     private String pendingTargetEpisodeName = "";
+    private Runnable bingeWatchControlRefreshListener;
 
     private boolean bookmarkListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
@@ -118,6 +119,41 @@ public abstract class BaseEpisodesListUI extends HBox {
     protected abstract void onBookmarksRefreshed();
 
     protected abstract void onWatchedStatesRefreshed();
+
+    protected String selectedBingeWatchSeason() {
+        return "1";
+    }
+
+    protected void setInternalBingeWatchControlVisible(boolean visible) {
+        // Optional in subclasses.
+    }
+
+    protected void setInternalSeriesTitleVisible(boolean visible) {
+        // Optional in subclasses.
+    }
+
+    void setBingeWatchControlRefreshListener(Runnable listener) {
+        this.bingeWatchControlRefreshListener = listener;
+        notifyBingeWatchControlChanged();
+    }
+
+    void playSelectedBingeWatchSeason(String playerPath) {
+        bingeWatchSeason(selectedBingeWatchSeason(), playerPath);
+    }
+
+    String selectedBingeWatchMenuLabel() {
+        return buildBingeWatchMenuLabel(selectedBingeWatchSeason());
+    }
+
+    boolean hasBingeWatchEpisodes() {
+        return !allEpisodeItems.isEmpty();
+    }
+
+    protected void notifyBingeWatchControlChanged() {
+        if (bingeWatchControlRefreshListener != null) {
+            bingeWatchControlRefreshListener.run();
+        }
+    }
 
     public void setItems(EpisodeList newChannelList) {
         if (newChannelList == null) return;

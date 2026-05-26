@@ -90,6 +90,7 @@ public class ChannelListUI extends HBox {
     private boolean inlineEpisodeNavigationEnabled = false;
     private final VBox listPane = new VBox(5);
     private final VBox detailPane = new VBox(8);
+    private final VBox detailHeader = new VBox(4);
     private final HBox detailNavHeader = new HBox(6);
     private final Button detailBackButton = createBackButton();
     private final Label detailTitle = new Label();
@@ -363,7 +364,8 @@ public class ChannelListUI extends HBox {
     private void initDetailPane() {
         detailBackButton.setOnAction(event -> showListView());
         detailNavHeader.setAlignment(Pos.CENTER_LEFT);
-        detailNavHeader.getChildren().setAll(detailBackButton, detailTitle);
+        detailNavHeader.setMaxWidth(Double.MAX_VALUE);
+        detailHeader.setMaxWidth(Double.MAX_VALUE);
         detailContent.setSpacing(5);
         detailContent.setPadding(new javafx.geometry.Insets(5, 0, 0, 0));
         VBox.setVgrow(detailContent, Priority.ALWAYS);
@@ -394,16 +396,40 @@ public class ChannelListUI extends HBox {
             return;
         }
         detailTitle.setText(title == null ? "" : title);
+        boolean plainEpisodeHeader = configureDetailHeader(ui);
         detailContent.getChildren().setAll(ui);
         VBox.setVgrow(ui, Priority.ALWAYS);
         detailPane.setMaxHeight(Double.MAX_VALUE);
         detailPane.setMinHeight(0);
         if (inlineEpisodeNavigationEnabled) {
-            detailPane.getChildren().setAll(detailNavHeader, detailContent);
+            detailPane.getChildren().setAll(plainEpisodeHeader ? detailHeader : detailNavHeader, detailContent);
         } else {
             detailPane.getChildren().setAll(detailContent);
         }
         getChildren().setAll(detailPane);
+    }
+
+    private boolean configureDetailHeader(Node ui) {
+        EpisodeDetailHeaderUI.clearPlainHeader(detailHeader);
+        detailNavHeader.getChildren().clear();
+
+        if (shouldUsePlainEpisodeHeader(ui) && ui instanceof EpisodesListUI episodesListUI) {
+            episodesListUI.useExternalSeriesTitle();
+            EpisodeDetailHeaderUI.configurePlainHeader(
+                    detailHeader,
+                    detailBackButton,
+                    detailTitle,
+                    episodesListUI.getBingeWatchButton()
+            );
+            return true;
+        }
+
+        EpisodeDetailHeaderUI.configureBackTitleHeader(detailNavHeader, detailBackButton, detailTitle);
+        return false;
+    }
+
+    private boolean shouldUsePlainEpisodeHeader(Node ui) {
+        return ui instanceof EpisodesListUI episodesListUI && episodesListUI.isPlainMode();
     }
 
     public boolean navigateBackEmbedded() {

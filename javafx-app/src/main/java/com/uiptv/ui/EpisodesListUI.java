@@ -3,8 +3,12 @@ package com.uiptv.ui;
 import com.uiptv.model.Account;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.shared.EpisodeList;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import org.json.JSONObject;
 
 import java.util.function.Consumer;
@@ -17,8 +21,12 @@ public class EpisodesListUI extends HBox {
     private BaseEpisodesListUI delegate;
     private EpisodeList lastEpisodeList;
     private SeriesWatchState lastWatchedState;
+    private final MenuButton bingeWatchButton = new MenuButton();
     private boolean loadingCompleteCalled = false;
     private boolean thumbnailListenerRegistered = false;
+    private boolean watchingNowDetailStylingApplied = false;
+    private boolean externalBingeWatchControlRequested = false;
+    private boolean externalSeriesTitleRequested = false;
     private Consumer<JSONObject> seasonInfoListener;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
@@ -32,7 +40,9 @@ public class EpisodesListUI extends HBox {
         this.categoryTitle = categoryTitle;
         this.seriesId = seriesId;
         this.seriesCategoryId = seriesCategoryId;
+        configureBingeWatchButton();
         this.delegate = buildDelegate();
+        configureDelegate(delegate);
         getChildren().add(delegate);
         setMaxHeight(Double.MAX_VALUE);
         setMinHeight(0);
@@ -51,7 +61,8 @@ public class EpisodesListUI extends HBox {
     }
 
     public void applyWatchingNowDetailStyling() {
-        withThumbnailDelegate(ThumbnailEpisodesListUI::applyWatchingNowDetailStyling);
+        watchingNowDetailStylingApplied = true;
+        applyWatchingNowDetailStyling(delegate);
     }
 
     public void navigateToLastWatched(SeriesWatchState state) {
@@ -59,17 +70,24 @@ public class EpisodesListUI extends HBox {
         delegate.navigateToLastWatched(state);
     }
 
-    public boolean canReloadFromServer() {
-        return delegate instanceof ThumbnailEpisodesListUI;
-    }
-
-    public void reloadFromServer() {
-        withThumbnailDelegate(ThumbnailEpisodesListUI::reloadFromServer);
-    }
-
     public void setSeasonInfoListener(Consumer<JSONObject> seasonInfoListener) {
         this.seasonInfoListener = seasonInfoListener;
         withThumbnailDelegate(thumbnail -> thumbnail.setSeasonInfoListener(seasonInfoListener));
+    }
+
+    public MenuButton getBingeWatchButton() {
+        externalBingeWatchControlRequested = true;
+        applyDelegateHeaderPreferences(delegate);
+        return bingeWatchButton;
+    }
+
+    public void useExternalSeriesTitle() {
+        externalSeriesTitleRequested = true;
+        applyDelegateHeaderPreferences(delegate);
+    }
+
+    public boolean isPlainMode() {
+        return delegate instanceof PlainEpisodesListUI;
     }
 
     private void registerThumbnailModeListener() {
@@ -95,10 +113,15 @@ public class EpisodesListUI extends HBox {
         if (shouldUseThumbnails == isThumbnailDelegate) {
             return;
         }
+        delegate.setBingeWatchControlRefreshListener(null);
         BaseEpisodesListUI next = buildDelegate();
+        delegate = next;
+        configureDelegate(delegate);
         getChildren().setAll(next);
         HBox.setHgrow(next, Priority.ALWAYS);
-        delegate = next;
+        if (watchingNowDetailStylingApplied) {
+            applyWatchingNowDetailStyling(delegate);
+        }
         if (lastEpisodeList != null) {
             delegate.setItems(lastEpisodeList);
         }
@@ -111,6 +134,7 @@ public class EpisodesListUI extends HBox {
         if (loadingCompleteCalled) {
             delegate.setLoadingComplete();
         }
+        updateBingeWatchButton();
     }
 
     private BaseEpisodesListUI buildDelegate() {
@@ -118,6 +142,62 @@ public class EpisodesListUI extends HBox {
             return new ThumbnailEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId);
         }
         return new PlainEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId);
+    }
+
+    private void configureDelegate(BaseEpisodesListUI target) {
+        if (target == null) {
+            return;
+        }
+        target.setBingeWatchControlRefreshListener(this::updateBingeWatchButton);
+        applyDelegateHeaderPreferences(target);
+    }
+
+    private void applyDelegateHeaderPreferences(BaseEpisodesListUI target) {
+        if (target == null) {
+            return;
+        }
+        target.setInternalBingeWatchControlVisible(!externalBingeWatchControlRequested);
+        target.setInternalSeriesTitleVisible(!externalSeriesTitleRequested);
+    }
+
+    private void configureBingeWatchButton() {
+        bingeWatchButton.setFocusTraversable(true);
+        bingeWatchButton.getStyleClass().setAll("button");
+        bingeWatchButton.getStyleClass().add("binge-watch-menu-button");
+        bingeWatchButton.setMinWidth(Region.USE_PREF_SIZE);
+        bingeWatchButton.setMaxWidth(Region.USE_PREF_SIZE);
+        bingeWatchButton.setOnShowing(event -> {
+            ContextMenu menu = bingeWatchButton.getContextMenu();
+            if (menu != null && !menu.getStyleClass().contains("binge-watch-context-menu")) {
+                menu.getStyleClass().add("binge-watch-context-menu");
+            }
+        });
+        updateBingeWatchButton();
+    }
+
+    private void updateBingeWatchButton() {
+        if (delegate == null) {
+            bingeWatchButton.setText("Binge Watch S01");
+            bingeWatchButton.setDisable(true);
+            return;
+        }
+        bingeWatchButton.setText(delegate.selectedBingeWatchMenuLabel());
+        bingeWatchButton.getItems().clear();
+        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+            MenuItem playerItem = new MenuItem(option.label());
+            playerItem.getStyleClass().add("binge-watch-menu-item");
+            playerItem.setOnAction(event -> delegate.playSelectedBingeWatchSeason(option.playerPath()));
+            bingeWatchButton.getItems().add(playerItem);
+        }
+        bingeWatchButton.setDisable(!delegate.hasBingeWatchEpisodes());
+    }
+
+    private void applyWatchingNowDetailStyling(BaseEpisodesListUI target) {
+        if (target instanceof ThumbnailEpisodesListUI thumbnail) {
+            thumbnail.applyWatchingNowDetailStyling();
+        } else if (target instanceof PlainEpisodesListUI plain) {
+            plain.applyWatchingNowDetailStyling();
+        }
     }
 
     private void withThumbnailDelegate(java.util.function.Consumer<ThumbnailEpisodesListUI> action) {

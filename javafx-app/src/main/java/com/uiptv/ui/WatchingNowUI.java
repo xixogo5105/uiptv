@@ -1,7 +1,6 @@
 package com.uiptv.ui;
 
 import com.uiptv.util.I18n;
-import javafx.scene.control.Button;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.Priority;
@@ -41,10 +40,6 @@ public class WatchingNowUI extends VBox {
         }
     }
 
-    static String refreshButtonLabel() {
-        return I18n.tr("autoReloadCache");
-    }
-
     private TabPane buildTabs() {
         seriesDelegate = buildSeriesDelegate();
         vodDelegate = new VodWatchingNowUI();
@@ -61,17 +56,13 @@ public class WatchingNowUI extends VBox {
     }
 
     private VBox buildTabContent(BaseWatchingNowUI delegate) {
-        Button refreshButton = new Button(refreshButtonLabel());
-        refreshButton.setOnAction(event -> delegate.forceReload());
-        VBox content = new VBox(8, refreshButton, delegate);
+        VBox content = new VBox(8, delegate);
         VBox.setVgrow(delegate, Priority.ALWAYS);
         return content;
     }
 
     private VBox buildTabContent(VodWatchingNowUI delegate) {
-        Button refreshButton = new Button(refreshButtonLabel());
-        refreshButton.setOnAction(event -> delegate.forceReload());
-        VBox content = new VBox(8, refreshButton, delegate);
+        VBox content = new VBox(8, delegate);
         VBox.setVgrow(delegate, Priority.ALWAYS);
         return content;
     }

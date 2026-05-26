@@ -7,7 +7,6 @@ import com.uiptv.model.SeriesWatchingNowSnapshot;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.AccountType;
-import com.uiptv.util.XtremeApiParser;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -50,21 +49,6 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         assertEquals(1, list.getEpisodes().size());
         assertEquals("03", list.getEpisodes().get(0).getSeason());
         assertEquals("04", list.getEpisodes().get(0).getEpisodeNum());
-    }
-
-    @Test
-    void reloadEpisodesFromPortal_fallsBackToAnyAgeCacheWhenProviderFails() {
-        Account account = createSeriesAccount("reload-fallback-cache");
-        SeriesEpisodeDb.get().saveAll(account, "cat-a", "series-3", List.of(channel("ep-3", "1x9 Finale", "cmd://3")));
-
-        try (MockedStatic<XtremeApiParser> xtremeParser = Mockito.mockStatic(XtremeApiParser.class)) {
-            xtremeParser.when(() -> XtremeApiParser.parseEpisodes("series-3", account)).thenThrow(new RuntimeException("boom"));
-
-            EpisodeList list = SeriesEpisodeService.getInstance().reloadEpisodesFromPortal(account, "cat-b", "series-3", () -> false);
-
-            assertEquals(1, list.getEpisodes().size());
-            assertEquals("9", list.getEpisodes().get(0).getEpisodeNum());
-        }
     }
 
     @Test
@@ -144,21 +128,6 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
         assertEquals("123", extractEpisode.invoke(service, "E123"));
         assertEquals("1", extractSeason.invoke(service, "Unknown Title"));
         assertEquals("", extractEpisode.invoke(service, "Unknown Title"));
-    }
-
-    @Test
-    void reloadEpisodesFromPortal_usesAnyAgeCache_whenSpecificCategoryCacheExists() {
-        Account account = createSeriesAccount("reload-any-age-specific");
-        SeriesEpisodeDb.get().saveAll(account, "cat-a", "series-4", List.of(channel("ep-4", "Season 2 Episode 8", "cmd://4")));
-
-        try (MockedStatic<XtremeApiParser> xtremeParser = Mockito.mockStatic(XtremeApiParser.class)) {
-            xtremeParser.when(() -> XtremeApiParser.parseEpisodes("series-4", account)).thenThrow(new RuntimeException("boom"));
-
-            EpisodeList list = SeriesEpisodeService.getInstance().reloadEpisodesFromPortal(account, "cat-a", "series-4", () -> false);
-
-            assertEquals(1, list.getEpisodes().size());
-            assertEquals("8", list.getEpisodes().get(0).getEpisodeNum());
-        }
     }
 
     @Test

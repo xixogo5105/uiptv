@@ -3,7 +3,6 @@ package com.uiptv.ui;
 import com.uiptv.model.Account;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.ImdbMetadataService;
-import com.uiptv.service.SeriesEpisodeService;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
@@ -65,7 +64,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private final Label releaseNode = new Label();
     private final Label plotNode = new Label();
     private final MenuButton bingeWatchButton = new MenuButton();
-    private final Button reloadEpisodesButton = new Button(I18n.tr("autoReloadFromServer"));
     private final HBox imdbLoadingNode = new HBox(6);
     private HBox imdbBadgeNode;
     private volatile boolean imdbLoading = false;
@@ -76,6 +74,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private VBox bodyContainer;
     private final Map<EpisodeItem, VBox> renderedCardsByItem = new HashMap<>();
     private Consumer<JSONObject> seasonInfoListener;
+    private boolean internalBingeWatchControlVisible = true;
+    private boolean internalSeriesTitleVisible = true;
     private String pendingTargetSeason;
     private String pendingTargetEpisodeId;
     private String pendingTargetEpisodeNumber;
@@ -264,14 +264,34 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 menu.getStyleClass().add("binge-watch-context-menu");
             }
         });
-        reloadEpisodesButton.setFocusTraversable(true);
-        reloadEpisodesButton.setOnAction(event -> reloadEpisodesFromPortal());
-
         titleRow.getChildren().setAll(titleNode, bingeWatchButton);
+        refreshTitleRowVisibility();
         headerDetails.getChildren().setAll(titleRow);
         HBox.setHgrow(headerDetails, Priority.ALWAYS);
 
         header.getChildren().setAll(seriesPosterNode, headerDetails);
+    }
+
+    @Override
+    protected void setInternalBingeWatchControlVisible(boolean visible) {
+        internalBingeWatchControlVisible = visible;
+        refreshTitleRowVisibility();
+    }
+
+    @Override
+    protected void setInternalSeriesTitleVisible(boolean visible) {
+        internalSeriesTitleVisible = visible;
+        refreshTitleRowVisibility();
+    }
+
+    private void refreshTitleRowVisibility() {
+        titleNode.setManaged(internalSeriesTitleVisible);
+        titleNode.setVisible(internalSeriesTitleVisible);
+        bingeWatchButton.setManaged(internalBingeWatchControlVisible);
+        bingeWatchButton.setVisible(internalBingeWatchControlVisible);
+        boolean titleRowVisible = internalSeriesTitleVisible || internalBingeWatchControlVisible;
+        titleRow.setManaged(titleRowVisible);
+        titleRow.setVisible(titleRowVisible);
     }
 
     public void applyWatchingNowDetailStyling() {
@@ -293,11 +313,12 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         String title = firstNonBlank(seasonInfo.optString("name", ""), categoryTitle);
         titleNode.setText(title);
 
-        headerDetails.getChildren().removeAll(ratingNode, genreNode, releaseNode, plotNode, imdbLoadingNode, reloadEpisodesButton);
+        headerDetails.getChildren().removeAll(ratingNode, genreNode, releaseNode, plotNode, imdbLoadingNode);
         if (imdbBadgeNode != null) {
             headerDetails.getChildren().remove(imdbBadgeNode);
         }
         titleRow.getChildren().setAll(titleNode, bingeWatchButton);
+        refreshTitleRowVisibility();
         if (!headerDetails.getChildren().contains(titleRow)) {
             headerDetails.getChildren().add(0, titleRow);
         }
@@ -374,38 +395,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         return url;
     }
 
-    private void reloadEpisodesFromPortal() {
-        if (account == null || isBlank(seriesId)) {
-            return;
-        }
-        reloadEpisodesButton.setDisable(true);
-        reloadEpisodesButton.setText(I18n.tr("autoReloading"));
-        long generation = lifecycleGeneration.get();
-        new Thread(() -> {
-            EpisodeList refreshed = SeriesEpisodeService.getInstance()
-                    .reloadEpisodesFromPortal(account, seriesCategoryId, seriesId, () -> false);
-            Platform.runLater(() -> {
-                if (!isImdbTaskCurrent(generation)) {
-                    return;
-                }
-                imdbLoaded = false;
-                imdbLoading = false;
-                clearEpisodesAndRefreshTabs();
-                if (refreshed != null && refreshed.getEpisodes() != null && !refreshed.getEpisodes().isEmpty()) {
-                    setItems(refreshed);
-                } else {
-                    setEmptyState("No episodes found.", true);
-                }
-                reloadEpisodesButton.setText(I18n.tr("autoReloadFromServer"));
-                reloadEpisodesButton.setDisable(false);
-            });
-        }, "episodes-portal-reload").start();
-    }
-
-    public void reloadFromServer() {
-        reloadEpisodesFromPortal();
-    }
-
     public void setSeasonInfoListener(Consumer<JSONObject> seasonInfoListener) {
         this.seasonInfoListener = seasonInfoListener;
     }
@@ -477,6 +466,11 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private String selectedSeason() {
         Tab selected = seasonTabPane.getSelectionModel().getSelectedItem();
         return selected != null ? String.valueOf(selected.getUserData()) : "";
+    }
+
+    @Override
+    protected String selectedBingeWatchSeason() {
+        return firstNonBlank(selectedSeason(), "1");
     }
 
     private VBox createEpisodeCard(EpisodeItem row) {
@@ -737,6 +731,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             bingeWatchButton.getItems().add(playerItem);
         }
         bingeWatchButton.setDisable(allEpisodeItems.isEmpty());
+        notifyBingeWatchControlChanged();
     }
 
     private void triggerImdbLazyLoad() {

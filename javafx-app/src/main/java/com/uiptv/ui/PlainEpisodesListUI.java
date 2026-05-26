@@ -9,8 +9,11 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
@@ -18,10 +21,20 @@ import javafx.scene.control.TableView;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+
+import java.util.Comparator;
+import java.util.List;
+
+import static com.uiptv.util.StringUtils.isBlank;
 
 public class PlainEpisodesListUI extends BaseEpisodesListUI {
     private final TableView<EpisodeItem> tableView = new TableView<>();
+    private final TabPane seasonTabPane = new TabPane();
+    private final MenuButton bingeWatchButton = new MenuButton();
+    private HBox seasonControls;
+    private VBox bodyContainer;
 
     public PlainEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
         super(account, categoryTitle, seriesId, seriesCategoryId);
@@ -45,6 +58,19 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
     @Override
     protected void initWidgets() {
+        seasonTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        seasonTabPane.setMaxWidth(Double.MAX_VALUE);
+        seasonTabPane.setMinHeight(36);
+        seasonTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            applyTableFilter();
+            updateBingeWatchButton();
+        });
+
+        bingeWatchButton.setFocusTraversable(true);
+        bingeWatchButton.getStyleClass().setAll("button");
+        bingeWatchButton.getStyleClass().add("binge-watch-menu-button");
+        updateBingeWatchButton();
+
         tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         tableView.getColumns().add(createNameColumn());
         configureRowInteractions();
@@ -118,17 +144,34 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private VBox buildTableBody() {
-        VBox body = new VBox(0, tableView);
-        body.setMaxWidth(Double.MAX_VALUE);
-        body.setMaxHeight(Double.MAX_VALUE);
-        HBox.setHgrow(body, Priority.ALWAYS);
+        seasonControls = new HBox(8, seasonTabPane, bingeWatchButton);
+        seasonControls.setAlignment(Pos.CENTER_LEFT);
+        seasonControls.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(seasonTabPane, Priority.ALWAYS);
+        bingeWatchButton.setMinWidth(Region.USE_PREF_SIZE);
+        bingeWatchButton.setMaxWidth(Region.USE_PREF_SIZE);
+
+        bodyContainer = new VBox(6, seasonControls, tableView);
+        bodyContainer.setMaxWidth(Double.MAX_VALUE);
+        bodyContainer.setMaxHeight(Double.MAX_VALUE);
+        HBox.setHgrow(bodyContainer, Priority.ALWAYS);
         VBox.setVgrow(tableView, Priority.ALWAYS);
-        return body;
+        return bodyContainer;
+    }
+
+    public void applyWatchingNowDetailStyling() {
+        seasonTabPane.getStyleClass().add("watching-now-detail-tabs");
+        if (bodyContainer != null) {
+            bodyContainer.setPadding(new Insets(0, 1, 0, 1));
+            bodyContainer.setSpacing(1);
+        }
     }
 
     @Override
     protected void onItemsLoaded() {
+        refreshSeasonTabs();
         applyTableFilter();
+        updateBingeWatchButton();
     }
 
     @Override
@@ -138,6 +181,10 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
     @Override
     protected void setEmptyState(String message, boolean empty) {
+        if (seasonControls != null) {
+            seasonControls.setManaged(!empty);
+            seasonControls.setVisible(!empty);
+        }
         tableView.setManaged(!empty);
         tableView.setVisible(!empty);
         emptyStateLabel.setText(message == null ? "" : message);
@@ -150,7 +197,9 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         itemsLoaded.set(false);
         channelList.getEpisodes().clear();
         allEpisodeItems.clear();
+        refreshSeasonTabs();
         applyTableFilter();
+        updateBingeWatchButton();
     }
 
     @Override
@@ -165,10 +214,20 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
     @Override
     protected void navigateToEpisodeTarget(String season, String episodeId, String episodeNumber, String episodeName) {
+        String requestedSeason = normalizeNumber(season);
+        if (!isBlank(requestedSeason)) {
+            selectSeasonTab(requestedSeason);
+        }
+
         EpisodeItem match = findBestEpisodeMatch(season, episodeId, episodeNumber, episodeName);
         if (match == null) {
             return;
         }
+        String targetSeason = normalizeNumber(match.getSeason());
+        if (!isBlank(targetSeason)) {
+            selectSeasonTab(targetSeason);
+        }
+        applyTableFilter();
         tableView.getSelectionModel().select(match);
         tableView.scrollTo(match);
     }
@@ -179,7 +238,88 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         setEmptyState("", false);
-        tableView.setItems(allEpisodeItems);
+        String season = selectedSeason();
+        if (isBlank(season)) {
+            tableView.setItems(allEpisodeItems);
+            return;
+        }
+        tableView.setItems(allEpisodeItems.filtered(item -> season.equals(item.getSeason())));
+    }
+
+    private void refreshSeasonTabs() {
+        String current = selectedSeason();
+        List<String> seasons = allEpisodeItems.stream()
+                .map(EpisodeItem::getSeason)
+                .filter(s -> !isBlank(s))
+                .distinct()
+                .sorted(Comparator.comparingInt(this::parseNumberOrDefault))
+                .toList();
+        if (seasons.isEmpty()) {
+            seasons = List.of("1");
+        }
+
+        seasonTabPane.getTabs().clear();
+        for (String season : seasons) {
+            Tab tab = new Tab(I18n.formatTabNumberLabel(season));
+            tab.setClosable(false);
+            tab.setUserData(season);
+            seasonTabPane.getTabs().add(tab);
+        }
+
+        if (seasonTabPane.getTabs().isEmpty()) {
+            return;
+        }
+        Tab defaultTab = seasonTabPane.getTabs().stream()
+                .filter(t -> "1".equals(String.valueOf(t.getUserData())))
+                .findFirst()
+                .orElse(seasonTabPane.getTabs().getFirst());
+        if (!isBlank(current)) {
+            defaultTab = seasonTabPane.getTabs().stream()
+                    .filter(t -> current.equals(String.valueOf(t.getUserData())))
+                    .findFirst()
+                    .orElse(defaultTab);
+        }
+        seasonTabPane.getSelectionModel().select(defaultTab);
+    }
+
+    private String selectedSeason() {
+        Tab selected = seasonTabPane.getSelectionModel().getSelectedItem();
+        return selected != null ? String.valueOf(selected.getUserData()) : "";
+    }
+
+    @Override
+    protected String selectedBingeWatchSeason() {
+        return firstNonBlank(selectedSeason(), "1");
+    }
+
+    @Override
+    protected void setInternalBingeWatchControlVisible(boolean visible) {
+        bingeWatchButton.setManaged(visible);
+        bingeWatchButton.setVisible(visible);
+    }
+
+    private void selectSeasonTab(String season) {
+        Tab seasonTab = seasonTabPane.getTabs().stream()
+                .filter(t -> season.equals(normalizeNumber(String.valueOf(t.getUserData()))))
+                .findFirst()
+                .orElse(null);
+        if (seasonTab != null) {
+            seasonTabPane.getSelectionModel().select(seasonTab);
+        }
+    }
+
+    private void updateBingeWatchButton() {
+        String season = firstNonBlank(selectedSeason(), "1");
+        bingeWatchButton.setText(buildBingeWatchMenuLabel(season));
+        bingeWatchButton.getItems().clear();
+        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+            MenuItem playerItem = new MenuItem(option.label());
+            playerItem.getStyleClass().add("binge-watch-menu-item");
+            playerItem.setOnAction(event -> bingeWatchSeason(season, option.playerPath()));
+            bingeWatchButton.getItems().add(playerItem);
+        }
+        bingeWatchButton.setDisable(allEpisodeItems.isEmpty());
+        notifyBingeWatchControlChanged();
     }
 
     private void addRightClickContextMenu(TableRow<EpisodeItem> row) {
