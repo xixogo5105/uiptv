@@ -16,7 +16,7 @@ This is the Android-first Kotlin Multiplatform workspace for UIPTV mobile.
 
 ### libmpv Dependency
 
-The app depends on an Android 7/API 24 rebuild of `dev.jdtech.mpv:libmpv`. CI restores the prebuilt AAR from cache or downloads the `libmpv-android-api24` GitHub release asset before compiling the mobile app.
+The app depends on an Android 7/API 24 rebuild of `dev.jdtech.mpv:libmpv`. CI restores the prebuilt AAR from the GitHub Actions cache; on a cache miss it rebuilds the AAR with `scripts/build-mobile-with-libmpv.sh`. Mobile CI must not create or consume UIPTV GitHub Releases for this dependency.
 
 ```bash
 ./scripts/build-mobile-with-libmpv.sh :androidApp:assembleDebug
@@ -125,7 +125,9 @@ A separate APK per CPU architecture is not required unless we choose to reduce d
 
 ## CI Build
 
-`.github/workflows/mobile.yml` packages the debug APK on every push and pull request, using the prebuilt API 24 libmpv AAR, and uploads it as a workflow artifact named `uiptv-mobile-debug-apk`. Shared mobile tests and coverage run in the main build workflow.
+`.github/workflows/mobile.yml` packages the debug APK on every push and pull request and uploads it as a workflow artifact named `uiptv-mobile-debug-apk`. It never publishes a GitHub Release. Shared mobile tests and coverage run in the main build workflow.
+
+The only supported GitHub Release path is the repository-root `release.sh` script. That script updates the desktop Maven version and Android `versionName`/`versionCode`, pushes a `vX.Y.Z` tag, and lets the main build workflow publish one combined desktop plus Android release.
 
 ## User And Release Docs
 

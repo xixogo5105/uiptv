@@ -1,5 +1,11 @@
 # UIPTV Android Release Checklist
 
+## Release Ownership
+
+Do not publish Android-only GitHub Releases. The mobile project can build debug and release APKs for verification, but public GitHub Releases are owned by the repository-root `release.sh` flow.
+
+Run `./release.sh X.Y.Z` from the repository root to publish a release. The script updates Maven and Android versions, creates the annotated `vX.Y.Z` tag, and the main build workflow publishes one combined desktop plus Android release.
+
 ## Local Verification
 
 Run from `mobile/`:

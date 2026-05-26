@@ -15,7 +15,7 @@ UIPTV is a versatile IPTV player written in Java, designed to run on Windows, Li
 
 Core principle: keep the app simple, plain, and practical so everyday playback and account management stay fast and predictable.
 
-Release assets are currently published for Windows (x86_64), Linux (x86_64 and aarch64 where available), and macOS (x86_64, aarch64). GitHub releases currently distribute platform builds as downloadable archives containing the packaged app or platform-specific package output.
+Release assets are currently published for Windows (x86_64), Linux (x86_64 and aarch64 where available), macOS (x86_64, aarch64), and Android as a universal APK. GitHub releases are published only from repository-root `release.sh`, which creates one combined desktop plus mobile release.
 
 ## Documentation
 

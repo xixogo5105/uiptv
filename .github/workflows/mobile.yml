@@ -37,21 +37,8 @@ jobs:
           restore-keys: |
             libmpv-api24-aar-${{ runner.os }}-v1-
 
-      - name: Download API 24 libmpv AAR
-        if: steps.libmpv-aar-cache.outputs.cache-hit != 'true'
+      - name: Package Android debug APK
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p mobile/androidApp/libs
-          gh release download libmpv-android-api24 \
-            --repo xixogo5105/uiptv \
-            --pattern libmpv-android-api24.aar \
-            --dir mobile/androidApp/libs
-          echo "880cb9cbbdc36c2fdadc9cc075f5743e1d284a19a8805c4f7e8f71585dcf1047  mobile/androidApp/libs/libmpv-android-api24.aar" | sha256sum -c -
-
-      - name: Package Android debug APK with prebuilt libmpv
-        env:
-          UIPTV_LIBMPV_REQUIRE_AAR: "1"
           UIPTV_LIBMPV_REUSE_AAR: "1"
         run: ./scripts/build-mobile-with-libmpv.sh :androidApp:assembleDebug
 

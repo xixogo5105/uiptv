@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class M3U8PublicationPopupTest extends DbBackedUiTest {
     private static final AtomicBoolean FX_STARTED = new AtomicBoolean(false);
+    private static final long FX_WAIT_TIMEOUT_SECONDS = 3L;
 
     @BeforeAll
     static void initJavaFx() throws Exception {
@@ -34,7 +35,7 @@ class M3U8PublicationPopupTest extends DbBackedUiTest {
             CountDownLatch latch = new CountDownLatch(1);
             try {
                 Platform.startup(latch::countDown);
-                if (!latch.await(5, TimeUnit.SECONDS)) {
+                if (!latch.await(FX_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                     throw new IllegalStateException("JavaFX platform failed to start");
                 }
             } catch (IllegalStateException e) {
@@ -102,7 +103,7 @@ class M3U8PublicationPopupTest extends DbBackedUiTest {
                 latch.countDown();
             }
         });
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (!latch.await(FX_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
             throw new IllegalStateException("Timed out waiting for FX task");
         }
         if (failure.get() != null) {

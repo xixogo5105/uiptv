@@ -26,7 +26,7 @@ import java.util.concurrent.locks.LockSupport;
 import static org.junit.jupiter.api.Assertions.*;
 
 class RemoteSyncSessionServiceTest extends DbBackedTest {
-    private static final long STATUS_POLL_INTERVAL_NANOS = TimeUnit.MILLISECONDS.toNanos(50);
+    private static final long STATUS_POLL_INTERVAL_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
 
     private final DatabaseSnapshotService snapshotService = new DatabaseSnapshotService();
 
@@ -298,7 +298,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
                     "10.0.0.8"
             ).sessionId();
 
-            assertTrue(blockingSnapshotService.preparationStarted.await(2, TimeUnit.SECONDS));
+            assertTrue(blockingSnapshotService.preparationStarted.await(1, TimeUnit.SECONDS));
             RemoteSyncSessionState preparing = service.getSessionState(sessionId);
             assertEquals(RemoteSyncStatus.APPROVED, preparing.status());
             assertEquals("Approved. Preparing snapshot.", preparing.message());
@@ -406,7 +406,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
             String sessionId,
             RemoteSyncStatus expectedStatus
     ) throws InterruptedException {
-        Instant deadline = Instant.now().plusSeconds(5);
+        Instant deadline = Instant.now().plusSeconds(2);
         RemoteSyncSessionState state;
         do {
             state = service.getSessionState(sessionId);
@@ -440,7 +440,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         public Path createSnapshotArchive(String databasePath) throws IOException, SQLException {
             preparationStarted.countDown();
             try {
-                if (!continuePreparation.await(3, TimeUnit.SECONDS)) {
+                if (!continuePreparation.await(1, TimeUnit.SECONDS)) {
                     throw new IOException("Timed out waiting to continue snapshot preparation.");
                 }
             } catch (InterruptedException ex) {

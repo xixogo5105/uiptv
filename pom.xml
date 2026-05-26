@@ -317,6 +317,8 @@
                             <uiptv.stalker.page.delay.ms>0</uiptv.stalker.page.delay.ms>
                             <uiptv.stalker.page.maxDelay.ms>0</uiptv.stalker.page.maxDelay.ms>
                             <uiptv.stalker.page.jitter.ms>0</uiptv.stalker.page.jitter.ms>
+                            <uiptv.sql.busy.timeout.ms>10</uiptv.sql.busy.timeout.ms>
+                            <uiptv.sql.init.retry.delay.ms>10</uiptv.sql.init.retry.delay.ms>
                         </systemPropertyVariables>
                     </configuration>
                 </plugin>
@@ -369,6 +371,8 @@
                         <uiptv.stalker.page.delay.ms>0</uiptv.stalker.page.delay.ms>
                         <uiptv.stalker.page.maxDelay.ms>0</uiptv.stalker.page.maxDelay.ms>
                         <uiptv.stalker.page.jitter.ms>0</uiptv.stalker.page.jitter.ms>
+                        <uiptv.sql.busy.timeout.ms>10</uiptv.sql.busy.timeout.ms>
+                        <uiptv.sql.init.retry.delay.ms>10</uiptv.sql.init.retry.delay.ms>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

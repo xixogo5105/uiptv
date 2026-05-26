@@ -27,10 +27,10 @@ cd "$SCRIPT_DIR" || error "Could not change to project directory: $SCRIPT_DIR"
 # ===============================
 # Validate input
 # ===============================
-VERSION="$1"
+VERSION="${1:-}"
 
 if [ -z "$VERSION" ]; then
-  error "No version supplied. Usage: sh release.sh <version> (e.g. 0.0.8)"
+  error "No version supplied. Usage: ./release.sh <version> (e.g. 0.0.8)"
 fi
 
 # Simple semver-ish validation
@@ -39,6 +39,8 @@ if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
 fi
 
 TAG="${TAG_PREFIX}${VERSION}"
+IFS='.' read -r VERSION_MAJOR VERSION_MINOR VERSION_PATCH <<< "$VERSION"
+VERSION_CODE=$((10#$VERSION_MAJOR * 10000 + 10#$VERSION_MINOR * 100 + 10#$VERSION_PATCH))
 
 # ===============================
 # Git checks
@@ -78,9 +80,16 @@ fi
 # ===============================
 # Update version in pom.xml
 # ===============================
-info "Updating pom.xml to version $VERSION"
+info "Updating Maven modules to version $VERSION"
 mvn versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
-git add pom.xml core/pom.xml api-server/pom.xml javafx-app/pom.xml
+
+info "Updating Android app version to $VERSION ($VERSION_CODE)"
+VERSION="$VERSION" VERSION_CODE="$VERSION_CODE" perl -0pi -e '
+  s/versionCode = \d+/versionCode = $ENV{VERSION_CODE}/;
+  s/versionName = "[^"]+"/versionName = "$ENV{VERSION}"/;
+' mobile/androidApp/build.gradle.kts
+
+git add pom.xml uiptv-shared/pom.xml core/pom.xml api-server/pom.xml javafx-app/pom.xml coverage-aggregate/pom.xml mobile/androidApp/build.gradle.kts
 
 # ===============================
 # Create release commit
@@ -107,4 +116,4 @@ git push "$REMOTE" "$TAG"
 # ===============================
 # Done
 # ===============================
-info "Release $VERSION completed successfully 🎉"
+info "Release $VERSION tag pushed. GitHub Actions will publish the combined desktop and Android release."

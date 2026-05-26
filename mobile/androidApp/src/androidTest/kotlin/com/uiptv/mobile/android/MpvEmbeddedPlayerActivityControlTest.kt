@@ -92,7 +92,7 @@ class MpvEmbeddedPlayerActivityControlTest {
             descriptions.forEach { description ->
                 findViewByDescription(activity.window.decorView, description)?.let { return it }
             }
-            Thread.sleep(100)
+            Thread.sleep(ControlPollIntervalMs)
         } while (System.currentTimeMillis() < deadline)
         val found = collectDescriptions(activity.window.decorView).joinToString()
         assertNotNull("Controls '${descriptions.joinToString()}' not found. Visible controls: $found", null)
@@ -124,6 +124,7 @@ class MpvEmbeddedPlayerActivityControlTest {
 
     private companion object {
         const val TestStreamUrl = "http://10.0.2.2:8765/test.mp4"
-        const val ControlWaitMs = 5_000L
+        const val ControlWaitMs = 2_000L
+        const val ControlPollIntervalMs = 25L
     }
 }

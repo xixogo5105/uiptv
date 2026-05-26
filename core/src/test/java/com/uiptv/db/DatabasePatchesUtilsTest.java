@@ -91,7 +91,9 @@ class DatabasePatchesUtilsTest extends DbBackedTest {
             });
             initThread.start();
 
-            waitForCondition(100, () -> failure.get() != null || !initThread.isAlive());
+            waitForCondition(100, () -> failure.get() != null
+                    || initThread.getState() == Thread.State.TIMED_WAITING
+                    || !initThread.isAlive());
             st.execute("COMMIT");
         }
         initThread.join();

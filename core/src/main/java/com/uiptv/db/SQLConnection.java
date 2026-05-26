@@ -14,9 +14,9 @@ import static com.uiptv.util.Platform.getUserHomeDirPath;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class SQLConnection {
-    private static final int BUSY_TIMEOUT_MS = 10_000;
-    private static final int INIT_RETRY_ATTEMPTS = 6;
-    private static final long INIT_RETRY_DELAY_MS = 250L;
+    private static final int BUSY_TIMEOUT_MS = Math.max(1, Integer.getInteger("uiptv.sql.busy.timeout.ms", 10_000));
+    private static final int INIT_RETRY_ATTEMPTS = Math.max(1, Integer.getInteger("uiptv.sql.init.retry.attempts", 6));
+    private static final long INIT_RETRY_DELAY_MS = Math.max(0L, Long.getLong("uiptv.sql.init.retry.delay.ms", 250L));
 
     private static String databasePathFromConfigFile = ConfigFileReader.getDbPathFromConfigFile();
     private static String dbPath = isNotBlank(databasePathFromConfigFile) ? databasePathFromConfigFile : getUserHomeDirPath() + File.separator + "uiptv.db";

@@ -88,6 +88,38 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: xvfb-run -a mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=xixogo5105_uiptv
 
+  release_guard:
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          release_commit="$(git rev-list -n 1 "$GITHUB_REF_NAME")"
+          commit_subject="$(git log -1 --format=%s "$release_commit")"
+          tag_subject="$(git for-each-ref "refs/tags/$GITHUB_REF_NAME" --format='%(contents:subject)')"
+
+          if [ "$commit_subject" != "Release $version" ]; then
+            echo "Release tags must point at a release.sh commit named 'Release $version'. Found: $commit_subject" >&2
+            exit 1
+          fi
+
+          if [ "$tag_subject" != "Release $version" ]; then
+            echo "Release tags must be annotated by release.sh with message 'Release $version'. Found: $tag_subject" >&2
+            exit 1
+          fi
+
+          grep -q "<version>$version</version>" pom.xml
+          grep -q "versionName = \"$version\"" mobile/androidApp/build.gradle.kts
+
   build_windows:
     if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -110,7 +142,7 @@ jobs:
           cache: maven
 
       - name: Build Windows package
-        run: mvn -B clean package -P ${{ matrix.profile }}
+        run: mvn -B clean package -DskipTests -P ${{ matrix.profile }}
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v7
@@ -144,7 +176,7 @@ jobs:
           cache: maven
 
       - name: Build macOS package
-        run: mvn -B clean package -P ${{ matrix.profile }}
+        run: mvn -B clean package -DskipTests -P ${{ matrix.profile }}
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v7
@@ -186,7 +218,7 @@ jobs:
           fi
 
       - name: Build DEB package
-        run: xvfb-run -a mvn -B clean package -P linux-x86_64,pkg-deb
+        run: xvfb-run -a mvn -B clean package -DskipTests -P linux-x86_64,pkg-deb
 
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v7
@@ -200,7 +232,7 @@ jobs:
 
       - name: Build RPM package
         if: steps.rpm_support.outputs.supported == 'true'
-        run: xvfb-run -a mvn -B clean package -P linux-x86_64,pkg-rpm
+        run: xvfb-run -a mvn -B clean package -DskipTests -P linux-x86_64,pkg-rpm
 
       - name: Upload RPM artifact
         if: steps.rpm_support.outputs.supported == 'true'
@@ -214,7 +246,7 @@ jobs:
         run: rm -rf javafx-app/target/dist/*
 
       - name: Build AppImage package
-        run: xvfb-run -a mvn -B clean package -P linux-x86_64,pkg-app-image
+        run: xvfb-run -a mvn -B clean package -DskipTests -P linux-x86_64,pkg-app-image
 
       - name: Archive app-image artifact (x86_64)
         shell: bash
@@ -235,6 +267,50 @@ jobs:
       # Do not build linux-aarch64 app-image on an x86_64 runner.
       # jpackage app-image launchers are native and not cross-compiled.
 
+  build_mobile_release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Restore API 24 libmpv AAR
+        uses: actions/cache@v5
+        with:
+          path: mobile/androidApp/libs/libmpv-android-api24.aar
+          key: libmpv-api24-aar-${{ runner.os }}-v1-${{ hashFiles('scripts/build-mobile-with-libmpv.sh', 'mobile/androidApp/build.gradle.kts') }}
+          restore-keys: |
+            libmpv-api24-aar-${{ runner.os }}-v1-
+
+      - name: Build Android release APK
+        env:
+          UIPTV_LIBMPV_REUSE_AAR: "1"
+        run: ./scripts/build-mobile-with-libmpv.sh :androidApp:assembleRelease
+
+      - name: Stage Android release APK
+        shell: bash
+        run: |
+          mkdir -p target/mobile-release
+          cp mobile/androidApp/build/outputs/apk/release/androidApp-release.apk target/mobile-release/UIPTV-android-universal.apk
+
+      - name: Upload Android release APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: UIPTV-android-universal-apk
+          path: target/mobile-release/UIPTV-android-universal.apk
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
   build_linux_arm64_appimage:
     if: github.event_name == 'workflow_dispatch' && vars.ENABLE_ARM64_RUNNER == 'true'
     permissions:
@@ -252,7 +328,7 @@ jobs:
           cache: maven
 
       - name: Build AppImage package (aarch64)
-        run: mvn -B clean package -P linux-aarch64,pkg-app-image
+        run: mvn -B clean package -DskipTests -P linux-aarch64,pkg-app-image
 
       - name: Archive app-image artifact (aarch64)
         shell: bash
@@ -265,3 +341,61 @@ jobs:
           name: UIPTV-linux-aarch64-app-image
           path: target/UIPTV-linux-aarch64-app-image.tar.gz
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
+  publish_release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - test
+      - release_guard
+      - build_windows
+      - build_mac
+      - build_linux
+      - build_mobile_release
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: UIPTV-*
+          path: downloaded-artifacts
+
+      - name: Stage release assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          find downloaded-artifacts -type f -print0 | while IFS= read -r -d '' file; do
+            artifact="$(basename "$(dirname "$file")")"
+            base="$(basename "$file")"
+            cp "$file" "release-assets/${artifact}-${base}"
+          done
+          find release-assets -maxdepth 1 -type f -print | sort
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          shopt -s nullglob
+          assets=(release-assets/*)
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No release assets were staged." >&2
+            exit 1
+          fi
+
+          notes_args=(--generate-notes)
+          if [ -f release_notes.md ]; then
+            notes_args=(--notes-file release_notes.md)
+          fi
+
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "UIPTV $version" \
+            --verify-tag \
+            --latest \
+            "${notes_args[@]}"
