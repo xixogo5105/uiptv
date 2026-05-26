@@ -2299,7 +2299,7 @@ createApp({
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
             };
-            await startPlayback(playbackUrl, nextChannel);
+            await startPlayback(playbackUrl, nextChannel, {expandPlayer: true});
             window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
             return true;
         };
@@ -2377,7 +2377,7 @@ createApp({
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
             };
-            await startPlayback(playbackUrl, nextChannel);
+            await startPlayback(playbackUrl, nextChannel, {expandPlayer: true});
 
             const cleanUrl = `${window.location.origin}${window.location.pathname}`;
             window.history.replaceState({}, document.title, cleanUrl);
@@ -2417,7 +2417,7 @@ createApp({
                 type: 'channel',
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
-            });
+            }, {expandPlayer: true});
             window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
             return true;
         };
@@ -2973,6 +2973,9 @@ createApp({
             const switching = targetChannel && currentChannel.value && !isSamePlaybackTarget(currentChannel.value, targetChannel);
             if (switching) {
                 await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true, hideControls: false});
+            }
+            if (options.expandPlayer === true) {
+                playerExpanded.value = true;
             }
             if (playbackFetchController) {
                 try {
