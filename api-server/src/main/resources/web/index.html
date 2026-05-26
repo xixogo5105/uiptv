@@ -7,13 +7,17 @@
     <meta content="no-cache, no-store, must-revalidate" http-equiv="Cache-Control">
     <meta content="no-cache" http-equiv="Pragma">
     <meta content="0" http-equiv="Expires">
-    <link href="manifest.json" rel="manifest">
+    <link href="/manifest.json?v=20260526a" rel="manifest">
     <meta content="#1b1f23" name="theme-color">
+    <meta content="yes" name="mobile-web-app-capable">
+    <meta content="yes" name="apple-mobile-web-app-capable">
+    <meta content="UIPTV" name="apple-mobile-web-app-title">
     <link href="icon.ico" rel="icon" type="image/x-icon">
+    <link href="/icon-192.png" rel="apple-touch-icon">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260523e" rel="stylesheet">
-    <link href="/css/spa.css?v=20260523aa" rel="stylesheet">
+    <link href="/css/spa.css?v=20260526a" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
@@ -626,14 +630,17 @@
                 </div>
 
                 <div id="player-wrapper">
-                    <div id="player-placeholder" v-show="!isPlaying || playbackLoading">
+                    <div id="player-placeholder" v-show="!isPlaying || playbackLoading || playbackGestureRequired">
                         <span aria-hidden="true" class="spinner-border player-spinner" role="status" v-if="playbackLoading"></span>
+                        <button @click="resumeBlockedPlayback" class="player-resume-button" title="Start playback" type="button" v-else-if="playbackGestureRequired">
+                            <i class="bi bi-play-fill"></i>
+                        </button>
                         <i class="bi bi-play-circle player-placeholder-icon" v-else></i>
-                        <h2>{{ playbackLoading ? 'Starting stream...' : 'Select content to play' }}</h2>
+                        <h2>{{ playbackLoading ? 'Starting stream...' : (playbackGestureRequired ? 'Ready to play' : 'Select content to play') }}</h2>
                         <p v-if="playbackError">{{ playbackError }}</p>
                     </div>
 
-                    <div :class="{ 'player-frame-hidden': playbackLoading }" class="player-frame" id="player" v-show="isPlaying">
+                    <div :class="{ 'player-frame-hidden': playbackLoading || playbackGestureRequired }" class="player-frame" id="player" v-show="isPlaying">
                         <video autoplay controls playsinline ref="videoPlayer"></video>
                     </div>
                 </div>
@@ -662,7 +669,7 @@
     </main>
 </div>
 
-<script src="/javascript/spa.js?v=20260523x"></script>
+<script src="/javascript/spa.js?v=20260526a"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;
@@ -675,7 +682,7 @@
             window.location.reload();
         });
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js?v=20260523f')
+            navigator.serviceWorker.register('/sw.js?v=20260526a')
                 .then(registration => {
                     console.log('ServiceWorker registration successful with scope: ', registration.scope);
                 }, err => {

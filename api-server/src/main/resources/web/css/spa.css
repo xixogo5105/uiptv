@@ -1009,6 +1009,26 @@ a[href] {
     font-size: 4rem;
 }
 
+.player-resume-button {
+    width: 5rem;
+    height: 5rem;
+    border: 4px solid rgba(244, 247, 250, 0.72);
+    border-radius: 50%;
+    background: transparent;
+    color: #f4f7fa;
+    display: grid;
+    place-items: center;
+    font-size: 3.2rem;
+    line-height: 1;
+}
+
+.player-resume-button:hover,
+.player-resume-button:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+    outline: none;
+}
+
 .player-frame video {
     width: 100%;
     height: 100%;

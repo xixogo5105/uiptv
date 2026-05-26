@@ -36,6 +36,7 @@ createApp({
         const playbackMode = ref('');
         const isPlaying = ref(false);
         const playbackError = ref('');
+        const playbackGestureRequired = ref(false);
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
         const playerExpanded = ref(false);
@@ -72,6 +73,7 @@ createApp({
         let sharedHeader = null;
         let playbackRequestId = 0;
         let playbackFetchController = null;
+        let playbackGestureResume = null;
         const languageNames = typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
             ? new Intl.DisplayNames([navigator.language || 'en'], {type: 'language'})
             : null;
@@ -2884,6 +2886,85 @@ createApp({
             return true;
         };
 
+        const PLAYBACK_GESTURE_REQUIRED_MESSAGE = 'Click play to start playback.';
+
+        const isPlaybackGestureError = (error) => {
+            const text = `${error?.name || ''} ${error?.message || error || ''}`.toLowerCase();
+            return text.includes('notallowederror')
+                || text.includes('user gesture')
+                || text.includes("didn't interact")
+                || text.includes('did not interact')
+                || text.includes('play() failed because')
+                || text.includes('autoplay');
+        };
+
+        const clearPlaybackGestureRequirement = () => {
+            playbackGestureRequired.value = false;
+            playbackGestureResume = null;
+        };
+
+        const enableMutedAutoplayFallback = () => {
+            const video = videoPlayer.value;
+            if (!video) return false;
+            video.muted = true;
+            isMuted.value = true;
+            return true;
+        };
+
+        const playWithGestureFallback = async (playAction) => {
+            if (typeof playAction !== 'function') return true;
+            try {
+                await playAction();
+                clearPlaybackGestureRequirement();
+                return true;
+            } catch (e) {
+                if (!isPlaybackGestureError(e)) {
+                    throw e;
+                }
+                if (enableMutedAutoplayFallback()) {
+                    try {
+                        await playAction();
+                        playbackError.value = '';
+                        clearPlaybackGestureRequirement();
+                        return true;
+                    } catch (mutedError) {
+                        if (!isPlaybackGestureError(mutedError)) {
+                            throw mutedError;
+                        }
+                    }
+                }
+                playbackGestureRequired.value = true;
+                playbackError.value = PLAYBACK_GESTURE_REQUIRED_MESSAGE;
+                playbackGestureResume = playAction;
+                return false;
+            }
+        };
+
+        const resumeBlockedPlayback = async () => {
+            const resume = playbackGestureResume;
+            if (typeof resume !== 'function') {
+                playbackGestureRequired.value = false;
+                playbackError.value = '';
+                await ensurePlaybackNotPaused();
+                return;
+            }
+            try {
+                playbackError.value = '';
+                await resume();
+                clearPlaybackGestureRequirement();
+                isPlaying.value = true;
+            } catch (e) {
+                if (isPlaybackGestureError(e)) {
+                    playbackGestureRequired.value = true;
+                    playbackError.value = PLAYBACK_GESTURE_REQUIRED_MESSAGE;
+                    return;
+                }
+                playbackGestureRequired.value = false;
+                playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
+                console.warn('Playback resume failed.', e);
+            }
+        };
+
         const startPlayback = async (url, nextChannel = null, options = {}) => {
             const requestId = ++playbackRequestId;
             controlsVisible.value = true;
@@ -2919,6 +3000,7 @@ createApp({
             playbackLoading.value = true;
             playbackMode.value = 'loading';
             playbackError.value = '';
+            clearPlaybackGestureRequirement();
             const channelDataPromise = fetch(url, {signal: controller.signal}).then(response => response.json());
             if (!switching) {
                 await stopPlayback(true);
@@ -2993,6 +3075,7 @@ createApp({
                 isPlaying.value = false;
                 currentChannel.value = null;
                 playbackError.value = '';
+                clearPlaybackGestureRequirement();
                 playerExpanded.value = false;
                 playerManuallyHidden.value = false;
                 clearActiveBingeWatch();
@@ -3020,6 +3103,7 @@ createApp({
             isPlaying.value = false;
             currentChannel.value = null;
             playbackError.value = '';
+            clearPlaybackGestureRequirement();
             if (hideControls) {
                 controlsVisible.value = false;
             }
@@ -3191,7 +3275,8 @@ createApp({
                 });
                 player.attachMediaElement(video);
                 player.load();
-                await player.play();
+                const playAction = typeof player.play === 'function' ? () => player.play() : () => video.play();
+                await playWithGestureFallback(playAction);
                 playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'mpegts');
             } catch (e) {
                 const message = describeMpegTsFailure(e);
@@ -3213,8 +3298,9 @@ createApp({
             let sourceUrl = normalizeWebPlaybackUrl(channel.url);
             video.src = sourceUrl;
             try {
-                await video.play();
+                const started = await playWithGestureFallback(() => video.play());
                 playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
+                if (!started) return;
             } catch (e) {
                 if (String(strategyOverride.value || 'auto') !== 'auto') {
                     playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
@@ -3229,8 +3315,9 @@ createApp({
                         parsed.searchParams.set('_retry', String(Date.now()));
                         sourceUrl = parsed.toString();
                         video.src = sourceUrl;
-                        await video.play();
+                        const started = await playWithGestureFallback(() => video.play());
                         playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
+                        if (!started) return;
                         return;
                     } catch (retryProxyErr) {
                         console.warn('Proxy retry failed.', retryProxyErr);
@@ -3243,8 +3330,9 @@ createApp({
                     try {
                         sourceUrl = downgraded;
                         video.src = sourceUrl;
-                        await video.play();
+                        const started = await playWithGestureFallback(() => video.play());
                         playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
+                        if (!started) return;
                         return;
                     } catch (retryErr) {
                         console.warn('HTTP fallback failed.', retryErr);
@@ -3295,7 +3383,7 @@ createApp({
             try {
                 await player.attach(video);
                 await player.load(channel.url);
-                await video.play();
+                await playWithGestureFallback(() => video.play());
                 playbackMode.value = resolvePlaybackModeLabel(channel.url, 'shaka');
                 refreshShakaTracks(player);
                 player.addEventListener('trackschanged', () => refreshShakaTracks(player));
@@ -4002,6 +4090,7 @@ createApp({
             isCurrentFavorite,
             isPlaying,
             playbackError,
+            playbackGestureRequired,
             showOverlay,
             showBookmarkModal,
             playerExpanded,
@@ -4082,6 +4171,7 @@ createApp({
             stopPlaybackAndHide,
             toggleFavorite,
             reloadPlayback,
+            resumeBlockedPlayback,
             toggleRepeat,
             togglePictureInPicture,
             toggleMute,

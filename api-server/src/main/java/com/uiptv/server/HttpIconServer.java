@@ -14,6 +14,9 @@ public class HttpIconServer implements HttpHandler {
     private static final String RESOURCE_ICON = "/icon.ico";
     private static final String ICON_PATH = "/icon.ico";
     private static final String PNG_ICON_PATH = "/icon.png";
+    private static final String ICON_192_PATH = "/icon-192.png";
+    private static final String ICON_512_PATH = "/icon-512.png";
+    private static final String MASKABLE_ICON_512_PATH = "/icon-maskable-512.png";
     private static final String CONTENT_TYPE_ICON = "image/x-icon";
     private static final String CONTENT_TYPE_PNG = "image/png";
 
@@ -64,7 +67,7 @@ public class HttpIconServer implements HttpHandler {
     private static String contentTypeFor(String path) {
         return switch (path) {
             case ICON_PATH -> CONTENT_TYPE_ICON;
-            case PNG_ICON_PATH -> CONTENT_TYPE_PNG;
+            case PNG_ICON_PATH, ICON_192_PATH, ICON_512_PATH, MASKABLE_ICON_512_PATH -> CONTENT_TYPE_PNG;
             default -> null;
         };
     }
