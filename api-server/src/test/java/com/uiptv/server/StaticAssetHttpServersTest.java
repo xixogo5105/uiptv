@@ -87,13 +87,17 @@ class StaticAssetHttpServersTest {
         }
 
         Path pngPath = Path.of(com.uiptv.util.Platform.getWebServerRootPath(), "icon.png");
-        TestHttpExchange pngExchange = new TestHttpExchange("/icon.png", "GET");
-        handler.handle(pngExchange);
         if (Files.exists(pngPath)) {
-            assertEquals(200, pngExchange.getResponseCode());
-            assertTrue(pngExchange.getResponseHeaders().getFirst("Content-Type").contains("image/png"));
-            assertTrue(pngExchange.getResponseBodyBytes().length > 0);
+            for (String path : java.util.List.of("/icon.png", "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png")) {
+                TestHttpExchange pngExchange = new TestHttpExchange(path, "GET");
+                handler.handle(pngExchange);
+                assertEquals(200, pngExchange.getResponseCode(), "Expected 200 for " + path);
+                assertTrue(pngExchange.getResponseHeaders().getFirst("Content-Type").contains("image/png"));
+                assertTrue(pngExchange.getResponseBodyBytes().length > 0);
+            }
         } else {
+            TestHttpExchange pngExchange = new TestHttpExchange("/icon.png", "GET");
+            handler.handle(pngExchange);
             assertEquals(404, pngExchange.getResponseCode());
         }
 

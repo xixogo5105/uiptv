@@ -350,9 +350,13 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
     private void assertStaticBootstrapApis() throws Exception {
         HttpTextResponse manifest = get("/manifest.json");
         assertEquals(200, manifest.statusCode());
-        assertTrue(manifest.body().contains("\"name\": \"UIPTV Web\""));
-        assertTrue(manifest.body().contains("\"start_url\": \"index.html\""));
-        assertTrue(manifest.body().contains("\"src\": \"icon.png\""));
+        assertTrue(manifest.body().contains("\"name\": \"UIPTV\""));
+        assertTrue(manifest.body().contains("\"start_url\": \"/index.html\""));
+        assertTrue(manifest.body().contains("\"scope\": \"/\""));
+        assertTrue(manifest.body().contains("\"src\": \"/icon-192.png\""));
+        assertTrue(manifest.body().contains("\"src\": \"/icon-512.png\""));
+        assertTrue(manifest.body().contains("\"src\": \"/icon-maskable-512.png\""));
+        assertTrue(manifest.body().contains("\"purpose\": \"maskable\""));
 
         HttpTextResponse ico = get("/icon.ico");
         assertEquals(200, ico.statusCode());
@@ -362,10 +366,17 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         assertEquals(200, png.statusCode());
         assertTrue(png.firstHeader("Content-Type").contains("image/png"));
 
+        for (String iconPath : List.of("/icon-192.png", "/icon-512.png", "/icon-maskable-512.png")) {
+            HttpTextResponse icon = get(iconPath);
+            assertEquals(200, icon.statusCode(), "Expected 200 for " + iconPath);
+            assertTrue(icon.firstHeader("Content-Type").contains("image/png"), "Expected PNG content type for " + iconPath);
+        }
+
         HttpTextResponse serviceWorker = get("/sw.js");
         assertEquals(200, serviceWorker.statusCode());
-        assertTrue(serviceWorker.body().contains("const CACHE_NAME = 'uiptv-cache-v26';"));
+        assertTrue(serviceWorker.body().contains("const CACHE_NAME = 'uiptv-cache-v27';"));
         assertTrue(serviceWorker.body().contains("/javascript/bookmark-watch-utils.js"));
+        assertTrue(serviceWorker.body().contains("/icon-maskable-512.png"));
         assertFalse(serviceWorker.body().contains("Gateway Timeout"));
         assertTrue(serviceWorker.body().contains("networkFirstAppShell"));
         assertTrue(serviceWorker.body().contains("self.addEventListener('fetch'"));
