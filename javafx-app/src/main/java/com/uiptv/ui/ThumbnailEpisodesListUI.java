@@ -51,6 +51,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private static final String KEY_RATING = "rating";
     private static final String KEY_RELEASE_DATE = "releaseDate";
     private static final String KEY_TITLE = "title";
+    private static final String STYLE_CLASS_BUTTON = "button";
     private final TabPane seasonTabPane = new TabPane();
     private final VBox cardsContainer = new VBox(8);
     private final ScrollPane cardsScroll = new ScrollPane(cardsContainer);
@@ -258,7 +259,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         Label imdbLoadingLabel = new Label(I18n.tr("autoLoadingIMDbDetails"));
         imdbLoadingNode.getChildren().setAll(imdbProgress, imdbLoadingLabel);
         bingeWatchButton.setFocusTraversable(true);
-        bingeWatchButton.getStyleClass().setAll("button");
+        bingeWatchButton.getStyleClass().setAll(STYLE_CLASS_BUTTON);
         bingeWatchButton.getStyleClass().add("binge-watch-menu-button");
         bingeWatchButton.setOnShowing(event -> {
             ContextMenu menu = bingeWatchButton.getContextMenu();
@@ -528,7 +529,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         }
         ContextMenu rowMenu = addRightClickContextMenu(row, root);
         Button playButton = new Button(I18n.tr("autoPlay2"));
-        playButton.getStyleClass().setAll("button");
+        playButton.getStyleClass().setAll(STYLE_CLASS_BUTTON);
         playButton.getStyleClass().add("episode-play-button");
         playButton.setMinWidth(Region.USE_PREF_SIZE);
         playButton.setMaxWidth(Double.MAX_VALUE);
@@ -761,7 +762,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     private void configureReloadEpisodesButton() {
         reloadEpisodesButton.setFocusTraversable(true);
-        reloadEpisodesButton.getStyleClass().setAll("button");
+        reloadEpisodesButton.getStyleClass().setAll(STYLE_CLASS_BUTTON);
         reloadEpisodesButton.setMinWidth(Region.USE_PREF_SIZE);
         reloadEpisodesButton.setMaxWidth(Region.USE_PREF_SIZE);
         reloadEpisodesButton.setOnAction(event -> reloadFromServer());
