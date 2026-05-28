@@ -517,6 +517,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (plainEpisodeMode) {
             episodesListUI.useExternalSeriesTitle();
         }
+        Button reload = episodesListUI.getReloadFromServerButton();
 
         Button back = new Button(I18n.tr("autoBack"));
         back.setOnAction(event -> {
@@ -528,9 +529,10 @@ public abstract class BaseWatchingNowUI extends VBox {
         VBox plainHeader = new VBox(4);
         HBox topBar = new HBox(8);
         if (plainEpisodeMode) {
-            EpisodeDetailHeaderUI.configurePlainHeader(plainHeader, back, detailTitle, episodesListUI.getBingeWatchButton());
+            EpisodeDetailHeaderUI.configurePlainHeader(plainHeader, back, detailTitle, episodesListUI.getBingeWatchButton(), reload);
         } else {
             EpisodeDetailHeaderUI.configureBackOnlyHeader(topBar, back);
+            topBar.getChildren().add(reload);
         }
 
         VBox body = new VBox(10);
@@ -554,6 +556,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                 loadSeriesListPosterImage(data);
             });
         });
+        episodesListUI.setReloadFromServerListener(refreshed -> applyReloadedEpisodesToPanel(data, refreshed));
         episodesListUI.navigateToLastWatched(data.state);
         episodesListUI.setLoadingComplete();
         body.getChildren().add(episodesListUI);
@@ -563,6 +566,20 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         contentBox.getChildren().addAll(plainEpisodeMode ? plainHeader : topBar, body);
         VBox.setVgrow(contentBox, Priority.ALWAYS);
+    }
+
+    private void applyReloadedEpisodesToPanel(SeriesPanelData data, EpisodeList refreshed) {
+        if (data == null) {
+            return;
+        }
+        EpisodeList safeList = refreshed == null ? new EpisodeList() : refreshed;
+        data.episodeList = safeList;
+        data.episodes.clear();
+        data.episodes.addAll(mapEpisodesFromCache(data.account, data.state, safeList));
+        imdbCacheByPanelKey.remove(panelCacheKey(data.account, data.state));
+        data.imdbLoaded = false;
+        data.imdbLoading = false;
+        loadSeriesListPosterImage(data);
     }
 
     private String seriesPaneKey(SeriesPanelData data) {

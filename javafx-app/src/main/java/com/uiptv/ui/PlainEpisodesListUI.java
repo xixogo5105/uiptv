@@ -7,6 +7,7 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.shared.EpisodeList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuButton;
@@ -33,8 +34,10 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     private final TableView<EpisodeItem> tableView = new TableView<>();
     private final TabPane seasonTabPane = new TabPane();
     private final MenuButton bingeWatchButton = new MenuButton();
+    private final Button reloadEpisodesButton = new Button();
     private HBox seasonControls;
     private VBox bodyContainer;
+    private boolean internalReloadControlVisible = true;
 
     public PlainEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
         super(account, categoryTitle, seriesId, seriesCategoryId);
@@ -70,6 +73,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         bingeWatchButton.getStyleClass().setAll("button");
         bingeWatchButton.getStyleClass().add("binge-watch-menu-button");
         updateBingeWatchButton();
+        configureReloadEpisodesButton();
 
         tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         tableView.getColumns().add(createNameColumn());
@@ -144,12 +148,14 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private VBox buildTableBody() {
-        seasonControls = new HBox(8, seasonTabPane, bingeWatchButton);
+        seasonControls = new HBox(8, seasonTabPane, bingeWatchButton, reloadEpisodesButton);
         seasonControls.setAlignment(Pos.CENTER_LEFT);
         seasonControls.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(seasonTabPane, Priority.ALWAYS);
         bingeWatchButton.setMinWidth(Region.USE_PREF_SIZE);
         bingeWatchButton.setMaxWidth(Region.USE_PREF_SIZE);
+        reloadEpisodesButton.setMinWidth(Region.USE_PREF_SIZE);
+        reloadEpisodesButton.setMaxWidth(Region.USE_PREF_SIZE);
 
         bodyContainer = new VBox(6, seasonControls, tableView);
         bodyContainer.setMaxWidth(Double.MAX_VALUE);
@@ -298,6 +304,17 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         bingeWatchButton.setVisible(visible);
     }
 
+    @Override
+    protected void setInternalReloadControlVisible(boolean visible) {
+        internalReloadControlVisible = visible;
+        updateReloadEpisodesButton();
+    }
+
+    @Override
+    protected void onReloadControlChanged() {
+        updateReloadEpisodesButton();
+    }
+
     private void selectSeasonTab(String season) {
         Tab seasonTab = seasonTabPane.getTabs().stream()
                 .filter(t -> season.equals(normalizeNumber(String.valueOf(t.getUserData()))))
@@ -320,6 +337,20 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         }
         bingeWatchButton.setDisable(allEpisodeItems.isEmpty());
         notifyBingeWatchControlChanged();
+    }
+
+    private void configureReloadEpisodesButton() {
+        reloadEpisodesButton.setFocusTraversable(true);
+        reloadEpisodesButton.getStyleClass().setAll("button");
+        reloadEpisodesButton.setOnAction(event -> reloadFromServer());
+        updateReloadEpisodesButton();
+    }
+
+    private void updateReloadEpisodesButton() {
+        reloadEpisodesButton.setText(reloadFromServerButtonText());
+        reloadEpisodesButton.setDisable(reloadFromServerButtonDisabled());
+        reloadEpisodesButton.setManaged(internalReloadControlVisible);
+        reloadEpisodesButton.setVisible(internalReloadControlVisible);
     }
 
     private void addRightClickContextMenu(TableRow<EpisodeItem> row) {

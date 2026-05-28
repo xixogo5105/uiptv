@@ -419,9 +419,19 @@ public class ChannelListUI extends HBox {
                     detailHeader,
                     detailBackButton,
                     detailTitle,
-                    episodesListUI.getBingeWatchButton()
+                    episodesListUI.getBingeWatchButton(),
+                    episodesListUI.getReloadFromServerButton()
             );
             return true;
+        }
+        if (ui instanceof EpisodesListUI episodesListUI) {
+            EpisodeDetailHeaderUI.configureBackTitleHeader(
+                    detailNavHeader,
+                    detailBackButton,
+                    episodesListUI.getReloadFromServerButton(),
+                    detailTitle
+            );
+            return false;
         }
 
         EpisodeDetailHeaderUI.configureBackTitleHeader(detailNavHeader, detailBackButton, detailTitle);

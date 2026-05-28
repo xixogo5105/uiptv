@@ -18,11 +18,15 @@ final class EpisodeDetailHeaderUI {
     }
 
     static void configurePlainHeader(VBox header, Button backButton, Label title, MenuButton bingeWatchButton) {
+        configurePlainHeader(header, backButton, title, bingeWatchButton, null);
+    }
+
+    static void configurePlainHeader(VBox header, Button backButton, Label title, MenuButton bingeWatchButton, Button reloadButton) {
         if (header == null || backButton == null || title == null || bingeWatchButton == null) {
             return;
         }
         clearPlainHeader(header);
-        HBox actions = buildActionsRow(backButton, bingeWatchButton);
+        HBox actions = buildActionsRow(backButton, bingeWatchButton, reloadButton);
         applyPlainTitleStyle(title);
         header.setMaxWidth(Double.MAX_VALUE);
         header.getChildren().setAll(actions, title);
@@ -41,6 +45,10 @@ final class EpisodeDetailHeaderUI {
     }
 
     static void configureBackTitleHeader(HBox header, Button backButton, Label title) {
+        configureBackTitleHeader(header, backButton, null, title);
+    }
+
+    static void configureBackTitleHeader(HBox header, Button backButton, Button reloadButton, Label title) {
         if (header == null || backButton == null || title == null) {
             return;
         }
@@ -49,7 +57,11 @@ final class EpisodeDetailHeaderUI {
         header.setPadding(Insets.EMPTY);
         header.setMaxWidth(Double.MAX_VALUE);
         header.getChildren().clear();
-        header.getChildren().setAll(backButton, title);
+        header.getChildren().add(backButton);
+        if (reloadButton != null) {
+            header.getChildren().add(reloadButton);
+        }
+        header.getChildren().add(title);
     }
 
     static void configureBackOnlyHeader(HBox header, Button backButton) {
@@ -63,14 +75,18 @@ final class EpisodeDetailHeaderUI {
         header.getChildren().setAll(backButton);
     }
 
-    private static HBox buildActionsRow(Button backButton, MenuButton bingeWatchButton) {
+    private static HBox buildActionsRow(Button backButton, MenuButton bingeWatchButton, Button reloadButton) {
         HBox actions = new HBox(8);
         actions.setAlignment(Pos.CENTER_LEFT);
         actions.setPadding(Insets.EMPTY);
         actions.setMaxWidth(Double.MAX_VALUE);
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        actions.getChildren().setAll(backButton, spacer, bingeWatchButton);
+        actions.getChildren().setAll(backButton, spacer);
+        if (reloadButton != null) {
+            actions.getChildren().add(reloadButton);
+        }
+        actions.getChildren().add(bingeWatchButton);
         return actions;
     }
 

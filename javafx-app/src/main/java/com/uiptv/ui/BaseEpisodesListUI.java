@@ -7,6 +7,7 @@ import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.BingeWatchService;
 import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
+import com.uiptv.service.SeriesEpisodeService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.service.SeriesWatchingNowSnapshotService;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -67,6 +69,7 @@ public abstract class BaseEpisodesListUI extends HBox {
     protected final StackPane contentStack = new StackPane();
     protected final Label emptyStateLabel = new Label();
     protected final ObservableList<EpisodeItem> allEpisodeItems = FXCollections.observableArrayList(EpisodeItem.extractor());
+    private final AtomicBoolean portalReloadInProgress = new AtomicBoolean(false);
 
     protected JSONObject seasonInfo = new JSONObject();
     private String pendingTargetSeason = "";
@@ -74,6 +77,8 @@ public abstract class BaseEpisodesListUI extends HBox {
     private String pendingTargetEpisodeNumber = "";
     private String pendingTargetEpisodeName = "";
     private Runnable bingeWatchControlRefreshListener;
+    private Runnable reloadControlRefreshListener;
+    private Consumer<EpisodeList> portalReloadListener;
 
     private boolean bookmarkListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
@@ -132,9 +137,22 @@ public abstract class BaseEpisodesListUI extends HBox {
         // Optional in subclasses.
     }
 
+    protected void setInternalReloadControlVisible(boolean visible) {
+        // Optional in subclasses.
+    }
+
     void setBingeWatchControlRefreshListener(Runnable listener) {
         this.bingeWatchControlRefreshListener = listener;
         notifyBingeWatchControlChanged();
+    }
+
+    void setReloadControlRefreshListener(Runnable listener) {
+        this.reloadControlRefreshListener = listener;
+        notifyReloadControlChanged();
+    }
+
+    void setPortalReloadListener(Consumer<EpisodeList> listener) {
+        this.portalReloadListener = listener;
     }
 
     void playSelectedBingeWatchSeason(String playerPath) {
@@ -149,10 +167,62 @@ public abstract class BaseEpisodesListUI extends HBox {
         return !allEpisodeItems.isEmpty();
     }
 
+    boolean canReloadFromServer() {
+        return account != null && !isBlank(seriesId);
+    }
+
+    boolean isReloadFromServerInProgress() {
+        return portalReloadInProgress.get();
+    }
+
+    String reloadFromServerButtonText() {
+        return I18n.tr(portalReloadInProgress.get() ? "autoReloading" : "autoReloadFromServer");
+    }
+
+    boolean reloadFromServerButtonDisabled() {
+        return !canReloadFromServer() || portalReloadInProgress.get();
+    }
+
+    public void reloadFromServer() {
+        if (!canReloadFromServer() || !portalReloadInProgress.compareAndSet(false, true)) {
+            return;
+        }
+        notifyReloadControlChanged();
+        new Thread(() -> {
+            EpisodeList refreshed = null;
+            RuntimeException failure = null;
+            try {
+                refreshed = SeriesEpisodeService.getInstance()
+                        .reloadEpisodesFromPortal(account, seriesCategoryId, seriesId, () -> false);
+            } catch (RuntimeException e) {
+                failure = e;
+            }
+
+            EpisodeList finalRefreshed = refreshed == null ? new EpisodeList() : refreshed;
+            RuntimeException finalFailure = failure;
+            runLater(() -> finishPortalReload(finalRefreshed, finalFailure));
+        }, "episodes-portal-reload").start();
+    }
+
     protected void notifyBingeWatchControlChanged() {
         if (bingeWatchControlRefreshListener != null) {
             bingeWatchControlRefreshListener.run();
         }
+    }
+
+    protected void notifyReloadControlChanged() {
+        onReloadControlChanged();
+        if (reloadControlRefreshListener != null) {
+            reloadControlRefreshListener.run();
+        }
+    }
+
+    protected void onReloadControlChanged() {
+        // Optional in subclasses.
+    }
+
+    protected void beforeApplyingPortalReload(EpisodeList refreshed) {
+        // Optional in subclasses.
     }
 
     public void setItems(EpisodeList newChannelList) {
@@ -173,6 +243,36 @@ public abstract class BaseEpisodesListUI extends HBox {
             onItemsLoaded();
             applyPendingNavigation();
         });
+    }
+
+    private void finishPortalReload(EpisodeList refreshed, RuntimeException failure) {
+        try {
+            if (failure != null) {
+                showErrorAlert(I18n.tr("autoFailed") + ": " + failure.getMessage());
+                return;
+            }
+            applyPortalReloadResult(refreshed);
+        } finally {
+            portalReloadInProgress.set(false);
+            notifyReloadControlChanged();
+        }
+    }
+
+    private void applyPortalReloadResult(EpisodeList refreshed) {
+        beforeApplyingPortalReload(refreshed);
+        clearEpisodesAndRefreshTabs();
+        if (hasEpisodeRows(refreshed)) {
+            setItems(refreshed);
+        } else {
+            setEmptyState(I18n.tr("autoNoEpisodesFound"), true);
+        }
+        if (portalReloadListener != null) {
+            portalReloadListener.accept(refreshed == null ? new EpisodeList() : refreshed);
+        }
+    }
+
+    private boolean hasEpisodeRows(EpisodeList episodes) {
+        return episodes != null && episodes.getEpisodes() != null && !episodes.getEpisodes().isEmpty();
     }
 
     public void setLoadingComplete() {

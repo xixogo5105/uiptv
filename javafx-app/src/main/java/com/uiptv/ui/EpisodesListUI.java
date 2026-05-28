@@ -3,6 +3,8 @@ package com.uiptv.ui;
 import com.uiptv.model.Account;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.shared.EpisodeList;
+import com.uiptv.util.I18n;
+import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
@@ -22,12 +24,15 @@ public class EpisodesListUI extends HBox {
     private EpisodeList lastEpisodeList;
     private SeriesWatchState lastWatchedState;
     private final MenuButton bingeWatchButton = new MenuButton();
+    private final Button reloadFromServerButton = new Button();
     private boolean loadingCompleteCalled = false;
     private boolean thumbnailListenerRegistered = false;
     private boolean watchingNowDetailStylingApplied = false;
     private boolean externalBingeWatchControlRequested = false;
     private boolean externalSeriesTitleRequested = false;
+    private boolean externalReloadControlRequested = false;
     private Consumer<JSONObject> seasonInfoListener;
+    private Consumer<EpisodeList> portalReloadListener;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
     public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
@@ -41,6 +46,7 @@ public class EpisodesListUI extends HBox {
         this.seriesId = seriesId;
         this.seriesCategoryId = seriesCategoryId;
         configureBingeWatchButton();
+        configureReloadFromServerButton();
         this.delegate = buildDelegate();
         configureDelegate(delegate);
         getChildren().add(delegate);
@@ -75,10 +81,34 @@ public class EpisodesListUI extends HBox {
         withThumbnailDelegate(thumbnail -> thumbnail.setSeasonInfoListener(seasonInfoListener));
     }
 
+    public void setReloadFromServerListener(Consumer<EpisodeList> portalReloadListener) {
+        this.portalReloadListener = portalReloadListener;
+        if (delegate != null) {
+            delegate.setPortalReloadListener(portalReloadListener);
+        }
+    }
+
     public MenuButton getBingeWatchButton() {
         externalBingeWatchControlRequested = true;
         applyDelegateHeaderPreferences(delegate);
         return bingeWatchButton;
+    }
+
+    public Button getReloadFromServerButton() {
+        externalReloadControlRequested = true;
+        applyDelegateHeaderPreferences(delegate);
+        updateReloadFromServerButton();
+        return reloadFromServerButton;
+    }
+
+    public boolean canReloadFromServer() {
+        return delegate != null && delegate.canReloadFromServer();
+    }
+
+    public void reloadFromServer() {
+        if (delegate != null) {
+            delegate.reloadFromServer();
+        }
     }
 
     public void useExternalSeriesTitle() {
@@ -114,6 +144,8 @@ public class EpisodesListUI extends HBox {
             return;
         }
         delegate.setBingeWatchControlRefreshListener(null);
+        delegate.setReloadControlRefreshListener(null);
+        delegate.setPortalReloadListener(null);
         BaseEpisodesListUI next = buildDelegate();
         delegate = next;
         configureDelegate(delegate);
@@ -135,6 +167,7 @@ public class EpisodesListUI extends HBox {
             delegate.setLoadingComplete();
         }
         updateBingeWatchButton();
+        updateReloadFromServerButton();
     }
 
     private BaseEpisodesListUI buildDelegate() {
@@ -149,6 +182,8 @@ public class EpisodesListUI extends HBox {
             return;
         }
         target.setBingeWatchControlRefreshListener(this::updateBingeWatchButton);
+        target.setReloadControlRefreshListener(this::updateReloadFromServerButton);
+        target.setPortalReloadListener(portalReloadListener);
         applyDelegateHeaderPreferences(target);
     }
 
@@ -158,6 +193,7 @@ public class EpisodesListUI extends HBox {
         }
         target.setInternalBingeWatchControlVisible(!externalBingeWatchControlRequested);
         target.setInternalSeriesTitleVisible(!externalSeriesTitleRequested);
+        target.setInternalReloadControlVisible(!externalReloadControlRequested);
     }
 
     private void configureBingeWatchButton() {
@@ -190,6 +226,25 @@ public class EpisodesListUI extends HBox {
             bingeWatchButton.getItems().add(playerItem);
         }
         bingeWatchButton.setDisable(!delegate.hasBingeWatchEpisodes());
+    }
+
+    private void configureReloadFromServerButton() {
+        reloadFromServerButton.setFocusTraversable(true);
+        reloadFromServerButton.getStyleClass().setAll("button");
+        reloadFromServerButton.setMinWidth(Region.USE_PREF_SIZE);
+        reloadFromServerButton.setMaxWidth(Region.USE_PREF_SIZE);
+        reloadFromServerButton.setOnAction(event -> reloadFromServer());
+        updateReloadFromServerButton();
+    }
+
+    private void updateReloadFromServerButton() {
+        if (delegate == null) {
+            reloadFromServerButton.setText(I18n.tr("autoReloadFromServer"));
+            reloadFromServerButton.setDisable(true);
+            return;
+        }
+        reloadFromServerButton.setText(delegate.reloadFromServerButtonText());
+        reloadFromServerButton.setDisable(delegate.reloadFromServerButtonDisabled());
     }
 
     private void applyWatchingNowDetailStyling(BaseEpisodesListUI target) {

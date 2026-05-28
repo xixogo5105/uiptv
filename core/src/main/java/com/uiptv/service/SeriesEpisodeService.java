@@ -77,6 +77,27 @@ public class SeriesEpisodeService {
         return new EpisodeList();
     }
 
+    public EpisodeList reloadEpisodesFromPortal(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {
+        if (account == null || isBlank(seriesId)) {
+            return new EpisodeList();
+        }
+        Account.AccountAction previousAction = account.getAction();
+        account.setAction(Account.AccountAction.series);
+        try {
+            EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled);
+            if (hasEpisodes(fetched)) {
+                return fetched;
+            }
+            EpisodeList fallback = loadFromDbAnyAge(account, categoryId, seriesId);
+            if (hasEpisodes(fallback)) {
+                return fallback;
+            }
+            return new EpisodeList();
+        } finally {
+            account.setAction(previousAction);
+        }
+    }
+
     @SuppressWarnings("java:S4276")
     private EpisodeList fetchEpisodesFromPortal(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {
         if (account.getType() == XTREME_API) {

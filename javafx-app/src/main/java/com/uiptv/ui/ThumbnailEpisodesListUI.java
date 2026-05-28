@@ -64,6 +64,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private final Label releaseNode = new Label();
     private final Label plotNode = new Label();
     private final MenuButton bingeWatchButton = new MenuButton();
+    private final Button reloadEpisodesButton = new Button();
     private final HBox imdbLoadingNode = new HBox(6);
     private HBox imdbBadgeNode;
     private volatile boolean imdbLoading = false;
@@ -76,6 +77,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private Consumer<JSONObject> seasonInfoListener;
     private boolean internalBingeWatchControlVisible = true;
     private boolean internalSeriesTitleVisible = true;
+    private boolean internalReloadControlVisible = true;
     private String pendingTargetSeason;
     private String pendingTargetEpisodeId;
     private String pendingTargetEpisodeNumber;
@@ -264,7 +266,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 menu.getStyleClass().add("binge-watch-context-menu");
             }
         });
-        titleRow.getChildren().setAll(titleNode, bingeWatchButton);
+        configureReloadEpisodesButton();
+        titleRow.getChildren().setAll(titleNode, bingeWatchButton, reloadEpisodesButton);
         refreshTitleRowVisibility();
         headerDetails.getChildren().setAll(titleRow);
         HBox.setHgrow(headerDetails, Priority.ALWAYS);
@@ -284,12 +287,34 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         refreshTitleRowVisibility();
     }
 
+    @Override
+    protected void setInternalReloadControlVisible(boolean visible) {
+        internalReloadControlVisible = visible;
+        updateReloadEpisodesButton();
+        refreshTitleRowVisibility();
+    }
+
+    @Override
+    protected void onReloadControlChanged() {
+        updateReloadEpisodesButton();
+    }
+
+    @Override
+    protected void beforeApplyingPortalReload(EpisodeList refreshed) {
+        lifecycleGeneration.incrementAndGet();
+        imdbLoaded = false;
+        imdbLoading = false;
+        imdbBadgeNode = null;
+    }
+
     private void refreshTitleRowVisibility() {
         titleNode.setManaged(internalSeriesTitleVisible);
         titleNode.setVisible(internalSeriesTitleVisible);
         bingeWatchButton.setManaged(internalBingeWatchControlVisible);
         bingeWatchButton.setVisible(internalBingeWatchControlVisible);
-        boolean titleRowVisible = internalSeriesTitleVisible || internalBingeWatchControlVisible;
+        reloadEpisodesButton.setManaged(internalReloadControlVisible);
+        reloadEpisodesButton.setVisible(internalReloadControlVisible);
+        boolean titleRowVisible = internalSeriesTitleVisible || internalBingeWatchControlVisible || internalReloadControlVisible;
         titleRow.setManaged(titleRowVisible);
         titleRow.setVisible(titleRowVisible);
     }
@@ -317,7 +342,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         if (imdbBadgeNode != null) {
             headerDetails.getChildren().remove(imdbBadgeNode);
         }
-        titleRow.getChildren().setAll(titleNode, bingeWatchButton);
+        titleRow.getChildren().setAll(titleNode, bingeWatchButton, reloadEpisodesButton);
         refreshTitleRowVisibility();
         if (!headerDetails.getChildren().contains(titleRow)) {
             headerDetails.getChildren().add(0, titleRow);
@@ -732,6 +757,22 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         }
         bingeWatchButton.setDisable(allEpisodeItems.isEmpty());
         notifyBingeWatchControlChanged();
+    }
+
+    private void configureReloadEpisodesButton() {
+        reloadEpisodesButton.setFocusTraversable(true);
+        reloadEpisodesButton.getStyleClass().setAll("button");
+        reloadEpisodesButton.setMinWidth(Region.USE_PREF_SIZE);
+        reloadEpisodesButton.setMaxWidth(Region.USE_PREF_SIZE);
+        reloadEpisodesButton.setOnAction(event -> reloadFromServer());
+        updateReloadEpisodesButton();
+    }
+
+    private void updateReloadEpisodesButton() {
+        reloadEpisodesButton.setText(reloadFromServerButtonText());
+        reloadEpisodesButton.setDisable(reloadFromServerButtonDisabled());
+        reloadEpisodesButton.setManaged(internalReloadControlVisible);
+        reloadEpisodesButton.setVisible(internalReloadControlVisible);
     }
 
     private void triggerImdbLazyLoad() {
