@@ -107,6 +107,10 @@ public class CategoryService {
         return maybeFilterCategories(cachedCategories, censor);
     }
 
+    public List<Category> getFresh(Account account, boolean censor, LoggerCallback logger) {
+        return maybeFilterCategories(fetchCategoriesFromBackend(account, logger), censor);
+    }
+
     private boolean usesVodSeriesCategoryCache(Account account) {
         return (account.getAction() == vod || account.getAction() == series)
                 && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API);

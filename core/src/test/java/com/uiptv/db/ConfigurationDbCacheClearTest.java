@@ -41,6 +41,7 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         assertEquals(0, countRowsForAccount(DatabaseUtils.DbTable.VOD_CHANNEL_TABLE, first.getDbId()));
         assertEquals(0, countRowsForAccount(DatabaseUtils.DbTable.SERIES_CATEGORY_TABLE, first.getDbId()));
         assertEquals(0, countRowsForAccount(DatabaseUtils.DbTable.SERIES_CHANNEL_TABLE, first.getDbId()));
+        assertEquals(0, countRowsForAccount(DatabaseUtils.DbTable.SERIES_EPISODE_TABLE, first.getDbId()));
 
         assertEquals(1, countRowsForAccount(DatabaseUtils.DbTable.CATEGORY_TABLE, second.getDbId()));
         assertEquals(1, countRowsForAccount(DatabaseUtils.DbTable.CHANNEL_TABLE, second.getDbId()));
@@ -48,6 +49,7 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         assertEquals(1, countRowsForAccount(DatabaseUtils.DbTable.VOD_CHANNEL_TABLE, second.getDbId()));
         assertEquals(1, countRowsForAccount(DatabaseUtils.DbTable.SERIES_CATEGORY_TABLE, second.getDbId()));
         assertEquals(1, countRowsForAccount(DatabaseUtils.DbTable.SERIES_CHANNEL_TABLE, second.getDbId()));
+        assertEquals(1, countRowsForAccount(DatabaseUtils.DbTable.SERIES_EPISODE_TABLE, second.getDbId()));
 
         Account firstAfterClear = AccountService.getInstance().getById(first.getDbId());
         Account secondAfterClear = AccountService.getInstance().getById(second.getDbId());
@@ -71,6 +73,7 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.VOD_CHANNEL_TABLE));
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.SERIES_CATEGORY_TABLE));
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.SERIES_CHANNEL_TABLE));
+        assertEquals(0, countTableRows(DatabaseUtils.DbTable.SERIES_EPISODE_TABLE));
 
         Account firstAfterClear = AccountService.getInstance().getById(first.getDbId());
         Account secondAfterClear = AccountService.getInstance().getById(second.getDbId());
@@ -160,6 +163,12 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
                 List.of(new Channel("series-ch-" + suffix, "Series Channel " + suffix, "1", "ffmpeg http://series/" + suffix, null, null, null, "series.png", 0, 1, 1, null, null, null, null, null)),
                 seriesCategory.getDbId(),
                 account
+        );
+        SeriesEpisodeDb.get().saveAll(
+                account,
+                seriesCategory.getCategoryId(),
+                "series-ch-" + suffix,
+                List.of(new Channel("series-ep-" + suffix, "Series Episode " + suffix, "1", "ffmpeg http://series-episode/" + suffix, null, null, null, "episode.png", 0, 1, 1, null, null, null, null, null))
         );
     }
 

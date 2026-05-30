@@ -43,10 +43,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         }
 
         if (account.getAction() == vod || account.getAction() == series) {
-            List<Category> categories = CategoryService.getInstance().get(account, false, logger);
-            saveVodOrSeriesCategories(account, categories);
-            log(logger, "Found Categories " + categories.size());
-            log(logger, categories.size() + " Categories & 0 Channels saved Successfully \u2713");
+            reloadVodOrSeriesCategoriesAfterFullClear(account, logger);
         }
     }
 

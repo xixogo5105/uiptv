@@ -785,6 +785,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertEquals(0, countRowsByAccount(DatabaseUtils.DbTable.VOD_CHANNEL_TABLE, accountId));
         assertEquals(0, countRowsByAccount(DatabaseUtils.DbTable.SERIES_CATEGORY_TABLE, accountId));
         assertEquals(0, countRowsByAccount(DatabaseUtils.DbTable.SERIES_CHANNEL_TABLE, accountId));
+        assertEquals(0, countRowsByAccount(DatabaseUtils.DbTable.SERIES_EPISODE_TABLE, accountId));
     }
 
     private void assertAllCacheTablesEmpty() {
@@ -794,6 +795,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.VOD_CHANNEL_TABLE));
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.SERIES_CATEGORY_TABLE));
         assertEquals(0, countTableRows(DatabaseUtils.DbTable.SERIES_CHANNEL_TABLE));
+        assertEquals(0, countTableRows(DatabaseUtils.DbTable.SERIES_EPISODE_TABLE));
     }
 
     private void runDbSyncFlow() throws Exception {
