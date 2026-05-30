@@ -88,7 +88,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
             for (Account.AccountAction mode : List.of(vod, series)) {
                 account.setAction(mode);
                 try {
-                    List<Category> categories = CategoryService.getInstance().getFresh(account, false, logger);
+                    List<Category> categories = CategoryService.getInstance().get(account, false, logger);
                     saveVodOrSeriesCategories(account, categories);
                 } catch (Exception e) {
                     log(logger, "Global " + mode.name().toUpperCase() + " category list failed: " + shortReason(e));
@@ -97,19 +97,6 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         } finally {
             account.setAction(original);
         }
-    }
-
-    protected void reloadVodOrSeriesCategoriesAfterFullClear(Account account, LoggerCallback logger) {
-        List<Category> categories = CategoryService.getInstance().getFresh(account, false, logger);
-        if (categories.isEmpty()) {
-            log(logger, "No categories found. Keeping existing cache.");
-            return;
-        }
-
-        clearCache(account);
-        saveVodOrSeriesCategories(account, categories);
-        log(logger, "Found Categories " + categories.size());
-        log(logger, categories.size() + " Categories saved Successfully \u2713");
     }
 
     private String shortReason(Exception e) {

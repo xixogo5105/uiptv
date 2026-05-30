@@ -115,7 +115,10 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
     }
 
     private void reloadVodOrSeriesCategories(Account account, LoggerCallback logger) {
-        reloadVodOrSeriesCategoriesAfterFullClear(account, logger);
+        List<Category> categories = CategoryService.getInstance().get(account, false, logger);
+        saveVodOrSeriesCategories(account, categories);
+        log(logger, "Found Categories " + categories.size());
+        log(logger, categories.size() + " Categories saved Successfully \u2713");
     }
 
     private List<Category> loadLiveCategories(Account account, LoggerCallback logger) {
