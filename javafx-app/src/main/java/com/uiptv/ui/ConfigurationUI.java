@@ -63,6 +63,9 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_NO_DIM_DISABLED = "no-dim-disabled";
     private static final String STYLE_CLASS_HELP_LINK = "section-help-link";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
+    private static final String STATUS_ICON_ON = "✅";
+    private static final String STATUS_ICON_OFF = "❌";
+    private static final Duration STATUS_TITLE_REFRESH_INTERVAL = Duration.seconds(30);
     private static final double DATABASE_SYNC_POPUP_WIDTH = 672;
     private static final AtomicReference<Stage> activePublishM3u8PopupStage = new AtomicReference<>();
     private static final AtomicReference<Stage> activeDatabaseSyncPopupStage = new AtomicReference<>();
@@ -84,6 +87,8 @@ public class ConfigurationUI extends VBox {
     private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", CONFIG_FILTER_CHANNELS_PROMPT, 5);
     private final CheckBox filterPausedCheckBox = new CheckBox(I18n.tr("configPauseFiltering"));
     private final Label filterLockStatusLabel = new Label();
+    private final Label filtersGroupTitleLabel = new Label();
+    private final Label cacheFilteringGroupTitleLabel = new Label();
     private final Button filterLockPasswordButton = new Button();
     private final Button filterUnlockButton = new Button(I18n.tr("filterLockUnlockAction"));
     private final Button filterRelockButton = new Button(I18n.tr("filterLockLockNowAction"));
@@ -144,8 +149,11 @@ public class ConfigurationUI extends VBox {
     @SuppressWarnings("java:S1450")
     private Timeline serverStatusTimeline;
     @SuppressWarnings("java:S1450")
+    private Timeline statusTitleTimeline;
+    @SuppressWarnings("java:S1450")
     private Timeline saveSuccessTimeline;
     private final ConfigurationChangeListener configurationChangeListener = revision -> javafx.application.Platform.runLater(this::refreshConfigurationForm);
+    private final FilterLockService.LockStateChangeListener filterLockStateChangeListener = this::scheduleFilterLockUiRefresh;
 
     public ConfigurationUI(Callback<Object> onSaveCallback) {
         this.onSaveCallback = onSaveCallback;
@@ -276,6 +284,7 @@ public class ConfigurationUI extends VBox {
         HBox clearButtons = new HBox(10, clearCacheButton, clearWatchingNowButton);
         reloadCacheButton.setMaxWidth(Double.MAX_VALUE);
         VBox cacheGroup = new VBox(10, filterPausedCheckBox, cacheExpiryRow, clearButtons, reloadCacheButton);
+        refreshConfigurationBlockTitles();
 
         openServerLink.setVisible(false);
         openServerLink.setManaged(false);
@@ -298,9 +307,9 @@ public class ConfigurationUI extends VBox {
 
         contentContainer.getChildren().addAll(
                 createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), playersGroup, false, videoPlayersHelpLink),
-                createCollapsibleGroupPane(I18n.tr("configFilters"), filtersGroup, true, filtersHelpLink),
+                createCollapsibleGroupPane(filtersGroupTitleLabel, filtersGroup, true, filtersHelpLink),
                 createCollapsibleGroupPane(I18n.tr("configDarkTheme"), themeOverridesGroup, true, themeHelpLink),
-                createCollapsibleGroupPane(I18n.tr("configCacheFiltering"), cacheGroup, true, cacheFilteringHelpLink),
+                createCollapsibleGroupPane(cacheFilteringGroupTitleLabel, cacheGroup, true, cacheFilteringHelpLink),
                 createCollapsibleGroupPane(I18n.tr("configDatabaseSyncTitle"), databaseSyncGroup, true, databaseSyncHelpLink),
                 createCollapsibleGroupPane(I18n.tr("configWebServer"), serverGroup, true, webServerHelpLink),
                 createCollapsibleGroupPane(I18n.tr("configTmdbMetadata"), tmdbConfigSection, true, tmdbMetadataHelpLink),
@@ -324,12 +333,16 @@ public class ConfigurationUI extends VBox {
         addThemePreviewHandlers();
         installPlayerSelectionConfirmationHandler();
         installServerStatusMonitor();
+        installStatusTitleMonitor();
         refreshFilterLockUi();
     }
 
     private BorderPane createCollapsibleGroupPane(String title, Node content, boolean collapsedByDefault, Hyperlink helpLink) {
+        return createCollapsibleGroupPane(new Label(title), content, collapsedByDefault, helpLink);
+    }
+
+    private BorderPane createCollapsibleGroupPane(Label titleLabel, Node content, boolean collapsedByDefault, Hyperlink helpLink) {
         BorderPane pane = new BorderPane(content);
-        Label titleLabel = new Label(title);
         titleLabel.getStyleClass().add("strong-label");
         HBox titleRow = new HBox(4, titleLabel);
         titleRow.setAlignment(Pos.CENTER_LEFT);
@@ -603,6 +616,37 @@ public class ConfigurationUI extends VBox {
         });
     }
 
+    private void installStatusTitleMonitor() {
+        refreshConfigurationBlockTitles();
+        statusTitleTimeline = new Timeline(new KeyFrame(STATUS_TITLE_REFRESH_INTERVAL, event -> refreshConfigurationBlockTitles()));
+        statusTitleTimeline.setCycleCount(Animation.INDEFINITE);
+        statusTitleTimeline.play();
+
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null) {
+                if (statusTitleTimeline != null) {
+                    statusTitleTimeline.stop();
+                }
+            } else if (statusTitleTimeline != null) {
+                statusTitleTimeline.play();
+                refreshConfigurationBlockTitles();
+            }
+        });
+    }
+
+    private void refreshConfigurationBlockTitles() {
+        FilterLockService filterLockService = FilterLockService.getInstance();
+        Configuration configuration = service.read();
+        boolean parentalLockOn = filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked();
+        boolean censoringOn = configuration == null || !configuration.isPauseFiltering();
+        filtersGroupTitleLabel.setText(statusIcon(parentalLockOn) + " " + I18n.tr("configFilters"));
+        cacheFilteringGroupTitleLabel.setText(statusIcon(censoringOn) + " " + I18n.tr("configCacheFiltering"));
+    }
+
+    private String statusIcon(boolean enabled) {
+        return enabled ? STATUS_ICON_ON : STATUS_ICON_OFF;
+    }
+
     private void refreshServerStatusUI() {
         boolean running = configurationApplicationService.isServerRunning();
         if (running) {
@@ -774,10 +818,23 @@ public class ConfigurationUI extends VBox {
         sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (oldScene == null && newScene != null) {
                 service.addChangeListener(configurationChangeListener);
+                FilterLockService.getInstance().addLockStateChangeListener(filterLockStateChangeListener);
             } else if (oldScene != null && newScene == null) {
                 service.removeChangeListener(configurationChangeListener);
+                FilterLockService.getInstance().removeLockStateChangeListener(filterLockStateChangeListener);
             }
         });
+    }
+
+    private void scheduleFilterLockUiRefresh() {
+        if (getScene() == null) {
+            return;
+        }
+        try {
+            Platform.runLater(this::refreshFilterLockUi);
+        } catch (IllegalStateException _) {
+            // The JavaFX runtime may already be shutting down.
+        }
     }
 
     private void refreshConfigurationForm() {
@@ -791,9 +848,11 @@ public class ConfigurationUI extends VBox {
         updateWideViewVisibility();
         refreshServerStatusUI();
         refreshFilterLockUi();
+        refreshConfigurationBlockTitles();
     }
 
     private void refreshFilterLockUi() {
+        refreshConfigurationBlockTitles();
         FilterLockService filterLockService = FilterLockService.getInstance();
         boolean passwordSet = filterLockService.hasPasswordConfigured();
         boolean unlocked = filterLockService.isUnlocked();

@@ -6,8 +6,10 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
+import com.uiptv.model.Configuration;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
@@ -232,6 +234,47 @@ class M3uCacheReloaderTest extends DbBackedTest {
     }
 
     @Test
+    void m3uReloader_appliesActiveFiltersBeforeSavingCache() {
+        saveConfiguration("Adult", "Premium", false);
+        Account account = persistAccount("m3u-filtered-cache", AccountType.M3U8_LOCAL);
+        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        Category allCategory = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
+        Category adult = new Category("adult", "Adult", "adult", false, 0);
+        Category sports = new Category("sports", "Sports", "sports", false, 0);
+        Category news = new Category("news", "News", "news", false, 0);
+        Category premium = new Category("premium", "Premium", "premium", false, 0);
+
+        Channel adultChannel = channel("adult-1", "Adult One");
+        Channel sportsChannel = channel("sports-1", "Sports One");
+        Channel newsChannel = channel("news-1", "News One");
+        Channel premiumChannel = channel("premium-1", "Premium One");
+        List<String> logs = new ArrayList<>();
+
+        StubM3uCacheReloader reloader = new StubM3uCacheReloader();
+        reloader.channelsByCategory.put(CategoryType.ALL.displayName(), List.of(adultChannel, sportsChannel, newsChannel, premiumChannel));
+        reloader.channelsByCategory.put("Adult", List.of(adultChannel));
+        reloader.channelsByCategory.put("Sports", List.of(sportsChannel));
+        reloader.channelsByCategory.put("News", List.of(newsChannel));
+        reloader.channelsByCategory.put("Premium", List.of(premiumChannel));
+
+        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+            categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
+            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+                    .thenReturn(List.of(allCategory, adult, sports, news, premium));
+
+            reloader.reloadCache(account, logs::add);
+        }
+
+        List<Category> savedCategories = CategoryDb.get().getCategories(account);
+        assertEquals(List.of(CategoryType.ALL.displayName(), "Sports", "News"),
+                savedCategories.stream().map(Category::getTitle).toList());
+        assertTrue(ChannelDb.get().getChannelsByChannelIdsAndAccount(List.of("adult-1", "premium-1"), account.getDbId()).isEmpty());
+        assertEquals(4, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+        assertTrue(logs.contains("Censored Categories 1"));
+        assertTrue(logs.contains("Censored Channels 2"));
+    }
+
+    @Test
     void m3uReloader_emptyEntriesFilteredOut() {
         // Categories with no channels should be filtered out
         Account account = persistAccount("m3u-empty-categories", AccountType.M3U8_LOCAL);
@@ -334,6 +377,23 @@ class M3uCacheReloaderTest extends DbBackedTest {
         channel.setName(name);
         channel.setCmd("http://example.test/" + id);
         return channel;
+    }
+
+    private void saveConfiguration(String categoryFilter, String channelFilter, boolean pauseFiltering) {
+        Configuration configuration = new Configuration(
+                null,
+                null,
+                null,
+                null,
+                categoryFilter,
+                channelFilter,
+                pauseFiltering,
+                false,
+                "8888",
+                false,
+                false
+        );
+        ConfigurationService.getInstance().save(configuration);
     }
 
     private static final class StubM3uCacheReloader extends M3uCacheReloader {

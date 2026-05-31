@@ -13,14 +13,14 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.M3U8Parser;
 import com.uiptv.util.StringUtils;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.function.Consumer;
 
 import static com.uiptv.model.CategoryType.ALL;
@@ -28,13 +28,29 @@ import static com.uiptv.model.CategoryType.ALL;
 public class M3uCacheReloader extends AbstractAccountCacheReloader {
     @Override
     public void reloadCache(Account account, LoggerCallback logger) {
-        M3uReloadData reloadData = loadM3uReloadData(account, logger);
+        boolean categoryCensoringEnabled = shouldApplyCategoryCensoring();
+        boolean channelCensoringEnabled = shouldApplyChannelCensoring();
+        M3uReloadData rawReloadData = loadM3uReloadData(account, logger);
+        int rawTotalChannels = totalChannels(rawReloadData.channelsByCategory());
+        int rawUniqueChannels = uniqueChannelCount(rawReloadData.channelsByCategory());
+        M3uReloadData reloadData = applyM3uCensoring(rawReloadData, categoryCensoringEnabled, channelCensoringEnabled);
         List<Category> categories = reloadData.categories();
         Map<String, List<Channel>> channelsMap = reloadData.channelsByCategory();
+        CensoringSummary censoringSummary = CensoringSummary.empty()
+                .addCategories(censoredItemCount(rawReloadData.categories().size(), categories.size(), categoryCensoringEnabled))
+                .addChannels(censoredItemCount(rawUniqueChannels, uniqueChannelCount(channelsMap),
+                        categoryCensoringEnabled || channelCensoringEnabled));
         List<Category> categoriesToSave = new ArrayList<>();
         List<Category> savedCategories = new ArrayList<>();
         try {
             if (categories.isEmpty()) {
+                if (!rawReloadData.categories().isEmpty() && categoryCensoringEnabled) {
+                    logCensoringSummary(logger, censoringSummary);
+                    saveM3uCacheWithNoChannels(account, categories, logger,
+                            "All categories removed by active censoring. Clearing existing cache.");
+                    return;
+                }
+                logCensoringSummary(logger, censoringSummary);
                 log(logger, "No categories found. Keeping existing cache.");
                 return;
             }
@@ -43,10 +59,18 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
             int totalChannels = channelsMap.values().stream().mapToInt(List::size).sum();
 
             if (totalChannels == 0) {
+                if (rawTotalChannels > 0 && (categoryCensoringEnabled || channelCensoringEnabled)) {
+                    logCensoringSummary(logger, censoringSummary);
+                    saveM3uCacheWithNoChannels(account, categories, logger,
+                            "All channels removed by active censoring. Clearing existing cache.");
+                    return;
+                }
+                logCensoringSummary(logger, censoringSummary);
                 log(logger, "No channels found in any category. Keeping existing cache.");
                 return;
             }
             log(logger, "Found Channels " + totalChannels + ". Found 0 Orphaned channels.");
+            logCensoringSummary(logger, censoringSummary);
 
             // Filter categories: only keep those with channels and apply M3U-specific rules
             categoriesToSave = filterCategoriesForM3u(categories, channelsMap, logger);
@@ -68,6 +92,122 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
             releaseList(categoriesToSave);
             releaseList(savedCategories);
         }
+    }
+
+    private M3uReloadData applyM3uCensoring(M3uReloadData reloadData,
+                                            boolean categoryCensoringEnabled,
+                                            boolean channelCensoringEnabled) {
+        if (reloadData == null) {
+            return new M3uReloadData(List.of(), new LinkedHashMap<>());
+        }
+
+        List<Category> categories = reloadData.categories();
+        Map<String, List<Channel>> channelsByCategory = reloadData.channelsByCategory();
+        if (categoryCensoringEnabled) {
+            List<Category> filteredCategories = applyCategoryCensoring(categories, true);
+            removeHiddenM3uCategoryChannels(channelsByCategory, categories, filteredCategories);
+            categories = filteredCategories;
+        }
+        if (channelCensoringEnabled) {
+            applyM3uChannelCensoring(channelsByCategory);
+        }
+        return new M3uReloadData(categories, channelsByCategory);
+    }
+
+    private void removeHiddenM3uCategoryChannels(Map<String, List<Channel>> channelsByCategory,
+                                                 List<Category> originalCategories,
+                                                 List<Category> visibleCategories) {
+        if (channelsByCategory == null || channelsByCategory.isEmpty()) {
+            return;
+        }
+        Set<String> visibleKeys = categoryTitleKeys(visibleCategories);
+        Set<String> hiddenKeys = new LinkedHashSet<>();
+        if (originalCategories != null) {
+            for (Category category : originalCategories) {
+                String key = category == null ? "" : categoryLookupKey(category.getTitle());
+                if (!key.isEmpty() && !visibleKeys.contains(key)) {
+                    hiddenKeys.add(key);
+                }
+            }
+        }
+        if (hiddenKeys.isEmpty()) {
+            return;
+        }
+
+        Set<String> hiddenChannelKeys = new LinkedHashSet<>();
+        for (String categoryKey : new ArrayList<>(channelsByCategory.keySet())) {
+            if (hiddenKeys.contains(categoryLookupKey(categoryKey))) {
+                List<Channel> hiddenChannels = channelsByCategory.remove(categoryKey);
+                collectChannelKeys(hiddenChannels, hiddenChannelKeys);
+            }
+        }
+        if (hiddenChannelKeys.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, List<Channel>> entry : new ArrayList<>(channelsByCategory.entrySet())) {
+            List<Channel> channels = entry.getValue();
+            if (channels != null) {
+                List<Channel> retained = channels.stream()
+                        .filter(channel -> !hiddenChannelKeys.contains(channelComparisonKey(channel)))
+                        .toList();
+                channelsByCategory.put(entry.getKey(), new ArrayList<>(retained));
+            }
+        }
+    }
+
+    private Set<String> categoryTitleKeys(List<Category> categories) {
+        Set<String> keys = new LinkedHashSet<>();
+        if (categories == null) {
+            return keys;
+        }
+        for (Category category : categories) {
+            String key = category == null ? "" : categoryLookupKey(category.getTitle());
+            if (!key.isEmpty()) {
+                keys.add(key);
+            }
+        }
+        return keys;
+    }
+
+    private void collectChannelKeys(List<Channel> channels, Set<String> target) {
+        if (channels == null || target == null) {
+            return;
+        }
+        for (Channel channel : channels) {
+            if (channel != null) {
+                target.add(channelComparisonKey(channel));
+            }
+        }
+    }
+
+    private void applyM3uChannelCensoring(Map<String, List<Channel>> channelsByCategory) {
+        if (channelsByCategory == null || channelsByCategory.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, List<Channel>> entry : new ArrayList<>(channelsByCategory.entrySet())) {
+            List<Channel> filteredChannels = applyChannelCensoring(entry.getValue(), true);
+            channelsByCategory.put(entry.getKey(), filteredChannels == null ? List.of() : filteredChannels);
+        }
+    }
+
+    private int totalChannels(Map<String, List<Channel>> channelsByCategory) {
+        if (channelsByCategory == null || channelsByCategory.isEmpty()) {
+            return 0;
+        }
+        return channelsByCategory.values().stream()
+                .filter(channels -> channels != null)
+                .mapToInt(List::size)
+                .sum();
+    }
+
+    private void saveM3uCacheWithNoChannels(Account account, List<Category> categories, LoggerCallback logger, String reason) {
+        log(logger, reason);
+        clearCache(account);
+        if (categories != null && !categories.isEmpty()) {
+            CategoryDb.get().saveAll(categories, account);
+        }
+        log(logger, "Found Channels 0. Found 0 Orphaned channels.");
+        log(logger, (categories == null ? 0 : categories.size()) + " Categories & 0 Channels saved Successfully \u2713");
     }
 
     private M3uReloadData loadM3uReloadData(Account account, LoggerCallback logger) {

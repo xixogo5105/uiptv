@@ -29,8 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CacheServiceImplTest extends DbBackedTest {
 
     @Test
-    void reloadCache_m3u8Local_ignoresFiltering_whenPauseFilteringFalse() throws IOException {
-        saveConfiguration("live", "premium", false);
+    void reloadCache_m3u8Local_appliesFiltering_whenPauseFilteringFalse() throws IOException {
+        saveConfiguration("adult", "premium", false);
         Account account = createM3uAccount("acc-cache-1", writePlaylist("cache-playlist-1.m3u"));
 
         CacheService cacheService = new CacheServiceImpl();
@@ -40,7 +40,7 @@ class CacheServiceImplTest extends DbBackedTest {
         List<Channel> cachedChannels = getAllCachedChannels(account);
         List<Category> cachedCategories = CategoryDb.get().getCategories(account);
 
-        assertTrue(cachedChannels.stream().anyMatch(c -> "Premium Plus".equals(c.getName())));
+        assertFalse(cachedChannels.stream().anyMatch(c -> "Premium Plus".equals(c.getName())));
         assertTrue(cachedChannels.stream().anyMatch(c -> "Sports Live".equals(c.getName())));
         // Since there's only one real category, it should be treated as All
         assertTrue(cachedCategories.stream().anyMatch(c -> CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle())));

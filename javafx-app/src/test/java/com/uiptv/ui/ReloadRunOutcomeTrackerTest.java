@@ -30,4 +30,22 @@ class ReloadRunOutcomeTrackerTest {
         assertEquals(42, tracker.getFetchedChannels(accountId));
         assertFalse(tracker.hasCriticalFailure(accountId));
     }
+
+    @Test
+    void censoringMessages_areAggregatedPerAccountAndOverall() {
+        ReloadRunOutcomeTracker tracker = new ReloadRunOutcomeTracker();
+
+        tracker.recordMessage("acc-1", "Censored Categories 2", "Censored categories: 2");
+        tracker.recordMessage("acc-1", "Censored Channels 5", "Censored channels: 5");
+        tracker.recordMessage("acc-1", "Censored Categories 1", "Censored categories: 1");
+        tracker.recordMessage("acc-2", "Censored Channels 4", "Censored channels: 4");
+        tracker.recordMessage("acc-2", "Censored Categories 0", "Censored categories: 0");
+
+        assertEquals(3, tracker.getCensoredCategories("acc-1"));
+        assertEquals(5, tracker.getCensoredChannels("acc-1"));
+        assertEquals(0, tracker.getCensoredCategories("acc-2"));
+        assertEquals(4, tracker.getCensoredChannels("acc-2"));
+        assertEquals(3, tracker.getTotalCensoredCategories());
+        assertEquals(9, tracker.getTotalCensoredChannels());
+    }
 }

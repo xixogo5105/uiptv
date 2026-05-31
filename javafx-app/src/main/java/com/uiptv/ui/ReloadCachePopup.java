@@ -909,22 +909,32 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void appendRunSummary(List<Account> processedAccounts, Map<String, AccountRunStatus> finalStatuses, int totalSuccessChannels) {
-        if (processedAccounts.size() == 1) {
+        int totalCensoredCategories = runOutcomeTracker.getTotalCensoredCategories();
+        int totalCensoredChannels = runOutcomeTracker.getTotalCensoredChannels();
+        if (processedAccounts.size() == 1 && totalCensoredCategories == 0 && totalCensoredChannels == 0) {
             latestSummaryLines.clear();
             return;
         }
         RunSummary summary = buildRunSummary(processedAccounts, finalStatuses);
         latestSummaryLines.clear();
-        latestSummaryLines.add(I18n.tr("reloadSummaryCompleted", processedAccounts.size(), processedAccounts.size()));
-        latestSummaryLines.add(I18n.tr("reloadSummaryGood", summary.successCount));
-        latestSummaryLines.add(I18n.tr("reloadSummaryYellow", summary.yellowCount));
-        latestSummaryLines.add(I18n.tr("reloadSummaryBad", summary.badCount));
-        latestSummaryLines.add(I18n.tr("reloadSummaryChannelsLoaded", totalSuccessChannels));
-        if (!summary.yellowNames.isEmpty()) {
-            latestSummaryLines.add(I18n.tr("reloadSummaryYellowAccounts", String.join(", ", summary.yellowNames)));
+        if (processedAccounts.size() > 1) {
+            latestSummaryLines.add(I18n.tr("reloadSummaryCompleted", processedAccounts.size(), processedAccounts.size()));
+            latestSummaryLines.add(I18n.tr("reloadSummaryGood", summary.successCount));
+            latestSummaryLines.add(I18n.tr("reloadSummaryYellow", summary.yellowCount));
+            latestSummaryLines.add(I18n.tr("reloadSummaryBad", summary.badCount));
+            latestSummaryLines.add(I18n.tr("reloadSummaryChannelsLoaded", totalSuccessChannels));
+            if (!summary.yellowNames.isEmpty()) {
+                latestSummaryLines.add(I18n.tr("reloadSummaryYellowAccounts", String.join(", ", summary.yellowNames)));
+            }
+            if (!summary.badNames.isEmpty()) {
+                latestSummaryLines.add(I18n.tr("reloadSummaryBadAccounts", String.join(", ", summary.badNames)));
+            }
         }
-        if (!summary.badNames.isEmpty()) {
-            latestSummaryLines.add(I18n.tr("reloadSummaryBadAccounts", String.join(", ", summary.badNames)));
+        if (totalCensoredCategories > 0) {
+            latestSummaryLines.add("Overall censored categories: " + I18n.formatNumber(String.valueOf(totalCensoredCategories)));
+        }
+        if (totalCensoredChannels > 0) {
+            latestSummaryLines.add("Overall censored channels: " + I18n.formatNumber(String.valueOf(totalCensoredChannels)));
         }
         VBox summaryBox = buildRunSummaryBox();
         logVBox.getChildren().add(new Separator());
@@ -1244,6 +1254,10 @@ public class ReloadCachePopup extends VBox {
     }
 
     private String compactCountLog(Account account, String trimmed) {
+        String censoringTranslation = translateCensoringCountLog(trimmed);
+        if (censoringTranslation != null) {
+            return censoringTranslation;
+        }
         String countTranslation = translateFoundCountLog(account, trimmed);
         if (countTranslation != null) {
             return countTranslation;
@@ -1264,6 +1278,18 @@ public class ReloadCachePopup extends VBox {
         String savedTranslation = translateSavedLog(account, trimmed);
         if (savedTranslation != null) {
             return savedTranslation;
+        }
+        return null;
+    }
+
+    private String translateCensoringCountLog(String trimmed) {
+        if (trimmed.startsWith("Censored Categories")) {
+            Integer count = extractFirstNumber(trimmed);
+            return count == null ? "Censored categories" : "Censored categories: " + I18n.formatNumber(String.valueOf(count));
+        }
+        if (trimmed.startsWith("Censored Channels")) {
+            Integer count = extractFirstNumber(trimmed);
+            return count == null ? "Censored channels" : "Censored channels: " + I18n.formatNumber(String.valueOf(count));
         }
         return null;
     }

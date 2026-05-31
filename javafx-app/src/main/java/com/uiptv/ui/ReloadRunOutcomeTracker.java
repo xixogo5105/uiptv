@@ -9,13 +9,19 @@ import java.util.regex.Pattern;
 class ReloadRunOutcomeTracker {
     private static final Pattern FOUND_CHANNELS_PATTERN = Pattern.compile("Found\\s+Channels\\s+(\\d+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern LAST_RESORT_COLLECTED_PATTERN = Pattern.compile("Collected\\s+(\\d+)\\s+channels", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CENSORED_CATEGORIES_PATTERN = Pattern.compile("Censored\\s+Categories\\s+(\\d+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CENSORED_CHANNELS_PATTERN = Pattern.compile("Censored\\s+Channels\\s+(\\d+)", Pattern.CASE_INSENSITIVE);
 
     private final Set<String> accountsWithCriticalFailures = ConcurrentHashMap.newKeySet();
     private final Map<String, Integer> fetchedChannelsByAccount = new ConcurrentHashMap<>();
+    private final Map<String, Integer> censoredCategoriesByAccount = new ConcurrentHashMap<>();
+    private final Map<String, Integer> censoredChannelsByAccount = new ConcurrentHashMap<>();
 
     void clear() {
         accountsWithCriticalFailures.clear();
         fetchedChannelsByAccount.clear();
+        censoredCategoriesByAccount.clear();
+        censoredChannelsByAccount.clear();
     }
 
     void recordMessage(String accountId, String rawMessage, String compactMessage) {
@@ -27,6 +33,8 @@ class ReloadRunOutcomeTracker {
         if (fetched != null && fetched >= 0) {
             fetchedChannelsByAccount.put(accountId, fetched);
         }
+        recordCensoredCount(censoredCategoriesByAccount, accountId, extractCount(rawMessage, CENSORED_CATEGORIES_PATTERN));
+        recordCensoredCount(censoredChannelsByAccount, accountId, extractCount(rawMessage, CENSORED_CHANNELS_PATTERN));
 
         if (isCriticalFailureMessage(rawMessage, compactMessage)) {
             accountsWithCriticalFailures.add(accountId);
@@ -39,6 +47,28 @@ class ReloadRunOutcomeTracker {
 
     boolean hasCriticalFailure(String accountId) {
         return accountId != null && accountsWithCriticalFailures.contains(accountId);
+    }
+
+    int getCensoredCategories(String accountId) {
+        return censoredCategoriesByAccount.getOrDefault(accountId, 0);
+    }
+
+    int getCensoredChannels(String accountId) {
+        return censoredChannelsByAccount.getOrDefault(accountId, 0);
+    }
+
+    int getTotalCensoredCategories() {
+        return censoredCategoriesByAccount.values().stream().mapToInt(Integer::intValue).sum();
+    }
+
+    int getTotalCensoredChannels() {
+        return censoredChannelsByAccount.values().stream().mapToInt(Integer::intValue).sum();
+    }
+
+    private void recordCensoredCount(Map<String, Integer> target, String accountId, Integer count) {
+        if (count != null && count > 0) {
+            target.merge(accountId, count, Integer::sum);
+        }
     }
 
     private Integer extractFetchedChannels(String rawMessage) {
@@ -65,6 +95,21 @@ class ReloadRunOutcomeTracker {
         }
 
         return null;
+    }
+
+    private Integer extractCount(String rawMessage, Pattern pattern) {
+        if (rawMessage == null) {
+            return null;
+        }
+        Matcher matcher = pattern.matcher(rawMessage);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException _) {
+            return null;
+        }
     }
 
     private boolean isCriticalFailureMessage(String rawMessage, String compactMessage) {

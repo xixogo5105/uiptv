@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
@@ -30,6 +31,8 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
     @Override
     public void reloadCache(Account account, LoggerCallback logger) {
+        boolean applyCategoryCensoring = shouldApplyCategoryCensoring();
+        boolean applyChannelCensoring = shouldApplyChannelCensoring();
         HandshakeService.getInstance().connect(account);
         if (account.isNotConnected()) {
             log(logger, "Handshake failed for: " + account.getAccountName());
@@ -37,40 +40,73 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         }
 
         if (account.getAction() == itv) {
-            reloadLive(account, logger);
-            cacheVodAndSeriesCategoriesOnly(account, logger);
+            CensoringSummary summary = reloadLive(account, logger, applyCategoryCensoring, applyChannelCensoring)
+                    .add(cacheVodAndSeriesCategoriesOnly(account, logger));
+            logCensoringSummary(logger, summary);
             return;
         }
 
         if (account.getAction() == vod || account.getAction() == series) {
-            List<Category> categories = CategoryService.getInstance().get(account, false, logger);
+            List<Category> rawCategories = CategoryService.getInstance().get(account, false, logger);
+            if (rawCategories == null) {
+                rawCategories = List.of();
+            }
+            List<Category> categories = applyCategoryCensoring(rawCategories, applyCategoryCensoring);
             saveVodOrSeriesCategories(account, categories);
             log(logger, "Found Categories " + categories.size());
             log(logger, categories.size() + " Categories & 0 Channels saved Successfully \u2713");
+            logCensoringSummary(logger, CensoringSummary.empty()
+                    .addCategories(censoredItemCount(rawCategories.size(), categories.size(), applyCategoryCensoring)));
         }
     }
 
-    private void reloadLive(Account account, LoggerCallback logger) {
+    private CensoringSummary reloadLive(Account account, LoggerCallback logger,
+                                        boolean applyCategoryCensoring, boolean applyChannelCensoring) {
         List<Category> rawCategories = loadOfficialLiveCategories(account);
         CategoryNormalization categoryNormalization = normalizeCategoriesByTitle(rawCategories);
-        List<Category> officialCategories = categoryNormalization.categories();
+        List<Category> allOfficialCategories = categoryNormalization.categories();
+        CensoringSummary summary = CensoringSummary.empty();
 
-        if (officialCategories.isEmpty()) {
+        if (allOfficialCategories.isEmpty()) {
             log(logger, "No categories found. Keeping existing cache.");
-            return;
+            return summary;
+        }
+
+        List<Category> officialCategories = applyCategoryCensoring(allOfficialCategories, applyCategoryCensoring);
+        summary = summary.addCategories(censoredItemCount(allOfficialCategories.size(), officialCategories.size(),
+                applyCategoryCensoring));
+        if (officialCategories.isEmpty()) {
+            log(logger, "Found Categories 0");
+            saveLiveCacheWithNoChannels(account, officialCategories, logger,
+                    "All categories removed by active censoring. Clearing existing cache.");
+            return summary;
         }
         log(logger, "Found Categories " + officialCategories.size());
 
-        List<Channel> allChannels = parseGlobalLiveChannels(account, logger);
+        Set<String> knownCategoryIds = categoryIds(allOfficialCategories);
+        Set<String> visibleCategoryIds = categoryIds(officialCategories);
+        List<Channel> rawChannels = parseGlobalLiveChannels(account, logger);
 
-        if (allChannels.isEmpty()) {
+        if (rawChannels.isEmpty()) {
             log(logger, "Global Stalker get_all_channels failed. Trying last-resort category-by-category fetch.");
-            allChannels = fetchAllChannelsByCategoryLastResort(account, rawCategories, categoryNormalization, logger);
-            if (allChannels.isEmpty()) {
+            List<Category> fallbackCategories = categoriesMatchingVisibleIds(rawCategories, visibleCategoryIds, categoryNormalization);
+            rawChannels = fetchAllChannelsByCategoryLastResort(account, fallbackCategories, categoryNormalization, logger);
+            if (rawChannels.isEmpty()) {
                 log(logger, "No channels found. Keeping existing cache.");
-                return;
+                return summary;
             }
-            log(logger, "Last-resort fetch succeeded. Collected " + allChannels.size() + " channels.");
+            log(logger, "Last-resort fetch succeeded. Collected " + rawChannels.size() + " channels.");
+        }
+
+        List<Channel> allChannels = applyChannelCensoring(rawChannels, applyChannelCensoring);
+        allChannels = retainChannelsForVisibleCategories(allChannels, knownCategoryIds, visibleCategoryIds,
+                categoryNormalization.canonicalCategoryIdByOriginalId());
+        summary = summary.addChannels(censoredItemCount(rawChannels.size(), allChannels.size(),
+                applyCategoryCensoring || applyChannelCensoring));
+        if (allChannels.isEmpty()) {
+            saveLiveCacheWithNoChannels(account, officialCategories, logger,
+                    "All channels removed by active censoring. Clearing existing cache.");
+            return summary;
         }
 
         ChannelGrouping grouping = groupChannelsByCategory(allChannels, officialCategories, categoryNormalization.canonicalCategoryIdByOriginalId());
@@ -98,6 +134,30 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         }
 
         log(logger, savedCategories.size() + " Categories & " + allChannels.size() + " Channels saved Successfully \u2713");
+        return summary;
+    }
+
+    private List<Category> categoriesMatchingVisibleIds(List<Category> rawCategories, Set<String> visibleCategoryIds,
+                                                        CategoryNormalization categoryNormalization) {
+        if (rawCategories == null || rawCategories.isEmpty()) {
+            return List.of();
+        }
+        return rawCategories.stream()
+                .filter(category -> category != null
+                        && (isBlank(category.getCategoryId())
+                        || visibleCategoryIds.contains(canonicalCategoryId(category.getCategoryId(),
+                        categoryNormalization.canonicalCategoryIdByOriginalId()))))
+                .toList();
+    }
+
+    private void saveLiveCacheWithNoChannels(Account account, List<Category> categories, LoggerCallback logger, String reason) {
+        log(logger, reason);
+        clearCache(account);
+        if (categories != null && !categories.isEmpty()) {
+            CategoryDb.get().saveAll(categories, account);
+        }
+        log(logger, "Found Channels 0. Found 0 Orphaned channels.");
+        log(logger, (categories == null ? 0 : categories.size()) + " Categories & 0 Channels saved Successfully \u2713");
     }
 
     private List<Channel> fetchAllStalkerChannels(Account account) {

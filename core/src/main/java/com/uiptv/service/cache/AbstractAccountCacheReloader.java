@@ -8,8 +8,10 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
+import com.uiptv.model.Configuration;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.service.ContentFilterService;
 import com.uiptv.shared.PlaylistEntry;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.M3U8Parser;
@@ -57,6 +59,28 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         }
     }
 
+    protected boolean shouldApplyCategoryCensoring() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        return isFilteringActive(configuration) && isNotBlank(configuration.getFilterCategoriesList());
+    }
+
+    protected boolean shouldApplyChannelCensoring() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        return isFilteringActive(configuration) && isNotBlank(configuration.getFilterChannelsList());
+    }
+
+    private boolean isFilteringActive(Configuration configuration) {
+        return configuration != null && !configuration.isPauseFiltering();
+    }
+
+    protected List<Category> applyCategoryCensoring(List<Category> categories, boolean applyCensoring) {
+        return applyCensoring ? ContentFilterService.getInstance().filterCategories(categories) : categories;
+    }
+
+    protected List<Channel> applyChannelCensoring(List<Channel> channels, boolean applyCensoring) {
+        return applyCensoring ? ContentFilterService.getInstance().filterChannels(channels) : channels;
+    }
+
     protected static Map<String, String> getCategoryParams(Account.AccountAction accountAction) {
         final Map<String, String> params = new HashMap<>();
         params.put("JsHttpRequest", new Date().getTime() + "-xml");
@@ -79,16 +103,23 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         return params;
     }
 
-    protected void cacheVodAndSeriesCategoriesOnly(Account account, LoggerCallback logger) {
+    protected CensoringSummary cacheVodAndSeriesCategoriesOnly(Account account, LoggerCallback logger) {
         if (account.getType() != AccountType.STALKER_PORTAL && account.getType() != AccountType.XTREME_API) {
-            return;
+            return CensoringSummary.empty();
         }
         Account.AccountAction original = account.getAction();
+        boolean applyCategoryCensoring = shouldApplyCategoryCensoring();
+        CensoringSummary summary = CensoringSummary.empty();
         try {
             for (Account.AccountAction mode : List.of(vod, series)) {
                 account.setAction(mode);
                 try {
-                    List<Category> categories = CategoryService.getInstance().get(account, false, logger);
+                    List<Category> rawCategories = CategoryService.getInstance().get(account, false, logger);
+                    if (rawCategories == null) {
+                        rawCategories = List.of();
+                    }
+                    List<Category> categories = applyCategoryCensoring(rawCategories, applyCategoryCensoring);
+                    summary = summary.addCategories(censoredItemCount(rawCategories.size(), categories.size(), applyCategoryCensoring));
                     saveVodOrSeriesCategories(account, categories);
                 } catch (Exception e) {
                     log(logger, "Global " + mode.name().toUpperCase() + " category list failed: " + shortReason(e));
@@ -97,6 +128,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         } finally {
             account.setAction(original);
         }
+        return summary;
     }
 
     private String shortReason(Exception e) {
@@ -168,6 +200,76 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         return isBlank(value) ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
+    protected Set<String> categoryIds(List<Category> categories) {
+        Set<String> ids = new LinkedHashSet<>();
+        if (categories == null) {
+            return ids;
+        }
+        for (Category category : categories) {
+            if (category != null && isNotBlank(category.getCategoryId())) {
+                ids.add(category.getCategoryId());
+            }
+        }
+        return ids;
+    }
+
+    protected List<Channel> retainChannelsForVisibleCategories(List<Channel> channels,
+                                                               Set<String> knownCategoryIds,
+                                                               Set<String> visibleCategoryIds,
+                                                               Map<String, String> canonicalCategoryIdByOriginalId) {
+        if (channels == null || channels.isEmpty()
+                || knownCategoryIds == null || knownCategoryIds.isEmpty()
+                || visibleCategoryIds == null || knownCategoryIds.equals(visibleCategoryIds)) {
+            return channels == null ? List.of() : channels;
+        }
+
+        List<Channel> retained = new ArrayList<>();
+        for (Channel channel : channels) {
+            if (channel == null) {
+                continue;
+            }
+            String categoryId = canonicalCategoryId(channel.getCategoryId(), canonicalCategoryIdByOriginalId);
+            if (isBlank(categoryId) || !knownCategoryIds.contains(categoryId) || visibleCategoryIds.contains(categoryId)) {
+                retained.add(channel);
+            }
+        }
+        return retained;
+    }
+
+    protected int censoredItemCount(int rawCount, int filteredCount, boolean censoringEnabled) {
+        return censoringEnabled ? Math.max(0, rawCount - filteredCount) : 0;
+    }
+
+    protected int uniqueChannelCount(Map<String, List<Channel>> channelsByCategory) {
+        if (channelsByCategory == null || channelsByCategory.isEmpty()) {
+            return 0;
+        }
+        Set<String> channelKeys = new LinkedHashSet<>();
+        for (List<Channel> channels : channelsByCategory.values()) {
+            if (channels == null) {
+                continue;
+            }
+            for (Channel channel : channels) {
+                if (channel != null) {
+                    channelKeys.add(channelComparisonKey(channel));
+                }
+            }
+        }
+        return channelKeys.size();
+    }
+
+    protected void logCensoringSummary(LoggerCallback logger, CensoringSummary summary) {
+        if (summary == null) {
+            return;
+        }
+        if (summary.categories() > 0) {
+            log(logger, "Censored Categories " + summary.categories());
+        }
+        if (summary.channels() > 0) {
+            log(logger, "Censored Channels " + summary.channels());
+        }
+    }
+
     private void addChannelsCaseInsensitive(Map<String, Channel> uniqueChannels, List<Channel> channels) {
         if (channels == null) {
             return;
@@ -195,7 +297,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         return UUID.randomUUID().toString();
     }
 
-    private String channelComparisonKey(Channel channel) {
+    protected String channelComparisonKey(Channel channel) {
         String channelIdKey = normalizeCaseInsensitiveKey(channel.getChannelId());
         if (isNotBlank(channelIdKey)) {
             return "id:" + channelIdKey;
@@ -265,6 +367,27 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         return new Channel(channelId, entry.getTitle(), null, entry.getPlaylistEntry(), null, null, null,
                 entry.getLogo(), 0, 0, 0, entry.getDrmType(), entry.getDrmLicenseUrl(), entry.getClearKeys(),
                 entry.getInputstreamaddon(), entry.getManifestType());
+    }
+
+    protected record CensoringSummary(int categories, int channels) {
+        static CensoringSummary empty() {
+            return new CensoringSummary(0, 0);
+        }
+
+        CensoringSummary add(CensoringSummary other) {
+            if (other == null) {
+                return this;
+            }
+            return new CensoringSummary(categories + other.categories, channels + other.channels);
+        }
+
+        CensoringSummary addCategories(int value) {
+            return value <= 0 ? this : new CensoringSummary(categories + value, channels);
+        }
+
+        CensoringSummary addChannels(int value) {
+            return value <= 0 ? this : new CensoringSummary(categories, channels + value);
+        }
     }
 
     protected record CategoryNormalization(List<Category> categories, Map<String, String> canonicalCategoryIdByOriginalId) {

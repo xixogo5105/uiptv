@@ -8,6 +8,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -24,6 +26,7 @@ public class FilterLockService {
     private final SecureRandom secureRandom = new SecureRandom();
     private final AtomicLong unlockedUntilEpochMs = new AtomicLong(0);
     private final AtomicReference<String> unlockedHashSnapshot = new AtomicReference<>("");
+    private final Set<LockStateChangeListener> lockStateChangeListeners = new CopyOnWriteArraySet<>();
 
     private FilterLockService() {
     }
@@ -38,6 +41,18 @@ public class FilterLockService {
 
     public boolean hasPasswordConfigured() {
         return !blank(currentHash());
+    }
+
+    public void addLockStateChangeListener(LockStateChangeListener listener) {
+        if (listener != null) {
+            lockStateChangeListeners.add(listener);
+        }
+    }
+
+    public void removeLockStateChangeListener(LockStateChangeListener listener) {
+        if (listener != null) {
+            lockStateChangeListeners.remove(listener);
+        }
     }
 
     public boolean isUnlocked() {
@@ -58,8 +73,11 @@ public class FilterLockService {
     }
 
     public void clearUnlockSession() {
-        unlockedUntilEpochMs.set(0);
-        unlockedHashSnapshot.set("");
+        long previousExpiry = unlockedUntilEpochMs.getAndSet(0);
+        String previousHashSnapshot = unlockedHashSnapshot.getAndSet("");
+        if (previousExpiry != 0 || !blank(previousHashSnapshot)) {
+            notifyLockStateChanged();
+        }
     }
 
     public boolean unlockWithPassword(String password) {
@@ -72,6 +90,7 @@ public class FilterLockService {
         }
         unlockedHashSnapshot.set(currentHash);
         unlockedUntilEpochMs.set(System.currentTimeMillis() + UNLOCK_WINDOW_MS);
+        notifyLockStateChanged();
         return true;
     }
 
@@ -176,5 +195,19 @@ public class FilterLockService {
             return "";
         }
         return new String(value.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
+    }
+
+    private void notifyLockStateChanged() {
+        for (LockStateChangeListener listener : lockStateChangeListeners) {
+            try {
+                listener.onFilterLockStateChanged();
+            } catch (Exception _) {
+                // Listener failures must not affect lock state changes.
+            }
+        }
+    }
+
+    public interface LockStateChangeListener {
+        void onFilterLockStateChanged();
     }
 }

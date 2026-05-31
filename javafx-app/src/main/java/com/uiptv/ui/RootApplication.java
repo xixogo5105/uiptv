@@ -3,8 +3,10 @@ package com.uiptv.ui;
 import com.uiptv.application.ConfigurationApplicationService;
 import com.uiptv.model.Configuration;
 import com.uiptv.player.MediaPlayerFactory;
+import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DatabaseSyncService;
+import com.uiptv.service.FilterLockService;
 import com.uiptv.service.remotesync.RemoteSyncSessionService;
 import com.uiptv.ui.main.BaseMainApplicationUI;
 import com.uiptv.ui.main.MainApplicationUI;
@@ -17,6 +19,9 @@ import com.uiptv.util.AppLog;
 import com.uiptv.util.EmbeddedPlayerWideViewUtil;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Rectangle2D;
@@ -26,6 +31,7 @@ import javafx.scene.image.Image;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -37,11 +43,20 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 public class RootApplication extends Application {
     public static final int GUIDED_MAX_WIDTH_PIXELS = 1368;
     public static final int GUIDED_MAX_HEIGHT_PIXELS = 1920;
+    private static final String STATUS_ICON_ON = "✅";
+    private static final String STATUS_ICON_OFF = "❌";
+    private static final Duration TITLE_STATUS_REFRESH_INTERVAL = Duration.seconds(30);
     private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
     private static final ConfigurationApplicationService configurationApplicationService = ConfigurationApplicationService.getInstance();
     private static Stage primaryStage;
     private static String currentTheme;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
+    private final FilterLockService filterLockService = FilterLockService.getInstance();
+    private final ConfigurationChangeListener titleConfigurationChangeListener =
+            _ -> scheduleTitleUpdate();
+    private final FilterLockService.LockStateChangeListener titleLockStateChangeListener =
+            this::scheduleTitleUpdate;
+    private Timeline titleStatusTimeline;
 
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", "UIPTV");
@@ -182,7 +197,8 @@ public class RootApplication extends Application {
             Platform.exit();
             System.exit(0);
         });
-        primaryStage.setTitle(I18n.tr("appTitle"));
+        registerTitleStatusUpdater();
+        updatePrimaryStageTitle();
         applyMaximizedBounds(primaryStage);
         primaryStage.getIcons().add(new Image("file:resource/icon.ico"));
         Scene loadingScene = createLoadingScene();
@@ -250,6 +266,7 @@ public class RootApplication extends Application {
 
     @Override
     public void stop() {
+        unregisterTitleStatusUpdater();
         try {
             MediaPlayerFactory.release();
         } catch (Exception _) {
@@ -261,6 +278,54 @@ public class RootApplication extends Application {
         } catch (Exception _) {
             // Best-effort shutdown: JavaFX stop hooks should not prevent process exit.
         }
+    }
+
+    private void registerTitleStatusUpdater() {
+        configurationService.addChangeListener(titleConfigurationChangeListener);
+        filterLockService.addLockStateChangeListener(titleLockStateChangeListener);
+        titleStatusTimeline = new Timeline(new KeyFrame(TITLE_STATUS_REFRESH_INTERVAL, _ -> updatePrimaryStageTitle()));
+        titleStatusTimeline.setCycleCount(Animation.INDEFINITE);
+        titleStatusTimeline.play();
+    }
+
+    private void unregisterTitleStatusUpdater() {
+        configurationService.removeChangeListener(titleConfigurationChangeListener);
+        filterLockService.removeLockStateChangeListener(titleLockStateChangeListener);
+        if (titleStatusTimeline != null) {
+            titleStatusTimeline.stop();
+            titleStatusTimeline = null;
+        }
+    }
+
+    private void updatePrimaryStageTitle() {
+        if (!Platform.isFxApplicationThread()) {
+            scheduleTitleUpdate();
+            return;
+        }
+        if (primaryStage != null) {
+            primaryStage.setTitle(buildApplicationTitle());
+        }
+    }
+
+    private void scheduleTitleUpdate() {
+        try {
+            Platform.runLater(this::updatePrimaryStageTitle);
+        } catch (IllegalStateException _) {
+            // The JavaFX runtime may already be shutting down.
+        }
+    }
+
+    private String buildApplicationTitle() {
+        Configuration configuration = configurationService.read();
+        boolean parentalLockOn = filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked();
+        boolean censoringOn = configuration == null || !configuration.isPauseFiltering();
+        return I18n.tr("appTitle")
+                + " | Parental " + statusIcon(parentalLockOn)
+                + " | Censor " + statusIcon(censoringOn);
+    }
+
+    private String statusIcon(boolean enabled) {
+        return enabled ? STATUS_ICON_ON : STATUS_ICON_OFF;
     }
 
     private void configureFontStyles(Scene scene) {
