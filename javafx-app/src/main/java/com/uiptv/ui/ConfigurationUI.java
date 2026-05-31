@@ -31,6 +31,7 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.scene.shape.SVGPath;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -63,8 +64,13 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_NO_DIM_DISABLED = "no-dim-disabled";
     private static final String STYLE_CLASS_HELP_LINK = "section-help-link";
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
-    private static final String STATUS_ICON_ON = "✅";
-    private static final String STATUS_ICON_OFF = "❌";
+    private static final String STYLE_CLASS_CONFIGURATION_STATUS_ICON = "configuration-status-icon";
+    private static final String STYLE_CLASS_CONFIGURATION_STATUS_ICON_ON = "configuration-status-icon-on";
+    private static final String STYLE_CLASS_CONFIGURATION_STATUS_ICON_OFF = "configuration-status-icon-off";
+    private static final String STYLE_CLASS_CONFIGURATION_STATUS_GLYPH = "configuration-status-icon-glyph";
+    private static final String STATUS_ICON_CHECK_PATH = "M5.9 10.6 L3.1 7.8 L1.8 9.1 L5.9 13.2 L14.2 4.9 L12.9 3.6 Z";
+    private static final String STATUS_ICON_CROSS_PATH = "M4 3 L3 4 L7 8 L3 12 L4 13 L8 9 L12 13 L13 12 L9 8 L13 4 L12 3 L8 7 Z";
+    private static final double STATUS_ICON_SIZE = 18;
     private static final Duration STATUS_TITLE_REFRESH_INTERVAL = Duration.seconds(30);
     private static final double DATABASE_SYNC_POPUP_WIDTH = 672;
     private static final AtomicReference<Stage> activePublishM3u8PopupStage = new AtomicReference<>();
@@ -88,7 +94,9 @@ public class ConfigurationUI extends VBox {
     private final CheckBox filterPausedCheckBox = new CheckBox(I18n.tr("configPauseFiltering"));
     private final Label filterLockStatusLabel = new Label();
     private final Label filtersGroupTitleLabel = new Label();
+    private final StatusIcon filtersGroupStatusIcon = new StatusIcon();
     private final Label cacheFilteringGroupTitleLabel = new Label();
+    private final StatusIcon cacheFilteringGroupStatusIcon = new StatusIcon();
     private final Button filterLockPasswordButton = new Button();
     private final Button filterUnlockButton = new Button(I18n.tr("filterLockUnlockAction"));
     private final Button filterRelockButton = new Button(I18n.tr("filterLockLockNowAction"));
@@ -307,9 +315,9 @@ public class ConfigurationUI extends VBox {
 
         contentContainer.getChildren().addAll(
                 createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), playersGroup, false, videoPlayersHelpLink),
-                createCollapsibleGroupPane(filtersGroupTitleLabel, filtersGroup, true, filtersHelpLink),
+                createCollapsibleGroupPane(filtersGroupTitleLabel, filtersGroupStatusIcon, filtersGroup, true, filtersHelpLink),
                 createCollapsibleGroupPane(I18n.tr("configDarkTheme"), themeOverridesGroup, true, themeHelpLink),
-                createCollapsibleGroupPane(cacheFilteringGroupTitleLabel, cacheGroup, true, cacheFilteringHelpLink),
+                createCollapsibleGroupPane(cacheFilteringGroupTitleLabel, cacheFilteringGroupStatusIcon, cacheGroup, true, cacheFilteringHelpLink),
                 createCollapsibleGroupPane(I18n.tr("configDatabaseSyncTitle"), databaseSyncGroup, true, databaseSyncHelpLink),
                 createCollapsibleGroupPane(I18n.tr("configWebServer"), serverGroup, true, webServerHelpLink),
                 createCollapsibleGroupPane(I18n.tr("configTmdbMetadata"), tmdbConfigSection, true, tmdbMetadataHelpLink),
@@ -342,10 +350,18 @@ public class ConfigurationUI extends VBox {
     }
 
     private BorderPane createCollapsibleGroupPane(Label titleLabel, Node content, boolean collapsedByDefault, Hyperlink helpLink) {
+        return createCollapsibleGroupPane(titleLabel, null, content, collapsedByDefault, helpLink);
+    }
+
+    private BorderPane createCollapsibleGroupPane(Label titleLabel, Node statusIcon, Node content,
+                                                 boolean collapsedByDefault, Hyperlink helpLink) {
         BorderPane pane = new BorderPane(content);
         titleLabel.getStyleClass().add("strong-label");
         HBox titleRow = new HBox(4, titleLabel);
         titleRow.setAlignment(Pos.CENTER_LEFT);
+        if (statusIcon != null) {
+            titleRow.getChildren().add(statusIcon);
+        }
         if (helpLink != null) {
             titleRow.getChildren().add(helpLink);
         }
@@ -639,12 +655,10 @@ public class ConfigurationUI extends VBox {
         Configuration configuration = service.read();
         boolean parentalLockOn = filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked();
         boolean censoringOn = configuration == null || !configuration.isPauseFiltering();
-        filtersGroupTitleLabel.setText(I18n.tr("configFilters") + " " + statusIcon(parentalLockOn));
-        cacheFilteringGroupTitleLabel.setText(I18n.tr("configCacheFiltering") + " " + statusIcon(censoringOn));
-    }
-
-    private String statusIcon(boolean enabled) {
-        return enabled ? STATUS_ICON_ON : STATUS_ICON_OFF;
+        filtersGroupTitleLabel.setText(I18n.tr("configFilters"));
+        cacheFilteringGroupTitleLabel.setText(I18n.tr("configCacheFiltering"));
+        filtersGroupStatusIcon.setEnabled(parentalLockOn);
+        cacheFilteringGroupStatusIcon.setEnabled(censoringOn);
     }
 
     private void refreshServerStatusUI() {
@@ -2105,5 +2119,30 @@ public class ConfigurationUI extends VBox {
     private int getSelectedThemeZoomPercent() {
         Integer selected = themeZoomComboBox.getSelectionModel().getSelectedItem();
         return selected == null ? ConfigurationService.DEFAULT_UI_ZOOM_PERCENT : selected;
+    }
+
+    private static final class StatusIcon extends StackPane {
+        private final SVGPath glyph = new SVGPath();
+
+        private StatusIcon() {
+            getStyleClass().add(STYLE_CLASS_CONFIGURATION_STATUS_ICON);
+            setMinSize(STATUS_ICON_SIZE, STATUS_ICON_SIZE);
+            setPrefSize(STATUS_ICON_SIZE, STATUS_ICON_SIZE);
+            setMaxSize(STATUS_ICON_SIZE, STATUS_ICON_SIZE);
+            glyph.getStyleClass().add(STYLE_CLASS_CONFIGURATION_STATUS_GLYPH);
+            getChildren().add(glyph);
+            setEnabled(false);
+        }
+
+        private void setEnabled(boolean enabled) {
+            glyph.setContent(enabled ? STATUS_ICON_CHECK_PATH : STATUS_ICON_CROSS_PATH);
+            getStyleClass().removeAll(
+                    STYLE_CLASS_CONFIGURATION_STATUS_ICON_ON,
+                    STYLE_CLASS_CONFIGURATION_STATUS_ICON_OFF
+            );
+            getStyleClass().add(enabled
+                    ? STYLE_CLASS_CONFIGURATION_STATUS_ICON_ON
+                    : STYLE_CLASS_CONFIGURATION_STATUS_ICON_OFF);
+        }
     }
 }

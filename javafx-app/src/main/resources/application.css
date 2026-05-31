@@ -282,6 +282,27 @@
     -fx-text-fill: derive(-fx-text-base-color, -12%);
 }
 
+.configuration-status-icon {
+    -fx-background-radius: 3;
+    -fx-border-radius: 3;
+    -fx-border-width: 1;
+    -fx-padding: 2;
+}
+
+.configuration-status-icon-on {
+    -fx-background-color: linear-gradient(to bottom, #2fd34f, #128a27);
+    -fx-border-color: #0d7620;
+}
+
+.configuration-status-icon-off {
+    -fx-background-color: linear-gradient(to bottom, #ff5a5f, #c62828);
+    -fx-border-color: #a91515;
+}
+
+.configuration-status-icon-glyph {
+    -fx-fill: white;
+}
+
 .dim-label {
     -fx-opacity: 0.85;
 }
