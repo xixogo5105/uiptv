@@ -639,8 +639,8 @@ public class ConfigurationUI extends VBox {
         Configuration configuration = service.read();
         boolean parentalLockOn = filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked();
         boolean censoringOn = configuration == null || !configuration.isPauseFiltering();
-        filtersGroupTitleLabel.setText(statusIcon(parentalLockOn) + " " + I18n.tr("configFilters"));
-        cacheFilteringGroupTitleLabel.setText(statusIcon(censoringOn) + " " + I18n.tr("configCacheFiltering"));
+        filtersGroupTitleLabel.setText(I18n.tr("configFilters") + " " + statusIcon(parentalLockOn));
+        cacheFilteringGroupTitleLabel.setText(I18n.tr("configCacheFiltering") + " " + statusIcon(censoringOn));
     }
 
     private String statusIcon(boolean enabled) {

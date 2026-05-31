@@ -128,6 +128,7 @@ public class ReloadCachePopup extends VBox {
     private final AtomicReference<Thread> reloadThread = new AtomicReference<>();
     private volatile boolean stopRequested = false;
     private volatile boolean disposed = false;
+    private volatile GlobalFailureDecision automaticGlobalFailureDecision;
     private final Runnable onAccountsDeleted;
     private VBox accountColumn;
     private ColumnConstraints accountsColumn;
@@ -438,15 +439,65 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void startReloadInBackground() {
-        if (disposed || !reloadInProgress.compareAndSet(false, true)) {
+        if (disposed) {
             return;
         }
 
         List<Account> selectedAccounts = selectedAccountsSnapshot();
+        GlobalFailureDecision selectedAutomaticDecision = promptAutomaticGlobalFailureDecision(selectedAccounts);
+        if (!reloadInProgress.compareAndSet(false, true)) {
+            return;
+        }
+        automaticGlobalFailureDecision = selectedAutomaticDecision;
         Thread thread = new Thread(() -> reloadSelectedAccounts(selectedAccounts), "uiptv-cache-reload");
         thread.setDaemon(true);
         reloadThread.set(thread);
         thread.start();
+    }
+
+    private GlobalFailureDecision promptAutomaticGlobalFailureDecision(List<Account> selectedAccounts) {
+        if (selectedAccounts == null || selectedAccounts.size() <= 1 || disposed) {
+            return null;
+        }
+
+        List<AutomaticFailureDecisionOption> options = automaticFailureDecisionOptions();
+        ComboBox<AutomaticFailureDecisionOption> comboBox = new ComboBox<>();
+        comboBox.getItems().setAll(options);
+        comboBox.getSelectionModel().selectFirst();
+        comboBox.setMaxWidth(Double.MAX_VALUE);
+
+        Label message = new Label(I18n.tr("reloadBulkFailureHandlingMessage"));
+        message.setWrapText(true);
+        VBox content = new VBox(10, message, comboBox);
+        content.setPadding(new Insets(8, 0, 0, 0));
+
+        ButtonType okButton = new ButtonType(I18n.tr("commonOk"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType closeButton = new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        Dialog<AutomaticFailureDecisionOption> dialog = new Dialog<>();
+        if (stage != null) {
+            dialog.initOwner(stage);
+        }
+        dialog.setTitle(I18n.tr("reloadBulkFailureHandlingTitle"));
+        dialog.setHeaderText(I18n.tr("reloadBulkFailureHandlingHeader",
+                I18n.formatNumber(String.valueOf(selectedAccounts.size()))));
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().setAll(okButton, closeButton);
+        dialog.setResultConverter(button -> button == okButton ? comboBox.getValue() : null);
+        applyDialogThemeAndOrientation(dialog);
+
+        return dialog.showAndWait()
+                .map(AutomaticFailureDecisionOption::decision)
+                .orElse(null);
+    }
+
+    private List<AutomaticFailureDecisionOption> automaticFailureDecisionOptions() {
+        return List.of(
+                new AutomaticFailureDecisionOption(null, I18n.tr("reloadBulkFailureAskEachAccount")),
+                new AutomaticFailureDecisionOption(GlobalFailureDecision.CARRY_ON, I18n.tr("reloadCarryOn")),
+                new AutomaticFailureDecisionOption(GlobalFailureDecision.MARK_BAD_AND_IGNORE_DOMAIN, I18n.tr("reloadMarkBadIgnoreDomain")),
+                new AutomaticFailureDecisionOption(GlobalFailureDecision.MARK_BAD, I18n.tr("reloadMarkBadAndNext")),
+                new AutomaticFailureDecisionOption(GlobalFailureDecision.STOP_ALL, I18n.tr("reloadStopAll"))
+        );
     }
 
     private List<Account> selectedAccountsSnapshot() {
@@ -520,6 +571,7 @@ public class ReloadCachePopup extends VBox {
             }
             finishReloadRun(processedAccounts, finalStatuses, summaryStatusByAccountId, totalFetchedChannels);
         } finally {
+            automaticGlobalFailureDecision = null;
             reloadInProgress.set(false);
             reloadThread.compareAndSet(Thread.currentThread(), null);
             requestPostReloadMemoryCleanup(selectedAccounts.size());
@@ -1550,6 +1602,10 @@ public class ReloadCachePopup extends VBox {
         if (isReloadStopped()) {
             return GlobalFailureDecision.STOP_ALL;
         }
+        GlobalFailureDecision automaticDecision = resolveAutomaticGlobalFailureDecision(canIgnoreDomain);
+        if (automaticDecision != null) {
+            return automaticDecision;
+        }
         final GlobalFailureDecision[] decision = {GlobalFailureDecision.CARRY_ON};
         boolean completed = runOnFxThreadAndWait(() -> {
             if (disposed) {
@@ -1561,6 +1617,14 @@ public class ReloadCachePopup extends VBox {
             decision[0] = resolveGlobalFailureDecision(selected, prompt);
         });
         return completed ? decision[0] : GlobalFailureDecision.STOP_ALL;
+    }
+
+    private GlobalFailureDecision resolveAutomaticGlobalFailureDecision(boolean canIgnoreDomain) {
+        GlobalFailureDecision decision = automaticGlobalFailureDecision;
+        if (decision == GlobalFailureDecision.MARK_BAD_AND_IGNORE_DOMAIN && !canIgnoreDomain) {
+            return GlobalFailureDecision.MARK_BAD;
+        }
+        return decision;
     }
 
     private GlobalFailurePrompt buildGlobalFailurePrompt(Account account, String reason, boolean canIgnoreDomain) {
@@ -1591,11 +1655,11 @@ public class ReloadCachePopup extends VBox {
                 : I18n.tr("reloadGlobalFailurePrompt", account.getAccountName(), reason);
     }
 
-    private void applyDialogThemeAndOrientation(Alert alert) {
+    private void applyDialogThemeAndOrientation(Dialog<?> dialog) {
         if (RootApplication.getCurrentTheme() != null) {
-            alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
+            dialog.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
         }
-        alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
+        dialog.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
                 ? javafx.geometry.NodeOrientation.RIGHT_TO_LEFT
                 : javafx.geometry.NodeOrientation.LEFT_TO_RIGHT);
     }
@@ -1618,6 +1682,13 @@ public class ReloadCachePopup extends VBox {
                                        ButtonType stopAllButton,
                                        ButtonType markBadButton,
                                        ButtonType ignoreDomainButton) {
+    }
+
+    private record AutomaticFailureDecisionOption(GlobalFailureDecision decision, String label) {
+        @Override
+        public String toString() {
+            return label;
+        }
     }
 
     private String resolveRepeatFailureDomain(Account account) {
