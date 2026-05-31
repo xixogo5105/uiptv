@@ -59,9 +59,12 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
 
         Set<String> knownCategoryIds = categoryIds(allCategories);
         Set<String> visibleCategoryIds = categoryIds(categories);
-        LiveReloadResult globalLookupResult = account.getAction() == itv ? reloadLiveWithGlobalLookup(account, categories,
+        GlobalLookupContext globalLookupContext = new GlobalLookupContext(categories,
                 categoryNormalization.canonicalCategoryIdByOriginalId(), knownCategoryIds, visibleCategoryIds,
-                applyCategoryCensoring, applyChannelCensoring, logger) : LiveReloadResult.notHandled();
+                applyCategoryCensoring, applyChannelCensoring);
+        LiveReloadResult globalLookupResult = account.getAction() == itv
+                ? reloadLiveWithGlobalLookup(account, globalLookupContext, logger)
+                : LiveReloadResult.notHandled();
         summary = summary.add(globalLookupResult.censoringSummary());
         if (globalLookupResult.handled()) {
             return summary.add(cacheVodAndSeriesCategoriesOnly(account, logger));
@@ -102,10 +105,7 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
         return summary.add(cacheVodAndSeriesCategoriesOnly(account, logger));
     }
 
-    private LiveReloadResult reloadLiveWithGlobalLookup(Account account, List<Category> categories,
-                                                        Map<String, String> canonicalCategoryIdByOriginalId,
-                                                        Set<String> knownCategoryIds, Set<String> visibleCategoryIds,
-                                                        boolean applyCategoryCensoring, boolean applyChannelCensoring,
+    private LiveReloadResult reloadLiveWithGlobalLookup(Account account, GlobalLookupContext context,
                                                         LoggerCallback logger) {
         List<Channel> rawChannels = fetchAllChannelsOrLog(account, logger);
         if (rawChannels == null || rawChannels.isEmpty()) {
@@ -117,24 +117,25 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
             return LiveReloadResult.notHandled();
         }
 
-        List<Channel> allChannels = applyChannelCensoring(rawChannels, applyChannelCensoring);
-        allChannels = retainChannelsForVisibleCategories(allChannels, knownCategoryIds, visibleCategoryIds,
-                canonicalCategoryIdByOriginalId);
+        List<Channel> allChannels = applyChannelCensoring(rawChannels, context.applyChannelCensoring());
+        allChannels = retainChannelsForVisibleCategories(allChannels, context.knownCategoryIds(), context.visibleCategoryIds(),
+                context.canonicalCategoryIdByOriginalId());
         CensoringSummary summary = CensoringSummary.empty()
                 .addChannels(censoredItemCount(rawChannels.size(), allChannels.size(),
-                        applyCategoryCensoring || applyChannelCensoring));
+                        context.applyCategoryCensoring() || context.applyChannelCensoring()));
         if (allChannels.isEmpty()) {
-            saveLiveCacheWithNoChannels(account, categories, logger,
+            saveLiveCacheWithNoChannels(account, context.categories(), logger,
                     "All channels removed by active censoring. Clearing existing cache.");
             return LiveReloadResult.handled(summary);
         }
 
-        ChannelGrouping grouping = groupChannelsByKnownCategory(allChannels, categories, canonicalCategoryIdByOriginalId);
+        ChannelGrouping grouping = groupChannelsByKnownCategory(allChannels, context.categories(),
+                context.canonicalCategoryIdByOriginalId());
 
         log(logger, "Found Channels " + allChannels.size() + ". Found " + grouping.orphaned.size() + " Orphaned channels.");
         clearCache(account);
 
-        CategoryDb.get().saveAll(categoriesWithUncategorizedIfNeeded(categories, grouping.orphaned), account);
+        CategoryDb.get().saveAll(categoriesWithUncategorizedIfNeeded(context.categories(), grouping.orphaned), account);
         List<Category> savedCategories = CategoryDb.get().getCategories(account);
         Map<String, Category> savedByApiId = savedCategories.stream()
                 .collect(Collectors.toMap(Category::getCategoryId, c -> c, (a, b) -> a));
@@ -294,6 +295,14 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
         static LiveReloadResult notHandled() {
             return new LiveReloadResult(false, CensoringSummary.empty());
         }
+    }
+
+    private record GlobalLookupContext(List<Category> categories,
+                                       Map<String, String> canonicalCategoryIdByOriginalId,
+                                       Set<String> knownCategoryIds,
+                                       Set<String> visibleCategoryIds,
+                                       boolean applyCategoryCensoring,
+                                       boolean applyChannelCensoring) {
     }
 
     private record ChannelGrouping(Map<String, List<Channel>> matchedByCategory, List<Channel> orphaned) {

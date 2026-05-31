@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -120,20 +121,31 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
         if (channelsByCategory == null || channelsByCategory.isEmpty()) {
             return;
         }
-        Set<String> visibleKeys = categoryTitleKeys(visibleCategories);
-        Set<String> hiddenKeys = new LinkedHashSet<>();
-        if (originalCategories != null) {
-            for (Category category : originalCategories) {
-                String key = category == null ? "" : categoryLookupKey(category.getTitle());
-                if (!key.isEmpty() && !visibleKeys.contains(key)) {
-                    hiddenKeys.add(key);
-                }
-            }
-        }
+        Set<String> hiddenKeys = hiddenM3uCategoryKeys(originalCategories, visibleCategories);
         if (hiddenKeys.isEmpty()) {
             return;
         }
 
+        Set<String> hiddenChannelKeys = removeHiddenM3uCategoryBuckets(channelsByCategory, hiddenKeys);
+        removeHiddenM3uChannelsFromVisibleBuckets(channelsByCategory, hiddenChannelKeys);
+    }
+
+    private Set<String> hiddenM3uCategoryKeys(List<Category> originalCategories, List<Category> visibleCategories) {
+        if (originalCategories == null || originalCategories.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> visibleKeys = categoryTitleKeys(visibleCategories);
+        Set<String> hiddenKeys = new LinkedHashSet<>();
+        for (Category category : originalCategories) {
+            String key = category == null ? "" : categoryLookupKey(category.getTitle());
+            if (!key.isEmpty() && !visibleKeys.contains(key)) {
+                hiddenKeys.add(key);
+            }
+        }
+        return hiddenKeys;
+    }
+
+    private Set<String> removeHiddenM3uCategoryBuckets(Map<String, List<Channel>> channelsByCategory, Set<String> hiddenKeys) {
         Set<String> hiddenChannelKeys = new LinkedHashSet<>();
         for (String categoryKey : new ArrayList<>(channelsByCategory.keySet())) {
             if (hiddenKeys.contains(categoryLookupKey(categoryKey))) {
@@ -141,17 +153,23 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
                 collectChannelKeys(hiddenChannels, hiddenChannelKeys);
             }
         }
+        return hiddenChannelKeys;
+    }
+
+    private void removeHiddenM3uChannelsFromVisibleBuckets(Map<String, List<Channel>> channelsByCategory,
+                                                           Set<String> hiddenChannelKeys) {
         if (hiddenChannelKeys.isEmpty()) {
             return;
         }
         for (Map.Entry<String, List<Channel>> entry : new ArrayList<>(channelsByCategory.entrySet())) {
             List<Channel> channels = entry.getValue();
-            if (channels != null) {
-                List<Channel> retained = channels.stream()
-                        .filter(channel -> !hiddenChannelKeys.contains(channelComparisonKey(channel)))
-                        .toList();
-                channelsByCategory.put(entry.getKey(), new ArrayList<>(retained));
+            if (channels == null) {
+                continue;
             }
+            List<Channel> retained = channels.stream()
+                    .filter(channel -> !hiddenChannelKeys.contains(channelComparisonKey(channel)))
+                    .toList();
+            channelsByCategory.put(entry.getKey(), new ArrayList<>(retained));
         }
     }
 
@@ -195,7 +213,7 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
             return 0;
         }
         return channelsByCategory.values().stream()
-                .filter(channels -> channels != null)
+                .filter(Objects::nonNull)
                 .mapToInt(List::size)
                 .sum();
     }
