@@ -5,7 +5,6 @@ import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.util.StringUtils;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -78,8 +77,9 @@ public class ContentFilterService {
     }
 
     private List<String> parseCsv(String csv) {
-        List<String> values = new ArrayList<>(List.of(csv.split(",")));
-        values.replaceAll(String::trim);
-        return values;
+        return List.of(csv.split(",")).stream()
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .toList();
     }
 }

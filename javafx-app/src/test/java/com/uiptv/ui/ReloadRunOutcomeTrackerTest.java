@@ -48,4 +48,17 @@ class ReloadRunOutcomeTrackerTest {
         assertEquals(3, tracker.getTotalCensoredCategories());
         assertEquals(9, tracker.getTotalCensoredChannels());
     }
+
+    @Test
+    void fullCensoringZeroResult_marksAccountAsAcceptableZeroResult() {
+        ReloadRunOutcomeTracker tracker = new ReloadRunOutcomeTracker();
+        String accountId = "acc-filtered-zero";
+
+        tracker.recordMessage(accountId,
+                "All channels removed by active censoring. Keeping existing cache.",
+                "All channels removed by active censoring. Keeping existing cache.");
+
+        assertTrue(tracker.hasFullCensoringZeroResult(accountId));
+        assertFalse(tracker.hasCriticalFailure(accountId));
+    }
 }

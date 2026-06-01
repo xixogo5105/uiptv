@@ -240,6 +240,14 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         return censoringEnabled ? Math.max(0, rawCount - filteredCount) : 0;
     }
 
+    protected boolean wasEverythingRemovedByActiveCensoring(int rawCount, int filteredCount, boolean censoringEnabled) {
+        return censoringEnabled && rawCount > 0 && filteredCount == 0;
+    }
+
+    protected void logKeepingExistingCacheAfterFullCensoring(LoggerCallback logger, String itemType) {
+        log(logger, "All " + itemType + " removed by active censoring. Keeping existing cache.");
+    }
+
     protected int uniqueChannelCount(Map<String, List<Channel>> channelsByCategory) {
         if (channelsByCategory == null || channelsByCategory.isEmpty()) {
             return 0;

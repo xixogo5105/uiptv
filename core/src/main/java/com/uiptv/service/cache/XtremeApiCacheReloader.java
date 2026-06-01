@@ -50,6 +50,10 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
         List<Category> categories = applyCategoryCensoring(allCategories, applyCategoryCensoring);
         summary = summary.addCategories(censoredItemCount(allCategories.size(), categories.size(), applyCategoryCensoring));
         if (categories.isEmpty()) {
+            if (wasEverythingRemovedByActiveCensoring(allCategories.size(), categories.size(), applyCategoryCensoring)) {
+                logKeepingExistingCacheAfterFullCensoring(logger, "categories");
+                return summary;
+            }
             log(logger, "Found Categories 0");
             saveLiveCacheWithNoChannels(account, categories, logger,
                     "All categories removed by active censoring. Clearing existing cache.");
@@ -80,6 +84,11 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
         }
         if (fetchResult.totalChannels == 0) {
             if (fetchResult.rawChannels > 0) {
+                if (wasEverythingRemovedByActiveCensoring(fetchResult.rawChannels, fetchResult.totalChannels,
+                        applyChannelCensoring)) {
+                    logKeepingExistingCacheAfterFullCensoring(logger, "channels");
+                    return summary.add(cacheVodAndSeriesCategoriesOnly(account, logger));
+                }
                 saveLiveCacheWithNoChannels(account, categories, logger,
                         "All channels removed by active censoring. Clearing existing cache.");
                 return summary.add(cacheVodAndSeriesCategoriesOnly(account, logger));
@@ -124,6 +133,11 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
                 .addChannels(censoredItemCount(rawChannels.size(), allChannels.size(),
                         context.applyCategoryCensoring() || context.applyChannelCensoring()));
         if (allChannels.isEmpty()) {
+            if (wasEverythingRemovedByActiveCensoring(rawChannels.size(), allChannels.size(),
+                    context.applyCategoryCensoring() || context.applyChannelCensoring())) {
+                logKeepingExistingCacheAfterFullCensoring(logger, "channels");
+                return LiveReloadResult.handled(summary);
+            }
             saveLiveCacheWithNoChannels(account, context.categories(), logger,
                     "All channels removed by active censoring. Clearing existing cache.");
             return LiveReloadResult.handled(summary);

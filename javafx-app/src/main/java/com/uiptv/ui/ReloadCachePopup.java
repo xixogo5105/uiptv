@@ -16,6 +16,7 @@ import javafx.application.Platform;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
@@ -23,6 +24,8 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
@@ -48,6 +51,9 @@ import static com.uiptv.model.Account.CACHE_SUPPORTED;
 
 public class ReloadCachePopup extends VBox {
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d+)");
+    private static final Pattern DISPLAY_CENSORED_COUNT_PATTERN =
+            Pattern.compile("^(.*\\bcensored\\s+(?:categories|channels):\\s*)([\\p{Nd},.]+)(.*)$",
+                    Pattern.CASE_INSENSITIVE);
     private static final String GLOBAL_SERIES_CATEGORY_LIST_FAILED = "Global SERIES category list failed:";
     private static final String GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED = "Global Stalker get_all_channels failed";
     private static final String GLOBAL_VOD_CATEGORY_LIST_FAILED = "Global VOD category list failed:";
@@ -59,6 +65,9 @@ public class ReloadCachePopup extends VBox {
     private static final String LOG_SKIPPED_IGNORED_DOMAIN = "Skipped after previous failure for the same domain in this run.";
     private static final String MODE_SERIES = "SERIES";
     private static final String MODE_VOD = "VOD";
+    private static final String STYLE_CLASS_CENSORED_COUNT = "censored-count";
+    private static final String STYLE_CLASS_LOG_TEXT = "log-text";
+    private static final String STYLE_TEXT_BASE_FILL = "-fx-fill: -fx-text-base-color;";
     private static final String STYLE_YELLOW_LABEL = "-fx-font-weight: bold; -fx-text-fill: #d97706;";
     private static final String TR_CATEGORY_TAB_SERIES = "categoryTabTvSeries";
     private static final String TR_CATEGORY_TAB_VOD = "categoryTabVideoOnDemand";
@@ -560,7 +569,8 @@ public class ReloadCachePopup extends VBox {
                     AccountReloadResult result = reloadSingleAccount(account);
                     if (!disposed) {
                         totalFetchedChannels += result.countedChannels;
-                        SummaryStatus summaryStatus = buildSummaryStatus(result.availableChannelCount, result.failed, result.accountIssues);
+                        SummaryStatus summaryStatus = buildSummaryStatus(result.availableChannelCount, result.failed,
+                                result.accountIssues, result.acceptableZeroResult);
                         summaryStatusByAccountId.put(account.getDbId(), summaryStatus);
                         progressBar.updateSegment(i, segmentStatus(summaryStatus));
                         AccountRunStatus finalStatus = finalAccountRunStatus(summaryStatus, result.availableChannelCount, result.failed);
@@ -643,10 +653,11 @@ public class ReloadCachePopup extends VBox {
         try {
             cacheService.reloadCache(account, message -> handleReloadLogMessage(account, message, accountIssues, globalFailurePrompted));
             fetchedChannelCount = runOutcomeTracker.getFetchedChannels(account.getDbId());
-            if (fetchedChannelCount <= 0) {
+            boolean fullCensoringZeroResult = runOutcomeTracker.hasFullCensoringZeroResult(account.getDbId());
+            if (fetchedChannelCount <= 0 && !fullCensoringZeroResult) {
                 logMessage(account, LOG_NO_CHANNELS_FOUND);
                 addIssue(accountIssues, I18n.tr(TR_RELOAD_NO_CHANNELS_LOADED));
-            } else {
+            } else if (fetchedChannelCount > 0) {
                 logMessage(account, I18n.tr("reloadSavedToCache"));
             }
         } catch (SkipAccountReloadException _) {
@@ -661,10 +672,12 @@ public class ReloadCachePopup extends VBox {
             refreshAccountInfoTitle(account);
         }
         boolean criticalFailure = runOutcomeTracker.hasCriticalFailure(account.getDbId());
+        boolean fullCensoringZeroResult = runOutcomeTracker.hasFullCensoringZeroResult(account.getDbId());
         int countedChannels = !criticalFailure && fetchedChannelCount > 0 ? fetchedChannelCount : 0;
         int existingChannelCount = cacheService.getChannelCountForAccount(account.getDbId());
         int availableChannelCount = Math.max(fetchedChannelCount, existingChannelCount);
-        return new AccountReloadResult(failed || criticalFailure, countedChannels, availableChannelCount, accountIssues);
+        return new AccountReloadResult(failed || criticalFailure, countedChannels, availableChannelCount,
+                accountIssues, fullCensoringZeroResult);
     }
 
     private void handleReloadLogMessage(Account account, String message, List<String> accountIssues, boolean[] globalFailurePrompted) {
@@ -760,12 +773,19 @@ public class ReloadCachePopup extends VBox {
         private final int countedChannels;
         private final int availableChannelCount;
         private final List<String> accountIssues;
+        private final boolean acceptableZeroResult;
 
         private AccountReloadResult(boolean failed, int countedChannels, int availableChannelCount, List<String> accountIssues) {
+            this(failed, countedChannels, availableChannelCount, accountIssues, false);
+        }
+
+        private AccountReloadResult(boolean failed, int countedChannels, int availableChannelCount, List<String> accountIssues,
+                                    boolean acceptableZeroResult) {
             this.failed = failed;
             this.countedChannels = countedChannels;
             this.availableChannelCount = availableChannelCount;
             this.accountIssues = accountIssues;
+            this.acceptableZeroResult = acceptableZeroResult;
         }
     }
 
@@ -1042,11 +1062,53 @@ public class ReloadCachePopup extends VBox {
         title.setStyle("-fx-font-weight: bold;");
         summaryBox.getChildren().add(title);
         for (String line : latestSummaryLines) {
-            Label label = new Label(line);
-            label.setWrapText(true);
-            summaryBox.getChildren().add(label);
+            summaryBox.getChildren().add(createDisplayLineNode(line, false));
         }
         return summaryBox;
+    }
+
+    private static Node createDisplayLineNode(String line, boolean logLine) {
+        TextFlow censoredCountLine = createCensoredCountLine(line, logLine);
+        if (censoredCountLine != null) {
+            return censoredCountLine;
+        }
+        Label label = new Label(line);
+        label.setWrapText(true);
+        if (logLine) {
+            label.getStyleClass().add(STYLE_CLASS_LOG_TEXT);
+        }
+        return label;
+    }
+
+    private static TextFlow createCensoredCountLine(String line, boolean logLine) {
+        if (line == null) {
+            return null;
+        }
+        Matcher matcher = DISPLAY_CENSORED_COUNT_PATTERN.matcher(line);
+        if (!matcher.matches()) {
+            return null;
+        }
+        Text prefix = createNormalDisplayText(matcher.group(1), logLine);
+        Text count = new Text(matcher.group(2));
+        count.getStyleClass().add(STYLE_CLASS_CENSORED_COUNT);
+
+        TextFlow flow = new TextFlow(prefix, count);
+        String suffix = matcher.group(3);
+        if (!suffix.isEmpty()) {
+            flow.getChildren().add(createNormalDisplayText(suffix, logLine));
+        }
+        flow.setMaxWidth(Double.MAX_VALUE);
+        return flow;
+    }
+
+    private static Text createNormalDisplayText(String text, boolean logLine) {
+        Text node = new Text(text);
+        if (logLine) {
+            node.getStyleClass().add(STYLE_CLASS_LOG_TEXT);
+        } else {
+            node.setStyle(STYLE_TEXT_BASE_FILL);
+        }
+        return node;
     }
 
     private static final class RunSummary {
@@ -1508,8 +1570,13 @@ public class ReloadCachePopup extends VBox {
         return null;
     }
 
-    private SummaryStatus buildSummaryStatus(int fetchedChannelCount, boolean failed, List<String> issues) {
+    private SummaryStatus buildSummaryStatus(int fetchedChannelCount, boolean failed, List<String> issues,
+                                             boolean acceptableZeroResult) {
         List<String> normalizedReasons = issues == null ? new ArrayList<>() : new ArrayList<>(issues);
+        if (acceptableZeroResult && !failed) {
+            normalizedReasons.clear();
+            return new SummaryStatus(SummaryLevel.GOOD, fetchedChannelCount, normalizedReasons);
+        }
         if (fetchedChannelCount > 0) {
             if (normalizedReasons.isEmpty() && !failed) {
                 return new SummaryStatus(SummaryLevel.GOOD, fetchedChannelCount, normalizedReasons);
@@ -2035,10 +2102,7 @@ public class ReloadCachePopup extends VBox {
                 }
             }
             logs.add(line);
-            Label lineLabel = new Label(line);
-            lineLabel.setWrapText(true);
-            lineLabel.getStyleClass().add("log-text");
-            logBody.getChildren().add(lineLabel);
+            logBody.getChildren().add(createDisplayLineNode(line, true));
         }
 
         private void dispose() {

@@ -47,8 +47,7 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
             if (categories.isEmpty()) {
                 if (!rawReloadData.categories().isEmpty() && categoryCensoringEnabled) {
                     logCensoringSummary(logger, censoringSummary);
-                    saveM3uCacheWithNoChannels(account, categories, logger,
-                            "All categories removed by active censoring. Clearing existing cache.");
+                    logKeepingExistingCacheAfterFullCensoring(logger, "categories");
                     return;
                 }
                 logCensoringSummary(logger, censoringSummary);
@@ -62,8 +61,7 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
             if (totalChannels == 0) {
                 if (rawTotalChannels > 0 && (categoryCensoringEnabled || channelCensoringEnabled)) {
                     logCensoringSummary(logger, censoringSummary);
-                    saveM3uCacheWithNoChannels(account, categories, logger,
-                            "All channels removed by active censoring. Clearing existing cache.");
+                    logKeepingExistingCacheAfterFullCensoring(logger, "channels");
                     return;
                 }
                 logCensoringSummary(logger, censoringSummary);
@@ -216,16 +214,6 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
                 .filter(Objects::nonNull)
                 .mapToInt(List::size)
                 .sum();
-    }
-
-    private void saveM3uCacheWithNoChannels(Account account, List<Category> categories, LoggerCallback logger, String reason) {
-        log(logger, reason);
-        clearCache(account);
-        if (categories != null && !categories.isEmpty()) {
-            CategoryDb.get().saveAll(categories, account);
-        }
-        log(logger, "Found Channels 0. Found 0 Orphaned channels.");
-        log(logger, (categories == null ? 0 : categories.size()) + " Categories & 0 Channels saved Successfully \u2713");
     }
 
     private M3uReloadData loadM3uReloadData(Account account, LoggerCallback logger) {

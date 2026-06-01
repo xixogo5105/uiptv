@@ -154,6 +154,52 @@ class CacheServiceImplTest extends DbBackedTest {
     }
 
     @Test
+    void reloadCache_stalkerPortal_keepsExistingLiveCache_whenCategoryFilterRemovesEverything() throws IOException {
+        saveConfiguration("news,sports", "", false);
+        Account account = createStalkerAccount("acc-stalker-filter-all-categories");
+        persistExistingLiveCache(account);
+        List<String> logs = new ArrayList<>();
+        AtomicInteger orderedListCalls = new AtomicInteger();
+
+        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
+            mockSuccessfulHandshake(handshakeMock);
+            fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account)))
+                    .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), false, orderedListCalls));
+
+            new CacheServiceImpl().reloadCache(account, logs::add);
+        }
+
+        assertEquals(2, CategoryDb.get().getCategories(account).size());
+        assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+        assertTrue(logs.stream().anyMatch(m -> m.contains("All categories removed by active censoring. Keeping existing cache.")));
+        assertTrue(logs.stream().anyMatch(m -> m.contains("Censored Categories 2")));
+    }
+
+    @Test
+    void reloadCache_stalkerPortal_keepsExistingLiveCache_whenChannelFilterRemovesEverything() throws IOException {
+        saveConfiguration("", "news,sports", false);
+        Account account = createStalkerAccount("acc-stalker-filter-all-channels");
+        persistExistingLiveCache(account);
+        List<String> logs = new ArrayList<>();
+        AtomicInteger orderedListCalls = new AtomicInteger();
+
+        try (MockedStatic<HandshakeService> handshakeMock = Mockito.mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchMock = Mockito.mockStatic(FetchAPI.class)) {
+            mockSuccessfulHandshake(handshakeMock);
+            fetchMock.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account)))
+                    .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), false, orderedListCalls));
+
+            new CacheServiceImpl().reloadCache(account, logs::add);
+        }
+
+        assertEquals(2, CategoryDb.get().getCategories(account).size());
+        assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+        assertTrue(logs.stream().anyMatch(m -> m.contains("All channels removed by active censoring. Keeping existing cache.")));
+        assertTrue(logs.stream().anyMatch(m -> m.contains("Censored Channels 2")));
+    }
+
+    @Test
     void reloadCache_stalkerPortal_persistsServerPortalUrl_afterInternalCacheClear() throws IOException {
         Account account = createPersistedStalkerAccount("acc-stalker-persist-portal");
         List<String> logs = new ArrayList<>();
@@ -381,6 +427,23 @@ class CacheServiceImplTest extends DbBackedTest {
         return persisted;
     }
 
+    private void persistExistingLiveCache(Account account) {
+        CategoryDb.get().saveAll(
+                List.of(
+                        new Category("10", "News", "news", false, 0),
+                        new Category("20", "Sports", "sports", false, 0)
+                ),
+                account
+        );
+        for (Category category : CategoryDb.get().getCategories(account)) {
+            if ("10".equals(category.getCategoryId())) {
+                ChannelDb.get().saveAll(List.of(channel("101", "News 1", "10")), category.getDbId(), account);
+            } else if ("20".equals(category.getCategoryId())) {
+                ChannelDb.get().saveAll(List.of(channel("201", "Sports 1", "20")), category.getDbId(), account);
+            }
+        }
+    }
+
     private void mockSuccessfulHandshake(MockedStatic<HandshakeService> handshakeMock) {
         mockSuccessfulHandshake(handshakeMock, null);
     }
@@ -497,6 +560,13 @@ class CacheServiceImplTest extends DbBackedTest {
         Path file = tempDir.resolve(filename);
         Files.writeString(file, content);
         return file.toString();
+    }
+
+    private Channel channel(String id, String name, String categoryId) {
+        Channel channel = new Channel(id, name, "1", "ffmpeg http://stream/" + id, "", "", "", "", 0, 1, 1,
+                null, null, null, null, null);
+        channel.setCategoryId(categoryId);
+        return channel;
     }
 
     private String writeUncategorizedOnlyPlaylist(String filename) throws IOException {

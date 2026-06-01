@@ -76,6 +76,10 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         summary = summary.addCategories(censoredItemCount(allOfficialCategories.size(), officialCategories.size(),
                 applyCategoryCensoring));
         if (officialCategories.isEmpty()) {
+            if (wasEverythingRemovedByActiveCensoring(allOfficialCategories.size(), officialCategories.size(), applyCategoryCensoring)) {
+                logKeepingExistingCacheAfterFullCensoring(logger, "categories");
+                return summary;
+            }
             log(logger, "Found Categories 0");
             saveLiveCacheWithNoChannels(account, officialCategories, logger,
                     "All categories removed by active censoring. Clearing existing cache.");
@@ -104,6 +108,11 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         summary = summary.addChannels(censoredItemCount(rawChannels.size(), allChannels.size(),
                 applyCategoryCensoring || applyChannelCensoring));
         if (allChannels.isEmpty()) {
+            if (wasEverythingRemovedByActiveCensoring(rawChannels.size(), allChannels.size(),
+                    applyCategoryCensoring || applyChannelCensoring)) {
+                logKeepingExistingCacheAfterFullCensoring(logger, "channels");
+                return summary;
+            }
             saveLiveCacheWithNoChannels(account, officialCategories, logger,
                     "All channels removed by active censoring. Clearing existing cache.");
             return summary;

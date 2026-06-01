@@ -11,14 +11,19 @@ class ReloadRunOutcomeTracker {
     private static final Pattern LAST_RESORT_COLLECTED_PATTERN = Pattern.compile("Collected\\s+(\\d+)\\s+channels", Pattern.CASE_INSENSITIVE);
     private static final Pattern CENSORED_CATEGORIES_PATTERN = Pattern.compile("Censored\\s+Categories\\s+(\\d+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern CENSORED_CHANNELS_PATTERN = Pattern.compile("Censored\\s+Channels\\s+(\\d+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern FULL_CENSORING_ZERO_RESULT_PATTERN = Pattern.compile(
+            "All\\s+(categories|channels)\\s+removed\\s+by\\s+active\\s+censoring\\.\\s+Keeping\\s+existing\\s+cache\\.",
+            Pattern.CASE_INSENSITIVE);
 
     private final Set<String> accountsWithCriticalFailures = ConcurrentHashMap.newKeySet();
+    private final Set<String> accountsWithFullCensoringZeroResult = ConcurrentHashMap.newKeySet();
     private final Map<String, Integer> fetchedChannelsByAccount = new ConcurrentHashMap<>();
     private final Map<String, Integer> censoredCategoriesByAccount = new ConcurrentHashMap<>();
     private final Map<String, Integer> censoredChannelsByAccount = new ConcurrentHashMap<>();
 
     void clear() {
         accountsWithCriticalFailures.clear();
+        accountsWithFullCensoringZeroResult.clear();
         fetchedChannelsByAccount.clear();
         censoredCategoriesByAccount.clear();
         censoredChannelsByAccount.clear();
@@ -35,6 +40,9 @@ class ReloadRunOutcomeTracker {
         }
         recordCensoredCount(censoredCategoriesByAccount, accountId, extractCount(rawMessage, CENSORED_CATEGORIES_PATTERN));
         recordCensoredCount(censoredChannelsByAccount, accountId, extractCount(rawMessage, CENSORED_CHANNELS_PATTERN));
+        if (isFullCensoringZeroResult(rawMessage)) {
+            accountsWithFullCensoringZeroResult.add(accountId);
+        }
 
         if (isCriticalFailureMessage(rawMessage, compactMessage)) {
             accountsWithCriticalFailures.add(accountId);
@@ -47,6 +55,10 @@ class ReloadRunOutcomeTracker {
 
     boolean hasCriticalFailure(String accountId) {
         return accountId != null && accountsWithCriticalFailures.contains(accountId);
+    }
+
+    boolean hasFullCensoringZeroResult(String accountId) {
+        return accountId != null && accountsWithFullCensoringZeroResult.contains(accountId);
     }
 
     int getCensoredCategories(String accountId) {
@@ -110,6 +122,10 @@ class ReloadRunOutcomeTracker {
         } catch (NumberFormatException _) {
             return null;
         }
+    }
+
+    private boolean isFullCensoringZeroResult(String rawMessage) {
+        return rawMessage != null && FULL_CENSORING_ZERO_RESULT_PATTERN.matcher(rawMessage.trim()).matches();
     }
 
     private boolean isCriticalFailureMessage(String rawMessage, String compactMessage) {

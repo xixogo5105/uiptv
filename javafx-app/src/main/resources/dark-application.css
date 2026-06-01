@@ -197,6 +197,11 @@
     -fx-fill: #e0e0e0;
 }
 
+.censored-count {
+    -fx-fill: #ff8a80;
+    -fx-font-weight: bold;
+}
+
 .clock-face {
     -fx-fill: transparent;
     -fx-stroke: #a0a0a0;

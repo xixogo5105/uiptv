@@ -58,6 +58,28 @@ class ContentFilterFlowTest extends DbBackedTest {
         assertEquals(3, categories.size());
     }
 
+    @Test
+    void parseCategories_trailingCommaInFilter_doesNotRemoveEverything() throws IOException {
+        saveConfiguration("premium,", "", false);
+        String json = readResource("json/categories_filter_case.json");
+
+        List<Category> categories = CategoryService.getInstance().parseCategories(json, true);
+
+        assertEquals(List.of("Sports", "Documentary"),
+                categories.stream().map(Category::getTitle).toList());
+    }
+
+    @Test
+    void parseItvChannels_trailingCommaInFilter_doesNotRemoveEverything() throws IOException {
+        saveConfiguration("", "premium,", false);
+        String json = readResource("json/itv_channels_filter_case.json");
+
+        List<Channel> channels = ChannelService.getInstance().parseItvChannels(json, true);
+
+        assertEquals(List.of("Sports Live", "Kids Plus"),
+                channels.stream().map(Channel::getName).toList());
+    }
+
     private void saveConfiguration(String categoryFilter, String channelFilter, boolean pauseFiltering) {
         Configuration configuration = new Configuration(
                 null,
