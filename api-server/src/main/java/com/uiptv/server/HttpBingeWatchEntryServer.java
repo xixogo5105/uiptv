@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.service.BingeWatchService;
 import com.uiptv.util.AppLog;
+import com.uiptv.util.WebActivityLog;
 
 import java.io.IOException;
 
@@ -54,6 +55,10 @@ public class HttpBingeWatchEntryServer implements HttpHandler {
             AppLog.addInfoLog(HttpBingeWatchEntryServer.class, LOG_PREFIX + "HTTP entry redirect" + TOKEN_LOG + safeLogValue(token)
                     + EPISODE_ID_LOG + safeLogValue(episodeId)
                     + " location=" + safeLogValue(resolved.url()));
+            exchange.setAttribute(
+                    WebActivityLog.ACTIVITY_DESCRIPTION_ATTRIBUTE,
+                    WebActivityLog.describeBingeWatchEpisode(resolved.episodeName(), resolved.season(), resolved.episodeNumber())
+            );
             exchange.getResponseHeaders().add(LOCATION, resolved.url());
             exchange.sendResponseHeaders(307, -1);
         } catch (Exception ex) {

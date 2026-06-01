@@ -4,8 +4,10 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.service.BingeWatchService;
 import com.uiptv.util.AppLog;
+import com.uiptv.util.WebActivityLog;
 
 import java.io.IOException;
+import java.util.List;
 
 import static com.uiptv.util.ServerUtils.generateM3u8Response;
 import static com.uiptv.util.ServerUtils.getParam;
@@ -25,6 +27,19 @@ public class HttpBingeWatchPlaylistServer implements HttpHandler {
             return;
         }
         AppLog.addInfoLog(HttpBingeWatchPlaylistServer.class, LOG_PREFIX + "HTTP playlist response token=" + token + " length=" + playlist.length());
+        setActivityDescription(exchange, token);
         generateM3u8Response(exchange, playlist, "binge-watch-" + token + ".m3u8");
+    }
+
+    private void setActivityDescription(HttpExchange exchange, String token) {
+        List<BingeWatchService.PlaylistItem> items = BingeWatchService.getInstance().getPlaylistItems(token);
+        if (items.isEmpty()) {
+            return;
+        }
+        BingeWatchService.PlaylistItem first = items.getFirst();
+        exchange.setAttribute(
+                WebActivityLog.ACTIVITY_DESCRIPTION_ATTRIBUTE,
+                WebActivityLog.describeBingeWatchPlaylist(first.episodeName(), first.season(), first.episodeNumber(), items.size())
+        );
     }
 }

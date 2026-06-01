@@ -36,9 +36,19 @@ final class WebRequestActivityLoggingHandler implements HttpHandler {
                     exchange.getQueryString(),
                     requestIp(exchange.getSourceAddress()),
                     statusCode,
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt),
+                    activityDescription(exchange)
             );
         }
+    }
+
+    private static String activityDescription(HttpServerExchange exchange) {
+        var attributes = exchange.getAttachment(UndertowAttachments.attributes());
+        if (attributes == null) {
+            return "";
+        }
+        Object description = attributes.get(WebActivityLog.ACTIVITY_DESCRIPTION_ATTRIBUTE);
+        return description instanceof String value ? value : "";
     }
 
     private static String requestIp(InetSocketAddress address) {

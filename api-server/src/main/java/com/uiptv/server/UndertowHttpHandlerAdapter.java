@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.util.Map;
 
 final class UndertowHttpHandlerAdapter implements io.undertow.server.HttpHandler {
     private final HttpHandler delegate;
@@ -145,12 +146,12 @@ final class UndertowHttpHandlerAdapter implements io.undertow.server.HttpHandler
 
         @Override
         public Object getAttribute(String name) {
-            return exchange.getAttachment(UndertowAttachments.attributes()).get(name);
+            return attributes().get(name);
         }
 
         @Override
         public void setAttribute(String name, Object value) {
-            exchange.getAttachment(UndertowAttachments.attributes()).put(name, value);
+            attributes().put(name, value);
         }
 
         @Override
@@ -172,6 +173,15 @@ final class UndertowHttpHandlerAdapter implements io.undertow.server.HttpHandler
             } else if (!exchange.isComplete()) {
                 responseBody.flush();
             }
+        }
+
+        private Map<String, Object> attributes() {
+            Map<String, Object> attributes = exchange.getAttachment(UndertowAttachments.attributes());
+            if (attributes == null) {
+                attributes = UndertowAttachments.newAttributes();
+                exchange.putAttachment(UndertowAttachments.attributes(), attributes);
+            }
+            return attributes;
         }
 
         private static void copyHeaders(HeaderMap source, Headers target) {

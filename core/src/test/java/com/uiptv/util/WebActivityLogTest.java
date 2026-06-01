@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebActivityLogTest {
@@ -38,6 +39,35 @@ class WebActivityLogTest {
 
         assertTrue(description.contains("published M3U playlist"));
         assertTrue(description.contains("iptv.m3u"));
+    }
+
+    @Test
+    void recordRequest_usesResolvedActivityDescriptionWhenProvided() {
+        WebActivityLog.recordRequest(
+                "GET",
+                "/bingwatch",
+                "token=t&episodeId=ep-2",
+                "127.0.0.1",
+                307,
+                3,
+                WebActivityLog.describeBingeWatchEpisode("Episode Two", "1", "2")
+        );
+
+        String text = WebActivityLog.readAllText();
+        assertTrue(text.contains("Played binge-watch episode \"Episode Two\" (Season 1, Episode 2)"));
+        assertTrue(text.contains("Result: redirected"));
+    }
+
+    @Test
+    void activityDescriptionHelpers_includeBingeAndPublishedM3uMetadata() {
+        assertEquals(
+                "Downloaded a binge-watch playlist starting with \"Pilot\" (Season 1, Episode 1) containing 4 episodes",
+                WebActivityLog.describeBingeWatchPlaylist("Pilot", "1", "1", 4)
+        );
+        assertEquals(
+                "Played published M3U entry \"News One\" from account \"Provider\" in category \"News\"",
+                WebActivityLog.describePublishedM3uEntry("News One", "Provider", "News")
+        );
     }
 
     @Test

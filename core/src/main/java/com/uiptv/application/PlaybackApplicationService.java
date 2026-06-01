@@ -2,6 +2,7 @@ package com.uiptv.application;
 
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
+import com.uiptv.model.Bookmark;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.AccountService;
@@ -57,19 +58,24 @@ public class PlaybackApplicationService {
     }
 
     public String resolveBookmarkRedirectUrl(String bookmarkId) throws IOException {
-        com.uiptv.model.Bookmark bookmark = BookmarkApplicationService.getInstance().getBookmark(bookmarkId);
+        BookmarkRedirectResult result = resolveBookmarkRedirect(bookmarkId);
+        return result == null ? "" : result.url();
+    }
+
+    public BookmarkRedirectResult resolveBookmarkRedirect(String bookmarkId) throws IOException {
+        Bookmark bookmark = BookmarkApplicationService.getInstance().getBookmark(bookmarkId);
         if (bookmark == null) {
-            return "";
+            return null;
         }
         Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
         if (account == null) {
-            return "";
+            return null;
         }
         PlayerResponse response = playerRequestResolver.resolveBookmarkPlayback(bookmark.getDbId(), "", "");
         if (response == null || isBlank(response.getUrl())) {
-            return "";
+            return null;
         }
-        return resolveBookmarkRedirectChain(response.getUrl(), account);
+        return new BookmarkRedirectResult(resolveBookmarkRedirectChain(response.getUrl(), account), response);
     }
 
     private String resolveBookmarkRedirectChain(String url, Account account) {
@@ -87,6 +93,9 @@ public class PlaybackApplicationService {
         headers.put("Accept", "application/vnd.apple.mpegurl, */*");
         headers.put("Accept-Language", "en-US,en;q=0.9");
         return headers;
+    }
+
+    public record BookmarkRedirectResult(String url, PlayerResponse response) {
     }
 
     private static class SingletonHelper {

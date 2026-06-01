@@ -12,6 +12,8 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 public class TestHttpExchange extends HttpExchange implements AutoCloseable {
     private final URI requestUri;
@@ -20,6 +22,7 @@ public class TestHttpExchange extends HttpExchange implements AutoCloseable {
     private final Headers responseHeaders = new Headers();
     private final ByteArrayOutputStream responseBody = new ByteArrayOutputStream();
     private final byte[] requestBodyBytes;
+    private final Map<String, Object> attributes = new HashMap<>();
     private int responseCode = -1;
 
     public TestHttpExchange(String uri, String method) {
@@ -107,12 +110,12 @@ public class TestHttpExchange extends HttpExchange implements AutoCloseable {
 
     @Override
     public Object getAttribute(String name) {
-        return null;
+        return attributes.get(name);
     }
 
     @Override
     public void setAttribute(String name, Object value) {
-        // No-op.
+        attributes.put(name, value);
     }
 
     @Override

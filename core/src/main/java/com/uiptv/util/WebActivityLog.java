@@ -22,6 +22,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public final class WebActivityLog {
+    public static final String ACTIVITY_DESCRIPTION_ATTRIBUTE = "uiptv.webActivity.description";
     private static final int MAX_LINES = Integer.getInteger("uiptv.webActivity.maxLines", 2000);
     private static final int MAX_VALUE_LENGTH = 160;
     private static final String WEB_PLAYER_SUFFIX = " in the web player";
@@ -41,7 +42,17 @@ public final class WebActivityLog {
                                      String requestIp,
                                      int statusCode,
                                      long durationMillis) {
-        String action = describeRequest(method, path, rawQuery);
+        recordRequest(method, path, rawQuery, requestIp, statusCode, durationMillis, "");
+    }
+
+    public static void recordRequest(String method,
+                                     String path,
+                                     String rawQuery,
+                                     String requestIp,
+                                     int statusCode,
+                                     long durationMillis,
+                                     String activityDescription) {
+        String action = isNotBlank(activityDescription) ? AppLog.sanitizeValue(activityDescription) : describeRequest(method, path, rawQuery);
         if (isBlank(action)) {
             return;
         }
@@ -70,6 +81,31 @@ public final class WebActivityLog {
             return requestMethod + " request - " + action;
         }
         return action;
+    }
+
+    public static String describeBingeWatchPlaylist(String episodeName, String season, String episodeNumber, int episodeCount) {
+        String target = episodeTarget(episodeName, season, episodeNumber);
+        String count = episodeCount > 0 ? " containing " + episodeCount + " " + (episodeCount == 1 ? "episode" : "episodes") : "";
+        return "Downloaded a binge-watch playlist" + (isNotBlank(target) ? " starting with " + target : "") + count;
+    }
+
+    public static String describeBingeWatchEpisode(String episodeName, String season, String episodeNumber) {
+        String target = episodeTarget(episodeName, season, episodeNumber);
+        return "Played binge-watch episode" + (isNotBlank(target) ? " " + target : "");
+    }
+
+    public static String describePublishedM3uEntry(String title, String accountName, String categoryName) {
+        StringBuilder description = new StringBuilder("Played published M3U entry");
+        if (isNotBlank(title)) {
+            description.append(" \"").append(safeValue(title)).append("\"");
+        }
+        if (isNotBlank(accountName)) {
+            description.append(" from account \"").append(safeValue(accountName)).append("\"");
+        }
+        if (isNotBlank(categoryName)) {
+            description.append(" in category \"").append(safeValue(categoryName)).append("\"");
+        }
+        return description.toString();
     }
 
     public static String readAllText() {
@@ -153,7 +189,7 @@ public final class WebActivityLog {
             case "/playlist.m3u8" -> "Downloaded a playlist file: playlist.m3u8" + describePlaylistScope(params);
             case "/bookmarks.m3u8" -> "Downloaded the bookmarks M3U playlist";
             case "/iptv.m3u8", "/iptv.m3u" -> "Accessed the published M3U playlist: " + fileName(path);
-            case "/bookmarkEntry.ts" -> "Played a bookmarked stream from an M3U playlist";
+            case "/bookmarkEntry.ts" -> "Played a local M3U playlist entry";
             case "/bingewatch.m3u8" -> "Downloaded a binge-watch playlist";
             default -> path.startsWith("/bingwatch") ? "Opened a binge-watch episode stream" : "";
         };
@@ -274,6 +310,24 @@ public final class WebActivityLog {
             // Fall back to a safe, short source label below.
         }
         return SOURCE_PREFIX + safeValue(fileName(source));
+    }
+
+    private static String episodeTarget(String episodeName, String season, String episodeNumber) {
+        StringBuilder details = new StringBuilder();
+        if (isNotBlank(season)) {
+            details.append("Season ").append(safeValue(season));
+        }
+        if (isNotBlank(episodeNumber)) {
+            if (!details.isEmpty()) {
+                details.append(", ");
+            }
+            details.append("Episode ").append(safeValue(episodeNumber));
+        }
+        if (isNotBlank(episodeName)) {
+            String target = "\"" + safeValue(episodeName) + "\"";
+            return details.isEmpty() ? target : target + " (" + details + ")";
+        }
+        return details.toString();
     }
 
     private static String describeResult(int statusCode) {

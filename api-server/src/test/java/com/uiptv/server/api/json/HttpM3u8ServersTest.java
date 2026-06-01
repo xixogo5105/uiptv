@@ -11,6 +11,7 @@ import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.server.HttpBingeWatchEntryServer;
 import com.uiptv.server.HttpBingeWatchPlaylistServer;
+import com.uiptv.server.TestHttpExchange;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BingeWatchService;
 import com.uiptv.service.BookmarkService;
@@ -20,6 +21,7 @@ import com.uiptv.service.PlayerService;
 import com.uiptv.testsupport.DbBackedTest;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.HttpUtil;
+import com.uiptv.util.WebActivityLog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -289,6 +291,27 @@ class HttpM3u8ServersTest extends DbBackedTest {
     }
 
     @Test
+    void m3u8BookmarkEntry_setsPublishedEntryWebActivityDescription() throws Exception {
+        Account account = new Account("published-account", "user", "pass", "http://unused", "00:11:22:33:44:59", null, null, null, null, null, AccountType.M3U8_URL, null, "http://unused/list.m3u8", false);
+        AccountService.getInstance().save(account);
+
+        Bookmark bookmark = new Bookmark("published-account", "Drama", "ch-1", "Episode One", "ffmpeg%20http%3A%2F%2Forigin%2Fepisode-one.ts", "http://portal", "cat-1");
+        BookmarkService.getInstance().save(bookmark);
+        Bookmark savedBookmark = BookmarkService.getInstance().getBookmark(bookmark);
+
+        HttpM3u8BookmarkEntry handler = new HttpM3u8BookmarkEntry();
+        TestHttpExchange exchange = new TestHttpExchange("/bookmarkEntry.ts?bookmarkId=" + savedBookmark.getDbId(), "GET");
+
+        handler.handle(exchange);
+
+        assertEquals(307, exchange.getResponseCode());
+        String description = String.valueOf(exchange.getAttribute(WebActivityLog.ACTIVITY_DESCRIPTION_ATTRIBUTE));
+        assertTrue(description.contains("Played published M3U entry \"Episode One\""));
+        assertTrue(description.contains("published-account"));
+        assertTrue(description.contains("Drama"));
+    }
+
+    @Test
     void bingeWatchPlaylistServer_returnsDynamicPlaylist() throws Exception {
         Account saved = saveSeriesAccount();
         String token = BingeWatchService.getInstance().createSession(
@@ -301,13 +324,16 @@ class HttpM3u8ServersTest extends DbBackedTest {
         );
 
         HttpBingeWatchPlaylistServer handler = new HttpBingeWatchPlaylistServer();
-        StubHttpExchange exchange = new StubHttpExchange("/bingewatch.m3u8?token=" + token, "GET");
+        TestHttpExchange exchange = new TestHttpExchange("/bingewatch.m3u8?token=" + token, "GET");
 
         handler.handle(exchange);
 
         assertEquals(200, exchange.getResponseCode());
         assertTrue(exchange.getResponseBodyText().contains("/bingwatch?token="));
         assertTrue(exchange.getResponseBodyText().contains("episodeId=ep-21"));
+        String description = String.valueOf(exchange.getAttribute(WebActivityLog.ACTIVITY_DESCRIPTION_ATTRIBUTE));
+        assertTrue(description.contains("Downloaded a binge-watch playlist starting with \"Episode 1\""));
+        assertTrue(description.contains("2 episodes"));
     }
 
     @Test
@@ -329,12 +355,15 @@ class HttpM3u8ServersTest extends DbBackedTest {
         HttpBingeWatchEntryServer handler = new HttpBingeWatchEntryServer();
         try (MockedStatic<PlayerService> playerServiceStatic = Mockito.mockStatic(PlayerService.class)) {
             playerServiceStatic.when(PlayerService::getInstance).thenReturn(playerService);
-            StubHttpExchange exchange = new StubHttpExchange("/bingwatch?token=" + token + "&episodeId=ep-22", "GET");
+            TestHttpExchange exchange = new TestHttpExchange("/bingwatch?token=" + token + "&episodeId=ep-22", "GET");
 
             handler.handle(exchange);
 
             assertEquals(307, exchange.getResponseCode());
             assertEquals("http://stream.example/ep-22.m3u8", exchange.getResponseHeaders().getFirst("Location"));
+            String description = String.valueOf(exchange.getAttribute(WebActivityLog.ACTIVITY_DESCRIPTION_ATTRIBUTE));
+            assertTrue(description.contains("Played binge-watch episode \"Episode 2\""));
+            assertTrue(description.contains("Season 2, Episode 2"));
         }
     }
 

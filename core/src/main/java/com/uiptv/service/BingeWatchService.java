@@ -179,7 +179,7 @@ public class BingeWatchService {
         if (response == null || isBlank(response.getUrl())) {
             return null;
         }
-        return new ResolvedEpisode(response.getUrl(), episode.episodeName());
+        return new ResolvedEpisode(response.getUrl(), episode.episodeName(), episode.season(), episode.episodeNumber());
     }
 
     List<SessionEpisode> orderSeasonEpisodes(String season, List<Channel> episodes, SeriesWatchState watchState) {
@@ -301,6 +301,9 @@ public class BingeWatchService {
     public record PlaylistItem(String episodeId, String episodeName, String season, String episodeNumber) {
     }
 
-    public record ResolvedEpisode(String url, String episodeName) {
+    public record ResolvedEpisode(String url, String episodeName, String season, String episodeNumber) {
+        public ResolvedEpisode(String url, String episodeName) {
+            this(url, episodeName, "", "");
+        }
     }
 }
