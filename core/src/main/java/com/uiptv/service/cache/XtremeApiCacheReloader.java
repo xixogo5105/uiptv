@@ -38,69 +38,123 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
 
     private CensoringSummary reloadLive(Account account, LoggerCallback logger,
                                         boolean applyCategoryCensoring, boolean applyChannelCensoring) {
+        LiveCategories liveCategories = loadVisibleLiveCategories(account, logger, applyCategoryCensoring);
+        if (liveCategories.stopReload()) {
+            return liveCategories.summary();
+        }
+
+        LiveReloadResult globalLookupResult = reloadLiveWithGlobalLookupIfAvailable(account, liveCategories,
+                applyCategoryCensoring, applyChannelCensoring, logger);
+        CensoringSummary summary = liveCategories.summary();
+        summary = summary.add(globalLookupResult.censoringSummary());
+        if (globalLookupResult.handled()) {
+            return summary.add(cacheVodAndSeriesCategoriesOnly(account, logger));
+        }
+
+        Set<String> visibleCategoryIds = categoryIds(liveCategories.categories());
+        List<Category> categoriesToFetch = categoriesMatchingVisibleIds(liveCategories.rawCategories(), visibleCategoryIds,
+                liveCategories.categoryNormalization());
+        CategoryFetchResult fetchResult = fetchChannelsByCategory(account, categoriesToFetch, liveCategories.categoryNormalization(),
+                applyChannelCensoring, logger);
+        summary = summary.addChannels(censoredItemCount(fetchResult.rawChannels, fetchResult.totalChannels,
+                applyChannelCensoring));
+
+        validateCategoryFetchResult(categoriesToFetch, fetchResult);
+        LiveReloadResult emptyFetchResult = handleEmptyCategoryFetchResult(account, liveCategories.categories(),
+                fetchResult, applyChannelCensoring, logger);
+        if (emptyFetchResult.handled()) {
+            return summary.add(emptyFetchResult.censoringSummary());
+        }
+
+        saveCategoryFetchLiveCache(account, liveCategories.categories(), fetchResult, logger);
+        return summary.add(cacheVodAndSeriesCategoriesOnly(account, logger));
+    }
+
+    private LiveCategories loadVisibleLiveCategories(Account account, LoggerCallback logger, boolean applyCategoryCensoring) {
         List<Category> rawCategories = loadLiveCategories(account, logger);
         CategoryNormalization categoryNormalization = normalizeCategoriesByTitle(rawCategories);
         List<Category> allCategories = categoryNormalization.categories();
         CensoringSummary summary = CensoringSummary.empty();
         if (allCategories.isEmpty()) {
             log(logger, "No categories found. Keeping existing cache.");
-            return summary;
+            return LiveCategories.stop(rawCategories, categoryNormalization, List.of(), summary);
         }
 
         List<Category> categories = applyCategoryCensoring(allCategories, applyCategoryCensoring);
         summary = summary.addCategories(censoredItemCount(allCategories.size(), categories.size(), applyCategoryCensoring));
         if (categories.isEmpty()) {
-            if (wasEverythingRemovedByActiveCensoring(allCategories.size(), categories.size(), applyCategoryCensoring)) {
-                logKeepingExistingCacheAfterFullCensoring(logger, "categories");
-                return summary;
-            }
-            log(logger, "Found Categories 0");
-            saveLiveCacheWithNoChannels(account, categories, logger,
-                    "All categories removed by active censoring. Clearing existing cache.");
-            return summary;
+            handleEmptyLiveCategories(account, allCategories.size(), categories, applyCategoryCensoring, logger);
+            return LiveCategories.stop(rawCategories, categoryNormalization, categories, summary);
         }
         log(logger, "Found Categories " + categories.size());
+        return LiveCategories.continueWith(rawCategories, categoryNormalization, categories, summary);
+    }
 
-        Set<String> knownCategoryIds = categoryIds(allCategories);
-        Set<String> visibleCategoryIds = categoryIds(categories);
-        GlobalLookupContext globalLookupContext = new GlobalLookupContext(categories,
-                categoryNormalization.canonicalCategoryIdByOriginalId(), knownCategoryIds, visibleCategoryIds,
-                applyCategoryCensoring, applyChannelCensoring);
-        LiveReloadResult globalLookupResult = account.getAction() == itv
-                ? reloadLiveWithGlobalLookup(account, globalLookupContext, logger)
-                : LiveReloadResult.notHandled();
-        summary = summary.add(globalLookupResult.censoringSummary());
-        if (globalLookupResult.handled()) {
-            return summary.add(cacheVodAndSeriesCategoriesOnly(account, logger));
+    private void handleEmptyLiveCategories(Account account, int rawCategoryCount, List<Category> categories,
+                                           boolean applyCategoryCensoring, LoggerCallback logger) {
+        if (wasEverythingRemovedByActiveCensoring(rawCategoryCount, categories.size(), applyCategoryCensoring)) {
+            logKeepingExistingCacheAfterFullCensoring(logger, "categories");
+            return;
         }
+        log(logger, "Found Categories 0");
+        saveLiveCacheWithNoChannels(account, categories, logger,
+                "All categories removed by active censoring. Clearing existing cache.");
+    }
 
-        List<Category> categoriesToFetch = categoriesMatchingVisibleIds(rawCategories, visibleCategoryIds, categoryNormalization);
-        CategoryFetchResult fetchResult = fetchChannelsByCategory(account, categoriesToFetch, categoryNormalization,
-                applyChannelCensoring, logger);
-        summary = summary.addChannels(censoredItemCount(fetchResult.rawChannels, fetchResult.totalChannels,
-                applyChannelCensoring));
+    private LiveReloadResult reloadLiveWithGlobalLookupIfAvailable(Account account, LiveCategories liveCategories,
+                                                                   boolean applyCategoryCensoring,
+                                                                   boolean applyChannelCensoring,
+                                                                   LoggerCallback logger) {
+        if (account.getAction() != itv) {
+            return LiveReloadResult.notHandled();
+        }
+        GlobalLookupContext context = new GlobalLookupContext(liveCategories.categories(),
+                liveCategories.categoryNormalization().canonicalCategoryIdByOriginalId(),
+                categoryIds(liveCategories.categoryNormalization().categories()), categoryIds(liveCategories.categories()),
+                applyCategoryCensoring, applyChannelCensoring);
+        return reloadLiveWithGlobalLookup(account, context, logger);
+    }
+
+    private void validateCategoryFetchResult(List<Category> categoriesToFetch, CategoryFetchResult fetchResult) {
         if (!categoriesToFetch.isEmpty() && fetchResult.failedCategories >= categoriesToFetch.size()) {
             throw new IllegalStateException("All category channel requests failed.");
         }
-        if (fetchResult.totalChannels == 0) {
-            if (fetchResult.rawChannels > 0) {
-                if (wasEverythingRemovedByActiveCensoring(fetchResult.rawChannels, fetchResult.totalChannels,
-                        applyChannelCensoring)) {
-                    logKeepingExistingCacheAfterFullCensoring(logger, "channels");
-                    return summary.add(cacheVodAndSeriesCategoriesOnly(account, logger));
-                }
-                saveLiveCacheWithNoChannels(account, categories, logger,
-                        "All channels removed by active censoring. Clearing existing cache.");
-                return summary.add(cacheVodAndSeriesCategoriesOnly(account, logger));
-            }
-            if (fetchResult.failedCategories > 0) {
-                throw new IllegalStateException("No usable channels loaded after category fetch failures.");
-            }
-            log(logger, "No channels found in any category. Keeping existing cache.");
-            return summary;
-        }
-        log(logger, "Found Channels " + fetchResult.totalChannels + ". Found 0 Orphaned channels.");
+    }
 
+    private LiveReloadResult handleEmptyCategoryFetchResult(Account account, List<Category> categories,
+                                                            CategoryFetchResult fetchResult,
+                                                            boolean applyChannelCensoring, LoggerCallback logger) {
+        if (fetchResult.totalChannels > 0) {
+            return LiveReloadResult.notHandled();
+        }
+        if (fetchResult.rawChannels > 0) {
+            return handleChannelsRemovedByCategoryFetchCensoring(account, categories, fetchResult,
+                    applyChannelCensoring, logger);
+        }
+        if (fetchResult.failedCategories > 0) {
+            throw new IllegalStateException("No usable channels loaded after category fetch failures.");
+        }
+        log(logger, "No channels found in any category. Keeping existing cache.");
+        return LiveReloadResult.handled(CensoringSummary.empty());
+    }
+
+    private LiveReloadResult handleChannelsRemovedByCategoryFetchCensoring(Account account, List<Category> categories,
+                                                                           CategoryFetchResult fetchResult,
+                                                                           boolean applyChannelCensoring,
+                                                                           LoggerCallback logger) {
+        if (wasEverythingRemovedByActiveCensoring(fetchResult.rawChannels, fetchResult.totalChannels,
+                applyChannelCensoring)) {
+            logKeepingExistingCacheAfterFullCensoring(logger, "channels");
+        } else {
+            saveLiveCacheWithNoChannels(account, categories, logger,
+                    "All channels removed by active censoring. Clearing existing cache.");
+        }
+        return LiveReloadResult.handled(cacheVodAndSeriesCategoriesOnly(account, logger));
+    }
+
+    private void saveCategoryFetchLiveCache(Account account, List<Category> categories, CategoryFetchResult fetchResult,
+                                            LoggerCallback logger) {
+        log(logger, "Found Channels " + fetchResult.totalChannels + ". Found 0 Orphaned channels.");
         clearCache(account);
         CategoryDb.get().saveAll(categories, account);
         List<Category> savedCategories = CategoryDb.get().getCategories(account);
@@ -111,45 +165,70 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
             }
         }
         log(logger, savedCategories.size() + " Categories & " + fetchResult.totalChannels + " Channels saved Successfully \u2713");
-        return summary.add(cacheVodAndSeriesCategoriesOnly(account, logger));
     }
 
     private LiveReloadResult reloadLiveWithGlobalLookup(Account account, GlobalLookupContext context,
                                                         LoggerCallback logger) {
         List<Channel> rawChannels = fetchAllChannelsOrLog(account, logger);
-        if (rawChannels == null || rawChannels.isEmpty()) {
+        if (!hasUsableGlobalLookupChannels(rawChannels, logger)) {
             return LiveReloadResult.notHandled();
         }
 
-        if (!hasCategoryAssignments(rawChannels)) {
-            log(logger, "Global Xtreme channel lookup returned uncategorized rows only. Falling back to category fetch.");
-            return LiveReloadResult.notHandled();
-        }
-
-        List<Channel> allChannels = applyChannelCensoring(rawChannels, context.applyChannelCensoring());
-        allChannels = retainChannelsForVisibleCategories(allChannels, context.knownCategoryIds(), context.visibleCategoryIds(),
-                context.canonicalCategoryIdByOriginalId());
+        List<Channel> allChannels = filterVisibleGlobalChannels(rawChannels, context);
         CensoringSummary summary = CensoringSummary.empty()
                 .addChannels(censoredItemCount(rawChannels.size(), allChannels.size(),
                         context.applyCategoryCensoring() || context.applyChannelCensoring()));
-        if (allChannels.isEmpty()) {
-            if (wasEverythingRemovedByActiveCensoring(rawChannels.size(), allChannels.size(),
-                    context.applyCategoryCensoring() || context.applyChannelCensoring())) {
-                logKeepingExistingCacheAfterFullCensoring(logger, "channels");
-                return LiveReloadResult.handled(summary);
-            }
-            saveLiveCacheWithNoChannels(account, context.categories(), logger,
-                    "All channels removed by active censoring. Clearing existing cache.");
-            return LiveReloadResult.handled(summary);
+        LiveReloadResult emptyLookupResult = handleEmptyGlobalLookupChannels(account, context, rawChannels,
+                allChannels, summary, logger);
+        if (emptyLookupResult.handled()) {
+            return emptyLookupResult;
         }
 
         ChannelGrouping grouping = groupChannelsByKnownCategory(allChannels, context.categories(),
                 context.canonicalCategoryIdByOriginalId());
+        saveGlobalLookupLiveCache(account, context.categories(), allChannels, grouping, logger);
+        return LiveReloadResult.handled(summary);
+    }
 
+    private boolean hasUsableGlobalLookupChannels(List<Channel> rawChannels, LoggerCallback logger) {
+        if (rawChannels == null || rawChannels.isEmpty()) {
+            return false;
+        }
+        if (hasCategoryAssignments(rawChannels)) {
+            return true;
+        }
+        log(logger, "Global Xtreme channel lookup returned uncategorized rows only. Falling back to category fetch.");
+        return false;
+    }
+
+    private List<Channel> filterVisibleGlobalChannels(List<Channel> rawChannels, GlobalLookupContext context) {
+        List<Channel> channels = applyChannelCensoring(rawChannels, context.applyChannelCensoring());
+        return retainChannelsForVisibleCategories(channels, context.knownCategoryIds(), context.visibleCategoryIds(),
+                context.canonicalCategoryIdByOriginalId());
+    }
+
+    private LiveReloadResult handleEmptyGlobalLookupChannels(Account account, GlobalLookupContext context,
+                                                             List<Channel> rawChannels, List<Channel> allChannels,
+                                                             CensoringSummary summary, LoggerCallback logger) {
+        if (!allChannels.isEmpty()) {
+            return LiveReloadResult.notHandled();
+        }
+        if (wasEverythingRemovedByActiveCensoring(rawChannels.size(), allChannels.size(),
+                context.applyCategoryCensoring() || context.applyChannelCensoring())) {
+            logKeepingExistingCacheAfterFullCensoring(logger, "channels");
+        } else {
+            saveLiveCacheWithNoChannels(account, context.categories(), logger,
+                    "All channels removed by active censoring. Clearing existing cache.");
+        }
+        return LiveReloadResult.handled(summary);
+    }
+
+    private void saveGlobalLookupLiveCache(Account account, List<Category> categories, List<Channel> allChannels,
+                                           ChannelGrouping grouping, LoggerCallback logger) {
         log(logger, "Found Channels " + allChannels.size() + ". Found " + grouping.orphaned.size() + " Orphaned channels.");
         clearCache(account);
 
-        CategoryDb.get().saveAll(categoriesWithUncategorizedIfNeeded(context.categories(), grouping.orphaned), account);
+        CategoryDb.get().saveAll(categoriesWithUncategorizedIfNeeded(categories, grouping.orphaned), account);
         List<Category> savedCategories = CategoryDb.get().getCategories(account);
         Map<String, Category> savedByApiId = savedCategories.stream()
                 .collect(Collectors.toMap(Category::getCategoryId, c -> c, (a, b) -> a));
@@ -169,7 +248,6 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
         }
 
         log(logger, savedCategories.size() + " Categories & " + allChannels.size() + " Channels saved Successfully \u2713");
-        return LiveReloadResult.handled(summary);
     }
 
     private boolean isVodOrSeriesAction(Account account) {
@@ -320,6 +398,22 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
     }
 
     private record ChannelGrouping(Map<String, List<Channel>> matchedByCategory, List<Channel> orphaned) {
+    }
+
+    private record LiveCategories(List<Category> rawCategories,
+                                  CategoryNormalization categoryNormalization,
+                                  List<Category> categories,
+                                  CensoringSummary summary,
+                                  boolean stopReload) {
+        static LiveCategories stop(List<Category> rawCategories, CategoryNormalization categoryNormalization,
+                                   List<Category> categories, CensoringSummary summary) {
+            return new LiveCategories(rawCategories, categoryNormalization, categories, summary, true);
+        }
+
+        static LiveCategories continueWith(List<Category> rawCategories, CategoryNormalization categoryNormalization,
+                                           List<Category> categories, CensoringSummary summary) {
+            return new LiveCategories(rawCategories, categoryNormalization, categories, summary, false);
+        }
     }
 
     private static String describeFailure(Exception e) {

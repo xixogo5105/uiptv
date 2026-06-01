@@ -62,63 +62,103 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
 
     private CensoringSummary reloadLive(Account account, LoggerCallback logger,
                                         boolean applyCategoryCensoring, boolean applyChannelCensoring) {
-        List<Category> rawCategories = loadOfficialLiveCategories(account);
-        CategoryNormalization categoryNormalization = normalizeCategoriesByTitle(rawCategories);
-        List<Category> allOfficialCategories = categoryNormalization.categories();
-        CensoringSummary summary = CensoringSummary.empty();
-
-        if (allOfficialCategories.isEmpty()) {
-            log(logger, "No categories found. Keeping existing cache.");
-            return summary;
+        LiveCategories liveCategories = loadVisibleLiveCategories(account, logger, applyCategoryCensoring);
+        if (liveCategories.stopReload()) {
+            return liveCategories.summary();
         }
 
-        List<Category> officialCategories = applyCategoryCensoring(allOfficialCategories, applyCategoryCensoring);
-        summary = summary.addCategories(censoredItemCount(allOfficialCategories.size(), officialCategories.size(),
-                applyCategoryCensoring));
-        if (officialCategories.isEmpty()) {
-            if (wasEverythingRemovedByActiveCensoring(allOfficialCategories.size(), officialCategories.size(), applyCategoryCensoring)) {
-                logKeepingExistingCacheAfterFullCensoring(logger, "categories");
-                return summary;
-            }
-            log(logger, "Found Categories 0");
-            saveLiveCacheWithNoChannels(account, officialCategories, logger,
-                    "All categories removed by active censoring. Clearing existing cache.");
-            return summary;
-        }
-        log(logger, "Found Categories " + officialCategories.size());
-
-        Set<String> knownCategoryIds = categoryIds(allOfficialCategories);
+        List<Category> officialCategories = liveCategories.categories();
+        Set<String> knownCategoryIds = categoryIds(liveCategories.categoryNormalization().categories());
         Set<String> visibleCategoryIds = categoryIds(officialCategories);
-        List<Channel> rawChannels = parseGlobalLiveChannels(account, logger);
-
+        List<Channel> rawChannels = loadStalkerLiveChannels(account, liveCategories, visibleCategoryIds, logger);
         if (rawChannels.isEmpty()) {
-            log(logger, "Global Stalker get_all_channels failed. Trying last-resort category-by-category fetch.");
-            List<Category> fallbackCategories = categoriesMatchingVisibleIds(rawCategories, visibleCategoryIds, categoryNormalization);
-            rawChannels = fetchAllChannelsByCategoryLastResort(account, fallbackCategories, categoryNormalization, logger);
-            if (rawChannels.isEmpty()) {
-                log(logger, "No channels found. Keeping existing cache.");
-                return summary;
-            }
-            log(logger, "Last-resort fetch succeeded. Collected " + rawChannels.size() + " channels.");
+            return liveCategories.summary();
         }
 
+        CensoringSummary summary = liveCategories.summary();
         List<Channel> allChannels = applyChannelCensoring(rawChannels, applyChannelCensoring);
         allChannels = retainChannelsForVisibleCategories(allChannels, knownCategoryIds, visibleCategoryIds,
-                categoryNormalization.canonicalCategoryIdByOriginalId());
+                liveCategories.categoryNormalization().canonicalCategoryIdByOriginalId());
         summary = summary.addChannels(censoredItemCount(rawChannels.size(), allChannels.size(),
                 applyCategoryCensoring || applyChannelCensoring));
-        if (allChannels.isEmpty()) {
-            if (wasEverythingRemovedByActiveCensoring(rawChannels.size(), allChannels.size(),
-                    applyCategoryCensoring || applyChannelCensoring)) {
-                logKeepingExistingCacheAfterFullCensoring(logger, "channels");
-                return summary;
-            }
-            saveLiveCacheWithNoChannels(account, officialCategories, logger,
-                    "All channels removed by active censoring. Clearing existing cache.");
+        if (handleEmptyLiveChannels(account, officialCategories, rawChannels, allChannels,
+                applyCategoryCensoring || applyChannelCensoring, logger)) {
             return summary;
         }
 
-        ChannelGrouping grouping = groupChannelsByCategory(allChannels, officialCategories, categoryNormalization.canonicalCategoryIdByOriginalId());
+        saveStalkerLiveCache(account, officialCategories, allChannels, liveCategories.categoryNormalization(), logger);
+        return summary;
+    }
+
+    private LiveCategories loadVisibleLiveCategories(Account account, LoggerCallback logger, boolean applyCategoryCensoring) {
+        List<Category> rawCategories = loadOfficialLiveCategories(account);
+        CategoryNormalization categoryNormalization = normalizeCategoriesByTitle(rawCategories);
+        List<Category> allCategories = categoryNormalization.categories();
+        CensoringSummary summary = CensoringSummary.empty();
+        if (allCategories.isEmpty()) {
+            log(logger, "No categories found. Keeping existing cache.");
+            return LiveCategories.stop(rawCategories, categoryNormalization, List.of(), summary);
+        }
+
+        List<Category> categories = applyCategoryCensoring(allCategories, applyCategoryCensoring);
+        summary = summary.addCategories(censoredItemCount(allCategories.size(), categories.size(), applyCategoryCensoring));
+        if (categories.isEmpty()) {
+            handleEmptyLiveCategories(account, allCategories.size(), categories, applyCategoryCensoring, logger);
+            return LiveCategories.stop(rawCategories, categoryNormalization, categories, summary);
+        }
+        log(logger, "Found Categories " + categories.size());
+        return LiveCategories.continueWith(rawCategories, categoryNormalization, categories, summary);
+    }
+
+    private void handleEmptyLiveCategories(Account account, int rawCategoryCount, List<Category> categories,
+                                           boolean applyCategoryCensoring, LoggerCallback logger) {
+        if (wasEverythingRemovedByActiveCensoring(rawCategoryCount, categories.size(), applyCategoryCensoring)) {
+            logKeepingExistingCacheAfterFullCensoring(logger, "categories");
+            return;
+        }
+        log(logger, "Found Categories 0");
+        saveLiveCacheWithNoChannels(account, categories, logger,
+                "All categories removed by active censoring. Clearing existing cache.");
+    }
+
+    private List<Channel> loadStalkerLiveChannels(Account account, LiveCategories liveCategories,
+                                                  Set<String> visibleCategoryIds, LoggerCallback logger) {
+        List<Channel> rawChannels = parseGlobalLiveChannels(account, logger);
+        if (!rawChannels.isEmpty()) {
+            return rawChannels;
+        }
+
+        log(logger, "Global Stalker get_all_channels failed. Trying last-resort category-by-category fetch.");
+        List<Category> fallbackCategories = categoriesMatchingVisibleIds(liveCategories.rawCategories(), visibleCategoryIds,
+                liveCategories.categoryNormalization());
+        List<Channel> fallbackChannels = fetchAllChannelsByCategoryLastResort(account, fallbackCategories,
+                liveCategories.categoryNormalization(), logger);
+        if (fallbackChannels.isEmpty()) {
+            log(logger, "No channels found. Keeping existing cache.");
+        } else {
+            log(logger, "Last-resort fetch succeeded. Collected " + fallbackChannels.size() + " channels.");
+        }
+        return fallbackChannels;
+    }
+
+    private boolean handleEmptyLiveChannels(Account account, List<Category> categories, List<Channel> rawChannels,
+                                            List<Channel> allChannels, boolean applyCensoring, LoggerCallback logger) {
+        if (!allChannels.isEmpty()) {
+            return false;
+        }
+        if (wasEverythingRemovedByActiveCensoring(rawChannels.size(), allChannels.size(), applyCensoring)) {
+            logKeepingExistingCacheAfterFullCensoring(logger, "channels");
+        } else {
+            saveLiveCacheWithNoChannels(account, categories, logger,
+                    "All channels removed by active censoring. Clearing existing cache.");
+        }
+        return true;
+    }
+
+    private void saveStalkerLiveCache(Account account, List<Category> officialCategories, List<Channel> allChannels,
+                                      CategoryNormalization categoryNormalization, LoggerCallback logger) {
+        ChannelGrouping grouping = groupChannelsByCategory(allChannels, officialCategories,
+                categoryNormalization.canonicalCategoryIdByOriginalId());
         log(logger, "Found Channels " + allChannels.size() + ". Found " + grouping.orphanedChannels.size() + " Orphaned channels.");
 
         clearCache(account);
@@ -143,7 +183,6 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         }
 
         log(logger, savedCategories.size() + " Categories & " + allChannels.size() + " Channels saved Successfully \u2713");
-        return summary;
     }
 
     private List<Category> categoriesMatchingVisibleIds(List<Category> rawCategories, Set<String> visibleCategoryIds,
@@ -329,5 +368,21 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
     }
 
     private record ChannelGrouping(Map<String, List<Channel>> matchedChannelsByCatId, List<Channel> orphanedChannels) {
+    }
+
+    private record LiveCategories(List<Category> rawCategories,
+                                  CategoryNormalization categoryNormalization,
+                                  List<Category> categories,
+                                  CensoringSummary summary,
+                                  boolean stopReload) {
+        static LiveCategories stop(List<Category> rawCategories, CategoryNormalization categoryNormalization,
+                                   List<Category> categories, CensoringSummary summary) {
+            return new LiveCategories(rawCategories, categoryNormalization, categories, summary, true);
+        }
+
+        static LiveCategories continueWith(List<Category> rawCategories, CategoryNormalization categoryNormalization,
+                                           List<Category> categories, CensoringSummary summary) {
+            return new LiveCategories(rawCategories, categoryNormalization, categories, summary, false);
+        }
     }
 }

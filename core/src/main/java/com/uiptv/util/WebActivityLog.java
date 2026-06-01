@@ -85,7 +85,11 @@ public final class WebActivityLog {
 
     public static String describeBingeWatchPlaylist(String episodeName, String season, String episodeNumber, int episodeCount) {
         String target = episodeTarget(episodeName, season, episodeNumber);
-        String count = episodeCount > 0 ? " containing " + episodeCount + " " + (episodeCount == 1 ? "episode" : "episodes") : "";
+        String count = "";
+        if (episodeCount > 0) {
+            String label = episodeCount == 1 ? "episode" : "episodes";
+            count = " containing " + episodeCount + " " + label;
+        }
         return "Downloaded a binge-watch playlist" + (isNotBlank(target) ? " starting with " + target : "") + count;
     }
 
