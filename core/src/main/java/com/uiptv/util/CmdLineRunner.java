@@ -3,6 +3,7 @@ package com.uiptv.util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -37,12 +38,30 @@ public final class CmdLineRunner {
 
     public void exec(List<String> cmd, Map<String, String> env) throws CmdLineException {
         try {
-            ProcessBuilder processBuilder = new ProcessBuilder(cmd);
-            processBuilder.environment().putAll(env);
+            ProcessBuilder processBuilder = createProcessBuilder(cmd, env);
             log.debug("Executing command: {} with ENV={}", cmd, processBuilder.environment());
-            processBuilder.start();
+            Process process = processBuilder.start();
+            closeChildInput(process);
         } catch (Exception e) {
             throw new CmdLineException("error executing command \"" + cmd + "\"", e);
+        }
+    }
+
+    static ProcessBuilder createProcessBuilder(List<String> cmd, Map<String, String> env) {
+        ProcessBuilder processBuilder = new ProcessBuilder(cmd);
+        if (env != null) {
+            processBuilder.environment().putAll(env);
+        }
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+        processBuilder.redirectError(ProcessBuilder.Redirect.DISCARD);
+        return processBuilder;
+    }
+
+    private static void closeChildInput(Process process) {
+        try {
+            process.getOutputStream().close();
+        } catch (IOException e) {
+            log.debug("Unable to close child process stdin", e);
         }
     }
 

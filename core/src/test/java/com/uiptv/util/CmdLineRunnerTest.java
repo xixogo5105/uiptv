@@ -2,9 +2,16 @@ package com.uiptv.util;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CmdLineRunnerTest {
@@ -42,6 +49,47 @@ class CmdLineRunnerTest {
         List<String> cmdArray = CmdLineRunner.parse(cmd);
 
         assertEquals(3, cmdArray.size());
+    }
+
+    @Test
+    void createProcessBuilder_discardsChildOutputToAvoidBlockedPlayerPipes() {
+        ProcessBuilder builder = CmdLineRunner.createProcessBuilder(
+                List.of("player", "http://example.test/stream"),
+                Map.of("UIPTV_TEST_ENV", "1")
+        );
+
+        assertEquals(ProcessBuilder.Redirect.DISCARD, builder.redirectOutput());
+        assertEquals(ProcessBuilder.Redirect.DISCARD, builder.redirectError());
+        assertEquals("1", builder.environment().get("UIPTV_TEST_ENV"));
+    }
+
+    @Test
+    void createProcessBuilder_allowsNoisyChildToExitWithoutPipeDrainers() {
+        assertTimeout(Duration.ofSeconds(10), () -> {
+            Path tempDir = Files.createTempDirectory("uiptv-noisy-child");
+            Path source = tempDir.resolve("NoisyChild.java");
+            Files.writeString(source, """
+                    public class NoisyChild {
+                        public static void main(String[] args) {
+                            for (int i = 0; i < 20_000; i++) {
+                                System.out.println("stdout padding padding padding padding " + i);
+                                System.err.println("stderr padding padding padding padding " + i);
+                            }
+                        }
+                    }
+                    """);
+
+            String javaExecutable = Path.of(
+                    System.getProperty("java.home"),
+                    "bin",
+                    System.getProperty("os.name").toLowerCase().contains("win") ? "java.exe" : "java"
+            ).toString();
+            Process process = CmdLineRunner.createProcessBuilder(List.of(javaExecutable, source.toString()), Map.of()).start();
+            process.getOutputStream().close();
+
+            assertTrue(process.waitFor(10, TimeUnit.SECONDS), "Noisy child process should not block on stdout/stderr");
+            assertEquals(0, process.exitValue());
+        });
     }
 
 }
