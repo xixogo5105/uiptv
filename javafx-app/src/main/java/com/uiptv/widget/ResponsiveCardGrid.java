@@ -59,11 +59,13 @@ public class ResponsiveCardGrid<T> extends StackPane {
     public ResponsiveCardGrid(Function<T, Region> cardFactory) {
         this.cardFactory = Objects.requireNonNull(cardFactory, "cardFactory");
         getStyleClass().add("uiptv-responsive-card-grid");
+        UiRenderQuality.optimizeLayout(this);
         setFocusTraversable(false);
         setMinSize(0, 0);
         setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
         cardPane.getStyleClass().add("uiptv-responsive-card-flow");
+        UiRenderQuality.optimizeLayout(cardPane);
         cardPane.setPadding(new Insets(2, 2, 18, 2));
         cardPane.setHgap(horizontalGap);
         cardPane.setVgap(verticalGap);
@@ -71,6 +73,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         cardPane.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
         placeholder.getStyleClass().add("uiptv-responsive-card-placeholder");
+        UiRenderQuality.optimizeTextNode(placeholder);
         placeholder.setVisible(false);
         placeholder.setManaged(false);
 
@@ -184,6 +187,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             card.getStyleClass().add("uiptv-responsive-card");
         }
         card.setCursor(Cursor.HAND);
+        UiRenderQuality.optimizeLayout(card);
         card.setFocusTraversable(true);
         card.setMinHeight(76);
         card.setMaxWidth(maxCardWidth);

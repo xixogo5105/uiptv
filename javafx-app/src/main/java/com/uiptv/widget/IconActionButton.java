@@ -11,6 +11,8 @@ public class IconActionButton extends Button {
 
     public IconActionButton(String tooltipText, String iconPath, Runnable action) {
         getStyleClass().add("bookmarks-quick-action-button");
+        UiRenderQuality.optimizeTextNode(this);
+        UiRenderQuality.optimizeTextNode(icon);
         setFocusTraversable(true);
         setAccessibleText(tooltipText);
 

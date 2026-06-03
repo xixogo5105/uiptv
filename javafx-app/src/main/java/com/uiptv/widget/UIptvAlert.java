@@ -1,13 +1,12 @@
 package com.uiptv.widget;
 
-import com.uiptv.ui.RootApplication;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
-import javafx.geometry.NodeOrientation;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
-import javafx.stage.Modality;
+import javafx.stage.Window;
 
 import java.util.Optional;
 
@@ -31,8 +30,8 @@ public class UIptvAlert {
         }
         Alert alert = new Alert(Alert.AlertType.INFORMATION, message, closeButtonType());
         alert.setTitle(I18n.tr("commonInfo"));
-        prepareAlert(alert);
-        alert.showAndWait();
+        prepareAlert(alert, null, alert.getButtonTypes().getFirst());
+        ThemedDialogSupport.showAndWait(alert, alertOwnerWindow());
     }
 
     public static boolean showConfirmationAlert(String contents) {
@@ -46,8 +45,8 @@ public class UIptvAlert {
         ButtonType closeButton = closeButtonType();
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message, okButton, closeButton);
         alert.setTitle(I18n.tr("commonConfirm"));
-        prepareAlert(alert);
-        Optional<ButtonType> result = alert.showAndWait();
+        prepareAlert(alert, okButton, closeButton);
+        Optional<ButtonType> result = ThemedDialogSupport.showAndWait(alert, alertOwnerWindow());
         return result.isPresent() && result.get() == okButton;
     }
 
@@ -86,18 +85,28 @@ public class UIptvAlert {
         }
         Alert alert = new Alert(Alert.AlertType.ERROR, message, closeButtonType());
         alert.setTitle(I18n.tr("commonError"));
-        prepareAlert(alert);
-        alert.showAndWait();
+        prepareAlert(alert, null, alert.getButtonTypes().getFirst());
+        ThemedDialogSupport.showAndWait(alert, alertOwnerWindow());
     }
 
-    private static void prepareAlert(Alert alert) {
-        alert.setHeaderText(null);
-        alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl() ? NodeOrientation.RIGHT_TO_LEFT : NodeOrientation.LEFT_TO_RIGHT);
-        alert.initModality(Modality.NONE);
-        String theme = RootApplication.getCurrentTheme();
-        if (theme != null) {
-            alert.getDialogPane().getStylesheets().add(theme);
+    private static void prepareAlert(Alert alert, ButtonType primaryButtonType, ButtonType secondaryButtonType) {
+        ThemedDialogSupport.prepare(alert, alertOwnerWindow(), "uiptv-alert-dialog");
+        styleAlertButton(alert, primaryButtonType, "uiptv-dialog-primary-button");
+        styleAlertButton(alert, secondaryButtonType, "uiptv-dialog-secondary-button");
+    }
+
+    private static void styleAlertButton(Alert alert, ButtonType buttonType, String styleClass) {
+        if (buttonType == null) {
+            return;
         }
+        Button button = (Button) alert.getDialogPane().lookupButton(buttonType);
+        if (button != null) {
+            button.getStyleClass().add(styleClass);
+        }
+    }
+
+    private static Window alertOwnerWindow() {
+        return ThemedDialogSupport.primaryOwnerWindow();
     }
 
     private static boolean isHeadlessMode() {

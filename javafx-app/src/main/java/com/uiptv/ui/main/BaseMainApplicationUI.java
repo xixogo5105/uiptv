@@ -49,6 +49,7 @@ public abstract class BaseMainApplicationUI {
     public Scene buildScene() {
         AccountListUI accountListUI = new AccountListUI(useEmbeddedAccountFlow());
         BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI(hostServices, this::toggleTheme);
+        AtomicReference<ConfigurationUI> configurationRef = new AtomicReference<>();
         AtomicReference<WatchingNowUI> watchingNowRef = new AtomicReference<>();
         setMinWidthForPane(bookmarkChannelListUI);
         setMinWidthForPane(accountListUI);
@@ -68,6 +69,12 @@ public abstract class BaseMainApplicationUI {
 
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             LogDisplayUI.setLoggingEnabled(newTab == logDisplayTab);
+            if (newTab == configurationTab) {
+                ConfigurationUI configurationUI = configurationRef.get();
+                if (configurationUI != null) {
+                    configurationUI.refreshFromCurrentConfiguration();
+                }
+            }
             if (newTab == watchingNowTab) {
                 WatchingNowUI watchingNowUI = watchingNowRef.get();
                 if (watchingNowUI != null) {
@@ -99,6 +106,7 @@ public abstract class BaseMainApplicationUI {
                 watchingNowTab,
                 accountListUI,
                 bookmarkChannelListUI,
+                configurationRef,
                 watchingNowRef
         ));
         return scene;
@@ -249,9 +257,13 @@ public abstract class BaseMainApplicationUI {
                 if (watchingNowUI != null) {
                     watchingNowUI.forceReload();
                 }
-            });
+            }, hostServices, this::toggleTheme);
             setMinWidthForPane(configurationUI);
+            context.configurationRef().set(configurationUI);
             context.configurationTab().setContent(AppNavigationPane.wrapContent(configurationUI));
+            if (context.configurationTab().isSelected()) {
+                configurationUI.refreshFromCurrentConfiguration();
+            }
         };
 
         scheduleDeferredTabLoad(loadConfiguration,
@@ -377,6 +389,7 @@ public abstract class BaseMainApplicationUI {
             Tab watchingNowTab,
             AccountListUI accountListUI,
             BookmarkChannelListUI bookmarkChannelListUI,
+            AtomicReference<ConfigurationUI> configurationRef,
             AtomicReference<WatchingNowUI> watchingNowRef
     ) {
     }

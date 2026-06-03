@@ -1,13 +1,10 @@
 package com.uiptv.widget;
 
-import com.uiptv.ui.RootApplication;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
-import javafx.geometry.NodeOrientation;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
-import javafx.stage.Modality;
 
 public class DialogAlert {
     private DialogAlert() {
@@ -33,13 +30,10 @@ public class DialogAlert {
         yesButton.setDefaultButton(false);
         Button noButton = (Button) confirmDialogue.getDialogPane().lookupButton(ButtonType.NO);
         noButton.setDefaultButton(true);
-        confirmDialogue.initModality(Modality.NONE);
-        if (RootApplication.getCurrentTheme() != null) {
-            confirmDialogue.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-        confirmDialogue.getDialogPane().setNodeOrientation(
-                I18n.isCurrentLocaleRtl() ? NodeOrientation.RIGHT_TO_LEFT : NodeOrientation.LEFT_TO_RIGHT
-        );
-        return confirmDialogue.showAndWait().orElse(ButtonType.NO);
+        ThemedDialogSupport.prepare(confirmDialogue, ThemedDialogSupport.primaryOwnerWindow(), "uiptv-alert-dialog");
+        yesButton.getStyleClass().add("uiptv-dialog-primary-button");
+        noButton.getStyleClass().add("uiptv-dialog-secondary-button");
+        return ThemedDialogSupport.showAndWait(confirmDialogue, ThemedDialogSupport.primaryOwnerWindow())
+                .orElse(ButtonType.NO);
     }
 }

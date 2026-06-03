@@ -19,6 +19,7 @@ import com.uiptv.util.AppLog;
 import com.uiptv.util.EmbeddedPlayerWideViewUtil;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
+import com.uiptv.widget.AppFonts;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -167,6 +168,7 @@ public class RootApplication extends Application {
             return;
         }
 
+        AppFonts.load();
         currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(
                 themeResourceClass,
                 darkTheme,

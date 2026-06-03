@@ -10,6 +10,7 @@ import com.uiptv.service.AccountInfoService;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.util.AccountType;
+import com.uiptv.widget.AppFonts;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.SegmentedProgressBar;
 import javafx.application.Platform;
@@ -843,7 +844,8 @@ public class ReloadCachePopup extends VBox {
     private Label createProblemAccountsWarningLabel() {
         Label warningLabel = new Label(I18n.tr("autoTheFollowingAccountsAreFlaggedAsBADOrYELLOWSelectTheOnesYouWantToDelete"));
         warningLabel.setWrapText(true);
-        warningLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        AppFonts.load();
+        warningLabel.setFont(Font.font(AppFonts.UI_FONT_FAMILY, FontWeight.BOLD, 14));
         return warningLabel;
     }
 

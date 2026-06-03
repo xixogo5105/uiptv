@@ -9,6 +9,7 @@ import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.Node;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -23,13 +24,21 @@ public class PillBar<T> extends StackPane {
     private final ToggleGroup toggleGroup = new ToggleGroup();
     private final Function<T, String> labelFactory;
     private final Function<T, ?> keyFactory;
+    private final Function<T, Node> graphicFactory;
     private final ObjectProperty<T> selectedItem = new SimpleObjectProperty<>();
     private boolean rebuilding;
 
     public PillBar(Function<T, String> labelFactory, Function<T, ?> keyFactory) {
+        this(labelFactory, keyFactory, null);
+    }
+
+    public PillBar(Function<T, String> labelFactory, Function<T, ?> keyFactory, Function<T, Node> graphicFactory) {
         this.labelFactory = labelFactory;
         this.keyFactory = keyFactory;
+        this.graphicFactory = graphicFactory;
         getStyleClass().add("uiptv-pill-bar");
+        UiRenderQuality.optimizeLayout(this);
+        UiRenderQuality.optimizeLayout(content);
         setFocusTraversable(false);
         setMinWidth(0);
         setMaxWidth(Double.MAX_VALUE);
@@ -73,6 +82,13 @@ public class PillBar<T> extends StackPane {
         return selectedItem.get();
     }
 
+    public void setSelectedItem(T item) {
+        Toggle toggle = findToggleByKey(keyOf(item));
+        if (toggle != null) {
+            toggleGroup.selectToggle(toggle);
+        }
+    }
+
     public void setItems(List<T> items) {
         T previousSelection = selectedItem.get();
         Object previousKey = keyOf(previousSelection);
@@ -101,6 +117,10 @@ public class PillBar<T> extends StackPane {
     private ToggleButton createPill(T item) {
         ToggleButton pill = new ToggleButton(labelFactory.apply(item));
         pill.getStyleClass().add("uiptv-pill");
+        UiRenderQuality.optimizeTextNode(pill);
+        if (graphicFactory != null) {
+            pill.setGraphic(graphicFactory.apply(item));
+        }
         pill.setToggleGroup(toggleGroup);
         pill.setUserData(item);
         pill.setMinWidth(Region.USE_PREF_SIZE);

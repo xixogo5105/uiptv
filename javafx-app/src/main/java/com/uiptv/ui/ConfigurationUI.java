@@ -16,13 +16,19 @@ import com.uiptv.ui.util.UiI18n;
 import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
-import com.uiptv.widget.ProminentButton;
+import com.uiptv.widget.AppHeaderActions;
+import com.uiptv.widget.AppPageHeader;
+import com.uiptv.widget.PillBar;
+import com.uiptv.widget.SwitchToggle;
+import com.uiptv.widget.UiRenderQuality;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
 import com.uiptv.widget.UIptvTextArea;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
+import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
+import javafx.application.HostServices;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
@@ -39,7 +45,9 @@ import javafx.util.Duration;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -70,9 +78,17 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_CONFIGURATION_STATUS_GLYPH = "configuration-status-icon-glyph";
     private static final String STATUS_ICON_CHECK_PATH = "M5.9 10.6 L3.1 7.8 L1.8 9.1 L5.9 13.2 L14.2 4.9 L12.9 3.6 Z";
     private static final String STATUS_ICON_CROSS_PATH = "M4 3 L3 4 L7 8 L3 12 L4 13 L8 9 L12 13 L13 12 L9 8 L13 4 L12 3 L8 7 Z";
+    private static final String BACKUP_CREATE_ICON_PATH = "M12 3 L19 10 H15 V17 H9 V10 H5 Z M5 19 H19 V21 H5 Z";
+    private static final String BACKUP_RESTORE_ICON_PATH = "M12 5 C8.7 5 6 7.7 6 11 H3 L7 15 L11 11 H8 C8 8.8 9.8 7 12 7 C14.2 7 16 8.8 16 11 C16 13.2 14.2 15 12 15 C10.9 15 9.9 14.6 9.2 13.8 L7.8 15.2 C8.9 16.3 10.4 17 12 17 C15.3 17 18 14.3 18 11 C18 7.7 15.3 5 12 5 Z";
     private static final double STATUS_ICON_SIZE = 18;
     private static final Duration STATUS_TITLE_REFRESH_INTERVAL = Duration.seconds(30);
+    private static final Duration AUTO_SAVE_DEBOUNCE = Duration.millis(450);
     private static final double DATABASE_SYNC_POPUP_WIDTH = 672;
+    private static final double SETTINGS_CARD_WIDTH = 440;
+    private static final double SETTINGS_MIN_COMPACT_CARD_WIDTH = 280;
+    private static final double SETTINGS_CARD_HGAP = 14;
+    private static final double SETTINGS_SWITCH_WIDTH = 52;
+    private static final double SETTINGS_THEME_PILL_WIDTH = 181;
     private static final AtomicReference<Stage> activePublishM3u8PopupStage = new AtomicReference<>();
     private static final AtomicReference<Stage> activeDatabaseSyncPopupStage = new AtomicReference<>();
     final ToggleGroup group = new ToggleGroup();
@@ -81,6 +97,17 @@ public class ConfigurationUI extends VBox {
     final Button browserButtonPlayerPath3 = new Button("...");
     final FileChooser fileChooser = new FileChooser();
     private final VBox contentContainer = new VBox();
+    private final PauseTransition autoSaveDebounce = new PauseTransition(AUTO_SAVE_DEBOUNCE);
+    private final TextField settingsSearchTextField = new TextField();
+    private final PillBar<SettingsPanelFilter> settingsPillBar =
+            new PillBar<>(SettingsPanelFilter::title, SettingsPanelFilter::id);
+    private final PillBar<ThemeModeOption> themeModePillBar =
+            new PillBar<>(ThemeModeOption::title, ThemeModeOption::id);
+    private final SwitchToggle thumbnailModeSwitch = new SwitchToggle();
+    private final SwitchToggle filterPauseSwitch = new SwitchToggle();
+    private final SwitchToggle filterPasswordProtectionSwitch = new SwitchToggle();
+    private final FlowPane settingsCardPane = new FlowPane();
+    private final List<SettingsSection> settingsSections = new ArrayList<>();
     private final RadioButton defaultPlayer1 = new RadioButton("");
     private final RadioButton defaultPlayer2 = new RadioButton("");
     private final RadioButton defaultPlayer3 = new RadioButton("");
@@ -91,7 +118,6 @@ public class ConfigurationUI extends VBox {
     private final UIptvText playerPath3 = new UIptvText("playerPath3", "configPlayerPath3Prompt", 5);
     private final UIptvTextArea filterCategoriesWithTextContains = new UIptvTextArea("filterCategoriesWithTextContains", CONFIG_FILTER_CATEGORIES_PROMPT, 5);
     private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", CONFIG_FILTER_CHANNELS_PROMPT, 5);
-    private final CheckBox filterPausedCheckBox = new CheckBox(I18n.tr("configPauseFiltering"));
     private final Label filterLockStatusLabel = new Label();
     private final Label filtersGroupTitleLabel = new Label();
     private final StatusIcon filtersGroupStatusIcon = new StatusIcon();
@@ -100,9 +126,9 @@ public class ConfigurationUI extends VBox {
     private final Button filterLockPasswordButton = new Button();
     private final Button filterUnlockButton = new Button(I18n.tr("filterLockUnlockAction"));
     private final Button filterRelockButton = new Button(I18n.tr("filterLockLockNowAction"));
-    private final CheckBox filterDisablePasswordCheckBox = new CheckBox(I18n.tr("filterLockDisablePasswordAction"));
     private final ComboBox<Integer> filterLockUnlockDurationComboBox = new ComboBox<>();
     private HBox filterLockDurationRow;
+    private Node filterPasswordProtectionRow;
     private final VBox filterAdminControls = new VBox(10);
     private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
     private final CheckBox autoRunServerOnStartupCheckBox = new CheckBox(I18n.tr("configAutoRunServerOnStartup"));
@@ -135,9 +161,8 @@ public class ConfigurationUI extends VBox {
     private final Button clearCacheButton = new Button(I18n.tr("configClearCache"));
     private final Button clearWatchingNowButton = new Button(I18n.tr("configClearWatchingNow"));
     private final Button reloadCacheButton = new Button(I18n.tr("configReloadAccountsCache"));
-    private final Button importDatabaseButton = new Button(I18n.tr(CONFIG_IMPORT_DATABASE));
-    private final Button exportDatabaseButton = new Button(I18n.tr(CONFIG_EXPORT_DATABASE));
-    private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
+    private final Hyperlink importDatabaseButton = new Hyperlink(I18n.tr(CONFIG_IMPORT_DATABASE));
+    private final Hyperlink exportDatabaseButton = new Hyperlink(I18n.tr(CONFIG_EXPORT_DATABASE));
     private final FileChooser databaseFileChooser = new FileChooser();
     private final Callback<Object> onSaveCallback;
     private final ConfigurationService service = ConfigurationService.getInstance();
@@ -145,6 +170,8 @@ public class ConfigurationUI extends VBox {
     private final CacheService cacheService = new CacheServiceImpl();
     private final RemoteSyncClientService remoteSyncClientService = new RemoteSyncClientService();
     private final DatabaseBackupArchiveService databaseBackupArchiveService = DatabaseBackupArchiveService.getInstance();
+    private final HostServices hostServices;
+    private final Runnable themeToggleHandler;
     private String dbId;
     private String persistedFilterCategoriesValue = "";
     private String persistedFilterChannelsValue = "";
@@ -154,18 +181,42 @@ public class ConfigurationUI extends VBox {
     private String vlcLiveCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
     private boolean vlcHttpUserAgentEnabled = true;
     private boolean vlcHttpForwardCookiesEnabled = true;
+    private boolean syncingThemeModeSelector;
+    private boolean syncingThumbnailModeSelector;
+    private boolean syncingFilterPauseModeSelector;
+    private boolean syncingPasswordProtectionSelector;
+    private boolean syncingConfigurationToForm;
+    private boolean savingConfiguration;
+    private AppHeaderActions pageHeaderActions;
     @SuppressWarnings("java:S1450")
     private Timeline serverStatusTimeline;
     @SuppressWarnings("java:S1450")
     private Timeline statusTitleTimeline;
-    @SuppressWarnings("java:S1450")
-    private Timeline saveSuccessTimeline;
-    private final ConfigurationChangeListener configurationChangeListener = revision -> javafx.application.Platform.runLater(this::refreshConfigurationForm);
+    private final ConfigurationChangeListener configurationChangeListener = _ -> Platform.runLater(() -> {
+        if (!savingConfiguration) {
+            refreshConfigurationForm();
+        }
+    });
     private final FilterLockService.LockStateChangeListener filterLockStateChangeListener = this::scheduleFilterLockUiRefresh;
 
     public ConfigurationUI(Callback<Object> onSaveCallback) {
+        this(onSaveCallback, null, null);
+    }
+
+    public ConfigurationUI(Callback<Object> onSaveCallback, HostServices hostServices, Runnable themeToggleHandler) {
         this.onSaveCallback = onSaveCallback;
+        this.hostServices = hostServices;
+        this.themeToggleHandler = themeToggleHandler;
         initWidgets();
+    }
+
+    private record SettingsPanelFilter(String id, String title) {
+    }
+
+    private record ThemeModeOption(String id, String title, boolean dark) {
+    }
+
+    private record SettingsSection(String id, String title, Node statusIcon, Node content, Hyperlink helpLink, String searchText) {
     }
 
     static void clearWatchingNowStates() {
@@ -173,11 +224,29 @@ public class ConfigurationUI extends VBox {
     }
 
     private void initWidgets() {
+        getStyleClass().add("settings-page-root");
+        UiRenderQuality.optimizeLayout(this);
+        UiRenderQuality.optimizeLayout(contentContainer);
+        UiRenderQuality.optimizeLayout(settingsCardPane);
+        UiRenderQuality.optimizeTextNode(settingsSearchTextField);
         setPadding(Insets.EMPTY);
         setSpacing(0);
         startServerButton.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
-        contentContainer.setPadding(new Insets(5));
-        contentContainer.setSpacing(10);
+        contentContainer.getStyleClass().add("settings-page");
+        contentContainer.setPadding(Insets.EMPTY);
+        contentContainer.setSpacing(12);
+        contentContainer.setMinSize(0, 0);
+        contentContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        settingsSearchTextField.setPromptText(I18n.tr("commonSearch"));
+        settingsSearchTextField.textProperty().addListener((_, _, _) -> refreshSettingsCards());
+        settingsPillBar.setMaxWidth(Double.MAX_VALUE);
+        settingsCardPane.getStyleClass().add("settings-section-grid");
+        settingsCardPane.setHgap(SETTINGS_CARD_HGAP);
+        settingsCardPane.setVgap(14);
+        settingsCardPane.setMinWidth(0);
+        settingsCardPane.setMaxWidth(Double.MAX_VALUE);
+        settingsCardPane.setPrefWrapLength(SETTINGS_CARD_WIDTH * 3 + SETTINGS_CARD_HGAP * 2);
+        contentContainer.widthProperty().addListener((_, _, _) -> updateSettingsCardWidths());
         databaseFileChooser.setTitle(I18n.tr("configSelectDatabaseFile"));
         databaseFileChooser.getExtensionFilters().setAll(
                 new FileChooser.ExtensionFilter(I18n.tr("configDatabaseFiles"), "*.zip"),
@@ -237,19 +306,18 @@ public class ConfigurationUI extends VBox {
         filterChannelWithTextContains.setMinWidth(250);
         filterCategoriesWithTextContains.setPrefRowCount(6);
         filterChannelWithTextContains.setPrefRowCount(6);
+        filterCategoriesWithTextContains.getStyleClass().add("settings-filter-text-area");
+        filterChannelWithTextContains.getStyleClass().add("settings-filter-text-area");
         registerConfigurationChangeListener();
 
-        filterPausedCheckBox.setMinWidth(250);
         filterLockStatusLabel.setWrapText(true);
         filterLockStatusLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
+        configureFilterPasswordProtectionSelector();
+        configureFilterPauseModeSelector();
         cacheExpiryDays.setPrefColumnCount(4);
         cacheExpiryDays.setMaxWidth(70);
         Label cacheExpiryLabel = new Label(I18n.tr("configCacheExpiresInDays"));
         HBox cacheExpiryRow = new HBox(8, cacheExpiryLabel, cacheExpiryDays);
-        saveButton.setMinWidth(40);
-        saveButton.setPrefWidth(440);
-        saveButton.setMinHeight(50);
-        saveButton.setPrefHeight(50);
         fileChooser.setTitle(I18n.tr("configSelectStreamingPlayer"));
         tmdbReadAccessToken.setPromptText(I18n.tr("configTmdbReadAccessTokenPrompt"));
         tmdbReadAccessToken.setMinWidth(295);
@@ -285,13 +353,14 @@ public class ConfigurationUI extends VBox {
         HBox filterLockActions = new HBox(8, filterLockPasswordButton, filterUnlockButton, filterRelockButton);
         filterLockActions.setAlignment(Pos.CENTER_LEFT);
         filterLockDurationRow = createFilterLockDurationRow();
-        VBox filtersGroup = new VBox(10, filterLockStatusLabel, filterLockActions, filterDisablePasswordCheckBox, filterLockDurationRow, filterAdminControls);
+        filterPasswordProtectionRow = createFilterPasswordProtectionRow();
+        VBox filtersGroup = new VBox(10, filterLockStatusLabel, filterLockActions, filterPasswordProtectionRow, filterLockDurationRow, filterAdminControls);
 
         VBox themeOverridesGroup = buildThemeOverrideGroup();
 
         HBox clearButtons = new HBox(10, clearCacheButton, clearWatchingNowButton);
-        reloadCacheButton.setMaxWidth(Double.MAX_VALUE);
-        VBox cacheGroup = new VBox(10, filterPausedCheckBox, cacheExpiryRow, clearButtons, reloadCacheButton);
+        reloadCacheButton.setMaxWidth(Region.USE_PREF_SIZE);
+        VBox cacheGroup = new VBox(10, createFilterPauseModeRow(), cacheExpiryRow, clearButtons, reloadCacheButton);
         refreshConfigurationBlockTitles();
 
         openServerLink.setVisible(false);
@@ -299,8 +368,8 @@ public class ConfigurationUI extends VBox {
         openSecureServerLink.setVisible(false);
         openSecureServerLink.setManaged(false);
         HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, openServerLink);
-        publishM3u8Button.setMaxWidth(Double.MAX_VALUE);
-        publishM3u8Button.setPrefWidth(440);
+        publishM3u8Button.setMaxWidth(Region.USE_PREF_SIZE);
+        publishM3u8Button.setPrefWidth(Region.USE_COMPUTED_SIZE);
         HBox autoRunServerOnStartupRow = new HBox(6, autoRunServerOnStartupCheckBox);
         autoRunServerOnStartupRow.setAlignment(Pos.CENTER_LEFT);
         autoRunServerOnStartupCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
@@ -313,17 +382,21 @@ public class ConfigurationUI extends VBox {
         serverGroup.setFillWidth(true);
         VBox databaseSyncGroup = buildDatabaseSyncGroup();
 
-        contentContainer.getChildren().addAll(
-                createCollapsibleGroupPane(I18n.tr("configVideoPlayers"), playersGroup, false, videoPlayersHelpLink),
-                createCollapsibleGroupPane(filtersGroupTitleLabel, filtersGroupStatusIcon, filtersGroup, true, filtersHelpLink),
-                createCollapsibleGroupPane(I18n.tr("configDarkTheme"), themeOverridesGroup, true, themeHelpLink),
-                createCollapsibleGroupPane(cacheFilteringGroupTitleLabel, cacheFilteringGroupStatusIcon, cacheGroup, true, cacheFilteringHelpLink),
-                createCollapsibleGroupPane(I18n.tr("configDatabaseSyncTitle"), databaseSyncGroup, true, databaseSyncHelpLink),
-                createCollapsibleGroupPane(I18n.tr("configWebServer"), serverGroup, true, webServerHelpLink),
-                createCollapsibleGroupPane(I18n.tr("configTmdbMetadata"), tmdbConfigSection, true, tmdbMetadataHelpLink),
-                saveButton
-        );
-        addSaveButtonClickHandler();
+        pageHeaderActions = new AppHeaderActions(hostServices, this::toggleThemeFromHeader, this::refreshConfigurationForm);
+        AppPageHeader pageHeader = new AppPageHeader(I18n.tr("autoSettings"), settingsSearchTextField, pageHeaderActions);
+        settingsSections.clear();
+        settingsSections.addAll(List.of(
+                new SettingsSection("players", I18n.tr("configVideoPlayers"), null, playersGroup, videoPlayersHelpLink, "players video playback embedded vlc wide view redirects"),
+                new SettingsSection("filters", I18n.tr("configFilters"), filtersGroupStatusIcon, filtersGroup, filtersHelpLink, "filters parental lock categories channels censor hidden protected"),
+                new SettingsSection("appearance", I18n.tr("configDarkTheme"), null, themeOverridesGroup, themeHelpLink, "appearance theme language thumbnails zoom"),
+                new SettingsSection("cache", I18n.tr("configCacheFiltering"), cacheFilteringGroupStatusIcon, cacheGroup, cacheFilteringHelpLink, "cache filtering pause restrictions clear reload watching now"),
+                new SettingsSection("sync", I18n.tr("configDatabaseSyncTitle"), null, databaseSyncGroup, databaseSyncHelpLink, "database sync import export backup remote"),
+                new SettingsSection("server", I18n.tr("configWebServer"), null, serverGroup, webServerHelpLink, "web server https port m3u publish startup"),
+                new SettingsSection("tmdb", I18n.tr("configTmdbMetadata"), null, tmdbConfigSection, tmdbMetadataHelpLink, "tmdb metadata api token")
+        ));
+        configureSettingsPillBar();
+        refreshSettingsCards();
+        contentContainer.getChildren().setAll(pageHeader, settingsPillBar, settingsCardPane);
         addBrowserButton1ClickHandler();
         addBrowserButton2ClickHandler();
         addBrowserButton3ClickHandler();
@@ -339,10 +412,124 @@ public class ConfigurationUI extends VBox {
         addDatabaseSyncButtonHandlers();
         addVlcOptionsLinkClickHandler();
         addThemePreviewHandlers();
+        installAutoSaveHandlers();
         installPlayerSelectionConfirmationHandler();
         installServerStatusMonitor();
         installStatusTitleMonitor();
         refreshFilterLockUi();
+    }
+
+    private void configureSettingsPillBar() {
+        List<SettingsPanelFilter> filters = new ArrayList<>();
+        filters.add(new SettingsPanelFilter("all", I18n.tr("commonAll")));
+        filters.addAll(settingsSections.stream()
+                .map(section -> new SettingsPanelFilter(section.id(), section.title()))
+                .toList());
+        settingsPillBar.setItems(filters);
+        settingsPillBar.selectedItemProperty().addListener((_, _, _) -> refreshSettingsCards());
+    }
+
+    private void refreshSettingsCards() {
+        if (settingsCardPane == null || settingsSections.isEmpty()) {
+            return;
+        }
+        String selectedFilterId = settingsPillBar.getSelectedItem() == null ? "all" : settingsPillBar.getSelectedItem().id();
+        String query = settingsSearchTextField.getText() == null
+                ? ""
+                : settingsSearchTextField.getText().trim().toLowerCase(Locale.ROOT);
+        settingsCardPane.getChildren().clear();
+        for (SettingsSection section : settingsSections) {
+            if (!"all".equals(selectedFilterId) && !section.id().equals(selectedFilterId)) {
+                continue;
+            }
+            if (!query.isEmpty() && !matchesSettingsSearch(section, query)) {
+                continue;
+            }
+            settingsCardPane.getChildren().add(createSettingsSectionCard(section));
+        }
+        updateSettingsCardWidths();
+    }
+
+    private boolean matchesSettingsSearch(SettingsSection section, String query) {
+        return section.title().toLowerCase(Locale.ROOT).contains(query)
+                || section.searchText().toLowerCase(Locale.ROOT).contains(query);
+    }
+
+    private VBox createSettingsSectionCard(SettingsSection section) {
+        detachFromParent(section.content());
+        VBox card = new VBox(12);
+        card.getStyleClass().add("settings-section-card");
+        UiRenderQuality.optimizeLayout(card);
+        card.setMinWidth(SETTINGS_MIN_COMPACT_CARD_WIDTH);
+        card.setPrefWidth(SETTINGS_CARD_WIDTH);
+        card.setMaxWidth(SETTINGS_CARD_WIDTH);
+        card.setFocusTraversable(false);
+
+        Label titleLabel = new Label(section.title());
+        titleLabel.getStyleClass().add("settings-section-title");
+        titleLabel.setMinWidth(0);
+        titleLabel.setMaxWidth(Double.MAX_VALUE);
+        titleLabel.setWrapText(true);
+        UiRenderQuality.optimizeTextNode(titleLabel);
+        HBox titleRow = new HBox(6, titleLabel);
+        titleRow.getStyleClass().add("settings-section-card-header");
+        UiRenderQuality.optimizeLayout(titleRow);
+        titleRow.setAlignment(Pos.TOP_LEFT);
+        titleRow.setMinWidth(0);
+        titleRow.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(titleLabel, Priority.ALWAYS);
+        if (section.statusIcon() != null) {
+            detachFromParent(section.statusIcon());
+            titleRow.getChildren().add(section.statusIcon());
+        }
+        if (section.helpLink() != null) {
+            detachFromParent(section.helpLink());
+            titleRow.getChildren().add(section.helpLink());
+        }
+
+        card.getChildren().setAll(titleRow, section.content());
+        return card;
+    }
+
+    private void updateSettingsCardWidths() {
+        double availableWidth = contentContainer.getWidth();
+        if (availableWidth <= 0) {
+            availableWidth = getWidth() - 56;
+        }
+        double cardWidth = availableWidth < SETTINGS_CARD_WIDTH + 8
+                ? Math.max(SETTINGS_MIN_COMPACT_CARD_WIDTH, availableWidth - 4)
+                : SETTINGS_CARD_WIDTH;
+        for (Node node : settingsCardPane.getChildren()) {
+            if (node instanceof Region region) {
+                region.setMinWidth(Math.min(SETTINGS_MIN_COMPACT_CARD_WIDTH, cardWidth));
+                region.setPrefWidth(cardWidth);
+                region.setMaxWidth(cardWidth);
+            }
+        }
+    }
+
+    private void detachFromParent(Node node) {
+        if (node == null || node.getParent() == null) {
+            return;
+        }
+        if (node.getParent() instanceof Pane pane) {
+            pane.getChildren().remove(node);
+        }
+    }
+
+    private void toggleThemeFromHeader() {
+        if (themeToggleHandler != null) {
+            themeToggleHandler.run();
+            Configuration configuration = service.read();
+            if (configuration != null) {
+                darkThemeCheckBox.setSelected(configuration.isDarkTheme());
+                syncThemeModeSelector();
+            }
+            return;
+        }
+        darkThemeCheckBox.setSelected(!darkThemeCheckBox.isSelected());
+        syncThemeModeSelector();
+        applyThemePreview();
     }
 
     private BorderPane createCollapsibleGroupPane(String title, Node content, boolean collapsedByDefault, Hyperlink helpLink) {
@@ -436,7 +623,61 @@ public class ConfigurationUI extends VBox {
         return row;
     }
 
+    private Node createSettingSwitchRow(String labelKey, SwitchToggle switchToggle) {
+        return createSettingControlRow(labelKey, switchToggle, SETTINGS_SWITCH_WIDTH);
+    }
+
+    private Node createSettingPillRow(String labelKey, PillBar<?> pillBar) {
+        return createSettingControlRow(labelKey, pillBar, SETTINGS_THEME_PILL_WIDTH);
+    }
+
+    private Node createSettingControlRow(String labelKey, Node control, double controlWidth) {
+        Label label = new Label(I18n.tr(labelKey));
+        label.getStyleClass().add("settings-filter-mode-label");
+        label.setMinWidth(0);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.setWrapText(false);
+        label.setTextOverrun(OverrunStyle.ELLIPSIS);
+        label.setAlignment(Pos.CENTER_LEFT);
+
+        GridPane row = new GridPane();
+        row.getStyleClass().add("settings-filter-mode-row");
+        row.setHgap(12);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMaxWidth(Double.MAX_VALUE);
+
+        ColumnConstraints labelColumn = new ColumnConstraints();
+        labelColumn.setHgrow(Priority.ALWAYS);
+        labelColumn.setFillWidth(true);
+        labelColumn.setMinWidth(0);
+        ColumnConstraints controlColumn = new ColumnConstraints();
+        controlColumn.setMinWidth(controlWidth);
+        controlColumn.setPrefWidth(controlWidth);
+        controlColumn.setMaxWidth(controlWidth);
+        if (control instanceof Region region) {
+            region.setMinWidth(controlWidth);
+            region.setPrefWidth(controlWidth);
+            region.setMaxWidth(controlWidth);
+        }
+        row.getColumnConstraints().addAll(labelColumn, controlColumn);
+        row.add(label, 0, 0);
+        row.add(control, 1, 0);
+        GridPane.setHgrow(label, Priority.ALWAYS);
+        return row;
+    }
+
+    private Node createFilterPasswordProtectionRow() {
+        Node row = createSettingSwitchRow("filterLockDisablePasswordAction", filterPasswordProtectionSwitch);
+        row.setVisible(false);
+        row.setManaged(false);
+        return row;
+    }
+
     private VBox buildThemeOverrideGroup() {
+        configureThemeModeSelector();
+        configureThumbnailModeSelector();
+        Node themeModeRow = createSettingPillRow("configDarkTheme", themeModePillBar);
+
         languageComboBox.setMaxWidth(Double.MAX_VALUE);
         Label languageLabel = new Label(I18n.tr("configLanguage"));
         HBox.setHgrow(languageComboBox, Priority.ALWAYS);
@@ -468,7 +709,133 @@ public class ConfigurationUI extends VBox {
         languageAndZoomSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         languageAndZoomSection.setMaxWidth(Double.MAX_VALUE);
 
-        return new VBox(10, darkThemeCheckBox, enableThumbnailsCheckBox, languageAndZoomSection);
+        return new VBox(10, themeModeRow, createSettingSwitchRow("configEnableThumbnails", thumbnailModeSwitch), languageAndZoomSection);
+    }
+
+    private Node createFilterPauseModeRow() {
+        return createSettingSwitchRow("configPauseFiltering", filterPauseSwitch);
+    }
+
+    private void configureFilterPauseModeSelector() {
+        filterPauseSwitch.selectedProperty().addListener((_, _, selected) ->
+                handleFilterPauseSwitchChanged(selected));
+        setFilterPauseModeSelection(persistedPauseFilteringValue);
+    }
+
+    private void configureThumbnailModeSelector() {
+        thumbnailModeSwitch.selectedProperty().addListener((_, _, selected) -> {
+            if (syncingThumbnailModeSelector) {
+                return;
+            }
+            enableThumbnailsCheckBox.setSelected(selected);
+        });
+        syncThumbnailModeSelector();
+    }
+
+    private void configureFilterPasswordProtectionSelector() {
+        filterPasswordProtectionSwitch.selectedProperty().addListener((_, _, selected) ->
+                handleFilterPasswordProtectionSwitchChanged(selected));
+        setFilterPasswordProtectionSelection(false);
+    }
+
+    private void handleFilterPauseSwitchChanged(boolean requestedPaused) {
+        if (syncingConfigurationToForm || syncingFilterPauseModeSelector) {
+            return;
+        }
+        FilterLockService filterLockService = FilterLockService.getInstance();
+        if (filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked()) {
+            if (!FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
+                setFilterPauseModeSelection(persistedPauseFilteringValue);
+                return;
+            }
+            refreshFilterLockUi();
+            setFilterPauseModeSelection(requestedPaused);
+        }
+        saveCurrentSettings(true);
+        refreshFilterLockUi();
+    }
+
+    private void handleFilterPasswordProtectionSwitchChanged(boolean disableRequested) {
+        if (syncingConfigurationToForm || syncingPasswordProtectionSelector) {
+            return;
+        }
+        if (!disableRequested) {
+            return;
+        }
+        boolean disabled = FilterLockDialogs.openDisablePasswordDialog(this);
+        setFilterPasswordProtectionSelection(false);
+        if (disabled) {
+            refreshConfigurationForm();
+        } else {
+            refreshFilterLockUi();
+        }
+    }
+
+    private boolean isFilterPauseFilteringSelected() {
+        return filterPauseSwitch.isSelected();
+    }
+
+    private void setFilterPauseModeSelection(boolean paused) {
+        syncingFilterPauseModeSelector = true;
+        try {
+            filterPauseSwitch.setSelected(paused);
+        } finally {
+            syncingFilterPauseModeSelector = false;
+        }
+    }
+
+    private void setFilterPasswordProtectionSelection(boolean disableRequested) {
+        syncingPasswordProtectionSelector = true;
+        try {
+            filterPasswordProtectionSwitch.setSelected(disableRequested);
+        } finally {
+            syncingPasswordProtectionSelector = false;
+        }
+    }
+
+    private void configureThemeModeSelector() {
+        if (!themeModePillBar.getStyleClass().contains("settings-theme-mode-pill-bar")) {
+            themeModePillBar.getStyleClass().add("settings-theme-mode-pill-bar");
+        }
+        themeModePillBar.setItems(List.of(createThemeModeOption(false), createThemeModeOption(true)));
+        themeModePillBar.selectedItemProperty().addListener((_, _, selected) -> {
+            if (syncingThemeModeSelector) {
+                return;
+            }
+            if (selected == null) {
+                return;
+            }
+            darkThemeCheckBox.setSelected(selected.dark());
+            applyThemePreview();
+            requestImmediateAutoSave();
+        });
+        syncThemeModeSelector();
+    }
+
+    private ThemeModeOption createThemeModeOption(boolean dark) {
+        return new ThemeModeOption(
+                dark ? "dark" : "light",
+                I18n.tr(dark ? "commonDark" : "commonLight"),
+                dark
+        );
+    }
+
+    private void syncThumbnailModeSelector() {
+        syncingThumbnailModeSelector = true;
+        try {
+            thumbnailModeSwitch.setSelected(enableThumbnailsCheckBox.isSelected());
+        } finally {
+            syncingThumbnailModeSelector = false;
+        }
+    }
+
+    private void syncThemeModeSelector() {
+        syncingThemeModeSelector = true;
+        try {
+            themeModePillBar.setSelectedItem(createThemeModeOption(darkThemeCheckBox.isSelected()));
+        } finally {
+            syncingThemeModeSelector = false;
+        }
     }
 
     private void initializeLanguageSelection(Configuration configuration) {
@@ -519,6 +886,67 @@ public class ConfigurationUI extends VBox {
 
     private void addThemePreviewHandlers() {
         themeZoomComboBox.valueProperty().addListener((obs, oldValue, newValue) -> applyThemePreview());
+    }
+
+    private void installAutoSaveHandlers() {
+        autoSaveDebounce.setOnFinished(_ -> saveCurrentSettings(true));
+
+        installDebouncedAutoSave(playerPath1);
+        installDebouncedAutoSave(playerPath2);
+        installDebouncedAutoSave(playerPath3);
+        installDebouncedAutoSave(filterCategoriesWithTextContains);
+        installDebouncedAutoSave(filterChannelWithTextContains);
+        installDebouncedAutoSave(serverPort);
+        installDebouncedAutoSave(httpsServerPort);
+        installDebouncedAutoSave(cacheExpiryDays);
+        installDebouncedAutoSave(tmdbReadAccessToken);
+
+        group.selectedToggleProperty().addListener((_, _, _) -> Platform.runLater(() -> {
+            updateVlcOptionsLinkVisibility();
+            updateWideViewVisibility();
+            requestImmediateAutoSave();
+        }));
+        installImmediateAutoSave(wideViewCheckBox);
+        installImmediateAutoSave(resolveChainAndDeepRedirectsCheckBox);
+        installImmediateAutoSave(enableThumbnailsCheckBox);
+        installImmediateAutoSave(httpsServerEnabledCheckBox);
+        installImmediateAutoSave(autoRunServerOnStartupCheckBox);
+
+        languageComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
+        themeZoomComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
+        filterLockUnlockDurationComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
+    }
+
+    private void installDebouncedAutoSave(TextInputControl control) {
+        control.textProperty().addListener((_, _, _) -> requestDebouncedAutoSave());
+    }
+
+    private void installImmediateAutoSave(CheckBox checkBox) {
+        checkBox.selectedProperty().addListener((_, _, _) -> requestImmediateAutoSave());
+    }
+
+    private void requestDebouncedAutoSave() {
+        if (isAutoSaveSuppressed()) {
+            return;
+        }
+        autoSaveDebounce.playFromStart();
+    }
+
+    private void requestImmediateAutoSave() {
+        if (isAutoSaveSuppressed()) {
+            return;
+        }
+        autoSaveDebounce.stop();
+        saveCurrentSettings(true);
+    }
+
+    private boolean isAutoSaveSuppressed() {
+        return syncingConfigurationToForm
+                || savingConfiguration
+                || syncingThemeModeSelector
+                || syncingThumbnailModeSelector
+                || syncingFilterPauseModeSelector
+                || syncingPasswordProtectionSelector;
     }
 
     private void applyThemePreview() {
@@ -739,28 +1167,6 @@ public class ConfigurationUI extends VBox {
             FilterLockService.getInstance().clearUnlockSession();
             refreshFilterLockUi();
         });
-        filterDisablePasswordCheckBox.setOnAction(event -> {
-            if (!filterDisablePasswordCheckBox.isSelected()) {
-                return;
-            }
-            boolean disabled = FilterLockDialogs.openDisablePasswordDialog(this);
-            filterDisablePasswordCheckBox.setSelected(false);
-            if (disabled) {
-                refreshConfigurationForm();
-            }
-        });
-        filterPausedCheckBox.setOnAction(event -> {
-            FilterLockService filterLockService = FilterLockService.getInstance();
-            if (!filterLockService.hasPasswordConfigured() || filterLockService.isUnlocked()) {
-                return;
-            }
-            if (!FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
-                filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
-                return;
-            }
-            refreshFilterLockUi();
-            filterPausedCheckBox.setSelected(!persistedPauseFilteringValue);
-        });
     }
 
     private void addVlcOptionsLinkClickHandler() {
@@ -855,6 +1261,10 @@ public class ConfigurationUI extends VBox {
         if (getScene() == null) {
             return;
         }
+        refreshFromCurrentConfiguration();
+    }
+
+    public void refreshFromCurrentConfiguration() {
         Configuration configuration = service.read();
         applyConfigurationToForm(configuration);
         selectDefaultPlayer(configuration);
@@ -863,10 +1273,12 @@ public class ConfigurationUI extends VBox {
         refreshServerStatusUI();
         refreshFilterLockUi();
         refreshConfigurationBlockTitles();
+        refreshHeaderActions();
     }
 
     private void refreshFilterLockUi() {
         refreshConfigurationBlockTitles();
+        refreshHeaderActions();
         FilterLockService filterLockService = FilterLockService.getInstance();
         boolean passwordSet = filterLockService.hasPasswordConfigured();
         boolean unlocked = filterLockService.isUnlocked();
@@ -876,9 +1288,11 @@ public class ConfigurationUI extends VBox {
         filterUnlockButton.setVisible(passwordSet && !unlocked);
         filterRelockButton.setManaged(passwordSet && unlocked);
         filterRelockButton.setVisible(passwordSet && unlocked);
-        filterDisablePasswordCheckBox.setManaged(passwordSet);
-        filterDisablePasswordCheckBox.setVisible(passwordSet);
-        filterDisablePasswordCheckBox.setSelected(false);
+        if (filterPasswordProtectionRow != null) {
+            filterPasswordProtectionRow.setManaged(passwordSet);
+            filterPasswordProtectionRow.setVisible(passwordSet);
+        }
+        setFilterPasswordProtectionSelection(false);
 
         if (!passwordSet) {
             filterLockStatusLabel.setText(I18n.tr("filterLockStatusNotSet"));
@@ -888,7 +1302,7 @@ public class ConfigurationUI extends VBox {
             filterChannelWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CHANNELS_PROMPT));
             filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
             filterChannelWithTextContains.setText(persistedFilterChannelsValue);
-            filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+            setFilterPauseModeSelection(persistedPauseFilteringValue);
             updateFilterLockDurationRowVisibility(false);
             return;
         }
@@ -901,7 +1315,7 @@ public class ConfigurationUI extends VBox {
             filterChannelWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CHANNELS_PROMPT));
             filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
             filterChannelWithTextContains.setText(persistedFilterChannelsValue);
-            filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+            setFilterPauseModeSelection(persistedPauseFilteringValue);
             updateFilterLockDurationRowVisibility(true);
             return;
         }
@@ -911,7 +1325,7 @@ public class ConfigurationUI extends VBox {
         filterChannelWithTextContains.clear();
         filterCategoriesWithTextContains.setEditable(false);
         filterChannelWithTextContains.setEditable(false);
-        filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+        setFilterPauseModeSelection(persistedPauseFilteringValue);
         filterCategoriesWithTextContains.setPromptText(I18n.tr("filterLockHiddenCategoriesPrompt"));
         filterChannelWithTextContains.setPromptText(I18n.tr("filterLockHiddenChannelsPrompt"));
         updateFilterLockDurationRowVisibility(false);
@@ -928,36 +1342,43 @@ public class ConfigurationUI extends VBox {
         if (configuration == null) {
             return;
         }
-        this.dbId = configuration.getDbId();
-        playerPath1.setText(configuration.getPlayerPath1());
-        playerPath2.setText(configuration.getPlayerPath2());
-        playerPath3.setText(configuration.getPlayerPath3());
-        persistedFilterCategoriesValue = configuration.getFilterCategoriesList() == null ? "" : configuration.getFilterCategoriesList();
-        persistedFilterChannelsValue = configuration.getFilterChannelsList() == null ? "" : configuration.getFilterChannelsList();
-        persistedPauseFilteringValue = configuration.isPauseFiltering();
-        filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
-        filterChannelWithTextContains.setText(persistedFilterChannelsValue);
-        filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
-        darkThemeCheckBox.setSelected(configuration.isDarkTheme());
-        enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
-        wideViewCheckBox.setSelected(configuration.isWideView());
-        serverPort.setText(configuration.getServerPort());
-        httpsServerEnabledCheckBox.setSelected(configuration.isHttpsServerEnabled());
-        httpsServerPort.setText(defaultHttpsServerPort(configuration.getHttpsServerPort()));
-        autoRunServerOnStartupCheckBox.setSelected(configuration.isAutoRunServerOnStartup());
-        resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
-        cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
-        tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
-        Integer duration = configuration.getFilterLockUnlockDurationMinutes() != null && !configuration.getFilterLockUnlockDurationMinutes().isEmpty()
-            ? Integer.parseInt(configuration.getFilterLockUnlockDurationMinutes())
-            : 15;
-        filterLockUnlockDurationComboBox.setValue(duration);
-        vlcNetworkCachingMs = service.normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs());
-        vlcLiveCachingMs = service.normalizeVlcCachingMs(configuration.getVlcLiveCachingMs());
-        vlcHttpUserAgentEnabled = configuration.isEnableVlcHttpUserAgent();
-        vlcHttpForwardCookiesEnabled = configuration.isEnableVlcHttpForwardCookies();
-        languageComboBox.getSelectionModel().select(I18n.resolveSupportedLanguage(configuration.getLanguageLocale()));
-        themeZoomComboBox.getSelectionModel().select(Integer.valueOf(service.normalizeUiZoomPercent(configuration.getUiZoomPercent())));
+        syncingConfigurationToForm = true;
+        try {
+            this.dbId = configuration.getDbId();
+            playerPath1.setText(configuration.getPlayerPath1());
+            playerPath2.setText(configuration.getPlayerPath2());
+            playerPath3.setText(configuration.getPlayerPath3());
+            persistedFilterCategoriesValue = configuration.getFilterCategoriesList() == null ? "" : configuration.getFilterCategoriesList();
+            persistedFilterChannelsValue = configuration.getFilterChannelsList() == null ? "" : configuration.getFilterChannelsList();
+            persistedPauseFilteringValue = configuration.isPauseFiltering();
+            filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
+            filterChannelWithTextContains.setText(persistedFilterChannelsValue);
+            setFilterPauseModeSelection(persistedPauseFilteringValue);
+            darkThemeCheckBox.setSelected(configuration.isDarkTheme());
+            syncThemeModeSelector();
+            enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
+            syncThumbnailModeSelector();
+            wideViewCheckBox.setSelected(configuration.isWideView());
+            serverPort.setText(configuration.getServerPort());
+            httpsServerEnabledCheckBox.setSelected(configuration.isHttpsServerEnabled());
+            httpsServerPort.setText(defaultHttpsServerPort(configuration.getHttpsServerPort()));
+            autoRunServerOnStartupCheckBox.setSelected(configuration.isAutoRunServerOnStartup());
+            resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
+            cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
+            tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
+            Integer duration = configuration.getFilterLockUnlockDurationMinutes() != null && !configuration.getFilterLockUnlockDurationMinutes().isEmpty()
+                ? Integer.parseInt(configuration.getFilterLockUnlockDurationMinutes())
+                : 15;
+            filterLockUnlockDurationComboBox.setValue(duration);
+            vlcNetworkCachingMs = service.normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs());
+            vlcLiveCachingMs = service.normalizeVlcCachingMs(configuration.getVlcLiveCachingMs());
+            vlcHttpUserAgentEnabled = configuration.isEnableVlcHttpUserAgent();
+            vlcHttpForwardCookiesEnabled = configuration.isEnableVlcHttpForwardCookies();
+            languageComboBox.getSelectionModel().select(I18n.resolveSupportedLanguage(configuration.getLanguageLocale()));
+            themeZoomComboBox.getSelectionModel().select(Integer.valueOf(service.normalizeUiZoomPercent(configuration.getUiZoomPercent())));
+        } finally {
+            syncingConfigurationToForm = false;
+        }
     }
 
     private String defaultHttpsServerPort(String configuredPort) {
@@ -966,38 +1387,53 @@ public class ConfigurationUI extends VBox {
                 : configuredPort.trim();
     }
 
-    private void addSaveButtonClickHandler() {
-        saveButton.setOnAction(_ -> {
-            try {
-                if (saveButton.isDisable()) {
-                    return;
-                }
-                saveButton.setDisable(true);
+    private void saveCurrentSettings(boolean showRestartMessage) {
+        if (syncingConfigurationToForm || savingConfiguration) {
+            return;
+        }
+        try {
+            savingConfiguration = true;
 
-                Configuration previous = service.read();
-                boolean wasAlreadyUnlocked = wasFilterAlreadyUnlocked();
-                if (!ensureFilterAccessForPendingSave()) {
-                    saveButton.setDisable(false);
-                    return;
-                }
-                Configuration newConfiguration = buildConfigurationToSave();
-                saveConfiguration(newConfiguration);
-                applyPostSaveEffects(previous, newConfiguration);
-
-                  // Restore original lock state if user was not already unlocked
-                if (!wasAlreadyUnlocked) {
-                    FilterLockService.getInstance().clearUnlockSession();
-                }
-
-                showSaveSuccessAnimation();
-                if (restartRequired(previous, newConfiguration)) {
-                    showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
-                }
-            } catch (Exception _) {
-                showErrorAlert(I18n.tr("configFailedToSave"));
-                saveButton.setDisable(false);
+            Configuration previous = service.read();
+            boolean wasAlreadyUnlocked = wasFilterAlreadyUnlocked();
+            if (!ensureFilterAccessForPendingSave()) {
+                return;
             }
-        });
+            Configuration newConfiguration = buildConfigurationToSave();
+            saveConfiguration(newConfiguration);
+            applyPostSaveEffects(previous, newConfiguration);
+            updatePersistedFilterState(newConfiguration);
+            refreshConfigurationBlockTitles();
+            refreshHeaderActions();
+
+            if (!wasAlreadyUnlocked) {
+                FilterLockService.getInstance().clearUnlockSession();
+            }
+
+            if (showRestartMessage && restartRequired(previous, newConfiguration)) {
+                showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
+            }
+        } catch (Exception _) {
+            showErrorAlert(I18n.tr("configFailedToSave"));
+        } finally {
+            savingConfiguration = false;
+        }
+    }
+
+    private void refreshHeaderActions() {
+        if (pageHeaderActions != null) {
+            pageHeaderActions.refreshState();
+        }
+    }
+
+    private void updatePersistedFilterState(Configuration configuration) {
+        persistedFilterCategoriesValue = configuration.getFilterCategoriesList() == null
+                ? ""
+                : configuration.getFilterCategoriesList();
+        persistedFilterChannelsValue = configuration.getFilterChannelsList() == null
+                ? ""
+                : configuration.getFilterChannelsList();
+        persistedPauseFilteringValue = configuration.isPauseFiltering();
     }
 
     private Configuration buildConfigurationToSave() {
@@ -1042,9 +1478,12 @@ public class ConfigurationUI extends VBox {
         if (!filterLockService.hasPasswordConfigured() || filterLockService.isUnlocked()) {
             return true;
         }
-        boolean filterValuesChanged = !java.util.Objects.equals(filterCategoriesWithTextContains.getText(), persistedFilterCategoriesValue)
-                || !java.util.Objects.equals(filterChannelWithTextContains.getText(), persistedFilterChannelsValue)
-                || filterPausedCheckBox.isSelected() != persistedPauseFilteringValue;
+        boolean filterTextFieldsEditable = filterCategoriesWithTextContains.isEditable()
+                || filterChannelWithTextContains.isEditable();
+        boolean filterValuesChanged = (filterTextFieldsEditable
+                && (!java.util.Objects.equals(filterCategoriesWithTextContains.getText(), persistedFilterCategoriesValue)
+                || !java.util.Objects.equals(filterChannelWithTextContains.getText(), persistedFilterChannelsValue)))
+                || isFilterPauseFilteringSelected() != persistedPauseFilteringValue;
         if (!filterValuesChanged) {
             return true;
         }
@@ -1073,7 +1512,7 @@ public class ConfigurationUI extends VBox {
         if (FilterLockService.getInstance().hasPasswordConfigured() && !FilterLockService.getInstance().isUnlocked()) {
             return persistedPauseFilteringValue;
         }
-        return filterPausedCheckBox.isSelected();
+        return isFilterPauseFilteringSelected();
     }
 
     private String resolveDefaultPlayerPath() {
@@ -1236,25 +1675,126 @@ public class ConfigurationUI extends VBox {
     }
 
     private VBox buildDatabaseSyncGroup() {
-        importDatabaseButton.setMaxWidth(Double.MAX_VALUE);
-        exportDatabaseButton.setMaxWidth(Double.MAX_VALUE);
-        return new VBox(10, importDatabaseButton, exportDatabaseButton);
+        importDatabaseButton.getStyleClass().add("settings-inline-action");
+        exportDatabaseButton.getStyleClass().add("settings-inline-action");
+        Label description = new Label(I18n.tr("configDatabaseSyncDescription"));
+        description.getStyleClass().add("settings-section-description");
+        description.setWrapText(true);
+        description.setMaxWidth(Double.MAX_VALUE);
+
+        Node createBackupCard = createDatabaseSyncActionCard(
+                false,
+                CONFIG_EXPORT_DATABASE,
+                "configExportDatabasePopupDescription",
+                BACKUP_CREATE_ICON_PATH,
+                exportDatabaseButton,
+                true
+        );
+        Node restoreBackupCard = createDatabaseSyncActionCard(
+                true,
+                CONFIG_IMPORT_DATABASE,
+                "configImportDatabasePopupDescription",
+                BACKUP_RESTORE_ICON_PATH,
+                importDatabaseButton,
+                false
+        );
+        return new VBox(10, description, createBackupCard, restoreBackupCard);
+    }
+
+    private Node createDatabaseSyncActionCard(boolean importMode,
+                                              String titleKey,
+                                              String descriptionKey,
+                                              String iconPath,
+                                              Hyperlink actionLink,
+                                              boolean prominent) {
+        SVGPath icon = new SVGPath();
+        icon.setContent(iconPath);
+        icon.getStyleClass().add("settings-backup-action-icon");
+        icon.setScaleX(0.78);
+        icon.setScaleY(0.78);
+
+        StackPane iconBadge = new StackPane(icon);
+        iconBadge.getStyleClass().add("settings-backup-action-badge");
+
+        Label title = new Label(I18n.tr(titleKey));
+        title.getStyleClass().add("settings-backup-action-title");
+        title.setWrapText(true);
+        title.setMaxWidth(Double.MAX_VALUE);
+
+        Label description = new Label(I18n.tr(descriptionKey));
+        description.getStyleClass().add("settings-backup-action-description");
+        description.setWrapText(true);
+        description.setMaxWidth(Double.MAX_VALUE);
+
+        actionLink.setText(I18n.tr(titleKey));
+        actionLink.setFocusTraversable(true);
+        actionLink.setMaxWidth(Region.USE_PREF_SIZE);
+
+        VBox textColumn = new VBox(3, title, description, actionLink);
+        textColumn.setMinWidth(0);
+        textColumn.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(textColumn, Priority.ALWAYS);
+
+        HBox card = new HBox(10, iconBadge, textColumn);
+        card.getStyleClass().add("settings-backup-action-card");
+        if (prominent) {
+            card.getStyleClass().add("primary");
+        }
+        card.setAlignment(Pos.TOP_LEFT);
+        card.setMaxWidth(Double.MAX_VALUE);
+        card.setFocusTraversable(true);
+        card.setOnMouseClicked(event -> {
+            if (event.getTarget() instanceof Node node && isNodeInside(node, actionLink)) {
+                return;
+            }
+            openDatabaseSyncPopup(importMode);
+        });
+        card.setOnKeyPressed(event -> {
+            if (event.getTarget() instanceof Node node && isNodeInside(node, actionLink)) {
+                return;
+            }
+            switch (event.getCode()) {
+                case ENTER, SPACE -> {
+                    openDatabaseSyncPopup(importMode);
+                    event.consume();
+                }
+                default -> {
+                }
+            }
+        });
+        return card;
+    }
+
+    private boolean isNodeInside(Node node, Node possibleAncestor) {
+        Node current = node;
+        while (current != null) {
+            if (current == possibleAncestor) {
+                return true;
+            }
+            current = current.getParent();
+        }
+        return false;
     }
 
     private void saveVlcOptionsConfiguration(boolean showReloadMessage) {
-        Configuration previous = service.read();
-        Configuration configuration = service.read();
-        configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
-        configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
-        configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
-        configuration.setEnableVlcHttpForwardCookies(vlcHttpForwardCookiesEnabled);
-        service.save(configuration);
-        applyPostSaveEffects(previous, configuration);
-        if (onSaveCallback != null) {
-            onSaveCallback.call(null);
-        }
-        if (showReloadMessage && vlcSettingsChanged(previous, configuration)) {
-            showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
+        try {
+            savingConfiguration = true;
+            Configuration previous = service.read();
+            Configuration configuration = service.read();
+            configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
+            configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
+            configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
+            configuration.setEnableVlcHttpForwardCookies(vlcHttpForwardCookiesEnabled);
+            service.save(configuration);
+            applyPostSaveEffects(previous, configuration);
+            if (onSaveCallback != null) {
+                onSaveCallback.call(null);
+            }
+            if (showReloadMessage && vlcSettingsChanged(previous, configuration)) {
+                showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
+            }
+        } finally {
+            savingConfiguration = false;
         }
     }
 
@@ -2021,29 +2561,6 @@ public class ConfigurationUI extends VBox {
             }
             return all().get(1);
         }
-    }
-
-    private void showSaveSuccessAnimation() {
-        String originalText = saveButton.getText();
-        saveButton.setText("✅");
-
-        if (saveSuccessTimeline != null) {
-            saveSuccessTimeline.stop();
-        }
-
-        saveSuccessTimeline = new Timeline(new KeyFrame(
-                Duration.seconds(3),
-                event -> {
-                    saveButton.setText(originalText);
-                    saveButton.setDisable(false);
-                }
-        ));
-        saveSuccessTimeline.setCycleCount(1);
-        saveSuccessTimeline.setOnFinished(event -> {
-            saveButton.setText(originalText);
-            saveButton.setDisable(false);
-        });
-        saveSuccessTimeline.play();
     }
 
     private void addBrowserButton1ClickHandler() {

@@ -9,5 +9,6 @@ public class UIptvText extends TextField {
         this.setId(id);
         this.setPromptText(I18n.tr(promptKey));
         this.setPrefColumnCount(columnCount);
+        UiRenderQuality.optimizeTextNode(this);
     }
 }

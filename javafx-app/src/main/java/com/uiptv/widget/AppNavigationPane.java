@@ -2,6 +2,7 @@ package com.uiptv.widget;
 
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
@@ -21,6 +22,7 @@ public class AppNavigationPane extends TabPane {
 
     public AppNavigationPane() {
         getStyleClass().add("uiptv-app-tabs");
+        UiRenderQuality.optimizeLayout(this);
         setRotateGraphic(false);
         setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
         setSide(Side.LEFT);
@@ -47,6 +49,7 @@ public class AppNavigationPane extends TabPane {
 
     public static Node wrapContent(Node content) {
         StackPane wrapper = new StackPane(content);
+        UiRenderQuality.optimizeLayout(wrapper);
         wrapper.getStyleClass().add("uiptv-nav-content");
         wrapper.setMinSize(0, 0);
         wrapper.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
@@ -63,12 +66,15 @@ public class AppNavigationPane extends TabPane {
         icon.getStyleClass().add("uiptv-nav-icon");
 
         StackPane item = new StackPane(icon);
+        UiRenderQuality.optimizeLayout(item);
+        UiRenderQuality.optimizeTextNode(icon);
         item.getStyleClass().add("uiptv-nav-item");
         item.setAlignment(Pos.CENTER);
         item.setAccessibleText(labelText);
-        item.setMinSize(28, 28);
-        item.setPrefSize(28, 28);
-        item.setMaxSize(28, 28);
+        item.setCursor(Cursor.HAND);
+        item.setMinSize(48, 48);
+        item.setPrefSize(48, 48);
+        item.setMaxSize(48, 48);
         return item;
     }
 }

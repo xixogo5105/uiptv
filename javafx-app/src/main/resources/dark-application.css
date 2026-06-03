@@ -1,27 +1,29 @@
 .root {
     -uiptv-base-font-size: 13;
+    -fx-font-family: "Roboto";
     -fx-font-size: 13;
+    -fx-font-smoothing-type: gray;
     -fx-accent: #0078D7;
     -fx-focus-color: -fx-accent;
     -fx-base: #1c1c1c; /* Near-black background */
     -fx-control-inner-background: #2c2c2c; /* Slightly lighter controls */
     -fx-control-inner-background-alt: #3c3c3c; /* Even lighter for alternate backgrounds */
     -fx-text-fill: #e0e0e0; /* Light grey text for readability */
-    -uiptv-card-bg: #2b2d30;
-    -uiptv-card-border: #4e5258;
-    -uiptv-app-bg: #101214;
-    -uiptv-surface: #181b1f;
-    -uiptv-surface-muted: #22262c;
-    -uiptv-surface-hover: #2b3037;
-    -uiptv-border-subtle: #343941;
-    -uiptv-text-primary: #f2f4f7;
-    -uiptv-text-secondary: #a6adbb;
-    -uiptv-text-muted: #778092;
-    -uiptv-nav-bg: #15181c;
-    -uiptv-nav-selected-bg: #252a31;
-    -uiptv-action-bg: #f2f4f7;
-    -uiptv-action-fg: #111318;
-    -uiptv-accent: #2dd4bf;
+    -uiptv-card-bg: #1c1f2b;
+    -uiptv-card-border: #323645;
+    -uiptv-app-bg: #1b1d28;
+    -uiptv-surface: #222431;
+    -uiptv-surface-muted: #242736;
+    -uiptv-surface-hover: #2d3040;
+    -uiptv-border-subtle: #343849;
+    -uiptv-text-primary: #f3f4f8;
+    -uiptv-text-secondary: #a7abb8;
+    -uiptv-text-muted: #7f8494;
+    -uiptv-nav-bg: #11131b;
+    -uiptv-nav-selected-bg: #36394b;
+    -uiptv-action-bg: #f0f2f7;
+    -uiptv-action-fg: #171923;
+    -uiptv-accent: #f0f2f7;
     -uiptv-selected-card-bg: #dbe7ff;
     -uiptv-selected-card-border: #9fb9e8;
     -uiptv-selected-card-fg: #101827;
@@ -35,40 +37,209 @@
     -fx-text-fill: #e0e0e0;
 }
 
-.text-field {
-    -fx-prompt-text-fill: #a0a0a0;
-    -fx-text-fill: #e0e0e0;
-    -fx-background-color: #2c2c2c;
-    -fx-border-color: #4c4c4c;
-    -fx-border-radius: 3;
-}
-
-.text-area {
-    -fx-prompt-text-fill: #989898;
-}
-
 .titulo {
     -fx-font-weight: bold;
     -fx-font-size: 1.385em;
     -fx-text-fill: #e0e0e0;
 }
 
-.button {
-    -fx-focus-traversable: false;
-    -fx-text-fill: #e0e0e0;
-    -fx-background-color: linear-gradient(to bottom, #3c3c3c, #2c2c2c);
-    -fx-border-color: #5c5c5c;
-    -fx-border-radius: 3;
+.text-field,
+.password-field,
+.text-area {
+    -fx-background-color: -uiptv-surface;
+    -fx-background-insets: 0;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-border-insets: 0;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-prompt-text-fill: -uiptv-text-muted;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-highlight-fill: rgba(242, 244, 247, 0.18);
+    -fx-highlight-text-fill: -uiptv-text-primary;
+}
+
+.text-field,
+.password-field {
+    -fx-padding: 8 12 8 12;
+}
+
+.text-area {
+    -fx-padding: 0;
+}
+
+.text-area > .scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.text-area > .scroll-pane > .viewport {
+    -fx-background-color: transparent;
     -fx-background-insets: 0;
 }
 
-.button:hover {
-    -fx-background-color: linear-gradient(to bottom, #4c4c4c, #3c3c3c);
-    -fx-border-color: #7c7c7c;
+.text-area .content {
+    -fx-background-color: -uiptv-surface;
+    -fx-background-insets: 0;
+    -fx-background-radius: 13;
+    -fx-padding: 8 12 8 12;
+}
+
+.text-field:focused,
+.password-field:focused,
+.text-area:focused {
+    -fx-border-color: -uiptv-accent;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.34), 12, 0.16, 0, 2);
+}
+
+.check-box,
+.radio-button {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-padding: 2 0 2 0;
+}
+
+.check-box > .box {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: #4a515d;
+    -fx-border-width: 1;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-padding: 3;
+}
+
+.check-box:hover > .box,
+.check-box:focused > .box {
+    -fx-border-color: -uiptv-accent;
+}
+
+.check-box:selected > .box {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+}
+
+.check-box:selected > .box > .mark {
+    -fx-background-color: -uiptv-action-fg;
+}
+
+.radio-button > .radio {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: #4a515d;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-min-width: 16;
+    -fx-min-height: 16;
+    -fx-pref-width: 16;
+    -fx-pref-height: 16;
+    -fx-max-width: 16;
+    -fx-max-height: 16;
+}
+
+.radio-button > .radio > .dot {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+    -fx-padding: 3;
+}
+
+.radio-button:hover > .radio,
+.radio-button:focused > .radio {
+    -fx-border-color: -uiptv-accent;
+}
+
+.radio-button:selected > .radio {
+    -fx-border-color: -uiptv-action-bg;
+}
+
+.radio-button:selected > .radio > .dot {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+    -fx-padding: 3;
+}
+
+.combo-box-base {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+
+.combo-box-base:hover,
+.combo-box-base:focused {
+    -fx-border-color: -uiptv-accent;
+}
+
+.combo-box-base > .arrow-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0 12 0 8;
+}
+
+.combo-box-base > .arrow-button > .arrow {
+    -fx-background-color: -uiptv-text-secondary;
+}
+
+.combo-box-base .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-padding: 8 12 8 12;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 4;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.48), 20, 0.20, 0, 8);
+}
+
+.combo-box-popup .list-cell {
+    -fx-background-radius: 9;
+    -fx-padding: 8 10 8 10;
+}
+
+.combo-box-popup .list-cell:hover,
+.combo-box-popup .list-cell:filled:selected {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.button {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-padding: 8 14 8 14;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.button:hover,
+.button:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: #4a515d;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.32), 12, 0.16, 0, 2);
 }
 
 .button:pressed {
-    -fx-background-color: #2c2c2c;
+    -fx-background-color: #20242a;
+    -fx-effect: none;
+}
+
+.button:disabled {
+    -fx-opacity: 0.48;
 }
 
 .separator *.line {
@@ -162,39 +333,41 @@
 }
 
 .dangerous {
-    -fx-background-color: linear-gradient(to bottom, #d32f2f, #b71c1c);
+    -fx-background-color: #ef4444;
     -fx-text-fill: white;
     -fx-font-weight: bold;
-    -fx-background-radius: 5;
-    -fx-border-color: #8a0000;
-    -fx-border-radius: 5;
+    -fx-background-radius: 13;
+    -fx-border-color: #ef4444;
+    -fx-border-radius: 13;
     -fx-border-width: 1;
 }
 
 .dangerous:hover {
-    -fx-background-color: linear-gradient(to bottom, #e57373, #c62828);
+    -fx-background-color: #dc2626;
+    -fx-border-color: #dc2626;
 }
 
 .dangerous:pressed {
-    -fx-background-color: #b71c1c;
+    -fx-background-color: #b91c1c;
 }
 
 .prominent {
-    -fx-background-color: linear-gradient(to bottom, #006400, #004d00);
-    -fx-text-fill: white;
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
     -fx-font-weight: bold;
-    -fx-background-radius: 5;
-    -fx-border-color: #003300;
-    -fx-border-radius: 5;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
     -fx-border-width: 1;
 }
 
 .prominent:hover {
-    -fx-background-color: linear-gradient(to bottom, #66bb6a, darkgreen);
+    -fx-background-color: #d7dce5;
+    -fx-border-color: #d7dce5;
 }
 
 .prominent:pressed {
-    -fx-background-color: #004d00;
+    -fx-background-color: #ffffff;
 }
 
 /* Standard progress bar */
@@ -473,26 +646,28 @@
 }
 
 .uiptv-outline-pane {
-    -fx-border-color: -fx-box-border;
-    -fx-border-radius: 8;
-    -fx-background-radius: 8;
-    -fx-padding: 6;
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-radius: 14;
+    -fx-background-radius: 14;
+    -fx-padding: 10;
 }
 
 .uiptv-app-tabs {
     -fx-background-color: -uiptv-app-bg;
-    -fx-tab-min-width: 32;
-    -fx-tab-max-width: 32;
-    -fx-tab-min-height: 40;
-    -fx-tab-max-height: 40;
+    -fx-tab-min-width: 62;
+    -fx-tab-max-width: 62;
+    -fx-tab-min-height: 48;
+    -fx-tab-max-height: 48;
 }
 
 .uiptv-app-tabs:left > .tab-header-area {
     -fx-background-color: -uiptv-nav-bg;
-    -fx-min-width: 36;
-    -fx-pref-width: 36;
-    -fx-max-width: 36;
-    -fx-padding: 6 0 6 0;
+    -fx-min-width: 64;
+    -fx-pref-width: 64;
+    -fx-max-width: 64;
+    -fx-padding: 6 7 6 7;
 }
 
 .uiptv-app-tabs:left > .tab-header-area > .tab-header-background {
@@ -505,9 +680,11 @@
     -fx-background-color: transparent;
     -fx-background-insets: 0;
     -fx-background-radius: 0;
-    -fx-padding: 6 0 6 0;
+    -fx-padding: 0;
+    -fx-alignment: center;
     -fx-focus-color: transparent;
     -fx-faint-focus-color: transparent;
+    -fx-cursor: hand;
 }
 
 .uiptv-app-tabs:left > .tab-header-area > .headers-region > .tab:hover {
@@ -537,6 +714,7 @@
     -fx-background-color: transparent;
     -fx-background-radius: 8;
     -fx-padding: 0;
+    -fx-cursor: hand;
 }
 
 .uiptv-app-tabs .tab:hover .uiptv-nav-item {
@@ -549,8 +727,8 @@
 
 .uiptv-nav-icon {
     -fx-fill: -uiptv-text-muted;
-    -fx-scale-x: 0.78;
-    -fx-scale-y: 0.78;
+    -fx-scale-x: 1.12;
+    -fx-scale-y: 1.12;
 }
 
 .uiptv-app-tabs .tab:hover .uiptv-nav-icon {
@@ -562,11 +740,14 @@
 }
 
 .bookmarks-page-root,
-.bookmarks-page {
+.bookmarks-page,
+.settings-page-root,
+.settings-page {
     -fx-background-color: -uiptv-app-bg;
 }
 
-.bookmarks-page {
+.bookmarks-page,
+.settings-page {
     -fx-padding: 24 28 20 28;
 }
 
@@ -584,12 +765,23 @@
     -fx-fill-width: true;
 }
 
+.uiptv-page-header {
+    -fx-spacing: 10;
+    -fx-fill-width: true;
+}
+
+.uiptv-page-actions {
+    -fx-spacing: 6;
+}
+
+.uiptv-page-title,
 .bookmarks-page-title {
     -fx-font-size: 2.05em;
     -fx-font-weight: bold;
     -fx-text-fill: -uiptv-text-primary;
 }
 
+.uiptv-page-search-field,
 .bookmarks-search-field {
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
@@ -601,6 +793,7 @@
     -fx-text-fill: -uiptv-text-primary;
 }
 
+.uiptv-page-search-field:focused,
 .bookmarks-search-field:focused {
     -fx-border-color: derive(-uiptv-accent, 20%);
 }
@@ -623,6 +816,18 @@
     -fx-background-color: -uiptv-surface-hover;
     -fx-border-color: -uiptv-border-subtle;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.32), 10, 0.12, 0, 2);
+}
+
+.bookmarks-quick-action-button-lock-ok .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-ok:hover .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-ok:focused .bookmarks-quick-action-icon {
+    -fx-fill: #22c55e;
+}
+
+.bookmarks-quick-action-button-lock-paused .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-paused:hover .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-paused:focused .bookmarks-quick-action-icon {
+    -fx-fill: #f87171;
 }
 
 .bookmarks-quick-action-button-active {
@@ -657,6 +862,18 @@
 .bookmarks-quick-action-button:hover .bookmarks-quick-action-icon,
 .bookmarks-quick-action-button:focused .bookmarks-quick-action-icon {
     -fx-fill: -uiptv-text-primary;
+}
+
+.bookmarks-quick-action-button-lock-ok .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-ok:hover .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-ok:focused .bookmarks-quick-action-icon {
+    -fx-fill: #22c55e;
+}
+
+.bookmarks-quick-action-button-lock-paused .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-paused:hover .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-paused:focused .bookmarks-quick-action-icon {
+    -fx-fill: #f87171;
 }
 
 .bookmark-category-row {
@@ -704,6 +921,14 @@
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 10, 0.18, 0, 2);
 }
 
+.uiptv-pill-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.uiptv-pill:selected .uiptv-pill-icon {
+    -fx-fill: -uiptv-text-primary;
+}
+
 .bookmark-manage-categories-button {
     -fx-background-color: -uiptv-action-bg;
     -fx-text-fill: -uiptv-action-fg;
@@ -717,6 +942,207 @@
 
 .bookmark-manage-categories-button:hover {
     -fx-opacity: 0.86;
+}
+
+.settings-section-grid {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 2 2 18 2;
+}
+
+.settings-section-card {
+    -fx-background-color: linear-gradient(to bottom right, #242736, #1f2230);
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 13 15 14 15;
+    -fx-spacing: 12;
+    -fx-cursor: default;
+    -fx-translate-y: 0;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.30), 16, 0.12, 0, 5);
+}
+
+.settings-section-card-header {
+    -fx-padding: 0 0 2 0;
+}
+
+.settings-section-title {
+    -fx-font-size: 1.12em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.settings-section-card:hover,
+.settings-section-card:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: rgba(255, 255, 255, 0.14);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.42), 18, 0.14, 0, 6);
+    -fx-translate-y: -1;
+    -fx-cursor: default;
+}
+
+.settings-section-description {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.96em;
+    -fx-line-spacing: 1.5;
+}
+
+.settings-inline-action {
+    -fx-padding: 6 0 6 0;
+    -fx-border-color: transparent;
+    -fx-background-color: transparent;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+    -fx-underline: false;
+}
+
+.settings-inline-action:hover,
+.settings-inline-action:focused {
+    -fx-text-fill: #8ec5ff;
+    -fx-underline: true;
+}
+
+.settings-filter-mode-row {
+    -fx-alignment: center-left;
+}
+
+.settings-filter-mode-label {
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.settings-theme-mode-pill-bar {
+    -fx-min-height: 41;
+    -fx-pref-height: 41;
+    -fx-max-height: 41;
+    -fx-background-radius: 20;
+    -fx-border-radius: 20;
+    -fx-padding: 4;
+}
+
+.settings-theme-mode-pill-bar .uiptv-pill-bar-content {
+    -fx-hgap: 3;
+    -fx-vgap: 0;
+}
+
+.settings-theme-mode-pill-bar .uiptv-pill {
+    -fx-min-width: 78;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 5 13 5 13;
+    -fx-graphic-text-gap: 4;
+}
+
+.uiptv-switch-toggle {
+    -fx-min-width: 52;
+    -fx-pref-width: 52;
+    -fx-max-width: 52;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-max-height: 30;
+    -fx-cursor: hand;
+}
+
+.uiptv-switch-track {
+    -fx-background-color: #535866;
+    -fx-background-radius: 999;
+    -fx-padding: 3;
+    -fx-min-width: 52;
+    -fx-pref-width: 52;
+    -fx-max-width: 52;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-max-height: 30;
+}
+
+.uiptv-switch-thumb {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 999;
+    -fx-min-width: 24;
+    -fx-pref-width: 24;
+    -fx-max-width: 24;
+    -fx-min-height: 24;
+    -fx-pref-height: 24;
+    -fx-max-height: 24;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.32), 7, 0.20, 0, 1);
+}
+
+.uiptv-switch-toggle:hover .uiptv-switch-track {
+    -fx-background-color: #656b7a;
+}
+
+.uiptv-switch-toggle:selected .uiptv-switch-track,
+.uiptv-switch-toggle:selected:hover .uiptv-switch-track {
+    -fx-background-color: #22c55e;
+}
+
+.uiptv-switch-toggle:focused .uiptv-switch-track {
+    -fx-effect: dropshadow(gaussian, rgba(34, 197, 94, 0.36), 10, 0.16, 0, 0);
+}
+
+.uiptv-switch-toggle:disabled {
+    -fx-opacity: 0.55;
+}
+
+.settings-filter-text-area {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: transparent;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+}
+
+.settings-filter-text-area .content {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-background-radius: 14;
+}
+
+.settings-filter-text-area:focused {
+    -fx-border-color: -uiptv-accent;
+}
+
+.settings-backup-action-card {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-padding: 12 12 12 12;
+    -fx-cursor: hand;
+}
+
+.settings-backup-action-card:hover,
+.settings-backup-action-card:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.36), 14, 0.14, 0, 4);
+}
+
+.settings-backup-action-card.primary {
+    -fx-background-color: #2b3040;
+}
+
+.settings-backup-action-badge {
+    -fx-background-color: #f0f2f7;
+    -fx-background-radius: 13;
+    -fx-min-width: 36;
+    -fx-min-height: 36;
+    -fx-pref-width: 36;
+    -fx-pref-height: 36;
+    -fx-max-width: 36;
+    -fx-max-height: 36;
+}
+
+.settings-backup-action-icon {
+    -fx-fill: #171923;
+}
+
+.settings-backup-action-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.settings-backup-action-description {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.92em;
 }
 
 .uiptv-responsive-card-grid,
@@ -809,6 +1235,103 @@
 .account-management-split {
     -fx-background-color: -uiptv-app-bg;
     -fx-padding: 14;
+}
+
+.uiptv-dialog-backdrop {
+    -fx-background-color: rgba(0, 0, 0, 0.62);
+}
+
+.uiptv-modal-dialog {
+    -fx-background-color: #1f2230;
+    -fx-background-radius: 24;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-radius: 24;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.38), 24, 0.14, 0, 8);
+}
+
+.uiptv-modal-dialog > .content {
+    -fx-padding: 6 2 14 2;
+}
+
+.uiptv-modal-dialog .label {
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-modal-dialog > .button-bar > .container {
+    -fx-padding: 12 0 0 0;
+}
+
+.uiptv-modal-dialog .button {
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+    -fx-padding: 8 16 8 16;
+    -fx-cursor: hand;
+}
+
+.uiptv-modal-dialog .uiptv-dialog-primary-button {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
+}
+
+.uiptv-modal-dialog .uiptv-dialog-primary-button:hover {
+    -fx-opacity: 0.88;
+}
+
+.uiptv-modal-dialog .uiptv-dialog-secondary-button {
+    -fx-background-color: transparent;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.uiptv-modal-dialog .uiptv-dialog-secondary-button:hover {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-alert-dialog > .content.label {
+    -fx-font-size: 1.04em;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-alert-dialog > .graphic-container {
+    -fx-padding: 6 14 0 0;
+}
+
+.uiptv-password-dialog {
+    -fx-border-color: #343849;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.24), 16, 0.12, 0, 5);
+}
+
+.uiptv-password-dialog > .content {
+    -fx-padding: 4 2 12 2;
+}
+
+.uiptv-dialog-content {
+    -fx-background-color: transparent;
+}
+
+.uiptv-dialog-description {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 1.02em;
+}
+
+.uiptv-dialog-text-field {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 8 15 8 15;
+    -fx-prompt-text-fill: -uiptv-text-muted;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-dialog-text-field:focused {
+    -fx-border-color: derive(-uiptv-accent, 20%);
 }
 
 .strong-label {

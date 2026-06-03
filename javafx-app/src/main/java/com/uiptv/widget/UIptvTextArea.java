@@ -11,5 +11,6 @@ public class UIptvTextArea extends TextArea {
         this.setPromptText(I18n.tr(promptKey));
         this.setHeight(200);
         this.setPrefColumnCount(columnCount);
+        UiRenderQuality.optimizeTextNode(this);
     }
 }
