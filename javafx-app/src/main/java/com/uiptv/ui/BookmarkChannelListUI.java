@@ -6,21 +6,21 @@ import com.uiptv.shared.Episode;
 import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
-import com.uiptv.widget.AsyncImageView;
-import com.uiptv.widget.SearchableTableViewWithButton;
-import javafx.beans.binding.Bindings;
+import com.uiptv.widget.BookmarkCard;
+import com.uiptv.widget.IconActionButton;
+import com.uiptv.widget.PillBar;
+import com.uiptv.widget.ResponsiveCardGrid;
+import javafx.application.HostServices;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
 import java.util.*;
@@ -33,16 +33,28 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
+import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 import static javafx.application.Platform.runLater;
 
 public class BookmarkChannelListUI extends HBox {
-    private static final DataFormat SERIALIZED_MIME_TYPE = new DataFormat("application/x-java-serialized-object");
     private static final String BOOKMARK_CACHE = "bookmark";
-    private static final String BOOKMARK_ACCOUNT_LABEL_STYLE_CLASS = "bookmark-account-label";
+    private static final String REPORT_BUG_URL = "https://github.com/xixogo5105/uiptv/issues";
+    private static final String GUIDE_URL = "https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md";
+    private static final double COMPACT_HEADER_WIDTH = 980;
+    private static final double COMPACT_CATEGORY_WIDTH = 680;
+    private static final double WIDE_SEARCH_WIDTH = 560;
     private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
-    private final SearchableTableViewWithButton<BookmarkItem> bookmarkTable = new SearchableTableViewWithButton<>();
-    private final TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
-    private final TabPane categoryTabPane = new TabPane();
+    private static final String ICON_ABOUT = "M11 17H13V11H11V17ZM11 9H13V7H11V9ZM12 2C6.48 2 2 6.48 2 12S6.48 22 12 22 22 17.52 22 12 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12S7.59 4 12 4 20 7.59 20 12 16.41 20 12 20Z";
+    private static final String ICON_BUG = "M20 8H17.19C16.74 7.22 16.12 6.55 15.38 6.04L17 4.41 15.59 3 13.89 4.7C13.29 4.52 12.66 4.43 12 4.43S10.71 4.52 10.11 4.7L8.41 3 7 4.41 8.62 6.04C7.88 6.55 7.26 7.22 6.81 8H4V10H6.09C6.03 10.33 6 10.66 6 11V12H4V14H6V15C6 15.34 6.03 15.67 6.09 16H4V18H6.81C7.84 19.79 9.77 21 12 21S16.16 19.79 17.19 18H20V16H17.91C17.97 15.67 18 15.34 18 15V14H20V12H18V11C18 10.66 17.97 10.33 17.91 10H20V8ZM9 16.5C8.45 16.5 8 16.05 8 15.5S8.45 14.5 9 14.5 10 14.95 10 15.5 9.55 16.5 9 16.5ZM15 16.5C14.45 16.5 14 16.05 14 15.5S14.45 14.5 15 14.5 16 14.95 16 15.5 15.55 16.5 15 16.5ZM16 12H8V11C8 8.79 9.79 7 12 7S16 8.79 16 11V12Z";
+    private static final String ICON_HELP = "M11 18H13V16H11V18ZM12 2C6.48 2 2 6.48 2 12S6.48 22 12 22 22 17.52 22 12 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12S7.59 4 12 4 20 7.59 20 12 16.41 20 12 20ZM12 6C9.79 6 8 7.79 8 10H10C10 8.9 10.9 8 12 8S14 8.9 14 10C14 12 11 11.75 11 15H13C13 12.75 16 12.5 16 10 16 7.79 14.21 6 12 6Z";
+    private static final String ICON_THEME = "M12 3C7.03 3 3 7.03 3 12S7.03 21 12 21C15.31 21 18.2 19.21 19.76 16.54 18.86 16.84 17.91 17 16.92 17 11.95 17 7.92 12.97 7.92 8 7.92 6.39 8.34 4.87 9.08 3.56 9.98 3.2 10.96 3 12 3Z";
+    private static final String ICON_PARENTAL_LOCK = "M12 17C13.1 17 14 16.1 14 15S13.1 13 12 13 10 13.9 10 15 10.9 17 12 17ZM18 8H17V6C17 3.24 14.76 1 12 1S7 3.24 7 6V8H6C4.9 8 4 8.9 4 10V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V10C20 8.9 19.1 8 18 8ZM9 6C9 4.34 10.34 3 12 3S15 4.34 15 6V8H9V6ZM18 20H6V10H18V20Z";
+    private static final String ICON_PARENTAL_UNLOCKED = "M12 17C13.1 17 14 16.1 14 15S13.1 13 12 13 10 13.9 10 15 10.9 17 12 17ZM18 8H9V6C9 4.34 10.34 3 12 3 13.09 3 14.05 3.58 14.58 4.45L16.32 3.45C15.44 1.99 13.84 1 12 1 9.24 1 7 3.24 7 6V8H6C4.9 8 4 8.9 4 10V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V10C20 8.9 19.1 8 18 8ZM18 20H6V10H18V20Z";
+    private final TextField searchTextField = new TextField();
+    private final Button manageCategoriesButton = new Button(I18n.tr("commonAdd"));
+    private final ResponsiveCardGrid<BookmarkItem> bookmarkGrid = new ResponsiveCardGrid<>(this::createBookmarkCard);
+    private final PillBar<BookmarkCategory> categoryPillBar =
+            new PillBar<>(BookmarkCategory::getName, BookmarkCategory::getId);
     private final ObservableList<BookmarkItem> filteredItems = FXCollections.observableArrayList();
     private final List<BookmarkItem> allBookmarkItems = new ArrayList<>();
     private final AtomicLong reloadGeneration = new AtomicLong(0);
@@ -54,13 +66,21 @@ public class BookmarkChannelListUI extends HBox {
     });
     private final BookmarkResolver bookmarkResolver = new BookmarkResolver();
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
+    private final HostServices hostServices;
+    private final Runnable themeToggleHandler;
+    private final ConfigurationChangeListener configurationChangeListener = _ -> runLater(this::updateParentalPauseButton);
+    private IconActionButton parentalPauseButton;
     private boolean isPromptShowing = false;
+    private boolean compactHeaderLayout = false;
+    private boolean compactCategoryLayout = false;
+    private boolean thumbnailsEnabled = ThumbnailAwareUI.areThumbnailsEnabled();
     private volatile long lastKnownBookmarkRevision = 0;
     private volatile boolean reloadInProgress = false;
     private volatile boolean loadedOnce = false;
     private volatile boolean reloadRequestedWhileReloading = false;
     private boolean changeListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
+    private boolean configurationListenerRegistered = false;
     private volatile boolean suppressAutoReloadOnBookmarkChange = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> runLater(() -> {
         if (!changeListenerRegistered || suppressAutoReloadOnBookmarkChange) {
@@ -78,6 +98,12 @@ public class BookmarkChannelListUI extends HBox {
     });
 
     public BookmarkChannelListUI() {
+        this(null, null);
+    }
+
+    public BookmarkChannelListUI(HostServices hostServices, Runnable themeToggleHandler) {
+        this.hostServices = hostServices;
+        this.themeToggleHandler = themeToggleHandler;
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
             ImageCacheManager.clearCache(BOOKMARK_CACHE);
         }
@@ -87,8 +113,14 @@ public class BookmarkChannelListUI extends HBox {
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 releaseTransientState();
+                unregisterConfigurationChangeListener();
             } else if (isVisible()) {
+                registerConfigurationChangeListener();
+                updateParentalPauseButton();
                 ensureLoaded();
+            } else {
+                registerConfigurationChangeListener();
+                updateParentalPauseButton();
             }
         });
         visibleProperty().addListener((obs, oldVisible, newVisible) -> {
@@ -119,7 +151,7 @@ public class BookmarkChannelListUI extends HBox {
                 return;
             }
             if (allBookmarkItems.isEmpty()) {
-                bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoLoadingBookmarks")));
+                bookmarkGrid.setPlaceholderText(I18n.tr("autoLoadingBookmarks"));
             }
         });
     }
@@ -180,7 +212,7 @@ public class BookmarkChannelListUI extends HBox {
             return;
         }
         reloadInProgress = false;
-        bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoUnableToLoadBookmarks")));
+        bookmarkGrid.setPlaceholderText(I18n.tr("autoUnableToLoadBookmarks"));
         triggerDeferredReloadIfNeeded();
     }
 
@@ -188,25 +220,18 @@ public class BookmarkChannelListUI extends HBox {
         if (generation != reloadGeneration.get()) {
             return;
         }
-        String selectedBookmarkId = bookmarkTable.getTableView().getSelectionModel().getSelectedItem() != null
-                ? bookmarkTable.getTableView().getSelectionModel().getSelectedItem().getBookmarkId()
-                : null;
-        populateCategoryTabPane(categories);
+        List<String> selectedBookmarkIds = bookmarkGrid.getSelectedItems().stream()
+                .map(BookmarkItem::getBookmarkId)
+                .toList();
+        populateCategoryPills(categories);
         if (!sameBookmarkItems(loadedItems)) {
             allBookmarkItems.clear();
             allBookmarkItems.addAll(loadedItems);
         }
         filterView();
-        if (selectedBookmarkId != null) {
-            filteredItems.stream()
-                    .filter(item -> Objects.equals(item.getBookmarkId(), selectedBookmarkId))
-                    .findFirst()
-                    .ifPresent(item -> bookmarkTable.getTableView().getSelectionModel().select(item));
-        }
+        restoreGridSelection(selectedBookmarkIds);
         if (allBookmarkItems.isEmpty()) {
-            bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoNoBookmarksFound")));
-        } else {
-            bookmarkTable.getTableView().setPlaceholder(null);
+            bookmarkGrid.setPlaceholderText(I18n.tr("autoNoBookmarksFound"));
         }
         lastKnownBookmarkRevision = revision;
         reloadInProgress = false;
@@ -226,7 +251,16 @@ public class BookmarkChannelListUI extends HBox {
         allBookmarkItems.clear();
         allBookmarkItems.addAll(partialItems);
         filterView();
-        bookmarkTable.getTableView().setPlaceholder(null);
+    }
+
+    private void restoreGridSelection(List<String> selectedBookmarkIds) {
+        if (selectedBookmarkIds == null || selectedBookmarkIds.isEmpty()) {
+            return;
+        }
+        List<BookmarkItem> restored = filteredItems.stream()
+                .filter(item -> selectedBookmarkIds.contains(item.getBookmarkId()))
+                .toList();
+        bookmarkGrid.selectItems(restored);
     }
 
     private void registerBookmarkChangeListener() {
@@ -255,6 +289,22 @@ public class BookmarkChannelListUI extends HBox {
         changeListenerRegistered = false;
     }
 
+    private void registerConfigurationChangeListener() {
+        if (configurationListenerRegistered) {
+            return;
+        }
+        ConfigurationService.getInstance().addChangeListener(configurationChangeListener);
+        configurationListenerRegistered = true;
+    }
+
+    private void unregisterConfigurationChangeListener() {
+        if (!configurationListenerRegistered) {
+            return;
+        }
+        ConfigurationService.getInstance().removeChangeListener(configurationChangeListener);
+        configurationListenerRegistered = false;
+    }
+
     private void releaseTransientState() {
         reloadGeneration.incrementAndGet();
         reloadInProgress = false;
@@ -272,31 +322,275 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void initWidgets() {
-        setPadding(new Insets(5));
-        setSpacing(5);
-        setupBookmarkTable();
-        setupCategoryTabPaneListener();
+        getStyleClass().add("bookmarks-page-root");
+        setPadding(Insets.EMPTY);
+        setSpacing(0);
+        setFillHeight(true);
+        setMinSize(0, 0);
+        setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        setupBookmarkGrid();
+        setupCategoryPillListener();
         setupSearchTextFieldListener();
         setupManageCategoriesButton();
 
-        HBox hBox = new HBox(5, categoryTabPane);
-        HBox.setHgrow(categoryTabPane, Priority.ALWAYS);
-        VBox vBox = new VBox(5, hBox, bookmarkTable);
+        VBox page = new VBox(12);
+        page.getStyleClass().add("bookmarks-page");
+        page.setMinSize(0, 0);
+        page.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        page.getChildren().setAll(createHeaderArea(), bookmarkGrid);
 
-        getChildren().add(vBox);
+        ScrollPane pageScroll = new ScrollPane(page);
+        pageScroll.getStyleClass().addAll("bookmarks-page-scroll", "transparent-scroll-pane");
+        pageScroll.setFitToWidth(true);
+        pageScroll.setPannable(true);
+        pageScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        pageScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        pageScroll.setFocusTraversable(false);
+        pageScroll.setMinSize(0, 0);
+        pageScroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        getChildren().setAll(pageScroll);
+        HBox.setHgrow(pageScroll, Priority.ALWAYS);
         addChannelClickHandler();
     }
 
-    private void setupBookmarkTable() {
-        bookmarkTable.getTableView().setEditable(true);
-        bookmarkTable.getTableView().getColumns().add(bookmarkColumn);
-        bookmarkTable.getTableView().setItems(filteredItems);
-        bookmarkColumn.setVisible(true);
-        bookmarkColumn.setCellValueFactory(cellData -> cellData.getValue().channelAccountNameProperty());
-        bookmarkColumn.setSortType(TableColumn.SortType.ASCENDING);
-        bookmarkColumn.setText(I18n.tr("autoBookmarkedChannels"));
+    private VBox createHeaderArea() {
+        Label title = new Label("Favourite");
+        title.getStyleClass().add("bookmarks-page-title");
+        title.setMaxWidth(Region.USE_PREF_SIZE);
+        title.setPickOnBounds(false);
 
+        TextField searchField = searchTextField;
+        searchField.getStyleClass().add("bookmarks-search-field");
+        searchField.setPromptText(I18n.tr("commonSearch"));
+        searchField.setMinWidth(180);
+        searchField.setPrefWidth(WIDE_SEARCH_WIDTH);
+        searchField.setMaxWidth(WIDE_SEARCH_WIDTH);
+
+        HBox quickActions = createQuickActions();
+        StackPane wideHeaderRow = new StackPane();
+        wideHeaderRow.setAlignment(Pos.CENTER_LEFT);
+        wideHeaderRow.setMaxWidth(Double.MAX_VALUE);
+        HBox compactTitleRow = new HBox(10);
+        compactTitleRow.setAlignment(Pos.CENTER_LEFT);
+        compactTitleRow.setMaxWidth(Double.MAX_VALUE);
+        VBox headerStack = new VBox(10);
+        headerStack.setFillWidth(true);
+        headerStack.setMaxWidth(Double.MAX_VALUE);
+        headerStack.getStyleClass().add("bookmarks-header-stack");
+
+        VBox categoryRow = createCategoryRow();
+        VBox headerArea = new VBox(12, headerStack, categoryRow);
+        headerArea.getStyleClass().add("bookmarks-header-area");
+        applyHeaderLayout(headerStack, wideHeaderRow, compactTitleRow, title, searchField, quickActions, false);
+        widthProperty().addListener((_, _, newWidth) -> applyHeaderLayout(
+                headerStack,
+                wideHeaderRow,
+                compactTitleRow,
+                title,
+                searchField,
+                quickActions,
+                newWidth.doubleValue() < COMPACT_HEADER_WIDTH
+        ));
+        return headerArea;
+    }
+
+    private void applyHeaderLayout(VBox headerStack,
+                                   StackPane wideHeaderRow,
+                                   HBox compactTitleRow,
+                                   Label title,
+                                   TextField searchField,
+                                   HBox quickActions,
+                                   boolean compact) {
+        if (compactHeaderLayout == compact && !headerStack.getChildren().isEmpty()) {
+            return;
+        }
+
+        wideHeaderRow.getChildren().clear();
+        compactTitleRow.getChildren().clear();
+        headerStack.getChildren().clear();
+        compactHeaderLayout = compact;
+
+        if (compact) {
+            Region titleSpacer = new Region();
+            HBox.setHgrow(titleSpacer, Priority.ALWAYS);
+            searchField.setMaxWidth(Double.MAX_VALUE);
+            compactTitleRow.getChildren().setAll(title, titleSpacer, quickActions);
+            headerStack.getChildren().setAll(compactTitleRow, searchField);
+            return;
+        }
+
+        searchField.setMaxWidth(WIDE_SEARCH_WIDTH);
+        StackPane.setAlignment(title, Pos.CENTER_LEFT);
+        StackPane.setAlignment(searchField, Pos.CENTER);
+        StackPane.setAlignment(quickActions, Pos.CENTER_RIGHT);
+        wideHeaderRow.getChildren().setAll(title, searchField, quickActions);
+        headerStack.getChildren().setAll(wideHeaderRow);
+    }
+
+    private VBox createCategoryRow() {
+        Button manageButton = manageCategoriesButton;
+        manageButton.getStyleClass().add("bookmark-manage-categories-button");
+        manageButton.setMinWidth(Region.USE_PREF_SIZE);
+
+        HBox wideRow = new HBox(10);
+        wideRow.setAlignment(Pos.CENTER_LEFT);
+        wideRow.setFillHeight(false);
+
+        HBox manageRow = new HBox(manageButton);
+        manageRow.setAlignment(Pos.CENTER_RIGHT);
+        manageRow.setFillHeight(false);
+
+        VBox row = new VBox(8);
+        row.setFillWidth(true);
+        row.setMaxWidth(Double.MAX_VALUE);
+        row.getStyleClass().add("bookmark-category-row");
+
+        categoryPillBar.setMaxWidth(Double.MAX_VALUE);
+        categoryPillBar.setMaxHeight(Region.USE_PREF_SIZE);
+        applyCategoryLayout(row, wideRow, manageRow, manageButton, false);
+        widthProperty().addListener((_, _, newWidth) -> applyCategoryLayout(
+                row,
+                wideRow,
+                manageRow,
+                manageButton,
+                newWidth.doubleValue() < COMPACT_CATEGORY_WIDTH
+        ));
+        return row;
+    }
+
+    private void applyCategoryLayout(VBox row,
+                                     HBox wideRow,
+                                     HBox manageRow,
+                                     Button manageButton,
+                                     boolean compact) {
+        if (compactCategoryLayout == compact && !row.getChildren().isEmpty()) {
+            return;
+        }
+
+        wideRow.getChildren().clear();
+        manageRow.getChildren().clear();
+        row.getChildren().clear();
+        compactCategoryLayout = compact;
+
+        if (compact) {
+            manageRow.getChildren().setAll(manageButton);
+            row.getChildren().setAll(categoryPillBar, manageRow);
+            return;
+        }
+
+        wideRow.getChildren().setAll(categoryPillBar, manageButton);
+        HBox.setHgrow(categoryPillBar, Priority.ALWAYS);
+        row.getChildren().setAll(wideRow);
+    }
+
+    private HBox createQuickActions() {
+        HBox quickActions = new HBox(6);
+        quickActions.setAlignment(Pos.CENTER_RIGHT);
+        quickActions.setMinWidth(Region.USE_PREF_SIZE);
+        quickActions.setMaxWidth(Region.USE_PREF_SIZE);
+        quickActions.setPickOnBounds(false);
+        quickActions.getStyleClass().add("bookmarks-quick-actions");
+        quickActions.getChildren().addAll(
+                createQuickActionButton(I18n.tr("autoAbout"), ICON_ABOUT, this::showAbout),
+                createQuickActionButton("Report a bug", ICON_BUG, () -> openExternalUrl(REPORT_BUG_URL)),
+                createQuickActionButton(I18n.tr("autoHelp"), ICON_HELP, () -> openExternalUrl(GUIDE_URL)),
+                createParentalPauseButton(),
+                createQuickActionButton("Toggle theme", ICON_THEME, this::toggleTheme)
+        );
+        return quickActions;
+    }
+
+    private IconActionButton createParentalPauseButton() {
+        parentalPauseButton = new IconActionButton("Pause parental lock restrictions", ICON_PARENTAL_LOCK, this::toggleParentalPause);
+        updateParentalPauseButton();
+        return parentalPauseButton;
+    }
+
+    private void toggleParentalPause() {
+        if (!FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockManageFiltersReason")) {
+            updateParentalPauseButton();
+            return;
+        }
+        Configuration configuration = ConfigurationService.getInstance().read();
+        if (configuration == null) {
+            return;
+        }
+        configuration.setPauseFiltering(!configuration.isPauseFiltering());
+        ConfigurationService.getInstance().save(configuration);
+        updateParentalPauseButton();
+        showMessageAlert(configuration.isPauseFiltering()
+                ? "Parental lock restrictions paused."
+                : "Parental lock restrictions resumed.");
+    }
+
+    private void updateParentalPauseButton() {
+        if (parentalPauseButton == null) {
+            return;
+        }
+        Configuration configuration = ConfigurationService.getInstance().read();
+        boolean paused = configuration != null && configuration.isPauseFiltering();
+        parentalPauseButton.setTooltipText(paused
+                ? "Resume parental lock restrictions"
+                : "Pause parental lock restrictions");
+        parentalPauseButton.setIconPath(paused ? ICON_PARENTAL_UNLOCKED : ICON_PARENTAL_LOCK);
+        parentalPauseButton.getStyleClass().remove("bookmarks-quick-action-button-active");
+        if (paused) {
+            parentalPauseButton.getStyleClass().add("bookmarks-quick-action-button-active");
+        }
+    }
+
+    private Button createQuickActionButton(String tooltipText, String iconPath, Runnable action) {
+        return new IconActionButton(tooltipText, iconPath, action);
+    }
+
+    private void openExternalUrl(String url) {
+        if (hostServices != null) {
+            hostServices.showDocument(url);
+            return;
+        }
+        com.uiptv.ui.util.UiServerUrlUtil.openInBrowser(url);
+    }
+
+    private void showAbout() {
+        if (hostServices != null) {
+            AboutUI.show(hostServices);
+        }
+    }
+
+    private void toggleTheme() {
+        if (themeToggleHandler != null) {
+            themeToggleHandler.run();
+        }
+    }
+
+    private void setupBookmarkGrid() {
+        bookmarkGrid.getStyleClass().add("bookmark-card-grid");
+        bookmarkGrid.setItems(filteredItems);
+        bookmarkGrid.setCardWidthRange(220, 310);
+        bookmarkGrid.setGaps(14, 12);
+        bookmarkGrid.setReorderEnabled(true);
+        bookmarkGrid.setPlaceholderText(I18n.tr("autoNoBookmarksFound"));
         applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
+    }
+
+    private BookmarkCard createBookmarkCard(BookmarkItem item) {
+        return new BookmarkCard(
+                item.getChannelName(),
+                item.getAccountName(),
+                item.getLogo(),
+                thumbnailsEnabled,
+                BOOKMARK_CACHE,
+                isDrmProtected(item)
+        );
+    }
+
+    private boolean isDrmProtected(BookmarkItem item) {
+        return item != null && (isNotBlank(item.getDrmType())
+                || isNotBlank(item.getDrmLicenseUrl())
+                || isNotBlank(item.getClearKeysJson())
+                || isNotBlank(item.getInputstreamaddon())
+                || isNotBlank(item.getManifestType()));
     }
 
     private void registerThumbnailModeListener() {
@@ -323,243 +617,40 @@ public class BookmarkChannelListUI extends HBox {
     private void applyThumbnailMode(boolean enabled) {
         if (enabled) {
             ImageCacheManager.clearCache(BOOKMARK_CACHE);
-            bookmarkColumn.setCellFactory(column -> createThumbnailCell());
-        } else {
-            bookmarkColumn.setCellFactory(column -> createPlainTextCell());
         }
-        bookmarkTable.getTableView().refresh();
+        thumbnailsEnabled = enabled;
+        bookmarkGrid.refresh();
     }
 
-    private TableCell<BookmarkItem, String> createThumbnailCell() {
-        return new TableCell<>() {
-            private final HBox graphic = new HBox(10);
-            private final Label nameLabel = new Label();
-            private final Label accountLabel = new Label();
-            private final HBox titleRow = new HBox(6);
-            private final VBox textLines = new VBox(2);
-            private final Label drmBadge = new Label(I18n.tr("autoDrm"));
-            private final Pane spacer = new Pane();
-            private final AsyncImageView imageView = new AsyncImageView();
-
-            {
-                nameLabel.setMaxWidth(Double.MAX_VALUE);
-                nameLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
-                accountLabel.setMaxWidth(Double.MAX_VALUE);
-                accountLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
-                accountLabel.getStyleClass().add(BOOKMARK_ACCOUNT_LABEL_STYLE_CLASS);
-                HBox.setHgrow(nameLabel, Priority.ALWAYS);
-                HBox.setHgrow(textLines, Priority.ALWAYS);
-                HBox.setHgrow(spacer, Priority.ALWAYS);
-                drmBadge.getStyleClass().add("drm-badge");
-                drmBadge.setVisible(false);
-                drmBadge.setManaged(false);
-                titleRow.setAlignment(Pos.CENTER_LEFT);
-                titleRow.setMaxWidth(Double.MAX_VALUE);
-                titleRow.getChildren().addAll(nameLabel, drmBadge);
-                textLines.setAlignment(Pos.CENTER_LEFT);
-                textLines.getChildren().addAll(titleRow, accountLabel);
-                graphic.setAlignment(Pos.CENTER_LEFT);
-                graphic.getChildren().addAll(imageView, textLines, spacer);
-                graphic.setMaxWidth(Double.MAX_VALUE);
-                graphic.prefWidthProperty().bind(Bindings.max(0, widthProperty().subtract(16)));
-                setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
-            }
-
-            @Override
-            protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
-                    imageView.clearImage();
-                    setGraphic(null);
-                    return;
-                }
-
-                BookmarkItem bookmarkItem = getIndex() >= 0 && getIndex() < getTableView().getItems().size()
-                        ? getTableView().getItems().get(getIndex())
-                        : null;
-
-                if (bookmarkItem == null) {
-                    imageView.clearImage();
-                    setGraphic(null);
-                    return;
-                }
-
-                nameLabel.setText(bookmarkItem.getChannelName());
-                accountLabel.setText(bookmarkItem.getAccountName());
-                boolean drmProtected = isNotBlank(bookmarkItem.getDrmType())
-                        || isNotBlank(bookmarkItem.getDrmLicenseUrl())
-                        || isNotBlank(bookmarkItem.getClearKeysJson())
-                        || isNotBlank(bookmarkItem.getInputstreamaddon())
-                        || isNotBlank(bookmarkItem.getManifestType());
-                drmBadge.setVisible(drmProtected);
-                drmBadge.setManaged(drmProtected);
-                imageView.loadImage(bookmarkItem.getLogo(), BOOKMARK_CACHE);
-                setGraphic(graphic);
-            }
-        };
-    }
-
-    private TableCell<BookmarkItem, String> createPlainTextCell() {
-        return new TableCell<>() {
-            private final HBox graphic = new HBox(10);
-            private final Label nameLabel = new Label();
-            private final Label accountLabel = new Label();
-            private final HBox titleRow = new HBox(6);
-            private final VBox textLines = new VBox(2);
-            private final Label drmBadge = new Label(I18n.tr("autoDrm"));
-            private final Pane spacer = new Pane();
-
-            {
-                nameLabel.setMaxWidth(Double.MAX_VALUE);
-                nameLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
-                accountLabel.setMaxWidth(Double.MAX_VALUE);
-                accountLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
-                accountLabel.getStyleClass().add(BOOKMARK_ACCOUNT_LABEL_STYLE_CLASS);
-                HBox.setHgrow(nameLabel, Priority.ALWAYS);
-                HBox.setHgrow(textLines, Priority.ALWAYS);
-                HBox.setHgrow(spacer, Priority.ALWAYS);
-                drmBadge.getStyleClass().add("drm-badge");
-                drmBadge.setVisible(false);
-                drmBadge.setManaged(false);
-                titleRow.setAlignment(Pos.CENTER_LEFT);
-                titleRow.setMaxWidth(Double.MAX_VALUE);
-                titleRow.getChildren().addAll(nameLabel, drmBadge);
-                textLines.setAlignment(Pos.CENTER_LEFT);
-                textLines.getChildren().addAll(titleRow, accountLabel);
-                graphic.setAlignment(Pos.CENTER_LEFT);
-                graphic.getChildren().addAll(textLines, spacer);
-                graphic.setMaxWidth(Double.MAX_VALUE);
-                graphic.prefWidthProperty().bind(Bindings.max(0, widthProperty().subtract(16)));
-                setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
-            }
-
-            @Override
-            protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setGraphic(null);
-                    return;
-                }
-
-                BookmarkItem bookmarkItem = getIndex() >= 0 && getIndex() < getTableView().getItems().size()
-                        ? getTableView().getItems().get(getIndex())
-                        : null;
-
-                if (bookmarkItem == null) {
-                    setGraphic(null);
-                    return;
-                }
-
-                nameLabel.setText(bookmarkItem.getChannelName());
-                accountLabel.setText(bookmarkItem.getAccountName());
-                boolean drmProtected = isNotBlank(bookmarkItem.getDrmType())
-                        || isNotBlank(bookmarkItem.getDrmLicenseUrl())
-                        || isNotBlank(bookmarkItem.getClearKeysJson())
-                        || isNotBlank(bookmarkItem.getInputstreamaddon())
-                        || isNotBlank(bookmarkItem.getManifestType());
-                drmBadge.setVisible(drmProtected);
-                drmBadge.setManaged(drmProtected);
-                setGraphic(graphic);
-            }
-        };
-    }
-
-    private void setupCategoryTabPaneListener() {
-        categoryTabPane.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-            if (newValue != null) {
-                filterView();
-            }
-        });
+    private void setupCategoryPillListener() {
+        categoryPillBar.selectedItemProperty().addListener((_, _, _) -> filterView());
     }
 
     private void setupSearchTextFieldListener() {
-        bookmarkTable.getSearchTextField().textProperty().addListener((observable, oldValue, newValue) -> filterView());
+        searchTextField.textProperty().addListener((observable, oldValue, newValue) -> filterView());
     }
 
     private void setupManageCategoriesButton() {
-        bookmarkTable.getManageCategoriesButton().setText(I18n.tr("searchableTableManageTabs"));
-        bookmarkTable.getManageCategoriesButton().setOnAction(event -> openCategoryManagementPopup());
+        manageCategoriesButton.setText(I18n.tr("searchableTableManageTabs"));
+        manageCategoriesButton.setOnAction(event -> openCategoryManagementPopup());
     }
 
     void populateCategoryTabPane() {
         List<BookmarkCategory> categories = new ArrayList<>();
         categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
         categories.addAll(BookmarkService.getInstance().getAllCategories());
-        populateCategoryTabPane(categories);
+        populateCategoryPills(categories);
     }
 
-    private void populateCategoryTabPane(List<BookmarkCategory> categories) {
-        String selectedCategoryId = null;
-        Tab selectedTab = categoryTabPane.getSelectionModel().getSelectedItem();
-        if (selectedTab != null) {
-            BookmarkCategory category = (BookmarkCategory) selectedTab.getUserData();
-            if (category != null) {
-                selectedCategoryId = category.getId();
-            }
-        }
-        if (sameCategoryTabs(categories)) {
-            return;
-        }
-
-        categoryTabPane.getTabs().clear();
-        for (BookmarkCategory category : categories) {
-            Tab tab = new Tab(category.getName());
-            tab.setClosable(false);
-            tab.setUserData(category);
-            categoryTabPane.getTabs().add(tab);
-        }
-
-        // Restore selection
-        final String finalSelectedCategoryId = selectedCategoryId;
-        categoryTabPane.getTabs().stream()
-                .filter(tab -> {
-                    BookmarkCategory category = (BookmarkCategory) tab.getUserData();
-                    if (category == null || category.getId() == null) {
-                        return finalSelectedCategoryId == null;
-                    }
-                    return category.getId().equals(finalSelectedCategoryId);
-                })
-                .findFirst()
-                .ifPresent(tab -> categoryTabPane.getSelectionModel().select(tab));
-
-        if (categoryTabPane.getSelectionModel().getSelectedItem() == null) {
-            categoryTabPane.getSelectionModel().selectFirst();
-        }
-    }
-
-    private boolean sameCategoryTabs(List<BookmarkCategory> categories) {
-        if (categories == null) {
-            return categoryTabPane.getTabs().isEmpty();
-        }
-        if (categoryTabPane.getTabs().size() != categories.size()) {
-            return false;
-        }
-        for (int i = 0; i < categories.size(); i++) {
-            BookmarkCategory expected = categories.get(i);
-            Tab currentTab = categoryTabPane.getTabs().get(i);
-            BookmarkCategory current = (BookmarkCategory) currentTab.getUserData();
-            String expectedId = expected == null ? null : expected.getId();
-            String currentId = current == null ? null : current.getId();
-            String expectedName = expected == null ? "" : expected.getName();
-            String currentName = current == null ? "" : current.getName();
-            if (!Objects.equals(expectedId, currentId) || !Objects.equals(expectedName, currentName)) {
-                return false;
-            }
-        }
-        return true;
+    private void populateCategoryPills(List<BookmarkCategory> categories) {
+        categoryPillBar.setItems(categories);
     }
 
     private void filterView() {
-        Tab selectedTab = categoryTabPane.getSelectionModel().getSelectedItem();
-        String categoryId = null;
-        if (selectedTab != null) {
-            BookmarkCategory category = (BookmarkCategory) selectedTab.getUserData();
-            if (category != null) {
-                categoryId = category.getId();
-            }
-        }
+        String categoryId = selectedCategoryId();
 
-        String searchText = bookmarkTable.getSearchTextField().getText().toLowerCase();
+        String rawSearchText = searchTextField.getText();
+        String searchText = rawSearchText == null ? "" : rawSearchText.toLowerCase();
         final String finalCategoryId = categoryId;
 
         List<BookmarkItem> filteredList = allBookmarkItems.stream()
@@ -574,6 +665,13 @@ public class BookmarkChannelListUI extends HBox {
 
         if (!sameFilteredItems(filteredList)) {
             filteredItems.setAll(filteredList);
+        }
+        if (filteredList.isEmpty()) {
+            bookmarkGrid.setPlaceholderText(searchText.isBlank()
+                    ? I18n.tr("autoNoBookmarksFound")
+                    : I18n.tr("autoNothingFoundFor", rawSearchText));
+        } else {
+            bookmarkGrid.setPlaceholderText("");
         }
     }
 
@@ -658,21 +756,13 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void addChannelClickHandler() {
-        bookmarkTable.getTableView().setOnKeyReleased(this::handleBookmarkTableKeyReleased);
-        bookmarkTable.getTableView().setRowFactory(_ -> {
-            TableRow<BookmarkItem> row = new TableRow<>();
-
-            row.setOnMouseClicked(event -> handleRowClick(row, event));
-            row.setOnDragDetected(event -> handleRowDragDetected(row, event));
-            row.setOnDragOver(event -> handleRowDragOver(row, event));
-            row.setOnDragDropped(event -> handleRowDragDropped(row, event));
-
-            addRightClickContextMenu(row);
-            return row;
-        });
+        bookmarkGrid.setOnKeyReleased(this::handleBookmarkGridKeyReleased);
+        bookmarkGrid.setOnItemActivated(item -> play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath()));
+        bookmarkGrid.setContextMenuFactory(this::createBookmarkContextMenu);
+        bookmarkGrid.setOnItemsReordered(_ -> applyDraggedBookmarkOrder());
     }
 
-    private void handleBookmarkTableKeyReleased(KeyEvent event) {
+    private void handleBookmarkGridKeyReleased(KeyEvent event) {
         if (event.getCode() == KeyCode.DELETE) {
             handleDeleteMultipleBookmarks();
             return;
@@ -683,81 +773,12 @@ public class BookmarkChannelListUI extends HBox {
                 isPromptShowing = false;
                 return;
             }
-            play(bookmarkTable.getTableView().getFocusModel().getFocusedItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            play(bookmarkGrid.getFocusedItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
         }
-    }
-
-    private void handleRowClick(TableRow<BookmarkItem> row, MouseEvent event) {
-        if (row.isEmpty() || event.getButton() != MouseButton.PRIMARY) {
-            return;
-        }
-        if (event.getClickCount() == 2) {
-            play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
-            return;
-        }
-        if (!event.isControlDown() && !event.isShiftDown()) {
-            normalizeRowSelection(row);
-        }
-    }
-
-    private void normalizeRowSelection(TableRow<BookmarkItem> row) {
-        TableView.TableViewSelectionModel<BookmarkItem> selectionModel = bookmarkTable.getTableView().getSelectionModel();
-        if (selectionModel.isSelected(row.getIndex())) {
-            if (selectionModel.getSelectedItems().size() > 1) {
-                selectionModel.clearAndSelect(row.getIndex());
-            }
-            return;
-        }
-        selectionModel.clearAndSelect(row.getIndex());
-    }
-
-    private void handleRowDragDetected(TableRow<BookmarkItem> row, MouseEvent event) {
-        if (row.isEmpty()) {
-            return;
-        }
-        Integer index = row.getIndex();
-        Dragboard db = row.startDragAndDrop(TransferMode.MOVE);
-        db.setDragView(row.snapshot(null, null));
-        ClipboardContent cc = new ClipboardContent();
-        cc.put(SERIALIZED_MIME_TYPE, index);
-        db.setContent(cc);
-        event.consume();
-    }
-
-    private void handleRowDragOver(TableRow<BookmarkItem> row, DragEvent event) {
-        Dragboard db = event.getDragboard();
-        if (db.hasContent(SERIALIZED_MIME_TYPE) && row.getIndex() != (Integer) db.getContent(SERIALIZED_MIME_TYPE)) {
-            event.acceptTransferModes(TransferMode.MOVE);
-            event.consume();
-        }
-    }
-
-    private void handleRowDragDropped(TableRow<BookmarkItem> row, DragEvent event) {
-        Dragboard db = event.getDragboard();
-        if (!db.hasContent(SERIALIZED_MIME_TYPE)) {
-            return;
-        }
-        int draggedIndex = (Integer) db.getContent(SERIALIZED_MIME_TYPE);
-        if (!isValidDraggedIndex(draggedIndex)) {
-            event.setDropCompleted(false);
-            event.consume();
-            return;
-        }
-        BookmarkItem draggedItem = bookmarkTable.getTableView().getItems().remove(draggedIndex);
-        int dropIndex = row.isEmpty() ? bookmarkTable.getTableView().getItems().size() : row.getIndex();
-        bookmarkTable.getTableView().getItems().add(dropIndex, draggedItem);
-        event.setDropCompleted(true);
-        bookmarkTable.getTableView().getSelectionModel().clearSelection();
-        applyDraggedBookmarkOrder();
-        event.consume();
-    }
-
-    private boolean isValidDraggedIndex(int draggedIndex) {
-        return draggedIndex >= 0 && draggedIndex < bookmarkTable.getTableView().getItems().size();
     }
 
     private void applyDraggedBookmarkOrder() {
-        List<String> orderedDbIds = bookmarkTable.getTableView().getItems().stream()
+        List<String> orderedDbIds = bookmarkGrid.getItems().stream()
                 .map(BookmarkItem::getBookmarkId)
                 .toList();
         applyLocalBookmarkOrder(selectedCategoryId(), orderedDbIds);
@@ -765,11 +786,7 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private String selectedCategoryId() {
-        Tab selectedTab = categoryTabPane.getSelectionModel().getSelectedItem();
-        if (selectedTab == null) {
-            return null;
-        }
-        BookmarkCategory category = (BookmarkCategory) selectedTab.getUserData();
+        BookmarkCategory category = categoryPillBar.getSelectedItem();
         return category != null ? category.getId() : null;
     }
 
@@ -840,74 +857,70 @@ public class BookmarkChannelListUI extends HBox {
         return bookmarkOrders;
     }
 
-    private void addRightClickContextMenu(TableRow<BookmarkItem> row) {
-        final ContextMenu rowMenu = new ContextMenu();
-        UiI18n.preparePopupControl(rowMenu, row);
+    private ContextMenu createBookmarkContextMenu(BookmarkItem item, List<BookmarkItem> selectedItems, Node owner) {
+        ContextMenu rowMenu = new ContextMenu();
+        rowMenu.getStyleClass().add("bookmark-context-menu");
         rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
 
-        MenuItem editItem = new MenuItem(I18n.tr("autoRemoveFromFavorite"));
-        editItem.getStyleClass().add("danger-menu-item");
-
-        editItem.setOnAction(_ -> handleDeleteMultipleBookmarks());
-
-        List<MenuItem> playerItems = new ArrayList<>();
         for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
             MenuItem playerItem = new MenuItem(option.label());
-            playerItem.setOnAction(event -> {
-                if (bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size() > 1) {
+            playerItem.setOnAction(_ -> {
+                if (selectedItems.size() > 1) {
                     showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
                 } else {
                     rowMenu.hide();
-                    play(row.getItem(), option.playerPath());
+                    play(item, option.playerPath());
                 }
             });
-            playerItems.add(playerItem);
+            rowMenu.getItems().add(playerItem);
         }
 
         Menu addToMenu = new Menu(I18n.tr("autoAddTo"));
         List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
         for (BookmarkCategory category : categories) {
             MenuItem categoryItem = new MenuItem(category.getName());
-            categoryItem.setOnAction(event -> {
-                ObservableList<BookmarkItem> selectedItems = bookmarkTable.getTableView().getSelectionModel().getSelectedItems();
+            categoryItem.setOnAction(_ -> {
                 for (BookmarkItem selectedItem : selectedItems) {
                     selectedItem.setCategoryTitle(category.getName());
                     Bookmark b = BookmarkService.getInstance().getBookmark(selectedItem.getBookmarkId());
-                    b.setCategoryId(category.getId());
-                    BookmarkService.getInstance().save(b);
+                    if (b != null) {
+                        b.setCategoryId(category.getId());
+                        BookmarkService.getInstance().save(b);
+                    }
                 }
                 forceReload();
             });
             addToMenu.getItems().add(categoryItem);
         }
-        rowMenu.getItems().addAll(playerItems);
+
+        MenuItem editItem = new MenuItem(I18n.tr("autoRemoveFromFavorite"));
+        editItem.getStyleClass().add("danger-menu-item");
+        editItem.setOnAction(_ -> handleDeleteMultipleBookmarks());
+
         rowMenu.getItems().add(addToMenu);
         rowMenu.getItems().add(new SeparatorMenuItem());
         rowMenu.getItems().add(editItem);
-        row.contextMenuProperty().bind(
-                Bindings.when(row.emptyProperty())
-                        .then((ContextMenu) null)
-                        .otherwise(rowMenu));
+        return rowMenu;
     }
 
     private void handleDeleteMultipleBookmarks() {
-        int selectedCount = bookmarkTable.getTableView().getSelectionModel().getSelectedItems().size();
+        List<BookmarkItem> selectedItems = new ArrayList<>(bookmarkGrid.getSelectedItems());
+        int selectedCount = selectedItems.size();
+        if (selectedCount == 0) {
+            return;
+        }
 
         String message = I18n.tr(
                 "autoRemoveBookmarksFromFavoriteConfirm",
                 selectedCount,
-                bookmarkTable.getTableView().getSelectionModel().getSelectedItems().stream()
+                selectedItems.stream()
                         .map(BookmarkItem::getChannelName)
                         .collect(Collectors.joining(", "))
         );
 
         isPromptShowing = true;
         if (!showConfirmationAlert(message)) {
-            return;
-        }
-        List<BookmarkItem> selectedItems = new ArrayList<>(bookmarkTable.getTableView().getSelectionModel().getSelectedItems());
-        if (selectedItems.isEmpty()) {
             return;
         }
         suppressAutoReloadOnBookmarkChange = true;
@@ -926,9 +939,9 @@ public class BookmarkChannelListUI extends HBox {
                     if (!removedBookmarkIds.isEmpty()) {
                         allBookmarkItems.removeIf(item -> removedBookmarkIds.contains(item.getBookmarkId()));
                         filterView();
-                        bookmarkTable.getTableView().getSelectionModel().clearSelection();
+                        bookmarkGrid.clearSelection();
                         if (allBookmarkItems.isEmpty()) {
-                            bookmarkTable.getTableView().setPlaceholder(new Label(I18n.tr("autoNoBookmarksFound")));
+                            bookmarkGrid.setPlaceholderText(I18n.tr("autoNoBookmarksFound"));
                         }
                     }
                     lastKnownBookmarkRevision = BookmarkService.getInstance().getChangeRevision();

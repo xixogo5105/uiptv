@@ -7,10 +7,10 @@ import com.uiptv.ui.*;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.SystemUtils;
+import com.uiptv.widget.AppNavigationPane;
 import javafx.animation.PauseTransition;
 import javafx.application.HostServices;
 import javafx.geometry.Pos;
-import javafx.geometry.Side;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -48,20 +48,23 @@ public abstract class BaseMainApplicationUI {
 
     public Scene buildScene() {
         AccountListUI accountListUI = new AccountListUI(useEmbeddedAccountFlow());
-        BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI();
+        BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI(hostServices, this::toggleTheme);
         AtomicReference<WatchingNowUI> watchingNowRef = new AtomicReference<>();
         setMinWidthForPane(bookmarkChannelListUI);
         setMinWidthForPane(accountListUI);
 
-        TabPane tabPane = new TabPane();
+        AppNavigationPane tabPane = new AppNavigationPane();
 
-        Tab manageAccountTab = new Tab(I18n.tr("autoAccount"),
-                useEmbeddedAccountFlow() ? wrapToFill(accountListUI) : createDeferredPlaceholder());
-        Tab parseMultipleAccountTab = new Tab(I18n.tr("autoImportBulkAccounts"), createDeferredPlaceholder());
-        Tab bookmarkChannelListTab = new Tab(I18n.tr("autoFavorite"), bookmarkChannelListUI);
-        Tab watchingNowTab = new Tab(I18n.tr("autoWatchingNow"), createDeferredPlaceholder());
-        Tab logDisplayTab = new Tab(I18n.tr("autoLogs"), createDeferredPlaceholder());
-        Tab configurationTab = new Tab(I18n.tr("autoSettings"), createDeferredPlaceholder());
+        Tab manageAccountTab = tabPane.createTab(
+                I18n.tr("autoAccount"),
+                AppNavigationPane.ICON_ACCOUNT,
+                useEmbeddedAccountFlow() ? wrapToFill(accountListUI) : createDeferredPlaceholder()
+        );
+        Tab parseMultipleAccountTab = tabPane.createTab(I18n.tr("autoImportBulkAccounts"), AppNavigationPane.ICON_IMPORT, createDeferredPlaceholder());
+        Tab bookmarkChannelListTab = tabPane.createTab(I18n.tr("autoFavorite"), AppNavigationPane.ICON_FAVORITE, bookmarkChannelListUI);
+        Tab watchingNowTab = tabPane.createTab(I18n.tr("autoWatchingNow"), AppNavigationPane.ICON_WATCHING, createDeferredPlaceholder());
+        Tab logDisplayTab = tabPane.createTab(I18n.tr("autoLogs"), AppNavigationPane.ICON_LOGS, createDeferredPlaceholder());
+        Tab configurationTab = tabPane.createTab(I18n.tr("autoSettings"), AppNavigationPane.ICON_SETTINGS, createDeferredPlaceholder());
 
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             LogDisplayUI.setLoggingEnabled(newTab == logDisplayTab);
@@ -75,8 +78,6 @@ public abstract class BaseMainApplicationUI {
 
         tabPane.getTabs().addAll(configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab);
         tabPane.getSelectionModel().select(bookmarkChannelListTab);
-        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabPane.setSide(Side.LEFT);
 
         HBox mainContent = buildMainContent(tabPane, accountListUI);
 
@@ -103,6 +104,19 @@ public abstract class BaseMainApplicationUI {
         return scene;
     }
 
+    private void toggleTheme() {
+        com.uiptv.model.Configuration configuration = configurationService.read();
+        if (configuration == null) {
+            return;
+        }
+        configuration.setDarkTheme(!configuration.isDarkTheme());
+        configurationService.save(configuration);
+        Scene currentScene = primaryStage.getScene();
+        if (currentScene != null) {
+            fontStyleConfigurer.accept(currentScene);
+        }
+    }
+
     protected abstract HBox buildMainContent(TabPane tabPane, AccountListUI accountListUI);
 
     protected abstract boolean useEmbeddedAccountFlow();
@@ -114,34 +128,48 @@ public abstract class BaseMainApplicationUI {
         HBox.setHgrow(embeddedPlayer, Priority.ALWAYS);
 
         tabPane.setMinWidth(445);
-        tabPane.setPrefWidth(445);
-        tabPane.setMaxWidth(445);
+        tabPane.setPrefWidth(520);
+        tabPane.setMaxWidth(Double.MAX_VALUE);
         tabPane.setMaxHeight(Double.MAX_VALUE);
         tabPane.setMinHeight(0);
+
+        StackPane navigationShell = createNavigationShell(tabPane);
+        HBox.setHgrow(navigationShell, Priority.ALWAYS);
 
         accountListUI.setMaxHeight(Double.MAX_VALUE);
         accountListUI.setMinHeight(0);
         embeddedPlayer.setMinHeight(0);
 
-        return new HBox(tabPane, embeddedPlayer);
+        HBox mainContent = new HBox(navigationShell, embeddedPlayer);
+        mainContent.setFillHeight(true);
+        mainContent.setMinSize(0, 0);
+        mainContent.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        return mainContent;
     }
 
     protected HBox createMainContent(TabPane tabPane, AccountListUI accountListUI) {
-        VBox leftContainer = new VBox();
-        leftContainer.setFillWidth(true);
-        VBox.setVgrow(tabPane, Priority.ALWAYS);
-        leftContainer.getChildren().add(tabPane);
+        tabPane.setMinWidth(0);
+        tabPane.setPrefWidth(guidedMaxWidthPixels);
+        tabPane.setMaxWidth(Double.MAX_VALUE);
+        tabPane.setMaxHeight(Double.MAX_VALUE);
+        tabPane.setMinHeight(0);
 
-        leftContainer.setMinWidth(480);
-        leftContainer.setPrefWidth(480);
-        leftContainer.setMaxWidth(480);
-        tabPane.setMinWidth(480);
-        tabPane.setPrefWidth(480);
-        tabPane.setMaxWidth(480);
-
-        HBox mainContent = new HBox(leftContainer, accountListUI);
-        HBox.setHgrow(tabPane, Priority.ALWAYS);
+        StackPane navigationShell = createNavigationShell(tabPane);
+        HBox mainContent = new HBox(navigationShell);
+        mainContent.setFillHeight(true);
+        mainContent.setMinSize(0, 0);
+        mainContent.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        HBox.setHgrow(navigationShell, Priority.ALWAYS);
         return mainContent;
+    }
+
+    protected StackPane createNavigationShell(TabPane tabPane) {
+        StackPane shell = new StackPane(tabPane);
+        shell.getStyleClass().add("uiptv-nav-shell");
+        shell.setMinSize(0, 0);
+        shell.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        StackPane.setAlignment(tabPane, Pos.CENTER);
+        return shell;
     }
 
     protected HBox createEmbeddedPlayerContainer() {
@@ -176,20 +204,20 @@ public abstract class BaseMainApplicationUI {
             WatchingNowUI watchingNowUI = new WatchingNowUI();
             setMinWidthForPane(watchingNowUI);
             context.watchingNowRef().set(watchingNowUI);
-            context.watchingNowTab().setContent(watchingNowUI);
+            context.watchingNowTab().setContent(AppNavigationPane.wrapContent(watchingNowUI));
         };
 
         Runnable loadLogDisplay = () -> {
             LogDisplayUI logDisplayUI = new LogDisplayUI();
             setMinWidthForPane(logDisplayUI);
-            context.logDisplayTab().setContent(logDisplayUI);
+            context.logDisplayTab().setContent(AppNavigationPane.wrapContent(logDisplayUI));
         };
 
         Runnable loadParseMultiple = () -> {
             ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
             setMinWidthForPane(parseMultipleAccountUI);
             configureParseMultipleAccountUI(parseMultipleAccountUI, context.accountListUI());
-            context.parseMultipleAccountTab().setContent(parseMultipleAccountUI);
+            context.parseMultipleAccountTab().setContent(AppNavigationPane.wrapContent(parseMultipleAccountUI));
         };
 
         Runnable loadManageAccount = () -> {
@@ -205,7 +233,7 @@ public abstract class BaseMainApplicationUI {
             );
             configureManageAccountUI(manageAccountUI, context.accountListUI(), context.bookmarkChannelListUI(), watchingNowSupplier);
             if (!useEmbeddedAccountFlow()) {
-                context.manageAccountTab().setContent(manageAccountUI);
+                context.manageAccountTab().setContent(AppNavigationPane.wrapContent(createAccountManagementContent(context.accountListUI(), manageAccountUI)));
             }
         };
 
@@ -223,7 +251,7 @@ public abstract class BaseMainApplicationUI {
                 }
             });
             setMinWidthForPane(configurationUI);
-            context.configurationTab().setContent(configurationUI);
+            context.configurationTab().setContent(AppNavigationPane.wrapContent(configurationUI));
         };
 
         scheduleDeferredTabLoad(loadConfiguration,
@@ -255,6 +283,15 @@ public abstract class BaseMainApplicationUI {
         VBox.setVgrow(content, Priority.ALWAYS);
         wrapper.setFillWidth(true);
         return wrapper;
+    }
+
+    private SplitPane createAccountManagementContent(AccountListUI accountListUI, ManageAccountUI manageAccountUI) {
+        SplitPane accountPage = new SplitPane(wrapToFill(manageAccountUI), wrapToFill(accountListUI));
+        accountPage.getStyleClass().add("account-management-split");
+        accountPage.setDividerPositions(0.58);
+        accountPage.setMinSize(0, 0);
+        accountPage.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        return accountPage;
     }
 
     protected StackPane createEmbeddedPlayerShell(javafx.scene.Node playerNode) {

@@ -11,6 +11,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
@@ -62,14 +63,24 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         embeddedPlayer.visibleProperty().bind(activePlayerNode.visibleProperty());
 
         VBox containerWithEmbeddedPlayer = new VBox();
-        VBox.setVgrow(tabPane, Priority.ALWAYS);
-        containerWithEmbeddedPlayer.getChildren().addAll(embeddedPlayer, tabPane);
+        StackPane navigationShell = createNavigationShell(tabPane);
+        VBox.setVgrow(navigationShell, Priority.ALWAYS);
+        containerWithEmbeddedPlayer.getChildren().addAll(embeddedPlayer, navigationShell);
+        containerWithEmbeddedPlayer.setFillWidth(true);
+        containerWithEmbeddedPlayer.setMinSize(0, 0);
+        containerWithEmbeddedPlayer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
-        HBox mainContent = new HBox(containerWithEmbeddedPlayer, accountListUI);
-        HBox.setHgrow(tabPane, Priority.ALWAYS);
-        tabPane.setMinWidth(480);
-        tabPane.setPrefWidth(480);
-        tabPane.setMaxWidth(480);
+        HBox mainContent = new HBox(containerWithEmbeddedPlayer);
+        mainContent.setFillHeight(true);
+        mainContent.setMinSize(0, 0);
+        mainContent.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        HBox.setHgrow(containerWithEmbeddedPlayer, Priority.ALWAYS);
+        HBox.setHgrow(navigationShell, Priority.ALWAYS);
+        tabPane.setMinWidth(0);
+        tabPane.setPrefWidth(guidedMaxWidthPixels);
+        tabPane.setMaxWidth(Double.MAX_VALUE);
+        tabPane.setMaxHeight(Double.MAX_VALUE);
+        tabPane.setMinHeight(0);
         return mainContent;
     }
 

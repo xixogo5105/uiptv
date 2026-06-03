@@ -20,10 +20,13 @@ public class SearchableTableViewWithButton<T> extends VBox { // Made generic
     private final TextField searchTextField = new TextField();
     private final Button manageCategoriesButton = new Button(I18n.tr("commonAdd"));
     private final TableView<T> tableView = new TableView<>(); // Made generic
+    private final HBox toolbar;
 
     public SearchableTableViewWithButton() {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
+        this.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         this.tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        this.tableView.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         searchTextField.setPromptText(I18n.tr("commonSearch"));
         searchTextField.setMaxWidth(Double.MAX_VALUE);
         searchTextField.setOnMousePressed(event -> searchTextField.clear());
@@ -32,12 +35,12 @@ public class SearchableTableViewWithButton<T> extends VBox { // Made generic
         manageCategoriesButton.setMinWidth(Region.USE_PREF_SIZE);
         manageCategoriesButton.setMaxWidth(Region.USE_PREF_SIZE);
         VBox.setVgrow(tableView, Priority.ALWAYS);
-        HBox hBox = new HBox(5, searchTextField, manageCategoriesButton);
+        toolbar = new HBox(5, searchTextField, manageCategoriesButton);
         HBox.setHgrow(searchTextField, Priority.ALWAYS);
-        hBox.setMaxHeight(25);
+        toolbar.setMaxHeight(25);
 
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
-        this.getChildren().addAll(hBox, tableView);
+        this.getChildren().addAll(toolbar, tableView);
         VBox.setVgrow(this, Priority.ALWAYS);
         tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
     }
@@ -52,6 +55,12 @@ public class SearchableTableViewWithButton<T> extends VBox { // Made generic
 
     public TableView<T> getTableView() { // Made generic
         return tableView;
+    }
+
+    public void detachToolbarControls() {
+        toolbar.getChildren().removeAll(searchTextField, manageCategoriesButton);
+        toolbar.setManaged(false);
+        toolbar.setVisible(false);
     }
 
     public void addTextFilter() { // Removed <T> from here, now uses class T
