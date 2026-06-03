@@ -60,11 +60,12 @@ public class BookmarkCard extends HBox {
         text.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(text, Priority.ALWAYS);
 
-        if (loadImage) {
-            imageView.loadImage(logoUrl, imageCacheName);
-        } else {
-            imageView.clearImage();
+        if (!loadImage) {
+            getChildren().add(text);
+            return;
         }
+
+        imageView.loadImage(logoUrl, imageCacheName);
         getChildren().addAll(imageView, text);
     }
 }

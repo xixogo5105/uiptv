@@ -2,6 +2,7 @@ package com.uiptv.widget;
 
 import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
+import javafx.application.Platform;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
@@ -9,8 +10,13 @@ import javafx.scene.control.ButtonType;
 import javafx.stage.Window;
 
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 public class UIptvAlert {
+    private static final Set<String> ACTIVE_VOID_ALERTS = ConcurrentHashMap.newKeySet();
+
     private UIptvAlert() {
     }
 
@@ -28,10 +34,17 @@ public class UIptvAlert {
         if (isHeadlessMode()) {
             return;
         }
-        Alert alert = new Alert(Alert.AlertType.INFORMATION, message, closeButtonType());
-        alert.setTitle(I18n.tr("commonInfo"));
-        prepareAlert(alert, null, alert.getButtonTypes().getFirst());
-        ThemedDialogSupport.showAndWait(alert, alertOwnerWindow());
+        String alertKey = "INFO:" + message;
+        if (!ACTIVE_VOID_ALERTS.add(alertKey)) {
+            AppLog.addInfoLog(UIptvAlert.class, "Message alert coalesced: " + message);
+            return;
+        }
+        showVoidAlertLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION, message, closeButtonType());
+            alert.setTitle(I18n.tr("commonInfo"));
+            prepareAlert(alert, null, alert.getButtonTypes().getFirst());
+            return alert;
+        }, () -> ACTIVE_VOID_ALERTS.remove(alertKey));
     }
 
     public static boolean showConfirmationAlert(String contents) {
@@ -83,10 +96,28 @@ public class UIptvAlert {
         if (isHeadlessMode()) {
             return;
         }
-        Alert alert = new Alert(Alert.AlertType.ERROR, message, closeButtonType());
-        alert.setTitle(I18n.tr("commonError"));
-        prepareAlert(alert, null, alert.getButtonTypes().getFirst());
-        ThemedDialogSupport.showAndWait(alert, alertOwnerWindow());
+        String alertKey = "ERROR:" + message;
+        if (!ACTIVE_VOID_ALERTS.add(alertKey)) {
+            AppLog.addInfoLog(UIptvAlert.class, "Error alert coalesced: " + message);
+            return;
+        }
+        showVoidAlertLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.ERROR, message, closeButtonType());
+            alert.setTitle(I18n.tr("commonError"));
+            prepareAlert(alert, null, alert.getButtonTypes().getFirst());
+            return alert;
+        }, () -> ACTIVE_VOID_ALERTS.remove(alertKey));
+    }
+
+    private static void showVoidAlertLater(Supplier<Alert> alertSupplier, Runnable cleanup) {
+        Platform.runLater(() -> Platform.runLater(() -> {
+            try {
+                Alert alert = alertSupplier.get();
+                ThemedDialogSupport.showAndWait(alert, alertOwnerWindow());
+            } finally {
+                cleanup.run();
+            }
+        }));
     }
 
     private static void prepareAlert(Alert alert, ButtonType primaryButtonType, ButtonType secondaryButtonType) {

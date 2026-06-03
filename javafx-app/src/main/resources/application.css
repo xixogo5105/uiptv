@@ -598,9 +598,9 @@
 }
 
 .uiptv-outline-pane {
-    -fx-background-color: -uiptv-surface-muted;
-    -fx-border-color: transparent;
-    -fx-border-width: 0;
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
     -fx-border-radius: 14;
     -fx-background-radius: 14;
     -fx-padding: 10;
@@ -903,7 +903,7 @@
 }
 
 .settings-section-card {
-    -fx-background-color: linear-gradient(to bottom right, #ffffff, #fafafa);
+    -fx-background-color: #ffffff;
     -fx-border-color: rgba(17, 19, 24, 0.08);
     -fx-border-width: 1;
     -fx-background-radius: 18;
@@ -953,6 +953,175 @@
 .settings-inline-action:focused {
     -fx-text-fill: #0b57d0;
     -fx-underline: true;
+}
+
+.settings-player-panel {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 18;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
+    -fx-border-radius: 18;
+    -fx-padding: 10;
+}
+
+.settings-player-panel-hint {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.90em;
+    -fx-padding: 0 2 1 2;
+}
+
+.settings-player-card-list {
+    -fx-fill-width: true;
+}
+
+.settings-player-card {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 24, 39, 0.07);
+    -fx-border-width: 1;
+    -fx-background-radius: 15;
+    -fx-border-radius: 15;
+    -fx-padding: 11;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.045), 10, 0.08, 0, 2);
+}
+
+.settings-player-card:selected {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(16, 24, 40, 0.42);
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.11), 14, 0.14, 0, 4);
+}
+
+.settings-player-card:hover {
+    -fx-border-color: rgba(17, 24, 39, 0.16);
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.09), 12, 0.12, 0, 3);
+}
+
+.settings-player-default-radio {
+    -fx-padding: 1 0 0 0;
+    -fx-cursor: hand;
+}
+
+.settings-player-default-radio > .radio {
+    -fx-min-width: 18;
+    -fx-min-height: 18;
+    -fx-pref-width: 18;
+    -fx-pref-height: 18;
+    -fx-max-width: 18;
+    -fx-max-height: 18;
+}
+
+.settings-player-default-radio:selected > .radio > .dot {
+    -fx-padding: 4;
+}
+
+.settings-player-card-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.settings-player-card-description {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.91em;
+}
+
+.settings-player-link {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-text-fill: #0b57d0;
+    -fx-font-weight: bold;
+    -fx-underline: true;
+    -fx-cursor: hand;
+}
+
+.settings-player-link:hover,
+.settings-player-link:focused {
+    -fx-text-fill: #063b91;
+}
+
+.settings-player-path-field {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 11;
+    -fx-border-radius: 11;
+    -fx-padding: 6 8 6 8;
+    -fx-min-height: 34;
+    -fx-pref-height: 34;
+}
+
+.settings-player-path-field:focused {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 24, 39, 0.14);
+}
+
+.settings-player-field-row {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+}
+
+.settings-player-browse-button {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
+    -fx-background-radius: 11;
+    -fx-border-radius: 11;
+    -fx-padding: 0;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.settings-player-browse-button:hover,
+.settings-player-browse-button:focused {
+    -fx-background-color: #1f2937;
+    -fx-border-color: #1f2937;
+    -fx-opacity: 1;
+}
+
+.settings-server-port-row {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+    -fx-padding: 10;
+}
+
+.settings-server-port-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.settings-server-open-link {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0 2 0 2;
+    -fx-text-fill: #0b57d0;
+    -fx-font-weight: bold;
+    -fx-underline: true;
+    -fx-cursor: hand;
+}
+
+.settings-server-open-link:hover,
+.settings-server-open-link:focused {
+    -fx-text-fill: #063b91;
+}
+
+.settings-server-action-row {
+    -fx-padding: 4 0 0 0;
+}
+
+.settings-server-start-button,
+.settings-server-publish-button {
+    -fx-min-width: 150;
+}
+
+.settings-server-publish-button {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
 }
 
 .settings-filter-mode-row {
@@ -1037,14 +1206,15 @@
 }
 
 .settings-filter-text-area {
-    -fx-background-color: -uiptv-surface-muted;
-    -fx-border-color: transparent;
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
     -fx-background-radius: 14;
     -fx-border-radius: 14;
 }
 
 .settings-filter-text-area .content {
-    -fx-background-color: -uiptv-surface-muted;
+    -fx-background-color: #ffffff;
     -fx-background-radius: 14;
 }
 
@@ -1053,9 +1223,9 @@
 }
 
 .settings-backup-action-card {
-    -fx-background-color: -uiptv-surface-muted;
-    -fx-border-color: transparent;
-    -fx-border-width: 0;
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
     -fx-background-radius: 16;
     -fx-border-radius: 16;
     -fx-padding: 12 12 12 12;
@@ -1069,7 +1239,7 @@
 }
 
 .settings-backup-action-card.primary {
-    -fx-background-color: #f2f4f7;
+    -fx-background-color: #ffffff;
 }
 
 .settings-backup-action-badge {
@@ -1195,16 +1365,29 @@
 
 .uiptv-modal-dialog {
     -fx-background-color: #ffffff;
+    -fx-background-insets: 0;
     -fx-background-radius: 24;
     -fx-border-color: rgba(255, 255, 255, 0.92);
+    -fx-border-insets: 0;
     -fx-border-radius: 24;
     -fx-border-width: 1;
     -fx-padding: 20;
-    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.18), 24, 0.12, 0, 8);
+    -fx-min-width: 520;
+    -fx-pref-width: 560;
+    -fx-effect: dropshadow(gaussian, transparent, 0, 0, 0, 0);
 }
 
 .uiptv-modal-dialog > .content {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
     -fx-padding: 6 2 14 2;
+}
+
+.uiptv-modal-dialog > .header-panel,
+.uiptv-modal-dialog > .button-bar,
+.uiptv-modal-dialog > .button-bar > .container {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
 }
 
 .uiptv-modal-dialog .label {
@@ -1247,15 +1430,96 @@
 .uiptv-alert-dialog > .content.label {
     -fx-font-size: 1.04em;
     -fx-text-fill: -uiptv-text-primary;
+    -fx-wrap-text: true;
+    -fx-min-width: 0;
+    -fx-pref-width: 492;
+    -fx-max-width: 492;
 }
 
 .uiptv-alert-dialog > .graphic-container {
     -fx-padding: 6 14 0 0;
 }
 
+.uiptv-help-dialog {
+    -fx-padding: 22;
+}
+
+.uiptv-help-dialog > .header-panel {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 10 0;
+}
+
+.uiptv-help-dialog > .header-panel .label {
+    -fx-font-size: 1.18em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-help-dialog > .content.label {
+    -fx-font-size: 1.00em;
+    -fx-line-spacing: 2;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-wrap-text: true;
+    -fx-min-width: 0;
+    -fx-pref-width: 492;
+    -fx-max-width: 492;
+}
+
+.uiptv-help-dialog > .graphic-container {
+    -fx-padding: 0;
+}
+
+.uiptv-vlc-options-dialog {
+    -fx-padding: 22;
+}
+
+.uiptv-vlc-dialog-content {
+    -fx-background-color: transparent;
+}
+
+.uiptv-vlc-dialog-title {
+    -fx-font-size: 1.20em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-vlc-dialog-description {
+    -fx-font-size: 0.98em;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-line-spacing: 1.5;
+}
+
+.uiptv-vlc-option-panel {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 18;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
+    -fx-border-radius: 18;
+    -fx-padding: 10;
+}
+
+.uiptv-vlc-option-row {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(17, 24, 39, 0.055);
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+    -fx-padding: 9 10 9 10;
+}
+
+.uiptv-vlc-option-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-vlc-combo-box {
+    -fx-min-height: 38;
+    -fx-pref-height: 38;
+}
+
 .uiptv-password-dialog {
     -fx-border-color: #e5e5e5;
-    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.12), 16, 0.10, 0, 5);
+    -fx-effect: dropshadow(gaussian, transparent, 0, 0, 0, 0);
 }
 
 .uiptv-password-dialog > .content {

@@ -9,10 +9,12 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
-import javafx.scene.control.Dialog;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.Label;
 import javafx.scene.effect.ColorAdjust;
 import javafx.scene.effect.Effect;
+import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
@@ -23,6 +25,8 @@ import java.util.Optional;
 
 public final class ThemedDialogSupport {
     private static final String FOCUS_BRIDGE_KEY = ThemedDialogSupport.class.getName() + ".focusBridge";
+    private static final double DEFAULT_DIALOG_WIDTH = 560;
+    private static final double DEFAULT_CONTENT_WIDTH = 492;
 
     private ThemedDialogSupport() {
     }
@@ -45,11 +49,14 @@ public final class ThemedDialogSupport {
         dialog.getDialogPane().setNodeOrientation(
                 I18n.isCurrentLocaleRtl() ? NodeOrientation.RIGHT_TO_LEFT : NodeOrientation.LEFT_TO_RIGHT
         );
+        dialog.getDialogPane().setMinWidth(Region.USE_PREF_SIZE);
+        dialog.getDialogPane().setPrefWidth(DEFAULT_DIALOG_WIDTH);
         dialog.setOnShown(_ -> {
             Scene scene = dialog.getDialogPane().getScene();
             if (scene != null) {
                 scene.setFill(Color.TRANSPARENT);
             }
+            wrapDialogText(dialog);
             installFocusBridge(dialog, ownerWindow);
             focusDialogRepeatedly(dialog);
         });
@@ -171,6 +178,20 @@ public final class ThemedDialogSupport {
         Node focusTarget = findFocusTarget(dialog);
         if (focusTarget != null) {
             Platform.runLater(focusTarget::requestFocus);
+        }
+    }
+
+    private static void wrapDialogText(Dialog<?> dialog) {
+        wrapLabel(dialog.getDialogPane().lookup(".content.label"));
+        wrapLabel(dialog.getDialogPane().lookup(".header-panel .label"));
+    }
+
+    private static void wrapLabel(Node node) {
+        if (node instanceof Label label) {
+            label.setWrapText(true);
+            label.setMinWidth(0);
+            label.setPrefWidth(DEFAULT_CONTENT_WIDTH);
+            label.setMaxWidth(DEFAULT_CONTENT_WIDTH);
         }
     }
 

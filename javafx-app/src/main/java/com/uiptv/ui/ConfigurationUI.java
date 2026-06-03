@@ -18,8 +18,11 @@ import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
+import com.uiptv.widget.ExternalPlayerPathCard;
 import com.uiptv.widget.PillBar;
+import com.uiptv.widget.PlayerOptionCard;
 import com.uiptv.widget.SwitchToggle;
+import com.uiptv.widget.ThemedDialogSupport;
 import com.uiptv.widget.UiRenderQuality;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
@@ -40,6 +43,7 @@ import javafx.scene.layout.*;
 import javafx.scene.shape.SVGPath;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import javafx.util.Duration;
 
 import java.io.File;
@@ -131,8 +135,7 @@ public class ConfigurationUI extends VBox {
     private Node filterPasswordProtectionRow;
     private final VBox filterAdminControls = new VBox(10);
     private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
-    private final CheckBox autoRunServerOnStartupCheckBox = new CheckBox(I18n.tr("configAutoRunServerOnStartup"));
-    private final CheckBox httpsServerEnabledCheckBox = new CheckBox(I18n.tr("configEnableHttpsServer"));
+    private final SwitchToggle autoRunServerOnStartupSwitch = new SwitchToggle();
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
     private final Hyperlink wideViewHelpLink = new Hyperlink("(?)");
@@ -187,6 +190,9 @@ public class ConfigurationUI extends VBox {
     private boolean syncingPasswordProtectionSelector;
     private boolean syncingConfigurationToForm;
     private boolean savingConfiguration;
+    private boolean playerSelectionConfirmationActive;
+    private boolean playerSelectionSaveDeferred;
+    private PlayerOptionCard embeddedPlayerCard;
     private AppHeaderActions pageHeaderActions;
     @SuppressWarnings("java:S1450")
     private Timeline serverStatusTimeline;
@@ -296,12 +302,9 @@ public class ConfigurationUI extends VBox {
                 cacheExpiryDays.setText(normalized);
             }
         });
-        playerPath1.setMinWidth(295);
-        playerPath2.setMinWidth(295);
-        playerPath3.setMinWidth(295);
-        playerPath1.setPrefWidth(295);
-        playerPath2.setPrefWidth(295);
-        playerPath3.setPrefWidth(295);
+        playerPath1.setMaxWidth(Double.MAX_VALUE);
+        playerPath2.setMaxWidth(Double.MAX_VALUE);
+        playerPath3.setMaxWidth(Double.MAX_VALUE);
         filterCategoriesWithTextContains.setMinWidth(250);
         filterChannelWithTextContains.setMinWidth(250);
         filterCategoriesWithTextContains.setPrefRowCount(6);
@@ -323,20 +326,8 @@ public class ConfigurationUI extends VBox {
         tmdbReadAccessToken.setMinWidth(295);
         tmdbReadAccessToken.setPrefWidth(295);
         tmdbReadAccessToken.setMaxWidth(Double.MAX_VALUE);
-        HBox box1 = new HBox(6, defaultPlayer1, playerPath1, browserButtonPlayerPath1);
-        HBox box2 = new HBox(6, defaultPlayer2, playerPath2, browserButtonPlayerPath2);
-        HBox box3 = new HBox(6, defaultPlayer3, playerPath3, browserButtonPlayerPath3);
-        Region box4Spacer = new Region();
-        HBox.setHgrow(box4Spacer, Priority.ALWAYS);
-        HBox box4 = new HBox(6, defaultEmbedPlayer, box4Spacer, vlcOptionsLink);
-        HBox box5 = new HBox(6, defaultWebBrowserPlayer);
         HBox wideViewRow = new HBox(4, wideViewCheckBox, wideViewHelpLink);
         HBox resolveChainRow = new HBox(4, resolveChainAndDeepRedirectsCheckBox, resolveChainAndDeepRedirectsHelpLink);
-        box1.setAlignment(Pos.CENTER_LEFT);
-        box2.setAlignment(Pos.CENTER_LEFT);
-        box3.setAlignment(Pos.CENTER_LEFT);
-        box4.setAlignment(Pos.CENTER_LEFT);
-        box5.setAlignment(Pos.CENTER_LEFT);
         wideViewRow.setAlignment(Pos.CENTER_LEFT);
         resolveChainRow.setAlignment(Pos.CENTER_LEFT);
         wideViewCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
@@ -345,7 +336,7 @@ public class ConfigurationUI extends VBox {
         HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
         VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbLinksRow);
         tmdbConfigSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
-        VBox playersGroup = new VBox(10, box1, box2, box3, box4, box5, wideViewRow, resolveChainRow);
+        VBox playersGroup = new VBox(12, createPlayerChoicesPanel(), wideViewRow, resolveChainRow);
         resolveChainAndDeepRedirectsHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
         wideViewHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
 
@@ -367,18 +358,22 @@ public class ConfigurationUI extends VBox {
         openServerLink.setManaged(false);
         openSecureServerLink.setVisible(false);
         openSecureServerLink.setManaged(false);
-        HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, openServerLink);
+        serverPort.setMaxWidth(Double.MAX_VALUE);
+        httpsServerPort.setMaxWidth(Double.MAX_VALUE);
+        openServerLink.getStyleClass().add("settings-server-open-link");
+        openSecureServerLink.getStyleClass().add("settings-server-open-link");
+        startServerButton.getStyleClass().add("settings-server-start-button");
+        publishM3u8Button.getStyleClass().add("settings-server-publish-button");
         publishM3u8Button.setMaxWidth(Region.USE_PREF_SIZE);
         publishM3u8Button.setPrefWidth(Region.USE_COMPUTED_SIZE);
-        HBox autoRunServerOnStartupRow = new HBox(6, autoRunServerOnStartupCheckBox);
-        autoRunServerOnStartupRow.setAlignment(Pos.CENTER_LEFT);
-        autoRunServerOnStartupCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
-        HBox httpsServerRow = new HBox(10, httpsServerEnabledCheckBox, httpsServerPort, openSecureServerLink);
-        httpsServerRow.setAlignment(Pos.CENTER_LEFT);
-        httpsServerEnabledCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
-        httpsServerPort.disableProperty().bind(httpsServerEnabledCheckBox.selectedProperty().not());
-        httpsServerEnabledCheckBox.selectedProperty().addListener((_, _, _) -> refreshServerStatusUI());
-        VBox serverGroup = new VBox(10, serverButtonWrapper, httpsServerRow, publishM3u8Button, autoRunServerOnStartupRow);
+        httpsServerPort.textProperty().addListener((_, _, _) -> refreshServerStatusUI());
+        VBox serverGroup = new VBox(
+                10,
+                createServerPortRow("HTTP", serverPort, openServerLink),
+                createServerPortRow("HTTPS", httpsServerPort, openSecureServerLink),
+                createSettingSwitchRow("configAutoRunServerOnStartup", autoRunServerOnStartupSwitch),
+                createServerActionRow()
+        );
         serverGroup.setFillWidth(true);
         VBox databaseSyncGroup = buildDatabaseSyncGroup();
 
@@ -625,6 +620,32 @@ public class ConfigurationUI extends VBox {
 
     private Node createSettingSwitchRow(String labelKey, SwitchToggle switchToggle) {
         return createSettingControlRow(labelKey, switchToggle, SETTINGS_SWITCH_WIDTH);
+    }
+
+    private Node createServerPortRow(String labelText, TextInputControl portField, Hyperlink openLink) {
+        Label label = new Label(labelText);
+        label.getStyleClass().add("settings-server-port-label");
+        label.setMinWidth(64);
+        label.setPrefWidth(64);
+
+        HBox row = new HBox(10, label, portField, openLink);
+        row.getStyleClass().add("settings-server-port-row");
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(portField, Priority.ALWAYS);
+        return row;
+    }
+
+    private Node createServerActionRow() {
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox row = new HBox(10, startServerButton, spacer, publishM3u8Button);
+        row.getStyleClass().add("settings-server-action-row");
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        return row;
     }
 
     private Node createSettingPillRow(String labelKey, PillBar<?> pillBar) {
@@ -889,7 +910,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void installAutoSaveHandlers() {
-        autoSaveDebounce.setOnFinished(_ -> saveCurrentSettings(true));
+        autoSaveDebounce.setOnFinished(_ -> Platform.runLater(() -> saveCurrentSettings(true)));
 
         installDebouncedAutoSave(playerPath1);
         installDebouncedAutoSave(playerPath2);
@@ -904,13 +925,19 @@ public class ConfigurationUI extends VBox {
         group.selectedToggleProperty().addListener((_, _, _) -> Platform.runLater(() -> {
             updateVlcOptionsLinkVisibility();
             updateWideViewVisibility();
+            if (ignorePlayerSelectionPrompt) {
+                return;
+            }
+            if (playerSelectionConfirmationActive) {
+                playerSelectionSaveDeferred = true;
+                return;
+            }
             requestImmediateAutoSave();
         }));
         installImmediateAutoSave(wideViewCheckBox);
         installImmediateAutoSave(resolveChainAndDeepRedirectsCheckBox);
         installImmediateAutoSave(enableThumbnailsCheckBox);
-        installImmediateAutoSave(httpsServerEnabledCheckBox);
-        installImmediateAutoSave(autoRunServerOnStartupCheckBox);
+        autoRunServerOnStartupSwitch.selectedProperty().addListener((_, _, _) -> requestImmediateAutoSave());
 
         languageComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
         themeZoomComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
@@ -970,12 +997,21 @@ public class ConfigurationUI extends VBox {
     }
 
     private void updateEmbeddedPlayerTitle() {
+        String title = resolveEmbeddedPlayerTitle();
+        if (embeddedPlayerCard != null) {
+            embeddedPlayerCard.setTitle(title);
+            return;
+        }
+        defaultEmbedPlayer.setText(title);
+    }
+
+    private String resolveEmbeddedPlayerTitle() {
         VideoPlayerInterface.PlayerType playerType = MediaPlayerFactory.getPlayerType();
         String title = I18n.tr("configEmbeddedPlayer");
         if (playerType == VideoPlayerInterface.PlayerType.VLC) {
             title = I18n.tr("configEmbeddedPlayerVlc");
         }
-        defaultEmbedPlayer.setText(title);
+        return title;
     }
 
     private void addClearCacheButtonClickHandler() {
@@ -1010,6 +1046,7 @@ public class ConfigurationUI extends VBox {
                 if (configurationApplicationService.isServerRunning()) {
                     configurationApplicationService.stopServer();
                 } else {
+                    saveCurrentSettings(false);
                     configurationApplicationService.startServer();
                 }
                 refreshServerStatusUI();
@@ -1101,9 +1138,13 @@ public class ConfigurationUI extends VBox {
         startServerButton.setText(running ? I18n.tr("configStopServer") : I18n.tr("configStartServer"));
         openServerLink.setVisible(running);
         openServerLink.setManaged(running);
-        boolean secureLinkVisible = running && httpsServerEnabledCheckBox.isSelected();
+        boolean secureLinkVisible = running && isHttpsServerConfigured();
         openSecureServerLink.setVisible(secureLinkVisible);
         openSecureServerLink.setManaged(secureLinkVisible);
+    }
+
+    private boolean isHttpsServerConfigured() {
+        return httpsServerPort.getText() != null && !httpsServerPort.getText().trim().isBlank();
     }
 
     private void configurePlayerToggleGroup() {
@@ -1234,6 +1275,72 @@ public class ConfigurationUI extends VBox {
         exportDatabaseButton.setOnAction(event -> openDatabaseSyncPopup(false));
     }
 
+    private VBox createPlayerChoicesPanel() {
+        Label hintLabel = new Label(I18n.tr("configAddPlayerPathsHint"));
+        hintLabel.getStyleClass().add("settings-player-panel-hint");
+        hintLabel.setWrapText(true);
+        hintLabel.setMinWidth(0);
+        hintLabel.setMaxWidth(Double.MAX_VALUE);
+        UiRenderQuality.optimizeTextNode(hintLabel);
+
+        VBox cardList = new VBox(
+                9,
+                new ExternalPlayerPathCard(
+                        I18n.tr("autoPlayer1"),
+                        null,
+                        defaultPlayer1,
+                        playerPath1,
+                        browserButtonPlayerPath1
+                ),
+                new ExternalPlayerPathCard(
+                        I18n.tr("autoPlayer2"),
+                        null,
+                        defaultPlayer2,
+                        playerPath2,
+                        browserButtonPlayerPath2
+                ),
+                new ExternalPlayerPathCard(
+                        I18n.tr("autoPlayer3"),
+                        null,
+                        defaultPlayer3,
+                        playerPath3,
+                        browserButtonPlayerPath3
+                ),
+                createEmbeddedPlayerCard(),
+                new PlayerOptionCard(
+                        I18n.tr("configDefaultWebBrowserPlayer"),
+                        null,
+                        defaultWebBrowserPlayer,
+                        null
+                )
+        );
+        cardList.getStyleClass().add("settings-player-card-list");
+        cardList.setMinWidth(0);
+        cardList.setMaxWidth(Double.MAX_VALUE);
+        UiRenderQuality.optimizeLayout(cardList);
+
+        VBox panel = new VBox(10, hintLabel, cardList);
+        panel.getStyleClass().add("settings-player-panel");
+        panel.setMinWidth(0);
+        panel.setMaxWidth(Double.MAX_VALUE);
+        UiRenderQuality.optimizeLayout(panel);
+        return panel;
+    }
+
+    private PlayerOptionCard createEmbeddedPlayerCard() {
+        if (!vlcOptionsLink.getStyleClass().contains("settings-player-link")) {
+            vlcOptionsLink.getStyleClass().add("settings-player-link");
+        }
+        embeddedPlayerCard = new PlayerOptionCard(
+                resolveEmbeddedPlayerTitle(),
+                null,
+                defaultEmbedPlayer,
+                null,
+                vlcOptionsLink
+        );
+        return embeddedPlayerCard;
+    }
+
     private void registerConfigurationChangeListener() {
         sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (oldScene == null && newScene != null) {
@@ -1360,9 +1467,10 @@ public class ConfigurationUI extends VBox {
             syncThumbnailModeSelector();
             wideViewCheckBox.setSelected(configuration.isWideView());
             serverPort.setText(configuration.getServerPort());
-            httpsServerEnabledCheckBox.setSelected(configuration.isHttpsServerEnabled());
-            httpsServerPort.setText(defaultHttpsServerPort(configuration.getHttpsServerPort()));
-            autoRunServerOnStartupCheckBox.setSelected(configuration.isAutoRunServerOnStartup());
+            httpsServerPort.setText(configuration.isHttpsServerEnabled()
+                    ? defaultHttpsServerPort(configuration.getHttpsServerPort())
+                    : "");
+            autoRunServerOnStartupSwitch.setSelected(configuration.isAutoRunServerOnStartup());
             resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
             tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
@@ -1454,9 +1562,9 @@ public class ConfigurationUI extends VBox {
         Integer saveDuration = filterLockUnlockDurationComboBox.getValue();
         configuration.setFilterLockUnlockDurationMinutes(saveDuration != null ? String.valueOf(saveDuration) : "15");
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
-        configuration.setAutoRunServerOnStartup(autoRunServerOnStartupCheckBox.isSelected());
-        configuration.setHttpsServerEnabled(httpsServerEnabledCheckBox.isSelected());
-        configuration.setHttpsServerPort(httpsServerPort.getText());
+        configuration.setAutoRunServerOnStartup(autoRunServerOnStartupSwitch.isSelected());
+        configuration.setHttpsServerEnabled(isHttpsServerConfigured());
+        configuration.setHttpsServerPort(httpsServerPort.getText() == null ? "" : httpsServerPort.getText().trim());
         configuration.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
         configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
         configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
@@ -1580,77 +1688,130 @@ public class ConfigurationUI extends VBox {
     }
 
     private void openVlcOptionsPopup() {
-        Stage popupStage = new Stage();
-        popupStage.initOwner(getScene() == null ? RootApplication.getPrimaryStage() : (Stage) getScene().getWindow());
-        popupStage.setTitle(I18n.tr("configVlcPopupTitle"));
+        Window ownerWindow = getScene() == null ? ThemedDialogSupport.primaryOwnerWindow() : getScene().getWindow();
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle(I18n.tr("configVlcPopupTitle"));
 
         ComboBox<VlcCachingOption> networkCachingComboBox = createVlcCachingComboBox();
         ComboBox<VlcCachingOption> liveCachingComboBox = createVlcCachingComboBox();
-        CheckBox userAgentCheckBox = new CheckBox(I18n.tr("configVlcEnableUserAgent"));
-        CheckBox forwardCookiesCheckBox = new CheckBox(I18n.tr("configVlcForwardCookies"));
+        SwitchToggle userAgentSwitch = new SwitchToggle();
+        SwitchToggle forwardCookiesSwitch = new SwitchToggle();
 
         Runnable loadCurrentValues = () -> {
             networkCachingComboBox.getSelectionModel().select(VlcCachingOption.fromValue(vlcNetworkCachingMs));
             liveCachingComboBox.getSelectionModel().select(VlcCachingOption.fromValue(vlcLiveCachingMs));
-            userAgentCheckBox.setSelected(vlcHttpUserAgentEnabled);
-            forwardCookiesCheckBox.setSelected(vlcHttpForwardCookiesEnabled);
+            userAgentSwitch.setSelected(vlcHttpUserAgentEnabled);
+            forwardCookiesSwitch.setSelected(vlcHttpForwardCookiesEnabled);
         };
         loadCurrentValues.run();
 
-        Button saveVlcOptionsButton = new Button(I18n.tr("commonSave"));
-        Button resetVlcOptionsButton = new Button(I18n.tr("configVlcResetDefaults"));
-        Button closeButton = new Button(I18n.tr("commonClose"));
+        Label title = new Label(I18n.tr("configVlcPopupTitle"));
+        title.getStyleClass().add("uiptv-vlc-dialog-title");
+        UiRenderQuality.optimizeTextNode(title);
 
-        saveVlcOptionsButton.setOnAction(event -> {
-            vlcNetworkCachingMs = selectedCachingValue(networkCachingComboBox);
-            vlcLiveCachingMs = selectedCachingValue(liveCachingComboBox);
-            vlcHttpUserAgentEnabled = userAgentCheckBox.isSelected();
-            vlcHttpForwardCookiesEnabled = forwardCookiesCheckBox.isSelected();
-            saveVlcOptionsConfiguration(true);
-            popupStage.close();
-        });
-        resetVlcOptionsButton.setOnAction(event -> {
-            vlcNetworkCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
-            vlcLiveCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
-            vlcHttpUserAgentEnabled = true;
-            vlcHttpForwardCookiesEnabled = true;
-            saveVlcOptionsConfiguration(true);
-            popupStage.close();
-        });
-        closeButton.setOnAction(event -> popupStage.close());
+        Label description = new Label(I18n.tr("configVlcPopupDescription"));
+        description.getStyleClass().add("uiptv-vlc-dialog-description");
+        description.setWrapText(true);
+        description.setMinWidth(0);
+        description.setMaxWidth(Double.MAX_VALUE);
+        UiRenderQuality.optimizeTextNode(description);
 
-        GridPane gridPane = new GridPane();
-        gridPane.setHgap(10);
-        gridPane.setVgap(10);
-        gridPane.add(new Label(I18n.tr("configVlcNetworkCaching")), 0, 0);
-        gridPane.add(networkCachingComboBox, 1, 0);
-        gridPane.add(new Label(I18n.tr("configVlcLiveCaching")), 0, 1);
-        gridPane.add(liveCachingComboBox, 1, 1);
-        gridPane.add(userAgentCheckBox, 1, 2);
-        gridPane.add(forwardCookiesCheckBox, 1, 3);
-        GridPane.setHgrow(networkCachingComboBox, Priority.ALWAYS);
-        GridPane.setHgrow(liveCachingComboBox, Priority.ALWAYS);
-
-        HBox buttons = new HBox(10, saveVlcOptionsButton, resetVlcOptionsButton, closeButton);
-        buttons.setAlignment(Pos.CENTER_RIGHT);
-
-        VBox root = new VBox(12,
-                new Label(I18n.tr("configVlcPopupDescription")),
-                gridPane,
-                buttons
+        VBox optionPanel = new VBox(
+                10,
+                createVlcComboOptionRow("configVlcNetworkCaching", networkCachingComboBox),
+                createVlcComboOptionRow("configVlcLiveCaching", liveCachingComboBox),
+                createVlcSwitchOptionRow("configVlcEnableUserAgent", userAgentSwitch),
+                createVlcSwitchOptionRow("configVlcForwardCookies", forwardCookiesSwitch)
         );
-        root.setPadding(new Insets(14));
+        optionPanel.getStyleClass().add("uiptv-vlc-option-panel");
+        optionPanel.setMinWidth(0);
+        optionPanel.setMaxWidth(Double.MAX_VALUE);
+        UiRenderQuality.optimizeLayout(optionPanel);
 
-        Scene scene = new Scene(root, 520, Region.USE_COMPUTED_SIZE);
-        UiI18n.applySceneOrientation(scene);
-        scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        popupStage.setScene(scene);
-        popupStage.showAndWait();
+        VBox root = new VBox(14, title, description, optionPanel);
+        root.getStyleClass().add("uiptv-vlc-dialog-content");
+        root.setMinWidth(0);
+        root.setMaxWidth(Double.MAX_VALUE);
+        UiRenderQuality.optimizeLayout(root);
+
+        ButtonType saveButtonType = new ButtonType(I18n.tr("commonSave"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType resetButtonType = new ButtonType(I18n.tr("configVlcResetDefaults"), ButtonBar.ButtonData.OTHER);
+        ButtonType closeButtonType = UIptvAlert.closeButtonType();
+        dialog.getDialogPane().setContent(root);
+        dialog.getDialogPane().getButtonTypes().setAll(saveButtonType, resetButtonType, closeButtonType);
+        ThemedDialogSupport.prepare(dialog, ownerWindow, "uiptv-vlc-options-dialog");
+
+        Button saveButton = (Button) dialog.getDialogPane().lookupButton(saveButtonType);
+        Button resetButton = (Button) dialog.getDialogPane().lookupButton(resetButtonType);
+        Button closeButton = (Button) dialog.getDialogPane().lookupButton(closeButtonType);
+        if (saveButton != null) {
+            saveButton.getStyleClass().add("uiptv-dialog-primary-button");
+            saveButton.setDefaultButton(true);
+            saveButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+                vlcNetworkCachingMs = selectedCachingValue(networkCachingComboBox);
+                vlcLiveCachingMs = selectedCachingValue(liveCachingComboBox);
+                vlcHttpUserAgentEnabled = userAgentSwitch.isSelected();
+                vlcHttpForwardCookiesEnabled = forwardCookiesSwitch.isSelected();
+                saveVlcOptionsConfiguration(true);
+            });
+        }
+        if (resetButton != null) {
+            resetButton.getStyleClass().add("uiptv-dialog-secondary-button");
+            resetButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+                vlcNetworkCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
+                vlcLiveCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
+                vlcHttpUserAgentEnabled = true;
+                vlcHttpForwardCookiesEnabled = true;
+                saveVlcOptionsConfiguration(true);
+            });
+        }
+        if (closeButton != null) {
+            closeButton.getStyleClass().add("uiptv-dialog-secondary-button");
+        }
+
+        ThemedDialogSupport.showAndWait(dialog, ownerWindow);
+    }
+
+    private Node createVlcComboOptionRow(String labelKey, ComboBox<VlcCachingOption> comboBox) {
+        Label label = createVlcOptionLabel(labelKey);
+        HBox row = new HBox(12, label, comboBox);
+        row.getStyleClass().add("uiptv-vlc-option-row");
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(comboBox, Priority.ALWAYS);
+        return row;
+    }
+
+    private Node createVlcSwitchOptionRow(String labelKey, SwitchToggle switchToggle) {
+        Label label = createVlcOptionLabel(labelKey);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox row = new HBox(12, label, spacer, switchToggle);
+        row.getStyleClass().add("uiptv-vlc-option-row");
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        return row;
+    }
+
+    private Label createVlcOptionLabel(String labelKey) {
+        Label label = new Label(I18n.tr(labelKey));
+        label.getStyleClass().add("uiptv-vlc-option-label");
+        label.setWrapText(true);
+        label.setMinWidth(128);
+        label.setPrefWidth(128);
+        label.setMaxWidth(180);
+        UiRenderQuality.optimizeTextNode(label);
+        return label;
     }
 
     private ComboBox<VlcCachingOption> createVlcCachingComboBox() {
         ComboBox<VlcCachingOption> comboBox = new ComboBox<>();
         comboBox.getItems().setAll(VlcCachingOption.all());
+        comboBox.getStyleClass().add("uiptv-vlc-combo-box");
+        comboBox.setMinWidth(0);
         comboBox.setMaxWidth(Double.MAX_VALUE);
         comboBox.setCellFactory(cb -> new ListCell<>() {
             @Override
@@ -2525,14 +2686,18 @@ public class ConfigurationUI extends VBox {
     }
 
     private void showHelpDialog(String title, String text) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        ButtonType okButton = UIptvAlert.okButtonType();
+        Alert alert = new Alert(Alert.AlertType.INFORMATION, text, okButton);
+        Window ownerWindow = getScene() == null ? ThemedDialogSupport.primaryOwnerWindow() : getScene().getWindow();
         alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
         alert.setHeaderText(title);
-        alert.setContentText(text);
-        alert.initOwner(getScene() == null ? null : getScene().getWindow());
-        alert.initModality(javafx.stage.Modality.NONE);
-        alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        alert.showAndWait();
+        alert.setGraphic(null);
+        ThemedDialogSupport.prepare(alert, ownerWindow, "uiptv-help-dialog");
+        Button ok = (Button) alert.getDialogPane().lookupButton(okButton);
+        if (ok != null) {
+            ok.getStyleClass().add("uiptv-dialog-primary-button");
+        }
+        ThemedDialogSupport.showAndWait(alert, ownerWindow);
     }
     private record VlcCachingOption(String value, String label) {
         private static java.util.List<VlcCachingOption> all() {
@@ -2565,27 +2730,39 @@ public class ConfigurationUI extends VBox {
 
     private void addBrowserButton1ClickHandler() {
         browserButtonPlayerPath1.setOnAction(_ -> {
-            File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
-            if (file != null) {
-                playerPath1.setText(file.getAbsolutePath());
+            try {
+                File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
+                if (file != null) {
+                    playerPath1.setText(file.getAbsolutePath());
+                }
+            } finally {
+                browserButtonPlayerPath1.setDisable(false);
             }
         });
     }
 
     private void addBrowserButton2ClickHandler() {
         browserButtonPlayerPath2.setOnAction(_ -> {
-            File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
-            if (file != null) {
-                playerPath2.setText(file.getAbsolutePath());
+            try {
+                File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
+                if (file != null) {
+                    playerPath2.setText(file.getAbsolutePath());
+                }
+            } finally {
+                browserButtonPlayerPath2.setDisable(false);
             }
         });
     }
 
     private void addBrowserButton3ClickHandler() {
         browserButtonPlayerPath3.setOnAction(_ -> {
-            File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
-            if (file != null) {
-                playerPath3.setText(file.getAbsolutePath());
+            try {
+                File file = fileChooser.showOpenDialog(RootApplication.getPrimaryStage());
+                if (file != null) {
+                    playerPath3.setText(file.getAbsolutePath());
+                }
+            } finally {
+                browserButtonPlayerPath3.setDisable(false);
             }
         });
     }
@@ -2596,23 +2773,36 @@ public class ConfigurationUI extends VBox {
                 return;
             }
             if (newToggle == defaultWebBrowserPlayer) {
-                boolean proceed = UIptvAlert.showConfirmationAlert(
-                        I18n.tr("configBrowserCompatibilityWarning")
-                );
-                if (!proceed) {
-                    restorePreviousPlayerSelection(oldToggle);
-                }
+                confirmPlayerSelection(oldToggle, "configBrowserCompatibilityWarning");
                 return;
             }
             if (newToggle == defaultEmbedPlayer) {
-                boolean proceed = UIptvAlert.showConfirmationAlert(
-                        I18n.tr("configEmbedPlayerVlcWarning")
-                );
-                if (!proceed) {
-                    restorePreviousPlayerSelection(oldToggle);
-                }
+                confirmPlayerSelection(oldToggle, "configEmbedPlayerVlcWarning");
             }
         });
+    }
+
+    private void confirmPlayerSelection(Toggle oldToggle, String messageKey) {
+        playerSelectionConfirmationActive = true;
+        boolean proceed = false;
+        try {
+            proceed = UIptvAlert.showConfirmationAlert(I18n.tr(messageKey));
+            if (!proceed) {
+                restorePreviousPlayerSelection(oldToggle);
+            }
+        } finally {
+            playerSelectionConfirmationActive = false;
+        }
+
+        boolean shouldSave = proceed && playerSelectionSaveDeferred;
+        playerSelectionSaveDeferred = false;
+        if (shouldSave) {
+            Platform.runLater(() -> {
+                updateVlcOptionsLinkVisibility();
+                updateWideViewVisibility();
+                requestImmediateAutoSave();
+            });
+        }
     }
 
     private void restorePreviousPlayerSelection(Toggle oldToggle) {
