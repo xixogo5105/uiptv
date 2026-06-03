@@ -77,6 +77,8 @@ public class ReloadCachePopup extends VBox {
     private static final String TR_RELOAD_NO_CHANNELS_LOADED = "reloadNoChannelsLoaded";
     private static final int MAX_LOG_LINES_PER_ACCOUNT = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxLinesPerAccount", 500));
     private static final int MAX_PENDING_LOG_LINES = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxPending", 2_000));
+    private static final double BULK_FAILURE_DIALOG_CONTENT_WIDTH = 520;
+    private static final double BULK_FAILURE_DIALOG_CONTENT_INSET = 14;
     private static final boolean POST_RELOAD_MEMORY_CLEANUP_ENABLED = Boolean.parseBoolean(
             System.getProperty("uiptv.reload.memoryCleanup.enabled", "true"));
     private static final int POST_RELOAD_MEMORY_CLEANUP_MIN_ACCOUNTS = Math.max(1,
@@ -470,15 +472,29 @@ public class ReloadCachePopup extends VBox {
         }
 
         List<AutomaticFailureDecisionOption> options = automaticFailureDecisionOptions();
-        ComboBox<AutomaticFailureDecisionOption> comboBox = new ComboBox<>();
-        comboBox.getItems().setAll(options);
-        comboBox.getSelectionModel().selectFirst();
-        comboBox.setMaxWidth(Double.MAX_VALUE);
+        ToggleGroup optionGroup = new ToggleGroup();
+        VBox optionBox = new VBox(8);
+        optionBox.setFillWidth(true);
+        for (AutomaticFailureDecisionOption option : options) {
+            RadioButton optionButton = new RadioButton(option.label());
+            optionButton.setToggleGroup(optionGroup);
+            optionButton.setUserData(option);
+            optionButton.setWrapText(true);
+            optionButton.setMaxWidth(Double.MAX_VALUE);
+            optionBox.getChildren().add(optionButton);
+        }
+        if (!optionGroup.getToggles().isEmpty()) {
+            optionGroup.selectToggle(optionGroup.getToggles().get(0));
+        }
 
         Label message = new Label(I18n.tr("reloadBulkFailureHandlingMessage"));
         message.setWrapText(true);
-        VBox content = new VBox(10, message, comboBox);
-        content.setPadding(new Insets(8, 0, 0, 0));
+        message.setPrefWidth(BULK_FAILURE_DIALOG_CONTENT_WIDTH);
+        message.setMinHeight(Region.USE_PREF_SIZE);
+        VBox content = new VBox(12, message, optionBox);
+        content.setPadding(new Insets(8, BULK_FAILURE_DIALOG_CONTENT_INSET, 0, BULK_FAILURE_DIALOG_CONTENT_INSET));
+        content.setPrefWidth(BULK_FAILURE_DIALOG_CONTENT_WIDTH);
+        content.setMaxWidth(BULK_FAILURE_DIALOG_CONTENT_WIDTH);
 
         ButtonType okButton = new ButtonType(I18n.tr("commonOk"), ButtonBar.ButtonData.OK_DONE);
         ButtonType closeButton = new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
@@ -490,8 +506,12 @@ public class ReloadCachePopup extends VBox {
         dialog.setHeaderText(I18n.tr("reloadBulkFailureHandlingHeader",
                 I18n.formatNumber(String.valueOf(selectedAccounts.size()))));
         dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().setPrefWidth(BULK_FAILURE_DIALOG_CONTENT_WIDTH
+                + (BULK_FAILURE_DIALOG_CONTENT_INSET * 2));
         dialog.getDialogPane().getButtonTypes().setAll(okButton, closeButton);
-        dialog.setResultConverter(button -> button == okButton ? comboBox.getValue() : null);
+        dialog.setResultConverter(button -> button == okButton && optionGroup.getSelectedToggle() != null
+                ? (AutomaticFailureDecisionOption) optionGroup.getSelectedToggle().getUserData()
+                : null);
         applyDialogThemeAndOrientation(dialog);
 
         return dialog.showAndWait()
