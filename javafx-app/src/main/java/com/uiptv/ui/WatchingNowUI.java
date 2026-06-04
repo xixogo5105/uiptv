@@ -3,11 +3,13 @@ package com.uiptv.ui;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.UiRenderQuality;
+import javafx.application.Platform;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class WatchingNowUI extends VBox {
     private static final String SERIES_TAB = "series";
@@ -18,11 +20,13 @@ public class WatchingNowUI extends VBox {
     private BaseWatchingNowUI seriesDelegate;
     private VodWatchingNowUI vodDelegate;
     private boolean thumbnailListenerRegistered = false;
+    private final AtomicBoolean activationRefreshScheduled = new AtomicBoolean(false);
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
     public WatchingNowUI() {
         buildContent();
         registerThumbnailModeListener();
+        registerActivationRefreshTriggers();
     }
 
     public void forceReload() {
@@ -36,6 +40,10 @@ public class WatchingNowUI extends VBox {
     }
 
     public void refreshIfNeeded() {
+        if (!isPageDisplayable()) {
+            scheduleActivationRefresh();
+            return;
+        }
         if (isVodSelected()) {
             vodDelegate.refreshIfNeeded();
         } else if (seriesDelegate != null) {
@@ -121,6 +129,7 @@ public class WatchingNowUI extends VBox {
         } else {
             seriesDelegate.refreshIfNeeded();
         }
+        scheduleActivationRefresh();
     }
 
     private boolean isVodSelected() {
@@ -153,6 +162,47 @@ public class WatchingNowUI extends VBox {
                 }
             }
         });
+    }
+
+    private void registerActivationRefreshTriggers() {
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene != null) {
+                scheduleActivationRefresh();
+            }
+        });
+        visibleProperty().addListener((_, _, visible) -> {
+            if (Boolean.TRUE.equals(visible)) {
+                scheduleActivationRefresh();
+            }
+        });
+        parentProperty().addListener((_, _, _) -> scheduleActivationRefresh());
+    }
+
+    private void scheduleActivationRefresh() {
+        if (!activationRefreshScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        Platform.runLater(() -> {
+            activationRefreshScheduled.set(false);
+            if (!isPageDisplayable()) {
+                return;
+            }
+            refreshIfNeeded();
+        });
+    }
+
+    private boolean isPageDisplayable() {
+        if (getScene() == null) {
+            return false;
+        }
+        javafx.scene.Node node = this;
+        while (node != null) {
+            if (!node.isVisible()) {
+                return false;
+            }
+            node = node.getParent();
+        }
+        return true;
     }
 
     private void refreshThumbnailMode() {

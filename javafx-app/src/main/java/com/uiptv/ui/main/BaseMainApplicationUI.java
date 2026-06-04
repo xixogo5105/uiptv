@@ -9,6 +9,7 @@ import com.uiptv.util.I18n;
 import com.uiptv.util.SystemUtils;
 import com.uiptv.widget.AppNavigationPane;
 import javafx.animation.PauseTransition;
+import javafx.application.Platform;
 import javafx.application.HostServices;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -213,6 +214,9 @@ public abstract class BaseMainApplicationUI {
             setMinWidthForPane(watchingNowUI);
             context.watchingNowRef().set(watchingNowUI);
             context.watchingNowTab().setContent(AppNavigationPane.wrapContent(watchingNowUI));
+            if (context.watchingNowTab().isSelected()) {
+                Platform.runLater(watchingNowUI::refreshIfNeeded);
+            }
         };
 
         Runnable loadLogDisplay = () -> {

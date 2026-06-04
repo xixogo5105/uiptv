@@ -1026,7 +1026,55 @@
 
 .watching-now-series-card,
 .watching-now-vod-card {
-    -fx-padding: 9 11 9 11;
+    -fx-padding: 14 16 14 16;
+}
+
+.watching-now-card-text {
+    -fx-padding: 2 0 0 0;
+}
+
+.watching-now-card-title {
+    -fx-font-size: 1.08em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.watching-now-card-account {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.watching-now-card-meta-row {
+    -fx-padding: 4 0 2 0;
+}
+
+.watching-now-card-chip {
+    -fx-background-color: #f5f6f7;
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 4 9 4 9;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.92em;
+}
+
+.watching-now-card-poster-wrap {
+    -fx-background-color: linear-gradient(to bottom, #ffffff, #f5f6f7);
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 8;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.10), 18, 0.14, 0, 6);
+}
+
+.watching-now-card-action-row {
+    -fx-padding: 6 0 0 0;
+}
+
+.watching-now-card-plot {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-line-spacing: 1.5;
 }
 
 .watching-now-episode-card {
@@ -1055,6 +1103,23 @@
     -fx-background-color: -uiptv-selected-card-bg;
     -fx-border-color: -uiptv-selected-card-border;
     -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.24), 18, 0.18, 0, 6);
+}
+
+.watching-now-series-card:selected .watching-now-card-chip,
+.watching-now-series-card.selected-card .watching-now-card-chip,
+.watching-now-vod-card:selected .watching-now-card-chip,
+.watching-now-vod-card.selected-card .watching-now-card-chip {
+    -fx-background-color: rgba(255, 255, 255, 0.16);
+    -fx-border-color: rgba(255, 255, 255, 0.20);
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-series-card:selected .watching-now-card-poster-wrap,
+.watching-now-series-card.selected-card .watching-now-card-poster-wrap,
+.watching-now-vod-card:selected .watching-now-card-poster-wrap,
+.watching-now-vod-card.selected-card .watching-now-card-poster-wrap {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-border-color: rgba(255, 255, 255, 0.22);
 }
 
 .watching-now-series-card.selected-card .hyperlink,

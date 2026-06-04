@@ -32,7 +32,9 @@ public class AppHeaderActions extends HBox {
     private final IconActionButton parentalPauseButton =
             new IconActionButton("Pause parental lock restrictions", ICON_PARENTAL_LOCK, this::toggleParentalPause);
     private final ConfigurationChangeListener configurationChangeListener =
-            _ -> Platform.runLater(this::updateParentalPauseButton);
+            _ -> Platform.runLater(() -> {
+                updateParentalPauseButton();
+            });
     private boolean configurationListenerRegistered;
 
     public AppHeaderActions(HostServices hostServices, Runnable themeToggleHandler, Runnable parentalPauseChangedHandler) {

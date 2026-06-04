@@ -828,7 +828,7 @@ public class ConfigurationUI extends VBox {
             }
             darkThemeCheckBox.setSelected(selected.dark());
             applyThemePreview();
-            requestImmediateAutoSave();
+            requestImmediateAutoSave("themeMode");
         });
         syncThemeModeSelector();
     }
@@ -912,15 +912,15 @@ public class ConfigurationUI extends VBox {
     private void installAutoSaveHandlers() {
         autoSaveDebounce.setOnFinished(_ -> Platform.runLater(() -> saveCurrentSettings(true)));
 
-        installDebouncedAutoSave(playerPath1);
-        installDebouncedAutoSave(playerPath2);
-        installDebouncedAutoSave(playerPath3);
-        installDebouncedAutoSave(filterCategoriesWithTextContains);
-        installDebouncedAutoSave(filterChannelWithTextContains);
-        installDebouncedAutoSave(serverPort);
-        installDebouncedAutoSave(httpsServerPort);
-        installDebouncedAutoSave(cacheExpiryDays);
-        installDebouncedAutoSave(tmdbReadAccessToken);
+        installDebouncedAutoSave(playerPath1, "playerPath1");
+        installDebouncedAutoSave(playerPath2, "playerPath2");
+        installDebouncedAutoSave(playerPath3, "playerPath3");
+        installDebouncedAutoSave(filterCategoriesWithTextContains, "filterCategories");
+        installDebouncedAutoSave(filterChannelWithTextContains, "filterChannels");
+        installDebouncedAutoSave(serverPort, "serverPort");
+        installDebouncedAutoSave(httpsServerPort, "httpsServerPort");
+        installDebouncedAutoSave(cacheExpiryDays, "cacheExpiryDays");
+        installDebouncedAutoSave(tmdbReadAccessToken, "tmdbReadAccessToken");
 
         group.selectedToggleProperty().addListener((_, _, _) -> Platform.runLater(() -> {
             updateVlcOptionsLinkVisibility();
@@ -932,35 +932,37 @@ public class ConfigurationUI extends VBox {
                 playerSelectionSaveDeferred = true;
                 return;
             }
-            requestImmediateAutoSave();
+            requestImmediateAutoSave("defaultPlayer");
         }));
-        installImmediateAutoSave(wideViewCheckBox);
-        installImmediateAutoSave(resolveChainAndDeepRedirectsCheckBox);
-        installImmediateAutoSave(enableThumbnailsCheckBox);
-        autoRunServerOnStartupSwitch.selectedProperty().addListener((_, _, _) -> requestImmediateAutoSave());
+        installImmediateAutoSave(wideViewCheckBox, "wideView");
+        installImmediateAutoSave(resolveChainAndDeepRedirectsCheckBox, "resolveRedirects");
+        installImmediateAutoSave(enableThumbnailsCheckBox, "enableThumbnails");
+        autoRunServerOnStartupSwitch.selectedProperty().addListener((_, _, _) -> requestImmediateAutoSave("autoRunServerOnStartup"));
 
-        languageComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
-        themeZoomComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
-        filterLockUnlockDurationComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
+        languageComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave("language"));
+        themeZoomComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave("themeZoom"));
+        filterLockUnlockDurationComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave("filterLockDuration"));
     }
 
-    private void installDebouncedAutoSave(TextInputControl control) {
-        control.textProperty().addListener((_, _, _) -> requestDebouncedAutoSave());
+    private void installDebouncedAutoSave(TextInputControl control, String reason) {
+        control.textProperty().addListener((_, _, _) -> requestDebouncedAutoSave(reason));
     }
 
-    private void installImmediateAutoSave(CheckBox checkBox) {
-        checkBox.selectedProperty().addListener((_, _, _) -> requestImmediateAutoSave());
+    private void installImmediateAutoSave(CheckBox checkBox, String reason) {
+        checkBox.selectedProperty().addListener((_, _, _) -> requestImmediateAutoSave(reason));
     }
 
-    private void requestDebouncedAutoSave() {
+    private void requestDebouncedAutoSave(String reason) {
         if (isAutoSaveSuppressed()) {
+            autoSaveDebounce.stop();
             return;
         }
         autoSaveDebounce.playFromStart();
     }
 
-    private void requestImmediateAutoSave() {
+    private void requestImmediateAutoSave(String reason) {
         if (isAutoSaveSuppressed()) {
+            autoSaveDebounce.stop();
             return;
         }
         autoSaveDebounce.stop();
@@ -974,6 +976,20 @@ public class ConfigurationUI extends VBox {
                 || syncingThumbnailModeSelector
                 || syncingFilterPauseModeSelector
                 || syncingPasswordProtectionSelector;
+    }
+
+    private void runWithAutoSaveSuppressed(Runnable action) {
+        if (action == null) {
+            return;
+        }
+        boolean wasSyncingConfigurationToForm = syncingConfigurationToForm;
+        syncingConfigurationToForm = true;
+        autoSaveDebounce.stop();
+        try {
+            action.run();
+        } finally {
+            syncingConfigurationToForm = wasSyncingConfigurationToForm;
+        }
     }
 
     private void applyThemePreview() {
@@ -1373,17 +1389,23 @@ public class ConfigurationUI extends VBox {
 
     public void refreshFromCurrentConfiguration() {
         Configuration configuration = service.read();
-        applyConfigurationToForm(configuration);
-        selectDefaultPlayer(configuration);
-        updateVlcOptionsLinkVisibility();
-        updateWideViewVisibility();
-        refreshServerStatusUI();
-        refreshFilterLockUi();
-        refreshConfigurationBlockTitles();
+        runWithAutoSaveSuppressed(() -> {
+            applyConfigurationToForm(configuration);
+            selectDefaultPlayer(configuration);
+            updateVlcOptionsLinkVisibility();
+            updateWideViewVisibility();
+            refreshServerStatusUI();
+            refreshFilterLockUi();
+            refreshConfigurationBlockTitles();
+        });
         refreshHeaderActions();
     }
 
     private void refreshFilterLockUi() {
+        runWithAutoSaveSuppressed(this::refreshFilterLockUiWithoutAutoSaveGuard);
+    }
+
+    private void refreshFilterLockUiWithoutAutoSaveGuard() {
         refreshConfigurationBlockTitles();
         refreshHeaderActions();
         FilterLockService filterLockService = FilterLockService.getInstance();
@@ -1507,7 +1529,16 @@ public class ConfigurationUI extends VBox {
             if (!ensureFilterAccessForPendingSave()) {
                 return;
             }
-            Configuration newConfiguration = buildConfigurationToSave();
+            Configuration newConfiguration = buildConfigurationToSave(previous);
+            if (Objects.equals(previous, newConfiguration)) {
+                updatePersistedFilterState(newConfiguration);
+                refreshConfigurationBlockTitles();
+                refreshHeaderActions();
+                if (!wasAlreadyUnlocked) {
+                    FilterLockService.getInstance().clearUnlockSession();
+                }
+                return;
+            }
             saveConfiguration(newConfiguration);
             applyPostSaveEffects(previous, newConfiguration);
             updatePersistedFilterState(newConfiguration);
@@ -1521,7 +1552,7 @@ public class ConfigurationUI extends VBox {
             if (showRestartMessage && restartRequired(previous, newConfiguration)) {
                 showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
             }
-        } catch (Exception _) {
+        } catch (Exception e) {
             showErrorAlert(I18n.tr("configFailedToSave"));
         } finally {
             savingConfiguration = false;
@@ -1544,7 +1575,7 @@ public class ConfigurationUI extends VBox {
         persistedPauseFilteringValue = configuration.isPauseFiltering();
     }
 
-    private Configuration buildConfigurationToSave() {
+    private Configuration buildConfigurationToSave(Configuration previous) {
         Configuration configuration = new Configuration(
                 playerPath1.getText(), playerPath2.getText(), playerPath3.getText(), resolveDefaultPlayerPath(),
                 resolveFilterCategoriesValueForSave(), resolveFilterChannelsValueForSave(),
@@ -1558,7 +1589,8 @@ public class ConfigurationUI extends VBox {
         configuration.setWideView(wideViewCheckBox.isSelected());
         configuration.setLanguageLocale(getSelectedLanguageTag());
         configuration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
-        configuration.setFilterLockHash(service.read().getFilterLockHash());
+        configuration.setFilterLockHash(previous == null ? null : previous.getFilterLockHash());
+        configuration.setPublishedM3uCategoryMode(previous == null ? null : previous.getPublishedM3uCategoryMode());
         Integer saveDuration = filterLockUnlockDurationComboBox.getValue();
         configuration.setFilterLockUnlockDurationMinutes(saveDuration != null ? String.valueOf(saveDuration) : "15");
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
@@ -2800,7 +2832,7 @@ public class ConfigurationUI extends VBox {
             Platform.runLater(() -> {
                 updateVlcOptionsLinkVisibility();
                 updateWideViewVisibility();
-                requestImmediateAutoSave();
+                requestImmediateAutoSave("playerSelectionDeferred");
             });
         }
     }
