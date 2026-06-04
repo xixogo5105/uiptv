@@ -12,8 +12,8 @@ import javafx.scene.layout.Priority;
 import javafx.util.Duration;
 
 public class ExternalPlayerPathCard extends PlayerOptionCard {
-    private static final double BROWSE_BUTTON_WIDTH = 38;
-    private static final double BROWSE_BUTTON_HEIGHT = 34;
+    private static final double BROWSE_BUTTON_WIDTH = 34;
+    private static final double BROWSE_BUTTON_HEIGHT = 30;
 
     public ExternalPlayerPathCard(String title,
                                   String description,

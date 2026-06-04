@@ -22,8 +22,6 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import javafx.scene.text.Text;
-import javafx.scene.text.TextFlow;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
@@ -78,12 +76,16 @@ public class MacAddressManagementPopup extends VBox {
         popupStage.initOwner(owner);
         popupStage.initModality(Modality.APPLICATION_MODAL);
         popupStage.setTitle(I18n.tr("autoManageMACAddresses"));
+        popupStage.setMinWidth(560);
+        popupStage.setMinHeight(560);
         return popupStage;
     }
 
     private void configureLayout() {
-        setPadding(new Insets(10));
-        setSpacing(10);
+        getStyleClass().addAll("management-popup-root", "mac-management-popup");
+        setPadding(new Insets(18));
+        setSpacing(14);
+        setFillWidth(true);
     }
 
     private void configureSelectionHandling() {
@@ -98,12 +100,18 @@ public class MacAddressManagementPopup extends VBox {
     private void configureListView() {
         macListView.setItems(macItems);
         macListView.setCellFactory(param -> new MacListCell());
+        macListView.getStyleClass().addAll("management-list-view", "mac-management-list");
+        macListView.setPlaceholder(createMacPlaceholder());
         VBox.setVgrow(macListView, Priority.ALWAYS);
         addMacField.setPromptText(I18n.tr("autoAddMACAddressEsCommaSeparated"));
+        addMacField.getStyleClass().add("management-popup-text-field");
         macItems.addListener((javafx.collections.ListChangeListener<MacItem>) change -> updateActionButtons());
     }
 
     private void configureButtons() {
+        addButton.getStyleClass().add("prominent");
+        removeButton.getStyleClass().add("dangerous");
+        saveButton.getStyleClass().add("prominent");
         addButton.setOnAction(e -> addMacs());
         removeButton.setOnAction(e -> removeMacs());
         setDefaultButton.setOnAction(e -> setDefaultMac());
@@ -113,19 +121,63 @@ public class MacAddressManagementPopup extends VBox {
     }
 
     private void buildContent() {
-        HBox addBox = new HBox(10, addMacField, addButton);
-        HBox.setHgrow(addMacField, Priority.ALWAYS);
+        VBox header = createHeader();
+
+        HBox selectionRow = new HBox(10, selectAllCheckBox);
+        selectionRow.setAlignment(Pos.CENTER_LEFT);
+        selectionRow.getStyleClass().add("management-popup-toolbar");
+
+        VBox listCard = new VBox(10, selectionRow, macListView);
+        listCard.getStyleClass().add("management-popup-card");
+        VBox.setVgrow(listCard, Priority.ALWAYS);
+
         HBox actionBox = new HBox(10, removeButton, setDefaultButton, verifyInfoButton);
+        actionBox.getStyleClass().add("management-popup-action-strip");
+        actionBox.setAlignment(Pos.CENTER_LEFT);
+
+        Label addLabel = new Label(I18n.tr("autoAddNew"));
+        addLabel.getStyleClass().add("management-popup-section-title");
+        HBox addBox = new HBox(10, addMacField, addButton);
+        addBox.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(addMacField, Priority.ALWAYS);
+
+        VBox addCard = new VBox(10, addLabel, addBox);
+        addCard.getStyleClass().add("management-popup-card");
+
         HBox bottomBox = new HBox(10, saveButton, closeButton);
-        bottomBox.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
-        getChildren().addAll(selectAllCheckBox, macListView, actionBox, new Separator(), new Label(I18n.tr("autoAddNew")), addBox, new Separator(), bottomBox);
+        bottomBox.getStyleClass().add("management-popup-footer");
+        bottomBox.setAlignment(Pos.CENTER_RIGHT);
+
+        getChildren().addAll(header, listCard, actionBox, addCard, bottomBox);
+    }
+
+    private VBox createHeader() {
+        Label title = new Label(I18n.tr("autoManageMACAddresses"));
+        title.getStyleClass().add("management-popup-title");
+
+        Label accountLabel = new Label(baseAccount == null ? "" : baseAccount.getAccountName());
+        accountLabel.getStyleClass().add("management-popup-subtitle");
+        accountLabel.setVisible(baseAccount != null && isNotBlank(baseAccount.getAccountName()));
+        accountLabel.setManaged(accountLabel.isVisible());
+
+        VBox header = new VBox(2, title, accountLabel);
+        header.getStyleClass().add("management-popup-header");
+        return header;
+    }
+
+    private Label createMacPlaceholder() {
+        Label label = new Label(I18n.tr("autoNoMACAddressesToVerify"));
+        label.getStyleClass().add("management-popup-placeholder");
+        return label;
     }
 
     private Scene createScene(Stage owner) {
-        Scene scene = new Scene(this, 450, 500);
+        Scene scene = new Scene(this, 620, 620);
         UiI18n.applySceneOrientation(scene);
         if (owner != null && owner.getScene() != null) {
             scene.getStylesheets().addAll(owner.getScene().getStylesheets());
+        } else if (RootApplication.getCurrentTheme() != null) {
+            scene.getStylesheets().add(RootApplication.getCurrentTheme());
         }
         return scene;
     }
@@ -338,7 +390,6 @@ public class MacAddressManagementPopup extends VBox {
 
     private class MacListCell extends ListCell<MacItem> {
         private final CheckBox checkBox = new CheckBox();
-        private final TextFlow textFlow = new TextFlow();
         private final Label statusLabel = new Label();
         private final Label expiryLabel = new Label();
         private final Region statusIndicator = new Region();
@@ -352,7 +403,11 @@ public class MacAddressManagementPopup extends VBox {
             if (empty || item == null) {
                 setGraphic(null);
                 setText(null);
+                getStyleClass().remove("mac-management-list-cell");
                 return;
+            }
+            if (!getStyleClass().contains("mac-management-list-cell")) {
+                getStyleClass().add("mac-management-list-cell");
             }
             bindSelection(item);
             setGraphic(buildGraphic(item));
@@ -371,10 +426,17 @@ public class MacAddressManagementPopup extends VBox {
         }
 
         private HBox buildGraphic(MacItem item) {
-            textFlow.getChildren().setAll(new Text(item.getMac()));
-            if (item.getMac().equalsIgnoreCase(defaultMac)) {
-                textFlow.getChildren().addAll(new Text(" ("), defaultTextNode(), new Text(")"));
-            }
+            Label macLabel = new Label(item.getMac());
+            macLabel.getStyleClass().add("mac-management-address");
+            macLabel.setMinWidth(0);
+            macLabel.setMaxWidth(Double.MAX_VALUE);
+
+            Label defaultBadge = new Label("Default");
+            defaultBadge.getStyleClass().add("mac-default-pill");
+            boolean isDefault = item.getMac().equalsIgnoreCase(defaultMac);
+            defaultBadge.setVisible(isDefault);
+            defaultBadge.setManaged(isDefault);
+
             statusIndicator.setMinSize(8, 8);
             statusIndicator.setPrefSize(8, 8);
             statusIndicator.setMaxSize(8, 8);
@@ -392,10 +454,13 @@ public class MacAddressManagementPopup extends VBox {
             applyExpiryIndicator(item.getExpiryState());
 
             HBox statusBox = new HBox(6, statusIndicator, statusLabel);
+            statusBox.getStyleClass().add("mac-management-meta-line");
             statusBox.setAlignment(Pos.CENTER_LEFT);
             HBox expiryBox = new HBox(6, expiryIndicator, expiryLabel);
+            expiryBox.getStyleClass().add("mac-management-meta-line");
             expiryBox.setAlignment(Pos.CENTER_LEFT);
             VBox infoBox = new VBox(2, statusBox, expiryBox);
+            infoBox.getStyleClass().add("mac-management-info");
 
             boolean hasStatus = isNotBlank(item.getStatusText());
             boolean hasExpiry = isNotBlank(item.getExpiryText());
@@ -406,16 +471,17 @@ public class MacAddressManagementPopup extends VBox {
             infoBox.setVisible(hasStatus || hasExpiry);
             infoBox.setManaged(hasStatus || hasExpiry);
 
-            HBox topRow = new HBox(10, checkBox, textFlow);
+            HBox topRow = new HBox(10, checkBox, macLabel, defaultBadge);
             topRow.setAlignment(Pos.CENTER_LEFT);
+            HBox.setHgrow(macLabel, Priority.ALWAYS);
             VBox container = new VBox(4, topRow, infoBox);
-            return new HBox(container);
-        }
+            container.setMinWidth(0);
+            container.setMaxWidth(Double.MAX_VALUE);
 
-        private Text defaultTextNode() {
-            Text defaultText = new Text("Default");
-            defaultText.getStyleClass().add("default-text");
-            return defaultText;
+            HBox row = new HBox(container);
+            row.getStyleClass().add("mac-management-row-content");
+            HBox.setHgrow(container, Priority.ALWAYS);
+            return row;
         }
 
         private void applyStatusIndicator(AccountInfoUiUtil.StatusState state) {

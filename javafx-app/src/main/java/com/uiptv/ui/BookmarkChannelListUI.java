@@ -9,10 +9,13 @@ import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.BookmarkCard;
+import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
+import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
 import com.uiptv.widget.UiRenderQuality;
 import javafx.application.HostServices;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -24,6 +27,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.layout.*;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.util.*;
@@ -46,6 +50,8 @@ public class BookmarkChannelListUI extends HBox {
     private final TextField searchTextField = new TextField();
     private final Button manageCategoriesButton = new Button(I18n.tr("commonAdd"));
     private final ResponsiveCardGrid<BookmarkItem> bookmarkGrid = new ResponsiveCardGrid<>(this::createBookmarkCard);
+    private final StackPane bookmarkGridFrame = new StackPane();
+    private final LoadingStateView bookmarkLoadingOverlay = new LoadingStateView(I18n.tr("autoLoadingBookmarks"));
     private final PillBar<BookmarkCategory> categoryPillBar =
             new PillBar<>(BookmarkCategory::getName, BookmarkCategory::getId);
     private final ObservableList<BookmarkItem> filteredItems = FXCollections.observableArrayList();
@@ -124,19 +130,23 @@ public class BookmarkChannelListUI extends HBox {
         reloadRequestedWhileReloading = false;
         long generation = reloadGeneration.incrementAndGet();
         reloadInProgress = true;
-        showLoadingPlaceholderIfEmpty(generation);
+        showLoadingState(generation);
         startReloadThread(generation);
     }
 
-    private void showLoadingPlaceholderIfEmpty(long generation) {
-        runLater(() -> {
+    private void showLoadingState(long generation) {
+        Runnable update = () -> {
             if (generation != reloadGeneration.get()) {
                 return;
             }
-            if (allBookmarkItems.isEmpty()) {
-                bookmarkGrid.setPlaceholderText(I18n.tr("autoLoadingBookmarks"));
-            }
-        });
+            bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr("autoLoadingBookmarks")));
+            setBookmarkLoadingOverlayVisible(!filteredItems.isEmpty());
+        };
+        if (Platform.isFxApplicationThread()) {
+            update.run();
+        } else {
+            runLater(update);
+        }
     }
 
     private void startReloadThread(long generation) {
@@ -195,6 +205,7 @@ public class BookmarkChannelListUI extends HBox {
             return;
         }
         reloadInProgress = false;
+        setBookmarkLoadingOverlayVisible(false);
         bookmarkGrid.setPlaceholderText(I18n.tr("autoUnableToLoadBookmarks"));
         triggerDeferredReloadIfNeeded();
     }
@@ -218,6 +229,7 @@ public class BookmarkChannelListUI extends HBox {
         }
         lastKnownBookmarkRevision = revision;
         reloadInProgress = false;
+        setBookmarkLoadingOverlayVisible(false);
         triggerDeferredReloadIfNeeded();
     }
 
@@ -234,6 +246,7 @@ public class BookmarkChannelListUI extends HBox {
         allBookmarkItems.clear();
         allBookmarkItems.addAll(partialItems);
         filterView();
+        setBookmarkLoadingOverlayVisible(reloadInProgress && !filteredItems.isEmpty());
     }
 
     private void restoreGridSelection(List<String> selectedBookmarkIds) {
@@ -278,6 +291,7 @@ public class BookmarkChannelListUI extends HBox {
         reloadRequestedWhileReloading = false;
         allBookmarkItems.clear();
         filteredItems.clear();
+        setBookmarkLoadingOverlayVisible(false);
     }
 
     private void triggerDeferredReloadIfNeeded() {
@@ -307,7 +321,7 @@ public class BookmarkChannelListUI extends HBox {
         page.getStyleClass().add("bookmarks-page");
         page.setMinSize(0, 0);
         page.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        page.getChildren().setAll(createHeaderArea(), bookmarkGrid);
+        page.getChildren().setAll(createHeaderArea(), bookmarkGridFrame);
 
         ScrollPane pageScroll = new ScrollPane(page);
         UiRenderQuality.optimizeLayout(pageScroll);
@@ -398,21 +412,35 @@ public class BookmarkChannelListUI extends HBox {
     private void setupBookmarkGrid() {
         bookmarkGrid.getStyleClass().add("bookmark-card-grid");
         bookmarkGrid.setItems(filteredItems);
-        bookmarkGrid.setCardWidthRange(220, 310);
-        bookmarkGrid.setGaps(14, 12);
+        bookmarkGrid.setCardWidthRange(255, 345);
+        bookmarkGrid.setGaps(16, 14);
         bookmarkGrid.setReorderEnabled(true);
-        bookmarkGrid.setPlaceholderText(I18n.tr("autoNoBookmarksFound"));
+        bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr("autoLoadingBookmarks")));
         applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
+
+        bookmarkGridFrame.getStyleClass().add("bookmark-grid-frame");
+        UiRenderQuality.optimizeLayout(bookmarkGridFrame);
+        bookmarkGridFrame.setMinSize(0, 0);
+        bookmarkGridFrame.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        bookmarkLoadingOverlay.getStyleClass().add("bookmark-loading-overlay");
+        bookmarkLoadingOverlay.setMouseTransparent(true);
+        setBookmarkLoadingOverlayVisible(false);
+        StackPane.setAlignment(bookmarkLoadingOverlay, Pos.TOP_CENTER);
+        StackPane.setMargin(bookmarkLoadingOverlay, new Insets(10, 0, 0, 0));
+        bookmarkGridFrame.getChildren().setAll(bookmarkGrid, bookmarkLoadingOverlay);
+    }
+
+    private void setBookmarkLoadingOverlayVisible(boolean visible) {
+        bookmarkLoadingOverlay.setVisible(visible);
+        bookmarkLoadingOverlay.setManaged(visible);
+        if (visible) {
+            bookmarkLoadingOverlay.toFront();
+        }
     }
 
     private BookmarkCard createBookmarkCard(BookmarkItem item) {
-        Button playButton = new Button(I18n.tr("autoPlay2"));
-        playButton.getStyleClass().setAll("button");
-        playButton.getStyleClass().add("play-menu-button");
-        playButton.setMinWidth(Region.USE_PREF_SIZE);
-        playButton.setMaxWidth(Region.USE_PREF_SIZE);
-        playButton.setMinHeight(Region.USE_PREF_SIZE);
-        playButton.setFocusTraversable(true);
+        Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
+        playButton.getStyleClass().add("bookmark-play-menu-button");
         playButton.setOnAction(event -> {
             event.consume();
             bookmarkGrid.selectItems(List.of(item));
@@ -513,9 +541,13 @@ public class BookmarkChannelListUI extends HBox {
             filteredItems.setAll(filteredList);
         }
         if (filteredList.isEmpty()) {
-            bookmarkGrid.setPlaceholderText(searchText.isBlank()
-                    ? I18n.tr("autoNoBookmarksFound")
-                    : I18n.tr("autoNothingFoundFor", rawSearchText));
+            if (reloadInProgress && allBookmarkItems.isEmpty()) {
+                bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr("autoLoadingBookmarks")));
+            } else {
+                bookmarkGrid.setPlaceholderText(searchText.isBlank()
+                        ? I18n.tr("autoNoBookmarksFound")
+                        : I18n.tr("autoNothingFoundFor", rawSearchText));
+            }
         } else {
             bookmarkGrid.setPlaceholderText("");
         }
@@ -591,11 +623,18 @@ public class BookmarkChannelListUI extends HBox {
 
     private void openCategoryManagementPopup() {
         Stage popupStage = new Stage();
+        Stage owner = getScene() != null && getScene().getWindow() instanceof Stage stage ? stage : null;
+        if (owner != null) {
+            popupStage.initOwner(owner);
+            popupStage.initModality(Modality.WINDOW_MODAL);
+        }
         CategoryManagementPopup popup = new CategoryManagementPopup(this);
-        Scene scene = new Scene(popup, 300, 400);
+        Scene scene = new Scene(popup, 520, 560);
         UiI18n.applySceneOrientation(scene);
         scene.getStylesheets().add(RootApplication.getCurrentTheme());
         popupStage.setTitle(I18n.tr("autoManageCategories"));
+        popupStage.setMinWidth(460);
+        popupStage.setMinHeight(480);
         popupStage.setScene(scene);
         popupStage.showAndWait();
         forceReload();

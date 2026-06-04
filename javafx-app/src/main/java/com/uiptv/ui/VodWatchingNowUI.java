@@ -13,7 +13,8 @@ import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ImageUrlNormalizer;
-import com.uiptv.widget.IconActionButton;
+import com.uiptv.widget.LoadingStateView;
+import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -44,7 +45,6 @@ public class VodWatchingNowUI extends VBox {
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_CARD_LINKS = "cardLinks";
     private static final String VOD_WATCHING_NOW_CACHE = "vod-watching-now";
-    private static final String TRASH_ICON_PATH = "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5z";
     private final VBox contentBox = new VBox(10);
     private final ScrollPane scrollPane = new ScrollPane(contentBox);
     private final ResponsiveCardGrid<VodPanelData> vodGrid = new ResponsiveCardGrid<>(this::createCard);
@@ -358,7 +358,7 @@ public class VodWatchingNowUI extends VBox {
 
     private void showLoadingPlaceholderIfEmpty() {
         if (contentBox.getChildren().isEmpty() || isInitialPlaceholder()) {
-            contentBox.getChildren().setAll(new Label(I18n.tr("autoLoadingChannelsFor", I18n.tr("autoVod"))));
+            contentBox.getChildren().setAll(new LoadingStateView(I18n.tr("autoLoadingChannelsFor", I18n.tr("autoVod"))));
         }
     }
 
@@ -415,13 +415,7 @@ public class VodWatchingNowUI extends VBox {
         cardMenu.setHideOnEscape(true);
         cardMenu.setAutoHide(true);
 
-        Button playButton = new Button(I18n.tr("autoPlay2"));
-        playButton.getStyleClass().setAll("button");
-        playButton.getStyleClass().add("play-menu-button");
-        playButton.setMinWidth(Region.USE_PREF_SIZE);
-        playButton.setMaxWidth(Region.USE_PREF_SIZE);
-        playButton.setMinHeight(Region.USE_PREF_SIZE);
-        playButton.setFocusTraversable(true);
+        Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
         playButton.setOnAction(event -> {
             event.consume();
             showContextMenu(cardMenu, card, data);
@@ -457,12 +451,7 @@ public class VodWatchingNowUI extends VBox {
         Region titleSpacer = new Region();
         HBox.setHgrow(titleSpacer, Priority.ALWAYS);
 
-        IconActionButton removeButton = new IconActionButton(I18n.tr("autoRemove"), TRASH_ICON_PATH, () -> confirmAndRemoveVod(data));
-        removeButton.getStyleClass().add("watching-now-remove-button");
-        removeButton.setMinWidth(Region.USE_PREF_SIZE);
-        removeButton.setMaxWidth(Region.USE_PREF_SIZE);
-
-        HBox titleRow = new HBox(10, title, titleSpacer, playButton, removeButton);
+        HBox titleRow = new HBox(10, title, titleSpacer, playButton);
         titleRow.setAlignment(Pos.TOP_LEFT);
 
         details.getChildren().addAll(titleRow, accountLabel);
@@ -672,11 +661,7 @@ public class VodWatchingNowUI extends VBox {
             data.detailMetadataBox.getChildren().add(plot);
         }
         if (data.imdbLoading && !data.imdbLoaded) {
-            ProgressIndicator progress = new ProgressIndicator();
-            progress.setPrefSize(14, 14);
-            progress.setMinSize(14, 14);
-            progress.setMaxSize(14, 14);
-            data.detailMetadataBox.getChildren().add(new HBox(6, progress, new Label(I18n.tr("autoLoadingIMDbDetails"))));
+            data.detailMetadataBox.getChildren().add(new LoadingStateView(I18n.tr("autoLoadingIMDbDetails"), 14));
         }
     }
 
@@ -764,11 +749,7 @@ public class VodWatchingNowUI extends VBox {
         }
         if (data.imdbLoading && !data.imdbLoaded) {
             if (data.imdbLoadingNode == null) {
-                ProgressIndicator imdbProgress = new ProgressIndicator();
-                imdbProgress.setPrefSize(14, 14);
-                imdbProgress.setMinSize(14, 14);
-                imdbProgress.setMaxSize(14, 14);
-                data.imdbLoadingNode = new HBox(6, imdbProgress, new Label(I18n.tr("autoLoadingIMDbDetails")));
+                data.imdbLoadingNode = new LoadingStateView(I18n.tr("autoLoadingIMDbDetails"), 14);
             }
             details.getChildren().add(data.imdbLoadingNode);
         }
@@ -802,6 +783,8 @@ public class VodWatchingNowUI extends VBox {
         });
         if (!submitted) {
             data.imdbLoading = false;
+        } else {
+            refreshRenderedCards();
         }
     }
 

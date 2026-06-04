@@ -14,7 +14,9 @@ import com.uiptv.util.I18n;
 import com.uiptv.util.ImageUrlNormalizer;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.IconActionButton;
+import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
+import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -62,6 +64,8 @@ public abstract class BaseWatchingNowUI extends VBox {
     private static final Pattern SLASH_DATE_PATTERN = Pattern.compile("\\b\\d{1,2}/\\d{1,2}/\\d{2,4}\\b");
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b\\d{4}-\\d{2}-\\d{2}\\b");
     private static final int MAX_IMDB_CACHE_ENTRIES = Integer.getInteger("uiptv.watchingnow.imdb.maxEntries", 200);
+    private static final double SERIES_EPISODE_LOADING_INDICATOR_SIZE = 24;
+    private static final double SERIES_EPISODE_LOADING_PANEL_HEIGHT = 220;
     private final VBox contentBox = new VBox(8);
     private final ScrollPane scrollPane = new ScrollPane(contentBox);
     private final ResponsiveCardGrid<SeriesPanelData> seriesGrid = new ResponsiveCardGrid<>(this::createSeriesListCard);
@@ -476,7 +480,7 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private void showLoadingPlaceholderIfEmpty() {
         if (contentBox.getChildren().isEmpty() || isInitialPlaceholder()) {
-            contentBox.getChildren().setAll(new Label(I18n.tr("autoLoadingCurrentlyWatchedSeries")));
+            contentBox.getChildren().setAll(new LoadingStateView(I18n.tr("autoLoadingCurrentlyWatchedSeries")));
         }
     }
 
@@ -804,6 +808,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         loadSeriesPosterImage(data);
         if (!data.imdbLoaded && !data.imdbLoading) {
             data.imdbLoading = true;
+            applySeasonInfoToHeader(data);
             lazyLoadImdb(data, null);
         } else {
             applySeasonInfoToHeader(data);
@@ -896,7 +901,12 @@ public abstract class BaseWatchingNowUI extends VBox {
         episodeCards.getStyleClass().add("watching-now-episode-card-list");
         episodeCards.setMinWidth(0);
         episodeCards.setMaxWidth(Double.MAX_VALUE);
+        episodeCards.setFillWidth(true);
         data.episodeCardsContainer = episodeCards;
+        LoadingStateView loadingNode = createSeriesEpisodeLoadingNode(I18n.tr("autoLoadingIMDbDetails"));
+        loadingNode.setVisible(false);
+        loadingNode.setManaged(false);
+        data.episodeLoadingNode = loadingNode;
 
         seasonPillBar.selectedItemProperty().addListener((_, _, season) -> {
             renderSeasonEpisodeCards(data, season);
@@ -907,6 +917,40 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         panel.getChildren().addAll(titleRow, seasonPillBar, episodeCards);
         return panel;
+    }
+
+    private LoadingStateView createSeriesEpisodeLoadingNode(String message) {
+        LoadingStateView loadingNode = new LoadingStateView(message, SERIES_EPISODE_LOADING_INDICATOR_SIZE);
+        loadingNode.getStyleClass().add("series-inline-loading-state");
+        loadingNode.setAlignment(Pos.CENTER);
+        loadingNode.setMinHeight(SERIES_EPISODE_LOADING_PANEL_HEIGHT);
+        loadingNode.setPrefHeight(SERIES_EPISODE_LOADING_PANEL_HEIGHT);
+        loadingNode.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        return loadingNode;
+    }
+
+    private void setSeriesEpisodeLoadingOverlayVisible(SeriesPanelData data, boolean visible, String message) {
+        if (data == null || data.episodeCardsContainer == null || data.episodeLoadingNode == null) {
+            return;
+        }
+        data.episodeLoadingVisible = visible;
+        if (message != null) {
+            data.episodeLoadingNode.setMessage(message);
+        }
+        syncSeriesEpisodeLoadingNode(data);
+    }
+
+    private void syncSeriesEpisodeLoadingNode(SeriesPanelData data) {
+        if (data == null || data.episodeCardsContainer == null || data.episodeLoadingNode == null) {
+            return;
+        }
+        data.episodeLoadingNode.setVisible(data.episodeLoadingVisible);
+        data.episodeLoadingNode.setManaged(data.episodeLoadingVisible);
+        if (data.episodeLoadingVisible && !data.episodeCardsContainer.getChildren().contains(data.episodeLoadingNode)) {
+            data.episodeCardsContainer.getChildren().add(0, data.episodeLoadingNode);
+        } else if (!data.episodeLoadingVisible) {
+            data.episodeCardsContainer.getChildren().remove(data.episodeLoadingNode);
+        }
     }
 
     private void applySeriesDetailLayoutSizing(VBox detailsPanel, VBox episodesPanel, double availableWidth) {
@@ -968,6 +1012,8 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         reloadButton.setDisable(true);
         reloadButton.setText(I18n.tr("autoReloading"));
+        setSeriesEpisodeLoadingOverlayVisible(data, true,
+                I18n.tr("autoLoadingEpisodesFor", firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle)));
         new Thread(() -> {
             EpisodeList refreshed = null;
             RuntimeException failure = null;
@@ -987,6 +1033,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                 reloadButton.setDisable(false);
                 reloadButton.setText(I18n.tr("autoReloadFromServer"));
                 if (finalFailure != null) {
+                    setSeriesEpisodeLoadingOverlayVisible(data, false, null);
                     showErrorAlert(I18n.tr("autoFailed") + ": " + finalFailure.getMessage());
                     return;
                 }
@@ -1059,12 +1106,7 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private HBox createImdbLoadingNode() {
-        ProgressIndicator imdbProgress = new ProgressIndicator();
-        imdbProgress.setPrefSize(14, 14);
-        imdbProgress.setMinSize(14, 14);
-        imdbProgress.setMaxSize(14, 14);
-        Label imdbLoadingLabel = new Label(I18n.tr("autoLoadingIMDbDetails"));
-        return new HBox(6, imdbProgress, imdbLoadingLabel);
+        return new LoadingStateView(I18n.tr("autoLoadingIMDbDetails"), 14);
     }
 
     private void addSeasonMetadataText(VBox details, SeriesPanelData data) {
@@ -1136,6 +1178,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         cards.getStyleClass().add("watching-now-season-card-group");
         data.seasonCardsBySeason.put(selectedSeason, cards);
         data.episodeCardsContainer.getChildren().setAll(cards);
+        syncSeriesEpisodeLoadingNode(data);
     }
 
     private VBox buildEpisodeCards(SeriesPanelData data, javafx.collections.ObservableList<WatchingEpisode> items) {
@@ -1293,14 +1336,8 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         ContextMenu episodeMenu = addEpisodeContextMenu(data, row, root);
 
-        Button play = new Button(I18n.tr("autoPlay2"));
-        play.getStyleClass().setAll("button");
+        Button play = new PlayMenuButton(I18n.tr("autoPlay2"));
         play.getStyleClass().add("episode-play-button");
-        play.getStyleClass().add("play-menu-button");
-        play.setMinWidth(Region.USE_PREF_SIZE);
-        play.setMaxWidth(Region.USE_PREF_SIZE);
-        play.setMinHeight(Region.USE_PREF_SIZE);
-        play.setFocusTraversable(true);
         play.setOnAction(event -> {
             event.consume();
             setSelectedEpisodeCard(data, root);
@@ -1600,8 +1637,10 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (!thumbnailsEnabled()) {
             data.imdbLoaded = true;
             data.imdbLoading = false;
+            setSeriesEpisodeLoadingOverlayVisible(data, false, null);
             return;
         }
+        setSeriesEpisodeLoadingOverlayVisible(data, true, I18n.tr("autoLoadingIMDbDetails"));
         long generation = lifecycleGeneration.get();
         boolean submitted = WatchingNowMetadataExecutor.submit(() -> {
             try {
@@ -1618,12 +1657,14 @@ public abstract class BaseWatchingNowUI extends VBox {
                         data.imdbLoaded = true;
                         data.imdbLoading = false;
                         applyLoadedImdbToUi(data, pane);
+                        setSeriesEpisodeLoadingOverlayVisible(data, false, null);
                     }
                 });
             }
         });
         if (!submitted) {
             data.imdbLoading = false;
+            setSeriesEpisodeLoadingOverlayVisible(data, false, null);
         }
     }
 
@@ -2597,6 +2638,8 @@ public abstract class BaseWatchingNowUI extends VBox {
         private Hyperlink seriesListTitleNode;
         private PillBar<String> seasonPillBar;
         private VBox episodeCardsContainer;
+        private LoadingStateView episodeLoadingNode;
+        private boolean episodeLoadingVisible;
         private MenuButton bingeWatchButton;
         private VBox selectedEpisodeCard;
 
@@ -2641,6 +2684,8 @@ public abstract class BaseWatchingNowUI extends VBox {
             seriesListTitleNode = null;
             seasonPillBar = null;
             episodeCardsContainer = null;
+            episodeLoadingNode = null;
+            episodeLoadingVisible = false;
             bingeWatchButton = null;
             selectedEpisodeCard = null;
             episodeList = new EpisodeList();

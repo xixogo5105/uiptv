@@ -7,6 +7,8 @@ import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.LoadingStateView;
+import com.uiptv.widget.PlayMenuButton;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -17,7 +19,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.OverrunStyle;
-import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tab;
@@ -52,9 +53,12 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private static final String KEY_RELEASE_DATE = "releaseDate";
     private static final String KEY_TITLE = "title";
     private static final String STYLE_CLASS_BUTTON = "button";
+    private static final double SERIES_EPISODE_LOADING_INDICATOR_SIZE = 24;
+    private static final double SERIES_EPISODE_LOADING_PANEL_HEIGHT = 220;
     private final TabPane seasonTabPane = new TabPane();
     private final VBox cardsContainer = new VBox(8);
     private final ScrollPane cardsScroll = new ScrollPane(cardsContainer);
+    private final StackPane cardsFrame = new StackPane();
     private final HBox header = new HBox(12);
     private final ImageView seriesPosterNode = new ImageView();
     private final VBox headerDetails = new VBox(4);
@@ -66,7 +70,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private final Label plotNode = new Label();
     private final MenuButton bingeWatchButton = new MenuButton();
     private final Button reloadEpisodesButton = new Button();
-    private final HBox imdbLoadingNode = new HBox(6);
+    private final LoadingStateView imdbLoadingNode = new LoadingStateView(I18n.tr("autoLoadingIMDbDetails"), 14);
+    private final LoadingStateView episodeLoadingNode = createSeriesEpisodeLoadingNode(I18n.tr("autoLoadingIMDbDetails"));
     private HBox imdbBadgeNode;
     private volatile boolean imdbLoading = false;
     private volatile boolean imdbLoaded = false;
@@ -83,6 +88,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private String pendingTargetEpisodeId;
     private String pendingTargetEpisodeNumber;
     private String pendingTargetEpisodeName;
+    private boolean episodeLoadingVisible = false;
 
     public ThumbnailEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
         super(account, categoryTitle, seriesId, seriesCategoryId);
@@ -118,7 +124,13 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         cardsScroll.setMaxHeight(Double.MAX_VALUE);
         cardsScroll.getStyleClass().add("transparent-scroll-pane");
 
-        bodyContainer = new VBox(6, header, seasonTabPane, cardsScroll);
+        cardsFrame.getStyleClass().add("episode-loading-frame");
+        cardsFrame.setMinSize(0, 0);
+        cardsFrame.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        setEpisodeLoadingOverlayVisible(false, null);
+        cardsFrame.getChildren().setAll(cardsScroll);
+
+        bodyContainer = new VBox(6, header, seasonTabPane, cardsFrame);
         bodyContainer.setMaxWidth(Double.MAX_VALUE);
         bodyContainer.setMaxHeight(Region.USE_COMPUTED_SIZE);
         bodyContainer.setPadding(new Insets(0, 4, 0, 4));
@@ -126,6 +138,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         header.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(header, Priority.NEVER);
         VBox.setVgrow(cardsScroll, Priority.ALWAYS);
+        VBox.setVgrow(cardsFrame, Priority.ALWAYS);
         VBox.setVgrow(seasonTabPane, Priority.NEVER);
         contentStack.getChildren().add(bodyContainer);
     }
@@ -140,7 +153,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     @Override
     protected void showPlaceholder(String text) {
-        cardsContainer.getChildren().setAll(new Label(text));
+        setEpisodeLoadingOverlayVisible(false, null);
+        cardsContainer.getChildren().setAll(new LoadingStateView(text));
     }
 
     @Override
@@ -149,8 +163,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         header.setVisible(!empty);
         seasonTabPane.setManaged(!empty);
         seasonTabPane.setVisible(!empty);
-        cardsScroll.setManaged(!empty);
-        cardsScroll.setVisible(!empty);
+        cardsFrame.setManaged(!empty);
+        cardsFrame.setVisible(!empty);
         emptyStateLabel.setText(message == null ? "" : message);
         emptyStateLabel.setManaged(empty);
         emptyStateLabel.setVisible(empty);
@@ -223,6 +237,34 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         }
     }
 
+    private void setEpisodeLoadingOverlayVisible(boolean visible, String message) {
+        episodeLoadingVisible = visible;
+        if (message != null) {
+            episodeLoadingNode.setMessage(message);
+        }
+        syncEpisodeLoadingNode();
+    }
+
+    private void syncEpisodeLoadingNode() {
+        episodeLoadingNode.setVisible(episodeLoadingVisible);
+        episodeLoadingNode.setManaged(episodeLoadingVisible);
+        if (episodeLoadingVisible && !cardsContainer.getChildren().contains(episodeLoadingNode)) {
+            cardsContainer.getChildren().add(0, episodeLoadingNode);
+        } else if (!episodeLoadingVisible) {
+            cardsContainer.getChildren().remove(episodeLoadingNode);
+        }
+    }
+
+    private static LoadingStateView createSeriesEpisodeLoadingNode(String message) {
+        LoadingStateView loadingNode = new LoadingStateView(message, SERIES_EPISODE_LOADING_INDICATOR_SIZE);
+        loadingNode.getStyleClass().add("series-inline-loading-state");
+        loadingNode.setAlignment(Pos.CENTER);
+        loadingNode.setMinHeight(SERIES_EPISODE_LOADING_PANEL_HEIGHT);
+        loadingNode.setPrefHeight(SERIES_EPISODE_LOADING_PANEL_HEIGHT);
+        loadingNode.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        return loadingNode;
+    }
+
     private void initHeader() {
         header.setAlignment(Pos.TOP_LEFT);
         header.getStyleClass().add("uiptv-outline-pane");
@@ -252,12 +294,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         VBox.setVgrow(plotNode, Priority.ALWAYS);
         plotNode.prefWidthProperty().bind(headerDetails.widthProperty().subtract(6));
         titleNode.prefWidthProperty().bind(headerDetails.widthProperty().subtract(6));
-        ProgressIndicator imdbProgress = new ProgressIndicator();
-        imdbProgress.setPrefSize(14, 14);
-        imdbProgress.setMinSize(14, 14);
-        imdbProgress.setMaxSize(14, 14);
-        Label imdbLoadingLabel = new Label(I18n.tr("autoLoadingIMDbDetails"));
-        imdbLoadingNode.getChildren().setAll(imdbProgress, imdbLoadingLabel);
         bingeWatchButton.setFocusTraversable(true);
         bingeWatchButton.getStyleClass().setAll(STYLE_CLASS_BUTTON);
         bingeWatchButton.getStyleClass().add("binge-watch-menu-button");
@@ -298,6 +334,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     @Override
     protected void onReloadControlChanged() {
         updateReloadEpisodesButton();
+        setEpisodeLoadingOverlayVisible(
+                isReloadFromServerInProgress() && !allEpisodeItems.isEmpty(),
+                I18n.tr("autoLoadingEpisodesFor", categoryTitle)
+        );
     }
 
     @Override
@@ -478,6 +518,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         cardsContainer.getChildren().clear();
         if (filtered.isEmpty()) {
             cardsContainer.getChildren().add(new Label(I18n.tr("autoNoEpisodesFound")));
+            syncEpisodeLoadingNode();
             updateBingeWatchButton();
             return;
         }
@@ -486,6 +527,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             renderedCardsByItem.put(item, card);
             cardsContainer.getChildren().add(card);
         }
+        syncEpisodeLoadingNode();
         updateBingeWatchButton();
     }
 
@@ -528,14 +570,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             badges.getChildren().add(watched);
         }
         ContextMenu rowMenu = addRightClickContextMenu(row, root);
-        Button playButton = new Button(I18n.tr("autoPlay2"));
-        playButton.getStyleClass().setAll(STYLE_CLASS_BUTTON);
+        Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
         playButton.getStyleClass().add("episode-play-button");
-        playButton.getStyleClass().add("play-menu-button");
-        playButton.setMinWidth(Region.USE_PREF_SIZE);
-        playButton.setMaxWidth(Region.USE_PREF_SIZE);
-        playButton.setMinHeight(Region.USE_PREF_SIZE);
-        playButton.setFocusTraversable(true);
         playButton.setOnAction(event -> {
             event.consume();
             rowMenu.hide();
@@ -782,7 +818,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         imdbLoading = true;
-        Platform.runLater(this::applySeriesHeader);
+        Platform.runLater(() -> {
+            applySeriesHeader();
+            setEpisodeLoadingOverlayVisible(!allEpisodeItems.isEmpty(), I18n.tr("autoLoadingIMDbDetails"));
+        });
         long generation = lifecycleGeneration.get();
         boolean submitted = WatchingNowMetadataExecutor.submit(() -> {
             try {
@@ -803,6 +842,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         });
         if (!submitted) {
             imdbLoading = false;
+            Platform.runLater(() -> setEpisodeLoadingOverlayVisible(false, null));
         }
     }
 
@@ -832,6 +872,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         imdbLoading = false;
         applySeriesHeader();
         applySeasonFilter();
+        setEpisodeLoadingOverlayVisible(false, null);
         navigateToPendingEpisodeTarget();
     }
 
@@ -861,6 +902,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         imdbLoaded = false;
         imdbLoading = false;
         imdbBadgeNode = null;
+        setEpisodeLoadingOverlayVisible(false, null);
         seriesPosterNode.setImage(null);
         pendingTargetSeason = null;
         pendingTargetEpisodeId = null;

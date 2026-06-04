@@ -26,6 +26,9 @@ import java.util.function.Supplier;
 public abstract class BaseMainApplicationUI {
 
     private static final Duration DEFERRED_TAB_GAP = Duration.millis(400);
+    private static final double WIDE_PLAYER_NAVIGATION_WIDTH = 520;
+    private static final double COMPACT_EMBEDDED_PLAYER_WIDTH = 480;
+    private static final double COMPACT_EMBEDDED_PLAYER_HEIGHT = 305;
     protected final Stage primaryStage;
     protected final HostServices hostServices;
     protected final ConfigurationService configurationService;
@@ -133,8 +136,7 @@ public abstract class BaseMainApplicationUI {
 
     protected HBox createWideMainContent(TabPane tabPane, AccountListUI accountListUI) {
         HBox embeddedPlayer = createEmbeddedPlayerContainer();
-        embeddedPlayer.setMaxWidth(Double.MAX_VALUE);
-        embeddedPlayer.setMaxHeight(Double.MAX_VALUE);
+        applyWideEmbeddedPlayerSize(embeddedPlayer);
         HBox.setHgrow(embeddedPlayer, Priority.ALWAYS);
 
         tabPane.setMinWidth(445);
@@ -145,6 +147,7 @@ public abstract class BaseMainApplicationUI {
 
         StackPane navigationShell = createNavigationShell(tabPane);
         HBox.setHgrow(navigationShell, Priority.ALWAYS);
+        configureWidePlayerNavigationRail(navigationShell, embeddedPlayer);
 
         accountListUI.setMaxHeight(Double.MAX_VALUE);
         accountListUI.setMinHeight(0);
@@ -155,6 +158,55 @@ public abstract class BaseMainApplicationUI {
         mainContent.setMinSize(0, 0);
         mainContent.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         return mainContent;
+    }
+
+    protected void applyCompactEmbeddedPlayerSize(HBox embeddedPlayer) {
+        if (embeddedPlayer == null) {
+            return;
+        }
+        embeddedPlayer.prefHeightProperty().unbind();
+        embeddedPlayer.maxHeightProperty().unbind();
+        embeddedPlayer.setMinWidth(COMPACT_EMBEDDED_PLAYER_WIDTH);
+        embeddedPlayer.setPrefWidth(COMPACT_EMBEDDED_PLAYER_WIDTH);
+        embeddedPlayer.setMaxWidth(COMPACT_EMBEDDED_PLAYER_WIDTH);
+        embeddedPlayer.setMinHeight(COMPACT_EMBEDDED_PLAYER_HEIGHT);
+        embeddedPlayer.setPrefHeight(COMPACT_EMBEDDED_PLAYER_HEIGHT);
+        embeddedPlayer.setMaxHeight(COMPACT_EMBEDDED_PLAYER_HEIGHT);
+    }
+
+    private void applyWideEmbeddedPlayerSize(HBox embeddedPlayer) {
+        if (embeddedPlayer == null) {
+            return;
+        }
+        embeddedPlayer.prefHeightProperty().unbind();
+        embeddedPlayer.maxHeightProperty().unbind();
+        embeddedPlayer.setMinWidth(0);
+        embeddedPlayer.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        embeddedPlayer.setMaxWidth(Double.MAX_VALUE);
+        embeddedPlayer.setMinHeight(0);
+        embeddedPlayer.setPrefHeight(Region.USE_COMPUTED_SIZE);
+        embeddedPlayer.setMaxHeight(Double.MAX_VALUE);
+        embeddedPlayer.setAlignment(Pos.CENTER);
+    }
+
+    private void configureWidePlayerNavigationRail(StackPane navigationShell, HBox embeddedPlayer) {
+        embeddedPlayer.managedProperty().addListener((_, _, visible) ->
+                updateWidePlayerNavigationRail(navigationShell, Boolean.TRUE.equals(visible)));
+        updateWidePlayerNavigationRail(navigationShell, embeddedPlayer.isManaged());
+    }
+
+    private void updateWidePlayerNavigationRail(StackPane navigationShell, boolean playerVisible) {
+        if (playerVisible) {
+            navigationShell.setMinWidth(WIDE_PLAYER_NAVIGATION_WIDTH);
+            navigationShell.setPrefWidth(WIDE_PLAYER_NAVIGATION_WIDTH);
+            navigationShell.setMaxWidth(WIDE_PLAYER_NAVIGATION_WIDTH);
+            HBox.setHgrow(navigationShell, Priority.NEVER);
+            return;
+        }
+        navigationShell.setMinWidth(0);
+        navigationShell.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        navigationShell.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(navigationShell, Priority.ALWAYS);
     }
 
     protected HBox createMainContent(TabPane tabPane, AccountListUI accountListUI) {
@@ -186,8 +238,14 @@ public abstract class BaseMainApplicationUI {
         javafx.scene.Node playerNode = MediaPlayerFactory.getPlayerContainer();
         StackPane playerShell = createEmbeddedPlayerShell(playerNode);
         HBox embeddedPlayer = new HBox(playerShell);
+        embeddedPlayer.visibleProperty().bind(playerNode.visibleProperty());
+        embeddedPlayer.managedProperty().bind(playerNode.managedProperty());
+        embeddedPlayer.setAlignment(Pos.CENTER);
+        embeddedPlayer.setFillHeight(true);
         HBox.setHgrow(playerShell, Priority.ALWAYS);
         embeddedPlayer.setPadding(new javafx.geometry.Insets(5));
+        embeddedPlayer.setMinSize(0, 0);
+        embeddedPlayer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         return embeddedPlayer;
     }
 

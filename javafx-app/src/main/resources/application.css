@@ -20,6 +20,8 @@
     -uiptv-nav-selected-bg: #f5f5f5;
     -uiptv-action-bg: #101827;
     -uiptv-action-fg: #ffffff;
+    -uiptv-action-hover-bg: #1b2433;
+    -uiptv-action-pressed-bg: #0b1020;
     -uiptv-accent: #101827;
     -uiptv-selected-card-bg: #101827;
     -uiptv-selected-card-border: #1f2a44;
@@ -27,13 +29,15 @@
 }
 
 .scroll-bar:vertical {
-    -fx-pref-width: 10;
+    -fx-min-width: 14;
+    -fx-pref-width: 14;
     -fx-padding: 1 2 1 2;
     -fx-background-color: transparent;
 }
 
 .scroll-bar:horizontal {
-    -fx-pref-height: 10;
+    -fx-min-height: 14;
+    -fx-pref-height: 14;
     -fx-padding: 2 1 2 1;
     -fx-background-color: transparent;
 }
@@ -46,15 +50,23 @@
 .scroll-bar .thumb {
     -fx-background-color: rgba(17, 19, 24, 0.22);
     -fx-background-radius: 999;
-    -fx-background-insets: 2;
+    -fx-background-insets: 1;
+}
+
+.scroll-bar:vertical .thumb {
+    -fx-min-width: 8;
+}
+
+.scroll-bar:horizontal .thumb {
+    -fx-min-height: 8;
 }
 
 .scroll-bar .thumb:hover {
-    -fx-background-color: rgba(17, 19, 24, 0.34);
+    -fx-background-color: rgba(17, 19, 24, 0.38);
 }
 
 .scroll-bar .thumb:pressed {
-    -fx-background-color: rgba(17, 19, 24, 0.48);
+    -fx-background-color: rgba(17, 19, 24, 0.56);
 }
 
 .scroll-bar .increment-button,
@@ -304,13 +316,16 @@
     -fx-border-width: 1;
 }
 
-.prominent:hover {
-    -fx-background-color: #242b3a;
-    -fx-border-color: #242b3a;
+.prominent:hover,
+.prominent:focused {
+    -fx-background-color: -uiptv-action-hover-bg;
+    -fx-border-color: -uiptv-action-hover-bg;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.16), 8, 0.12, 0, 1);
 }
 
 .prominent:pressed {
-    -fx-background-color: #000000;
+    -fx-background-color: -uiptv-action-pressed-bg;
+    -fx-border-color: -uiptv-action-pressed-bg;
 }
 
 /* Reference placeholders for light-theme table/list styling (intentionally no-op) */
@@ -343,42 +358,50 @@
 
 /* Custom segmented progress bar */
 .progress-bar-container {
-    -fx-background-color: #f0f0f0;
-    -fx-padding: 2;
-    -fx-border-color: #c0c0c0;
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-padding: 3;
+    -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
-    -fx-border-radius: 3;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
 }
 
 .progress-bar-segment {
-    -fx-background-color: #e0e0e0; /* Default segment color */
-    -fx-background-radius: 0;
+    -fx-background-color: #dce3ec;
+    -fx-background-radius: 999;
+    -fx-background-insets: 1;
 }
 
 .progress-bar-segment.success {
-    -fx-background-color: #4CAF50; /* Green for success */
+    -fx-background-color: #16a34a;
 }
 
 .progress-bar-segment.warning {
-    -fx-background-color: #F59E0B; /* Amber for warning */
+    -fx-background-color: #f59e0b;
 }
 
 .progress-bar-segment.failure {
-    -fx-background-color: #F44336; /* Red for failure */
+    -fx-background-color: #dc2626;
 }
 
 .log-scroll-pane {
-    -fx-border-color: #cccccc;
-    -fx-border-width: 1;
-    -fx-border-radius: 3;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.log-scroll-pane > .viewport {
+    -fx-background-color: transparent;
 }
 
 .log-message-container {
-    -fx-background-color: white;
+    -fx-background-color: transparent;
+    -fx-spacing: 7;
+    -fx-padding: 2;
 }
 
 .log-text {
-    -fx-fill: black;
+    -fx-fill: -uiptv-text-primary;
 }
 
 .censored-count {
@@ -387,24 +410,91 @@
 }
 
 .clock-face {
-    -fx-fill: transparent;
-    -fx-stroke: gray;
+    -fx-fill: rgba(16, 24, 39, 0.04);
+    -fx-stroke: -uiptv-text-secondary;
     -fx-stroke-width: 2;
 }
 
 .clock-hand {
-    -fx-stroke: red;
+    -fx-stroke: -uiptv-action-bg;
     -fx-stroke-width: 2;
 }
 
 .valid-text {
     -fx-font-weight: bold;
-    -fx-fill: green;
+    -fx-fill: #15803d;
 }
 
 .invalid-text {
     -fx-font-weight: bold;
-    -fx-fill: red;
+    -fx-fill: #b91c1c;
+}
+
+.verification-progress-root {
+    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f6f7f9);
+}
+
+.verification-progress-summary {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-weight: bold;
+}
+
+.verification-log-card {
+    -fx-min-height: 280;
+}
+
+.verification-log-container {
+    -fx-spacing: 10;
+}
+
+.verification-mac-card {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 15;
+    -fx-border-radius: 15;
+    -fx-padding: 11 13 11 13;
+}
+
+.verification-mac-card:hover {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(16, 24, 39, 0.12);
+}
+
+.verification-card-title {
+    -fx-padding: 0 0 2 0;
+}
+
+.verification-card-title .text,
+.verification-card-title Text,
+.verification-card-title-text {
+    -fx-font-weight: bold;
+}
+
+.verification-card-details {
+    -fx-padding: 4 0 0 0;
+}
+
+.verification-card-detail-line {
+    -fx-padding: 1 0 1 0;
+}
+
+.verification-delay-label {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.verification-delay-combo {
+    -fx-min-width: 136;
+    -fx-pref-width: 136;
+}
+
+.verification-pause-widget {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 5 10 5 8;
 }
 
 .default-text {
@@ -674,7 +764,7 @@
 }
 
 .uiptv-app-tabs .tab:selected .uiptv-nav-item {
-    -fx-background-color: -uiptv-nav-selected-bg;
+    -fx-background-color: -uiptv-action-bg;
 }
 
 .uiptv-nav-icon {
@@ -688,7 +778,7 @@
 }
 
 .uiptv-app-tabs .tab:selected .uiptv-nav-icon {
-    -fx-fill: -uiptv-text-primary;
+    -fx-fill: -uiptv-action-fg;
 }
 
 .bookmarks-page-root,
@@ -716,6 +806,22 @@
 .bookmarks-page-scroll > .viewport {
     -fx-background-color: -uiptv-app-bg;
     -fx-border-color: transparent;
+}
+
+.bookmark-grid-frame,
+.episode-loading-frame,
+.watching-now-episode-card-frame {
+    -fx-background-color: transparent;
+}
+
+.bookmark-loading-overlay {
+    -fx-padding: 8 14 8 14;
+    -fx-background-color: rgba(255, 255, 255, 0.94);
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.16), 14, 0.16, 0, 4);
 }
 
 .bookmarks-header-area {
@@ -826,20 +932,6 @@
     -fx-text-fill: -uiptv-text-secondary;
 }
 
-.bulk-import-mode-pill-bar {
-    -fx-min-height: 44;
-    -fx-padding: 5 4 5 4;
-    -fx-background-radius: 20;
-    -fx-border-radius: 20;
-}
-
-.bulk-import-mode-pill-bar .uiptv-pill {
-    -fx-min-width: 112;
-    -fx-padding: 6 18 6 18;
-    -fx-background-radius: 15;
-    -fx-border-radius: 15;
-}
-
 .bulk-import-options {
     -fx-padding: 4 0 0 0;
 }
@@ -879,9 +971,9 @@
 }
 
 .bulk-import-primary-button {
-    -fx-background-color: linear-gradient(to bottom, #111827, #0f172a);
-    -fx-border-color: #111827;
-    -fx-text-fill: #ffffff;
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
     -fx-background-radius: 12;
     -fx-border-radius: 12;
     -fx-padding: 8 14 8 14;
@@ -889,8 +981,8 @@
 
 .bulk-import-primary-button:hover,
 .bulk-import-primary-button:focused {
-    -fx-background-color: #1e293b;
-    -fx-border-color: #1e293b;
+    -fx-background-color: -uiptv-action-hover-bg;
+    -fx-border-color: -uiptv-action-hover-bg;
 }
 
 .bulk-import-clear-button {
@@ -985,8 +1077,8 @@
 
 .bookmarks-quick-action-button-active:hover,
 .bookmarks-quick-action-button-active:focused {
-    -fx-background-color: derive(-uiptv-action-bg, 12%);
-    -fx-border-color: derive(-uiptv-action-bg, 12%);
+    -fx-background-color: -uiptv-action-hover-bg;
+    -fx-border-color: -uiptv-action-hover-bg;
 }
 
 .bookmarks-quick-action-button-active:hover .bookmarks-quick-action-icon,
@@ -1163,8 +1255,8 @@
 .watching-now-detail-reload-button:focused,
 .watching-now-binge-button:hover,
 .watching-now-binge-button:focused {
-    -fx-background-color: derive(-uiptv-action-bg, 12%);
-    -fx-border-color: derive(-uiptv-action-bg, 12%);
+    -fx-background-color: -uiptv-action-hover-bg;
+    -fx-border-color: -uiptv-action-hover-bg;
 }
 
 .watching-now-series-info-panel,
@@ -1534,9 +1626,9 @@
     -fx-border-color: transparent;
     -fx-background-radius: 11;
     -fx-border-radius: 11;
-    -fx-padding: 6 8 6 8;
-    -fx-min-height: 34;
-    -fx-pref-height: 34;
+    -fx-padding: 5 8 5 8;
+    -fx-min-height: 32;
+    -fx-pref-height: 32;
 }
 
 .settings-player-path-field:focused {
@@ -1553,11 +1645,11 @@
 }
 
 .settings-player-browse-button {
-    -fx-background-color: -uiptv-action-bg;
-    -fx-border-color: -uiptv-action-bg;
-    -fx-text-fill: -uiptv-action-fg;
-    -fx-background-radius: 11;
-    -fx-border-radius: 11;
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-background-radius: 9;
+    -fx-border-radius: 9;
     -fx-padding: 0;
     -fx-font-weight: bold;
     -fx-cursor: hand;
@@ -1565,8 +1657,8 @@
 
 .settings-player-browse-button:hover,
 .settings-player-browse-button:focused {
-    -fx-background-color: #1f2937;
-    -fx-border-color: #1f2937;
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: #d4d4d4;
     -fx-opacity: 1;
 }
 
@@ -1695,6 +1787,44 @@
     -fx-opacity: 0.55;
 }
 
+.filter-lock-state-row {
+    -fx-padding: 2 0 2 0;
+}
+
+.filter-lock-state-value {
+    -fx-font-size: 0.92em;
+    -fx-font-weight: bold;
+}
+
+.filter-lock-state-value.locked {
+    -fx-text-fill: #16a34a;
+}
+
+.filter-lock-state-value.unlocked {
+    -fx-text-fill: #dc2626;
+}
+
+.filter-lock-state-value.not-set {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.filter-lock-state-switch .uiptv-switch-track {
+    -fx-background-color: #ef4444;
+}
+
+.filter-lock-state-switch:hover .uiptv-switch-track {
+    -fx-background-color: #dc2626;
+}
+
+.filter-lock-state-switch:selected .uiptv-switch-track,
+.filter-lock-state-switch:selected:hover .uiptv-switch-track {
+    -fx-background-color: #22c55e;
+}
+
+.settings-filter-password-button {
+    -fx-max-width: Infinity;
+}
+
 .settings-filter-text-area {
     -fx-background-color: #ffffff;
     -fx-border-color: rgba(17, 24, 39, 0.06);
@@ -1768,13 +1898,36 @@
 }
 
 .uiptv-responsive-card-placeholder {
-    -fx-text-fill: -uiptv-text-secondary;
-    -fx-font-size: 1.08em;
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-background-radius: 18;
     -fx-border-radius: 18;
     -fx-padding: 18 24 18 24;
+}
+
+.uiptv-responsive-card-placeholder-label,
+.uiptv-responsive-card-placeholder .label,
+.uiptv-loading-state-label {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 1.02em;
+}
+
+.uiptv-loading-state {
+    -fx-alignment: center-left;
+}
+
+.series-inline-loading-state {
+    -fx-alignment: center;
+    -fx-padding: 28 18 28 18;
+}
+
+.series-inline-loading-state .uiptv-loading-state-label {
+    -fx-font-size: 1.12em;
+    -fx-font-weight: bold;
+}
+
+.uiptv-responsive-card-placeholder .uiptv-loading-state {
+    -fx-alignment: center;
 }
 
 .uiptv-responsive-card,
@@ -1786,6 +1939,10 @@
     -fx-border-radius: 16;
     -fx-padding: 11 13 11 13;
     -fx-cursor: hand;
+}
+
+.bookmark-card {
+    -fx-padding: 14 10 14 10;
 }
 
 .uiptv-responsive-card:hover,
@@ -1827,6 +1984,14 @@
     -fx-border-radius: 12;
 }
 
+.bookmark-card .channel-logo-view.has-image {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+
 .uiptv-responsive-card:selected .channel-logo-view,
 .uiptv-responsive-card.selected .channel-logo-view {
     -fx-background-color: rgba(255, 255, 255, 0.14);
@@ -1834,7 +1999,7 @@
 }
 
 .bookmark-channel-title {
-    -fx-font-size: 1.04em;
+    -fx-font-size: 0.98em;
     -fx-font-weight: bold;
     -fx-text-fill: -uiptv-text-primary;
 }
@@ -2081,18 +2246,117 @@
     -fx-text-alignment: center;
 }
 
-.small-pill-button,
-.play-menu-button,
-.episode-play-button {
-    -fx-font-size: 0.86em;
-    -fx-font-weight: normal;
-    -fx-padding: 2 6 2 6;
+.small-pill-button {
+    -fx-font-size: 0.88em;
+    -fx-font-weight: bold;
+    -fx-padding: 4 9 4 9;
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
-    -fx-background-radius: 0;
-    -fx-border-radius: 0;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
     -fx-text-fill: -uiptv-text-primary;
+}
+
+.play-menu-button,
+.episode-play-button {
+    -fx-min-width: 24;
+    -fx-pref-width: 24;
+    -fx-max-width: 24;
+    -fx-min-height: 24;
+    -fx-pref-height: 24;
+    -fx-max-height: 24;
+    -fx-padding: 0;
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-content-display: graphic-only;
+}
+
+.play-menu-icon-ring {
+    -fx-fill: transparent;
+    -fx-stroke: transparent;
+    -fx-stroke-width: 1.45;
+}
+
+.play-menu-icon-dot {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.bookmark-play-menu-button {
+    -fx-min-width: 24;
+    -fx-pref-width: 24;
+    -fx-max-width: 24;
+    -fx-min-height: 24;
+    -fx-pref-height: 24;
+    -fx-max-height: 24;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 7;
+    -fx-border-radius: 7;
+}
+
+.bookmark-play-menu-button .play-menu-icon-ring {
+    -fx-stroke: -uiptv-text-secondary;
+}
+
+.bookmark-play-menu-button .play-menu-icon-dot {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.uiptv-responsive-card:selected .bookmark-play-menu-button .play-menu-icon-ring,
+.uiptv-responsive-card.selected .bookmark-play-menu-button .play-menu-icon-ring,
+.bookmark-card:selected .bookmark-play-menu-button .play-menu-icon-ring,
+.bookmark-card.selected .bookmark-play-menu-button .play-menu-icon-ring {
+    -fx-stroke: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .bookmark-play-menu-button .play-menu-icon-dot,
+.uiptv-responsive-card.selected .bookmark-play-menu-button .play-menu-icon-dot,
+.bookmark-card:selected .bookmark-play-menu-button .play-menu-icon-dot,
+.bookmark-card.selected .bookmark-play-menu-button .play-menu-icon-dot {
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.play-menu-button.bookmark-play-menu-button:hover,
+.play-menu-button.bookmark-play-menu-button:focused {
+    -fx-background-color: rgba(255,255,255,0.12);
+}
+
+.play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-ring,
+.play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-ring {
+    -fx-stroke: -uiptv-text-primary;
+}
+
+.play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
+.play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot {
+    -fx-fill: -uiptv-text-primary;
+}
+
+.uiptv-responsive-card:selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-ring,
+.uiptv-responsive-card:selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-ring,
+.uiptv-responsive-card.selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-ring,
+.uiptv-responsive-card.selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-ring,
+.bookmark-card:selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-ring,
+.bookmark-card:selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-ring,
+.bookmark-card.selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-ring,
+.bookmark-card.selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-ring {
+    -fx-stroke: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
+.uiptv-responsive-card:selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot,
+.uiptv-responsive-card.selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
+.uiptv-responsive-card.selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot,
+.bookmark-card:selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
+.bookmark-card:selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot,
+.bookmark-card.selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
+.bookmark-card.selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot {
+    -fx-fill: -uiptv-selected-card-fg;
 }
 
 .small-pill-button:hover,
@@ -2102,6 +2366,13 @@
 .episode-play-button:hover,
 .episode-play-button:focused {
     -fx-background-color: -uiptv-surface-hover;
+}
+
+.play-menu-button:hover .play-menu-icon-dot,
+.play-menu-button:focused .play-menu-icon-dot,
+.episode-play-button:hover .play-menu-icon-dot,
+.episode-play-button:focused .play-menu-icon-dot {
+    -fx-fill: -uiptv-text-primary;
 }
 
 .menu-item.episode-menu-item,
@@ -2119,6 +2390,14 @@
     -fx-background-color: -uiptv-selected-card-bg;
     -fx-border-color: -uiptv-selected-card-fg;
     -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-episode-card.selected-card .episode-play-button .play-menu-icon-ring {
+    -fx-stroke: transparent;
+}
+
+.watching-now-episode-card.selected-card .episode-play-button .play-menu-icon-dot {
+    -fx-fill: -uiptv-selected-card-fg;
 }
 
 .watching-now-episode-card.selected-card .episode-play-button:hover,
@@ -2167,44 +2446,258 @@
     -fx-text-fill: #111111;
 }
 
+.management-popup-root {
+    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f6f7f9);
+}
+
+.management-popup-header {
+    -fx-padding: 0 2 2 2;
+}
+
+.management-popup-title {
+    -fx-font-size: 1.54em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.management-popup-subtitle {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.management-popup-section-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.management-popup-card,
+.reload-column-card {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 14;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.06), 14, 0.10, 0, 4);
+}
+
+.management-popup-toolbar,
+.management-popup-action-strip,
+.management-popup-footer {
+    -fx-padding: 2 0 0 0;
+}
+
+.management-popup-text-field {
+    -fx-min-height: 36;
+}
+
+.reload-secondary-button {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.reload-secondary-button:hover,
+.reload-secondary-button:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-accent;
+}
+
+.manage-mac-action-row {
+    -fx-padding: 2 0 2 0;
+}
+
+.manage-mac-action-link {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 5 10 5 10;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+    -fx-underline: false;
+}
+
+.manage-mac-action-link:hover,
+.manage-mac-action-link:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-accent;
+}
+
+.manage-mac-divider {
+    -fx-text-fill: -uiptv-text-muted;
+}
+
+.manage-account-switch-row {
+    -fx-padding: 4 0 4 0;
+}
+
+.manage-account-switch-label {
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.manage-account-action-row {
+    -fx-padding: 8 0 0 0;
+}
+
+.manage-account-action-row .button {
+    -fx-min-height: 38;
+    -fx-pref-height: 38;
+    -fx-padding: 7 14 7 14;
+}
+
+.management-list-view {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.management-list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 5 1 5 1;
+}
+
+.management-list-view .list-cell:empty {
+    -fx-padding: 0;
+}
+
+.management-popup-placeholder {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-weight: bold;
+}
+
+.management-popup-chip,
+.mac-default-pill {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-background-radius: 999;
+    -fx-padding: 3 9 3 9;
+    -fx-font-size: 0.86em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-action-fg;
+}
+
+.category-management-cell-content,
+.mac-management-row-content {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 10 12 10 12;
+}
+
+.management-list-view .list-cell:filled:selected .category-management-cell-content,
+.management-list-view .list-cell:filled:selected .mac-management-row-content {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-border;
+}
+
+.category-management-name,
+.mac-management-address {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.management-list-view .list-cell:filled:selected .category-management-name,
+.management-list-view .list-cell:filled:selected .mac-management-address {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.mac-management-info {
+    -fx-padding: 3 0 0 28;
+}
+
+.mac-management-meta-line .label {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.94em;
+}
+
+.reload-cache-popup {
+    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f4f6f8);
+}
+
+.reload-account-list,
+.reload-log-list {
+    -fx-spacing: 8;
+}
+
 .reload-account-row {
-    -fx-background-color: -fx-control-inner-background;
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-padding: 9 11 9 11;
 }
 
 .reload-account-row-alt {
-    -fx-background-color: derive(-fx-control-inner-background, -2%);
+    -fx-background-color: -uiptv-surface-muted;
+}
+
+.reload-account-row:hover,
+.reload-account-row:selected {
+    -fx-border-color: -uiptv-accent;
+}
+
+.reload-select-menu {
+    -fx-min-height: 34;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
 }
 
 .reload-summary-box {
-    -fx-background-color: derive(-fx-control-inner-background, -2%);
-    -fx-border-color: -fx-box-border;
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+    -fx-background-radius: 14;
 }
 
 .reload-log-header {
-    -fx-background-color: derive(-fx-control-inner-background, -3%);
-    -fx-border-color: -fx-box-border;
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+    -fx-background-radius: 14;
+    -fx-padding: 9 11 9 11;
+    -fx-cursor: hand;
 }
 
 .reload-log-root {
-    -fx-border-color: -fx-box-border;
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-border-radius: 16;
+    -fx-background-radius: 16;
+    -fx-padding: 4;
 }
 
+.reload-log-body {
+    -fx-padding: 2 12 10 12;
+}
+
+.reload-account-title,
+.reload-status-label,
 .reload-status-queued,
 .reload-status-running,
 .reload-status-done,
 .reload-status-yellow,
-.reload-status-bad {
+.reload-status-bad,
+.reload-problem-level-bad,
+.reload-problem-level-yellow {
     -fx-font-weight: bold;
 }
 
+.reload-account-info-chip .label {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.92em;
+}
+
 .reload-status-queued {
-    -fx-text-fill: -fx-text-base-color;
+    -fx-text-fill: -uiptv-text-secondary;
 }
 
 .reload-status-running {
@@ -2215,11 +2708,13 @@
     -fx-text-fill: #2e7d32;
 }
 
-.reload-status-yellow {
+.reload-status-yellow,
+.reload-problem-level-yellow {
     -fx-text-fill: #d97706;
 }
 
-.reload-status-bad {
+.reload-status-bad,
+.reload-problem-level-bad {
     -fx-text-fill: #b91c1c;
 }
 
@@ -2259,6 +2754,15 @@
 .player-round-control-button {
     -fx-background-color: rgba(0, 0, 0, 0.6);
     -fx-background-radius: 50em;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-radius: 50em;
+    -fx-border-insets: 0;
+    -fx-padding: 8;
+    -fx-effect: none;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
     -fx-cursor: hand;
 }
 
@@ -2289,12 +2793,32 @@
 
 .player-icon-button {
     -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-radius: 4;
+    -fx-border-insets: 0;
+    -fx-padding: 3;
+    -fx-min-width: 26;
+    -fx-min-height: 26;
+    -fx-pref-width: 26;
+    -fx-pref-height: 26;
+    -fx-max-width: 26;
+    -fx-max-height: 26;
+    -fx-effect: none;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
     -fx-cursor: hand;
 }
 
-.player-icon-button:hover {
+.player-icon-button:hover,
+.player-icon-button:armed,
+.player-icon-button:focused {
     -fx-background-color: rgba(255, 255, 255, 0.2);
     -fx-background-radius: 4;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-effect: none;
 }
 
 .player-tracks-menu {

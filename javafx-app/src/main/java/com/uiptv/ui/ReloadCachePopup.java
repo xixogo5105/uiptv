@@ -69,7 +69,6 @@ public class ReloadCachePopup extends VBox {
     private static final String STYLE_CLASS_CENSORED_COUNT = "censored-count";
     private static final String STYLE_CLASS_LOG_TEXT = "log-text";
     private static final String STYLE_TEXT_BASE_FILL = "-fx-fill: -fx-text-base-color;";
-    private static final String STYLE_YELLOW_LABEL = "-fx-font-weight: bold; -fx-text-fill: #d97706;";
     private static final String TR_CATEGORY_TAB_SERIES = "categoryTabTvSeries";
     private static final String TR_CATEGORY_TAB_VOD = "categoryTabVideoOnDemand";
     private static final String TR_CATEGORY_TAB_LIVE_TV = "categoryTabLiveTv";
@@ -186,7 +185,7 @@ public class ReloadCachePopup extends VBox {
         configureScrollPanes();
         GridPane mainContent = buildMainContent(selectMenu);
         HBox buttonBox = buildButtonBox();
-        getChildren().addAll(progressBar, mainContent, buttonBox);
+        getChildren().addAll(buildHeader(), progressBar, mainContent, buttonBox);
         registerStageCloseListener();
 
         if (preselectedAccounts != null && !preselectedAccounts.isEmpty()) {
@@ -199,12 +198,24 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void initializeLayout() {
-        setSpacing(10);
-        setPadding(new Insets(10));
+        getStyleClass().add("reload-cache-popup");
+        setSpacing(14);
+        setPadding(new Insets(18));
         setPrefSize(1368, 720);
         getStylesheets().add(RootApplication.getCurrentTheme());
-        accountsVBox.setPadding(new Insets(10));
-        logVBox.setPadding(new Insets(5));
+        accountsVBox.getStyleClass().add("reload-account-list");
+        accountsVBox.setPadding(new Insets(2));
+        logVBox.getStyleClass().add("reload-log-list");
+        logVBox.setPadding(new Insets(2));
+    }
+
+    private VBox buildHeader() {
+        Label title = new Label(I18n.tr("autoReloadAccountsCache"));
+        title.getStyleClass().add("management-popup-title");
+
+        VBox header = new VBox(2, title);
+        header.getStyleClass().add("management-popup-header");
+        return header;
     }
 
     private List<Account> loadSupportedAccounts() {
@@ -237,15 +248,16 @@ public class ReloadCachePopup extends VBox {
         CheckBox accountCheckBox = new CheckBox(account.getAccountName());
         accountCheckBox.setUserData(account);
         accountCheckBox.setMaxWidth(Double.MAX_VALUE);
-        accountCheckBox.setPadding(new Insets(5));
-        accountCheckBox.setStyle(index % 2 == 0
-                ? "-fx-background-color: derive(-fx-control-inner-background, -2%);"
-                : "-fx-background-color: -fx-control-inner-background;");
+        accountCheckBox.getStyleClass().add("reload-account-row");
+        if (index % 2 != 0) {
+            accountCheckBox.getStyleClass().add("reload-account-row-alt");
+        }
         return accountCheckBox;
     }
 
     private MenuButton buildSelectMenu() {
         MenuButton selectMenu = new MenuButton(I18n.tr("autoSelectByTypes"));
+        selectMenu.getStyleClass().add("reload-select-menu");
         CheckMenuItem allItem = new CheckMenuItem(I18n.tr("commonAll"));
         CheckMenuItem stalkerItem = new CheckMenuItem(I18n.tr("reloadStalkerPortalAccounts"));
         CheckMenuItem xtremeItem = new CheckMenuItem(I18n.tr("reloadXtremeAccount"));
@@ -280,19 +292,35 @@ public class ReloadCachePopup extends VBox {
         accountsScrollPane.setFitToWidth(true);
         accountsScrollPane.setMinHeight(250);
         accountsScrollPane.setMaxWidth(Double.MAX_VALUE);
+        accountsScrollPane.getStyleClass().addAll("transparent-scroll-pane", "reload-account-scroll");
         VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
         logScrollPane.setFitToWidth(true);
         logScrollPane.setMinHeight(250);
         logScrollPane.setMaxWidth(Double.MAX_VALUE);
+        logScrollPane.getStyleClass().addAll("transparent-scroll-pane", "reload-log-scroll");
         VBox.setVgrow(logScrollPane, Priority.ALWAYS);
     }
 
     private GridPane buildMainContent(MenuButton selectMenu) {
-        accountColumn = new VBox(10, selectMenu, accountsScrollPane);
+        Label accountTitle = createColumnTitle(I18n.tr("autoAccount"));
+        accountColumn = new VBox(10, accountTitle, selectMenu, accountsScrollPane);
+        accountColumn.getStyleClass().addAll("management-popup-card", "reload-column-card", "reload-account-column");
         accountColumn.setMaxWidth(Double.MAX_VALUE);
+        accountColumn.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
+
+        Label logTitle = createColumnTitle(I18n.tr("autoLogs"));
+        VBox logColumn = new VBox(10, logTitle, logScrollPane);
+        logColumn.getStyleClass().addAll("management-popup-card", "reload-column-card", "reload-log-column");
+        logColumn.setMaxWidth(Double.MAX_VALUE);
+        logColumn.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(logScrollPane, Priority.ALWAYS);
+        GridPane.setVgrow(accountColumn, Priority.ALWAYS);
+        GridPane.setVgrow(logColumn, Priority.ALWAYS);
+
         GridPane mainContent = new GridPane();
-        mainContent.setHgap(10);
+        mainContent.getStyleClass().add("reload-main-content");
+        mainContent.setHgap(14);
         mainContent.setMaxWidth(Double.MAX_VALUE);
         accountsColumn = createContentColumn(35);
         logsColumn = createContentColumn(65);
@@ -302,9 +330,15 @@ public class ReloadCachePopup extends VBox {
         mainContent.getColumnConstraints().addAll(accountsColumn, logsColumn);
         mainContent.getRowConstraints().add(contentRow);
         mainContent.add(accountColumn, 0, 0);
-        mainContent.add(logScrollPane, 1, 0);
+        mainContent.add(logColumn, 1, 0);
         VBox.setVgrow(mainContent, Priority.ALWAYS);
         return mainContent;
+    }
+
+    private Label createColumnTitle(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("management-popup-section-title");
+        return label;
     }
 
     private ColumnConstraints createContentColumn(double widthPercent) {
@@ -320,16 +354,19 @@ public class ReloadCachePopup extends VBox {
         reloadButton.managedProperty().bind(reloadButton.visibleProperty());
         stopButton.setVisible(false);
         stopButton.managedProperty().bind(stopButton.visibleProperty());
+        stopButton.getStyleClass().add("dangerous");
         stopButton.setOnAction(event -> requestStop());
         Button copyLogButton = new Button(I18n.tr("autoCopyLog"));
+        copyLogButton.getStyleClass().add("reload-secondary-button");
         copyLogButton.setOnAction(event -> copyLogsToClipboard());
         Button closeButton = new Button(I18n.tr("autoClose"));
+        closeButton.getStyleClass().add("reload-secondary-button");
         closeButton.setOnAction(event -> stage.close());
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         HBox buttonBox = new HBox(10, reloadButton, stopButton, spacer, copyLogButton, closeButton);
+        buttonBox.getStyleClass().add("management-popup-footer");
         buttonBox.setAlignment(Pos.CENTER_LEFT);
-        buttonBox.setPadding(new Insets(10, 0, 0, 0));
         return buttonBox;
     }
 
@@ -831,6 +868,7 @@ public class ReloadCachePopup extends VBox {
     private VBox buildProblemAccountsPopupRoot(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts,
                                                Stage popupStage, VBox accountsBox) {
         VBox root = new VBox(10);
+        root.getStyleClass().addAll("management-popup-root", "reload-problem-accounts-popup");
         root.setPadding(new Insets(20));
         root.getChildren().addAll(
                 createProblemAccountsWarningLabel(),
@@ -871,20 +909,20 @@ public class ReloadCachePopup extends VBox {
     private void populateProblemAccountsBox(VBox accountsBox, List<Account> processedAccounts,
                                             Map<String, SummaryStatus> problematicAccounts) {
         addProblemAccountsSection(accountsBox, processedAccounts, problematicAccounts, SummaryLevel.BAD,
-                I18n.tr("autoBadRed"), "-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
+                I18n.tr("autoBadRed"), "reload-problem-level-bad");
         addProblemAccountsSection(accountsBox, processedAccounts, problematicAccounts, SummaryLevel.YELLOW,
-                I18n.tr("autoYellowPartiallySuccessful"), STYLE_YELLOW_LABEL);
+                I18n.tr("autoYellowPartiallySuccessful"), "reload-problem-level-yellow");
     }
 
     private void addProblemAccountsSection(VBox accountsBox, List<Account> processedAccounts,
                                            Map<String, SummaryStatus> problematicAccounts, SummaryLevel level,
-                                           String title, String style) {
+                                           String title, String styleClass) {
         List<Account> accounts = findProblemAccounts(processedAccounts, problematicAccounts, level);
         if (accounts.isEmpty()) {
             return;
         }
         Label label = new Label(title);
-        label.setStyle(style);
+        label.getStyleClass().add(styleClass);
         accountsBox.getChildren().add(label);
         addProblemAccountsToDeleteBox(accountsBox, accounts, problematicAccounts);
     }
@@ -899,7 +937,7 @@ public class ReloadCachePopup extends VBox {
 
     private HBox buildProblemAccountsButtons(Stage popupStage, VBox accountsBox) {
         Button deleteButton = new Button(I18n.tr("autoDeleteSelected"));
-        deleteButton.setStyle("-fx-background-color: #ff4444; -fx-text-fill: white; -fx-font-weight: bold;");
+        deleteButton.getStyleClass().add("dangerous");
         deleteButton.setOnAction(e -> deleteSelectedProblemAccounts(popupStage, accountsBox));
 
         Button cancelButton = new Button(I18n.tr("autoCancel"));
@@ -1075,13 +1113,10 @@ public class ReloadCachePopup extends VBox {
     private VBox buildRunSummaryBox() {
         VBox summaryBox = new VBox(4);
         summaryBox.setPadding(new Insets(10));
-        summaryBox.setStyle("-fx-background-color: derive(-fx-control-inner-background, -2%);"
-                + "-fx-border-color: -fx-box-border;"
-                + "-fx-border-radius: 6;"
-                + "-fx-background-radius: 6;");
+        summaryBox.getStyleClass().add("reload-summary-box");
 
         Label title = new Label(I18n.tr("autoRunSummary"));
-        title.setStyle("-fx-font-weight: bold;");
+        title.getStyleClass().add("management-popup-section-title");
         summaryBox.getChildren().add(title);
         for (String line : latestSummaryLines) {
             summaryBox.getChildren().add(createDisplayLineNode(line, false));
@@ -2035,18 +2070,15 @@ public class ReloadCachePopup extends VBox {
         private AccountLogPanel(Account account) {
             this.account = account;
             this.accountLabel.setText(buildBaseLabel());
-            this.accountLabel.setStyle("-fx-font-weight: bold;");
+            this.accountLabel.getStyleClass().add("reload-account-title");
 
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
 
             this.header.setAlignment(Pos.CENTER_LEFT);
-            this.header.setPadding(new Insets(8));
-            this.header.setStyle("-fx-background-color: derive(-fx-control-inner-background, -3%);"
-                    + "-fx-border-color: -fx-box-border;"
-                    + "-fx-border-radius: 6;"
-                    + "-fx-background-radius: 6;");
+            this.header.getStyleClass().add("reload-log-header");
             this.runningIndicator.setMaxSize(14, 14);
+            this.runningIndicator.getStyleClass().add("reload-running-indicator");
             this.runningIndicator.setVisible(false);
             this.runningIndicator.managedProperty().bind(this.runningIndicator.visibleProperty());
 
@@ -2056,14 +2088,16 @@ public class ReloadCachePopup extends VBox {
             statusBox.setAlignment(Pos.CENTER_LEFT);
             expiryBox.getChildren().setAll(expiryIndicator, expiryLabel);
             statusBox.getChildren().setAll(statusIndicator, statusLabel);
+            expiryBox.getStyleClass().add("reload-account-info-chip");
+            statusBox.getStyleClass().add("reload-account-info-chip");
             accountInfoBox.setAlignment(Pos.CENTER_LEFT);
             accountInfoBox.getChildren().setAll(expiryBox, statusBox);
 
             this.header.getChildren().addAll(accountLabel, accountInfoBox, spacer, runningIndicator, runStatusLabel, arrowLabel);
 
-            this.logBody.setPadding(new Insets(0, 10, 8, 10));
+            this.logBody.getStyleClass().add("reload-log-body");
             this.root.getChildren().addAll(header, logBody);
-            this.root.setStyle("-fx-border-color: -fx-box-border; -fx-border-radius: 6; -fx-background-radius: 6;");
+            this.root.getStyleClass().add("reload-log-root");
 
             this.header.setOnMouseClicked(event -> setExpanded(!logBody.isVisible()));
         }
@@ -2144,40 +2178,41 @@ public class ReloadCachePopup extends VBox {
                 case QUEUED:
                     runningIndicator.setVisible(false);
                     runStatusLabel.setText(I18n.tr("autoQueued"));
-                    runStatusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: -fx-text-base-color;");
+                    setRunStatusStyle("reload-status-queued");
                     break;
                 case RUNNING:
                     runningIndicator.setVisible(true);
                     runStatusLabel.setText(I18n.tr("autoRunning"));
-                    runStatusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
+                    setRunStatusStyle("reload-status-running");
                     break;
                 case DONE:
                     runningIndicator.setVisible(false);
                     runStatusLabel.setText(channelCount == null
                             ? I18n.tr("reloadDone")
                             : I18n.tr("reloadDoneWithChannels", channelCount));
-                    runStatusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #2e7d32;");
+                    setRunStatusStyle("reload-status-done");
                     break;
                 case YELLOW:
                     runningIndicator.setVisible(false);
                     runStatusLabel.setText(channelCount == null
                             ? I18n.tr("reloadPartial")
                             : I18n.tr("reloadPartialWithChannels", channelCount));
-                    runStatusLabel.setStyle(STYLE_YELLOW_LABEL);
+                    setRunStatusStyle("reload-status-yellow");
                     break;
                 case EMPTY:
                     runningIndicator.setVisible(false);
                     runStatusLabel.setText(I18n.tr("autoEmpty0Channels"));
-                    runStatusLabel.setStyle(STYLE_YELLOW_LABEL);
+                    setRunStatusStyle("reload-status-yellow");
                     break;
                 case FAILED:
                     runningIndicator.setVisible(false);
                     runStatusLabel.setText(I18n.tr("autoFailed2"));
-                    runStatusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #b91c1c;");
+                    setRunStatusStyle("reload-status-bad");
                     break;
                 default:
                     runningIndicator.setVisible(false);
                     runStatusLabel.setText("");
+                    setRunStatusStyle(null);
                     break;
             }
         }
@@ -2186,9 +2221,16 @@ public class ReloadCachePopup extends VBox {
             if (status == AccountRunStatus.RUNNING && current != null && total != null) {
                 runningIndicator.setVisible(true);
                 runStatusLabel.setText(I18n.tr("autoRunningProgress", current, total));
-                runStatusLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #0b79d0;");
+                setRunStatusStyle("reload-status-running");
             } else {
                 setStatus(status, (Integer) null);
+            }
+        }
+
+        private void setRunStatusStyle(String statusStyleClass) {
+            runStatusLabel.getStyleClass().setAll("reload-status-label");
+            if (statusStyleClass != null) {
+                runStatusLabel.getStyleClass().add(statusStyleClass);
             }
         }
     }

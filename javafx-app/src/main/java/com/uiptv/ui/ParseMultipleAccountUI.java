@@ -115,7 +115,7 @@ public class ParseMultipleAccountUI extends VBox {
         multipleSPAccounts.setMaxHeight(Double.MAX_VALUE);
         multipleSPAccounts.setPromptText(resolveBulkHintPrompt());
 
-        parseModePillBar.getStyleClass().add("bulk-import-mode-pill-bar");
+        parseModePillBar.getStyleClass().add("watching-now-mode-pill-bar");
         parseModePillBar.setItems(List.of(TextParserService.MODE_STALKER, TextParserService.MODE_XTREME, TextParserService.MODE_M3U));
         parseModePillBar.setSelectedItem(TextParserService.MODE_STALKER);
 
@@ -193,11 +193,9 @@ public class ParseMultipleAccountUI extends VBox {
     }
 
     private HBox createActionRow() {
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox row = new HBox(10, spacer, saveButton, clearButton);
+        HBox row = new HBox(10, saveButton, clearButton);
         row.getStyleClass().add("bulk-import-actions");
-        row.setAlignment(Pos.CENTER_RIGHT);
+        row.setAlignment(Pos.CENTER_LEFT);
         row.setFillHeight(false);
         row.setMaxWidth(Double.MAX_VALUE);
         return row;

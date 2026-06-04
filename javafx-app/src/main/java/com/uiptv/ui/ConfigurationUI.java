@@ -110,6 +110,8 @@ public class ConfigurationUI extends VBox {
     private final SwitchToggle thumbnailModeSwitch = new SwitchToggle();
     private final SwitchToggle filterPauseSwitch = new SwitchToggle();
     private final SwitchToggle filterPasswordProtectionSwitch = new SwitchToggle();
+    private final SwitchToggle wideViewSwitch = new SwitchToggle();
+    private final SwitchToggle resolveChainAndDeepRedirectsSwitch = new SwitchToggle();
     private final FlowPane settingsCardPane = new FlowPane();
     private final List<SettingsSection> settingsSections = new ArrayList<>();
     private final RadioButton defaultPlayer1 = new RadioButton("");
@@ -128,11 +130,14 @@ public class ConfigurationUI extends VBox {
     private final Label cacheFilteringGroupTitleLabel = new Label();
     private final StatusIcon cacheFilteringGroupStatusIcon = new StatusIcon();
     private final Button filterLockPasswordButton = new Button();
-    private final Button filterUnlockButton = new Button(I18n.tr("filterLockUnlockAction"));
-    private final Button filterRelockButton = new Button(I18n.tr("filterLockLockNowAction"));
+    private final SwitchToggle filterLockStateSwitch = new SwitchToggle();
+    private final Label filterLockStateTitleLabel = new Label(I18n.tr("filterLockStateToggleLabel"));
+    private final Label filterLockStateValueLabel = new Label();
     private final ComboBox<Integer> filterLockUnlockDurationComboBox = new ComboBox<>();
+    private Node filterLockStateRow;
     private HBox filterLockDurationRow;
     private Node filterPasswordProtectionRow;
+    private Node wideViewRow;
     private final VBox filterAdminControls = new VBox(10);
     private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
     private final SwitchToggle autoRunServerOnStartupSwitch = new SwitchToggle();
@@ -188,10 +193,12 @@ public class ConfigurationUI extends VBox {
     private boolean syncingThumbnailModeSelector;
     private boolean syncingFilterPauseModeSelector;
     private boolean syncingPasswordProtectionSelector;
+    private boolean syncingFilterLockStateSwitch;
     private boolean syncingConfigurationToForm;
     private boolean savingConfiguration;
     private boolean playerSelectionConfirmationActive;
     private boolean playerSelectionSaveDeferred;
+    private boolean playerOptionSwitchesConfigured;
     private PlayerOptionCard embeddedPlayerCard;
     private AppHeaderActions pageHeaderActions;
     @SuppressWarnings("java:S1450")
@@ -327,12 +334,10 @@ public class ConfigurationUI extends VBox {
         tmdbReadAccessToken.setMinWidth(295);
         tmdbReadAccessToken.setPrefWidth(295);
         tmdbReadAccessToken.setMaxWidth(Double.MAX_VALUE);
-        HBox wideViewRow = new HBox(4, wideViewCheckBox, wideViewHelpLink);
-        HBox resolveChainRow = new HBox(4, resolveChainAndDeepRedirectsCheckBox, resolveChainAndDeepRedirectsHelpLink);
-        wideViewRow.setAlignment(Pos.CENTER_LEFT);
-        resolveChainRow.setAlignment(Pos.CENTER_LEFT);
-        wideViewCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
-        resolveChainAndDeepRedirectsCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
+        configurePlayerOptionSwitches();
+        wideViewRow = createSettingSwitchHelpRow("configWideView", wideViewSwitch, wideViewHelpLink);
+        Node resolveChainRow = createSettingSwitchHelpRow("configResolveChainAndDeepRedirects", resolveChainAndDeepRedirectsSwitch, resolveChainAndDeepRedirectsHelpLink);
+        updateWideViewVisibility();
         Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
         HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
         VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbLinksRow);
@@ -342,11 +347,11 @@ public class ConfigurationUI extends VBox {
         wideViewHelpLink.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
 
         filterAdminControls.getChildren().setAll(filterCategoriesWithTextContains, filterChannelWithTextContains);
-        HBox filterLockActions = new HBox(8, filterLockPasswordButton, filterUnlockButton, filterRelockButton);
-        filterLockActions.setAlignment(Pos.CENTER_LEFT);
+        filterLockStateRow = createFilterLockStateRow();
+        filterLockPasswordButton.getStyleClass().add("settings-filter-password-button");
         filterLockDurationRow = createFilterLockDurationRow();
         filterPasswordProtectionRow = createFilterPasswordProtectionRow();
-        VBox filtersGroup = new VBox(10, filterLockStatusLabel, filterLockActions, filterPasswordProtectionRow, filterLockDurationRow, filterAdminControls);
+        VBox filtersGroup = new VBox(10, filterLockStatusLabel, filterLockStateRow, filterPasswordProtectionRow, filterLockDurationRow, filterAdminControls, filterLockPasswordButton);
 
         VBox themeOverridesGroup = buildThemeOverrideGroup();
 
@@ -619,8 +624,75 @@ public class ConfigurationUI extends VBox {
         return row;
     }
 
+    private Node createFilterLockStateRow() {
+        filterLockStateSwitch.getStyleClass().add("filter-lock-state-switch");
+        filterLockStateTitleLabel.getStyleClass().add("settings-filter-mode-label");
+        filterLockStateValueLabel.getStyleClass().add("filter-lock-state-value");
+
+        VBox labels = new VBox(2, filterLockStateTitleLabel, filterLockStateValueLabel);
+        labels.setMinWidth(0);
+        labels.setMaxWidth(Double.MAX_VALUE);
+
+        HBox row = new HBox(12, labels, filterLockStateSwitch);
+        row.getStyleClass().add("filter-lock-state-row");
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(labels, Priority.ALWAYS);
+        return row;
+    }
+
     private Node createSettingSwitchRow(String labelKey, SwitchToggle switchToggle) {
         return createSettingControlRow(labelKey, switchToggle, SETTINGS_SWITCH_WIDTH);
+    }
+
+    private Node createSettingSwitchHelpRow(String labelKey, SwitchToggle switchToggle, Hyperlink helpLink) {
+        Label label = new Label(I18n.tr(labelKey));
+        label.getStyleClass().add("settings-filter-mode-label");
+        label.setMinWidth(0);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.setWrapText(false);
+        label.setTextOverrun(OverrunStyle.ELLIPSIS);
+        label.setAlignment(Pos.CENTER_LEFT);
+
+        HBox labelBox = new HBox(4, label, helpLink);
+        labelBox.setAlignment(Pos.CENTER_LEFT);
+        labelBox.setMinWidth(0);
+        labelBox.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(label, Priority.ALWAYS);
+
+        GridPane row = new GridPane();
+        row.getStyleClass().add("settings-filter-mode-row");
+        row.setHgap(12);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMaxWidth(Double.MAX_VALUE);
+
+        ColumnConstraints labelColumn = new ColumnConstraints();
+        labelColumn.setHgrow(Priority.ALWAYS);
+        labelColumn.setFillWidth(true);
+        labelColumn.setMinWidth(0);
+        ColumnConstraints controlColumn = new ColumnConstraints();
+        controlColumn.setMinWidth(SETTINGS_SWITCH_WIDTH);
+        controlColumn.setPrefWidth(SETTINGS_SWITCH_WIDTH);
+        controlColumn.setMaxWidth(SETTINGS_SWITCH_WIDTH);
+        switchToggle.setMinWidth(SETTINGS_SWITCH_WIDTH);
+        switchToggle.setPrefWidth(SETTINGS_SWITCH_WIDTH);
+        switchToggle.setMaxWidth(SETTINGS_SWITCH_WIDTH);
+
+        row.getColumnConstraints().addAll(labelColumn, controlColumn);
+        row.add(labelBox, 0, 0);
+        row.add(switchToggle, 1, 0);
+        GridPane.setHgrow(labelBox, Priority.ALWAYS);
+        return row;
+    }
+
+    private void configurePlayerOptionSwitches() {
+        if (playerOptionSwitchesConfigured) {
+            return;
+        }
+        wideViewSwitch.selectedProperty().bindBidirectional(wideViewCheckBox.selectedProperty());
+        resolveChainAndDeepRedirectsSwitch.selectedProperty().bindBidirectional(resolveChainAndDeepRedirectsCheckBox.selectedProperty());
+        playerOptionSwitchesConfigured = true;
     }
 
     private Node createServerPortRow(String labelText, TextInputControl portField, Hyperlink openLink) {
@@ -815,6 +887,15 @@ public class ConfigurationUI extends VBox {
         }
     }
 
+    private void syncFilterLockStateSwitch(boolean locked) {
+        syncingFilterLockStateSwitch = true;
+        try {
+            filterLockStateSwitch.setSelected(locked);
+        } finally {
+            syncingFilterLockStateSwitch = false;
+        }
+    }
+
     private void configureThemeModeSelector() {
         if (!themeModePillBar.getStyleClass().contains("settings-theme-mode-pill-bar")) {
             themeModePillBar.getStyleClass().add("settings-theme-mode-pill-bar");
@@ -976,7 +1057,8 @@ public class ConfigurationUI extends VBox {
                 || syncingThemeModeSelector
                 || syncingThumbnailModeSelector
                 || syncingFilterPauseModeSelector
-                || syncingPasswordProtectionSelector;
+                || syncingPasswordProtectionSelector
+                || syncingFilterLockStateSwitch;
     }
 
     private void runWithAutoSaveSuppressed(Runnable action) {
@@ -1216,15 +1298,33 @@ public class ConfigurationUI extends VBox {
             FilterLockDialogs.openPasswordChangeDialog(this);
             refreshConfigurationForm();
         });
-        filterUnlockButton.setOnAction(event -> {
-            if (FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
-                refreshFilterLockUi();
-            }
-        });
-        filterRelockButton.setOnAction(event -> {
-            FilterLockService.getInstance().clearUnlockSession();
+        filterLockStateSwitch.selectedProperty().addListener((_, _, lockedRequested) ->
+                handleFilterLockStateSwitchChanged(lockedRequested));
+    }
+
+    private void handleFilterLockStateSwitchChanged(boolean lockedRequested) {
+        if (syncingConfigurationToForm || syncingFilterLockStateSwitch) {
+            return;
+        }
+        FilterLockService filterLockService = FilterLockService.getInstance();
+        if (!filterLockService.hasPasswordConfigured()) {
+            syncFilterLockStateSwitch(false);
+            return;
+        }
+        if (lockedRequested) {
+            filterLockService.clearUnlockSession();
             refreshFilterLockUi();
-        });
+            return;
+        }
+        if (filterLockService.isUnlocked()) {
+            refreshFilterLockUi();
+            return;
+        }
+        if (FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
+            refreshFilterLockUi();
+        } else {
+            syncFilterLockStateSwitch(true);
+        }
     }
 
     private void addVlcOptionsLinkClickHandler() {
@@ -1414,10 +1514,13 @@ public class ConfigurationUI extends VBox {
         boolean unlocked = filterLockService.isUnlocked();
 
         filterLockPasswordButton.setText(I18n.tr(passwordSet ? "filterLockChangePasswordAction" : "filterLockSetPasswordAction"));
-        filterUnlockButton.setManaged(passwordSet && !unlocked);
-        filterUnlockButton.setVisible(passwordSet && !unlocked);
-        filterRelockButton.setManaged(passwordSet && unlocked);
-        filterRelockButton.setVisible(passwordSet && unlocked);
+        if (filterLockStateRow != null) {
+            filterLockStateRow.setManaged(passwordSet);
+            filterLockStateRow.setVisible(passwordSet);
+        }
+        filterLockStateSwitch.setDisable(!passwordSet);
+        syncFilterLockStateSwitch(passwordSet && !unlocked);
+        updateFilterLockStateValue(passwordSet, unlocked);
         if (filterPasswordProtectionRow != null) {
             filterPasswordProtectionRow.setManaged(passwordSet);
             filterPasswordProtectionRow.setVisible(passwordSet);
@@ -1459,6 +1562,22 @@ public class ConfigurationUI extends VBox {
         filterCategoriesWithTextContains.setPromptText(I18n.tr("filterLockHiddenCategoriesPrompt"));
         filterChannelWithTextContains.setPromptText(I18n.tr("filterLockHiddenChannelsPrompt"));
         updateFilterLockDurationRowVisibility(false);
+    }
+
+    private void updateFilterLockStateValue(boolean passwordSet, boolean unlocked) {
+        filterLockStateValueLabel.getStyleClass().removeAll("locked", "unlocked", "not-set");
+        if (!passwordSet) {
+            filterLockStateValueLabel.setText(I18n.tr("filterLockStateNotSet"));
+            filterLockStateValueLabel.getStyleClass().add("not-set");
+            return;
+        }
+        if (unlocked) {
+            filterLockStateValueLabel.setText(I18n.tr("filterLockStateUnlocked"));
+            filterLockStateValueLabel.getStyleClass().add("unlocked");
+            return;
+        }
+        filterLockStateValueLabel.setText(I18n.tr("filterLockStateLocked"));
+        filterLockStateValueLabel.getStyleClass().add("locked");
     }
 
     private void updateFilterLockDurationRowVisibility(boolean visible) {
@@ -1713,8 +1832,10 @@ public class ConfigurationUI extends VBox {
 
     private void updateWideViewVisibility() {
         boolean isEmbedded = defaultEmbedPlayer.isSelected();
-        wideViewCheckBox.setVisible(isEmbedded);
-        wideViewCheckBox.setManaged(isEmbedded);
+        if (wideViewRow != null) {
+            wideViewRow.setVisible(isEmbedded);
+            wideViewRow.setManaged(isEmbedded);
+        }
         if (!isEmbedded) {
             wideViewCheckBox.setSelected(false);
         }

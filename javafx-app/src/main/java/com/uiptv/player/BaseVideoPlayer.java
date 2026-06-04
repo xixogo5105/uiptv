@@ -275,7 +275,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         controlsContainer.getStyleClass().add("player-controls-container");
         controlsContainer.getChildren().addAll(nowShowingFlow, buttonRow, timeRow);
         controlsContainer.setMaxWidth(576);
-        controlsContainer.setPrefWidth(36);
+        controlsContainer.setPrefWidth(Region.USE_COMPUTED_SIZE);
         controlsContainer.setMaxHeight(Region.USE_PREF_SIZE);
         applyFixedControlBarOrientation(controlsContainer, nowShowingFlow, buttonRow, timeRow, timeLabel, volumeSlider, timeSlider);
 

@@ -58,12 +58,12 @@ public class PlayerOptionCard extends HBox {
             titleRow.getChildren().addAll(spacer, titleAccessory);
         }
 
-        VBox body = new VBox(5);
-        body.setMinWidth(0);
-        body.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(body, Priority.ALWAYS);
-        UiRenderQuality.optimizeLayout(body);
-        body.getChildren().add(titleRow);
+        VBox headerBody = new VBox(5);
+        headerBody.setMinWidth(0);
+        headerBody.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(headerBody, Priority.ALWAYS);
+        UiRenderQuality.optimizeLayout(headerBody);
+        headerBody.getChildren().add(titleRow);
 
         if (description != null && !description.isBlank()) {
             Label descriptionLabel = new Label(description);
@@ -72,13 +72,27 @@ public class PlayerOptionCard extends HBox {
             descriptionLabel.setMinWidth(0);
             descriptionLabel.setMaxWidth(Double.MAX_VALUE);
             UiRenderQuality.optimizeTextNode(descriptionLabel);
-            body.getChildren().add(descriptionLabel);
-        }
-        if (content != null) {
-            body.getChildren().add(content);
+            headerBody.getChildren().add(descriptionLabel);
         }
 
-        getChildren().addAll(selector, body);
+        HBox headerRow = new HBox(12, selector, headerBody);
+        headerRow.setAlignment(Pos.TOP_LEFT);
+        headerRow.setMinWidth(0);
+        headerRow.setMaxWidth(Double.MAX_VALUE);
+        UiRenderQuality.optimizeLayout(headerRow);
+
+        VBox cardBody = new VBox(7);
+        cardBody.setMinWidth(0);
+        cardBody.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(cardBody, Priority.ALWAYS);
+        UiRenderQuality.optimizeLayout(cardBody);
+        cardBody.getChildren().add(headerRow);
+
+        if (content != null) {
+            cardBody.getChildren().add(content);
+        }
+
+        getChildren().add(cardBody);
         refreshSelectedState(selector.isSelected());
         selector.selectedProperty().addListener((_, _, selected) -> refreshSelectedState(selected));
     }

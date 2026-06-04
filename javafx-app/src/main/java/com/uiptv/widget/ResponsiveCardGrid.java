@@ -40,7 +40,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
 
     private final Function<T, Region> cardFactory;
     private final FlowPane cardPane = new FlowPane();
-    private final Label placeholder = new Label();
+    private final StackPane placeholder = new StackPane();
+    private final Label placeholderLabel = new Label();
     private final Map<T, Region> cardsByItem = new LinkedHashMap<>();
     private final ObservableList<T> selectedItems = FXCollections.observableArrayList();
     private final ObservableList<T> readonlySelectedItems = FXCollections.unmodifiableObservableList(selectedItems);
@@ -77,7 +78,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
         cardPane.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
         placeholder.getStyleClass().add("uiptv-responsive-card-placeholder");
-        UiRenderQuality.optimizeTextNode(placeholder);
+        placeholderLabel.getStyleClass().add("uiptv-responsive-card-placeholder-label");
+        UiRenderQuality.optimizeTextNode(placeholderLabel);
         placeholder.setVisible(false);
         placeholder.setManaged(false);
 
@@ -111,7 +113,22 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     public void setPlaceholderText(String text) {
-        placeholder.setText(text == null ? "" : text);
+        String safeText = text == null ? "" : text;
+        placeholderLabel.setText(safeText);
+        if (safeText.isBlank()) {
+            placeholder.getChildren().clear();
+        } else {
+            placeholder.getChildren().setAll(placeholderLabel);
+        }
+        updatePlaceholderVisibility();
+    }
+
+    public void setPlaceholderNode(Node node) {
+        if (node == null) {
+            placeholder.getChildren().clear();
+        } else {
+            placeholder.getChildren().setAll(node);
+        }
         updatePlaceholderVisibility();
     }
 
@@ -500,7 +517,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     private void updatePlaceholderVisibility() {
-        boolean showPlaceholder = items.isEmpty() && placeholder.getText() != null && !placeholder.getText().isBlank();
+        boolean showPlaceholder = items.isEmpty() && !placeholder.getChildren().isEmpty();
         placeholder.setVisible(showPlaceholder);
         placeholder.setManaged(showPlaceholder);
     }
