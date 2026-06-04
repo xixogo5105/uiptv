@@ -929,6 +929,194 @@
     -fx-fill: -uiptv-text-primary;
 }
 
+.watching-now-page {
+    -fx-background-color: -uiptv-app-bg;
+    -fx-padding: 24 28 20 28;
+}
+
+.watching-now-mode-pill-bar {
+    -fx-min-height: 36;
+    -fx-padding: 3;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+}
+
+.watching-now-mode-pill-bar .uiptv-pill {
+    -fx-padding: 5 18 5 18;
+}
+
+.watching-now-content-pane,
+.watching-now-series-detail-layout,
+.watching-now-vod-detail-layout,
+.watching-now-series-grid,
+.watching-now-vod-grid,
+.watching-now-episode-card-list,
+.watching-now-season-card-group {
+    -fx-background-color: transparent;
+}
+
+.watching-now-detail-topbar {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 12 14 12 14;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.26), 14, 0.12, 0, 4);
+}
+
+.watching-now-detail-heading {
+    -fx-font-size: 1.18em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.watching-now-detail-subheading,
+.watching-now-series-account,
+.watching-now-series-meta-line,
+.watching-now-episodes-series-title {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.watching-now-back-button {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 8 13 8 13;
+    -fx-cursor: hand;
+}
+
+.watching-now-detail-reload-button,
+.watching-now-binge-button {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 8 13 8 13;
+    -fx-text-fill: -uiptv-action-fg;
+    -fx-cursor: hand;
+}
+
+.watching-now-detail-reload-button > .label,
+.watching-now-binge-button > .label {
+    -fx-text-fill: -uiptv-action-fg;
+}
+
+.watching-now-binge-button > .arrow-button > .arrow {
+    -fx-background-color: -uiptv-action-fg;
+}
+
+.watching-now-back-button:hover,
+.watching-now-back-button:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-border-subtle;
+}
+
+.watching-now-detail-reload-button:hover,
+.watching-now-detail-reload-button:focused,
+.watching-now-binge-button:hover,
+.watching-now-binge-button:focused {
+    -fx-background-color: derive(-uiptv-action-bg, -12%);
+    -fx-border-color: derive(-uiptv-action-bg, -12%);
+}
+
+.watching-now-series-info-panel,
+.watching-now-vod-poster-panel,
+.watching-now-vod-details-panel,
+.watching-now-episodes-panel {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 14;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.28), 16, 0.14, 0, 5);
+}
+
+.watching-now-series-poster-wrap {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-padding: 10;
+}
+
+.watching-now-series-detail-title,
+.watching-now-episodes-title {
+    -fx-font-size: 1.12em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.watching-now-season-pill-bar {
+    -fx-background-color: #252930;
+    -fx-border-color: #343941;
+}
+
+.watching-now-season-pill-bar .uiptv-pill {
+    -fx-padding: 4 13 4 13;
+}
+
+.watching-now-series-card,
+.watching-now-vod-card,
+.watching-now-episode-card {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-cursor: hand;
+}
+
+.watching-now-series-card,
+.watching-now-vod-card {
+    -fx-padding: 9 11 9 11;
+}
+
+.watching-now-episode-card {
+    -fx-padding: 12;
+}
+
+.watching-now-series-card:hover,
+.watching-now-vod-card:hover,
+.watching-now-episode-card:hover {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: #4a515d;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.42), 16, 0.20, 0, 5);
+    -fx-translate-y: -1;
+}
+
+.watching-now-series-card:focused,
+.watching-now-vod-card:focused,
+.watching-now-episode-card:focused {
+    -fx-border-color: -uiptv-selected-card-border;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.42), 16, 0.18, 0, 4);
+}
+
+.watching-now-series-card.selected-card,
+.watching-now-vod-card.selected-card,
+.watching-now-episode-card.selected-card {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-border;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.46), 18, 0.18, 0, 6);
+}
+
+.watching-now-series-card.selected-card .hyperlink,
+.watching-now-series-card.selected-card .watching-now-view-link,
+.watching-now-vod-card.selected-card .hyperlink,
+.watching-now-episode-card.selected-card .hyperlink {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-series-card:selected .label,
+.watching-now-vod-card:selected .label {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
 .bookmark-manage-categories-button {
     -fx-background-color: -uiptv-action-bg;
     -fx-text-fill: -uiptv-action-fg;

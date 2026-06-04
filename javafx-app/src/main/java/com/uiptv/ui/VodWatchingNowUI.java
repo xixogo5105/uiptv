@@ -9,19 +9,25 @@ import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.service.VodWatchStateChangeListener;
 import com.uiptv.service.VodWatchStateService;
 import com.uiptv.service.WatchingNowVodResolver;
+import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ImageUrlNormalizer;
+import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.control.OverrunStyle;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.json.JSONObject;
 
@@ -38,8 +44,10 @@ public class VodWatchingNowUI extends VBox {
     private static final String VOD_WATCHING_NOW_CACHE = "vod-watching-now";
     private final VBox contentBox = new VBox(10);
     private final ScrollPane scrollPane = new ScrollPane(contentBox);
+    private final ResponsiveCardGrid<VodPanelData> vodGrid = new ResponsiveCardGrid<>(this::createCard);
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
+    private final AtomicBoolean refreshScheduled = new AtomicBoolean(false);
     private final AtomicLong lifecycleGeneration = new AtomicLong();
     private final Map<String, VodPanelData> panelDataByKey = Collections.synchronizedMap(new LinkedHashMap<>());
     private final WatchingNowVodResolver vodResolver = new WatchingNowVodResolver();
@@ -55,6 +63,9 @@ public class VodWatchingNowUI extends VBox {
     private volatile boolean dirty = true;
     private final VodWatchStateChangeListener changeListener = this::onDataChanged;
     private final AccountChangeListener accountChangeListener = _ -> onAccountsChanged();
+    private String lastListFingerprint = "";
+    private String selectedVodKey = "";
+    private String renderedDetailKey = "";
     private boolean listenerRegistered = false;
     private boolean accountListenerRegistered = false;
     private HBox selectedCard;
@@ -68,6 +79,7 @@ public class VodWatchingNowUI extends VBox {
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.getStyleClass().add("transparent-scroll-pane");
         contentBox.setPadding(new Insets(5));
+        configureVodGrid();
         getChildren().add(scrollPane);
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         // Initialize with empty state instead of loading on startup
@@ -77,9 +89,28 @@ public class VodWatchingNowUI extends VBox {
         dirty = true;
     }
 
+    private void configureVodGrid() {
+        vodGrid.getStyleClass().add("watching-now-vod-grid");
+        vodGrid.setCardWidthRange(260, 380);
+        vodGrid.setGaps(14, 12);
+        vodGrid.setPlaceholderText(I18n.tr("autoNoWatchingNowVodFound"));
+        vodGrid.setOnItemActivated(data -> play(data, null));
+        vodGrid.setContextMenuFactory((item, _, owner) -> createContextMenu(item, owner));
+        vodGrid.setOnKeyReleased(event -> {
+            if (event.getCode() == KeyCode.ENTER || event.getCode() == KeyCode.SPACE) {
+                play(vodGrid.getFocusedItem(), null);
+                event.consume();
+            }
+        });
+    }
+
     public void forceReload() {
         dirty = true;
         refreshIfNeeded();
+    }
+
+    void markDirty() {
+        dirty = true;
     }
 
     public void refreshIfNeeded() {
@@ -93,7 +124,7 @@ public class VodWatchingNowUI extends VBox {
         reloadInProgress.set(true);
         reloadQueued.set(false);
         dirty = false;
-        contentBox.getChildren().setAll(new Label(I18n.tr("autoLoadingChannelsFor", I18n.tr("autoVod"))));
+        showLoadingPlaceholderIfEmpty();
         long generation = lifecycleGeneration.get();
         new Thread(() -> {
             List<VodPanelData> rows = buildRows();
@@ -151,20 +182,108 @@ public class VodWatchingNowUI extends VBox {
     }
 
     private void render(List<VodPanelData> rows) {
-        clearPanelUiReferences(panelDataByKey.values());
-        contentBox.getChildren().clear();
-        panelDataByKey.clear();
+        List<VodPanelData> previousPanels = new ArrayList<>(panelDataByKey.values());
         selectedCard = null;
-        if (rows == null || rows.isEmpty()) {
-            contentBox.getChildren().add(new Label(I18n.tr("autoNoWatchingNowVodFound")));
-            return;
+        List<VodPanelData> safeRows = rows == null ? List.of() : rows;
+        String fingerprint = vodListFingerprint(safeRows);
+        List<VodPanelData> renderRows = reuseRenderedRowsWhenStable(safeRows, fingerprint);
+        panelDataByKey.clear();
+        for (VodPanelData row : renderRows) {
+            panelDataByKey.put(panelKey(row), row);
+        }
+        if (!fingerprint.equals(lastListFingerprint)) {
+            clearPanelUiReferences(previousPanels);
+            vodGrid.setItems(FXCollections.observableArrayList(renderRows));
+            lastListFingerprint = fingerprint;
+        }
+        renderCurrentView(renderRows, fingerprint);
+    }
+
+    private void renderCurrentView(List<VodPanelData> rows, String fingerprint) {
+        if (!isBlank(selectedVodKey)) {
+            VodPanelData selected = panelDataByKey.get(selectedVodKey);
+            if (selected != null) {
+                if (selectedVodKey.equals(renderedDetailKey)) {
+                    refreshVodDetailInPlace(selected);
+                    return;
+                }
+                showVodDetail(selected);
+                return;
+            }
+            selectedVodKey = "";
+            renderedDetailKey = "";
+        }
+        showVodList(rows, fingerprint);
+    }
+
+    private void showVodList(List<VodPanelData> rows, String fingerprint) {
+        renderedDetailKey = "";
+        lastListFingerprint = fingerprint;
+        vodGrid.setPlaceholderText(I18n.tr("autoNoWatchingNowVodFound"));
+        if (contentBox.getChildren().size() != 1 || contentBox.getChildren().getFirst() != vodGrid) {
+            contentBox.getChildren().setAll(vodGrid);
         }
         for (VodPanelData row : rows) {
-            panelDataByKey.put(panelKey(row), row);
-            contentBox.getChildren().add(createCard(row));
             triggerImdbLoad(row);
         }
+        VBox.setVgrow(vodGrid, Priority.ALWAYS);
         VBox.setVgrow(contentBox, Priority.ALWAYS);
+    }
+
+    private List<VodPanelData> reuseRenderedRowsWhenStable(List<VodPanelData> rows, String fingerprint) {
+        if (!fingerprint.equals(lastListFingerprint) || rows.isEmpty()) {
+            return rows;
+        }
+        Map<String, VodPanelData> existingByKey = new LinkedHashMap<>();
+        for (VodPanelData existing : vodGrid.getItems()) {
+            existingByKey.put(panelKey(existing), existing);
+        }
+        List<VodPanelData> reused = new ArrayList<>(rows.size());
+        for (VodPanelData row : rows) {
+            VodPanelData existing = existingByKey.get(panelKey(row));
+            if (existing == null) {
+                reused.add(row);
+            } else {
+                mergeVodPanelInPlace(existing, row);
+                reused.add(existing);
+            }
+        }
+        return reused;
+    }
+
+    private void mergeVodPanelInPlace(VodPanelData target, VodPanelData source) {
+        if (target == null || source == null || target.metadata == null || source.metadata == null) {
+            return;
+        }
+        target.metadata.coverUrl = firstNonBlank(source.metadata.coverUrl, target.metadata.coverUrl);
+        target.metadata.plot = firstNonBlank(source.metadata.plot, target.metadata.plot);
+        target.metadata.releaseDate = firstNonBlank(source.metadata.releaseDate, target.metadata.releaseDate);
+        target.metadata.rating = firstNonBlank(source.metadata.rating, target.metadata.rating);
+        target.imdbUrl = firstNonBlank(source.imdbUrl, target.imdbUrl);
+        target.imdbLoaded = target.imdbLoaded || source.imdbLoaded;
+        target.imdbLoading = target.imdbLoading || source.imdbLoading;
+    }
+
+    private void showLoadingPlaceholderIfEmpty() {
+        if (contentBox.getChildren().isEmpty() || isInitialPlaceholder()) {
+            contentBox.getChildren().setAll(new Label(I18n.tr("autoLoadingChannelsFor", I18n.tr("autoVod"))));
+        }
+    }
+
+    private boolean isInitialPlaceholder() {
+        return contentBox.getChildren().size() == 1
+                && contentBox.getChildren().getFirst() instanceof Label label
+                && isBlank(label.getText());
+    }
+
+    private String vodListFingerprint(List<VodPanelData> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return "";
+        }
+        return rows.stream()
+                .map(this::panelKey)
+                .sorted()
+                .collect(java.util.stream.Collectors.joining("|"));
     }
 
     private void applyImdbCache(VodPanelData data) {
@@ -185,6 +304,7 @@ public class VodWatchingNowUI extends VBox {
         card.setAlignment(Pos.TOP_LEFT);
         card.setPadding(new Insets(8));
         card.getStyleClass().add("uiptv-card");
+        card.getStyleClass().add("watching-now-vod-card");
 
         ImageView poster = SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 72, 108, VOD_WATCHING_NOW_CACHE);
         poster.setVisible(ThumbnailAwareUI.areThumbnailsEnabled());
@@ -232,7 +352,23 @@ public class VodWatchingNowUI extends VBox {
         HBox titleRow = new HBox(10, title, titleSpacer, playButton);
         titleRow.setAlignment(Pos.TOP_LEFT);
 
-        details.getChildren().addAll(titleRow, accountLabel);
+        Hyperlink detailsLink = new Hyperlink(I18n.tr("autoViewDetails"));
+        detailsLink.getStyleClass().add("watching-now-view-link");
+        detailsLink.setMinWidth(Region.USE_PREF_SIZE);
+        detailsLink.setMaxWidth(Region.USE_PREF_SIZE);
+        detailsLink.setFocusTraversable(true);
+        detailsLink.setOnAction(event -> {
+            event.consume();
+            selectedVodKey = panelKey(data);
+            showVodDetail(data);
+        });
+
+        HBox linkRow = new HBox();
+        Region linkSpacer = new Region();
+        HBox.setHgrow(linkSpacer, Priority.ALWAYS);
+        linkRow.getChildren().addAll(linkSpacer, detailsLink);
+
+        details.getChildren().addAll(titleRow, accountLabel, linkRow);
         addMetadataLines(details, data);
         updateImdbNodes(details, data);
 
@@ -259,20 +395,194 @@ public class VodWatchingNowUI extends VBox {
         List<Label> cardLabels = collectCardLabels(data, title);
         cardLabels.add(accountLabel);
         card.getProperties().put(KEY_CARD_LABELS, cardLabels);
-        card.getProperties().put(KEY_CARD_LINKS, List.of());
-        card.setOnMouseClicked(event -> {
-            if (event.getButton() == MouseButton.PRIMARY) {
-                cardMenu.hide();
-            }
-            if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                setSelectedCard(card);
-                play(data, null);
-            } else if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
-                setSelectedCard(card);
-            }
-        });
-        addContextMenu(card, cardMenu, data);
+        card.getProperties().put(KEY_CARD_LINKS, List.of(detailsLink));
         return card;
+    }
+
+    private void showVodDetail(VodPanelData data) {
+        if (data == null) {
+            selectedVodKey = "";
+            render(new ArrayList<>(panelDataByKey.values()));
+            return;
+        }
+        selectedVodKey = panelKey(data);
+        renderedDetailKey = selectedVodKey;
+        contentBox.getChildren().clear();
+        contentBox.setPadding(new Insets(2));
+        contentBox.setSpacing(12);
+
+        Button back = new Button(I18n.tr("autoBack"));
+        back.getStyleClass().add("watching-now-back-button");
+        back.setOnAction(event -> {
+            selectedVodKey = "";
+            showVodList(new ArrayList<>(panelDataByKey.values()), lastListFingerprint);
+        });
+
+        Button play = new Button(I18n.tr("autoPlay"));
+        play.getStyleClass().add("watching-now-detail-reload-button");
+        play.setOnAction(event -> play(data, null));
+
+        Label headerTitle = new Label(I18n.tr("autoWatchingNow"));
+        headerTitle.getStyleClass().add("watching-now-detail-heading");
+        Label headerSubtitle = new Label(data.displayTitle);
+        headerSubtitle.getStyleClass().add("watching-now-detail-subheading");
+        headerSubtitle.setWrapText(true);
+        headerSubtitle.setMinWidth(0);
+        headerSubtitle.setMaxWidth(Double.MAX_VALUE);
+
+        VBox headerText = new VBox(2, headerTitle, headerSubtitle);
+        headerText.setMinWidth(0);
+        headerText.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(headerText, Priority.ALWAYS);
+
+        HBox topBar = new HBox(10, headerText, play, back);
+        topBar.getStyleClass().add("watching-now-detail-topbar");
+        topBar.setAlignment(Pos.CENTER_LEFT);
+        topBar.setMinWidth(0);
+        topBar.setMaxWidth(Double.MAX_VALUE);
+
+        FlowPane detailLayout = new FlowPane(14, 14);
+        detailLayout.getStyleClass().add("watching-now-vod-detail-layout");
+        detailLayout.setAlignment(Pos.TOP_LEFT);
+        detailLayout.setMinWidth(0);
+        detailLayout.setMaxWidth(Double.MAX_VALUE);
+
+        VBox posterPanel = createVodPosterPanel(data);
+        VBox detailsPanel = createVodDetailsPanel(data);
+        detailLayout.getChildren().addAll(posterPanel, detailsPanel);
+        detailLayout.widthProperty().addListener((_, _, width) ->
+                applyVodDetailLayoutSizing(posterPanel, detailsPanel, width.doubleValue()));
+        Platform.runLater(() -> applyVodDetailLayoutSizing(posterPanel, detailsPanel, detailLayout.getWidth()));
+
+        contentBox.getChildren().addAll(topBar, detailLayout);
+        VBox.setVgrow(contentBox, Priority.ALWAYS);
+        triggerImdbLoad(data);
+        refreshVodDetailMetadata(data);
+    }
+
+    private VBox createVodPosterPanel(VodPanelData data) {
+        VBox panel = new VBox(12);
+        panel.getStyleClass().add("watching-now-vod-poster-panel");
+        panel.setMinWidth(260);
+        panel.setPrefWidth(330);
+        panel.setMaxWidth(380);
+
+        ImageView poster = SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 260, 390, VOD_WATCHING_NOW_CACHE);
+        data.detailPosterNode = poster;
+        StackPane posterWrap = new StackPane(poster);
+        posterWrap.getStyleClass().add("watching-now-series-poster-wrap");
+        posterWrap.setAlignment(Pos.CENTER);
+        posterWrap.setMaxWidth(Double.MAX_VALUE);
+        panel.getChildren().add(posterWrap);
+        return panel;
+    }
+
+    private VBox createVodDetailsPanel(VodPanelData data) {
+        VBox panel = new VBox(10);
+        panel.getStyleClass().add("watching-now-vod-details-panel");
+        panel.setMinWidth(0);
+        panel.setMaxWidth(Double.MAX_VALUE);
+
+        data.detailTitleNode = new Label(data.displayTitle);
+        data.detailTitleNode.getStyleClass().add("watching-now-series-detail-title");
+        data.detailTitleNode.setWrapText(true);
+        data.detailTitleNode.setMinWidth(0);
+        data.detailTitleNode.setMaxWidth(Double.MAX_VALUE);
+
+        Label account = new Label(data.account.getAccountName());
+        account.getStyleClass().add("watching-now-series-account");
+        account.setWrapText(true);
+        account.setMinWidth(0);
+        account.setMaxWidth(Double.MAX_VALUE);
+
+        data.detailMetadataBox = new VBox(7);
+        data.detailMetadataBox.setMinWidth(0);
+        data.detailMetadataBox.setMaxWidth(Double.MAX_VALUE);
+        refreshVodDetailMetadata(data);
+
+        panel.getChildren().addAll(data.detailTitleNode, account, data.detailMetadataBox);
+        return panel;
+    }
+
+    private void applyVodDetailLayoutSizing(VBox posterPanel, VBox detailsPanel, double width) {
+        double available = Math.max(0, width);
+        if (available < 720) {
+            posterPanel.setPrefWidth(Math.max(260, available - 4));
+            posterPanel.setMaxWidth(Double.MAX_VALUE);
+            detailsPanel.setPrefWidth(Math.max(260, available - 4));
+        } else {
+            posterPanel.setPrefWidth(330);
+            posterPanel.setMaxWidth(380);
+            detailsPanel.setPrefWidth(Math.max(360, available - 360));
+        }
+    }
+
+    private void refreshVodDetailInPlace(VodPanelData data) {
+        if (data == null || !panelKey(data).equals(renderedDetailKey)) {
+            return;
+        }
+        if (data.detailPosterNode != null && !isBlank(data.metadata.coverUrl)) {
+            ImageCacheManager.loadImageAsync(data.metadata.coverUrl, VOD_WATCHING_NOW_CACHE).thenAccept(image -> {
+                if (image != null) {
+                    Platform.runLater(() -> {
+                        if (data.detailPosterNode != null) {
+                            data.detailPosterNode.setImage(image);
+                        }
+                    });
+                }
+            });
+        }
+        refreshVodDetailMetadata(data);
+    }
+
+    private void refreshVodDetailMetadata(VodPanelData data) {
+        if (data == null || data.detailMetadataBox == null) {
+            return;
+        }
+        data.detailMetadataBox.getChildren().clear();
+        HBox imdbPill = SeriesCardUiSupport.createImdbRatingPill(data.metadata.rating, data.imdbUrl);
+        if (imdbPill != null) {
+            data.detailMetadataBox.getChildren().add(imdbPill);
+        }
+        addDetailLine(data.detailMetadataBox, I18n.tr("autoDurationPrefix", data.duration), data.duration);
+        addDetailLine(data.detailMetadataBox, I18n.tr("autoReleasePrefix", data.metadata.releaseDate), data.metadata.releaseDate);
+        addDetailLine(data.detailMetadataBox, I18n.tr("autoImdbPrefix", data.metadata.rating), data.metadata.rating);
+        if (!isBlank(data.metadata.plot)) {
+            Label plot = new Label(data.metadata.plot);
+            plot.getStyleClass().add("watching-now-series-meta-line");
+            plot.setWrapText(true);
+            plot.setMinWidth(0);
+            plot.setMaxWidth(Double.MAX_VALUE);
+            data.detailMetadataBox.getChildren().add(plot);
+        }
+        if (data.imdbLoading && !data.imdbLoaded) {
+            ProgressIndicator progress = new ProgressIndicator();
+            progress.setPrefSize(14, 14);
+            progress.setMinSize(14, 14);
+            progress.setMaxSize(14, 14);
+            data.detailMetadataBox.getChildren().add(new HBox(6, progress, new Label(I18n.tr("autoLoadingIMDbDetails"))));
+        }
+    }
+
+    private void addDetailLine(VBox box, String text, String value) {
+        if (isBlank(value)) {
+            return;
+        }
+        Label label = new Label(text);
+        label.getStyleClass().add("watching-now-series-meta-line");
+        label.setWrapText(true);
+        label.setMinWidth(0);
+        label.setMaxWidth(Double.MAX_VALUE);
+        box.getChildren().add(label);
+    }
+
+    private ContextMenu createContextMenu(VodPanelData data, javafx.scene.Node owner) {
+        ContextMenu menu = new ContextMenu();
+        UiI18n.preparePopupControl(menu, owner);
+        menu.setHideOnEscape(true);
+        menu.setAutoHide(true);
+        populateContextMenu(menu, data);
+        return menu;
     }
 
     private List<Label> collectCardLabels(VodPanelData data, Label title) {
@@ -389,7 +699,11 @@ public class VodWatchingNowUI extends VBox {
             dirty = true;
             return;
         }
-        render(new ArrayList<>(panelDataByKey.values()));
+        if (!isBlank(renderedDetailKey)) {
+            refreshVodDetailInPlace(panelDataByKey.get(renderedDetailKey));
+            return;
+        }
+        vodGrid.refresh();
     }
 
     private void addContextMenu(HBox card, ContextMenu menu, VodPanelData data) {
@@ -519,6 +833,10 @@ public class VodWatchingNowUI extends VBox {
             VodWatchStateService.getInstance().remove(data.account.getDbId(), data.state.getCategoryId(), data.state.getVodId());
             Platform.runLater(() -> {
                 panelDataByKey.remove(panelKey(data));
+                if (panelKey(data).equals(selectedVodKey)) {
+                    selectedVodKey = "";
+                    renderedDetailKey = "";
+                }
                 render(new ArrayList<>(panelDataByKey.values()));
             });
         }, "vod-watching-now-remove").start();
@@ -573,7 +891,11 @@ public class VodWatchingNowUI extends VBox {
     private void releaseUiState() {
         lifecycleGeneration.incrementAndGet();
         reloadQueued.set(false);
+        refreshScheduled.set(false);
         dirty = true;
+        lastListFingerprint = "";
+        selectedVodKey = "";
+        renderedDetailKey = "";
         clearPanelUiReferences(panelDataByKey.values());
         panelDataByKey.clear();
         imdbCacheByPanelKey.clear();
@@ -593,24 +915,48 @@ public class VodWatchingNowUI extends VBox {
     }
 
     private void onDataChanged(String accountId, String vodId) {
+        if (!isDisplayable()) {
+            dirty = true;
+            return;
+        }
         // If panelDataByKey is empty (UI not yet rendered), do a full refresh instead of delta
         if (panelDataByKey.isEmpty()) {
             dirty = true;
-            Platform.runLater(this::refreshIfNeeded);
+            scheduleRefreshIfNeeded();
             return;
         }
         dirty = true;
-        Platform.runLater(this::refreshIfNeeded);
+        scheduleRefreshIfNeeded();
     }
 
     private void onAccountsChanged() {
         // When accounts change (e.g., deleted), force full refresh
         dirty = true;
-        Platform.runLater(this::refreshIfNeeded);
+        scheduleRefreshIfNeeded();
+    }
+
+    private void scheduleRefreshIfNeeded() {
+        if (!refreshScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        Platform.runLater(() -> {
+            refreshScheduled.set(false);
+            refreshIfNeeded();
+        });
     }
 
     private boolean isDisplayable() {
-        return getScene() != null && isVisible();
+        if (getScene() == null) {
+            return false;
+        }
+        javafx.scene.Node node = this;
+        while (node != null) {
+            if (!node.isVisible()) {
+                return false;
+            }
+            node = node.getParent();
+        }
+        return true;
     }
 
     private boolean isPanelCurrent(VodPanelData data, long generation) {
@@ -659,6 +1005,9 @@ public class VodWatchingNowUI extends VBox {
         private Label plotNode;
         private HBox imdbBadgeNode;
         private HBox imdbLoadingNode;
+        private ImageView detailPosterNode;
+        private Label detailTitleNode;
+        private VBox detailMetadataBox;
         private VodPanelData(Account account, VodWatchState state, Channel playbackChannel, String displayTitle, DisplayMetadata metadata, String duration) {
             this.account = account;
             this.state = state;
@@ -680,6 +1029,9 @@ public class VodWatchingNowUI extends VBox {
             plotNode = null;
             imdbBadgeNode = null;
             imdbLoadingNode = null;
+            detailPosterNode = null;
+            detailTitleNode = null;
+            detailMetadataBox = null;
         }
 
         private static final class DisplayMetadata {
