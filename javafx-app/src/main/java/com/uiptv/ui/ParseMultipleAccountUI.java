@@ -8,7 +8,6 @@ import com.uiptv.util.TextParserService;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.PillBar;
-import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.SwitchToggle;
 import com.uiptv.widget.UIptvTextArea;
 import javafx.geometry.Pos;
@@ -61,7 +60,7 @@ public class ParseMultipleAccountUI extends VBox {
     private final Label groupAccountsLabel = new Label(I18n.tr(GROUP_BY_MAC_LABEL));
     private final Label convertM3uToXtremeLabel = new Label(I18n.tr("autoWherePossibleConvertM3UToXtreme"));
     private final Label startVerificationAfterParsingLabel = new Label(I18n.tr("autoStartVerificationAfterParsing"));
-    private final ProminentButton saveButton = new ProminentButton(I18n.tr("parseAndSave"));
+    private final Button saveButton = new Button(I18n.tr("parseAndSave"));
     private final Button clearButton = new Button(I18n.tr("autoClear"));
     private final VBox contentContainer = new VBox();
     private final HostServices hostServices;
@@ -106,8 +105,8 @@ public class ParseMultipleAccountUI extends VBox {
         getChildren().setAll(scrollPane);
 
         saveButton.getStyleClass().add("bulk-import-primary-button");
-        saveButton.setMaxWidth(Double.MAX_VALUE);
-        saveButton.setPrefHeight(50);
+        saveButton.setMinWidth(Region.USE_PREF_SIZE);
+        saveButton.setMaxWidth(Region.USE_PREF_SIZE);
         clearButton.getStyleClass().add("bulk-import-clear-button");
         clearButton.setMinWidth(Region.USE_PREF_SIZE);
         multipleSPAccounts.getStyleClass().add("bulk-import-input");
@@ -194,12 +193,13 @@ public class ParseMultipleAccountUI extends VBox {
     }
 
     private HBox createActionRow() {
-        HBox row = new HBox(10, saveButton, clearButton);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox row = new HBox(10, spacer, saveButton, clearButton);
         row.getStyleClass().add("bulk-import-actions");
-        row.setAlignment(Pos.CENTER_LEFT);
+        row.setAlignment(Pos.CENTER_RIGHT);
         row.setFillHeight(false);
         row.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(saveButton, Priority.ALWAYS);
         return row;
     }
 

@@ -18,6 +18,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -405,13 +406,28 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private BookmarkCard createBookmarkCard(BookmarkItem item) {
+        Button playButton = new Button(I18n.tr("autoPlay2"));
+        playButton.getStyleClass().setAll("button");
+        playButton.getStyleClass().add("play-menu-button");
+        playButton.setMinWidth(Region.USE_PREF_SIZE);
+        playButton.setMaxWidth(Region.USE_PREF_SIZE);
+        playButton.setMinHeight(Region.USE_PREF_SIZE);
+        playButton.setFocusTraversable(true);
+        playButton.setOnAction(event -> {
+            event.consume();
+            bookmarkGrid.selectItems(List.of(item));
+            ContextMenu menu = createBookmarkContextMenu(item, List.of(item), playButton);
+            UiI18n.preparePopupControl(menu, playButton);
+            menu.show(playButton, Side.BOTTOM, 0, 0);
+        });
         return new BookmarkCard(
                 item.getChannelName(),
                 item.getAccountName(),
                 item.getLogo(),
                 thumbnailsEnabled,
                 BOOKMARK_CACHE,
-                isDrmProtected(item)
+                isDrmProtected(item),
+                playButton
         );
     }
 

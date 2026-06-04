@@ -415,9 +415,9 @@ public class VodWatchingNowUI extends VBox {
         cardMenu.setHideOnEscape(true);
         cardMenu.setAutoHide(true);
 
-        Button playButton = new Button(I18n.tr("autoPlay") + "...");
+        Button playButton = new Button(I18n.tr("autoPlay2"));
         playButton.getStyleClass().setAll("button");
-        playButton.getStyleClass().add("small-pill-button");
+        playButton.getStyleClass().add("play-menu-button");
         playButton.setMinWidth(Region.USE_PREF_SIZE);
         playButton.setMaxWidth(Region.USE_PREF_SIZE);
         playButton.setMinHeight(Region.USE_PREF_SIZE);

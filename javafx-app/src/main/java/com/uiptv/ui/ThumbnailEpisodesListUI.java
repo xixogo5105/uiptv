@@ -531,8 +531,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         Button playButton = new Button(I18n.tr("autoPlay2"));
         playButton.getStyleClass().setAll(STYLE_CLASS_BUTTON);
         playButton.getStyleClass().add("episode-play-button");
+        playButton.getStyleClass().add("play-menu-button");
         playButton.setMinWidth(Region.USE_PREF_SIZE);
-        playButton.setMaxWidth(Double.MAX_VALUE);
+        playButton.setMaxWidth(Region.USE_PREF_SIZE);
         playButton.setMinHeight(Region.USE_PREF_SIZE);
         playButton.setFocusTraversable(true);
         playButton.setOnAction(event -> {

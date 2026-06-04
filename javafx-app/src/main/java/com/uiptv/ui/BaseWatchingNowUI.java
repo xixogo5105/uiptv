@@ -1291,16 +1291,20 @@ public abstract class BaseWatchingNowUI extends VBox {
         // Store the watching label in the episode object or map for later access
         data.watchingLabels.put(row, watching);
 
-        Button play = new Button(I18n.tr("autoPlay"));
+        ContextMenu episodeMenu = addEpisodeContextMenu(data, row, root);
+
+        Button play = new Button(I18n.tr("autoPlay2"));
         play.getStyleClass().setAll("button");
         play.getStyleClass().add("episode-play-button");
+        play.getStyleClass().add("play-menu-button");
         play.setMinWidth(Region.USE_PREF_SIZE);
         play.setMaxWidth(Region.USE_PREF_SIZE);
         play.setMinHeight(Region.USE_PREF_SIZE);
         play.setFocusTraversable(true);
         play.setOnAction(event -> {
             event.consume();
-            playEpisode(data, row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            setSelectedEpisodeCard(data, root);
+            showEpisodeContextMenu(episodeMenu, root, data, row);
         });
         badges.getChildren().add(play);
 
@@ -1362,7 +1366,6 @@ public abstract class BaseWatchingNowUI extends VBox {
                 }
             }
         });
-        addEpisodeContextMenu(data, row, root);
         return root;
     }
 
@@ -1438,22 +1441,38 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
     }
 
-    private void addEpisodeContextMenu(SeriesPanelData data, WatchingEpisode item, Pane target) {
+    private ContextMenu addEpisodeContextMenu(SeriesPanelData data, WatchingEpisode item, Pane target) {
         ContextMenu rowMenu = new ContextMenu();
         rowMenu.getStyleClass().add("episode-context-menu");
         UiI18n.preparePopupControl(rowMenu, target);
         if (item == null) {
-            return;
+            return rowMenu;
         }
         rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
         target.setOnContextMenuRequested(event -> {
-            populateEpisodeContextMenu(rowMenu, data, item);
-            if (!rowMenu.getItems().isEmpty()) {
-                rowMenu.show(target, event.getScreenX(), event.getScreenY());
-            }
+            showEpisodeContextMenu(rowMenu, target, data, item, event.getScreenX(), event.getScreenY());
             event.consume();
         });
+        return rowMenu;
+    }
+
+    private void showEpisodeContextMenu(ContextMenu rowMenu, Pane target, SeriesPanelData data, WatchingEpisode item) {
+        double x = target.localToScreen(target.getBoundsInLocal()).getMinX() + target.getWidth() - 8;
+        double y = target.localToScreen(target.getBoundsInLocal()).getMinY() + 8;
+        showEpisodeContextMenu(rowMenu, target, data, item, x, y);
+    }
+
+    private void showEpisodeContextMenu(ContextMenu rowMenu,
+                                        Pane target,
+                                        SeriesPanelData data,
+                                        WatchingEpisode item,
+                                        double screenX,
+                                        double screenY) {
+        populateEpisodeContextMenu(rowMenu, data, item);
+        if (!rowMenu.getItems().isEmpty()) {
+            rowMenu.show(target, screenX, screenY);
+        }
     }
 
     private void populateEpisodeContextMenu(ContextMenu rowMenu, SeriesPanelData data, WatchingEpisode item) {

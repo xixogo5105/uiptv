@@ -827,8 +827,8 @@
 }
 
 .bulk-import-mode-pill-bar {
-    -fx-min-height: 42;
-    -fx-padding: 4;
+    -fx-min-height: 44;
+    -fx-padding: 5 4 5 4;
     -fx-background-radius: 20;
     -fx-border-radius: 20;
 }
@@ -882,8 +882,9 @@
     -fx-background-color: linear-gradient(to bottom, #111827, #0f172a);
     -fx-border-color: #111827;
     -fx-text-fill: #ffffff;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 8 14 8 14;
 }
 
 .bulk-import-primary-button:hover,
@@ -899,8 +900,8 @@
 }
 
 .log-card {
-    -fx-background-color: #0f172a;
-    -fx-border-color: rgba(15, 23, 42, 0.16);
+    -fx-background-color: rgba(255, 255, 255, 0.94);
+    -fx-border-color: rgba(15, 23, 42, 0.10);
 }
 
 .log-control-row {
@@ -926,17 +927,17 @@
 }
 
 .log-text-area {
-    -fx-control-inner-background: #0f172a;
-    -fx-text-fill: #bbf7d0;
-    -fx-highlight-fill: rgba(34, 197, 94, 0.30);
-    -fx-highlight-text-fill: #ffffff;
-    -fx-border-color: rgba(148, 163, 184, 0.28);
+    -fx-control-inner-background: #ffffff;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-highlight-fill: rgba(15, 23, 42, 0.14);
+    -fx-highlight-text-fill: -uiptv-text-primary;
+    -fx-border-color: rgba(15, 23, 42, 0.12);
     -fx-background-radius: 18;
     -fx-border-radius: 18;
 }
 
 .log-text-area .content {
-    -fx-background-color: #0f172a;
+    -fx-background-color: #ffffff;
     -fx-background-radius: 18;
     -fx-padding: 14;
 }
@@ -2080,11 +2081,27 @@
     -fx-text-alignment: center;
 }
 
-.small-pill-button {
-    -fx-font-size: 0.769em;
-    -fx-font-weight: bold;
+.small-pill-button,
+.play-menu-button,
+.episode-play-button {
+    -fx-font-size: 0.86em;
+    -fx-font-weight: normal;
     -fx-padding: 2 6 2 6;
-    -fx-background-radius: 6;
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.small-pill-button:hover,
+.small-pill-button:focused,
+.play-menu-button:hover,
+.play-menu-button:focused,
+.episode-play-button:hover,
+.episode-play-button:focused {
+    -fx-background-color: -uiptv-surface-hover;
 }
 
 .menu-item.episode-menu-item,
@@ -2092,12 +2109,21 @@
     -fx-font-weight: normal;
 }
 
-.episode-play-button,
 .episode-play-button > .label {
-    -fx-font-size: 1em;
+    -fx-font-size: 0.86em;
     -fx-font-weight: normal;
-    -fx-padding: 2 6 2 6;
-    -fx-background-radius: 6;
+    -fx-padding: 0;
+}
+
+.watching-now-episode-card.selected-card .episode-play-button {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-fg;
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-episode-card.selected-card .episode-play-button:hover,
+.watching-now-episode-card.selected-card .episode-play-button:focused {
+    -fx-background-color: derive(-uiptv-selected-card-bg, 18%);
 }
 
 .context-menu.binge-watch-context-menu .menu-item,

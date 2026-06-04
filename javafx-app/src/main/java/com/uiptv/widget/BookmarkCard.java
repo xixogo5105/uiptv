@@ -2,6 +2,7 @@ package com.uiptv.widget;
 
 import com.uiptv.util.I18n;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -20,6 +21,16 @@ public class BookmarkCard extends HBox {
                         boolean loadImage,
                         String imageCacheName,
                         boolean drmProtected) {
+        this(title, subtitle, logoUrl, loadImage, imageCacheName, drmProtected, null);
+    }
+
+    public BookmarkCard(String title,
+                        String subtitle,
+                        String logoUrl,
+                        boolean loadImage,
+                        String imageCacheName,
+                        boolean drmProtected,
+                        Node trailingAction) {
         getStyleClass().add("bookmark-card");
         UiRenderQuality.optimizeLayout(this);
         UiRenderQuality.optimizeTextNode(titleLabel);
@@ -60,12 +71,24 @@ public class BookmarkCard extends HBox {
         text.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(text, Priority.ALWAYS);
 
+        if (trailingAction != null) {
+            HBox.setHgrow(trailingAction, Priority.NEVER);
+        }
+
         if (!loadImage) {
-            getChildren().add(text);
+            if (trailingAction == null) {
+                getChildren().add(text);
+            } else {
+                getChildren().addAll(text, trailingAction);
+            }
             return;
         }
 
         imageView.loadImage(logoUrl, imageCacheName);
-        getChildren().addAll(imageView, text);
+        if (trailingAction == null) {
+            getChildren().addAll(imageView, text);
+        } else {
+            getChildren().addAll(imageView, text, trailingAction);
+        }
     }
 }
