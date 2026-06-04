@@ -10,9 +10,11 @@ import com.uiptv.service.CategoryService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
-import com.uiptv.widget.AutoGrowPaneVBox;
+import com.uiptv.widget.AppHeaderActions;
+import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.SearchableFilterableTableView;
 import javafx.application.Platform;
+import javafx.application.HostServices;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -49,6 +51,10 @@ public class AccountListUI extends HBox {
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final AccountResolver accountResolver = new AccountResolver();
     private final boolean embeddedMode;
+    private final HostServices hostServices;
+    private final Runnable themeToggleHandler;
+    private final VBox pageContainer = new VBox(12);
+    private final VBox bodyContainer = new VBox();
     private final VBox listView = new VBox(5);
     private final VBox detailView = new VBox(8);
     private final HBox navHeader = new HBox(6);
@@ -70,13 +76,21 @@ public class AccountListUI extends HBox {
     private final ObservableList<AccountItem> masterAccountItems = FXCollections.observableArrayList();
     private AccountSortMode accountSortMode = AccountSortMode.DEFAULT;
     private final AccountChangeListener accountChangeListener = revision -> Platform.runLater(this::refreshIfAttached);
+    private AppPageHeader pageHeader;
+    private HBox accountToolbar;
 
     public AccountListUI() { // Removed MediaPlayer argument
-        this(ConfigurationService.getInstance().read().isEmbeddedPlayer());
+        this(ConfigurationService.getInstance().read().isEmbeddedPlayer(), null, null);
     }
 
     public AccountListUI(boolean embeddedMode) {
+        this(embeddedMode, null, null);
+    }
+
+    public AccountListUI(boolean embeddedMode, HostServices hostServices, Runnable themeToggleHandler) {
         this.embeddedMode = embeddedMode;
+        this.hostServices = hostServices;
+        this.themeToggleHandler = themeToggleHandler;
         initWidgets();
         // Don't load accounts on startup - load lazily when visible
         registerVisibilityListener();
@@ -131,9 +145,10 @@ public class AccountListUI extends HBox {
     }
 
     private void initWidgets() {
-        setSpacing(5);
-        setPadding(new Insets(5));
+        setSpacing(0);
+        setPadding(Insets.EMPTY);
         setFillHeight(true);
+        getStyleClass().add("account-page-root");
         table.setEditable(true);
         table.getColumns().add(accountName);
         accountName.setVisible(true);
@@ -142,28 +157,30 @@ public class AccountListUI extends HBox {
         accountName.setCellValueFactory(cellData -> cellData.getValue().accountNameProperty());
         accountName.setCellFactory(_ -> createAccountNameCell());
         installAccountHeaderSortHandler();
-        HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton(), newAccountButton);
-        sceneBox.setAlignment(Pos.CENTER_LEFT);
-        sceneBox.setMaxHeight(25);
+
         HBox.setHgrow(table.getTextField(), Priority.ALWAYS);
         table.getTextField().setMinWidth(120);
         table.getTextField().setMaxWidth(Double.MAX_VALUE);
         newAccountButton.setManaged(embeddedMode);
         newAccountButton.setVisible(embeddedMode);
-        AutoGrowPaneVBox contentBox = new AutoGrowPaneVBox(5, sceneBox, table);
-        VBox.setVgrow(contentBox, Priority.ALWAYS);
-        listView.getChildren().setAll(contentBox);
+
+        pageHeader = createPageHeader();
+        accountToolbar = createAccountToolbar();
+        configurePageContainers();
+        listView.getChildren().setAll(accountToolbar, table);
+        getChildren().setAll(pageContainer);
+
         if (embeddedMode) {
             initDetailView();
-            embeddedContainer.getChildren().setAll(navHeader, listView);
             showAccountListView();
         } else {
-            getChildren().setAll(listView);
+            showBody(listView);
         }
         table.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(table, Priority.ALWAYS);
         setMaxHeight(Double.MAX_VALUE);
         setMinHeight(0);
+        HBox.setHgrow(pageContainer, Priority.ALWAYS);
         HBox.setHgrow(listView, Priority.ALWAYS);
         listView.setMaxHeight(Double.MAX_VALUE);
         listView.setMinHeight(0);
@@ -173,6 +190,60 @@ public class AccountListUI extends HBox {
         addAccountClickHandler();
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         registerSceneCleanupListener();
+    }
+
+    public AppPageHeader detachPageHeader() {
+        if (pageHeader == null) {
+            return null;
+        }
+        detachFromParent(pageHeader);
+        pageContainer.getStyleClass().add("account-list-page-compact");
+        return pageHeader;
+    }
+
+    private AppPageHeader createPageHeader() {
+        return new AppPageHeader(
+                I18n.tr("autoAccount"),
+                table.getTextField(),
+                new AppHeaderActions(hostServices, themeToggleHandler, null)
+        );
+    }
+
+    private HBox createAccountToolbar() {
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox toolbar = new HBox(8, spacer, table.getMenuButton(), newAccountButton);
+        toolbar.setAlignment(Pos.CENTER_RIGHT);
+        toolbar.getStyleClass().add("account-toolbar");
+        toolbar.setFillHeight(false);
+        return toolbar;
+    }
+
+    private void configurePageContainers() {
+        pageContainer.getStyleClass().add("account-list-page");
+        pageContainer.setFillWidth(true);
+        pageContainer.setMinSize(0, 0);
+        pageContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        bodyContainer.getStyleClass().add("account-body");
+        bodyContainer.setFillWidth(true);
+        bodyContainer.setMinSize(0, 0);
+        bodyContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        listView.getStyleClass().add("account-list-panel");
+        listView.setFillWidth(true);
+        listView.setMinSize(0, 0);
+        listView.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        embeddedContainer.getStyleClass().add("account-embedded-stack");
+        embeddedContainer.setFillWidth(true);
+        embeddedContainer.setMinSize(0, 0);
+        embeddedContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        VBox.setVgrow(bodyContainer, Priority.ALWAYS);
+        pageContainer.getChildren().setAll(pageHeader, bodyContainer);
+    }
+
+    private void showBody(Node content) {
+        detachFromParent(content);
+        bodyContainer.getChildren().setAll(content);
+        VBox.setVgrow(content, Priority.ALWAYS);
     }
 
     private void configureNewAccountButton() {
@@ -235,12 +306,8 @@ public class AccountListUI extends HBox {
         viewStack.clear();
         setCurrentContent(listView);
         updateNavButtons();
-        if (embeddedContainer.getChildren().isEmpty()) {
-            embeddedContainer.getChildren().setAll(navHeader, listView);
-        } else {
-            embeddedContainer.getChildren().setAll(navHeader, currentContent);
-        }
-        getChildren().setAll(embeddedContainer);
+        embeddedContainer.getChildren().setAll(navHeader, currentContent);
+        showBody(embeddedContainer);
     }
 
     private void showDetailView(Node content) {
@@ -255,17 +322,20 @@ public class AccountListUI extends HBox {
         setCurrentContent(detailView);
         updateNavButtons();
         embeddedContainer.getChildren().setAll(navHeader, currentContent);
-        getChildren().setAll(embeddedContainer);
+        showBody(embeddedContainer);
     }
 
     private void showDetailViewNonEmbedded(Node content) {
-        HBox sceneBox = new HBox(5, table.getTextField(), table.getMenuButton(), newAccountButton);
-        sceneBox.setMaxHeight(25);
-        AutoGrowPaneVBox listContainer = new AutoGrowPaneVBox(5, sceneBox, table);
-        VBox.setVgrow(listContainer, Priority.ALWAYS);
-        HBox.setHgrow(listContainer, Priority.ALWAYS);
+        detachFromParent(listView);
+        detachFromParent(content);
+        HBox detailLayout = new HBox(12, listView, content);
+        detailLayout.getStyleClass().add("account-detail-layout");
+        detailLayout.setFillHeight(true);
+        detailLayout.setMinSize(0, 0);
+        detailLayout.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        HBox.setHgrow(listView, Priority.ALWAYS);
         HBox.setHgrow(content, Priority.ALWAYS);
-        getChildren().setAll(listContainer, content);
+        showBody(detailLayout);
     }
 
     private void setCurrentContent(Node content) {
@@ -293,7 +363,7 @@ public class AccountListUI extends HBox {
         setCurrentContent(prev);
         updateNavButtons();
         embeddedContainer.getChildren().setAll(navHeader, currentContent);
-        getChildren().setAll(embeddedContainer);
+        showBody(embeddedContainer);
     }
 
     private void updateNavButtons() {
@@ -362,12 +432,21 @@ public class AccountListUI extends HBox {
     private void registerSceneCleanupListener() {
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
-                // Clear all children to allow garbage collection of CategoryListUI
-                getChildren().clear();
                 table.getItems().clear();
                 masterAccountItems.clear();
+                detailContent.getChildren().clear();
+                viewStack.clear();
             }
         });
+    }
+
+    private void detachFromParent(Node node) {
+        if (node == null || node.getParent() == null) {
+            return;
+        }
+        if (node.getParent() instanceof Pane pane) {
+            pane.getChildren().remove(node);
+        }
     }
 
     private void applyAccountOrdering() {

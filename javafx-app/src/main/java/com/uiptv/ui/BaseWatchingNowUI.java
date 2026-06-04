@@ -13,6 +13,7 @@ import com.uiptv.util.EpisodeTitleFormatter;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ImageUrlNormalizer;
 import com.uiptv.util.ServerUrlUtil;
+import com.uiptv.widget.IconActionButton;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.application.Platform;
@@ -53,6 +54,7 @@ public abstract class BaseWatchingNowUI extends VBox {
     private static final String EPISODE_MENU_ITEM = "episode-menu-item";
     private static final String WATCHING_NOW_CACHE = "watching-now";
     private static final String BINGE_WATCH_FAILED_PREFIX = "Binge watch failed: ";
+    private static final String TRASH_ICON_PATH = "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5z";
     private static final Pattern SXXEYY_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})E(\\d{1,3})\\b");
     private static final Pattern SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
     private static final Pattern EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b|\\b\\d{1,2}x(\\d{1,3})\\b");
@@ -81,6 +83,8 @@ public abstract class BaseWatchingNowUI extends VBox {
     private String selectedSeriesKey = "";
     private String renderedDetailKey = "";
     private String lastListFingerprint = "";
+    private String searchQuery = "";
+    private String searchQueryDisplay = "";
     private final SeriesWatchStateChangeListener watchStateChangeListener = this::onDataChanged;
     private final AccountChangeListener accountChangeListener = _ -> onAccountsChanged();
     private HBox selectedSeriesCard;
@@ -111,6 +115,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         seriesGrid.setCardWidthRange(480, 720);
         seriesGrid.setGaps(18, 16);
         seriesGrid.setPlaceholderText(I18n.tr(MESSAGE_NO_CURRENTLY_WATCHED_SERIES));
+        seriesGrid.setActivateOnSingleClick(true);
         seriesGrid.setOnItemActivated(this::openSeriesDetail);
         seriesGrid.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.ENTER || event.getCode() == KeyCode.SPACE) {
@@ -127,6 +132,18 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     void markDirty() {
         dirty = true;
+    }
+
+    void setSearchQuery(String query) {
+        String normalized = normalizeSearchQuery(query);
+        if (Objects.equals(searchQuery, normalized)) {
+            return;
+        }
+        searchQuery = normalized;
+        searchQueryDisplay = safe(query).trim();
+        if (!panelDataByKey.isEmpty()) {
+            renderCurrentView();
+        }
     }
 
     public void refreshIfNeeded() {
@@ -344,20 +361,88 @@ public abstract class BaseWatchingNowUI extends VBox {
                 showSeriesDetail(selected);
                 return;
             }
-            selectedSeriesKey = "";
+                selectedSeriesKey = "";
         }
+        rows = filterSeriesRows(rows);
         showSeriesList(rows);
     }
 
     private void showSeriesList(List<SeriesPanelData> rows) {
         prepareSeriesListContainer();
+        seriesGrid.setPlaceholderText(seriesListPlaceholderText());
         if (rows == null || rows.isEmpty()) {
             lastListFingerprint = "";
-            contentBox.getChildren().add(new Label(I18n.tr(MESSAGE_NO_CURRENTLY_WATCHED_SERIES)));
+            contentBox.getChildren().add(new Label(seriesListPlaceholderText()));
             return;
         }
 
         showResponsiveSeriesList(rows);
+    }
+
+    private List<SeriesPanelData> filterSeriesRows(List<SeriesPanelData> rows) {
+        if (!isSearchActive() || rows == null || rows.isEmpty()) {
+            return rows;
+        }
+        return rows.stream()
+                .filter(row -> matchesSeriesSearch(row, searchQuery))
+                .toList();
+    }
+
+    private boolean matchesSeriesSearch(SeriesPanelData data, String query) {
+        if (data == null || isBlank(query)) {
+            return true;
+        }
+        StringBuilder searchable = new StringBuilder();
+        appendSearchText(searchable,
+                data.seriesTitle,
+                data.account == null ? "" : data.account.getAccountName(),
+                data.state == null ? "" : data.state.getSeriesId(),
+                data.state == null ? "" : data.state.getCategoryId());
+        if (data.seasonInfo != null) {
+            appendSearchText(searchable,
+                    data.seasonInfo.optString("name", ""),
+                    data.seasonInfo.optString("genre", ""),
+                    data.seasonInfo.optString("plot", ""),
+                    data.seasonInfo.optString(KEY_RELEASE_DATE, ""),
+                    data.seasonInfo.optString("rating", ""));
+        }
+        for (WatchingEpisode episode : data.episodes) {
+            if (episode != null) {
+                appendSearchText(searchable,
+                        episode.title,
+                        episode.plot,
+                        episode.releaseDate,
+                        episode.rating,
+                        episode.season,
+                        episode.episodeNum);
+            }
+        }
+        return searchable.toString().toLowerCase(Locale.ROOT).contains(query);
+    }
+
+    private void appendSearchText(StringBuilder builder, String... values) {
+        if (builder == null || values == null) {
+            return;
+        }
+        for (String value : values) {
+            if (!isBlank(value)) {
+                builder.append(' ').append(value);
+            }
+        }
+    }
+
+    private String seriesListPlaceholderText() {
+        return isSearchActive()
+                ? I18n.tr("autoNothingFoundFor", searchQueryDisplay)
+                : I18n.tr(MESSAGE_NO_CURRENTLY_WATCHED_SERIES);
+    }
+
+    private boolean isSearchActive() {
+        return !isBlank(searchQuery);
+    }
+
+    private String normalizeSearchQuery(String query) {
+        return safe(query).trim().toLowerCase(Locale.ROOT);
     }
 
     private void prepareSeriesListContainer() {
@@ -503,14 +588,44 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         String titleText = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle);
         String accountText = data.account.getAccountName();
-        Label title = new Label(titleText);
+        Runnable openDetails = () -> {
+            setSelectedSeriesCard(card);
+            selectedSeriesKey = seriesPaneKey(data);
+            showSeriesDetail(data);
+        };
+
+        Hyperlink title = new Hyperlink(titleText);
         data.seriesListTitleNode = title;
         title.getStyleClass().add(STRONG_LABEL);
         title.getStyleClass().add("watching-now-card-title");
+        title.getStyleClass().add("watching-now-title-link");
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinWidth(0);
         title.setMinHeight(Region.USE_PREF_SIZE);
+        title.setFocusTraversable(true);
+        title.setOnAction(event -> {
+            event.consume();
+            openDetails.run();
+        });
+
+        IconActionButton removeButton = new IconActionButton(I18n.tr("autoRemove"), TRASH_ICON_PATH, () -> {
+            String seriesName = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle, I18n.tr("watchingNowThisSeries"));
+            if (!showConfirmationAlert(I18n.tr("autoRemoveFromWatchingNowConfirm", seriesName))) {
+                return;
+            }
+            removeSeriesFromWatchingNow(data);
+        });
+        removeButton.getStyleClass().add("watching-now-remove-button");
+        removeButton.setMinWidth(Region.USE_PREF_SIZE);
+        removeButton.setMaxWidth(Region.USE_PREF_SIZE);
+
+        Region titleSpacer = new Region();
+        HBox.setHgrow(titleSpacer, Priority.ALWAYS);
+        HBox titleRow = new HBox(10, title, titleSpacer, removeButton);
+        titleRow.setAlignment(Pos.TOP_LEFT);
+        titleRow.setMinWidth(0);
+        titleRow.setMaxWidth(Double.MAX_VALUE);
 
         Label accountLabel = new Label(accountText);
         accountLabel.getStyleClass().add("watching-now-card-account");
@@ -524,51 +639,54 @@ public abstract class BaseWatchingNowUI extends VBox {
         Label typeChip = createWatchingNowCardChip(I18n.tr("autoSeries"));
         Label episodeChip = createWatchingNowCardChip(data.episodes.size() + " " + I18n.tr("autoEpisodes"));
         metaRow.getChildren().addAll(typeChip, episodeChip);
+        String season = normalizeNumber(data.state == null ? "" : data.state.getSeason());
+        if (!isBlank(season)) {
+            metaRow.getChildren().add(createWatchingNowCardChip(I18n.formatSeasonLabel(season)));
+        }
+        if (data.state != null && data.state.getEpisodeNum() > 0) {
+            metaRow.getChildren().add(createWatchingNowCardChip(I18n.formatEpisodeLabel(String.valueOf(data.state.getEpisodeNum()))));
+        }
 
-        Hyperlink removeLink = new Hyperlink(I18n.tr("autoRemove"));
-        removeLink.getStyleClass().add("danger-link");
-        removeLink.getStyleClass().add("watching-now-card-danger-link");
-        removeLink.setMinWidth(Region.USE_PREF_SIZE);
-        removeLink.setMaxWidth(Region.USE_PREF_SIZE);
-        removeLink.setFocusTraversable(true);
-        removeLink.setOnAction(event -> {
-            event.consume();
-            String seriesName = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle, I18n.tr("watchingNowThisSeries"));
-            if (!showConfirmationAlert(I18n.tr("autoRemoveFromWatchingNowConfirm", seriesName))) {
-                return;
-            }
-            removeSeriesFromWatchingNow(data);
-        });
+        Label openHint = new Label(I18n.tr("autoViewEpisodes"));
+        openHint.getStyleClass().add("watching-now-open-hint");
+        openHint.setMinHeight(Region.USE_PREF_SIZE);
 
-        Hyperlink viewEpisodesLink = new Hyperlink(I18n.tr("autoViewEpisodes"));
-        viewEpisodesLink.getStyleClass().add("watching-now-view-link");
-        viewEpisodesLink.setMinWidth(Region.USE_PREF_SIZE);
-        viewEpisodesLink.setMaxWidth(Region.USE_PREF_SIZE);
-        viewEpisodesLink.setFocusTraversable(true);
-        viewEpisodesLink.setOnAction(event -> {
-            event.consume();
-            setSelectedSeriesCard(card);
-            selectedSeriesKey = seriesPaneKey(data);
-            showSeriesDetail(data);
-        });
-
-        HBox linkRow = new HBox(10);
-        linkRow.getStyleClass().add("watching-now-card-action-row");
-        linkRow.setAlignment(Pos.CENTER_LEFT);
-        Region linkSpacer = new Region();
-        HBox.setHgrow(linkSpacer, Priority.ALWAYS);
-        linkRow.getChildren().addAll(removeLink, linkSpacer, viewEpisodesLink);
-
-        text.getChildren().addAll(title, accountLabel, metaRow, linkRow);
+        text.getChildren().addAll(titleRow, accountLabel, metaRow);
+        Label plot = createSeriesListPlotLabel(data);
+        if (plot != null) {
+            text.getChildren().add(plot);
+        }
+        text.getChildren().add(openHint);
 
         if (posterWrap == null) {
             card.getChildren().add(text);
         } else {
             card.getChildren().addAll(posterWrap, text);
         }
-        card.getProperties().put(KEY_CARD_LABELS, List.of(title, accountLabel, typeChip, episodeChip));
-        card.getProperties().put("cardLinks", List.of(removeLink, viewEpisodesLink));
+        List<Label> cardLabels = new ArrayList<>(List.of(accountLabel, typeChip, episodeChip, openHint));
+        if (plot != null) {
+            cardLabels.add(plot);
+        }
+        card.getProperties().put(KEY_CARD_LABELS, cardLabels);
+        card.getProperties().put("cardLinks", List.of(title));
         return card;
+    }
+
+    private Label createSeriesListPlotLabel(SeriesPanelData data) {
+        if (data == null || data.seasonInfo == null) {
+            return null;
+        }
+        String plotText = data.seasonInfo.optString("plot", "");
+        if (isBlank(plotText)) {
+            return null;
+        }
+        Label plot = new Label(plotText);
+        plot.getStyleClass().add("watching-now-card-plot");
+        plot.setWrapText(true);
+        plot.setMaxWidth(Double.MAX_VALUE);
+        plot.setMinWidth(0);
+        plot.setMinHeight(Region.USE_PREF_SIZE);
+        return plot;
     }
 
     private StackPane createWatchingNowCardPosterWrap(ImageView poster) {
@@ -2457,7 +2575,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         private HBox imdbLoadingNode;
         private ImageView seriesPosterNode;
         private ImageView seriesListPosterNode;
-        private Label seriesListTitleNode;
+        private Hyperlink seriesListTitleNode;
         private PillBar<String> seasonPillBar;
         private VBox episodeCardsContainer;
         private MenuButton bingeWatchButton;

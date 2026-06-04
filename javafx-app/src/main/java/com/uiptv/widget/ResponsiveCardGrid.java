@@ -10,9 +10,12 @@ import javafx.geometry.Insets;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.SnapshotParameters;
+import javafx.scene.control.ButtonBase;
+import javafx.scene.control.ComboBoxBase;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.input.*;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.Region;
@@ -50,6 +53,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private T anchorItem;
     private boolean reorderEnabled;
     private boolean mouseSelectionInProgress;
+    private boolean activateOnSingleClick;
     private int columnCount = 1;
     private double minCardWidth = DEFAULT_MIN_CARD_WIDTH;
     private double maxCardWidth = DEFAULT_MAX_CARD_WIDTH;
@@ -117,6 +121,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
 
     public void setOnItemActivated(Consumer<T> itemActivatedHandler) {
         this.itemActivatedHandler = itemActivatedHandler;
+    }
+
+    public void setActivateOnSingleClick(boolean activateOnSingleClick) {
+        this.activateOnSingleClick = activateOnSingleClick;
     }
 
     public void setOnItemsReordered(Consumer<List<T>> itemsReorderedHandler) {
@@ -205,22 +213,39 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 focusSelection(item);
             }
         });
-        card.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> handleCardClicked(item, event));
+        card.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> handleCardClicked(item, card, event));
         card.setOnContextMenuRequested(event -> showContextMenu(item, card, event));
         if (reorderEnabled) {
             configureDragHandlers(item, card);
         }
     }
 
-    private void handleCardClicked(T item, MouseEvent event) {
+    private void handleCardClicked(T item, Region card, MouseEvent event) {
         if (event.getButton() != MouseButton.PRIMARY) {
             return;
         }
+        if (isInteractiveChildEvent(card, event)) {
+            return;
+        }
         updateSelectionForClick(item, event);
-        if (event.getClickCount() == 2 && itemActivatedHandler != null) {
+        boolean shouldActivate = itemActivatedHandler != null
+                && (event.getClickCount() == 2 || (activateOnSingleClick && event.getClickCount() == 1
+                && !event.isShiftDown() && !event.isShortcutDown() && !event.isControlDown()));
+        if (shouldActivate) {
             itemActivatedHandler.accept(item);
         }
         event.consume();
+    }
+
+    private boolean isInteractiveChildEvent(Region card, MouseEvent event) {
+        Object target = event.getTarget();
+        while (target instanceof Node node && node != card) {
+            if (node instanceof ButtonBase || node instanceof TextInputControl || node instanceof ComboBoxBase<?>) {
+                return true;
+            }
+            target = node.getParent();
+        }
+        return false;
     }
 
     private void updateSelectionForClick(T item, MouseEvent event) {

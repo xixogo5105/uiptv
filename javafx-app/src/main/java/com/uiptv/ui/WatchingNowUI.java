@@ -1,9 +1,15 @@
 package com.uiptv.ui;
 
 import com.uiptv.util.I18n;
+import com.uiptv.widget.AppHeaderActions;
+import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.UiRenderQuality;
 import javafx.application.Platform;
+import javafx.application.HostServices;
+import javafx.scene.Node;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -19,11 +25,22 @@ public class WatchingNowUI extends VBox {
     private StackPane contentPane;
     private BaseWatchingNowUI seriesDelegate;
     private VodWatchingNowUI vodDelegate;
+    private final TextField searchTextField = new TextField();
+    private final HostServices hostServices;
+    private final Runnable themeToggleHandler;
     private boolean thumbnailListenerRegistered = false;
     private final AtomicBoolean activationRefreshScheduled = new AtomicBoolean(false);
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
     public WatchingNowUI() {
+        this(null, null);
+    }
+
+    public WatchingNowUI(HostServices hostServices, Runnable themeToggleHandler) {
+        this.hostServices = hostServices;
+        this.themeToggleHandler = themeToggleHandler;
+        searchTextField.setPromptText(I18n.tr("commonSearch"));
+        searchTextField.textProperty().addListener((_, _, query) -> applySearchQuery(query));
         buildContent();
         registerThumbnailModeListener();
         registerActivationRefreshTriggers();
@@ -76,16 +93,43 @@ public class WatchingNowUI extends VBox {
         vodContent.setManaged(false);
         contentPane.getChildren().setAll(seriesContent, vodContent);
 
+        detachFromParent(searchTextField);
+        AppPageHeader header = new AppPageHeader(
+                I18n.tr("autoWatchingNow"),
+                searchTextField,
+                new AppHeaderActions(hostServices, themeToggleHandler, null)
+        );
+        header.getStyleClass().add("watching-now-header");
+        applySearchQuery(searchTextField.getText());
+
         if (!getStyleClass().contains("watching-now-page")) {
             getStyleClass().add("watching-now-page");
         }
         setSpacing(10);
         setMinWidth(0);
         setMaxWidth(Double.MAX_VALUE);
-        getChildren().setAll(modePillBar, contentPane);
+        getChildren().setAll(header, modePillBar, contentPane);
         VBox.setVgrow(contentPane, Priority.ALWAYS);
         modePillBar.setSelectedItem(SERIES_TAB);
         showSelectedMode(SERIES_TAB);
+    }
+
+    private void applySearchQuery(String query) {
+        if (seriesDelegate != null) {
+            seriesDelegate.setSearchQuery(query);
+        }
+        if (vodDelegate != null) {
+            vodDelegate.setSearchQuery(query);
+        }
+    }
+
+    private void detachFromParent(Node node) {
+        if (node == null || node.getParent() == null) {
+            return;
+        }
+        if (node.getParent() instanceof Pane pane) {
+            pane.getChildren().remove(node);
+        }
     }
 
     private VBox buildTabContent(BaseWatchingNowUI delegate) {

@@ -28,6 +28,10 @@ public class AppPageHeader extends VBox {
         this(title, searchField, createActionContainer(actionNodes));
     }
 
+    public AppPageHeader(String title, Node actionNode) {
+        this(title, null, actionNode);
+    }
+
     public AppPageHeader(String title, TextField searchField, Node actionNode) {
         this.searchField = searchField;
         getStyleClass().add("uiptv-page-header");
@@ -36,7 +40,9 @@ public class AppPageHeader extends VBox {
         UiRenderQuality.optimizeLayout(wideHeaderRow);
         UiRenderQuality.optimizeLayout(compactTitleRow);
         UiRenderQuality.optimizeTextNode(titleLabel);
-        UiRenderQuality.optimizeTextNode(this.searchField);
+        if (this.searchField != null) {
+            UiRenderQuality.optimizeTextNode(this.searchField);
+        }
         setFillWidth(true);
         setMaxWidth(Double.MAX_VALUE);
 
@@ -45,10 +51,12 @@ public class AppPageHeader extends VBox {
         titleLabel.setMaxWidth(Region.USE_PREF_SIZE);
         titleLabel.setPickOnBounds(false);
 
-        this.searchField.getStyleClass().add("uiptv-page-search-field");
-        this.searchField.setMinWidth(180);
-        this.searchField.setPrefWidth(WIDE_SEARCH_WIDTH);
-        this.searchField.setMaxWidth(WIDE_SEARCH_WIDTH);
+        if (this.searchField != null) {
+            this.searchField.getStyleClass().add("uiptv-page-search-field");
+            this.searchField.setMinWidth(180);
+            this.searchField.setPrefWidth(WIDE_SEARCH_WIDTH);
+            this.searchField.setMaxWidth(WIDE_SEARCH_WIDTH);
+        }
 
         actions.getStyleClass().add("uiptv-page-actions");
         actions.setAlignment(Pos.CENTER_RIGHT);
@@ -101,17 +109,27 @@ public class AppPageHeader extends VBox {
         if (compact) {
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
-            searchField.setMaxWidth(Double.MAX_VALUE);
+            if (searchField != null) {
+                searchField.setMaxWidth(Double.MAX_VALUE);
+            }
             compactTitleRow.getChildren().setAll(titleLabel, spacer, actions);
-            getChildren().setAll(compactTitleRow, searchField);
+            if (searchField == null) {
+                getChildren().setAll(compactTitleRow);
+            } else {
+                getChildren().setAll(compactTitleRow, searchField);
+            }
             return;
         }
 
-        searchField.setMaxWidth(WIDE_SEARCH_WIDTH);
         StackPane.setAlignment(titleLabel, Pos.CENTER_LEFT);
-        StackPane.setAlignment(searchField, Pos.CENTER);
         StackPane.setAlignment(actions, Pos.CENTER_RIGHT);
-        wideHeaderRow.getChildren().setAll(titleLabel, searchField, actions);
+        if (searchField == null) {
+            wideHeaderRow.getChildren().setAll(titleLabel, actions);
+        } else {
+            searchField.setMaxWidth(WIDE_SEARCH_WIDTH);
+            StackPane.setAlignment(searchField, Pos.CENTER);
+            wideHeaderRow.getChildren().setAll(titleLabel, searchField, actions);
+        }
         getChildren().setAll(wideHeaderRow);
     }
 

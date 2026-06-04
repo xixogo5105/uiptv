@@ -693,14 +693,23 @@
 
 .bookmarks-page-root,
 .bookmarks-page,
+.account-page-root,
+.account-page,
+.account-list-page,
 .settings-page-root,
 .settings-page {
     -fx-background-color: -uiptv-app-bg;
 }
 
 .bookmarks-page,
+.account-page,
+.account-list-page,
 .settings-page {
     -fx-padding: 24 28 20 28;
+}
+
+.account-list-page-compact {
+    -fx-padding: 0;
 }
 
 .bookmarks-page-scroll,
@@ -715,6 +724,31 @@
 
 .bookmarks-header-stack {
     -fx-fill-width: true;
+}
+
+.account-body,
+.account-embedded-stack,
+.account-detail-layout {
+    -fx-background-color: transparent;
+}
+
+.account-list-panel {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 10;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
+}
+
+.account-list-panel .table-view {
+    -fx-background-color: transparent;
+}
+
+.account-toolbar {
+    -fx-spacing: 8;
+    -fx-padding: 0 0 2 0;
 }
 
 .uiptv-page-header {
@@ -748,6 +782,163 @@
 .uiptv-page-search-field:focused,
 .bookmarks-search-field:focused {
     -fx-border-color: derive(-uiptv-accent, 20%);
+}
+
+.bulk-import-page,
+.log-page {
+    -fx-background-color: linear-gradient(to bottom, #fbfcff, #f1f5f9);
+}
+
+.bulk-import-content,
+.log-content {
+    -fx-background-color: transparent;
+}
+
+.bulk-import-card,
+.log-card,
+.log-detached-card {
+    -fx-background-color: rgba(255, 255, 255, 0.92);
+    -fx-border-color: rgba(15, 23, 42, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 22;
+    -fx-border-radius: 22;
+    -fx-padding: 16;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.08), 22, 0.14, 0, 8);
+}
+
+.bulk-import-mode-card {
+    -fx-background-color: linear-gradient(to bottom, #ffffff, #f8fbff);
+}
+
+.bulk-import-editor-card,
+.log-card {
+    -fx-padding: 18;
+}
+
+.bulk-import-section-title,
+.log-detached-title {
+    -fx-font-size: 1.12em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.bulk-import-description {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.bulk-import-mode-pill-bar {
+    -fx-min-height: 42;
+    -fx-padding: 4;
+    -fx-background-radius: 20;
+    -fx-border-radius: 20;
+}
+
+.bulk-import-mode-pill-bar .uiptv-pill {
+    -fx-min-width: 112;
+    -fx-padding: 6 18 6 18;
+    -fx-background-radius: 15;
+    -fx-border-radius: 15;
+}
+
+.bulk-import-options {
+    -fx-padding: 4 0 0 0;
+}
+
+.bulk-import-switch-row {
+    -fx-background-color: rgba(15, 23, 42, 0.035);
+    -fx-border-color: rgba(15, 23, 42, 0.07);
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 11 12 11 14;
+}
+
+.bulk-import-switch-row:hover {
+    -fx-background-color: rgba(15, 23, 42, 0.055);
+}
+
+.bulk-import-switch-label {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+}
+
+.bulk-import-input {
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-border-color: rgba(15, 23, 42, 0.10);
+    -fx-font-family: "Courier New", monospace;
+}
+
+.bulk-import-input .content {
+    -fx-background-radius: 18;
+    -fx-padding: 14;
+}
+
+.bulk-import-actions {
+    -fx-padding: 0;
+}
+
+.bulk-import-primary-button {
+    -fx-background-color: linear-gradient(to bottom, #111827, #0f172a);
+    -fx-border-color: #111827;
+    -fx-text-fill: #ffffff;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+}
+
+.bulk-import-primary-button:hover,
+.bulk-import-primary-button:focused {
+    -fx-background-color: #1e293b;
+    -fx-border-color: #1e293b;
+}
+
+.bulk-import-clear-button {
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 12 18 12 18;
+}
+
+.log-card {
+    -fx-background-color: #0f172a;
+    -fx-border-color: rgba(15, 23, 42, 0.16);
+}
+
+.log-control-row {
+    -fx-spacing: 8;
+}
+
+.log-action-button {
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-padding: 8 13 8 13;
+}
+
+.log-primary-action-button {
+    -fx-background-color: #111827;
+    -fx-border-color: #111827;
+    -fx-text-fill: #ffffff;
+}
+
+.log-primary-action-button:hover,
+.log-primary-action-button:focused {
+    -fx-background-color: #1e293b;
+    -fx-border-color: #1e293b;
+}
+
+.log-text-area {
+    -fx-control-inner-background: #0f172a;
+    -fx-text-fill: #bbf7d0;
+    -fx-highlight-fill: rgba(34, 197, 94, 0.30);
+    -fx-highlight-text-fill: #ffffff;
+    -fx-border-color: rgba(148, 163, 184, 0.28);
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+}
+
+.log-text-area .content {
+    -fx-background-color: #0f172a;
+    -fx-background-radius: 18;
+    -fx-padding: 14;
 }
 
 .bookmarks-quick-action-button {
@@ -1039,6 +1230,19 @@
     -fx-text-fill: -uiptv-text-primary;
 }
 
+.watching-now-title-link {
+    -fx-padding: 0;
+    -fx-border-color: transparent;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-underline: false;
+}
+
+.watching-now-title-link:hover,
+.watching-now-title-link:focused {
+    -fx-text-fill: #0b57d0;
+    -fx-underline: true;
+}
+
 .watching-now-card-account {
     -fx-text-fill: -uiptv-text-secondary;
 }
@@ -1070,6 +1274,38 @@
 
 .watching-now-card-action-row {
     -fx-padding: 6 0 0 0;
+}
+
+.watching-now-open-hint {
+    -fx-background-color: rgba(11, 87, 208, 0.08);
+    -fx-border-color: rgba(11, 87, 208, 0.14);
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 5 10 5 10;
+    -fx-text-fill: #0b57d0;
+    -fx-font-weight: bold;
+}
+
+.watching-now-remove-button {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 7;
+}
+
+.watching-now-remove-button .bookmarks-quick-action-icon {
+    -fx-fill: #dc2626;
+}
+
+.watching-now-remove-button:hover,
+.watching-now-remove-button:focused {
+    -fx-background-color: rgba(220, 38, 38, 0.10);
+    -fx-border-color: rgba(220, 38, 38, 0.20);
+}
+
+.watching-now-remove-button:hover .bookmarks-quick-action-icon,
+.watching-now-remove-button:focused .bookmarks-quick-action-icon {
+    -fx-fill: #b91c1c;
 }
 
 .watching-now-card-plot {
@@ -1608,8 +1844,13 @@
 }
 
 .account-management-split {
-    -fx-background-color: -uiptv-app-bg;
-    -fx-padding: 14;
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.account-management-split > .split-pane-divider {
+    -fx-background-color: rgba(17, 19, 24, 0.08);
+    -fx-padding: 0 0.5 0 0.5;
 }
 
 .uiptv-dialog-backdrop {
@@ -1879,12 +2120,12 @@
 }
 
 .selected-card {
-    -fx-background-color: -fx-selection-bar;
+    -fx-background-color: -uiptv-selected-card-bg;
 }
 
 .selected-card-text,
 .selected-card-link {
-    -fx-text-fill: white;
+    -fx-text-fill: -uiptv-selected-card-fg;
 }
 
 .imdb-pill {

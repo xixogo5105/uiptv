@@ -8,6 +8,7 @@ import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.SystemUtils;
 import com.uiptv.widget.AppNavigationPane;
+import com.uiptv.widget.AppPageHeader;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.application.HostServices;
@@ -48,7 +49,7 @@ public abstract class BaseMainApplicationUI {
     }
 
     public Scene buildScene() {
-        AccountListUI accountListUI = new AccountListUI(useEmbeddedAccountFlow());
+        AccountListUI accountListUI = new AccountListUI(useEmbeddedAccountFlow(), hostServices, this::toggleTheme);
         BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI(hostServices, this::toggleTheme);
         AtomicReference<ConfigurationUI> configurationRef = new AtomicReference<>();
         AtomicReference<WatchingNowUI> watchingNowRef = new AtomicReference<>();
@@ -210,7 +211,7 @@ public abstract class BaseMainApplicationUI {
     private void initializeDeferredTabs(DeferredTabsContext context) {
         Supplier<WatchingNowUI> watchingNowSupplier = context.watchingNowRef()::get;
         Runnable loadWatchingNow = () -> {
-            WatchingNowUI watchingNowUI = new WatchingNowUI();
+            WatchingNowUI watchingNowUI = new WatchingNowUI(hostServices, this::toggleTheme);
             setMinWidthForPane(watchingNowUI);
             context.watchingNowRef().set(watchingNowUI);
             context.watchingNowTab().setContent(AppNavigationPane.wrapContent(watchingNowUI));
@@ -220,13 +221,13 @@ public abstract class BaseMainApplicationUI {
         };
 
         Runnable loadLogDisplay = () -> {
-            LogDisplayUI logDisplayUI = new LogDisplayUI();
+            LogDisplayUI logDisplayUI = new LogDisplayUI(hostServices, this::toggleTheme);
             setMinWidthForPane(logDisplayUI);
             context.logDisplayTab().setContent(AppNavigationPane.wrapContent(logDisplayUI));
         };
 
         Runnable loadParseMultiple = () -> {
-            ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI();
+            ParseMultipleAccountUI parseMultipleAccountUI = new ParseMultipleAccountUI(hostServices, this::toggleTheme);
             setMinWidthForPane(parseMultipleAccountUI);
             configureParseMultipleAccountUI(parseMultipleAccountUI, context.accountListUI());
             context.parseMultipleAccountTab().setContent(AppNavigationPane.wrapContent(parseMultipleAccountUI));
@@ -301,12 +302,25 @@ public abstract class BaseMainApplicationUI {
         return wrapper;
     }
 
-    private SplitPane createAccountManagementContent(AccountListUI accountListUI, ManageAccountUI manageAccountUI) {
-        SplitPane accountPage = new SplitPane(wrapToFill(manageAccountUI), wrapToFill(accountListUI));
-        accountPage.getStyleClass().add("account-management-split");
-        accountPage.setDividerPositions(0.58);
+    private VBox createAccountManagementContent(AccountListUI accountListUI, ManageAccountUI manageAccountUI) {
+        AppPageHeader accountHeader = accountListUI.detachPageHeader();
+        SplitPane accountSplit = new SplitPane(wrapToFill(manageAccountUI), wrapToFill(accountListUI));
+        accountSplit.getStyleClass().add("account-management-split");
+        accountSplit.setDividerPositions(0.58);
+        accountSplit.setMinSize(0, 0);
+        accountSplit.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        VBox accountPage = new VBox(12);
+        accountPage.getStyleClass().add("account-page");
+        accountPage.setFillWidth(true);
         accountPage.setMinSize(0, 0);
         accountPage.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        if (accountHeader == null) {
+            accountPage.getChildren().setAll(accountSplit);
+        } else {
+            accountPage.getChildren().setAll(accountHeader, accountSplit);
+        }
+        VBox.setVgrow(accountSplit, Priority.ALWAYS);
         return accountPage;
     }
 

@@ -328,7 +328,7 @@ public class BookmarkChannelListUI extends HBox {
         TextField searchField = searchTextField;
         searchField.setPromptText(I18n.tr("commonSearch"));
 
-        AppPageHeader header = new AppPageHeader("Favourite", searchField,
+        AppPageHeader header = new AppPageHeader(I18n.tr("autoFavorite"), searchField,
                 new AppHeaderActions(hostServices, themeToggleHandler, null));
         header.getStyleClass().add("bookmarks-header-stack");
 

@@ -4,8 +4,12 @@ import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.WebActivityLog;
+import com.uiptv.widget.AppHeaderActions;
+import com.uiptv.widget.AppPageHeader;
 import javafx.application.Platform;
+import javafx.application.HostServices;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -17,6 +21,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_HEIGHT_PIXELS;
@@ -36,20 +41,42 @@ public class LogDisplayUI extends VBox {
     private static Stage webLogStage;
     private static TextArea webLogArea;
     private final VBox contentBox = new VBox(5);
+    private final HostServices hostServices;
+    private final Runnable themeToggleHandler;
 
     static {
         AppLog.registerListener(LogDisplayUI::appendToLogArea);
     }
 
     public LogDisplayUI() {
-        setPadding(new Insets(5));
-        setSpacing(5);
+        this(null, null);
+    }
+
+    public LogDisplayUI(HostServices hostServices, Runnable themeToggleHandler) {
+        this.hostServices = hostServices;
+        this.themeToggleHandler = themeToggleHandler;
+        setPadding(Insets.EMPTY);
+        setSpacing(0);
+        getStyleClass().add("log-page");
+        contentBox.getStyleClass().add("log-content");
+        contentBox.setPadding(new Insets(24, 28, 20, 28));
+        contentBox.setSpacing(14);
+        contentBox.setFillWidth(true);
+        contentBox.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         ensureLogAreaInitialized();
         logArea.setEditable(false);
         logArea.setWrapText(true);
         logArea.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         logArea.setPrefHeight(GUIDED_MAX_HEIGHT_PIXELS);
+        logArea.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         logArea.getStyleClass().add("terminal");
+        logArea.getStyleClass().add("log-text-area");
+
+        for (Button button : List.of(copyLogButton, clearLogButton, webLogButton, detachButton, attachButton)) {
+            button.getStyleClass().add("log-action-button");
+        }
+        webLogButton.getStyleClass().add("log-primary-action-button");
+        detachButton.getStyleClass().add("log-primary-action-button");
 
         clearLogButton.setOnAction(event -> logArea.clear());
 
@@ -65,7 +92,8 @@ public class LogDisplayUI extends VBox {
         webLogButton.setOnAction(event -> showWebLogWindow());
 
         renderAttachedView();
-        getChildren().addAll(contentBox);
+        getChildren().setAll(contentBox);
+        VBox.setVgrow(contentBox, Priority.ALWAYS);
     }
 
     public static void addLog(String log) {
@@ -100,18 +128,44 @@ public class LogDisplayUI extends VBox {
 
     private void renderAttachedView() {
         contentBox.getChildren().clear();
-        HBox controlBox = new HBox(10, copyLogButton, clearLogButton, webLogButton, detachButton);
-        VBox vbox = new VBox(5, logArea, controlBox);
+        HBox controlBox = createControlRow(copyLogButton, clearLogButton, webLogButton, detachButton);
+        AppPageHeader header = createHeader();
+        VBox logCard = new VBox(logArea);
+        logCard.getStyleClass().add("log-card");
+        logCard.setFillWidth(true);
+        logCard.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        logCard.setMinHeight(0);
         VBox.setVgrow(logArea, Priority.ALWAYS);
-        contentBox.getChildren().add(vbox);
+        contentBox.getChildren().setAll(header, controlBox, logCard);
+        VBox.setVgrow(logCard, Priority.ALWAYS);
         setDetached(false);
     }
 
     private void renderDetachedPlaceholder() {
         contentBox.getChildren().clear();
         Label info = new Label(I18n.tr("autoLogsDetachedInASeparateWindow"));
-        VBox placeholder = new VBox(10, info, attachButton);
-        contentBox.getChildren().add(placeholder);
+        info.getStyleClass().add("log-detached-title");
+        info.setWrapText(true);
+        VBox placeholder = new VBox(10, info);
+        placeholder.getStyleClass().add("log-detached-card");
+        placeholder.setMaxWidth(Double.MAX_VALUE);
+        AppPageHeader header = createHeader();
+        contentBox.getChildren().setAll(header, createControlRow(attachButton), placeholder);
+    }
+
+    private AppPageHeader createHeader() {
+        return new AppPageHeader(
+                I18n.tr("autoLogs"),
+                new AppHeaderActions(hostServices, themeToggleHandler, null)
+        );
+    }
+
+    private HBox createControlRow(Button... buttons) {
+        HBox row = new HBox(8, buttons);
+        row.getStyleClass().add("log-control-row");
+        row.setAlignment(Pos.CENTER_RIGHT);
+        row.setFillHeight(false);
+        return row;
     }
 
     private void detachWindow() {
@@ -159,6 +213,9 @@ public class LogDisplayUI extends VBox {
         Button clearButton = new Button(I18n.tr("autoClear"));
         Button refreshButton = new Button(I18n.tr("autoRefresh"));
         Button closeButton = new Button(I18n.tr("commonClose"));
+        for (Button button : List.of(copyButton, clearButton, refreshButton, closeButton)) {
+            button.getStyleClass().add("log-action-button");
+        }
         copyButton.setOnAction(event -> copyWebLogToClipboard());
         clearButton.setOnAction(event -> {
             WebActivityLog.clear();

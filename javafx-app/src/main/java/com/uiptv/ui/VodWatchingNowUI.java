@@ -13,6 +13,7 @@ import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ImageUrlNormalizer;
+import com.uiptv.widget.IconActionButton;
 import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -37,11 +38,13 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static com.uiptv.model.Account.AccountAction.vod;
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
 public class VodWatchingNowUI extends VBox {
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_CARD_LINKS = "cardLinks";
     private static final String VOD_WATCHING_NOW_CACHE = "vod-watching-now";
+    private static final String TRASH_ICON_PATH = "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5z";
     private final VBox contentBox = new VBox(10);
     private final ScrollPane scrollPane = new ScrollPane(contentBox);
     private final ResponsiveCardGrid<VodPanelData> vodGrid = new ResponsiveCardGrid<>(this::createCard);
@@ -66,6 +69,8 @@ public class VodWatchingNowUI extends VBox {
     private String lastListFingerprint = "";
     private String selectedVodKey = "";
     private String renderedDetailKey = "";
+    private String searchQuery = "";
+    private String searchQueryDisplay = "";
     private boolean listenerRegistered = false;
     private boolean accountListenerRegistered = false;
     private HBox selectedCard;
@@ -94,7 +99,8 @@ public class VodWatchingNowUI extends VBox {
         vodGrid.setCardWidthRange(520, 760);
         vodGrid.setGaps(18, 16);
         vodGrid.setPlaceholderText(I18n.tr("autoNoWatchingNowVodFound"));
-        vodGrid.setOnItemActivated(data -> play(data, null));
+        vodGrid.setActivateOnSingleClick(true);
+        vodGrid.setOnItemActivated(this::showVodDetail);
         vodGrid.setContextMenuFactory((item, _, owner) -> createContextMenu(item, owner));
         vodGrid.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.ENTER || event.getCode() == KeyCode.SPACE) {
@@ -111,6 +117,18 @@ public class VodWatchingNowUI extends VBox {
 
     void markDirty() {
         dirty = true;
+    }
+
+    void setSearchQuery(String query) {
+        String normalized = normalizeSearchQuery(query);
+        if (Objects.equals(searchQuery, normalized)) {
+            return;
+        }
+        searchQuery = normalized;
+        searchQueryDisplay = safe(query);
+        if (!panelDataByKey.isEmpty()) {
+            renderCurrentListFromCachedRows();
+        }
     }
 
     public void refreshIfNeeded() {
@@ -193,10 +211,13 @@ public class VodWatchingNowUI extends VBox {
         }
         if (!fingerprint.equals(lastListFingerprint)) {
             clearPanelUiReferences(previousPanels);
-            vodGrid.setItems(FXCollections.observableArrayList(renderRows));
-            lastListFingerprint = fingerprint;
+            List<VodPanelData> visibleRows = filterVodRows(renderRows);
+            String visibleFingerprint = vodListFingerprint(visibleRows);
+            vodGrid.setItems(FXCollections.observableArrayList(visibleRows));
+            lastListFingerprint = visibleFingerprint;
         }
-        renderCurrentView(renderRows, fingerprint);
+        List<VodPanelData> visibleRows = filterVodRows(renderRows);
+        renderCurrentView(visibleRows, vodListFingerprint(visibleRows));
     }
 
     private void renderCurrentView(List<VodPanelData> rows, String fingerprint) {
@@ -219,7 +240,7 @@ public class VodWatchingNowUI extends VBox {
     private void showVodList(List<VodPanelData> rows, String fingerprint) {
         renderedDetailKey = "";
         lastListFingerprint = fingerprint;
-        vodGrid.setPlaceholderText(I18n.tr("autoNoWatchingNowVodFound"));
+        vodGrid.setPlaceholderText(vodListPlaceholderText());
         if (contentBox.getChildren().size() != 1 || contentBox.getChildren().getFirst() != vodGrid) {
             contentBox.getChildren().setAll(vodGrid);
         }
@@ -228,6 +249,77 @@ public class VodWatchingNowUI extends VBox {
         }
         VBox.setVgrow(vodGrid, Priority.ALWAYS);
         VBox.setVgrow(contentBox, Priority.ALWAYS);
+    }
+
+    private void renderCurrentListFromCachedRows() {
+        if (!isBlank(selectedVodKey)) {
+            renderCurrentView(filterVodRows(new ArrayList<>(panelDataByKey.values())),
+                    vodListFingerprint(filterVodRows(new ArrayList<>(panelDataByKey.values()))));
+            return;
+        }
+        List<VodPanelData> visibleRows = filterVodRows(new ArrayList<>(panelDataByKey.values()));
+        String fingerprint = vodListFingerprint(visibleRows);
+        if (!fingerprint.equals(lastListFingerprint)) {
+            vodGrid.setItems(FXCollections.observableArrayList(visibleRows));
+            lastListFingerprint = fingerprint;
+        }
+        renderCurrentView(visibleRows, fingerprint);
+    }
+
+    private List<VodPanelData> filterVodRows(List<VodPanelData> rows) {
+        if (!isSearchActive() || rows == null || rows.isEmpty()) {
+            return rows;
+        }
+        return rows.stream()
+                .filter(row -> matchesVodSearch(row, searchQuery))
+                .toList();
+    }
+
+    private boolean matchesVodSearch(VodPanelData data, String query) {
+        if (data == null || isBlank(query)) {
+            return true;
+        }
+        StringBuilder searchable = new StringBuilder();
+        appendSearchText(searchable,
+                data.displayTitle,
+                data.duration,
+                data.imdbUrl,
+                data.account == null ? "" : data.account.getAccountName(),
+                data.state == null ? "" : data.state.getVodId(),
+                data.state == null ? "" : data.state.getCategoryId(),
+                data.playbackChannel == null ? "" : data.playbackChannel.getName());
+        if (data.metadata != null) {
+            appendSearchText(searchable,
+                    data.metadata.plot,
+                    data.metadata.releaseDate,
+                    data.metadata.rating);
+        }
+        return searchable.toString().toLowerCase(Locale.ROOT).contains(query);
+    }
+
+    private void appendSearchText(StringBuilder builder, String... values) {
+        if (builder == null || values == null) {
+            return;
+        }
+        for (String value : values) {
+            if (!isBlank(value)) {
+                builder.append(' ').append(value);
+            }
+        }
+    }
+
+    private String vodListPlaceholderText() {
+        return isSearchActive()
+                ? I18n.tr("autoNothingFoundFor", searchQueryDisplay)
+                : I18n.tr("autoNoWatchingNowVodFound");
+    }
+
+    private boolean isSearchActive() {
+        return !isBlank(searchQuery);
+    }
+
+    private String normalizeSearchQuery(String query) {
+        return safe(query).toLowerCase(Locale.ROOT);
     }
 
     private List<VodPanelData> reuseRenderedRowsWhenStable(List<VodPanelData> rows, String fingerprint) {
@@ -335,13 +427,24 @@ public class VodWatchingNowUI extends VBox {
             showContextMenu(cardMenu, card, data);
         });
 
-        Label title = new Label(data.displayTitle);
+        Runnable openDetails = () -> {
+            selectedVodKey = panelKey(data);
+            showVodDetail(data);
+        };
+
+        Hyperlink title = new Hyperlink(data.displayTitle);
         title.getStyleClass().add("strong-label");
         title.getStyleClass().add("watching-now-card-title");
+        title.getStyleClass().add("watching-now-title-link");
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinWidth(0);
         title.setMinHeight(Region.USE_PREF_SIZE);
+        title.setFocusTraversable(true);
+        title.setOnAction(event -> {
+            event.consume();
+            openDetails.run();
+        });
         HBox.setHgrow(title, Priority.ALWAYS);
 
         Label accountLabel = new Label(data.account.getAccountName());
@@ -354,26 +457,13 @@ public class VodWatchingNowUI extends VBox {
         Region titleSpacer = new Region();
         HBox.setHgrow(titleSpacer, Priority.ALWAYS);
 
-        HBox titleRow = new HBox(10, title, titleSpacer, playButton);
+        IconActionButton removeButton = new IconActionButton(I18n.tr("autoRemove"), TRASH_ICON_PATH, () -> confirmAndRemoveVod(data));
+        removeButton.getStyleClass().add("watching-now-remove-button");
+        removeButton.setMinWidth(Region.USE_PREF_SIZE);
+        removeButton.setMaxWidth(Region.USE_PREF_SIZE);
+
+        HBox titleRow = new HBox(10, title, titleSpacer, playButton, removeButton);
         titleRow.setAlignment(Pos.TOP_LEFT);
-
-        Hyperlink detailsLink = new Hyperlink(I18n.tr("autoViewDetails"));
-        detailsLink.getStyleClass().add("watching-now-view-link");
-        detailsLink.setMinWidth(Region.USE_PREF_SIZE);
-        detailsLink.setMaxWidth(Region.USE_PREF_SIZE);
-        detailsLink.setFocusTraversable(true);
-        detailsLink.setOnAction(event -> {
-            event.consume();
-            selectedVodKey = panelKey(data);
-            showVodDetail(data);
-        });
-
-        HBox linkRow = new HBox(10);
-        linkRow.getStyleClass().add("watching-now-card-action-row");
-        linkRow.setAlignment(Pos.CENTER_LEFT);
-        Region linkSpacer = new Region();
-        HBox.setHgrow(linkSpacer, Priority.ALWAYS);
-        linkRow.getChildren().addAll(linkSpacer, detailsLink);
 
         details.getChildren().addAll(titleRow, accountLabel);
         FlowPane metaRow = new FlowPane(8, 6);
@@ -383,7 +473,10 @@ public class VodWatchingNowUI extends VBox {
             details.getChildren().add(metaRow);
         }
         updateImdbNodes(details, data);
-        details.getChildren().add(linkRow);
+        Label openHint = new Label(I18n.tr("autoViewDetails"));
+        openHint.getStyleClass().add("watching-now-open-hint");
+        openHint.setMinHeight(Region.USE_PREF_SIZE);
+        details.getChildren().add(openHint);
 
         HBox topRow = new HBox(16, posterWrap, details);
         topRow.setAlignment(Pos.TOP_LEFT);
@@ -405,10 +498,11 @@ public class VodWatchingNowUI extends VBox {
         }
 
         card.getChildren().add(cardBody);
-        List<Label> cardLabels = collectCardLabels(data, title);
+        List<Label> cardLabels = collectCardLabels(data);
         cardLabels.add(accountLabel);
+        cardLabels.add(openHint);
         card.getProperties().put(KEY_CARD_LABELS, cardLabels);
-        card.getProperties().put(KEY_CARD_LINKS, List.of(detailsLink));
+        card.getProperties().put(KEY_CARD_LINKS, List.of(title));
         return card;
     }
 
@@ -607,9 +701,8 @@ public class VodWatchingNowUI extends VBox {
         return menu;
     }
 
-    private List<Label> collectCardLabels(VodPanelData data, Label title) {
+    private List<Label> collectCardLabels(VodPanelData data) {
         List<Label> labels = new ArrayList<>();
-        labels.add(title);
         if (data.ratingNode != null) {
             labels.add(data.ratingNode);
         }
@@ -836,7 +929,7 @@ public class VodWatchingNowUI extends VBox {
                 case REMOVE_WATCHING_NOW -> {
                     MenuItem removeItem = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
                     removeItem.getStyleClass().add("danger-menu-item");
-                    removeItem.setOnAction(e -> removeVod(data));
+                    removeItem.setOnAction(e -> confirmAndRemoveVod(data));
                     menu.getItems().add(removeItem);
                 }
                 case WATCHING_NOW -> {
@@ -871,6 +964,16 @@ public class VodWatchingNowUI extends VBox {
                 render(new ArrayList<>(panelDataByKey.values()));
             });
         }, "vod-watching-now-remove").start();
+    }
+
+    private void confirmAndRemoveVod(VodPanelData data) {
+        if (data == null) {
+            return;
+        }
+        if (!showConfirmationAlert(I18n.tr("autoRemoveFromWatchingNowConfirm", firstNonBlank(data.displayTitle, I18n.tr("autoVod"))))) {
+            return;
+        }
+        removeVod(data);
     }
 
     private void registerListeners() {
