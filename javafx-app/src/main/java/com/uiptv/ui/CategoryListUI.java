@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -37,6 +38,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import static com.uiptv.model.Account.NOT_LIVE_TV_CHANNELS;
 import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
@@ -66,6 +68,7 @@ public class CategoryListUI extends HBox {
     private final Button closeButton = new Button(I18n.tr("autoClose"));
     private final Button detailCloseButton = new Button(I18n.tr("autoClose"));
     private final Button detailBackButton = new Button(I18n.tr("autoBack"));
+    private final Button accountsBackButton = new Button(I18n.tr("autoBack"));
     private final PillBar<String> modePillBar = new PillBar<>(this::modePillLabel, mode -> mode);
     private final Label categoryHeading = new Label();
     private final VBox categoryCardList = new VBox(6);
@@ -84,7 +87,11 @@ public class CategoryListUI extends HBox {
     private Account.AccountAction activeMode;
     private Runnable accountsNavigationHandler;
     private Runnable closeHandler;
+    private Consumer<String> headerSearchTextHandler;
     private CategoryItem focusedCategoryItem;
+    private boolean mediaDrawerMode;
+    private boolean categoryDataLoaded;
+    private String searchText = "";
 
     public CategoryListUI(List<Category> list, Account account) { // Removed MediaPlayer argument
         this(account, false);
@@ -105,6 +112,7 @@ public class CategoryListUI extends HBox {
     }
 
     public void setItems(List<Category> list) {
+        categoryDataLoaded = true;
         List<Category> processedList = new CategoryResolver().resolveCategories(account, list);
         long censoredCount = processedList.stream().filter(category -> category != null && category.getCensored() == 1).count();
         com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
@@ -158,11 +166,11 @@ public class CategoryListUI extends HBox {
         table.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(table, Priority.ALWAYS);
         leftPane.getStyleClass().add("account-category-list-pane");
-        leftPane.getChildren().addAll(headerRow, categoryHeading, categoryScrollPane);
         leftPane.setMaxHeight(Double.MAX_VALUE);
         leftPane.setMinHeight(0);
         VBox.setVgrow(leftPane, Priority.ALWAYS);
         HBox.setHgrow(leftPane, Priority.ALWAYS);
+        updateLeftPaneLayout();
         initDetailPane();
         getChildren().setAll(leftPane);
         addChannelClickHandler();
@@ -170,7 +178,7 @@ public class CategoryListUI extends HBox {
     }
 
     private void initDetailPane() {
-        detailBackButton.setOnAction(_ -> showListView(true));
+        detailBackButton.setOnAction(_ -> navigateBackFromDetail());
         detailCloseButton.setOnAction(_ -> closePanel());
         detailHeader.getStyleClass().add("account-category-detail-header");
         detailHeader.setAlignment(Pos.CENTER_LEFT);
@@ -234,13 +242,43 @@ public class CategoryListUI extends HBox {
     private void rebuildCategoryCards() {
         categoryCardList.getChildren().clear();
         if (categoryItems.isEmpty()) {
-            showCategoryPlaceholder(I18n.tr("autoNothingFoundFor", I18n.tr("autoCategories")));
+            showCategoryPlaceholder(categoryDataLoaded
+                    ? I18n.tr("autoNothingFoundFor", I18n.tr("autoCategories"))
+                    : I18n.tr("autoLoadingCategories"));
             return;
         }
-        for (CategoryItem item : categoryItems) {
+        List<CategoryItem> visibleItems = filteredCategoryItems();
+        if (visibleItems.isEmpty()) {
+            String target = searchText == null || searchText.isBlank()
+                    ? I18n.tr("autoCategories")
+                    : searchText.trim();
+            showCategoryPlaceholder(I18n.tr("autoNothingFoundFor", target));
+            return;
+        }
+        for (CategoryItem item : visibleItems) {
             categoryCardList.getChildren().add(createCategoryCard(item));
         }
         updateCategorySelectionStyles();
+    }
+
+    private List<CategoryItem> filteredCategoryItems() {
+        String normalizedSearch = searchText == null ? "" : searchText.trim().toLowerCase(Locale.ROOT);
+        if (normalizedSearch.isBlank()) {
+            return new ArrayList<>(categoryItems);
+        }
+        return categoryItems.stream()
+                .filter(item -> matchesCategorySearch(item, normalizedSearch))
+                .toList();
+    }
+
+    private boolean matchesCategorySearch(CategoryItem item, String normalizedSearch) {
+        if (item == null) {
+            return false;
+        }
+        String title = item.getCategoryTitle() == null ? "" : item.getCategoryTitle();
+        String id = item.getCategoryId() == null ? "" : item.getCategoryId();
+        return title.toLowerCase(Locale.ROOT).contains(normalizedSearch)
+                || id.toLowerCase(Locale.ROOT).contains(normalizedSearch);
     }
 
     private void showCategoryPlaceholder(String text) {
@@ -347,7 +385,8 @@ public class CategoryListUI extends HBox {
         if (!selectedCategoryItems.isEmpty()) {
             return selectedCategoryItems.getLast();
         }
-        return categoryItems.isEmpty() ? null : categoryItems.getFirst();
+        List<CategoryItem> visibleItems = filteredCategoryItems();
+        return visibleItems.isEmpty() ? null : visibleItems.getFirst();
     }
 
     private void updateCategorySelectionStyles() {
@@ -372,19 +411,52 @@ public class CategoryListUI extends HBox {
         if (!embeddedMode) {
             return;
         }
+        if (getChildren().contains(detailPane)) {
+            replaceSearchText("", true);
+        }
         if (abandonActiveLoad) {
             abandonActiveChannelView();
         }
+        restoreCategoryItemsFromStateIfNeeded();
+        rebuildCategoryCards();
         HBox.setHgrow(leftPane, Priority.ALWAYS);
         getChildren().setAll(leftPane);
+    }
+
+    private void restoreCategoryItemsFromStateIfNeeded() {
+        if (!categoryItems.isEmpty()) {
+            return;
+        }
+        ModeState state = modeStates.get(activeMode);
+        if (state == null || state.categories.isEmpty()) {
+            return;
+        }
+        categoryDataLoaded = true;
+        List<CategoryItem> restoredItems = new ArrayList<>();
+        for (Category category : state.categories) {
+            if (category == null) {
+                continue;
+            }
+            restoredItems.add(new CategoryItem(
+                    new SimpleStringProperty(category.getDbId()),
+                    new SimpleStringProperty(category.getTitle()),
+                    new SimpleStringProperty(category.getCategoryId()),
+                    category.getCensored() == 1
+            ));
+        }
+        categoryItems.setAll(restoredItems);
+        table.setItems(FXCollections.observableArrayList(restoredItems));
+        table.setPlaceholder(null);
     }
 
     private void showDetailView(ChannelListUI ui, String title) {
         if (!embeddedMode || ui == null) {
             return;
         }
+        replaceSearchText("", true);
         detailTitle.setText(title);
         detailContent.getChildren().setAll(ui);
+        ui.setSearchText(searchText);
         ui.setMinWidth(0);
         ui.setMaxWidth(Double.MAX_VALUE);
         ui.setMinHeight(0);
@@ -417,10 +489,45 @@ public class CategoryListUI extends HBox {
         return true;
     }
 
+    private void navigateBackFromDetail() {
+        if (!detailContent.getChildren().isEmpty()) {
+            javafx.scene.Node content = detailContent.getChildren().getFirst();
+            if (content instanceof ChannelListUI channelListUI && channelListUI.navigateBackEmbedded()) {
+                return;
+            }
+        }
+        showListView(true);
+    }
+
+    public void setSearchText(String searchText) {
+        String value = searchText == null ? "" : searchText;
+        if (Objects.equals(this.searchText, value)) {
+            return;
+        }
+        replaceSearchText(value, false);
+        ModeState state = modeStates.get(activeMode);
+        if (getChildren().contains(detailPane) && state != null && state.channelListUI != null) {
+            state.channelListUI.setSearchText(value);
+            return;
+        }
+        rebuildCategoryCards();
+    }
+
+    private void replaceSearchText(String value, boolean updateHeader) {
+        this.searchText = value == null ? "" : value;
+        if (updateHeader && headerSearchTextHandler != null) {
+            headerSearchTextHandler.accept(this.searchText);
+        }
+    }
+
     private void registerSceneCleanupListener() {
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
-                releaseTransientState();
+                Platform.runLater(() -> {
+                    if (getScene() == null) {
+                        releaseTransientState();
+                    }
+                });
             }
         });
     }
@@ -442,11 +549,30 @@ public class CategoryListUI extends HBox {
         categoryItems.clear();
         selectedCategoryItems.clear();
         focusedCategoryItem = null;
+        categoryDataLoaded = false;
         categoryCardList.getChildren().clear();
     }
 
     public void dispose() {
         releaseTransientState();
+    }
+
+    public void setMediaDrawerMode(boolean enabled) {
+        if (mediaDrawerMode == enabled) {
+            return;
+        }
+        mediaDrawerMode = enabled;
+        updateStyleClass(this, "account-category-panel-drawer", enabled);
+        updateStyleClass(leftPane, "account-category-list-pane-drawer", enabled);
+        updateStyleClass(detailPane, "account-category-detail-pane-drawer", enabled);
+        setupPanelHeaders();
+        updateLeftPaneLayout();
+        refreshCategoryColumnTitle();
+        for (ModeState state : modeStates.values()) {
+            if (state.channelListUI != null) {
+                state.channelListUI.setMediaDrawerMode(enabled);
+            }
+        }
     }
 
     public void setAccountsNavigationHandler(Runnable accountsNavigationHandler) {
@@ -459,25 +585,48 @@ public class CategoryListUI extends HBox {
         updateCloseButtonVisibility();
     }
 
+    public void setHeaderSearchTextHandler(Consumer<String> headerSearchTextHandler) {
+        this.headerSearchTextHandler = headerSearchTextHandler;
+    }
+
     private void setupPanelHeaders() {
-        closeButton.getStyleClass().add("account-category-close-button");
-        detailCloseButton.getStyleClass().add("account-category-close-button");
+        updateStyleClass(closeButton, "account-category-close-button", true);
+        updateStyleClass(detailCloseButton, "account-category-close-button", true);
+        updateStyleClass(accountsBackButton, "account-category-close-button", true);
         closeButton.setMinWidth(Region.USE_PREF_SIZE);
         closeButton.setMaxWidth(Region.USE_PREF_SIZE);
         detailCloseButton.setMinWidth(Region.USE_PREF_SIZE);
         detailCloseButton.setMaxWidth(Region.USE_PREF_SIZE);
+        accountsBackButton.setMinWidth(Region.USE_PREF_SIZE);
+        accountsBackButton.setMaxWidth(Region.USE_PREF_SIZE);
         closeButton.setOnAction(_ -> closePanel());
-        headerRow.getStyleClass().add("account-category-header");
+        accountsBackButton.setOnAction(_ -> navigateToAccounts());
+        updateStyleClass(headerRow, "account-category-header", true);
         headerRow.setAlignment(Pos.CENTER_LEFT);
         headerRow.setMaxWidth(Double.MAX_VALUE);
         modePillBar.setMinWidth(0);
-        modePillBar.setPrefWidth(400);
-        modePillBar.setMaxWidth(Region.USE_PREF_SIZE);
-        HBox.setHgrow(modePillBar, Priority.NEVER);
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        headerRow.getChildren().setAll(modePillBar, spacer, closeButton);
+        if (mediaDrawerMode) {
+            modePillBar.setPrefWidth(Region.USE_COMPUTED_SIZE);
+            modePillBar.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(modePillBar, Priority.ALWAYS);
+            headerRow.getChildren().setAll(accountsBackButton, spacer, closeButton);
+        } else {
+            modePillBar.setPrefWidth(400);
+            modePillBar.setMaxWidth(Region.USE_PREF_SIZE);
+            HBox.setHgrow(modePillBar, Priority.NEVER);
+            headerRow.getChildren().setAll(modePillBar, spacer, closeButton);
+        }
         updateCloseButtonVisibility();
+    }
+
+    private void updateLeftPaneLayout() {
+        if (mediaDrawerMode) {
+            leftPane.getChildren().setAll(headerRow, modePillBar, categoryHeading, categoryScrollPane);
+            return;
+        }
+        leftPane.getChildren().setAll(headerRow, categoryHeading, categoryScrollPane);
     }
 
     private void updateCloseButtonVisibility() {
@@ -486,6 +635,8 @@ public class CategoryListUI extends HBox {
         closeButton.setManaged(visible);
         detailCloseButton.setVisible(visible);
         detailCloseButton.setManaged(visible);
+        accountsBackButton.setVisible(mediaDrawerMode && accountsNavigationHandler != null);
+        accountsBackButton.setManaged(mediaDrawerMode && accountsNavigationHandler != null);
     }
 
     private void closePanel() {
@@ -494,6 +645,13 @@ public class CategoryListUI extends HBox {
             closeHandler.run();
             return;
         }
+        if (accountsNavigationHandler != null) {
+            accountsNavigationHandler.run();
+        }
+    }
+
+    private void navigateToAccounts() {
+        releaseTransientState();
         if (accountsNavigationHandler != null) {
             accountsNavigationHandler.run();
         }
@@ -515,10 +673,7 @@ public class CategoryListUI extends HBox {
                 return;
             }
             if (MODE_ACCOUNTS.equals(selectedMode)) {
-                releaseTransientState();
-                if (accountsNavigationHandler != null) {
-                    accountsNavigationHandler.run();
-                }
+                navigateToAccounts();
                 Platform.runLater(this::selectActiveModePill);
                 return;
             }
@@ -569,6 +724,7 @@ public class CategoryListUI extends HBox {
         categoryItems.clear();
         selectedCategoryItems.clear();
         focusedCategoryItem = null;
+        categoryDataLoaded = false;
         showCategoryPlaceholder(I18n.tr("autoLoadingCategories"));
         table.setPlaceholder(new Label(I18n.tr("autoLoadingCategories")));
         if (embeddedMode) {
@@ -609,6 +765,16 @@ public class CategoryListUI extends HBox {
         String accountName = account != null && account.getAccountName() != null ? account.getAccountName().trim() : "";
         String baseTitle = I18n.tr("autoCategories");
         String title = accountName.isEmpty() ? baseTitle : baseTitle + " - " + accountName;
+        if (mediaDrawerMode) {
+            String modeTitle = modePillLabel(switch (activeMode) {
+                case vod -> MODE_VOD;
+                case series -> MODE_SERIES;
+                case itv -> MODE_ITV;
+            });
+            title = accountName.isEmpty()
+                    ? I18n.tr("autoAccount") + " / " + modeTitle
+                    : I18n.tr("autoAccount") + " / " + accountName + " / " + modeTitle;
+        }
         categoryTitle.setText(title);
         categoryHeading.setText(title);
     }
@@ -815,12 +981,6 @@ public class CategoryListUI extends HBox {
         if (runningThread != null && runningThread.isAlive()) {
             RootApplication.getPrimaryStage().getScene().setCursor(Cursor.WAIT);
             runningThread.interrupt();
-            try {
-                // Wait a bit for the thread to finish, but don't block forever
-                runningThread.join(2000);
-            } catch (InterruptedException _) {
-                Thread.currentThread().interrupt();
-            }
         }
 
         currentRequestCancelled = new AtomicBoolean(false);
@@ -828,13 +988,16 @@ public class CategoryListUI extends HBox {
 
         RootApplication.getPrimaryStage().getScene().setCursor(Cursor.WAIT);
         Thread loadingThread = new Thread(() -> {
+            Thread worker = Thread.currentThread();
             try {
                 retrieveChannels(item, noCachingNeeded, isCancelled::get, mode);
             } finally {
-                Platform.runLater(() -> RootApplication.getPrimaryStage().getScene().setCursor(Cursor.DEFAULT));
-                currentLoadingThread.compareAndSet(Thread.currentThread(), null);
+                if (currentLoadingThread.compareAndSet(worker, null)) {
+                    Platform.runLater(() -> RootApplication.getPrimaryStage().getScene().setCursor(Cursor.DEFAULT));
+                }
             }
         });
+        loadingThread.setDaemon(true);
         currentLoadingThread.set(loadingThread);
         loadingThread.start();
     }
@@ -900,6 +1063,7 @@ public class CategoryListUI extends HBox {
                                            CountDownLatch latch, Account.AccountAction mode) {
         String title = item.getCategoryTitle() != null ? item.getCategoryTitle() : "";
         ChannelListUI ui = new ChannelListUI(account, title, selectedCategoryKey, mode);
+        ui.setMediaDrawerMode(mediaDrawerMode);
         if (embeddedMode) {
             ui.setEmbeddedMode(true);
         } else {
@@ -1054,6 +1218,19 @@ public class CategoryListUI extends HBox {
             return "categoryId:" + item.getCategoryId().trim();
         }
         return "title:" + (item.getCategoryTitle() == null ? "" : item.getCategoryTitle().trim().toLowerCase());
+    }
+
+    private void updateStyleClass(javafx.scene.Node node, String styleClass, boolean enabled) {
+        if (node == null) {
+            return;
+        }
+        if (enabled) {
+            if (!node.getStyleClass().contains(styleClass)) {
+                node.getStyleClass().add(styleClass);
+            }
+            return;
+        }
+        node.getStyleClass().remove(styleClass);
     }
 
     private static class ModeState {

@@ -12,6 +12,7 @@ import com.uiptv.widget.AppPageHeader;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.application.HostServices;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -27,6 +28,7 @@ public abstract class BaseMainApplicationUI {
 
     private static final Duration DEFERRED_TAB_GAP = Duration.millis(400);
     private static final double WIDE_PLAYER_NAVIGATION_WIDTH = 520;
+    private static final double WIDE_PLAYER_COLLAPSED_NAVIGATION_WIDTH = 88;
     private static final double COMPACT_EMBEDDED_PLAYER_WIDTH = 480;
     private static final double COMPACT_EMBEDDED_PLAYER_HEIGHT = 305;
     protected final Stage primaryStage;
@@ -147,7 +149,7 @@ public abstract class BaseMainApplicationUI {
 
         StackPane navigationShell = createNavigationShell(tabPane);
         HBox.setHgrow(navigationShell, Priority.ALWAYS);
-        configureWidePlayerNavigationRail(navigationShell, embeddedPlayer);
+        configureWidePlayerNavigationRail(navigationShell, tabPane, embeddedPlayer, accountListUI);
 
         accountListUI.setMaxHeight(Double.MAX_VALUE);
         accountListUI.setMinHeight(0);
@@ -189,20 +191,62 @@ public abstract class BaseMainApplicationUI {
         embeddedPlayer.setAlignment(Pos.CENTER);
     }
 
-    private void configureWidePlayerNavigationRail(StackPane navigationShell, HBox embeddedPlayer) {
-        embeddedPlayer.managedProperty().addListener((_, _, visible) ->
-                updateWidePlayerNavigationRail(navigationShell, Boolean.TRUE.equals(visible)));
-        updateWidePlayerNavigationRail(navigationShell, embeddedPlayer.isManaged());
+    private void configureWidePlayerNavigationRail(StackPane navigationShell,
+                                                   TabPane tabPane,
+                                                   HBox embeddedPlayer,
+                                                   AccountListUI accountListUI) {
+        SimpleBooleanProperty drawerCollapsed = new SimpleBooleanProperty(false);
+        Button expandDrawerButton = new Button(">");
+        expandDrawerButton.getStyleClass().add("wide-player-drawer-expand-button");
+        expandDrawerButton.setFocusTraversable(false);
+        expandDrawerButton.setTooltip(AppNavigationPane.createImmediateTooltip(I18n.tr("autoAccount")));
+        expandDrawerButton.setOnAction(_ -> drawerCollapsed.set(false));
+        expandDrawerButton.setVisible(false);
+        expandDrawerButton.setManaged(false);
+        navigationShell.getChildren().add(expandDrawerButton);
+        StackPane.setAlignment(expandDrawerButton, Pos.CENTER_RIGHT);
+
+        accountListUI.setWideDrawerCollapseHandler(() -> drawerCollapsed.set(true));
+        embeddedPlayer.managedProperty().addListener((_, _, visible) -> {
+            boolean playerVisible = Boolean.TRUE.equals(visible);
+            if (!playerVisible && drawerCollapsed.get()) {
+                drawerCollapsed.set(false);
+                return;
+            }
+            updateWidePlayerNavigationRail(navigationShell, tabPane, accountListUI, expandDrawerButton,
+                    playerVisible, drawerCollapsed.get());
+        });
+        drawerCollapsed.addListener((_, _, collapsed) ->
+                updateWidePlayerNavigationRail(navigationShell, tabPane, accountListUI, expandDrawerButton,
+                        embeddedPlayer.isManaged(), Boolean.TRUE.equals(collapsed)));
+        updateWidePlayerNavigationRail(navigationShell, tabPane, accountListUI, expandDrawerButton,
+                embeddedPlayer.isManaged(), drawerCollapsed.get());
     }
 
-    private void updateWidePlayerNavigationRail(StackPane navigationShell, boolean playerVisible) {
+    private void updateWidePlayerNavigationRail(StackPane navigationShell,
+                                                TabPane tabPane,
+                                                AccountListUI accountListUI,
+                                                Button expandDrawerButton,
+                                                boolean playerVisible,
+                                                boolean drawerCollapsed) {
+        accountListUI.setMediaDrawerMode(playerVisible);
+        if (!playerVisible) {
+            drawerCollapsed = false;
+        }
+        expandDrawerButton.setVisible(playerVisible && drawerCollapsed);
+        expandDrawerButton.setManaged(playerVisible && drawerCollapsed);
         if (playerVisible) {
-            navigationShell.setMinWidth(WIDE_PLAYER_NAVIGATION_WIDTH);
-            navigationShell.setPrefWidth(WIDE_PLAYER_NAVIGATION_WIDTH);
-            navigationShell.setMaxWidth(WIDE_PLAYER_NAVIGATION_WIDTH);
+            double width = drawerCollapsed ? WIDE_PLAYER_COLLAPSED_NAVIGATION_WIDTH : WIDE_PLAYER_NAVIGATION_WIDTH;
+            tabPane.setMinWidth(drawerCollapsed ? 0 : 445);
+            tabPane.setPrefWidth(width);
+            navigationShell.setMinWidth(width);
+            navigationShell.setPrefWidth(width);
+            navigationShell.setMaxWidth(width);
             HBox.setHgrow(navigationShell, Priority.NEVER);
             return;
         }
+        tabPane.setMinWidth(0);
+        tabPane.setPrefWidth(Region.USE_COMPUTED_SIZE);
         navigationShell.setMinWidth(0);
         navigationShell.setPrefWidth(Region.USE_COMPUTED_SIZE);
         navigationShell.setMaxWidth(Double.MAX_VALUE);

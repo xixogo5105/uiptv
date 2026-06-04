@@ -578,51 +578,23 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private HBox createSeriesListCard(SeriesPanelData data) {
-        HBox card = new HBox(16);
-        card.setAlignment(Pos.TOP_LEFT);
-        card.setFocusTraversable(true);
-        card.setPadding(new Insets(14));
-        card.getStyleClass().add("uiptv-card");
-        card.getStyleClass().add("watching-now-series-card");
-
-        StackPane posterWrap = null;
+        ImageView poster = null;
         if (thumbnailsEnabled()) {
-            ImageView poster = SeriesCardUiSupport.createFitPoster(resolveSeriesPosterUrl(data), 136, 204, WATCHING_NOW_CACHE);
+            poster = SeriesCardUiSupport.createFitPoster(resolveSeriesPosterUrl(data), 136, 204, WATCHING_NOW_CACHE);
             data.seriesListPosterNode = poster;
-            posterWrap = createWatchingNowCardPosterWrap(poster);
             loadSeriesListPosterImage(data);
         } else {
             data.seriesListPosterNode = null;
         }
-        VBox text = new VBox(8);
-        text.getStyleClass().add("watching-now-card-text");
-        text.setMaxWidth(Double.MAX_VALUE);
-        text.setMinWidth(0);
-        text.setFillWidth(true);
-        HBox.setHgrow(text, Priority.ALWAYS);
 
         String titleText = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle);
         String accountText = data.account.getAccountName();
+        HBox[] cardRef = new HBox[1];
         Runnable openDetails = () -> {
-            setSelectedSeriesCard(card);
+            setSelectedSeriesCard(cardRef[0]);
             selectedSeriesKey = seriesPaneKey(data);
             showSeriesDetail(data);
         };
-
-        Hyperlink title = new Hyperlink(titleText);
-        data.seriesListTitleNode = title;
-        title.getStyleClass().add(STRONG_LABEL);
-        title.getStyleClass().add("watching-now-card-title");
-        title.getStyleClass().add("watching-now-title-link");
-        title.setWrapText(true);
-        title.setMaxWidth(Double.MAX_VALUE);
-        title.setMinWidth(0);
-        title.setMinHeight(Region.USE_PREF_SIZE);
-        title.setFocusTraversable(true);
-        title.setOnAction(event -> {
-            event.consume();
-            openDetails.run();
-        });
 
         IconActionButton removeButton = new IconActionButton(I18n.tr("autoRemove"), TRASH_ICON_PATH, () -> {
             String seriesName = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle, I18n.tr("watchingNowThisSeries"));
@@ -635,31 +607,17 @@ public abstract class BaseWatchingNowUI extends VBox {
         removeButton.setMinWidth(Region.USE_PREF_SIZE);
         removeButton.setMaxWidth(Region.USE_PREF_SIZE);
 
-        Region titleSpacer = new Region();
-        HBox.setHgrow(titleSpacer, Priority.ALWAYS);
-        HBox titleRow = new HBox(10, title, titleSpacer, removeButton);
-        titleRow.setAlignment(Pos.TOP_LEFT);
-        titleRow.setMinWidth(0);
-        titleRow.setMaxWidth(Double.MAX_VALUE);
-
-        Label accountLabel = new Label(accountText);
-        accountLabel.getStyleClass().add("watching-now-card-account");
-        accountLabel.setWrapText(true);
-        accountLabel.setMaxWidth(Double.MAX_VALUE);
-        accountLabel.setMinWidth(0);
-        accountLabel.setMinHeight(Region.USE_PREF_SIZE);
-
-        FlowPane metaRow = new FlowPane(8, 6);
-        metaRow.getStyleClass().add("watching-now-card-meta-row");
-        Label typeChip = createWatchingNowCardChip(I18n.tr("autoSeries"));
-        Label episodeChip = createWatchingNowCardChip(data.episodes.size() + " " + I18n.tr("autoEpisodes"));
-        metaRow.getChildren().addAll(typeChip, episodeChip);
+        List<Label> metadataNodes = new ArrayList<>();
+        Label typeChip = WatchingNowMediaCardFactory.createChip(I18n.tr("autoSeries"));
+        Label episodeChip = WatchingNowMediaCardFactory.createChip(data.episodes.size() + " " + I18n.tr("autoEpisodes"));
+        metadataNodes.add(typeChip);
+        metadataNodes.add(episodeChip);
         String season = normalizeNumber(data.state == null ? "" : data.state.getSeason());
         if (!isBlank(season)) {
-            metaRow.getChildren().add(createWatchingNowCardChip(I18n.formatSeasonLabel(season)));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.formatSeasonLabel(season)));
         }
         if (data.state != null && data.state.getEpisodeNum() > 0) {
-            metaRow.getChildren().add(createWatchingNowCardChip(I18n.formatEpisodeLabel(String.valueOf(data.state.getEpisodeNum()))));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.formatEpisodeLabel(String.valueOf(data.state.getEpisodeNum()))));
         }
 
         Button openHint = new Button(I18n.tr("autoViewEpisodes"));
@@ -671,24 +629,28 @@ public abstract class BaseWatchingNowUI extends VBox {
             openDetails.run();
         });
 
-        text.getChildren().addAll(titleRow, accountLabel, metaRow);
         Label plot = createSeriesListPlotLabel(data);
-        if (plot != null) {
-            text.getChildren().add(plot);
-        }
-        text.getChildren().add(openHint);
+        WatchingNowMediaCardFactory.CardNodes cardNodes = WatchingNowMediaCardFactory.builder(WatchingNowMediaCardFactory.CardType.SERIES)
+                .title(titleText)
+                .account(accountText)
+                .poster(poster, thumbnailsEnabled())
+                .actionButton(removeButton)
+                .openAction(openDetails)
+                .metadataNodes(metadataNodes)
+                .plot(plot, WatchingNowMediaCardFactory.PlotPlacement.DETAILS)
+                .footer(openHint)
+                .focusTraversable(true)
+                .build();
+        HBox card = cardNodes.card();
+        cardRef[0] = card;
+        data.seriesListTitleNode = cardNodes.title();
 
-        if (posterWrap == null) {
-            card.getChildren().add(text);
-        } else {
-            card.getChildren().addAll(posterWrap, text);
-        }
-        List<Label> cardLabels = new ArrayList<>(List.of(accountLabel, typeChip, episodeChip));
+        List<Label> cardLabels = new ArrayList<>(List.of(cardNodes.account(), typeChip, episodeChip));
         if (plot != null) {
             cardLabels.add(plot);
         }
         card.getProperties().put(KEY_CARD_LABELS, cardLabels);
-        card.getProperties().put("cardLinks", List.of(title));
+        card.getProperties().put("cardLinks", List.of(cardNodes.title()));
         return card;
     }
 
@@ -707,23 +669,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         plot.setMinWidth(0);
         plot.setMinHeight(Region.USE_PREF_SIZE);
         return plot;
-    }
-
-    private StackPane createWatchingNowCardPosterWrap(ImageView poster) {
-        StackPane posterWrap = new StackPane(poster);
-        posterWrap.getStyleClass().add("watching-now-card-poster-wrap");
-        posterWrap.setAlignment(Pos.CENTER);
-        posterWrap.setMinWidth(Region.USE_PREF_SIZE);
-        posterWrap.setMaxWidth(Region.USE_PREF_SIZE);
-        return posterWrap;
-    }
-
-    private Label createWatchingNowCardChip(String text) {
-        Label chip = new Label(text);
-        chip.getStyleClass().add("watching-now-card-chip");
-        chip.setMinWidth(Region.USE_PREF_SIZE);
-        chip.setMaxWidth(Region.USE_PREF_SIZE);
-        return chip;
     }
 
     private void openSeriesDetail(SeriesPanelData data) {
@@ -1200,6 +1145,9 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         List<String> seasons = seasonKeys(data);
         seasonPillBar.setItems(seasons);
+        boolean multipleSeasons = seasons.size() > 1;
+        seasonPillBar.setManaged(multipleSeasons);
+        seasonPillBar.setVisible(multipleSeasons);
         if (!isBlank(selectedSeason) && seasons.contains(selectedSeason)) {
             seasonPillBar.setSelectedItem(selectedSeason);
         } else if (!seasons.isEmpty()) {

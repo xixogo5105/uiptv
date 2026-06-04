@@ -156,7 +156,7 @@ public class ChannelService {
             return publishChannels(maybeFilterChannels(dedupeChannels(cachedChannels), true), callback);
         }
         log(logger, "No fresh cache found for category " + categoryId + ". Fetching from portal...");
-        boolean streamingCallback = callback != null && account.getType() == STALKER_PORTAL;
+        boolean streamingCallback = callback != null && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API);
         List<Channel> fetchedChannels = fetchVodSeriesFromProviderAllPages(categoryId, account, isCancelled, logger, callback, progressCallback);
         boolean cancelled = Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get());
         if (!fetchedChannels.isEmpty() && !cancelled) {
@@ -314,7 +314,7 @@ public class ChannelService {
                                                              Consumer<List<Channel>> callback, Consumer<PageProgress> progressCallback) {
         List<Channel> channels;
         if (account.getType() == XTREME_API) {
-            channels = dedupeChannels(XtremeApiParser.parseChannels(categoryId, account));
+            channels = dedupeChannels(XtremeApiParser.parseChannels(categoryId, account, callback, isCancelled));
             if (progressCallback != null) {
                 progressCallback.accept(new PageProgress(channels.size(), channels.size(), 1, 1));
             }

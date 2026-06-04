@@ -190,6 +190,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             seasonControls.setManaged(!empty);
             seasonControls.setVisible(!empty);
         }
+        updateSeasonPillBarVisibility(!empty);
         tableView.setManaged(!empty);
         tableView.setVisible(!empty);
         emptyStateLabel.setText(message == null ? "" : message);
@@ -265,6 +266,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
         seasonOptions = seasons;
         seasonPillBar.setItems(seasonOptions);
+        updateSeasonPillBarVisibility(!allEpisodeItems.isEmpty());
         String defaultSeason = seasons.stream()
                 .filter("1"::equals)
                 .findFirst()
@@ -276,6 +278,12 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
                     .orElse(defaultSeason);
         }
         seasonPillBar.setSelectedItem(defaultSeason);
+    }
+
+    private void updateSeasonPillBarVisibility(boolean hasEpisodes) {
+        boolean visible = hasEpisodes && seasonOptions.size() > 1;
+        seasonPillBar.setManaged(visible);
+        seasonPillBar.setVisible(visible);
     }
 
     private String selectedSeason() {

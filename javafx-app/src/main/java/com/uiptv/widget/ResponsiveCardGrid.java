@@ -45,7 +45,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private final Map<T, Region> cardsByItem = new LinkedHashMap<>();
     private final ObservableList<T> selectedItems = FXCollections.observableArrayList();
     private final ObservableList<T> readonlySelectedItems = FXCollections.unmodifiableObservableList(selectedItems);
-    private final ListChangeListener<T> itemChangeListener = _ -> rebuildCards();
+    private final ListChangeListener<T> itemChangeListener = this::handleItemsChanged;
     private ObservableList<T> items = FXCollections.observableArrayList();
     private ContextMenuFactory<T> contextMenuFactory;
     private Consumer<T> itemActivatedHandler;
@@ -205,6 +205,58 @@ public class ResponsiveCardGrid<T> extends StackPane {
         updatePlaceholderVisibility();
         updateCardWidths();
         updateSelectionStyles();
+    }
+
+    private void handleItemsChanged(ListChangeListener.Change<? extends T> change) {
+        boolean changed = false;
+        while (change.next()) {
+            if (change.wasPermutated() || change.wasRemoved()) {
+                rebuildCards();
+                return;
+            }
+            if (change.wasUpdated()) {
+                updateCards(change.getFrom(), change.getTo());
+                changed = true;
+                continue;
+            }
+            if (change.wasAdded()) {
+                insertCards(change.getFrom(), new ArrayList<>(change.getAddedSubList()));
+                changed = true;
+            }
+        }
+        if (!changed) {
+            updatePlaceholderVisibility();
+            return;
+        }
+        pruneSelection();
+        updatePlaceholderVisibility();
+        updateCardWidths();
+        updateSelectionStyles();
+    }
+
+    private void insertCards(int index, List<T> newItems) {
+        if (newItems.isEmpty()) {
+            return;
+        }
+        int insertIndex = Math.max(0, Math.min(index, cardPane.getChildren().size()));
+        for (T item : newItems) {
+            Region card = cardFactory.apply(item);
+            configureCard(item, card);
+            cardsByItem.put(item, card);
+            cardPane.getChildren().add(insertIndex++, card);
+        }
+    }
+
+    private void updateCards(int from, int to) {
+        int start = Math.max(0, from);
+        int end = Math.min(to, Math.min(items.size(), cardPane.getChildren().size()));
+        for (int index = start; index < end; index++) {
+            T item = items.get(index);
+            Region card = cardFactory.apply(item);
+            configureCard(item, card);
+            cardsByItem.put(item, card);
+            cardPane.getChildren().set(index, card);
+        }
     }
 
     private void configureCard(T item, Region card) {

@@ -377,7 +377,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterBookmarkListener();
-                releaseTransientState();
+                releaseTransientStateIfStillDetached();
             } else if (!bookmarkListenerRegistered) {
                 BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
                 bookmarkListenerRegistered = true;
@@ -395,11 +395,19 @@ public abstract class BaseEpisodesListUI extends HBox {
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterWatchStateListener();
-                releaseTransientState();
+                releaseTransientStateIfStillDetached();
             } else if (!watchStateListenerRegistered) {
                 SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
                 watchStateListenerRegistered = true;
                 refreshWatchedStatesAsync();
+            }
+        });
+    }
+
+    private void releaseTransientStateIfStillDetached() {
+        runLater(() -> {
+            if (getScene() == null) {
+                releaseTransientState();
             }
         });
     }

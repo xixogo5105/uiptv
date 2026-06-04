@@ -22,6 +22,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.SortedList;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Cursor;
@@ -83,6 +84,7 @@ public class ChannelListUI extends HBox {
     private static final String LOG_CHANNEL_ID = " channelId=";
     private static final String LOG_NAME = " name=";
     private static final int MAX_SERIES_EPISODE_CACHE_ENTRIES = Integer.getInteger("uiptv.series.cache.maxEntries", 48);
+    private static final int CHANNEL_UI_BATCH_SIZE = Integer.getInteger("uiptv.channel.uiBatchSize", 120);
     private final Map<String, EpisodeList> seriesEpisodesCache = Collections.synchronizedMap(
             new LinkedHashMap<>(64, 0.75f, true) {
                 @Override
@@ -102,6 +104,7 @@ public class ChannelListUI extends HBox {
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private boolean embeddedMode = false;
     private boolean inlineEpisodeNavigationEnabled = false;
+    private boolean mediaDrawerMode = false;
     private final VBox listPane = new VBox(5);
     private final VBox searchBox = new VBox(5);
     private final VBox detailPane = new VBox(8);
@@ -145,6 +148,7 @@ public class ChannelListUI extends HBox {
     public void setEmbeddedMode(boolean embeddedMode) {
         this.embeddedMode = embeddedMode;
         applyListContentMode();
+        applyChannelGridSizing();
         if (embeddedMode) {
             showListView();
         }
@@ -158,46 +162,101 @@ public class ChannelListUI extends HBox {
         }
     }
 
+    public void setMediaDrawerMode(boolean mediaDrawerMode) {
+        if (this.mediaDrawerMode == mediaDrawerMode) {
+            return;
+        }
+        this.mediaDrawerMode = mediaDrawerMode;
+        updateStyleClass(this, "account-channel-drawer-mode", mediaDrawerMode);
+        updateStyleClass(channelGrid, "account-channel-card-grid-drawer", mediaDrawerMode);
+        applyMediaDrawerModeToActiveDetail();
+        applyChannelGridSizing();
+        channelGrid.refresh();
+    }
+
+    public void setSearchText(String searchText) {
+        String value = searchText == null ? "" : searchText;
+        TextField searchField = table.getSearchTextField();
+        if (!Objects.equals(searchField.getText(), value)) {
+            searchField.setText(value);
+        }
+    }
+
     public void addItems(List<Channel> newChannels) {
-        if (!disposed.get() && newChannels != null && !newChannels.isEmpty()) {
-            itemsLoaded.set(true);
-            List<Bookmark> accountBookmarks = loadBookmarksForAccount();
-            Set<String> savedVodKeys = loadVodWatchStateKeys();
-            List<ChannelItem> newItems = new ArrayList<>();
-            List<LogoUpdate> logoUpdates = new ArrayList<>();
-            for (Channel channel : newChannels) {
-                if (disposed.get()) {
-                    return;
-                }
-                processIncomingChannel(channel, accountBookmarks, savedVodKeys, newItems, logoUpdates);
-            }
+        if (disposed.get() || newChannels == null || newChannels.isEmpty()) {
+            return;
+        }
+        itemsLoaded.set(true);
+        if (Platform.isFxApplicationThread() && newChannels.size() > CHANNEL_UI_BATCH_SIZE) {
+            List<Channel> channels = new ArrayList<>(newChannels);
+            Thread worker = new Thread(() -> addItemsIncrementally(channels), "uiptv-channel-card-batcher");
+            worker.setDaemon(true);
+            worker.start();
+            return;
+        }
+        addItemsIncrementally(newChannels);
+    }
+
+    private void addItemsIncrementally(List<Channel> newChannels) {
+        List<Bookmark> accountBookmarks = loadBookmarksForAccount();
+        Set<String> savedVodKeys = loadVodWatchStateKeys();
+        Map<String, SeriesWatchState> seriesWatchStates = loadSeriesWatchStates();
+        List<ChannelItem> pendingItems = new ArrayList<>(CHANNEL_UI_BATCH_SIZE);
+        List<LogoUpdate> pendingLogoUpdates = new ArrayList<>();
+        for (Channel channel : newChannels) {
             if (disposed.get()) {
                 return;
             }
-
-            runLater(() -> {
-                if (disposed.get()) {
-                    return;
-                }
-                if (!newItems.isEmpty()) {
-                    channelItems.addAll(newItems);
-                    table.setPlaceholder(null);
-                    channelGrid.setPlaceholderText("");
-                }
-                if (!logoUpdates.isEmpty()) {
-                    for (LogoUpdate update : logoUpdates) {
-                        update.item().setLogo(update.normalizedLogo());
-                        update.item().getChannel().setLogo(update.sourceChannel().getLogo());
-                    }
-                    refreshChannelViews();
-                }
-            });
+            processIncomingChannel(channel, accountBookmarks, savedVodKeys, seriesWatchStates, pendingItems, pendingLogoUpdates);
+            if (pendingItems.size() >= CHANNEL_UI_BATCH_SIZE || pendingLogoUpdates.size() >= CHANNEL_UI_BATCH_SIZE) {
+                publishChannelChanges(pendingItems, pendingLogoUpdates);
+            }
         }
+        if (!disposed.get()) {
+            publishChannelChanges(pendingItems, pendingLogoUpdates);
+        }
+    }
+
+    private void publishChannelChanges(List<ChannelItem> pendingItems, List<LogoUpdate> pendingLogoUpdates) {
+        if ((pendingItems == null || pendingItems.isEmpty())
+                && (pendingLogoUpdates == null || pendingLogoUpdates.isEmpty())) {
+            return;
+        }
+        List<ChannelItem> itemBatch = pendingItems == null || pendingItems.isEmpty()
+                ? List.of()
+                : new ArrayList<>(pendingItems);
+        List<LogoUpdate> logoBatch = pendingLogoUpdates == null || pendingLogoUpdates.isEmpty()
+                ? List.of()
+                : new ArrayList<>(pendingLogoUpdates);
+        if (pendingItems != null) {
+            pendingItems.clear();
+        }
+        if (pendingLogoUpdates != null) {
+            pendingLogoUpdates.clear();
+        }
+        runLater(() -> {
+            if (disposed.get()) {
+                return;
+            }
+            if (!itemBatch.isEmpty()) {
+                channelItems.addAll(itemBatch);
+                table.setPlaceholder(null);
+                channelGrid.setPlaceholderText("");
+            }
+            if (!logoBatch.isEmpty()) {
+                for (LogoUpdate update : logoBatch) {
+                    update.item().setLogo(update.normalizedLogo());
+                    update.item().getChannel().setLogo(update.sourceChannel().getLogo());
+                }
+                refreshChannelViews();
+            }
+        });
     }
 
     private void processIncomingChannel(Channel channel,
                                         List<Bookmark> accountBookmarks,
                                         Set<String> savedVodKeys,
+                                        Map<String, SeriesWatchState> seriesWatchStates,
                                         List<ChannelItem> newItems,
                                         List<LogoUpdate> logoUpdates) {
         if (channel == null) {
@@ -212,7 +271,7 @@ public class ChannelListUI extends HBox {
             return;
         }
         BookmarkContext context = resolveBookmarkContext(channel);
-        updateSeriesProgressIfNeeded(channel, context);
+        updateSeriesProgressIfNeeded(channel, seriesWatchStates);
         ChannelItem channelItem = buildChannelItem(channel, normalizedLogo, context, accountBookmarks, savedVodKeys);
         channelList.add(channel);
         channelItemByKey.put(key, channelItem);
@@ -230,14 +289,11 @@ public class ChannelListUI extends HBox {
         return true;
     }
 
-    private void updateSeriesProgressIfNeeded(Channel channel, BookmarkContext context) {
-        if (listAction != series) {
+    private void updateSeriesProgressIfNeeded(Channel channel, Map<String, SeriesWatchState> seriesWatchStates) {
+        if (listAction != series || channel == null || seriesWatchStates == null || seriesWatchStates.isEmpty()) {
             return;
         }
-        String seriesCategoryId = resolveSeriesCategoryId(channel, context);
-        boolean inProgress = SeriesWatchStateService.getInstance()
-                .getSeriesLastWatched(account.getDbId(), seriesCategoryId, channel.getChannelId()) != null;
-        channel.setWatched(inProgress);
+        channel.setWatched(seriesWatchStates.containsKey(normalizeSeriesWatchKey(channel.getChannelId())));
     }
 
     private ChannelItem buildChannelItem(Channel channel,
@@ -457,13 +513,10 @@ public class ChannelListUI extends HBox {
         channelGrid.getStyleClass().add("account-channel-card-grid");
         if (isMediaCatalogMode()) {
             channelGrid.getStyleClass().add(listAction == vod ? "watching-now-vod-grid" : "watching-now-series-grid");
-            channelGrid.setCardWidthRange(embeddedMode ? 360 : 520, 760);
-            channelGrid.setGaps(18, 16);
         } else {
             channelGrid.getStyleClass().add("bookmark-card-grid");
-            channelGrid.setCardWidthRange(255, 345);
-            channelGrid.setGaps(16, 14);
         }
+        applyChannelGridSizing();
         channelGrid.setItems(table.getItems());
         channelGrid.setPlaceholderNode(new LoadingStateView(I18n.tr("autoLoadingChannelsFor", categoryTitle)));
         channelGrid.setOnItemActivated(this::playOrShowSeries);
@@ -474,6 +527,27 @@ public class ChannelListUI extends HBox {
                 event.consume();
             }
         });
+    }
+
+    private void applyChannelGridSizing() {
+        if (channelGrid == null) {
+            return;
+        }
+        if (mediaDrawerMode) {
+            channelGrid.setCardWidthRange(260, 520);
+            channelGrid.setGaps(7, 7);
+            channelGrid.setActivateOnSingleClick(true);
+            return;
+        }
+        if (isMediaCatalogMode()) {
+            channelGrid.setCardWidthRange(embeddedMode ? 360 : 520, 760);
+            channelGrid.setGaps(18, 16);
+            channelGrid.setActivateOnSingleClick(false);
+            return;
+        }
+        channelGrid.setCardWidthRange(255, 345);
+        channelGrid.setGaps(16, 14);
+        channelGrid.setActivateOnSingleClick(false);
     }
 
     private void setupChannelGridScroll() {
@@ -493,6 +567,9 @@ public class ChannelListUI extends HBox {
         if (searchBox.getChildren().isEmpty()) {
             return;
         }
+        boolean showLocalSearch = !embeddedMode && !inlineEpisodeNavigationEnabled;
+        table.getSearchTextField().setVisible(showLocalSearch);
+        table.getSearchTextField().setManaged(showLocalSearch);
         Node content = embeddedMode ? channelGridScroll : table;
         if (content instanceof Region region) {
             region.setMinWidth(0);
@@ -547,6 +624,9 @@ public class ChannelListUI extends HBox {
         if ((!embeddedMode && !inlineEpisodeNavigationEnabled) || ui == null) {
             return;
         }
+        if (ui instanceof EpisodesListUI episodesListUI) {
+            episodesListUI.setMediaDrawerMode(mediaDrawerMode);
+        }
         detailTitle.setText(title == null ? "" : title);
         boolean plainEpisodeHeader = configureDetailHeader(ui);
         detailContent.getChildren().setAll(ui);
@@ -565,6 +645,16 @@ public class ChannelListUI extends HBox {
             detailPane.getChildren().setAll(detailContent);
         }
         getChildren().setAll(detailPane);
+    }
+
+    private void applyMediaDrawerModeToActiveDetail() {
+        if (detailContent.getChildren().isEmpty()) {
+            return;
+        }
+        Node content = detailContent.getChildren().getFirst();
+        if (content instanceof EpisodesListUI episodesListUI) {
+            episodesListUI.setMediaDrawerMode(mediaDrawerMode);
+        }
     }
 
     private boolean configureDetailHeader(Node ui) {
@@ -601,6 +691,9 @@ public class ChannelListUI extends HBox {
     }
 
     private Region createChannelCard(ChannelItem item) {
+        if (mediaDrawerMode) {
+            return createDrawerChannelRow(item);
+        }
         if (isMediaCatalogMode()) {
             return createWatchingNowMediaCard(item);
         }
@@ -633,31 +726,90 @@ public class ChannelListUI extends HBox {
         );
     }
 
+    private Region createDrawerChannelRow(ChannelItem item) {
+        Label title = new Label(item == null ? "" : item.getChannelName());
+        title.getStyleClass().addAll("strong-label", "account-drawer-channel-title");
+        title.setWrapText(true);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+
+        Label meta = new Label(drawerChannelMeta(item));
+        meta.getStyleClass().add("account-drawer-channel-meta");
+        meta.setWrapText(true);
+        meta.setMinWidth(0);
+        meta.setMaxWidth(Double.MAX_VALUE);
+        meta.setVisible(!isBlank(meta.getText()));
+        meta.setManaged(!isBlank(meta.getText()));
+
+        VBox text = new VBox(2, title, meta);
+        text.setMinWidth(0);
+        text.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(text, Priority.ALWAYS);
+
+        HBox badges = new HBox(4);
+        badges.setAlignment(Pos.CENTER_RIGHT);
+        populateDrawerChannelBadges(item, badges);
+
+        HBox row = new HBox(8, text, badges);
+        row.getStyleClass().addAll("account-drawer-channel-row", "watching-now-episode-card", "watching-now-episode-card-compact");
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(8, 9, 8, 9));
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        row.setMinHeight(44);
+        row.setPrefHeight(Region.USE_COMPUTED_SIZE);
+        row.setMaxHeight(Region.USE_PREF_SIZE);
+        return row;
+    }
+
+    private String drawerChannelMeta(ChannelItem item) {
+        List<String> parts = new ArrayList<>();
+        if (listAction == vod) {
+            parts.add(I18n.tr("autoVod"));
+        } else if (listAction == series) {
+            parts.add(I18n.tr("autoSeries"));
+        } else {
+            parts.add(I18n.tr("autoChannels"));
+        }
+        if (!isBlank(categoryTitle)) {
+            parts.add(categoryTitle);
+        }
+        Channel channel = item == null ? null : item.getChannel();
+        if (channel != null && !isBlank(channel.getRating())) {
+            parts.add(I18n.tr("autoRatingPrefix", channel.getRating()));
+        }
+        return String.join(" · ", parts);
+    }
+
+    private void populateDrawerChannelBadges(ChannelItem item, HBox badges) {
+        if (badges == null || item == null || item.getChannel() == null) {
+            return;
+        }
+        Channel channel = item.getChannel();
+        if (PlayerService.getInstance().isDrmProtected(channel)) {
+            badges.getChildren().add(createDrawerBadge(I18n.tr("autoDrm")));
+        }
+        if (listAction == series && channel.isWatched()) {
+            badges.getChildren().add(createDrawerBadge(I18n.tr("autoInPROGRESS")));
+        }
+    }
+
+    private Label createDrawerBadge(String text) {
+        Label badge = new Label(text == null ? "" : text);
+        badge.getStyleClass().add("drm-badge");
+        badge.setMinWidth(Region.USE_PREF_SIZE);
+        badge.setMaxWidth(Region.USE_PREF_SIZE);
+        return badge;
+    }
+
     private HBox createWatchingNowMediaCard(ChannelItem item) {
-        HBox card = new HBox(16);
-        card.setAlignment(Pos.TOP_LEFT);
-        card.getStyleClass().addAll(
-                "uiptv-card",
-                listAction == vod ? "watching-now-vod-card" : "watching-now-series-card",
-                "account-media-card"
-        );
-        card.setMinWidth(0);
-        card.setMaxWidth(Double.MAX_VALUE);
-
         WatchingNowVodResolver.VodMetadata vodMetadata = resolveVodMetadata(item);
-        StackPane posterWrap = createMediaPosterWrap(item, vodMetadata);
-        posterWrap.setVisible(thumbnailsEnabled);
-        posterWrap.setManaged(thumbnailsEnabled);
-
-        VBox details = new VBox(8);
-        details.getStyleClass().add("watching-now-card-text");
-        details.setMinWidth(0);
-        details.setMaxWidth(Double.MAX_VALUE);
-        details.setFillWidth(true);
-        HBox.setHgrow(details, Priority.ALWAYS);
+        String posterUrl = firstNonBlank(item == null ? "" : item.getLogo(), vodMetadata == null ? "" : normalizeImageUrl(vodMetadata.getLogo()));
+        ImageView poster = thumbnailsEnabled
+                ? SeriesCardUiSupport.createFitPoster(posterUrl, 136, 204, IMAGE_CACHE_KEY_CHANNEL)
+                : null;
 
         Button actionButton = new PlayMenuButton(I18n.tr("autoPlay2"));
-        actionButton.getStyleClass().add(listAction == vod ? "bookmark-play-menu-button" : "episode-play-button");
         actionButton.setOnAction(event -> {
             event.consume();
             if (item == null) {
@@ -673,44 +825,12 @@ public class ChannelListUI extends HBox {
             playOrShowSeries(item);
         });
 
-        Hyperlink title = new Hyperlink(item == null ? "" : item.getChannelName());
-        title.getStyleClass().addAll("strong-label", "watching-now-card-title", "watching-now-title-link");
-        title.setWrapText(true);
-        title.setMinWidth(0);
-        title.setMaxWidth(Double.MAX_VALUE);
-        title.setMinHeight(Region.USE_PREF_SIZE);
-        title.setOnAction(event -> {
-            event.consume();
-            playOrShowSeries(item);
-        });
-        HBox.setHgrow(title, Priority.ALWAYS);
-
-        HBox titleRow = new HBox(10, title, actionButton);
-        titleRow.setAlignment(Pos.TOP_LEFT);
-        titleRow.setMinWidth(0);
-        titleRow.setMaxWidth(Double.MAX_VALUE);
-
-        Label accountLabel = new Label(account == null ? "" : account.getAccountName());
-        accountLabel.getStyleClass().add("watching-now-card-account");
-        accountLabel.setWrapText(true);
-        accountLabel.setMinWidth(0);
-        accountLabel.setMaxWidth(Double.MAX_VALUE);
-
-        FlowPane metaRow = new FlowPane(8, 6);
-        metaRow.getStyleClass().add("watching-now-card-meta-row");
-        populateMediaMetaChips(metaRow, item, vodMetadata);
-
-        details.getChildren().addAll(titleRow, accountLabel);
-        if (!metaRow.getChildren().isEmpty()) {
-            details.getChildren().add(metaRow);
-        }
+        List<Label> metadataNodes = createMediaMetadataNodes(item, vodMetadata);
         Label plot = createMediaPlotLabel(item, vodMetadata);
-        if (plot != null) {
-            details.getChildren().add(plot);
-        }
 
+        Button openHint = null;
         if (listAction == series) {
-            Button openHint = new Button(I18n.tr("autoViewEpisodes"));
+            openHint = new Button(I18n.tr("autoViewEpisodes"));
             openHint.getStyleClass().add("watching-now-open-hint");
             openHint.setFocusTraversable(true);
             openHint.setMinHeight(Region.USE_PREF_SIZE);
@@ -722,77 +842,69 @@ public class ChannelListUI extends HBox {
                 channelGrid.selectItems(List.of(item));
                 playOrShowSeries(item);
             });
-            details.getChildren().add(openHint);
         }
 
-        card.getChildren().addAll(posterWrap, details);
-        return card;
+        return WatchingNowMediaCardFactory.builder(listAction == vod
+                        ? WatchingNowMediaCardFactory.CardType.VOD
+                        : WatchingNowMediaCardFactory.CardType.SERIES)
+                .title(item == null ? "" : item.getChannelName())
+                .account(account == null ? "" : account.getAccountName())
+                .poster(poster, thumbnailsEnabled)
+                .actionButton(actionButton)
+                .openAction(() -> playOrShowSeries(item))
+                .metadataNodes(metadataNodes)
+                .plot(plot, listAction == vod
+                        ? WatchingNowMediaCardFactory.PlotPlacement.FULL_WIDTH
+                        : WatchingNowMediaCardFactory.PlotPlacement.DETAILS)
+                .footer(openHint)
+                .build()
+                .card();
     }
 
-    private StackPane createMediaPosterWrap(ChannelItem item, WatchingNowVodResolver.VodMetadata vodMetadata) {
-        String posterUrl = firstNonBlank(item == null ? "" : item.getLogo(), vodMetadata == null ? "" : normalizeImageUrl(vodMetadata.getLogo()));
-        ImageView poster = SeriesCardUiSupport.createFitPoster(posterUrl, 136, 204, IMAGE_CACHE_KEY_CHANNEL);
-        StackPane posterWrap = new StackPane(poster);
-        posterWrap.getStyleClass().add("watching-now-card-poster-wrap");
-        posterWrap.setAlignment(Pos.CENTER);
-        posterWrap.setMinWidth(Region.USE_PREF_SIZE);
-        posterWrap.setMaxWidth(Region.USE_PREF_SIZE);
-        return posterWrap;
-    }
-
-    private void populateMediaMetaChips(FlowPane metaRow, ChannelItem item, WatchingNowVodResolver.VodMetadata vodMetadata) {
-        if (metaRow == null) {
-            return;
-        }
+    private List<Label> createMediaMetadataNodes(ChannelItem item, WatchingNowVodResolver.VodMetadata vodMetadata) {
+        List<Label> metadataNodes = new ArrayList<>();
         if (listAction == series) {
-            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoSeries")));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoSeries")));
         }
         Channel channel = item == null ? null : item.getChannel();
         if (channel == null) {
-            return;
+            return metadataNodes;
         }
         if (PlayerService.getInstance().isDrmProtected(channel)) {
-            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoDrm")));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoDrm")));
         }
         if (listAction == vod) {
-            populateVodMetaChips(metaRow, vodMetadata);
-            return;
+            populateVodMetaChips(metadataNodes, vodMetadata);
+            return metadataNodes;
         }
         if (listAction == series && channel.isWatched()) {
-            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoInPROGRESS")));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoInPROGRESS")));
         }
         if (!isBlank(channel.getRating())) {
-            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoRatingPrefix", channel.getRating())));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoRatingPrefix", channel.getRating())));
         }
         if (!isBlank(channel.getDuration())) {
-            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoDurationPrefix", channel.getDuration())));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoDurationPrefix", channel.getDuration())));
         }
         if (!isBlank(channel.getReleaseDate())) {
-            metaRow.getChildren().add(createWatchingNowChip(channel.getReleaseDate()));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(channel.getReleaseDate()));
         }
+        return metadataNodes;
     }
 
-    private void populateVodMetaChips(FlowPane metaRow, WatchingNowVodResolver.VodMetadata vodMetadata) {
+    private void populateVodMetaChips(List<Label> metadataNodes, WatchingNowVodResolver.VodMetadata vodMetadata) {
         if (vodMetadata == null) {
             return;
         }
         if (!isBlank(vodMetadata.getRating())) {
-            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoImdbPrefix", vodMetadata.getRating())));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoImdbPrefix", vodMetadata.getRating())));
         }
         if (!isBlank(vodMetadata.getReleaseDate())) {
-            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoReleasePrefix", vodMetadata.getReleaseDate())));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoReleasePrefix", vodMetadata.getReleaseDate())));
         }
         if (!isBlank(vodMetadata.getDuration())) {
-            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoDurationPrefix", vodMetadata.getDuration())));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoDurationPrefix", vodMetadata.getDuration())));
         }
-    }
-
-    private Label createWatchingNowChip(String text) {
-        Label chip = new Label(text == null ? "" : text);
-        chip.getStyleClass().add("watching-now-card-chip");
-        chip.setMinWidth(Region.USE_PREF_SIZE);
-        chip.setMaxWidth(Region.USE_PREF_SIZE);
-        return chip;
     }
 
     private Label createMediaPlotLabel(ChannelItem item, WatchingNowVodResolver.VodMetadata vodMetadata) {
@@ -800,16 +912,7 @@ public class ChannelListUI extends HBox {
         String plotText = listAction == vod
                 ? vodMetadata == null ? "" : vodMetadata.getPlot()
                 : channel == null ? "" : channel.getDescription();
-        if (isBlank(plotText)) {
-            return null;
-        }
-        Label plot = new Label(plotText);
-        plot.getStyleClass().add("watching-now-card-plot");
-        plot.setWrapText(true);
-        plot.setMinWidth(0);
-        plot.setMaxWidth(Double.MAX_VALUE);
-        plot.setMinHeight(Region.USE_PREF_SIZE);
-        return plot;
+        return WatchingNowMediaCardFactory.createPlotLabel(plotText);
     }
 
     private WatchingNowVodResolver.VodMetadata resolveVodMetadata(ChannelItem item) {
@@ -829,6 +932,19 @@ public class ChannelListUI extends HBox {
             }
         }
         return "";
+    }
+
+    private void updateStyleClass(Node node, String styleClass, boolean enabled) {
+        if (node == null) {
+            return;
+        }
+        if (enabled) {
+            if (!node.getStyleClass().contains(styleClass)) {
+                node.getStyleClass().add(styleClass);
+            }
+            return;
+        }
+        node.getStyleClass().remove(styleClass);
     }
 
     private boolean isMediaCatalogMode() {
@@ -871,7 +987,7 @@ public class ChannelListUI extends HBox {
     }
 
     public boolean navigateBackEmbedded() {
-        if (!embeddedMode) {
+        if (!embeddedMode && !inlineEpisodeNavigationEnabled) {
             return false;
         }
         if (getChildren().contains(detailPane)) {
@@ -1161,6 +1277,40 @@ public class ChannelListUI extends HBox {
                 .collect(Collectors.toSet());
     }
 
+    private Map<String, SeriesWatchState> loadSeriesWatchStates() {
+        if (listAction != series || account == null || isBlank(account.getDbId())) {
+            return Map.of();
+        }
+        Map<String, SeriesWatchState> states = SeriesWatchStateService.getInstance()
+                .getSeriesLastWatchedByAccount(account.getDbId());
+        if (states == null || states.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, SeriesWatchState> normalized = new HashMap<>();
+        for (Map.Entry<String, SeriesWatchState> entry : states.entrySet()) {
+            String key = normalizeSeriesWatchKey(entry.getKey());
+            if (!isBlank(key)) {
+                normalized.put(key, entry.getValue());
+            }
+        }
+        return normalized;
+    }
+
+    private String normalizeSeriesWatchKey(String seriesId) {
+        String raw = seriesId == null ? "" : seriesId.trim();
+        if (isBlank(raw) || !raw.contains(":")) {
+            return raw;
+        }
+        String[] parts = raw.split(":");
+        for (int index = parts.length - 1; index >= 0; index--) {
+            String part = parts[index] == null ? "" : parts[index].trim();
+            if (!isBlank(part)) {
+                return part;
+            }
+        }
+        return raw;
+    }
+
     private boolean isAllCategoryView() {
         return "all".equalsIgnoreCase(categoryTitle == null ? "" : categoryTitle.trim());
     }
@@ -1345,18 +1495,6 @@ public class ChannelListUI extends HBox {
             mappedTitle = rawCategoryId;
         }
         return mappedTitle;
-    }
-
-    private String resolveSeriesCategoryId(Channel channel, BookmarkContext context) {
-        String candidate = "";
-        if (channel != null && !isBlank(channel.getCategoryId())) {
-            candidate = channel.getCategoryId();
-        } else if (context != null && !isBlank(context.categoryId)) {
-            candidate = context.categoryId;
-        } else if (!isBlank(categoryId)) {
-            candidate = categoryId;
-        }
-        return isBlank(candidate) ? "" : candidate;
     }
 
     private static final class BookmarkContext {

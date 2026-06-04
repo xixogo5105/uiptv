@@ -17,6 +17,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -26,6 +28,7 @@ import static com.uiptv.util.StringUtils.safeGetString;
 public class XtremeApiParser {
     private static final String PARAM_CATEGORY_ID = "category_id";
     private static final String XTREME_ERROR_PROCESSING_RESPONSE_DATA = "xtremeErrorProcessingResponseData: ";
+    private static final int CHANNEL_PARSE_BATCH_SIZE = Integer.getInteger("uiptv.xtreme.channelParseBatchSize", 250);
 
     private XtremeApiParser() {
     }
@@ -39,10 +42,14 @@ public class XtremeApiParser {
     }
 
     public static List<Channel> parseChannels(String categoryId, Account account) {
+        return parseChannels(categoryId, account, null, null);
+    }
+
+    public static List<Channel> parseChannels(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
         try {
             Map<String, String> extraParams = new LinkedHashMap<>();
             extraParams.put(PARAM_CATEGORY_ID, categoryId);
-            return doParseChannels(fetchPlayerApi(account, getChannelListAction(account.getAction()), extraParams), account);
+            return doParseChannels(fetchPlayerApi(account, getChannelListAction(account.getAction()), extraParams), account, callback, isCancelled);
         } catch (IOException e) {
             throw new UncheckedIOException("Unable to load Xtreme channels", e);
         }
@@ -83,10 +90,18 @@ public class XtremeApiParser {
     }
 
     private static List<Channel> doParseChannels(String json, Account account) {
+        return doParseChannels(json, account, null, null);
+    }
+
+    private static List<Channel> doParseChannels(String json, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
         List<Channel> categoryList = new ArrayList<>();
+        List<Channel> callbackBatch = callback == null ? null : new ArrayList<>(CHANNEL_PARSE_BATCH_SIZE);
         try {
             JSONArray list = new JSONArray(json);
             for (int i = 0; i < list.length(); i++) {
+                if (isCancelled != null && Boolean.TRUE.equals(isCancelled.get())) {
+                    break;
+                }
                 JSONObject jsonCategory = list.getJSONObject(i);
                 Channel channel = new Channel(
                         safeGetString(jsonCategory, account.getAction() == series ? "series_id" : "stream_id"),
@@ -109,6 +124,16 @@ public class XtremeApiParser {
                 channel.setCategoryId(safeGetString(jsonCategory, PARAM_CATEGORY_ID));
                 channel.setExtraJson(jsonCategory.toString());
                 categoryList.add(channel);
+                if (callbackBatch != null) {
+                    callbackBatch.add(channel);
+                    if (callbackBatch.size() >= CHANNEL_PARSE_BATCH_SIZE) {
+                        callback.accept(List.copyOf(callbackBatch));
+                        callbackBatch.clear();
+                    }
+                }
+            }
+            if (callbackBatch != null && !callbackBatch.isEmpty()) {
+                callback.accept(List.copyOf(callbackBatch));
             }
         } catch (Exception e) {
             AppLog.addErrorLog(XtremeApiParser.class, XTREME_ERROR_PROCESSING_RESPONSE_DATA + e.getMessage());

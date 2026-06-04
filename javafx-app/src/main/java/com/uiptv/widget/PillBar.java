@@ -47,8 +47,10 @@ public class PillBar<T> extends StackPane {
         setMaxHeight(Region.USE_PREF_SIZE);
 
         Rectangle clip = new Rectangle();
-        clip.widthProperty().bind(widthProperty());
-        clip.heightProperty().bind(heightProperty());
+        clip.setX(-6);
+        clip.setY(-6);
+        clip.widthProperty().bind(widthProperty().add(12));
+        clip.heightProperty().bind(heightProperty().add(12));
         setClip(clip);
 
         content.getStyleClass().add("uiptv-pill-bar-content");
@@ -141,8 +143,9 @@ public class PillBar<T> extends StackPane {
 
     private double computeWrappedHeight(double width) {
         double insets = snappedTopInset() + snappedBottomInset();
-        double contentWidth = width > 0
-                ? Math.max(1, width - snappedLeftInset() - snappedRightInset())
+        double measuredWidth = width > 0 ? width : getWidth();
+        double contentWidth = measuredWidth > 0
+                ? Math.max(1, measuredWidth - snappedLeftInset() - snappedRightInset())
                 : content.getPrefWrapLength();
         return Math.max(30, content.prefHeight(contentWidth) + insets);
     }

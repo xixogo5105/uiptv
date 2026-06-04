@@ -25,8 +25,10 @@ import javafx.scene.control.OverrunStyle;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
+import javafx.scene.Node;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -400,111 +402,40 @@ public class VodWatchingNowUI extends VBox {
     }
 
     private HBox createCard(VodPanelData data) {
-        HBox card = new HBox(16);
-        card.setAlignment(Pos.TOP_LEFT);
-        card.setPadding(new Insets(14));
-        card.getStyleClass().add("uiptv-card");
-        card.getStyleClass().add("watching-now-vod-card");
-
-        ImageView poster = SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 136, 204, VOD_WATCHING_NOW_CACHE);
-        StackPane posterWrap = createWatchingNowCardPosterWrap(poster);
-        posterWrap.setVisible(ThumbnailAwareUI.areThumbnailsEnabled());
-        posterWrap.setManaged(ThumbnailAwareUI.areThumbnailsEnabled());
-
-        VBox details = new VBox(8);
-        details.getStyleClass().add("watching-now-card-text");
-        details.setMaxWidth(Double.MAX_VALUE);
-        details.setMinWidth(0);
-        details.setFillWidth(true);
-        HBox.setHgrow(details, Priority.ALWAYS);
-
         ContextMenu cardMenu = new ContextMenu();
-        UiI18n.preparePopupControl(cardMenu, card);
         cardMenu.setHideOnEscape(true);
         cardMenu.setAutoHide(true);
 
         Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
-        playButton.setOnAction(event -> {
-            event.consume();
-            showContextMenu(cardMenu, card, data);
-        });
-
         Runnable openDetails = () -> {
             selectedVodKey = panelKey(data);
             showVodDetail(data);
         };
 
-        Hyperlink title = new Hyperlink(data.displayTitle);
-        title.getStyleClass().add("strong-label");
-        title.getStyleClass().add("watching-now-card-title");
-        title.getStyleClass().add("watching-now-title-link");
-        title.setWrapText(true);
-        title.setMaxWidth(Double.MAX_VALUE);
-        title.setMinWidth(0);
-        title.setMinHeight(Region.USE_PREF_SIZE);
-        title.setFocusTraversable(true);
-        title.setOnAction(event -> {
+        ImageView poster = SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 136, 204, VOD_WATCHING_NOW_CACHE);
+        List<Label> metadataNodes = createMetadataNodes(data);
+        WatchingNowMediaCardFactory.CardNodes cardNodes = WatchingNowMediaCardFactory.builder(WatchingNowMediaCardFactory.CardType.VOD)
+                .title(data.displayTitle)
+                .account(data.account.getAccountName())
+                .poster(poster, ThumbnailAwareUI.areThumbnailsEnabled())
+                .actionButton(playButton)
+                .openAction(openDetails)
+                .metadataNodes(metadataNodes)
+                .plot(data.plotNode, WatchingNowMediaCardFactory.PlotPlacement.FULL_WIDTH)
+                .build();
+        HBox card = cardNodes.card();
+        UiI18n.preparePopupControl(cardMenu, card);
+        playButton.setOnAction(event -> {
             event.consume();
-            openDetails.run();
+            showContextMenu(cardMenu, card, data);
         });
-        HBox.setHgrow(title, Priority.ALWAYS);
+        updateImdbNodes(cardNodes.details(), data);
 
-        Label accountLabel = new Label(data.account.getAccountName());
-        accountLabel.getStyleClass().add("watching-now-card-account");
-        accountLabel.setWrapText(true);
-        accountLabel.setMaxWidth(Double.MAX_VALUE);
-        accountLabel.setMinWidth(0);
-        accountLabel.setMinHeight(Region.USE_PREF_SIZE);
-
-        Region titleSpacer = new Region();
-        HBox.setHgrow(titleSpacer, Priority.ALWAYS);
-
-        HBox titleRow = new HBox(10, title, titleSpacer, playButton);
-        titleRow.setAlignment(Pos.TOP_LEFT);
-
-        details.getChildren().addAll(titleRow, accountLabel);
-        FlowPane metaRow = new FlowPane(8, 6);
-        metaRow.getStyleClass().add("watching-now-card-meta-row");
-        addMetadataLines(metaRow, data);
-        if (!metaRow.getChildren().isEmpty()) {
-            details.getChildren().add(metaRow);
-        }
-        updateImdbNodes(details, data);
-
-        HBox topRow = new HBox(16, posterWrap, details);
-        topRow.setAlignment(Pos.TOP_LEFT);
-        HBox.setHgrow(details, Priority.ALWAYS);
-
-        VBox cardBody = new VBox(4);
-        cardBody.setMaxWidth(Double.MAX_VALUE);
-        cardBody.setFillWidth(true);
-        HBox.setHgrow(cardBody, Priority.ALWAYS);
-        cardBody.getChildren().add(topRow);
-        if (data.plotNode != null) {
-            details.getChildren().remove(data.plotNode);
-            data.plotNode.setMaxWidth(Double.MAX_VALUE);
-            data.plotNode.setMinWidth(0);
-            data.plotNode.setMinHeight(Region.USE_PREF_SIZE);
-            data.plotNode.setMaxHeight(Double.MAX_VALUE);
-            data.plotNode.prefWidthProperty().bind(cardBody.widthProperty().subtract(6));
-            cardBody.getChildren().add(data.plotNode);
-        }
-
-        card.getChildren().add(cardBody);
         List<Label> cardLabels = collectCardLabels(data);
-        cardLabels.add(accountLabel);
+        cardLabels.add(cardNodes.account());
         card.getProperties().put(KEY_CARD_LABELS, cardLabels);
-        card.getProperties().put(KEY_CARD_LINKS, List.of(title));
+        card.getProperties().put(KEY_CARD_LINKS, List.of(cardNodes.title()));
         return card;
-    }
-
-    private StackPane createWatchingNowCardPosterWrap(ImageView poster) {
-        StackPane posterWrap = new StackPane(poster);
-        posterWrap.getStyleClass().add("watching-now-card-poster-wrap");
-        posterWrap.setAlignment(Pos.CENTER);
-        posterWrap.setMinWidth(Region.USE_PREF_SIZE);
-        posterWrap.setMaxWidth(Region.USE_PREF_SIZE);
-        return posterWrap;
     }
 
     private void showVodDetail(VodPanelData data) {
@@ -706,21 +637,26 @@ public class VodWatchingNowUI extends VBox {
         return labels;
     }
 
-    private void addMetadataLines(FlowPane metadataRow, VodPanelData data) {
+    private List<Label> createMetadataNodes(VodPanelData data) {
+        List<Label> metadataNodes = new ArrayList<>();
+        data.ratingNode = null;
+        data.releaseNode = null;
+        data.durationNode = null;
+        data.plotNode = null;
         if (!isBlank(data.metadata.rating)) {
             data.ratingNode = new Label(I18n.tr("autoImdbPrefix", data.metadata.rating));
             styleMetadataChip(data.ratingNode);
-            metadataRow.getChildren().add(data.ratingNode);
+            metadataNodes.add(data.ratingNode);
         }
         if (!isBlank(data.metadata.releaseDate)) {
             data.releaseNode = new Label(I18n.tr("autoReleasePrefix", data.metadata.releaseDate));
             styleMetadataChip(data.releaseNode);
-            metadataRow.getChildren().add(data.releaseNode);
+            metadataNodes.add(data.releaseNode);
         }
         if (!isBlank(data.duration)) {
             data.durationNode = new Label(I18n.tr("autoDurationPrefix", data.duration));
             styleMetadataChip(data.durationNode);
-            metadataRow.getChildren().add(data.durationNode);
+            metadataNodes.add(data.durationNode);
         }
         if (!isBlank(data.metadata.plot)) {
             data.plotNode = new Label(data.metadata.plot);
@@ -731,6 +667,7 @@ public class VodWatchingNowUI extends VBox {
             data.plotNode.setMinWidth(0);
             data.plotNode.setMinHeight(Region.USE_PREF_SIZE);
         }
+        return metadataNodes;
     }
 
     private void styleMetadataChip(Label label) {
@@ -741,20 +678,25 @@ public class VodWatchingNowUI extends VBox {
 
     private void updateImdbNodes(VBox details, VodPanelData data) {
         if (data.imdbBadgeNode != null) {
-            details.getChildren().remove(data.imdbBadgeNode);
+            removeFromCurrentParent(data.imdbBadgeNode);
         }
         if (data.imdbLoadingNode != null) {
-            details.getChildren().remove(data.imdbLoadingNode);
+            removeFromCurrentParent(data.imdbLoadingNode);
+            data.imdbLoadingNode = null;
         }
         data.imdbBadgeNode = SeriesCardUiSupport.createImdbRatingPill(data.metadata.rating, data.imdbUrl);
         if (data.imdbBadgeNode != null) {
             details.getChildren().add(Math.min(2, details.getChildren().size()), data.imdbBadgeNode);
         }
         if (data.imdbLoading && !data.imdbLoaded) {
-            if (data.imdbLoadingNode == null) {
-                data.imdbLoadingNode = new LoadingStateView(I18n.tr("autoLoadingIMDbDetails"), 14);
-            }
+            data.imdbLoadingNode = new LoadingStateView(I18n.tr("autoLoadingIMDbDetails"), 14);
             details.getChildren().add(data.imdbLoadingNode);
+        }
+    }
+
+    private void removeFromCurrentParent(Node node) {
+        if (node != null && node.getParent() instanceof Pane pane) {
+            pane.getChildren().remove(node);
         }
     }
 

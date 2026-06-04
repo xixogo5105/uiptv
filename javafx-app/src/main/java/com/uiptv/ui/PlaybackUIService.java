@@ -96,8 +96,7 @@ public final class PlaybackUIService {
             response.setFromChannel(channel, account);
         }
         if (isEmbeddedPlayerPath(playerPath)) {
-            Configuration configuration = ConfigurationService.getInstance().read();
-            playEmbedded(response, configuration != null && configuration.isEmbeddedPlayer());
+            playEmbedded(response, true);
             return;
         }
         if (isBrowserPlayerPath(playerPath)) {
@@ -178,7 +177,7 @@ public final class PlaybackUIService {
 
     private static void launchResolvedPlayback(PlaybackModeContext context, PlaybackRequest request, PlayerResponse response) {
         if (context.playerPathIsEmbedded()) {
-            playEmbedded(response, context.useEmbeddedPlayerConfig());
+            playEmbedded(response, true);
             return;
         }
         if (isBlank(request.playerPath)) {

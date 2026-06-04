@@ -13,6 +13,7 @@ import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
+import com.uiptv.widget.AppNavigationPane;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
@@ -41,6 +42,7 @@ import javafx.stage.Stage;
 import lombok.Setter;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
@@ -72,6 +74,7 @@ public class AccountListUI extends HBox {
     private final PillBar<AccountTypeFilter> accountTypePillBar =
             new PillBar<>(AccountTypeFilter::label, AccountTypeFilter::key);
     private final Button newAccountButton = new Button(I18n.tr("autoAdd"));
+    private final Button drawerCollapseButton = new Button("<");
     private final Deque<Node> viewStack = new ArrayDeque<>();
     private final VBox embeddedContainer = new VBox();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
@@ -90,6 +93,14 @@ public class AccountListUI extends HBox {
     private VBox accountToolbar;
     private HBox accountFooter;
     private CategoryListUI activeCategoryListUI;
+    private final AtomicLong refreshGeneration = new AtomicLong();
+    private boolean refreshPending = true;
+    private boolean mediaDrawerMode;
+    private Runnable wideDrawerCollapseHandler;
+    private HeaderSearchMode headerSearchMode = HeaderSearchMode.ACCOUNTS;
+    private boolean updatingHeaderSearchText;
+    private String accountHeaderSearchText = "";
+    private String browserHeaderSearchText = "";
 
     public AccountListUI() { // Removed MediaPlayer argument
         this(ConfigurationService.getInstance().read().isEmbeddedPlayer(), null, null);
@@ -109,21 +120,38 @@ public class AccountListUI extends HBox {
     }
 
     private void registerVisibilityListener() {
-        // Load data only when tab becomes visible
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene != null) {
                 accountService.addChangeListener(accountChangeListener);
-                refresh();
+                refreshIfVisible();
             } else {
                 accountService.removeChangeListener(accountChangeListener);
+            }
+        });
+        visibleProperty().addListener((_, _, visible) -> {
+            if (Boolean.TRUE.equals(visible)) {
+                refreshIfVisible();
             }
         });
     }
 
     private void refreshIfAttached() {
-        if (getScene() != null) {
+        if (getScene() != null && isVisible()) {
+            refresh();
+        } else {
+            markRefreshPending();
+        }
+    }
+
+    private void refreshIfVisible() {
+        if (getScene() != null && isVisible() && refreshPending) {
             refresh();
         }
+    }
+
+    private void markRefreshPending() {
+        refreshPending = true;
+        refreshGeneration.incrementAndGet();
     }
 
     public void addUpdateCallbackHandler(Callback<Object> onEditCallback) {
@@ -138,26 +166,112 @@ public class AccountListUI extends HBox {
         this.onDeleteCallback = onDeleteCallback;
     }
 
+    public void setWideDrawerCollapseHandler(Runnable wideDrawerCollapseHandler) {
+        this.wideDrawerCollapseHandler = wideDrawerCollapseHandler;
+    }
+
+    public void setMediaDrawerMode(boolean enabled) {
+        if (mediaDrawerMode == enabled) {
+            if (enabled && activeCategoryListUI != null && currentContent == listView) {
+                showAccountBrowser(activeCategoryListUI);
+            }
+            return;
+        }
+        mediaDrawerMode = enabled;
+        setMinWidth(0);
+        drawerCollapseButton.setVisible(enabled);
+        drawerCollapseButton.setManaged(enabled);
+        updateMediaDrawerStyle();
+        if (activeCategoryListUI != null) {
+            activeCategoryListUI.setMediaDrawerMode(enabled);
+            if (currentContent == browserLayout || currentContent == activeCategoryListUI) {
+                showAccountBrowser(activeCategoryListUI);
+                return;
+            }
+            if (enabled && currentContent == listView) {
+                showAccountBrowser(activeCategoryListUI);
+                return;
+            }
+        }
+        if (currentContent == listView) {
+            setAccountBrowserCompact(false);
+        }
+    }
+
     public void refresh() {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(this::refresh);
+            return;
+        }
+        if (getScene() != null && !isVisible()) {
+            markRefreshPending();
+            return;
+        }
+        refreshPending = false;
+        long generation = refreshGeneration.incrementAndGet();
         List<AccountItem> catList = new ArrayList<>();
 
         List<AccountResolver.AccountRow> resolved = accountResolver.resolveAccounts();
         for (int index = 0; index < resolved.size(); index++) {
             AccountResolver.AccountRow account = resolved.get(index);
-            Account sourceAccount = accountService.getById(account.getDbId());
-            AccountMetrics metrics = cachedAccountMetrics(sourceAccount);
             catList.add(new AccountItem(
                     new SimpleStringProperty(account.getAccountName()),
                     new SimpleStringProperty(account.getDbId()),
                     new SimpleStringProperty(account.getType()),
                     account.isPinToTop(),
                     index,
-                    metrics.categoryCount(),
-                    metrics.channelCount()
+                    0,
+                    0
             ));
         }
         masterAccountItems.setAll(catList);
         applyAccountOrdering();
+        loadAccountMetricsAsync(generation, resolved);
+    }
+
+    private void loadAccountMetricsAsync(long generation, List<AccountResolver.AccountRow> rows) {
+        List<AccountResolver.AccountRow> safeRows = rows == null ? List.of() : List.copyOf(rows);
+        Thread metricsThread = new Thread(() -> {
+            List<AccountItem> updatedItems = new ArrayList<>();
+            for (int index = 0; index < safeRows.size(); index++) {
+                if (generation != refreshGeneration.get()) {
+                    return;
+                }
+                AccountResolver.AccountRow row = safeRows.get(index);
+                AccountMetrics metrics = cachedAccountMetrics(accountCopyForMetrics(row.getDbId()));
+                updatedItems.add(new AccountItem(
+                        new SimpleStringProperty(row.getAccountName()),
+                        new SimpleStringProperty(row.getDbId()),
+                        new SimpleStringProperty(row.getType()),
+                        row.isPinToTop(),
+                        index,
+                        metrics.categoryCount(),
+                        metrics.channelCount()
+                ));
+            }
+            Platform.runLater(() -> {
+                if (generation != refreshGeneration.get()) {
+                    return;
+                }
+                masterAccountItems.setAll(updatedItems);
+                applyAccountOrdering();
+            });
+        }, "account-metrics-loader");
+        metricsThread.setDaemon(true);
+        metricsThread.start();
+    }
+
+    private Account accountCopyForMetrics(String accountId) {
+        Account source = accountService.getById(accountId);
+        if (source == null) {
+            return null;
+        }
+        Account copy = new Account();
+        copy.setDbId(source.getDbId());
+        copy.setAccountName(source.getAccountName());
+        copy.setType(source.getType());
+        copy.setAction(source.getAction());
+        return copy;
     }
 
     private AccountMetrics cachedAccountMetrics(Account account) {
@@ -245,7 +359,7 @@ public class AccountListUI extends HBox {
         configureNewAccountButton();
         addAccountClickHandler();
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-        table.getTextField().textProperty().addListener((_, _, _) -> applyAccountOrdering());
+        table.getTextField().textProperty().addListener((_, _, text) -> handleHeaderSearchTextChanged(text));
         registerSceneCleanupListener();
     }
 
@@ -309,10 +423,22 @@ public class AccountListUI extends HBox {
     }
 
     private AppPageHeader createPageHeader() {
+        drawerCollapseButton.getStyleClass().add("account-drawer-collapse-button");
+        drawerCollapseButton.setFocusTraversable(false);
+        drawerCollapseButton.setTooltip(AppNavigationPane.createImmediateTooltip(I18n.tr("autoHideThisBar")));
+        drawerCollapseButton.setVisible(false);
+        drawerCollapseButton.setManaged(false);
+        drawerCollapseButton.setOnAction(_ -> {
+            if (wideDrawerCollapseHandler != null) {
+                wideDrawerCollapseHandler.run();
+            }
+        });
+        HBox headerActions = new HBox(6, drawerCollapseButton, new AppHeaderActions(hostServices, themeToggleHandler, null));
+        headerActions.setAlignment(Pos.CENTER_RIGHT);
         return new AppPageHeader(
                 I18n.tr("autoAccount"),
                 table.getTextField(),
-                new AppHeaderActions(hostServices, themeToggleHandler, null)
+                headerActions
         );
     }
 
@@ -409,6 +535,7 @@ public class AccountListUI extends HBox {
         disposeActiveCategoryList();
         setAccountBrowserCompact(false);
         viewStack.clear();
+        switchHeaderSearchMode(HeaderSearchMode.ACCOUNTS, false);
         setCurrentContent(listView);
         updateNavButtons();
         embeddedContainer.getChildren().setAll(currentContent);
@@ -419,10 +546,26 @@ public class AccountListUI extends HBox {
         if (!embeddedMode || categoryListUI == null) {
             return;
         }
-        if (activeCategoryListUI != null && activeCategoryListUI != categoryListUI) {
+        boolean newBrowser = activeCategoryListUI != categoryListUI;
+        if (activeCategoryListUI != null && newBrowser) {
             activeCategoryListUI.dispose();
         }
         activeCategoryListUI = categoryListUI;
+        categoryListUI.setMediaDrawerMode(mediaDrawerMode);
+        switchHeaderSearchMode(HeaderSearchMode.ACTIVE_BROWSER, newBrowser);
+        if (mediaDrawerMode) {
+            setAccountBrowserCompact(false);
+            setCurrentContent(categoryListUI);
+            updateNavButtons();
+            if (categoryListUI.getParent() != embeddedContainer) {
+                detachFromParent(categoryListUI);
+            }
+            if (embeddedContainer.getChildren().size() != 1 || embeddedContainer.getChildren().getFirst() != currentContent) {
+                embeddedContainer.getChildren().setAll(currentContent);
+            }
+            showBody(embeddedContainer);
+            return;
+        }
         setAccountBrowserCompact(true);
         detachFromParent(listView);
         detachFromParent(categoryListUI);
@@ -443,6 +586,11 @@ public class AccountListUI extends HBox {
     }
 
     private void setAccountBrowserCompact(boolean compact) {
+        if (mediaDrawerMode) {
+            listView.getStyleClass().remove("account-list-panel-compact");
+            accountGrid.setCardWidthRange(230, 380);
+            return;
+        }
         if (compact) {
             if (!listView.getStyleClass().contains("account-list-panel-compact")) {
                 listView.getStyleClass().add("account-list-panel-compact");
@@ -454,9 +602,30 @@ public class AccountListUI extends HBox {
         accountGrid.setCardWidthRange(240, 340);
     }
 
+    private void updateMediaDrawerStyle() {
+        updateStyleClass(pageContainer, "account-media-drawer", mediaDrawerMode);
+        updateStyleClass(listView, "account-list-panel-drawer", mediaDrawerMode);
+    }
+
+    private void updateStyleClass(Node node, String styleClass, boolean enabled) {
+        if (node == null) {
+            return;
+        }
+        if (enabled) {
+            if (!node.getStyleClass().contains(styleClass)) {
+                node.getStyleClass().add(styleClass);
+            }
+            return;
+        }
+        node.getStyleClass().remove(styleClass);
+    }
+
     private void showDetailView(Node content) {
         if (!embeddedMode) {
             return;
+        }
+        if (!(content instanceof CategoryListUI)) {
+            switchHeaderSearchMode(HeaderSearchMode.ACCOUNTS, false);
         }
         detailContent.getChildren().setAll(content);
         VBox.setVgrow(content, Priority.ALWAYS);
@@ -739,6 +908,64 @@ public class AccountListUI extends HBox {
         }
     }
 
+    private void handleHeaderSearchTextChanged(String text) {
+        if (updatingHeaderSearchText) {
+            return;
+        }
+        String value = text == null ? "" : text;
+        if (headerSearchMode == HeaderSearchMode.ACTIVE_BROWSER) {
+            browserHeaderSearchText = value;
+            applyActiveBrowserSearch();
+            return;
+        }
+        accountHeaderSearchText = value;
+        applyAccountOrdering();
+    }
+
+    private void switchHeaderSearchMode(HeaderSearchMode mode, boolean resetBrowserSearch) {
+        if (mode == HeaderSearchMode.ACTIVE_BROWSER && resetBrowserSearch) {
+            browserHeaderSearchText = "";
+        }
+        headerSearchMode = mode == null ? HeaderSearchMode.ACCOUNTS : mode;
+        String targetText = headerSearchMode == HeaderSearchMode.ACTIVE_BROWSER
+                ? browserHeaderSearchText
+                : accountHeaderSearchText;
+        updatingHeaderSearchText = true;
+        try {
+            if (!Objects.equals(table.getTextField().getText(), targetText)) {
+                table.getTextField().setText(targetText);
+            }
+        } finally {
+            updatingHeaderSearchText = false;
+        }
+        if (headerSearchMode == HeaderSearchMode.ACTIVE_BROWSER) {
+            applyActiveBrowserSearch();
+        } else {
+            applyAccountOrdering();
+        }
+    }
+
+    private void applyActiveBrowserSearch() {
+        if (activeCategoryListUI != null) {
+            activeCategoryListUI.setSearchText(browserHeaderSearchText);
+        }
+    }
+
+    private void replaceBrowserHeaderSearchText(String text) {
+        browserHeaderSearchText = text == null ? "" : text;
+        if (headerSearchMode != HeaderSearchMode.ACTIVE_BROWSER) {
+            return;
+        }
+        updatingHeaderSearchText = true;
+        try {
+            if (!Objects.equals(table.getTextField().getText(), browserHeaderSearchText)) {
+                table.getTextField().setText(browserHeaderSearchText);
+            }
+        } finally {
+            updatingHeaderSearchText = false;
+        }
+    }
+
     private void applyAccountOrdering() {
         List<AccountItem> orderedItems = new ArrayList<>(masterAccountItems);
         switch (accountSortMode) {
@@ -995,6 +1222,7 @@ public class AccountListUI extends HBox {
         CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode);
         categoryListUI.setAccountsNavigationHandler(embeddedMode ? this::showAccountListView : () -> showBody(listView));
         categoryListUI.setCloseHandler(embeddedMode ? this::showAccountListView : null);
+        categoryListUI.setHeaderSearchTextHandler(this::replaceBrowserHeaderSearchText);
         if (embeddedMode) {
             showAccountBrowser(categoryListUI);
         } else {
@@ -1135,6 +1363,11 @@ public class AccountListUI extends HBox {
         DEFAULT,
         ASCENDING,
         DESCENDING
+    }
+
+    private enum HeaderSearchMode {
+        ACCOUNTS,
+        ACTIVE_BROWSER
     }
 
     private record AccountMetrics(int categoryCount, int channelCount) {

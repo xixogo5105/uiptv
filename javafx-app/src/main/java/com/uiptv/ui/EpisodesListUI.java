@@ -31,6 +31,7 @@ public class EpisodesListUI extends HBox {
     private boolean externalBingeWatchControlRequested = false;
     private boolean externalSeriesTitleRequested = false;
     private boolean externalReloadControlRequested = false;
+    private boolean mediaDrawerMode = false;
     private Consumer<JSONObject> seasonInfoListener;
     private Consumer<EpisodeList> portalReloadListener;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
@@ -69,6 +70,15 @@ public class EpisodesListUI extends HBox {
     public void applyWatchingNowDetailStyling() {
         watchingNowDetailStylingApplied = true;
         applyWatchingNowDetailStyling(delegate);
+        applyMediaDrawerMode(delegate);
+    }
+
+    public void setMediaDrawerMode(boolean mediaDrawerMode) {
+        if (this.mediaDrawerMode == mediaDrawerMode) {
+            return;
+        }
+        this.mediaDrawerMode = mediaDrawerMode;
+        applyMediaDrawerMode(delegate);
     }
 
     public void navigateToLastWatched(SeriesWatchState state) {
@@ -155,6 +165,7 @@ public class EpisodesListUI extends HBox {
         if (watchingNowDetailStylingApplied) {
             applyWatchingNowDetailStyling(delegate);
         }
+        applyMediaDrawerMode(delegate);
         if (lastEpisodeList != null) {
             delegate.setItems(lastEpisodeList);
         }
@@ -253,6 +264,12 @@ public class EpisodesListUI extends HBox {
             thumbnail.applyWatchingNowDetailStyling();
         } else if (target instanceof PlainEpisodesListUI plain) {
             plain.applyWatchingNowDetailStyling();
+        }
+    }
+
+    private void applyMediaDrawerMode(BaseEpisodesListUI target) {
+        if (target instanceof ThumbnailEpisodesListUI thumbnail) {
+            thumbnail.setMediaDrawerDetailMode(mediaDrawerMode);
         }
     }
 
