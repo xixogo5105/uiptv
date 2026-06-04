@@ -8,7 +8,10 @@ import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.AsyncImageView;
-import com.uiptv.widget.AutoGrowVBox;
+import com.uiptv.widget.BookmarkCard;
+import com.uiptv.widget.LoadingStateView;
+import com.uiptv.widget.PlayMenuButton;
+import com.uiptv.widget.ResponsiveCardGrid;
 import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
 import javafx.beans.Observable;
@@ -20,15 +23,20 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.SortedList;
 import javafx.geometry.Pos;
+import javafx.geometry.Side;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.ContextMenuEvent;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
@@ -55,9 +63,12 @@ public class ChannelListUI extends HBox {
     private static final String DRM_BADGE_STYLE_CLASS = "drm-badge";
 
     private final Account account;
+    private final Account.AccountAction listAction;
     private final String categoryTitle;
     private final String categoryId;
     private final SearchableTableView<ChannelItem> table = new SearchableTableView<>();
+    private final ResponsiveCardGrid<ChannelItem> channelGrid = new ResponsiveCardGrid<>(this::createChannelCard);
+    private final ScrollPane channelGridScroll = new ScrollPane();
     private final TableColumn<ChannelItem, String> channelName = new TableColumn<>(I18n.tr("autoChannels"));
     private final List<Channel> channelList;
     private ObservableList<ChannelItem> channelItems;
@@ -66,6 +77,8 @@ public class ChannelListUI extends HBox {
     private final AtomicReference<Map<String, String>> categoryTitleByCategoryId = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<String, String>> categoryTitleByNormalizedTitle = new AtomicReference<>(Map.of());
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
+    private final AtomicBoolean disposed = new AtomicBoolean(false);
+    private final WatchingNowVodResolver vodMetadataResolver = new WatchingNowVodResolver();
     private static final String LOG_ACCOUNT = " account=";
     private static final String LOG_CHANNEL_ID = " channelId=";
     private static final String LOG_NAME = " name=";
@@ -81,6 +94,7 @@ public class ChannelListUI extends HBox {
     private boolean bookmarkListenerRegistered = false;
     private boolean vodWatchStateListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
+    private boolean thumbnailsEnabled = ThumbnailAwareUI.areThumbnailsEnabled();
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
     private final VodWatchStateChangeListener vodWatchStateChangeListener = (accountId, vodId) -> refreshBookmarkStatesAsync();
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
@@ -89,6 +103,7 @@ public class ChannelListUI extends HBox {
     private boolean embeddedMode = false;
     private boolean inlineEpisodeNavigationEnabled = false;
     private final VBox listPane = new VBox(5);
+    private final VBox searchBox = new VBox(5);
     private final VBox detailPane = new VBox(8);
     private final VBox detailHeader = new VBox(4);
     private final HBox detailNavHeader = new HBox(6);
@@ -96,18 +111,29 @@ public class ChannelListUI extends HBox {
     private final Label detailTitle = new Label();
     private final VBox detailContent = new VBox();
     private final ProgressBar loadingProgress = new ProgressBar(0);
-    private final HBox loadingProgressBox = new HBox(loadingProgress);
+    private final Label loadingProgressTitle = new Label();
+    private final Label loadingProgressValue = new Label();
+    private final HBox loadingProgressHeader = new HBox(8, loadingProgressTitle, loadingProgressValue);
+    private final VBox loadingProgressBox = new VBox(6, loadingProgressHeader, loadingProgress);
     private PauseTransition loadingProgressHideTimer;
 
     public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId) {
-        this(account, categoryTitle, categoryId);
+        this(account, categoryTitle, categoryId, account == null ? null : account.getAction());
         addItems(channelList);
     }
 
     public ChannelListUI(Account account, String categoryTitle, String categoryId) {
+        this(account, categoryTitle, categoryId, account == null ? null : account.getAction());
+    }
+
+    public ChannelListUI(Account account, String categoryTitle, String categoryId, Account.AccountAction listAction) {
         this.categoryId = categoryId;
         this.channelList = new ArrayList<>();
         this.account = account;
+        this.listAction = listAction == null ? Account.AccountAction.itv : listAction;
+        if (this.account != null) {
+            this.account.setAction(this.listAction);
+        }
         this.categoryTitle = categoryTitle;
         preloadAllCategoryContextAsync();
         initWidgets();
@@ -118,6 +144,7 @@ public class ChannelListUI extends HBox {
 
     public void setEmbeddedMode(boolean embeddedMode) {
         this.embeddedMode = embeddedMode;
+        applyListContentMode();
         if (embeddedMode) {
             showListView();
         }
@@ -125,31 +152,44 @@ public class ChannelListUI extends HBox {
 
     public void setInlineEpisodeNavigationEnabled(boolean enabled) {
         this.inlineEpisodeNavigationEnabled = enabled;
+        applyListContentMode();
         if (enabled) {
             showListView();
         }
     }
 
     public void addItems(List<Channel> newChannels) {
-        if (newChannels != null && !newChannels.isEmpty()) {
+        if (!disposed.get() && newChannels != null && !newChannels.isEmpty()) {
             itemsLoaded.set(true);
             List<Bookmark> accountBookmarks = loadBookmarksForAccount();
             Set<String> savedVodKeys = loadVodWatchStateKeys();
             List<ChannelItem> newItems = new ArrayList<>();
             List<LogoUpdate> logoUpdates = new ArrayList<>();
-            newChannels.forEach(channel -> processIncomingChannel(channel, accountBookmarks, savedVodKeys, newItems, logoUpdates));
+            for (Channel channel : newChannels) {
+                if (disposed.get()) {
+                    return;
+                }
+                processIncomingChannel(channel, accountBookmarks, savedVodKeys, newItems, logoUpdates);
+            }
+            if (disposed.get()) {
+                return;
+            }
 
             runLater(() -> {
+                if (disposed.get()) {
+                    return;
+                }
                 if (!newItems.isEmpty()) {
                     channelItems.addAll(newItems);
                     table.setPlaceholder(null);
+                    channelGrid.setPlaceholderText("");
                 }
                 if (!logoUpdates.isEmpty()) {
                     for (LogoUpdate update : logoUpdates) {
                         update.item().setLogo(update.normalizedLogo());
                         update.item().getChannel().setLogo(update.sourceChannel().getLogo());
                     }
-                    table.refresh();
+                    refreshChannelViews();
                 }
             });
         }
@@ -191,7 +231,7 @@ public class ChannelListUI extends HBox {
     }
 
     private void updateSeriesProgressIfNeeded(Channel channel, BookmarkContext context) {
-        if (account.getAction() != series) {
+        if (listAction != series) {
             return;
         }
         String seriesCategoryId = resolveSeriesCategoryId(channel, context);
@@ -205,7 +245,7 @@ public class ChannelListUI extends HBox {
                                          BookmarkContext context,
                                          List<Bookmark> accountBookmarks,
                                          Set<String> savedVodKeys) {
-        boolean isBookmarked = account.getAction() == vod
+        boolean isBookmarked = listAction == vod
                 ? isVodSaved(channel, context, savedVodKeys)
                 : isChannelBookmarked(channel, context, accountBookmarks);
         ChannelItem item = new ChannelItem(
@@ -220,7 +260,7 @@ public class ChannelListUI extends HBox {
             com.uiptv.util.AppLog.addInfoLog(ChannelListUI.class,
                     "[ParentalLock] censoredChannelLoaded"
                             + LOG_ACCOUNT + account.getAccountName()
-                            + " action=" + account.getAction()
+                            + " action=" + listAction
                             + " categoryTitle=" + categoryTitle
                             + LOG_CHANNEL_ID + channel.getChannelId()
                             + LOG_NAME + channel.getName()
@@ -237,46 +277,76 @@ public class ChannelListUI extends HBox {
     }
 
     public void setLoadingComplete() {
+        if (disposed.get()) {
+            return;
+        }
         runLater(() -> {
+            if (disposed.get()) {
+                return;
+            }
             if (!itemsLoaded.get()) {
-                table.setPlaceholder(new Label(I18n.tr("autoNothingFoundFor", categoryTitle)));
+                String emptyText = I18n.tr("autoNothingFoundFor", categoryTitle);
+                table.setPlaceholder(new Label(emptyText));
+                channelGrid.setPlaceholderText(emptyText);
             }
             finalizeLoadingProgress();
         });
     }
 
     public void startLoadingProgressIfNeeded() {
-        if (account.getAction() != vod && account.getAction() != series) {
+        if (disposed.get() || (listAction != vod && listAction != series)) {
             return;
         }
         runLater(() -> {
+            if (disposed.get()) {
+                return;
+            }
             loadingProgress.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
+            updateLoadingProgressValue(ProgressIndicator.INDETERMINATE_PROGRESS);
             showLoadingProgress();
         });
     }
 
     public void updateLoadingProgress(int fetchedItems, int totalItems, int pageNumber, int pageCount) {
-        if (account.getAction() != vod && account.getAction() != series) {
+        if (disposed.get() || (listAction != vod && listAction != series)) {
             return;
         }
         runLater(() -> {
+            if (disposed.get()) {
+                return;
+            }
             showLoadingProgress();
             if (totalItems > 0) {
                 double progress = Math.min(1.0, (double) fetchedItems / (double) totalItems);
                 loadingProgress.setProgress(progress);
+                updateLoadingProgressValue(progress);
             } else if (pageCount > 0) {
                 double progress = Math.min(1.0, (double) pageNumber / (double) pageCount);
                 loadingProgress.setProgress(progress);
+                updateLoadingProgressValue(progress);
             } else {
                 loadingProgress.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
+                updateLoadingProgressValue(ProgressIndicator.INDETERMINATE_PROGRESS);
             }
         });
     }
 
     private void configureLoadingProgressBar() {
+        loadingProgressBox.getStyleClass().add("account-loading-progress-card");
+        loadingProgressHeader.getStyleClass().add("account-loading-progress-header");
+        loadingProgressTitle.getStyleClass().add("account-loading-progress-title");
+        loadingProgressValue.getStyleClass().add("account-loading-progress-value");
+        loadingProgress.getStyleClass().add("account-loading-progress-bar");
+        loadingProgressTitle.setText(I18n.tr("autoLoadingChannelsFor", categoryTitle));
+        loadingProgressTitle.setWrapText(true);
+        loadingProgressTitle.setMinWidth(0);
+        loadingProgressTitle.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(loadingProgressTitle, Priority.ALWAYS);
+        loadingProgressHeader.setAlignment(Pos.CENTER_LEFT);
+        loadingProgressHeader.setMaxWidth(Double.MAX_VALUE);
         loadingProgress.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(loadingProgress, Priority.ALWAYS);
-        loadingProgressBox.setAlignment(Pos.CENTER_LEFT);
+        loadingProgressBox.setFillWidth(true);
+        loadingProgressBox.setMaxWidth(Double.MAX_VALUE);
         loadingProgressBox.setVisible(false);
         loadingProgressBox.setManaged(false);
     }
@@ -285,19 +355,35 @@ public class ChannelListUI extends HBox {
         cancelLoadingProgressHide();
         loadingProgressBox.setVisible(true);
         loadingProgressBox.setManaged(true);
-        loadingProgress.setStyle("");
+        loadingProgressBox.getStyleClass().remove("complete");
     }
 
     private void finalizeLoadingProgress() {
-        if (account.getAction() != vod && account.getAction() != series) {
+        if (listAction != vod && listAction != series) {
             return;
         }
         if (!loadingProgressBox.isVisible()) {
             return;
         }
         loadingProgress.setProgress(1.0);
-        loadingProgress.setStyle("-fx-accent: #28a745;");
+        updateLoadingProgressValue(1.0);
+        if (!loadingProgressBox.getStyleClass().contains("complete")) {
+            loadingProgressBox.getStyleClass().add("complete");
+        }
         scheduleLoadingProgressHide();
+    }
+
+    private void updateLoadingProgressValue(double progress) {
+        if (progress < 0) {
+            loadingProgressValue.setText("");
+            loadingProgressValue.setVisible(false);
+            loadingProgressValue.setManaged(false);
+            return;
+        }
+        int percent = (int) Math.round(Math.min(1.0, progress) * 100);
+        loadingProgressValue.setText(percent + "%");
+        loadingProgressValue.setVisible(true);
+        loadingProgressValue.setManaged(true);
     }
 
     private void scheduleLoadingProgressHide() {
@@ -306,7 +392,8 @@ public class ChannelListUI extends HBox {
         loadingProgressHideTimer.setOnFinished(event -> {
             loadingProgressBox.setVisible(false);
             loadingProgressBox.setManaged(false);
-            loadingProgress.setStyle("");
+            loadingProgressBox.getStyleClass().remove("complete");
+            updateLoadingProgressValue(ProgressIndicator.INDETERMINATE_PROGRESS);
         });
         loadingProgressHideTimer.play();
     }
@@ -319,6 +406,8 @@ public class ChannelListUI extends HBox {
 
     private void initWidgets() {
         setSpacing(5);
+        setMinWidth(0);
+        setMaxWidth(Double.MAX_VALUE);
         setMaxHeight(Double.MAX_VALUE);
         setMinHeight(0);
         table.setEditable(true);
@@ -340,25 +429,78 @@ public class ChannelListUI extends HBox {
 
         table.setItems(sortedList);
         table.addTextFilter();
+        setupChannelGrid();
+        setupChannelGridScroll();
 
         applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
 
         channelName.setSortType(TableColumn.SortType.ASCENDING);
 
         configureLoadingProgressBar();
-        VBox searchBox = new VBox(5, loadingProgressBox, table.getSearchTextField());
-        AutoGrowVBox auto = new AutoGrowVBox(5, searchBox, table);
+        searchBox.getChildren().setAll(loadingProgressBox, table.getSearchTextField());
         VBox.setVgrow(searchBox, Priority.NEVER);
         VBox.setVgrow(table, Priority.ALWAYS);
-        VBox.setVgrow(auto, Priority.ALWAYS);
-        listPane.getChildren().setAll(auto);
         listPane.setMaxHeight(Double.MAX_VALUE);
         listPane.setMinHeight(0);
+        listPane.setMinWidth(0);
+        listPane.setMaxWidth(Double.MAX_VALUE);
         VBox.setVgrow(listPane, Priority.ALWAYS);
+        HBox.setHgrow(listPane, Priority.ALWAYS);
         initDetailPane();
+        applyListContentMode();
         showListView();
         getChildren().setAll(listPane);
         addChannelClickHandler();
+    }
+
+    private void setupChannelGrid() {
+        channelGrid.getStyleClass().add("account-channel-card-grid");
+        if (isMediaCatalogMode()) {
+            channelGrid.getStyleClass().add(listAction == vod ? "watching-now-vod-grid" : "watching-now-series-grid");
+            channelGrid.setCardWidthRange(embeddedMode ? 360 : 520, 760);
+            channelGrid.setGaps(18, 16);
+        } else {
+            channelGrid.getStyleClass().add("bookmark-card-grid");
+            channelGrid.setCardWidthRange(255, 345);
+            channelGrid.setGaps(16, 14);
+        }
+        channelGrid.setItems(table.getItems());
+        channelGrid.setPlaceholderNode(new LoadingStateView(I18n.tr("autoLoadingChannelsFor", categoryTitle)));
+        channelGrid.setOnItemActivated(this::playOrShowSeries);
+        channelGrid.setContextMenuFactory((item, selectedItems, owner) -> createChannelContextMenu(item, selectedItems, owner));
+        channelGrid.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                playOrShowSeries(channelGrid.getFocusedItem());
+                event.consume();
+            }
+        });
+    }
+
+    private void setupChannelGridScroll() {
+        channelGridScroll.getStyleClass().addAll("account-channel-card-scroll", "transparent-scroll-pane");
+        channelGridScroll.setContent(channelGrid);
+        channelGridScroll.setFitToWidth(true);
+        channelGridScroll.setPannable(true);
+        channelGridScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        channelGridScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        channelGridScroll.setFocusTraversable(false);
+        channelGridScroll.setMinSize(0, 0);
+        channelGridScroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        VBox.setVgrow(channelGridScroll, Priority.ALWAYS);
+    }
+
+    private void applyListContentMode() {
+        if (searchBox.getChildren().isEmpty()) {
+            return;
+        }
+        Node content = embeddedMode ? channelGridScroll : table;
+        if (content instanceof Region region) {
+            region.setMinWidth(0);
+            region.setMaxWidth(Double.MAX_VALUE);
+            region.setMaxHeight(Double.MAX_VALUE);
+        }
+        listPane.getChildren().setAll(searchBox, content);
+        VBox.setVgrow(content, Priority.ALWAYS);
     }
 
     private void initDetailPane() {
@@ -368,7 +510,17 @@ public class ChannelListUI extends HBox {
         detailHeader.setMaxWidth(Double.MAX_VALUE);
         detailContent.setSpacing(5);
         detailContent.setPadding(new javafx.geometry.Insets(5, 0, 0, 0));
+        detailContent.setFillWidth(true);
+        detailContent.setMinWidth(0);
+        detailContent.setMaxWidth(Double.MAX_VALUE);
+        detailContent.setMinHeight(0);
+        detailContent.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(detailContent, Priority.ALWAYS);
+        detailPane.setMinWidth(0);
+        detailPane.setMaxWidth(Double.MAX_VALUE);
+        detailPane.setMinHeight(0);
+        detailPane.setMaxHeight(Double.MAX_VALUE);
+        HBox.setHgrow(detailPane, Priority.ALWAYS);
         detailPane.getChildren().setAll(detailContent);
     }
 
@@ -398,6 +550,12 @@ public class ChannelListUI extends HBox {
         detailTitle.setText(title == null ? "" : title);
         boolean plainEpisodeHeader = configureDetailHeader(ui);
         detailContent.getChildren().setAll(ui);
+        if (ui instanceof Region region) {
+            region.setMinWidth(0);
+            region.setMaxWidth(Double.MAX_VALUE);
+            region.setMinHeight(0);
+            region.setMaxHeight(Double.MAX_VALUE);
+        }
         VBox.setVgrow(ui, Priority.ALWAYS);
         detailPane.setMaxHeight(Double.MAX_VALUE);
         detailPane.setMinHeight(0);
@@ -440,6 +598,276 @@ public class ChannelListUI extends HBox {
 
     private boolean shouldUsePlainEpisodeHeader(Node ui) {
         return ui instanceof EpisodesListUI episodesListUI && episodesListUI.isPlainMode();
+    }
+
+    private Region createChannelCard(ChannelItem item) {
+        if (isMediaCatalogMode()) {
+            return createWatchingNowMediaCard(item);
+        }
+
+        Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
+        playButton.getStyleClass().add("bookmark-play-menu-button");
+        boolean actionAvailable = item != null && (listAction != series || !isBlank(item.getCmd()));
+        playButton.setVisible(actionAvailable);
+        playButton.setManaged(actionAvailable);
+        playButton.setOnAction(event -> {
+            event.consume();
+            if (item == null) {
+                return;
+            }
+            channelGrid.selectItems(List.of(item));
+            ContextMenu menu = createChannelContextMenu(item, List.of(item), playButton);
+            if (menu != null && !menu.getItems().isEmpty()) {
+                UiI18n.preparePopupControl(menu, playButton);
+                menu.show(playButton, Side.BOTTOM, 0, 0);
+            }
+        });
+        return new BookmarkCard(
+                item == null ? "" : item.getChannelName(),
+                account == null ? "" : account.getAccountName(),
+                item == null ? "" : item.getLogo(),
+                thumbnailsEnabled,
+                IMAGE_CACHE_KEY_CHANNEL,
+                item != null && item.getChannel() != null && PlayerService.getInstance().isDrmProtected(item.getChannel()),
+                playButton
+        );
+    }
+
+    private HBox createWatchingNowMediaCard(ChannelItem item) {
+        HBox card = new HBox(16);
+        card.setAlignment(Pos.TOP_LEFT);
+        card.getStyleClass().addAll(
+                "uiptv-card",
+                listAction == vod ? "watching-now-vod-card" : "watching-now-series-card",
+                "account-media-card"
+        );
+        card.setMinWidth(0);
+        card.setMaxWidth(Double.MAX_VALUE);
+
+        WatchingNowVodResolver.VodMetadata vodMetadata = resolveVodMetadata(item);
+        StackPane posterWrap = createMediaPosterWrap(item, vodMetadata);
+        posterWrap.setVisible(thumbnailsEnabled);
+        posterWrap.setManaged(thumbnailsEnabled);
+
+        VBox details = new VBox(8);
+        details.getStyleClass().add("watching-now-card-text");
+        details.setMinWidth(0);
+        details.setMaxWidth(Double.MAX_VALUE);
+        details.setFillWidth(true);
+        HBox.setHgrow(details, Priority.ALWAYS);
+
+        Button actionButton = new PlayMenuButton(I18n.tr("autoPlay2"));
+        actionButton.getStyleClass().add(listAction == vod ? "bookmark-play-menu-button" : "episode-play-button");
+        actionButton.setOnAction(event -> {
+            event.consume();
+            if (item == null) {
+                return;
+            }
+            channelGrid.selectItems(List.of(item));
+            ContextMenu menu = createChannelContextMenu(item, List.of(item), actionButton);
+            if (menu != null && !menu.getItems().isEmpty()) {
+                UiI18n.preparePopupControl(menu, actionButton);
+                menu.show(actionButton, Side.BOTTOM, 0, 0);
+                return;
+            }
+            playOrShowSeries(item);
+        });
+
+        Hyperlink title = new Hyperlink(item == null ? "" : item.getChannelName());
+        title.getStyleClass().addAll("strong-label", "watching-now-card-title", "watching-now-title-link");
+        title.setWrapText(true);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        title.setMinHeight(Region.USE_PREF_SIZE);
+        title.setOnAction(event -> {
+            event.consume();
+            playOrShowSeries(item);
+        });
+        HBox.setHgrow(title, Priority.ALWAYS);
+
+        HBox titleRow = new HBox(10, title, actionButton);
+        titleRow.setAlignment(Pos.TOP_LEFT);
+        titleRow.setMinWidth(0);
+        titleRow.setMaxWidth(Double.MAX_VALUE);
+
+        Label accountLabel = new Label(account == null ? "" : account.getAccountName());
+        accountLabel.getStyleClass().add("watching-now-card-account");
+        accountLabel.setWrapText(true);
+        accountLabel.setMinWidth(0);
+        accountLabel.setMaxWidth(Double.MAX_VALUE);
+
+        FlowPane metaRow = new FlowPane(8, 6);
+        metaRow.getStyleClass().add("watching-now-card-meta-row");
+        populateMediaMetaChips(metaRow, item, vodMetadata);
+
+        details.getChildren().addAll(titleRow, accountLabel);
+        if (!metaRow.getChildren().isEmpty()) {
+            details.getChildren().add(metaRow);
+        }
+        Label plot = createMediaPlotLabel(item, vodMetadata);
+        if (plot != null) {
+            details.getChildren().add(plot);
+        }
+
+        if (listAction == series) {
+            Button openHint = new Button(I18n.tr("autoViewEpisodes"));
+            openHint.getStyleClass().add("watching-now-open-hint");
+            openHint.setFocusTraversable(true);
+            openHint.setMinHeight(Region.USE_PREF_SIZE);
+            openHint.setOnAction(event -> {
+                event.consume();
+                if (item == null) {
+                    return;
+                }
+                channelGrid.selectItems(List.of(item));
+                playOrShowSeries(item);
+            });
+            details.getChildren().add(openHint);
+        }
+
+        card.getChildren().addAll(posterWrap, details);
+        return card;
+    }
+
+    private StackPane createMediaPosterWrap(ChannelItem item, WatchingNowVodResolver.VodMetadata vodMetadata) {
+        String posterUrl = firstNonBlank(item == null ? "" : item.getLogo(), vodMetadata == null ? "" : normalizeImageUrl(vodMetadata.getLogo()));
+        ImageView poster = SeriesCardUiSupport.createFitPoster(posterUrl, 136, 204, IMAGE_CACHE_KEY_CHANNEL);
+        StackPane posterWrap = new StackPane(poster);
+        posterWrap.getStyleClass().add("watching-now-card-poster-wrap");
+        posterWrap.setAlignment(Pos.CENTER);
+        posterWrap.setMinWidth(Region.USE_PREF_SIZE);
+        posterWrap.setMaxWidth(Region.USE_PREF_SIZE);
+        return posterWrap;
+    }
+
+    private void populateMediaMetaChips(FlowPane metaRow, ChannelItem item, WatchingNowVodResolver.VodMetadata vodMetadata) {
+        if (metaRow == null) {
+            return;
+        }
+        if (listAction == series) {
+            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoSeries")));
+        }
+        Channel channel = item == null ? null : item.getChannel();
+        if (channel == null) {
+            return;
+        }
+        if (PlayerService.getInstance().isDrmProtected(channel)) {
+            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoDrm")));
+        }
+        if (listAction == vod) {
+            populateVodMetaChips(metaRow, vodMetadata);
+            return;
+        }
+        if (listAction == series && channel.isWatched()) {
+            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoInPROGRESS")));
+        }
+        if (!isBlank(channel.getRating())) {
+            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoRatingPrefix", channel.getRating())));
+        }
+        if (!isBlank(channel.getDuration())) {
+            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoDurationPrefix", channel.getDuration())));
+        }
+        if (!isBlank(channel.getReleaseDate())) {
+            metaRow.getChildren().add(createWatchingNowChip(channel.getReleaseDate()));
+        }
+    }
+
+    private void populateVodMetaChips(FlowPane metaRow, WatchingNowVodResolver.VodMetadata vodMetadata) {
+        if (vodMetadata == null) {
+            return;
+        }
+        if (!isBlank(vodMetadata.getRating())) {
+            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoImdbPrefix", vodMetadata.getRating())));
+        }
+        if (!isBlank(vodMetadata.getReleaseDate())) {
+            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoReleasePrefix", vodMetadata.getReleaseDate())));
+        }
+        if (!isBlank(vodMetadata.getDuration())) {
+            metaRow.getChildren().add(createWatchingNowChip(I18n.tr("autoDurationPrefix", vodMetadata.getDuration())));
+        }
+    }
+
+    private Label createWatchingNowChip(String text) {
+        Label chip = new Label(text == null ? "" : text);
+        chip.getStyleClass().add("watching-now-card-chip");
+        chip.setMinWidth(Region.USE_PREF_SIZE);
+        chip.setMaxWidth(Region.USE_PREF_SIZE);
+        return chip;
+    }
+
+    private Label createMediaPlotLabel(ChannelItem item, WatchingNowVodResolver.VodMetadata vodMetadata) {
+        Channel channel = item == null ? null : item.getChannel();
+        String plotText = listAction == vod
+                ? vodMetadata == null ? "" : vodMetadata.getPlot()
+                : channel == null ? "" : channel.getDescription();
+        if (isBlank(plotText)) {
+            return null;
+        }
+        Label plot = new Label(plotText);
+        plot.getStyleClass().add("watching-now-card-plot");
+        plot.setWrapText(true);
+        plot.setMinWidth(0);
+        plot.setMaxWidth(Double.MAX_VALUE);
+        plot.setMinHeight(Region.USE_PREF_SIZE);
+        return plot;
+    }
+
+    private WatchingNowVodResolver.VodMetadata resolveVodMetadata(ChannelItem item) {
+        if (listAction != vod || item == null || item.getChannel() == null) {
+            return null;
+        }
+        return vodMetadataResolver.resolveMetadata(item.getChannel());
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (!isBlank(value)) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+    private boolean isMediaCatalogMode() {
+        return account != null && (listAction == vod || listAction == series);
+    }
+
+    private ContextMenu createChannelContextMenu(ChannelItem item, List<ChannelItem> selectedItems, Node owner) {
+        if (item == null || (listAction == series && isBlank(item.getCmd()))) {
+            return null;
+        }
+        ContextMenu menu = new ContextMenu();
+        UiI18n.preparePopupControl(menu, owner == null ? this : owner);
+        menu.setHideOnEscape(true);
+        menu.setAutoHide(true);
+
+        if (listAction == vod) {
+            populateVodContextMenu(menu, item);
+            return menu;
+        }
+
+        Menu bookmarkMenu = new Menu(I18n.tr("autoBookmark"));
+        menu.getItems().add(bookmarkMenu);
+        List<ChannelItem> effectiveSelection = selectedItems == null || selectedItems.isEmpty()
+                ? List.of(item)
+                : selectedItems;
+        loadBookmarkMenuItemsAsync(effectiveSelection, bookmarkMenu);
+        addPlayerItems(menu, item);
+        return menu;
+    }
+
+    private void addPlayerItems(ContextMenu menu, ChannelItem item) {
+        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+            MenuItem playerItem = new MenuItem(option.label());
+            playerItem.setOnAction(event -> {
+                menu.hide();
+                play(item, option.playerPath());
+            });
+            menu.getItems().add(playerItem);
+        }
     }
 
     public boolean navigateBackEmbedded() {
@@ -503,7 +931,7 @@ public class ChannelListUI extends HBox {
                 boolean drmProtected = channelItem.getChannel() != null && PlayerService.getInstance().isDrmProtected(channelItem.getChannel());
                 drmBadge.setVisible(drmProtected);
                 drmBadge.setManaged(drmProtected);
-                boolean inProgress = account.getAction() == series
+                boolean inProgress = listAction == series
                         && channelItem.getChannel() != null
                         && channelItem.getChannel().isWatched();
                 progressBadge.setVisible(inProgress);
@@ -562,7 +990,7 @@ public class ChannelListUI extends HBox {
                 boolean drmProtected = channelItem.getChannel() != null && PlayerService.getInstance().isDrmProtected(channelItem.getChannel());
                 drmBadge.setVisible(drmProtected);
                 drmBadge.setManaged(drmProtected);
-                boolean inProgress = account.getAction() == series
+                boolean inProgress = listAction == series
                         && channelItem.getChannel() != null
                         && channelItem.getChannel().isWatched();
                 progressBadge.setVisible(inProgress);
@@ -579,7 +1007,7 @@ public class ChannelListUI extends HBox {
         }
         BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
         bookmarkListenerRegistered = true;
-        if (account.getAction() == vod && !vodWatchStateListenerRegistered) {
+        if (listAction == vod && !vodWatchStateListenerRegistered) {
             VodWatchStateService.getInstance().addChangeListener(vodWatchStateChangeListener);
             vodWatchStateListenerRegistered = true;
         }
@@ -592,7 +1020,7 @@ public class ChannelListUI extends HBox {
             } else if (!bookmarkListenerRegistered) {
                 BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
                 bookmarkListenerRegistered = true;
-                if (account.getAction() == vod && !vodWatchStateListenerRegistered) {
+                if (listAction == vod && !vodWatchStateListenerRegistered) {
                     VodWatchStateService.getInstance().addChangeListener(vodWatchStateChangeListener);
                     vodWatchStateListenerRegistered = true;
                 }
@@ -624,16 +1052,25 @@ public class ChannelListUI extends HBox {
     }
 
     private void applyThumbnailMode(boolean enabled) {
+        thumbnailsEnabled = enabled;
         if (enabled) {
             ImageCacheManager.clearCache(IMAGE_CACHE_KEY_CHANNEL);
             channelName.setCellFactory(column -> createThumbnailCell());
         } else {
             channelName.setCellFactory(column -> createPlainTextCell());
         }
+        refreshChannelViews();
+    }
+
+    private void refreshChannelViews() {
         table.refresh();
+        channelGrid.refresh();
     }
 
     public void dispose() {
+        if (!disposed.compareAndSet(false, true)) {
+            return;
+        }
         unregisterBookmarkListener();
         if (thumbnailListenerRegistered) {
             ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
@@ -664,6 +1101,7 @@ public class ChannelListUI extends HBox {
         detailContent.getChildren().clear();
         detailPane.getChildren().clear();
         table.setItems(FXCollections.observableArrayList());
+        channelGrid.setItems(FXCollections.observableArrayList());
     }
 
     private void unregisterBookmarkListener() {
@@ -679,27 +1117,33 @@ public class ChannelListUI extends HBox {
     }
 
     private void refreshBookmarkStatesAsync() {
-        if (channelItems == null || channelItems.isEmpty()) {
+        if (disposed.get() || channelItems == null || channelItems.isEmpty()) {
             return;
         }
         new Thread(() -> {
+            if (disposed.get()) {
+                return;
+            }
             List<Bookmark> accountBookmarks = loadBookmarksForAccount();
             Set<String> savedVodKeys = loadVodWatchStateKeys();
             runLater(() -> {
+                if (disposed.get()) {
+                    return;
+                }
                 for (ChannelItem item : channelItems) {
                     BookmarkContext context = resolveBookmarkContext(item.getChannel());
-                    boolean isBookmarked = account.getAction() == vod
+                    boolean isBookmarked = listAction == vod
                             ? isVodSaved(item.getChannel(), context, savedVodKeys)
                             : isChannelBookmarked(item.getChannel(), context, accountBookmarks);
                     item.setBookmarked(isBookmarked);
                 }
-                table.refresh();
+                refreshChannelViews();
             });
         }).start();
     }
 
     private List<Bookmark> loadBookmarksForAccount() {
-        if (account.getAction() == vod) {
+        if (listAction == vod) {
             return List.of();
         }
         return BookmarkService.getInstance().read().stream()
@@ -708,7 +1152,7 @@ public class ChannelListUI extends HBox {
     }
 
     private Set<String> loadVodWatchStateKeys() {
-        if (account.getAction() != vod || isBlank(account.getDbId())) {
+        if (listAction != vod || isBlank(account.getDbId())) {
             return Set.of();
         }
         return VodWatchStateService.getInstance().getAllByAccount(account.getDbId()).stream()
@@ -836,8 +1280,14 @@ public class ChannelListUI extends HBox {
             return;
         }
         new Thread(() -> {
+            if (disposed.get()) {
+                return;
+            }
             try {
                 List<Category> categories = CategoryService.getInstance().getCached(account);
+                if (disposed.get()) {
+                    return;
+                }
 
                 categoryTitleByCategoryId.set(categories.stream()
                         .filter(c -> c != null && c.getCategoryId() != null && c.getTitle() != null)
@@ -858,7 +1308,9 @@ public class ChannelListUI extends HBox {
                 categoryTitleByCategoryId.set(Map.of());
                 categoryTitleByNormalizedTitle.set(Map.of());
             } finally {
-                runLater(this::refreshBookmarkStatesAsync);
+                if (!disposed.get()) {
+                    runLater(this::refreshBookmarkStatesAsync);
+                }
             }
         }, "bookmark-all-context-loader").start();
     }
@@ -975,7 +1427,7 @@ public class ChannelListUI extends HBox {
         }
         AtomicBoolean isCancelled = preparePlaybackLoad();
 
-        if (account.getAction() != series) {
+        if (listAction != series) {
             play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
             return;
         }
@@ -1009,7 +1461,9 @@ public class ChannelListUI extends HBox {
     }
 
     private EpisodesListUI buildEpisodesListUi(ChannelItem item) {
-        return new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
+        EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
+        ui.applyWatchingNowDetailStyling();
+        return ui;
     }
 
     private boolean awaitEpisodesUiReady(ChannelItem item, EpisodesListUI ui, AtomicBoolean isCancelled) throws InterruptedException {
@@ -1042,7 +1496,7 @@ public class ChannelListUI extends HBox {
     }
 
     private boolean showCachedEpisodesIfPresent(ChannelItem item) {
-        if (account.getAction() != series) {
+        if (listAction != series) {
             return false;
         }
         EpisodeList cachedEpisodes = seriesEpisodesCache.get(seriesEpisodeCacheKey(item));
@@ -1103,10 +1557,14 @@ public class ChannelListUI extends HBox {
 
     private void showEpisodesListUI(ChannelItem item, EpisodeList episodes) {
         runLater(() -> {
+            if (disposed.get()) {
+                return;
+            }
             if (this.getChildren().size() > 1) {
                 this.getChildren().remove(1);
             }
             EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
+            ui.applyWatchingNowDetailStyling();
             HBox.setHgrow(ui, Priority.ALWAYS);
             if (embeddedMode || inlineEpisodeNavigationEnabled) {
                 showDetailView(ui, item.getChannelName());
@@ -1124,7 +1582,7 @@ public class ChannelListUI extends HBox {
         rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
 
-        if (account.getAction() == vod) {
+        if (listAction == vod) {
             configureVodContextMenu(row, rowMenu);
             return;
         }
@@ -1157,7 +1615,7 @@ public class ChannelListUI extends HBox {
 
     private BooleanBinding buildSeriesCommandMissingBinding(TableRow<ChannelItem> row) {
         return Bindings.createBooleanBinding(
-                () -> account.getAction() == series && (row.getItem() == null || isBlank(row.getItem().getCmd())),
+                () -> listAction == series && (row.getItem() == null || isBlank(row.getItem().getCmd())),
                 row.itemProperty()
         );
     }
@@ -1267,7 +1725,7 @@ public class ChannelListUI extends HBox {
                 for (ChannelItem item : existingBookmarks.keySet()) {
                     item.setBookmarked(false);
                 }
-                table.refresh();
+                refreshChannelViews();
                 refreshBookmarkStatesAsync();
             });
         }).start();
@@ -1312,7 +1770,7 @@ public class ChannelListUI extends HBox {
             for (ChannelItem item : items) {
                 BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
                 Bookmark bookmark = new Bookmark(account.getAccountName(), ctx.categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), ctx.categoryId);
-                bookmark.setAccountAction(account.getAction());
+                bookmark.setAccountAction(listAction);
                 bookmark.setCategoryId(bookmarkCategoryId);
 
                 Category cat = new Category();
@@ -1321,7 +1779,7 @@ public class ChannelListUI extends HBox {
                 bookmark.setCategoryJson(cat.toJson());
 
                 if (item.getChannel() != null) {
-                    if (account.getAction() == vod) {
+                    if (listAction == vod) {
                         bookmark.setVodJson(item.getChannel().toJson());
                     } else {
                         bookmark.setChannelJson(item.getChannel().toJson());
@@ -1333,7 +1791,7 @@ public class ChannelListUI extends HBox {
                 for (ChannelItem item : items) {
                     item.setBookmarked(true);
                 }
-                table.refresh();
+                refreshChannelViews();
                 refreshBookmarkStatesAsync();
             });
         }).start();
@@ -1348,7 +1806,7 @@ public class ChannelListUI extends HBox {
             VodWatchStateService.getInstance().save(account, ctx == null ? categoryId : ctx.categoryId, item.getChannel());
             Platform.runLater(() -> {
                 item.setBookmarked(true);
-                table.refresh();
+                refreshChannelViews();
                 refreshBookmarkStatesAsync();
             });
         }).start();
@@ -1363,7 +1821,7 @@ public class ChannelListUI extends HBox {
             VodWatchStateService.getInstance().remove(account.getDbId(), ctx == null ? categoryId : ctx.categoryId, item.getChannelId());
             Platform.runLater(() -> {
                 item.setBookmarked(false);
-                table.refresh();
+                refreshChannelViews();
                 refreshBookmarkStatesAsync();
             });
         }).start();
@@ -1423,7 +1881,7 @@ public class ChannelListUI extends HBox {
                 "[ParentalLock] channelAccessCheck"
                         + LOG_ACCOUNT + account.getAccountName()
                         + " type=" + account.getType()
-                        + " action=" + account.getAction()
+                        + " action=" + listAction
                         + " categoryTitle=" + categoryTitle
                         + LOG_CHANNEL_ID + item.getChannelId()
                         + LOG_NAME + item.getChannelName()

@@ -57,6 +57,10 @@ public class WatchingNowVodResolver {
         return toVodMetadata(builder);
     }
 
+    public VodMetadata resolveMetadata(Channel provider) {
+        return resolveMetadataFromProvider(provider);
+    }
+
     private VodMetadataBuilder buildMetadataBuilder(Channel provider) {
         VodMetadataBuilder builder = new VodMetadataBuilder();
         if (provider == null) {

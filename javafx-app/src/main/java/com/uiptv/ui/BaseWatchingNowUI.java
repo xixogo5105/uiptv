@@ -662,9 +662,14 @@ public abstract class BaseWatchingNowUI extends VBox {
             metaRow.getChildren().add(createWatchingNowCardChip(I18n.formatEpisodeLabel(String.valueOf(data.state.getEpisodeNum()))));
         }
 
-        Label openHint = new Label(I18n.tr("autoViewEpisodes"));
+        Button openHint = new Button(I18n.tr("autoViewEpisodes"));
         openHint.getStyleClass().add("watching-now-open-hint");
+        openHint.setFocusTraversable(true);
         openHint.setMinHeight(Region.USE_PREF_SIZE);
+        openHint.setOnAction(event -> {
+            event.consume();
+            openDetails.run();
+        });
 
         text.getChildren().addAll(titleRow, accountLabel, metaRow);
         Label plot = createSeriesListPlotLabel(data);
@@ -678,7 +683,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         } else {
             card.getChildren().addAll(posterWrap, text);
         }
-        List<Label> cardLabels = new ArrayList<>(List.of(accountLabel, typeChip, episodeChip, openHint));
+        List<Label> cardLabels = new ArrayList<>(List.of(accountLabel, typeChip, episodeChip));
         if (plot != null) {
             cardLabels.add(plot);
         }

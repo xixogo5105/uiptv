@@ -27,7 +27,9 @@ public class AppNavigationPane extends TabPane {
     public static final String ICON_LOGS = "M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM13 9V3.5L18.5 9H13ZM8 13H16V15H8V13ZM8 17H16V19H8V17Z";
     public static final String ICON_WATCHING = "M8 5V19L19 12 8 5Z";
     public static final String ICON_FAVORITE = "M17 3H7C5.9 3 5 3.9 5 5V21L12 18 19 21V5C19 3.9 18.1 3 17 3Z";
-    private static final double NAV_RAIL_CURSOR_WIDTH = 82;
+    private static final double NAV_RAIL_CURSOR_WIDTH = 72;
+    private static final double NAV_RAIL_TOP_PADDING = 8;
+    private static final double NAV_RAIL_TAB_HEIGHT = 48;
     private boolean cursorInstallScheduled;
     private boolean sceneCursorOverridden;
     private Cursor previousSceneCursor;
@@ -47,7 +49,7 @@ public class AppNavigationPane extends TabPane {
         getTabs().addListener((ListChangeListener<Tab>) _ -> scheduleNavigationCursorInstall());
         addEventFilter(MouseEvent.MOUSE_MOVED, this::updateNavigationSceneCursor);
         addEventFilter(MouseEvent.MOUSE_ENTERED_TARGET, this::updateNavigationSceneCursor);
-        addEventFilter(MouseEvent.MOUSE_EXITED, _ -> restoreNavigationSceneCursor());
+        addEventFilter(MouseEvent.MOUSE_EXITED, this::updateNavigationSceneCursor);
         scheduleNavigationCursorInstall();
     }
 
@@ -167,22 +169,20 @@ public class AppNavigationPane extends TabPane {
         if (event == null || getScene() == null) {
             return false;
         }
-        double sceneX = event.getSceneX();
-        double sceneY = event.getSceneY();
-        for (Node tabNode : lookupAll(".tab")) {
-            if (isNavigationRailNode(tabNode) && containsScenePoint(tabNode, sceneX, sceneY)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean containsScenePoint(Node node, double sceneX, double sceneY) {
-        if (node == null) {
+        Bounds paneBounds = localToScene(getBoundsInLocal());
+        if (paneBounds == null) {
             return false;
         }
-        Bounds bounds = node.localToScene(node.getBoundsInLocal());
-        return bounds != null && bounds.contains(sceneX, sceneY);
+        double localX = event.getSceneX() - paneBounds.getMinX();
+        double localY = event.getSceneY() - paneBounds.getMinY();
+        return localX >= 0
+                && localX <= NAV_RAIL_CURSOR_WIDTH
+                && localY >= 0
+                && localY <= navigationRailInteractiveHeight();
+    }
+
+    private double navigationRailInteractiveHeight() {
+        return NAV_RAIL_TOP_PADDING + getTabs().size() * NAV_RAIL_TAB_HEIGHT;
     }
 
     private void applyNavigationSceneCursor() {

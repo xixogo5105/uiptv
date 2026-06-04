@@ -7,11 +7,16 @@ import com.uiptv.service.AccountChangeListener;
 import com.uiptv.service.AccountResolver;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
+import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.util.UiI18n;
+import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
+import com.uiptv.widget.PillBar;
+import com.uiptv.widget.PlayMenuButton;
+import com.uiptv.widget.ResponsiveCardGrid;
 import com.uiptv.widget.SearchableFilterableTableView;
 import javafx.application.Platform;
 import javafx.application.HostServices;
@@ -21,6 +26,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Side;
 import javafx.scene.Cursor;
 import javafx.scene.Group;
 import javafx.scene.Node;
@@ -59,8 +65,12 @@ public class AccountListUI extends HBox {
     private final VBox detailView = new VBox(8);
     private final HBox navHeader = new HBox(6);
     private final Button backButton = createBackButton();
-    private final Button homeButton = createHomeButton();
     private final VBox detailContent = new VBox();
+    private final ResponsiveCardGrid<AccountItem> accountGrid = new ResponsiveCardGrid<>(this::createAccountCard);
+    private final ScrollPane accountScrollPane = new ScrollPane();
+    private final HBox browserLayout = new HBox(12);
+    private final PillBar<AccountTypeFilter> accountTypePillBar =
+            new PillBar<>(AccountTypeFilter::label, AccountTypeFilter::key);
     private final Button newAccountButton = new Button(I18n.tr("autoAdd"));
     private final Deque<Node> viewStack = new ArrayDeque<>();
     private final VBox embeddedContainer = new VBox();
@@ -77,7 +87,9 @@ public class AccountListUI extends HBox {
     private AccountSortMode accountSortMode = AccountSortMode.DEFAULT;
     private final AccountChangeListener accountChangeListener = revision -> Platform.runLater(this::refreshIfAttached);
     private AppPageHeader pageHeader;
-    private HBox accountToolbar;
+    private VBox accountToolbar;
+    private HBox accountFooter;
+    private CategoryListUI activeCategoryListUI;
 
     public AccountListUI() { // Removed MediaPlayer argument
         this(ConfigurationService.getInstance().read().isEmbeddedPlayer(), null, null);
@@ -132,16 +144,53 @@ public class AccountListUI extends HBox {
         List<AccountResolver.AccountRow> resolved = accountResolver.resolveAccounts();
         for (int index = 0; index < resolved.size(); index++) {
             AccountResolver.AccountRow account = resolved.get(index);
+            Account sourceAccount = accountService.getById(account.getDbId());
+            AccountMetrics metrics = cachedAccountMetrics(sourceAccount);
             catList.add(new AccountItem(
                     new SimpleStringProperty(account.getAccountName()),
                     new SimpleStringProperty(account.getDbId()),
                     new SimpleStringProperty(account.getType()),
                     account.isPinToTop(),
-                    index
+                    index,
+                    metrics.categoryCount(),
+                    metrics.channelCount()
             ));
         }
         masterAccountItems.setAll(catList);
         applyAccountOrdering();
+    }
+
+    private AccountMetrics cachedAccountMetrics(Account account) {
+        if (account == null || account.getDbId() == null || account.getDbId().isBlank()) {
+            return new AccountMetrics(0, 0);
+        }
+        Account.AccountAction originalAction = account.getAction();
+        try {
+            int categoryCount = cachedCategoryCount(account);
+            int channelCount = ChannelService.getInstance().getChannelCountForAccount(account.getDbId());
+            return new AccountMetrics(categoryCount, Math.max(0, channelCount));
+        } catch (Exception _) {
+            return new AccountMetrics(0, 0);
+        } finally {
+            account.setAction(originalAction == null ? itv : originalAction);
+        }
+    }
+
+    private int cachedCategoryCount(Account account) {
+        int count = cachedCategoryCount(account, Account.AccountAction.itv);
+        if (account != null && VOD_AND_SERIES_SUPPORTED.contains(account.getType())) {
+            count += cachedCategoryCount(account, Account.AccountAction.vod);
+            count += cachedCategoryCount(account, Account.AccountAction.series);
+        }
+        return Math.max(0, count);
+    }
+
+    private int cachedCategoryCount(Account account, Account.AccountAction action) {
+        if (account == null || action == null) {
+            return 0;
+        }
+        account.setAction(action);
+        return CategoryService.getInstance().getCached(account).size();
     }
 
     private void initWidgets() {
@@ -164,10 +213,15 @@ public class AccountListUI extends HBox {
         newAccountButton.setManaged(embeddedMode);
         newAccountButton.setVisible(embeddedMode);
 
+        configureAccountTypePillBar();
         pageHeader = createPageHeader();
         accountToolbar = createAccountToolbar();
+        accountFooter = createAccountFooter();
         configurePageContainers();
-        listView.getChildren().setAll(accountToolbar, table);
+        configureAccountGrid();
+        configureAccountScrollPane();
+        configureBrowserLayout();
+        listView.getChildren().setAll(accountToolbar, accountScrollPane, accountFooter);
         getChildren().setAll(pageContainer);
 
         if (embeddedMode) {
@@ -178,6 +232,8 @@ public class AccountListUI extends HBox {
         }
         table.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(table, Priority.ALWAYS);
+        VBox.setVgrow(accountGrid, Priority.ALWAYS);
+        VBox.setVgrow(accountScrollPane, Priority.ALWAYS);
         setMaxHeight(Double.MAX_VALUE);
         setMinHeight(0);
         HBox.setHgrow(pageContainer, Priority.ALWAYS);
@@ -189,7 +245,58 @@ public class AccountListUI extends HBox {
         configureNewAccountButton();
         addAccountClickHandler();
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        table.getTextField().textProperty().addListener((_, _, _) -> applyAccountOrdering());
         registerSceneCleanupListener();
+    }
+
+    private void configureAccountTypePillBar() {
+        accountTypePillBar.getStyleClass().add("account-type-pill-bar");
+        List<AccountTypeFilter> filters = new ArrayList<>();
+        filters.add(new AccountTypeFilter("all", I18n.tr("commonAll"), null));
+        for (AccountType type : AccountType.values()) {
+            filters.add(new AccountTypeFilter(type.name(), type.getDisplay(), type));
+        }
+        accountTypePillBar.setItems(filters);
+        accountTypePillBar.selectedItemProperty().addListener((_, _, _) -> applyAccountOrdering());
+        accountTypePillBar.setMaxWidth(Double.MAX_VALUE);
+    }
+
+    private void configureAccountGrid() {
+        accountGrid.getStyleClass().add("account-card-grid");
+        accountGrid.setCardWidthRange(240, 340);
+        accountGrid.setGaps(16, 14);
+        accountGrid.setPlaceholderText(I18n.tr("autoNothingFoundFor", I18n.tr("autoAccount")));
+        accountGrid.setActivateOnSingleClick(true);
+        accountGrid.setOnItemActivated(item -> retrieveThreadedAccountCategories(item, itv));
+        accountGrid.setContextMenuFactory((item, selectedItems, owner) -> createAccountContextMenu(item, selectedItems));
+        accountGrid.setOnKeyReleased(event -> {
+            if (event.getCode() == KeyCode.DELETE) {
+                handleDeleteAccounts();
+                event.consume();
+            } else if (event.getCode() == KeyCode.ENTER) {
+                retrieveThreadedAccountCategories(accountGrid.getFocusedItem(), itv);
+                event.consume();
+            }
+        });
+    }
+
+    private void configureAccountScrollPane() {
+        accountScrollPane.getStyleClass().addAll("account-list-scroll", "transparent-scroll-pane");
+        accountScrollPane.setContent(accountGrid);
+        accountScrollPane.setFitToWidth(true);
+        accountScrollPane.setPannable(true);
+        accountScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        accountScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        accountScrollPane.setFocusTraversable(false);
+        accountScrollPane.setMinSize(0, 0);
+        accountScrollPane.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+    }
+
+    private void configureBrowserLayout() {
+        browserLayout.getStyleClass().add("account-browser-layout");
+        browserLayout.setFillHeight(true);
+        browserLayout.setMinSize(0, 0);
+        browserLayout.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
     }
 
     public AppPageHeader detachPageHeader() {
@@ -209,14 +316,23 @@ public class AccountListUI extends HBox {
         );
     }
 
-    private HBox createAccountToolbar() {
+    private VBox createAccountToolbar() {
+        accountTypePillBar.setMaxWidth(Double.MAX_VALUE);
+        VBox toolbar = new VBox(accountTypePillBar);
+        toolbar.getStyleClass().add("account-toolbar");
+        toolbar.setFillWidth(true);
+        toolbar.setMaxWidth(Double.MAX_VALUE);
+        return toolbar;
+    }
+
+    private HBox createAccountFooter() {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox toolbar = new HBox(8, spacer, table.getMenuButton(), newAccountButton);
-        toolbar.setAlignment(Pos.CENTER_RIGHT);
-        toolbar.getStyleClass().add("account-toolbar");
-        toolbar.setFillHeight(false);
-        return toolbar;
+        HBox footer = new HBox(8, spacer, newAccountButton);
+        footer.getStyleClass().add("account-footer");
+        footer.setAlignment(Pos.CENTER_RIGHT);
+        footer.setMaxWidth(Double.MAX_VALUE);
+        return footer;
     }
 
     private void configurePageContainers() {
@@ -247,9 +363,11 @@ public class AccountListUI extends HBox {
     }
 
     private void configureNewAccountButton() {
-        newAccountButton.setMinWidth(64);
-        newAccountButton.setPrefWidth(64);
-        newAccountButton.setMaxWidth(Region.USE_COMPUTED_SIZE);
+        newAccountButton.setText(I18n.tr("autoNewAccount"));
+        newAccountButton.getStyleClass().add("account-add-button");
+        newAccountButton.setMinWidth(Region.USE_PREF_SIZE);
+        newAccountButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        newAccountButton.setMaxWidth(Region.USE_PREF_SIZE);
         newAccountButton.setMinHeight(Region.USE_COMPUTED_SIZE);
         newAccountButton.setPrefHeight(Region.USE_COMPUTED_SIZE);
         newAccountButton.setPadding(new Insets(6, 12, 6, 12));
@@ -269,10 +387,9 @@ public class AccountListUI extends HBox {
 
     private void initDetailView() {
         backButton.setOnAction(_ -> showPreviousView());
-        homeButton.setOnAction(_ -> showAccountListView());
         navHeader.setPadding(new Insets(0, 8, 6, 8));
         navHeader.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        navHeader.getChildren().setAll(backButton, homeButton);
+        navHeader.getChildren().setAll(backButton);
         detailContent.setSpacing(5);
         detailContent.setPadding(new Insets(5, 0, 0, 0));
         VBox.setVgrow(detailContent, Priority.ALWAYS);
@@ -285,29 +402,56 @@ public class AccountListUI extends HBox {
         return button;
     }
 
-    private Button createHomeButton() {
-        Button button = new Button();
-        button.getStyleClass().add("nav-back-button");
-        button.setFocusTraversable(false);
-        button.setTooltip(new Tooltip(I18n.tr("autoHome")));
-        SVGPath icon = new SVGPath();
-        icon.setContent("M4 10 L12 4 L20 10 V20 H14 V13 H10 V20 H4 Z");
-        icon.setScaleX(1.25);
-        icon.setScaleY(1.25);
-        icon.getStyleClass().add("nav-back-icon");
-        button.setGraphic(icon);
-        return button;
-    }
-
     public void showAccountListView() {
         if (!embeddedMode) {
             return;
         }
+        disposeActiveCategoryList();
+        setAccountBrowserCompact(false);
         viewStack.clear();
         setCurrentContent(listView);
         updateNavButtons();
-        embeddedContainer.getChildren().setAll(navHeader, currentContent);
+        embeddedContainer.getChildren().setAll(currentContent);
         showBody(embeddedContainer);
+    }
+
+    private void showAccountBrowser(CategoryListUI categoryListUI) {
+        if (!embeddedMode || categoryListUI == null) {
+            return;
+        }
+        if (activeCategoryListUI != null && activeCategoryListUI != categoryListUI) {
+            activeCategoryListUI.dispose();
+        }
+        activeCategoryListUI = categoryListUI;
+        setAccountBrowserCompact(true);
+        detachFromParent(listView);
+        detachFromParent(categoryListUI);
+        browserLayout.getChildren().setAll(listView, categoryListUI);
+        HBox.setHgrow(listView, Priority.SOMETIMES);
+        HBox.setHgrow(categoryListUI, Priority.ALWAYS);
+        setCurrentContent(browserLayout);
+        updateNavButtons();
+        embeddedContainer.getChildren().setAll(currentContent);
+        showBody(embeddedContainer);
+    }
+
+    private void disposeActiveCategoryList() {
+        if (activeCategoryListUI != null) {
+            activeCategoryListUI.dispose();
+            activeCategoryListUI = null;
+        }
+    }
+
+    private void setAccountBrowserCompact(boolean compact) {
+        if (compact) {
+            if (!listView.getStyleClass().contains("account-list-panel-compact")) {
+                listView.getStyleClass().add("account-list-panel-compact");
+            }
+            accountGrid.setCardWidthRange(190, 270);
+            return;
+        }
+        listView.getStyleClass().remove("account-list-panel-compact");
+        accountGrid.setCardWidthRange(240, 340);
     }
 
     private void showDetailView(Node content) {
@@ -360,6 +504,15 @@ public class AccountListUI extends HBox {
             return;
         }
         Node prev = viewStack.pop();
+        if (prev == listView) {
+            showAccountListView();
+            return;
+        }
+        if (prev == browserLayout && activeCategoryListUI != null) {
+            showAccountBrowser(activeCategoryListUI);
+            return;
+        }
+
         setCurrentContent(prev);
         updateNavButtons();
         embeddedContainer.getChildren().setAll(navHeader, currentContent);
@@ -368,7 +521,143 @@ public class AccountListUI extends HBox {
 
     private void updateNavButtons() {
         backButton.setDisable(viewStack.isEmpty());
-        homeButton.setDisable(false);
+    }
+
+    private Region createAccountCard(AccountItem item) {
+        VBox card = new VBox(7);
+        card.getStyleClass().add("account-card");
+        card.setMinWidth(0);
+        card.setMaxWidth(Double.MAX_VALUE);
+
+        Label title = new Label(item == null ? "" : item.getAccountName());
+        title.getStyleClass().add("account-card-title");
+        title.setWrapText(true);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(title, Priority.ALWAYS);
+
+        Label type = new Label(accountTypeDisplay(item));
+        type.getStyleClass().add("account-card-type");
+        type.setWrapText(true);
+        type.setMinWidth(0);
+        type.setMaxWidth(Double.MAX_VALUE);
+
+        Label metrics = new Label(accountMetricsText(item));
+        metrics.getStyleClass().add("account-card-metrics");
+        metrics.setWrapText(true);
+        metrics.setMinWidth(0);
+        metrics.setMaxWidth(Double.MAX_VALUE);
+        metrics.setVisible(!metrics.getText().isBlank());
+        metrics.setManaged(metrics.isVisible());
+
+        Button menuButton = new PlayMenuButton(I18n.tr("autoManage"));
+        menuButton.getStyleClass().add("account-card-menu-button");
+        menuButton.setOnAction(event -> {
+            event.consume();
+            if (item != null) {
+                accountGrid.selectItems(List.of(item));
+                ContextMenu menu = createAccountContextMenu(item, List.of(item));
+                UiI18n.preparePopupControl(menu, menuButton);
+                menu.show(menuButton, Side.BOTTOM, 0, 0);
+            }
+        });
+
+        HBox topRow = new HBox(7);
+        topRow.setAlignment(Pos.TOP_LEFT);
+        topRow.setMinWidth(0);
+        topRow.setMaxWidth(Double.MAX_VALUE);
+        if (item != null && item.isPinToTop()) {
+            topRow.getChildren().add(createAccountPinIcon());
+        }
+        topRow.getChildren().addAll(title, menuButton);
+
+        card.getChildren().addAll(topRow, type);
+        if (metrics.isVisible()) {
+            card.getChildren().add(metrics);
+        }
+        return card;
+    }
+
+    private String accountTypeDisplay(AccountItem item) {
+        if (item == null || item.getAccountType() == null || item.getAccountType().isBlank()) {
+            return "";
+        }
+        try {
+            return AccountType.valueOf(item.getAccountType()).getDisplay();
+        } catch (Exception _) {
+            return item.getAccountType().replace('_', ' ');
+        }
+    }
+
+    private String accountMetricsText(AccountItem item) {
+        if (item == null) {
+            return "";
+        }
+        List<String> metrics = new ArrayList<>();
+        if (item.getCategoryCount() > 1) {
+            metrics.add(I18n.formatNumber(String.valueOf(item.getCategoryCount())) + " " + I18n.tr("autoCategories"));
+        }
+        if (item.getChannelCount() > 0) {
+            metrics.add(I18n.formatNumber(String.valueOf(item.getChannelCount())) + " " + I18n.tr("autoChannels"));
+        }
+        return String.join(" / ", metrics);
+    }
+
+    private StackPane createAccountPinIcon() {
+        SVGPath pinStem = new SVGPath();
+        SVGPath pinHead = new SVGPath();
+        pinStem.setContent(AccountResolver.PIN_SVG_STEM_PATH);
+        pinStem.setFill(Color.web(AccountResolver.PIN_SVG_STEM_FILL));
+        pinHead.setContent(AccountResolver.PIN_SVG_HEAD_PATH);
+        pinHead.setFill(Color.web(AccountResolver.PIN_SVG_HEAD_FILL));
+        Group pinIcon = new Group(pinStem, pinHead);
+        pinIcon.setScaleX(AccountResolver.PIN_SVG_SCALE);
+        pinIcon.setScaleY(AccountResolver.PIN_SVG_SCALE);
+        StackPane pinIconWrapper = new StackPane(pinIcon);
+        pinIconWrapper.getStyleClass().add("account-card-pin-icon");
+        pinIconWrapper.setMinSize(22, 22);
+        pinIconWrapper.setPrefSize(22, 22);
+        pinIconWrapper.setMaxSize(22, 22);
+        return pinIconWrapper;
+    }
+
+    private ContextMenu createAccountContextMenu(AccountItem contextItem, List<AccountItem> selectedItems) {
+        ContextMenu menu = new ContextMenu();
+        UiI18n.preparePopupControl(menu, accountGrid);
+        menu.setHideOnEscape(true);
+        menu.setAutoHide(true);
+
+        MenuItem editAccount = new MenuItem(I18n.tr("autoEditManageAccount"));
+        editAccount.setOnAction(_ -> runSingleSelectionAction(() -> openManageAccount(contextItem, true)));
+
+        MenuItem itvItem = new MenuItem(I18n.tr("autoTvChannels"));
+        itvItem.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(contextItem, Account.AccountAction.itv)));
+
+        MenuItem vodItem = new MenuItem(I18n.tr("autoVod"));
+        vodItem.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(contextItem, Account.AccountAction.vod)));
+
+        MenuItem seriesItem = new MenuItem(I18n.tr("autoSeries"));
+        seriesItem.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(contextItem, Account.AccountAction.series)));
+
+        MenuItem reloadCache = new MenuItem(I18n.tr("autoReloadCache"));
+        reloadCache.setOnAction(_ -> handleReloadCache(contextItem));
+
+        MenuItem deleteItem = new MenuItem(I18n.tr("autoDeleteAccount"));
+        deleteItem.getStyleClass().add("danger-menu-item");
+        deleteItem.setOnAction(_ -> handleDeleteAccounts());
+
+        Account account = contextItem == null ? null : accountService.getById(contextItem.getAccountId());
+        boolean vodSupported = account != null && VOD_AND_SERIES_SUPPORTED.contains(account.getType());
+        vodItem.setVisible(vodSupported);
+        seriesItem.setVisible(vodSupported);
+        boolean cacheSupported = selectedAccountsForAction(contextItem).stream()
+                .map(AccountItem::getAccountType)
+                .anyMatch(CACHE_SUPPORTED::contains);
+        reloadCache.setVisible(cacheSupported);
+
+        menu.getItems().addAll(editAccount, new SeparatorMenuItem(), itvItem, vodItem, seriesItem,
+                new SeparatorMenuItem(), reloadCache, deleteItem);
+        return menu;
     }
 
     private TableCell<AccountItem, String> createAccountNameCell() {
@@ -433,6 +722,7 @@ public class AccountListUI extends HBox {
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 table.getItems().clear();
+                accountGrid.setItems(FXCollections.observableArrayList());
                 masterAccountItems.clear();
                 detailContent.getChildren().clear();
                 viewStack.clear();
@@ -458,7 +748,25 @@ public class AccountListUI extends HBox {
             default -> orderedItems.sort(ACCOUNT_NAME_COMPARATOR);
         }
         table.setItems(FXCollections.observableArrayList(orderedItems));
-        table.filterByAccountType();
+        accountGrid.setItems(FXCollections.observableArrayList(orderedItems.stream()
+                .filter(this::matchesAccountFilters)
+                .toList()));
+    }
+
+    private boolean matchesAccountFilters(AccountItem item) {
+        if (item == null) {
+            return false;
+        }
+        String searchText = table.getTextField().getText();
+        String normalizedSearch = searchText == null ? "" : searchText.trim().toLowerCase(Locale.ROOT);
+        String accountNameValue = item.getAccountName() == null ? "" : item.getAccountName();
+        boolean matchesSearch = normalizedSearch.isBlank()
+                || accountNameValue.toLowerCase(Locale.ROOT).contains(normalizedSearch);
+        AccountTypeFilter selectedType = accountTypePillBar.getSelectedItem();
+        boolean matchesType = selectedType == null
+                || selectedType.type() == null
+                || selectedType.type().name().equals(item.getAccountType());
+        return matchesSearch && matchesType;
     }
 
     private void installAccountHeaderSortHandler() {
@@ -610,7 +918,7 @@ public class AccountListUI extends HBox {
     }
 
     private void runSingleSelectionAction(Runnable action) {
-        if (table.getSelectionModel().getSelectedItems().size() > 1) {
+        if (selectedAccountsForAction(null).size() > 1) {
             showErrorAlert(I18n.tr(MULTI_SELECTION_DISABLED_KEY));
             return;
         }
@@ -618,18 +926,7 @@ public class AccountListUI extends HBox {
     }
 
     private List<Account> resolveAccountsForReload(AccountItem contextItem) {
-        List<AccountItem> selectedItems = table.getSelectionModel().getSelectedItems();
-        boolean contextInSelection = contextItem != null
-                && selectedItems.stream().anyMatch(item -> contextItem.getAccountId().equals(item.getAccountId()));
-
-        List<AccountItem> sourceItems;
-        if (!selectedItems.isEmpty() && contextInSelection) {
-            sourceItems = selectedItems;
-        } else if (contextItem != null) {
-            sourceItems = List.of(contextItem);
-        } else {
-            sourceItems = List.of();
-        }
+        List<AccountItem> sourceItems = selectedAccountsForAction(contextItem);
 
         LinkedHashSet<String> uniqueAccountIds = new LinkedHashSet<>();
         List<Account> accounts = new ArrayList<>();
@@ -645,18 +942,35 @@ public class AccountListUI extends HBox {
         return accounts;
     }
 
+    private List<AccountItem> selectedAccountsForAction(AccountItem contextItem) {
+        List<AccountItem> selectedItems = new ArrayList<>(accountGrid.getSelectedItems());
+        if (selectedItems.isEmpty()) {
+            selectedItems.addAll(table.getSelectionModel().getSelectedItems());
+        }
+        boolean contextInSelection = contextItem != null
+                && selectedItems.stream().anyMatch(item -> contextItem.getAccountId().equals(item.getAccountId()));
+        if (!selectedItems.isEmpty() && (contextItem == null || contextInSelection)) {
+            return selectedItems;
+        }
+        return contextItem == null ? List.of() : List.of(contextItem);
+    }
+
     private void handleDeleteAccounts() {
-        int selectedCount = table.getSelectionModel().getSelectedItems().size();
+        List<AccountItem> selectedAccounts = selectedAccountsForAction(null);
+        int selectedCount = selectedAccounts.size();
+        if (selectedAccounts.isEmpty()) {
+            return;
+        }
         String localizedMessage = I18n.tr(
                 "accountListDeleteAccountsConfirm",
                 selectedCount,
-                table.getSelectionModel().getSelectedItems().stream()
+                selectedAccounts.stream()
                         .map(AccountItem::getAccountName)
                         .collect(Collectors.joining(", "))
         );
         isPromptShowing = true;
         if (showConfirmationAlert(localizedMessage)) {
-            for (AccountItem selectedItem : table.getSelectionModel().getSelectedItems()) {
+            for (AccountItem selectedItem : selectedAccounts) {
                 AccountService.getInstance().delete(selectedItem.getAccountId());
                 if (onDeleteCallback != null) {
                     onDeleteCallback.call(accountService.getById(selectedItem.getAccountId()));
@@ -667,6 +981,9 @@ public class AccountListUI extends HBox {
     }
 
     private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction) {
+        if (item == null) {
+            return;
+        }
         Account account = accountService.getById(item.getAccountId());
         if (account == null) {
             showErrorAlert(I18n.tr("autoUnableToFindAccount"));
@@ -676,8 +993,10 @@ public class AccountListUI extends HBox {
 
         // Immediately show the CategoryListUI in loading state
         CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode);
+        categoryListUI.setAccountsNavigationHandler(embeddedMode ? this::showAccountListView : () -> showBody(listView));
+        categoryListUI.setCloseHandler(embeddedMode ? this::showAccountListView : null);
         if (embeddedMode) {
-            showDetailView(categoryListUI);
+            showAccountBrowser(categoryListUI);
         } else {
             showDetailViewNonEmbedded(categoryListUI);
         }
@@ -752,13 +1071,18 @@ public class AccountListUI extends HBox {
         private final SimpleStringProperty accountType;
         private final boolean pinToTop;
         private final int originalOrder;
+        private final int categoryCount;
+        private final int channelCount;
 
-        public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId, SimpleStringProperty accountType, boolean pinToTop, int originalOrder) {
+        public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId, SimpleStringProperty accountType,
+                           boolean pinToTop, int originalOrder, int categoryCount, int channelCount) {
             this.accountName = accountName;
             this.accountId = accountId;
             this.accountType = accountType;
             this.pinToTop = pinToTop;
             this.originalOrder = originalOrder;
+            this.categoryCount = Math.max(0, categoryCount);
+            this.channelCount = Math.max(0, channelCount);
         }
 
         public String getAccountId() {
@@ -797,11 +1121,25 @@ public class AccountListUI extends HBox {
             this.accountType.set(accountType);
         }
 
+        public int getCategoryCount() {
+            return categoryCount;
+        }
+
+        public int getChannelCount() {
+            return channelCount;
+        }
+
     }
 
     private enum AccountSortMode {
         DEFAULT,
         ASCENDING,
         DESCENDING
+    }
+
+    private record AccountMetrics(int categoryCount, int channelCount) {
+    }
+
+    private record AccountTypeFilter(String key, String label, AccountType type) {
     }
 }

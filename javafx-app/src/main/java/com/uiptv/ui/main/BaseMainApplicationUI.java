@@ -52,7 +52,7 @@ public abstract class BaseMainApplicationUI {
     }
 
     public Scene buildScene() {
-        AccountListUI accountListUI = new AccountListUI(useEmbeddedAccountFlow(), hostServices, this::toggleTheme);
+        AccountListUI accountListUI = new AccountListUI(true, hostServices, this::toggleTheme);
         BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI(hostServices, this::toggleTheme);
         AtomicReference<ConfigurationUI> configurationRef = new AtomicReference<>();
         AtomicReference<WatchingNowUI> watchingNowRef = new AtomicReference<>();
@@ -64,7 +64,7 @@ public abstract class BaseMainApplicationUI {
         Tab manageAccountTab = tabPane.createTab(
                 I18n.tr("autoAccount"),
                 AppNavigationPane.ICON_ACCOUNT,
-                useEmbeddedAccountFlow() ? wrapToFill(accountListUI) : createDeferredPlaceholder()
+                wrapToFill(accountListUI)
         );
         Tab parseMultipleAccountTab = tabPane.createTab(I18n.tr("autoImportBulkAccounts"), AppNavigationPane.ICON_IMPORT, createDeferredPlaceholder());
         Tab bookmarkChannelListTab = tabPane.createTab(I18n.tr("autoFavorite"), AppNavigationPane.ICON_FAVORITE, bookmarkChannelListUI);
@@ -303,9 +303,6 @@ public abstract class BaseMainApplicationUI {
                     watchingNowSupplier
             );
             configureManageAccountUI(manageAccountUI, context.accountListUI(), context.bookmarkChannelListUI(), watchingNowSupplier);
-            if (!useEmbeddedAccountFlow()) {
-                context.manageAccountTab().setContent(AppNavigationPane.wrapContent(createAccountManagementContent(context.accountListUI(), manageAccountUI)));
-            }
         };
 
         Runnable loadConfiguration = () -> {
@@ -358,28 +355,6 @@ public abstract class BaseMainApplicationUI {
         VBox.setVgrow(content, Priority.ALWAYS);
         wrapper.setFillWidth(true);
         return wrapper;
-    }
-
-    private VBox createAccountManagementContent(AccountListUI accountListUI, ManageAccountUI manageAccountUI) {
-        AppPageHeader accountHeader = accountListUI.detachPageHeader();
-        SplitPane accountSplit = new SplitPane(wrapToFill(manageAccountUI), wrapToFill(accountListUI));
-        accountSplit.getStyleClass().add("account-management-split");
-        accountSplit.setDividerPositions(0.58);
-        accountSplit.setMinSize(0, 0);
-        accountSplit.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-
-        VBox accountPage = new VBox(12);
-        accountPage.getStyleClass().add("account-page");
-        accountPage.setFillWidth(true);
-        accountPage.setMinSize(0, 0);
-        accountPage.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        if (accountHeader == null) {
-            accountPage.getChildren().setAll(accountSplit);
-        } else {
-            accountPage.getChildren().setAll(accountHeader, accountSplit);
-        }
-        VBox.setVgrow(accountSplit, Priority.ALWAYS);
-        return accountPage;
     }
 
     protected StackPane createEmbeddedPlayerShell(javafx.scene.Node playerNode) {

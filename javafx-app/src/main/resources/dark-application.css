@@ -893,8 +893,13 @@
 
 .account-body,
 .account-embedded-stack,
-.account-detail-layout {
+.account-detail-layout,
+.account-browser-layout {
     -fx-background-color: transparent;
+}
+
+.account-browser-layout {
+    -fx-spacing: 12;
 }
 
 .account-list-panel {
@@ -907,13 +912,215 @@
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.30), 16, 0.12, 0, 5);
 }
 
+.account-list-panel-compact {
+    -fx-pref-width: 430;
+    -fx-min-width: 270;
+    -fx-max-width: 520;
+}
+
+.account-list-scroll,
+.account-list-scroll > .viewport,
+.account-channel-card-scroll,
+.account-channel-card-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
 .account-list-panel .table-view {
     -fx-background-color: transparent;
 }
 
 .account-toolbar {
+    -fx-spacing: 0;
+    -fx-padding: 0 0 6 0;
+}
+
+.account-footer {
+    -fx-padding: 8 0 0 0;
+    -fx-border-color: rgba(255, 255, 255, 0.08) transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.account-add-button {
+    -fx-padding: 6 13 6 13;
+}
+
+.account-card-grid {
+    -fx-background-color: transparent;
+}
+
+.account-channel-card-grid {
+    -fx-background-color: transparent;
+}
+
+.account-loading-progress-card {
+    -fx-background-color: linear-gradient(to bottom right, #272a39, #202331);
+    -fx-border-color: rgba(255, 255, 255, 0.09);
+    -fx-border-width: 1;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-padding: 9 11 10 11;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.26), 12, 0.12, 0, 3);
+}
+
+.account-loading-progress-header {
     -fx-spacing: 8;
-    -fx-padding: 0 0 2 0;
+}
+
+.account-loading-progress-title {
+    -fx-font-size: 0.94em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.account-loading-progress-value {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-background-radius: 999;
+    -fx-padding: 2 8 2 8;
+    -fx-font-size: 0.84em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.account-loading-progress-bar {
+    -fx-min-height: 7;
+    -fx-pref-height: 7;
+    -fx-max-height: 7;
+    -fx-padding: 0;
+}
+
+.account-loading-progress-bar > .track {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+}
+
+.account-loading-progress-bar > .bar {
+    -fx-background-color: linear-gradient(to right, #38bdf8, #dbe7ff);
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+    -fx-padding: 0.26em;
+}
+
+.account-loading-progress-card.complete .account-loading-progress-bar > .bar {
+    -fx-background-color: linear-gradient(to right, #4ade80, #22c55e);
+}
+
+.account-card {
+    -fx-spacing: 7;
+}
+
+.account-card-title {
+    -fx-font-size: 1.04em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.account-card-type,
+.account-card-metrics {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.account-card-metrics {
+    -fx-font-size: 0.92em;
+}
+
+.account-card-pin-icon {
+    -fx-padding: 0;
+}
+
+.uiptv-responsive-card:selected .account-card-title,
+.uiptv-responsive-card.selected .account-card-title,
+.uiptv-responsive-card:selected .account-card-type,
+.uiptv-responsive-card.selected .account-card-type,
+.uiptv-responsive-card:selected .account-card-metrics,
+.uiptv-responsive-card.selected .account-card-metrics {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.account-category-list-pane,
+.account-category-detail-pane {
+    -fx-background-color: linear-gradient(to bottom right, #242736, #1f2230);
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 10;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.30), 16, 0.12, 0, 5);
+}
+
+.account-category-panel {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-min-width: 0;
+}
+
+.account-category-header,
+.account-category-detail-header {
+    -fx-spacing: 8;
+    -fx-padding: 0 0 4 0;
+}
+
+.account-category-heading {
+    -fx-font-size: 1.02em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-padding: 2 2 4 2;
+}
+
+.account-category-scroll,
+.account-category-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.account-category-card-list {
+    -fx-background-color: transparent;
+    -fx-padding: 2 2 12 2;
+}
+
+.account-category-card {
+    -fx-cursor: hand;
+}
+
+.account-category-card-title {
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.account-category-placeholder {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-padding: 18;
+}
+
+.account-category-lock-badge {
+    -fx-background-color: rgba(248, 113, 113, 0.12);
+    -fx-border-color: rgba(248, 113, 113, 0.24);
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 3 8 3 8;
+    -fx-font-size: 0.84em;
+    -fx-text-fill: #fecaca;
+}
+
+.account-category-card.selected-card .label,
+.account-category-card.selected-card .account-category-card-title {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.account-category-detail-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.account-category-close-button {
+    -fx-padding: 5 13 5 13;
+    -fx-min-width: 86;
+    -fx-pref-width: 86;
+    -fx-max-width: 86;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
 }
 
 .uiptv-page-header {
@@ -1224,6 +1431,54 @@
     -fx-fill: -uiptv-text-primary;
 }
 
+.account-type-pill-bar.uiptv-pill-bar,
+.category-mode-pill-bar.uiptv-pill-bar {
+    -fx-background-color: #252930;
+    -fx-background-radius: 16;
+    -fx-border-color: #343941;
+    -fx-border-radius: 16;
+    -fx-border-width: 1;
+    -fx-padding: 5;
+    -fx-min-height: 40;
+}
+
+.account-type-pill-bar .uiptv-pill-bar-content,
+.category-mode-pill-bar .uiptv-pill-bar-content {
+    -fx-hgap: 5;
+    -fx-vgap: 5;
+}
+
+.account-type-pill-bar .uiptv-pill,
+.category-mode-pill-bar .uiptv-pill {
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 5 13 5 13;
+    -fx-font-size: 0.94em;
+    -fx-effect: none;
+}
+
+.account-list-panel-compact .account-type-pill-bar.uiptv-pill-bar {
+    -fx-min-height: 76;
+    -fx-padding: 5;
+}
+
+.account-list-panel-compact .account-type-pill-bar .uiptv-pill {
+    -fx-padding: 5 9 5 9;
+}
+
+.account-type-pill-bar .uiptv-pill:hover,
+.category-mode-pill-bar .uiptv-pill:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+}
+
+.account-type-pill-bar .uiptv-pill:selected,
+.category-mode-pill-bar .uiptv-pill:selected {
+    -fx-background-color: #181b1f;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 10, 0.18, 0, 2);
+}
+
 .watching-now-page {
     -fx-background-color: -uiptv-app-bg;
     -fx-padding: 24 28 20 28;
@@ -1441,6 +1696,20 @@
     -fx-padding: 5 10 5 10;
     -fx-text-fill: #bfdbfe;
     -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.watching-now-open-hint:hover,
+.watching-now-open-hint:focused {
+    -fx-background-color: rgba(147, 197, 253, 0.18);
+    -fx-border-color: rgba(147, 197, 253, 0.32);
+    -fx-text-fill: #dbeafe;
+}
+
+.watching-now-open-hint > .label,
+.watching-now-open-hint:hover > .label,
+.watching-now-open-hint:focused > .label {
+    -fx-text-fill: #bfdbfe;
 }
 
 .watching-now-remove-button {
@@ -1547,9 +1816,31 @@
     -fx-text-fill: -uiptv-selected-card-fg;
 }
 
+.watching-now-series-card:selected .hyperlink,
+.watching-now-vod-card:selected .hyperlink {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
 .watching-now-series-card:selected .label,
 .watching-now-vod-card:selected .label {
     -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-series-card:selected .watching-now-open-hint,
+.watching-now-series-card.selected-card .watching-now-open-hint,
+.watching-now-vod-card:selected .watching-now-open-hint,
+.watching-now-vod-card.selected-card .watching-now-open-hint {
+    -fx-background-color: rgba(16, 24, 39, 0.92);
+    -fx-border-color: rgba(16, 24, 39, 0.96);
+    -fx-text-fill: #dbeafe;
+    -fx-effect: none;
+}
+
+.watching-now-series-card:selected .watching-now-open-hint > .label,
+.watching-now-series-card.selected-card .watching-now-open-hint > .label,
+.watching-now-vod-card:selected .watching-now-open-hint > .label,
+.watching-now-vod-card.selected-card .watching-now-open-hint > .label {
+    -fx-text-fill: #dbeafe;
 }
 
 .bookmark-manage-categories-button {
@@ -2030,6 +2321,11 @@
 
 .bookmark-card {
     -fx-padding: 14 10 14 10;
+}
+
+.uiptv-responsive-card.watching-now-series-card,
+.uiptv-responsive-card.watching-now-vod-card {
+    -fx-padding: 14 16 14 16;
 }
 
 .uiptv-responsive-card:hover,

@@ -5,6 +5,7 @@ import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.shared.EpisodeList;
+import com.uiptv.widget.PillBar;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -13,8 +14,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
@@ -32,12 +31,13 @@ import static com.uiptv.util.StringUtils.isBlank;
 
 public class PlainEpisodesListUI extends BaseEpisodesListUI {
     private final TableView<EpisodeItem> tableView = new TableView<>();
-    private final TabPane seasonTabPane = new TabPane();
+    private final PillBar<String> seasonPillBar = new PillBar<>(I18n::formatTabNumberLabel, season -> season);
     private final MenuButton bingeWatchButton = new MenuButton();
     private final Button reloadEpisodesButton = new Button();
     private HBox seasonControls;
     private VBox bodyContainer;
     private boolean internalReloadControlVisible = true;
+    private List<String> seasonOptions = List.of();
 
     public PlainEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
         super(account, categoryTitle, seriesId, seriesCategoryId);
@@ -61,10 +61,9 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
     @Override
     protected void initWidgets() {
-        seasonTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        seasonTabPane.setMaxWidth(Double.MAX_VALUE);
-        seasonTabPane.setMinHeight(36);
-        seasonTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+        seasonPillBar.getStyleClass().add("watching-now-season-pill-bar");
+        seasonPillBar.setMaxWidth(Double.MAX_VALUE);
+        seasonPillBar.selectedItemProperty().addListener((_, _, _) -> {
             applyTableFilter();
             updateBingeWatchButton();
         });
@@ -148,10 +147,10 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private VBox buildTableBody() {
-        seasonControls = new HBox(8, seasonTabPane, bingeWatchButton, reloadEpisodesButton);
+        seasonControls = new HBox(8, seasonPillBar, bingeWatchButton, reloadEpisodesButton);
         seasonControls.setAlignment(Pos.CENTER_LEFT);
         seasonControls.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(seasonTabPane, Priority.ALWAYS);
+        HBox.setHgrow(seasonPillBar, Priority.ALWAYS);
         bingeWatchButton.setMinWidth(Region.USE_PREF_SIZE);
         bingeWatchButton.setMaxWidth(Region.USE_PREF_SIZE);
         reloadEpisodesButton.setMinWidth(Region.USE_PREF_SIZE);
@@ -166,7 +165,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     }
 
     public void applyWatchingNowDetailStyling() {
-        seasonTabPane.getStyleClass().add("watching-now-detail-tabs");
+        seasonPillBar.getStyleClass().add("watching-now-season-pill-bar");
         if (bodyContainer != null) {
             bodyContainer.setPadding(new Insets(0, 1, 0, 1));
             bodyContainer.setSpacing(1);
@@ -264,33 +263,23 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             seasons = List.of("1");
         }
 
-        seasonTabPane.getTabs().clear();
-        for (String season : seasons) {
-            Tab tab = new Tab(I18n.formatTabNumberLabel(season));
-            tab.setClosable(false);
-            tab.setUserData(season);
-            seasonTabPane.getTabs().add(tab);
-        }
-
-        if (seasonTabPane.getTabs().isEmpty()) {
-            return;
-        }
-        Tab defaultTab = seasonTabPane.getTabs().stream()
-                .filter(t -> "1".equals(String.valueOf(t.getUserData())))
+        seasonOptions = seasons;
+        seasonPillBar.setItems(seasonOptions);
+        String defaultSeason = seasons.stream()
+                .filter("1"::equals)
                 .findFirst()
-                .orElse(seasonTabPane.getTabs().getFirst());
+                .orElse(seasons.getFirst());
         if (!isBlank(current)) {
-            defaultTab = seasonTabPane.getTabs().stream()
-                    .filter(t -> current.equals(String.valueOf(t.getUserData())))
+            defaultSeason = seasons.stream()
+                    .filter(current::equals)
                     .findFirst()
-                    .orElse(defaultTab);
+                    .orElse(defaultSeason);
         }
-        seasonTabPane.getSelectionModel().select(defaultTab);
+        seasonPillBar.setSelectedItem(defaultSeason);
     }
 
     private String selectedSeason() {
-        Tab selected = seasonTabPane.getSelectionModel().getSelectedItem();
-        return selected != null ? String.valueOf(selected.getUserData()) : "";
+        return seasonPillBar.getSelectedItem() == null ? "" : seasonPillBar.getSelectedItem();
     }
 
     @Override
@@ -316,12 +305,12 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private void selectSeasonTab(String season) {
-        Tab seasonTab = seasonTabPane.getTabs().stream()
-                .filter(t -> season.equals(normalizeNumber(String.valueOf(t.getUserData()))))
+        String match = seasonOptions.stream()
+                .filter(item -> season.equals(normalizeNumber(item)))
                 .findFirst()
                 .orElse(null);
-        if (seasonTab != null) {
-            seasonTabPane.getSelectionModel().select(seasonTab);
+        if (match != null) {
+            seasonPillBar.setSelectedItem(match);
         }
     }
 

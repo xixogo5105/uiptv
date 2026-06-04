@@ -587,6 +587,10 @@ public class ChannelService {
                 return PageAttempt.cancelledAttempt();
             }
             throttle.awaitPermit();
+            if (!ignoreCancellation && isPageFetchCancelled(isCancelled)) {
+                logFetchCancelled(logger, pageNumber);
+                return PageAttempt.cancelledAttempt();
+            }
             try {
                 PageFetchResult page = fetchStalkerPage(request.category(), request.account(), request.movieId(),
                         request.seriesId(), request.censor(), pageNumber, logger);

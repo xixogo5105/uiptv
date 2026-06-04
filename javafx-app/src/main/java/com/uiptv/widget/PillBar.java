@@ -2,6 +2,7 @@ package com.uiptv.widget;
 
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.Toggle;
@@ -59,8 +60,13 @@ public class PillBar<T> extends StackPane {
         content.setPrefWrapLength(4096);
         getChildren().add(content);
         StackPane.setAlignment(content, Pos.CENTER_LEFT);
-        widthProperty().addListener((_, _, width) ->
-                content.setPrefWrapLength(Math.max(1, width.doubleValue() - 4)));
+        widthProperty().addListener((_, _, width) -> {
+            content.setPrefWrapLength(Math.max(1, width.doubleValue() - snappedLeftInset() - snappedRightInset()));
+            requestLayout();
+            if (getParent() != null) {
+                getParent().requestLayout();
+            }
+        });
 
         toggleGroup.selectedToggleProperty().addListener((_, oldValue, newValue) -> {
             if (rebuilding) {
@@ -112,6 +118,33 @@ public class PillBar<T> extends StackPane {
         }
         toggleGroup.selectToggle(restored);
         selectedItem.set(restored == null ? null : itemFromToggle(restored));
+        requestLayout();
+        if (getParent() != null) {
+            getParent().requestLayout();
+        }
+    }
+
+    @Override
+    public Orientation getContentBias() {
+        return Orientation.HORIZONTAL;
+    }
+
+    @Override
+    protected double computeMinHeight(double width) {
+        return computeWrappedHeight(width);
+    }
+
+    @Override
+    protected double computePrefHeight(double width) {
+        return computeWrappedHeight(width);
+    }
+
+    private double computeWrappedHeight(double width) {
+        double insets = snappedTopInset() + snappedBottomInset();
+        double contentWidth = width > 0
+                ? Math.max(1, width - snappedLeftInset() - snappedRightInset())
+                : content.getPrefWrapLength();
+        return Math.max(30, content.prefHeight(contentWidth) + insets);
     }
 
     private ToggleButton createPill(T item) {

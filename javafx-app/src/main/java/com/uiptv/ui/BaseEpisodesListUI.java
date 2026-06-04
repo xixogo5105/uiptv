@@ -346,6 +346,8 @@ public abstract class BaseEpisodesListUI extends HBox {
         setMinWidth(0);
         setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         setMaxWidth(Double.MAX_VALUE);
+        setMinHeight(0);
+        setMaxHeight(Double.MAX_VALUE);
     }
 
     private void configureEmptyStateOverlay() {
@@ -358,6 +360,8 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (!contentStack.getChildren().contains(emptyStateLabel)) {
             contentStack.getChildren().add(emptyStateLabel);
         }
+        contentStack.setMinSize(0, 0);
+        contentStack.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         HBox.setHgrow(contentStack, Priority.ALWAYS);
         if (!getChildren().contains(contentStack)) {
             getChildren().add(contentStack);

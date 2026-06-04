@@ -8,17 +8,21 @@ import com.uiptv.service.CategoryResolver;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.PillBar;
 import com.uiptv.widget.SearchableTableView;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.scene.Cursor;
 import javafx.scene.control.*;
+import javafx.geometry.Pos;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import java.io.IOException;
@@ -55,18 +59,32 @@ public class CategoryListUI extends HBox {
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
     private final VBox leftPane = new VBox(5);
     private final VBox detailPane = new VBox(8);
+    private final HBox headerRow = new HBox(8);
+    private final HBox detailHeader = new HBox(8);
     private final Label detailTitle = new Label();
     private final VBox detailContent = new VBox();
-    private final TabPane modeTabs = new TabPane();
+    private final Button closeButton = new Button(I18n.tr("autoClose"));
+    private final Button detailCloseButton = new Button(I18n.tr("autoClose"));
+    private final Button detailBackButton = new Button(I18n.tr("autoBack"));
+    private final PillBar<String> modePillBar = new PillBar<>(this::modePillLabel, mode -> mode);
+    private final Label categoryHeading = new Label();
+    private final VBox categoryCardList = new VBox(6);
+    private final ScrollPane categoryScrollPane = new ScrollPane(categoryCardList);
+    private final ObservableList<CategoryItem> categoryItems = FXCollections.observableArrayList();
+    private final List<CategoryItem> selectedCategoryItems = new ArrayList<>();
     private final EnumMap<Account.AccountAction, ModeState> modeStates = new EnumMap<>(Account.AccountAction.class);
-    private final Tab itvTab = new Tab(I18n.tr("categoryTabLiveTv"));
-    private final Tab vodTab = new Tab(I18n.tr("categoryTabVideoOnDemand"));
-    private final Tab seriesTab = new Tab(I18n.tr("categoryTabTvSeries"));
+    private static final String MODE_ACCOUNTS = "accounts";
+    private static final String MODE_ITV = "itv";
+    private static final String MODE_VOD = "vod";
+    private static final String MODE_SERIES = "series";
     SearchableTableView<CategoryItem> table = new SearchableTableView<>();
     TableColumn<CategoryItem, String> categoryTitle = new TableColumn<>(I18n.tr("autoCategories"));
     TableColumn<CategoryItem, String> categoryId = new TableColumn<>("");
     private AtomicBoolean currentRequestCancelled;
     private Account.AccountAction activeMode;
+    private Runnable accountsNavigationHandler;
+    private Runnable closeHandler;
+    private CategoryItem focusedCategoryItem;
 
     public CategoryListUI(List<Category> list, Account account) { // Removed MediaPlayer argument
         this(account, false);
@@ -105,8 +123,11 @@ public class CategoryListUI extends HBox {
         )));
         ModeState state = modeStates.computeIfAbsent(activeMode, k -> new ModeState());
         state.categories = new ArrayList<>(processedList);
+        categoryItems.setAll(catList);
+        selectedCategoryItems.removeIf(item -> !categoryItems.contains(item));
+        focusedCategoryItem = categoryItems.contains(focusedCategoryItem) ? focusedCategoryItem : null;
+        rebuildCategoryCards();
         table.setItems(FXCollections.observableArrayList(catList));
-        table.addTextFilter();
         table.setPlaceholder(null);
         maybeShowCachedChannelPane(state);
         if (catList.size() == 1) {
@@ -116,6 +137,10 @@ public class CategoryListUI extends HBox {
 
     private void initWidgets() {
         setSpacing(5);
+        getStyleClass().add("account-category-panel");
+        setFillHeight(true);
+        setMaxWidth(Double.MAX_VALUE);
+        setMinWidth(0);
         setMaxHeight(Double.MAX_VALUE);
         setMinHeight(0);
         table.setEditable(true);
@@ -127,13 +152,17 @@ public class CategoryListUI extends HBox {
         categoryId.setCellValueFactory(cellData -> cellData.getValue().categoryIdProperty());
         categoryTitle.setSortType(TableColumn.SortType.ASCENDING);
         categoryTitle.setSortable(true);
-        setupModeTabs();
+        setupModePillBar();
+        setupPanelHeaders();
+        setupCategoryCardList();
         table.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(table, Priority.ALWAYS);
-        leftPane.getChildren().addAll(modeTabs, table.getSearchTextField(), table);
+        leftPane.getStyleClass().add("account-category-list-pane");
+        leftPane.getChildren().addAll(headerRow, categoryHeading, categoryScrollPane);
         leftPane.setMaxHeight(Double.MAX_VALUE);
         leftPane.setMinHeight(0);
         VBox.setVgrow(leftPane, Priority.ALWAYS);
+        HBox.setHgrow(leftPane, Priority.ALWAYS);
         initDetailPane();
         getChildren().setAll(leftPane);
         addChannelClickHandler();
@@ -141,15 +170,212 @@ public class CategoryListUI extends HBox {
     }
 
     private void initDetailPane() {
+        detailBackButton.setOnAction(_ -> showListView(true));
+        detailCloseButton.setOnAction(_ -> closePanel());
+        detailHeader.getStyleClass().add("account-category-detail-header");
+        detailHeader.setAlignment(Pos.CENTER_LEFT);
+        detailHeader.setMaxWidth(Double.MAX_VALUE);
+        detailTitle.getStyleClass().add("account-category-detail-title");
+        detailTitle.setMinWidth(0);
+        detailTitle.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(detailTitle, Priority.ALWAYS);
+        detailHeader.getChildren().setAll(detailBackButton, detailTitle, detailCloseButton);
         detailContent.setSpacing(5);
+        detailContent.setFillWidth(true);
+        detailContent.setMinWidth(0);
+        detailContent.setMaxWidth(Double.MAX_VALUE);
+        detailContent.setMinHeight(0);
+        detailContent.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(detailContent, Priority.ALWAYS);
+        detailPane.setFillWidth(true);
+        detailPane.setMinWidth(0);
+        detailPane.setMaxWidth(Double.MAX_VALUE);
+        detailPane.setMinHeight(0);
+        detailPane.setMaxHeight(Double.MAX_VALUE);
+        HBox.setHgrow(detailPane, Priority.ALWAYS);
         detailPane.getChildren().setAll(detailContent);
     }
 
+    private void setupCategoryCardList() {
+        categoryHeading.getStyleClass().add("account-category-heading");
+        categoryHeading.setMinWidth(0);
+        categoryHeading.setMaxWidth(Double.MAX_VALUE);
+        categoryCardList.getStyleClass().add("account-category-card-list");
+        categoryCardList.setFillWidth(true);
+        categoryCardList.setMinWidth(0);
+        categoryCardList.setMaxWidth(Double.MAX_VALUE);
+        categoryScrollPane.getStyleClass().addAll("account-category-scroll", "transparent-scroll-pane");
+        categoryScrollPane.setFitToWidth(true);
+        categoryScrollPane.setPannable(true);
+        categoryScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        categoryScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        categoryScrollPane.setFocusTraversable(true);
+        categoryScrollPane.setMinSize(0, 0);
+        categoryScrollPane.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        VBox.setVgrow(categoryScrollPane, Priority.ALWAYS);
+        categoryScrollPane.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                doRetrieveChannels(resolveFocusedCategoryItem());
+                event.consume();
+            } else if (event.getCode() == KeyCode.DELETE) {
+                removeSelectedCachedCategories();
+                event.consume();
+            } else if (event.getCode() == KeyCode.A && event.isShortcutDown()) {
+                selectedCategoryItems.clear();
+                selectedCategoryItems.addAll(categoryItems);
+                focusedCategoryItem = categoryItems.isEmpty() ? null : categoryItems.getLast();
+                updateCategorySelectionStyles();
+                event.consume();
+            }
+        });
+        showCategoryPlaceholder(I18n.tr("autoLoadingCategories"));
+    }
+
+    private void rebuildCategoryCards() {
+        categoryCardList.getChildren().clear();
+        if (categoryItems.isEmpty()) {
+            showCategoryPlaceholder(I18n.tr("autoNothingFoundFor", I18n.tr("autoCategories")));
+            return;
+        }
+        for (CategoryItem item : categoryItems) {
+            categoryCardList.getChildren().add(createCategoryCard(item));
+        }
+        updateCategorySelectionStyles();
+    }
+
+    private void showCategoryPlaceholder(String text) {
+        selectedCategoryItems.clear();
+        focusedCategoryItem = null;
+        Label placeholder = new Label(text == null ? "" : text);
+        placeholder.getStyleClass().add("account-category-placeholder");
+        placeholder.setWrapText(true);
+        placeholder.setMaxWidth(Double.MAX_VALUE);
+        categoryCardList.getChildren().setAll(placeholder);
+    }
+
+    private HBox createCategoryCard(CategoryItem item) {
+        Label title = new Label(item == null ? "" : item.getCategoryTitle());
+        title.getStyleClass().add("account-category-card-title");
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        title.setWrapText(true);
+        HBox.setHgrow(title, Priority.ALWAYS);
+
+        HBox card = new HBox(8, title);
+        card.getStyleClass().addAll("account-category-card", "watching-now-episode-card", "watching-now-episode-card-compact");
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setMinWidth(0);
+        card.setMaxWidth(Double.MAX_VALUE);
+        card.setFocusTraversable(true);
+        card.setUserData(item);
+
+        if (item != null && item.isCensored()) {
+            Label lockBadge = new Label(I18n.tr("filterLockStateLocked"));
+            lockBadge.getStyleClass().add("account-category-lock-badge");
+            card.getChildren().add(lockBadge);
+        }
+
+        ContextMenu contextMenu = createCategoryContextMenu(item);
+        card.setOnContextMenuRequested(event -> {
+            selectCategoryItem(item, false);
+            MenuItem removeSelected = (MenuItem) contextMenu.getItems().getFirst();
+            removeSelected.setDisable(selectedRemovableCategoryItems().isEmpty());
+            contextMenu.show(card, event.getScreenX(), event.getScreenY());
+            event.consume();
+        });
+        card.setOnMouseClicked(event -> {
+            if (event.getButton() != MouseButton.PRIMARY) {
+                return;
+            }
+            boolean toggleSelection = event.isShortcutDown() || event.isControlDown();
+            selectCategoryItem(item, toggleSelection);
+            if (!toggleSelection) {
+                doRetrieveChannels(item);
+            }
+            event.consume();
+        });
+        card.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                doRetrieveChannels(item);
+                event.consume();
+            } else if (event.getCode() == KeyCode.DELETE) {
+                removeSelectedCachedCategories();
+                event.consume();
+            }
+        });
+        card.focusedProperty().addListener((_, _, focused) -> {
+            if (Boolean.TRUE.equals(focused)) {
+                focusedCategoryItem = item;
+                if (!selectedCategoryItems.contains(item)) {
+                    selectCategoryItem(item, false);
+                }
+            }
+        });
+        return card;
+    }
+
+    private ContextMenu createCategoryContextMenu(CategoryItem item) {
+        ContextMenu contextMenu = new ContextMenu();
+        MenuItem removeSelected = new MenuItem(I18n.tr("categoryRemoveSelectedFromCache"));
+        removeSelected.setOnAction(_ -> removeSelectedCachedCategories());
+        contextMenu.getItems().add(removeSelected);
+        return contextMenu;
+    }
+
+    private void selectCategoryItem(CategoryItem item, boolean toggle) {
+        if (item == null) {
+            return;
+        }
+        if (toggle) {
+            if (selectedCategoryItems.contains(item)) {
+                selectedCategoryItems.remove(item);
+            } else {
+                selectedCategoryItems.add(item);
+            }
+        } else {
+            selectedCategoryItems.clear();
+            selectedCategoryItems.add(item);
+        }
+        focusedCategoryItem = item;
+        updateCategorySelectionStyles();
+    }
+
+    private CategoryItem resolveFocusedCategoryItem() {
+        if (focusedCategoryItem != null && categoryItems.contains(focusedCategoryItem)) {
+            return focusedCategoryItem;
+        }
+        if (!selectedCategoryItems.isEmpty()) {
+            return selectedCategoryItems.getLast();
+        }
+        return categoryItems.isEmpty() ? null : categoryItems.getFirst();
+    }
+
+    private void updateCategorySelectionStyles() {
+        for (javafx.scene.Node child : categoryCardList.getChildren()) {
+            if (!(child instanceof Region region)) {
+                continue;
+            }
+            boolean selected = selectedCategoryItems.contains(region.getUserData());
+            if (selected && !region.getStyleClass().contains("selected-card")) {
+                region.getStyleClass().add("selected-card");
+            } else if (!selected) {
+                region.getStyleClass().remove("selected-card");
+            }
+        }
+    }
+
     private void showListView() {
+        showListView(false);
+    }
+
+    private void showListView(boolean abandonActiveLoad) {
         if (!embeddedMode) {
             return;
         }
+        if (abandonActiveLoad) {
+            abandonActiveChannelView();
+        }
+        HBox.setHgrow(leftPane, Priority.ALWAYS);
         getChildren().setAll(leftPane);
     }
 
@@ -159,9 +385,18 @@ public class CategoryListUI extends HBox {
         }
         detailTitle.setText(title);
         detailContent.getChildren().setAll(ui);
+        ui.setMinWidth(0);
+        ui.setMaxWidth(Double.MAX_VALUE);
+        ui.setMinHeight(0);
+        ui.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(ui, Priority.ALWAYS);
         detailPane.setMaxHeight(Double.MAX_VALUE);
         detailPane.setMinHeight(0);
+        if (!detailPane.getStyleClass().contains("account-category-detail-pane")) {
+            detailPane.getStyleClass().add("account-category-detail-pane");
+        }
+        detailPane.getChildren().setAll(detailHeader, detailContent);
+        HBox.setHgrow(detailPane, Priority.ALWAYS);
         getChildren().setAll(detailPane);
     }
 
@@ -178,7 +413,7 @@ public class CategoryListUI extends HBox {
                 return true;
             }
         }
-        showListView();
+        showListView(true);
         return true;
     }
 
@@ -191,14 +426,7 @@ public class CategoryListUI extends HBox {
     }
 
     private void releaseTransientState() {
-        // Cancel any ongoing loading thread
-        if (currentRequestCancelled != null) {
-            currentRequestCancelled.set(true);
-        }
-        Thread loadingThread = currentLoadingThread.getAndSet(null);
-        if (loadingThread != null && loadingThread.isAlive()) {
-            loadingThread.interrupt();
-        }
+        cancelCurrentLoadingRequest();
 
         // Clear all cached mode states to allow garbage collection
         // This is critical because modeStates holds ChannelListUI instances with data
@@ -211,51 +439,125 @@ public class CategoryListUI extends HBox {
 
         // SearchableTableView wraps items in SortedList/FilteredList, which is not directly mutable.
         table.setItems(FXCollections.observableArrayList());
+        categoryItems.clear();
+        selectedCategoryItems.clear();
+        focusedCategoryItem = null;
+        categoryCardList.getChildren().clear();
     }
 
-    private void setupModeTabs() {
-        boolean supportsVodSeries = VOD_AND_SERIES_SUPPORTED.contains(account.getType());
-        modeTabs.setVisible(supportsVodSeries);
-        modeTabs.setManaged(supportsVodSeries);
-        if (!supportsVodSeries) {
+    public void dispose() {
+        releaseTransientState();
+    }
+
+    public void setAccountsNavigationHandler(Runnable accountsNavigationHandler) {
+        this.accountsNavigationHandler = accountsNavigationHandler;
+        updateCloseButtonVisibility();
+    }
+
+    public void setCloseHandler(Runnable closeHandler) {
+        this.closeHandler = closeHandler;
+        updateCloseButtonVisibility();
+    }
+
+    private void setupPanelHeaders() {
+        closeButton.getStyleClass().add("account-category-close-button");
+        detailCloseButton.getStyleClass().add("account-category-close-button");
+        closeButton.setMinWidth(Region.USE_PREF_SIZE);
+        closeButton.setMaxWidth(Region.USE_PREF_SIZE);
+        detailCloseButton.setMinWidth(Region.USE_PREF_SIZE);
+        detailCloseButton.setMaxWidth(Region.USE_PREF_SIZE);
+        closeButton.setOnAction(_ -> closePanel());
+        headerRow.getStyleClass().add("account-category-header");
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+        headerRow.setMaxWidth(Double.MAX_VALUE);
+        modePillBar.setMinWidth(0);
+        modePillBar.setPrefWidth(400);
+        modePillBar.setMaxWidth(Region.USE_PREF_SIZE);
+        HBox.setHgrow(modePillBar, Priority.NEVER);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        headerRow.getChildren().setAll(modePillBar, spacer, closeButton);
+        updateCloseButtonVisibility();
+    }
+
+    private void updateCloseButtonVisibility() {
+        boolean visible = closeHandler != null || accountsNavigationHandler != null;
+        closeButton.setVisible(visible);
+        closeButton.setManaged(visible);
+        detailCloseButton.setVisible(visible);
+        detailCloseButton.setManaged(visible);
+    }
+
+    private void closePanel() {
+        releaseTransientState();
+        if (closeHandler != null) {
+            closeHandler.run();
             return;
         }
-        modeTabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        modeTabs.setPrefHeight(36);
-        modeTabs.setMinHeight(36);
-        modeTabs.setMaxHeight(36);
-        modeTabs.setTabMinHeight(28);
-        modeTabs.setTabMaxHeight(28);
-        configureModeTab(itvTab, Account.AccountAction.itv);
-        configureModeTab(vodTab, Account.AccountAction.vod);
-        configureModeTab(seriesTab, Account.AccountAction.series);
-        modeTabs.getTabs().setAll(itvTab, vodTab, seriesTab);
-        modeTabs.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-            if (newTab == null) {
+        if (accountsNavigationHandler != null) {
+            accountsNavigationHandler.run();
+        }
+    }
+
+    private void setupModePillBar() {
+        boolean supportsVodSeries = VOD_AND_SERIES_SUPPORTED.contains(account.getType());
+        modePillBar.getStyleClass().add("category-mode-pill-bar");
+        List<String> modes = new ArrayList<>();
+        modes.add(MODE_ACCOUNTS);
+        modes.add(MODE_ITV);
+        if (supportsVodSeries) {
+            modes.add(MODE_VOD);
+            modes.add(MODE_SERIES);
+        }
+        modePillBar.setItems(modes);
+        modePillBar.selectedItemProperty().addListener((_, _, selectedMode) -> {
+            if (selectedMode == null) {
                 return;
             }
-            Account.AccountAction mode = (Account.AccountAction) newTab.getUserData();
+            if (MODE_ACCOUNTS.equals(selectedMode)) {
+                releaseTransientState();
+                if (accountsNavigationHandler != null) {
+                    accountsNavigationHandler.run();
+                }
+                Platform.runLater(this::selectActiveModePill);
+                return;
+            }
+            Account.AccountAction mode = actionForMode(selectedMode);
             if (mode != null && mode != activeMode) {
                 switchMode(mode);
             }
         });
-        selectActiveModeTab();
+        selectActiveModePill();
     }
 
-    private void configureModeTab(Tab tab, Account.AccountAction mode) {
-        tab.setClosable(false);
-        tab.setUserData(mode);
+    private String modePillLabel(String mode) {
+        return switch (mode) {
+            case MODE_ACCOUNTS -> I18n.tr("autoAccount");
+            case MODE_VOD -> I18n.tr("autoVod");
+            case MODE_SERIES -> I18n.tr("autoSeries");
+            default -> I18n.tr("autoTvChannels");
+        };
+    }
+
+    private Account.AccountAction actionForMode(String mode) {
+        return switch (mode) {
+            case MODE_VOD -> Account.AccountAction.vod;
+            case MODE_SERIES -> Account.AccountAction.series;
+            case MODE_ITV -> Account.AccountAction.itv;
+            default -> null;
+        };
     }
 
     private void switchMode(Account.AccountAction mode) {
         if (mode == null || mode == activeMode) {
             return;
         }
+        cancelCurrentLoadingRequest();
         disposeChannelListState(modeStates.get(activeMode));
         activeMode = mode;
         account.setAction(mode);
         refreshCategoryColumnTitle();
-        selectActiveModeTab();
+        selectActiveModePill();
 
         ModeState state = modeStates.computeIfAbsent(mode, k -> new ModeState());
         if (!state.categories.isEmpty()) {
@@ -264,6 +566,10 @@ public class CategoryListUI extends HBox {
         }
 
         table.setItems(FXCollections.observableArrayList());
+        categoryItems.clear();
+        selectedCategoryItems.clear();
+        focusedCategoryItem = null;
+        showCategoryPlaceholder(I18n.tr("autoLoadingCategories"));
         table.setPlaceholder(new Label(I18n.tr("autoLoadingCategories")));
         if (embeddedMode) {
             showListView();
@@ -288,22 +594,23 @@ public class CategoryListUI extends HBox {
         }).start();
     }
 
-    private void selectActiveModeTab() {
-        Tab target = itvTab;
-        if (activeMode == Account.AccountAction.vod) {
-            target = vodTab;
-        } else if (activeMode == Account.AccountAction.series) {
-            target = seriesTab;
-        }
-        if (modeTabs.getSelectionModel().getSelectedItem() != target) {
-            modeTabs.getSelectionModel().select(target);
+    private void selectActiveModePill() {
+        String target = switch (activeMode) {
+            case vod -> MODE_VOD;
+            case series -> MODE_SERIES;
+            case itv -> MODE_ITV;
+        };
+        if (!Objects.equals(modePillBar.getSelectedItem(), target)) {
+            modePillBar.setSelectedItem(target);
         }
     }
 
     private void refreshCategoryColumnTitle() {
         String accountName = account != null && account.getAccountName() != null ? account.getAccountName().trim() : "";
         String baseTitle = I18n.tr("autoCategories");
-        categoryTitle.setText(accountName.isEmpty() ? baseTitle : baseTitle + " - " + accountName);
+        String title = accountName.isEmpty() ? baseTitle : baseTitle + " - " + accountName;
+        categoryTitle.setText(title);
+        categoryHeading.setText(title);
     }
 
     private void maybeShowCachedChannelPane(ModeState state) {
@@ -394,7 +701,8 @@ public class CategoryListUI extends HBox {
             List<Category> categories = CategoryService.getInstance().getCached(account);
             modeStates.computeIfAbsent(mode, _ -> new ModeState()).categories = new ArrayList<>(categories);
             setItems(categories);
-            table.getSelectionModel().clearSelection();
+            selectedCategoryItems.clear();
+            updateCategorySelectionStyles();
         } catch (Exception e) {
             showErrorAlert(I18n.tr("autoFailed") + ": " + e.getMessage());
         }
@@ -402,7 +710,7 @@ public class CategoryListUI extends HBox {
 
     private List<CategoryItem> selectedRemovableCategoryItems() {
         Map<String, CategoryItem> uniqueItems = new LinkedHashMap<>();
-        for (CategoryItem item : table.getSelectionModel().getSelectedItems()) {
+        for (CategoryItem item : selectedCategoryItems) {
             if (isRemovableCategoryItem(item)) {
                 uniqueItems.putIfAbsent(item.getId().trim(), item);
             }
@@ -448,6 +756,13 @@ public class CategoryListUI extends HBox {
         if (runningThread != null && runningThread.isAlive()) {
             runningThread.interrupt();
         }
+    }
+
+    private void abandonActiveChannelView() {
+        cancelCurrentLoadingRequest();
+        disposeChannelListState(modeStates.get(activeMode));
+        detailContent.getChildren().clear();
+        detailPane.getChildren().clear();
     }
 
     private void discardRemovedCategoryState(Account.AccountAction mode, List<CategoryItem> removedItems) {
@@ -535,22 +850,38 @@ public class CategoryListUI extends HBox {
         final List<CategoryItem> allItems = new ArrayList<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        Platform.runLater(() -> initializeChannelListView(item, selectedCategoryKey, state, channelListUIHolder, allItems, latch));
+        Platform.runLater(() -> {
+            if (isLoadingCancelled(isCancelled)) {
+                latch.countDown();
+                return;
+            }
+            initializeChannelListView(item, selectedCategoryKey, state, channelListUIHolder, allItems, latch, mode);
+        });
 
         try {
             latch.await();
+            if (isLoadingCancelled(isCancelled)) {
+                return;
+            }
             ChannelListUI channelListUI = channelListUIHolder[0];
+            if (channelListUI == null) {
+                return;
+            }
 
             try {
                 channelListUI.startLoadingProgressIfNeeded();
                 loadChannelsIntoUi(item, noCachingNeeded, isCancelled, selectedCategoryKey, channelListUI, allItems);
             } finally {
-                channelListUI.setLoadingComplete();
+                if (!isLoadingCancelled(isCancelled)) {
+                    channelListUI.setLoadingComplete();
+                }
             }
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            Platform.runLater(() -> showErrorAlert(I18n.tr("autoErrorLoadingChannels", e.getMessage())));
+            if (!isLoadingCancelled(isCancelled)) {
+                Platform.runLater(() -> showErrorAlert(I18n.tr("autoErrorLoadingChannels", e.getMessage())));
+            }
         }
     }
 
@@ -565,9 +896,10 @@ public class CategoryListUI extends HBox {
     }
 
     private void initializeChannelListView(CategoryItem item, String selectedCategoryKey, ModeState state,
-                                           ChannelListUI[] channelListUIHolder, List<CategoryItem> allItems, CountDownLatch latch) {
+                                           ChannelListUI[] channelListUIHolder, List<CategoryItem> allItems,
+                                           CountDownLatch latch, Account.AccountAction mode) {
         String title = item.getCategoryTitle() != null ? item.getCategoryTitle() : "";
-        ChannelListUI ui = new ChannelListUI(account, title, selectedCategoryKey);
+        ChannelListUI ui = new ChannelListUI(account, title, selectedCategoryKey, mode);
         if (embeddedMode) {
             ui.setEmbeddedMode(true);
         } else {
@@ -584,7 +916,7 @@ public class CategoryListUI extends HBox {
             getChildren().add(ui);
         }
         if (isAllCategory(item)) {
-            allItems.addAll(table.getItems());
+            allItems.addAll(categoryItems);
         }
         latch.countDown();
     }

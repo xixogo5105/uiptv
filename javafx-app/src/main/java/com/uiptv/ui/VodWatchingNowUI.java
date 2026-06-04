@@ -470,10 +470,6 @@ public class VodWatchingNowUI extends VBox {
             details.getChildren().add(metaRow);
         }
         updateImdbNodes(details, data);
-        Label openHint = new Label(I18n.tr("autoViewDetails"));
-        openHint.getStyleClass().add("watching-now-open-hint");
-        openHint.setMinHeight(Region.USE_PREF_SIZE);
-        details.getChildren().add(openHint);
 
         HBox topRow = new HBox(16, posterWrap, details);
         topRow.setAlignment(Pos.TOP_LEFT);
@@ -497,7 +493,6 @@ public class VodWatchingNowUI extends VBox {
         card.getChildren().add(cardBody);
         List<Label> cardLabels = collectCardLabels(data);
         cardLabels.add(accountLabel);
-        cardLabels.add(openHint);
         card.getProperties().put(KEY_CARD_LABELS, cardLabels);
         card.getProperties().put(KEY_CARD_LINKS, List.of(title));
         return card;
