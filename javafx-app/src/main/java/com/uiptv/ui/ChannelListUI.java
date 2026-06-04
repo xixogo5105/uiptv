@@ -614,6 +614,7 @@ public class ChannelListUI extends HBox {
             } else if (!thumbnailListenerRegistered) {
                 ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
                 thumbnailListenerRegistered = true;
+                applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
             }
         });
     }

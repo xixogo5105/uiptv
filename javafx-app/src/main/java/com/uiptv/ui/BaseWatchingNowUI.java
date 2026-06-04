@@ -271,6 +271,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         mergeMissingSeasonInfo(data.seasonInfo, cached.seasonInfo);
         data.imdbLoaded = true;
         data.imdbLoading = false;
+        data.thumbnailMetadataAttempted = true;
     }
 
     private List<WatchingEpisode> mapEpisodesFromCache(Account account,
@@ -468,14 +469,24 @@ public abstract class BaseWatchingNowUI extends VBox {
             contentBox.getChildren().setAll(seriesGrid);
         }
         for (SeriesPanelData data : rows) {
-            if (thumbnailsEnabled() && isBlank(resolveSeriesPosterUrl(data)) && !data.imdbLoaded && !data.imdbLoading) {
-                data.imdbLoading = true;
-                lazyLoadImdb(data, null);
-            }
+            ensureSeriesThumbnailMetadataLoad(data);
         }
         selectedSeriesCard = null;
         VBox.setVgrow(seriesGrid, Priority.ALWAYS);
         VBox.setVgrow(contentBox, Priority.ALWAYS);
+    }
+
+    private void ensureSeriesThumbnailMetadataLoad(SeriesPanelData data) {
+        if (!thumbnailsEnabled() || data == null || data.imdbLoading || !isBlank(resolveSeriesPosterUrl(data))) {
+            return;
+        }
+        if (data.imdbLoaded && !data.thumbnailMetadataAttempted) {
+            data.imdbLoaded = false;
+        }
+        if (!data.imdbLoaded) {
+            data.imdbLoading = true;
+            lazyLoadImdb(data, null);
+        }
     }
 
     private void showLoadingPlaceholderIfEmpty() {
@@ -795,18 +806,35 @@ public abstract class BaseWatchingNowUI extends VBox {
         detailLayout.setMinWidth(0);
         detailLayout.setMaxWidth(Double.MAX_VALUE);
 
-        VBox detailsPanel = createSeriesDetailPanel(data);
         VBox episodesPanel = createSeriesEpisodesPanel(data);
-        detailLayout.getChildren().addAll(detailsPanel, episodesPanel);
-        detailLayout.widthProperty().addListener((_, _, width) ->
-                applySeriesDetailLayoutSizing(detailsPanel, episodesPanel, width.doubleValue()));
-        Platform.runLater(() -> applySeriesDetailLayoutSizing(detailsPanel, episodesPanel, detailLayout.getWidth()));
+        if (thumbnailsEnabled()) {
+            VBox detailsPanel = createSeriesDetailPanel(data);
+            detailLayout.getChildren().addAll(detailsPanel, episodesPanel);
+            detailLayout.widthProperty().addListener((_, _, width) ->
+                    applySeriesDetailLayoutSizing(detailsPanel, episodesPanel, width.doubleValue()));
+            Platform.runLater(() -> applySeriesDetailLayoutSizing(detailsPanel, episodesPanel, detailLayout.getWidth()));
+        } else {
+            detailLayout.getChildren().add(episodesPanel);
+            detailLayout.widthProperty().addListener((_, _, width) ->
+                    applyPlainSeriesDetailLayoutSizing(episodesPanel, width.doubleValue()));
+            Platform.runLater(() -> applyPlainSeriesDetailLayoutSizing(episodesPanel, detailLayout.getWidth()));
+        }
 
         contentBox.getChildren().addAll(topBar, detailLayout);
         VBox.setVgrow(contentBox, Priority.ALWAYS);
 
+        if (!thumbnailsEnabled()) {
+            data.imdbLoading = false;
+            data.seriesPosterNode = null;
+            return;
+        }
         loadSeriesPosterImage(data);
-        if (!data.imdbLoaded && !data.imdbLoading) {
+        if (data.imdbLoaded && !data.thumbnailMetadataAttempted && isBlank(resolveSeriesPosterUrl(data))) {
+            data.imdbLoaded = false;
+            data.imdbLoading = true;
+            applySeasonInfoToHeader(data);
+            lazyLoadImdb(data, null);
+        } else if (!data.imdbLoaded && !data.imdbLoading) {
             data.imdbLoading = true;
             applySeasonInfoToHeader(data);
             lazyLoadImdb(data, null);
@@ -816,18 +844,27 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private VBox createSeriesDetailPanel(SeriesPanelData data) {
-        VBox panel = new VBox(12);
+        boolean compact = !thumbnailsEnabled();
+        VBox panel = new VBox(compact ? 8 : 12);
         panel.getStyleClass().add("watching-now-series-info-panel");
+        if (compact) {
+            panel.getStyleClass().add("watching-now-series-info-panel-compact");
+        }
         panel.setMinWidth(260);
         panel.setPrefWidth(330);
         panel.setMaxWidth(380);
 
-        ImageView poster = SeriesCardUiSupport.createFitPoster(resolveSeriesPosterUrl(data), 260, 390, WATCHING_NOW_CACHE);
-        data.seriesPosterNode = poster;
-        StackPane posterWrap = new StackPane(poster);
-        posterWrap.getStyleClass().add("watching-now-series-poster-wrap");
-        posterWrap.setAlignment(Pos.CENTER);
-        posterWrap.setMaxWidth(Double.MAX_VALUE);
+        StackPane posterWrap = null;
+        if (thumbnailsEnabled()) {
+            ImageView poster = SeriesCardUiSupport.createFitPoster(resolveSeriesPosterUrl(data), 260, 390, WATCHING_NOW_CACHE);
+            data.seriesPosterNode = poster;
+            posterWrap = new StackPane(poster);
+            posterWrap.getStyleClass().add("watching-now-series-poster-wrap");
+            posterWrap.setAlignment(Pos.CENTER);
+            posterWrap.setMaxWidth(Double.MAX_VALUE);
+        } else {
+            data.seriesPosterNode = null;
+        }
 
         VBox details = new VBox(6);
         details.getStyleClass().add("watching-now-series-metadata");
@@ -863,7 +900,10 @@ public abstract class BaseWatchingNowUI extends VBox {
         addImdbHeaderNodes(details, data);
         addSeasonMetadataText(details, data);
 
-        panel.getChildren().addAll(posterWrap, details);
+        if (posterWrap != null) {
+            panel.getChildren().add(posterWrap);
+        }
+        panel.getChildren().add(details);
         return panel;
     }
 
@@ -897,7 +937,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         seasonPillBar.getStyleClass().add("watching-now-season-pill-bar");
         data.seasonPillBar = seasonPillBar;
 
-        VBox episodeCards = new VBox(10);
+        VBox episodeCards = new VBox(thumbnailsEnabled() ? 10 : 6);
         episodeCards.getStyleClass().add("watching-now-episode-card-list");
         episodeCards.setMinWidth(0);
         episodeCards.setMaxWidth(Double.MAX_VALUE);
@@ -966,10 +1006,26 @@ public abstract class BaseWatchingNowUI extends VBox {
             episodesPanel.setPrefWidth(panelWidth);
             return;
         }
+        if (!thumbnailsEnabled()) {
+            double detailsWidth = Math.min(290, Math.max(240, width * 0.22));
+            detailsPanel.setPrefWidth(detailsWidth);
+            detailsPanel.setMaxWidth(310);
+            episodesPanel.setPrefWidth(Math.max(480, width - detailsWidth - 18));
+            return;
+        }
         double detailsWidth = Math.min(340, Math.max(280, width * 0.32));
         detailsPanel.setPrefWidth(detailsWidth);
         detailsPanel.setMaxWidth(380);
         episodesPanel.setPrefWidth(Math.max(420, width - detailsWidth - 18));
+    }
+
+    private void applyPlainSeriesDetailLayoutSizing(VBox episodesPanel, double availableWidth) {
+        if (episodesPanel == null) {
+            return;
+        }
+        double width = Math.max(320, availableWidth <= 0 ? 960 : availableWidth);
+        episodesPanel.setPrefWidth(Math.max(320, width - 4));
+        episodesPanel.setMaxWidth(Double.MAX_VALUE);
     }
 
     private MenuButton createSeriesBingeWatchButton(SeriesPanelData data) {
@@ -1054,6 +1110,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         imdbCacheByPanelKey.remove(panelCacheKey(data.account, data.state));
         data.imdbLoaded = false;
         data.imdbLoading = false;
+        data.thumbnailMetadataAttempted = false;
         loadSeriesListPosterImage(data);
     }
 
@@ -1182,7 +1239,7 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private VBox buildEpisodeCards(SeriesPanelData data, javafx.collections.ObservableList<WatchingEpisode> items) {
-        VBox container = new VBox(10);
+        VBox container = new VBox(thumbnailsEnabled() ? 10 : 6);
         container.setPadding(Insets.EMPTY);
         container.setFillWidth(true);
         VBox.setVgrow(container, Priority.ALWAYS);
@@ -1298,27 +1355,17 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private VBox createEpisodeCard(SeriesPanelData data, WatchingEpisode row) {
-        VBox root = new VBox(8);
-        root.setPadding(new Insets(10));
+        boolean compact = !thumbnailsEnabled();
+        VBox root = new VBox(compact ? 4 : 8);
+        root.setPadding(compact ? new Insets(7, 10, 7, 10) : new Insets(10));
         root.getStyleClass().add("uiptv-card");
         root.getStyleClass().add("watching-now-episode-card");
+        if (compact) {
+            root.getStyleClass().add("watching-now-episode-card-compact");
+        }
         root.setFocusTraversable(true);
         root.setMinWidth(0);
         root.setMaxWidth(Double.MAX_VALUE);
-
-        HBox top = new HBox(10);
-        top.setAlignment(Pos.TOP_LEFT);
-
-        ImageView poster = SeriesCardUiSupport.createFitPoster(row.imageUrl, 96, 136, WATCHING_NOW_CACHE);
-        StackPane posterWrap = new StackPane(poster);
-        posterWrap.setAlignment(Pos.CENTER);
-        posterWrap.setMinWidth(110);
-        posterWrap.setPrefWidth(110);
-
-        VBox text = new VBox(4);
-        text.setMaxWidth(Double.MAX_VALUE);
-        text.setFillWidth(true);
-        HBox.setHgrow(text, Priority.ALWAYS);
 
         HBox badges = new HBox(4);
         badges.setAlignment(Pos.TOP_RIGHT);
@@ -1345,12 +1392,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         });
         badges.getChildren().add(play);
 
-        HBox actionRow = new HBox();
-        actionRow.setAlignment(Pos.TOP_RIGHT);
-        Region actionSpacer = new Region();
-        HBox.setHgrow(actionSpacer, Priority.ALWAYS);
-        actionRow.getChildren().addAll(actionSpacer, badges);
-
         Label title = new Label(buildEpisodeDisplayTitle(row.season, row.episodeNum, row.title));
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
@@ -1358,33 +1399,51 @@ public abstract class BaseWatchingNowUI extends VBox {
         title.setMinHeight(Region.USE_PREF_SIZE);
         title.getStyleClass().add(STRONG_LABEL);
 
-        text.getChildren().addAll(actionRow, title);
         List<Label> cardLabels = new ArrayList<>();
         cardLabels.add(title);
-        if (!isBlank(row.rating)) {
-            Label rating = new Label(I18n.tr("autoRatingPrefix", row.rating));
-            rating.setMinWidth(0);
-            text.getChildren().add(rating);
-            cardLabels.add(rating);
-        }
-        if (!isBlank(row.releaseDate)) {
-            Label release = new Label(I18n.tr("autoReleasePrefix", shortDateOnly(row.releaseDate)));
-            release.setMinWidth(0);
-            text.getChildren().add(release);
-            cardLabels.add(release);
-        }
 
-        top.getChildren().addAll(posterWrap, text);
-        root.getChildren().add(top);
-        if (!isBlank(row.plot)) {
-            Label plot = new Label(row.plot);
-            plot.setWrapText(true);
-            plot.setMaxWidth(Double.MAX_VALUE);
-            plot.setMinWidth(0);
-            plot.setMinHeight(Region.USE_PREF_SIZE);
-            root.getChildren().add(plot);
-            cardLabels.add(plot);
+        if (compact) {
+            HBox titleRow = new HBox(8, title, badges);
+            titleRow.setAlignment(Pos.TOP_LEFT);
+            titleRow.setMinWidth(0);
+            titleRow.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(title, Priority.ALWAYS);
+            root.getChildren().add(titleRow);
+        } else {
+            HBox top = new HBox(10);
+            top.setAlignment(Pos.TOP_LEFT);
+
+            ImageView poster = SeriesCardUiSupport.createFitPoster(row.imageUrl, 96, 136, WATCHING_NOW_CACHE);
+            StackPane posterWrap = new StackPane(poster);
+            posterWrap.setAlignment(Pos.CENTER);
+            posterWrap.setMinWidth(110);
+            posterWrap.setPrefWidth(110);
+
+            VBox text = new VBox(4);
+            text.setMaxWidth(Double.MAX_VALUE);
+            text.setFillWidth(true);
+            HBox.setHgrow(text, Priority.ALWAYS);
+
+            HBox actionRow = new HBox();
+            actionRow.setAlignment(Pos.TOP_RIGHT);
+            Region actionSpacer = new Region();
+            HBox.setHgrow(actionSpacer, Priority.ALWAYS);
+            actionRow.getChildren().addAll(actionSpacer, badges);
+
+            text.getChildren().addAll(actionRow, title);
+            addEpisodeMetadataLabels(text, cardLabels, row);
+            top.getChildren().addAll(posterWrap, text);
+            root.getChildren().add(top);
         }
+        if (compact) {
+            FlowPane metadataRow = new FlowPane(8, 3);
+            metadataRow.getStyleClass().add("watching-now-episode-compact-meta");
+            addEpisodeMetadataLabels(metadataRow, cardLabels, row);
+            if (!metadataRow.getChildren().isEmpty()) {
+                root.getChildren().add(metadataRow);
+            }
+        }
+        addEpisodePlotLabel(root, cardLabels, row);
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
         root.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
@@ -1404,6 +1463,40 @@ public abstract class BaseWatchingNowUI extends VBox {
             }
         });
         return root;
+    }
+
+    private void addEpisodeMetadataLabels(Pane target, List<Label> cardLabels, WatchingEpisode row) {
+        if (target == null || cardLabels == null || row == null) {
+            return;
+        }
+        if (!isBlank(row.rating)) {
+            Label rating = new Label(I18n.tr("autoRatingPrefix", row.rating));
+            rating.setMinWidth(0);
+            rating.getStyleClass().add("watching-now-episode-meta-label");
+            target.getChildren().add(rating);
+            cardLabels.add(rating);
+        }
+        if (!isBlank(row.releaseDate)) {
+            Label release = new Label(I18n.tr("autoReleasePrefix", shortDateOnly(row.releaseDate)));
+            release.setMinWidth(0);
+            release.getStyleClass().add("watching-now-episode-meta-label");
+            target.getChildren().add(release);
+            cardLabels.add(release);
+        }
+    }
+
+    private void addEpisodePlotLabel(VBox root, List<Label> cardLabels, WatchingEpisode row) {
+        if (root == null || cardLabels == null || row == null || isBlank(row.plot)) {
+            return;
+        }
+        Label plot = new Label(row.plot);
+        plot.setWrapText(true);
+        plot.setMaxWidth(Double.MAX_VALUE);
+        plot.setMinWidth(0);
+        plot.setMinHeight(Region.USE_PREF_SIZE);
+        plot.getStyleClass().add("watching-now-episode-plot");
+        root.getChildren().add(plot);
+        cardLabels.add(plot);
     }
 
     private void setSelectedSeriesCard(HBox current) {
@@ -1635,7 +1728,6 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private void lazyLoadImdb(SeriesPanelData data, TitledPane pane) {
         if (!thumbnailsEnabled()) {
-            data.imdbLoaded = true;
             data.imdbLoading = false;
             setSeriesEpisodeLoadingOverlayVisible(data, false, null);
             return;
@@ -1656,6 +1748,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                     if (isPanelCurrent(data, generation)) {
                         data.imdbLoaded = true;
                         data.imdbLoading = false;
+                        data.thumbnailMetadataAttempted = true;
                         applyLoadedImdbToUi(data, pane);
                         setSeriesEpisodeLoadingOverlayVisible(data, false, null);
                     }
@@ -2125,6 +2218,13 @@ public abstract class BaseWatchingNowUI extends VBox {
         replaceJson(target.seasonInfo, source.seasonInfo);
         target.imdbLoaded = target.imdbLoaded || source.imdbLoaded;
         target.imdbLoading = target.imdbLoading || source.imdbLoading;
+        target.thumbnailMetadataAttempted = target.thumbnailMetadataAttempted || source.thumbnailMetadataAttempted;
+        if (thumbnailsEnabled()
+                && target.imdbLoaded
+                && !target.thumbnailMetadataAttempted
+                && isBlank(resolveSeriesPosterUrl(target))) {
+            target.imdbLoaded = false;
+        }
     }
 
     private void replaceJson(JSONObject target, JSONObject source) {
@@ -2626,6 +2726,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         private EpisodeList episodeList;
         private boolean imdbLoaded;
         private boolean imdbLoading;
+        private boolean thumbnailMetadataAttempted;
         private Label titleNode;
         private Label ratingNode;
         private Label genreNode;
@@ -2652,6 +2753,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             this.episodeList = episodeList == null ? new EpisodeList() : episodeList;
             this.imdbLoaded = false;
             this.imdbLoading = false;
+            this.thumbnailMetadataAttempted = false;
         }
 
         private void clearTransientUiState() {

@@ -64,6 +64,7 @@ public class AppNavigationPane extends TabPane {
         SVGPath icon = new SVGPath();
         icon.setContent(iconPath);
         icon.getStyleClass().add("uiptv-nav-icon");
+        icon.setCursor(Cursor.HAND);
 
         StackPane item = new StackPane(icon);
         UiRenderQuality.optimizeLayout(item);
@@ -75,6 +76,15 @@ public class AppNavigationPane extends TabPane {
         item.setMinSize(48, 48);
         item.setPrefSize(48, 48);
         item.setMaxSize(48, 48);
-        return item;
+
+        StackPane hitbox = new StackPane(item);
+        UiRenderQuality.optimizeLayout(hitbox);
+        hitbox.getStyleClass().add("uiptv-nav-hitbox");
+        hitbox.setAlignment(Pos.CENTER);
+        hitbox.setCursor(Cursor.HAND);
+        hitbox.setMinSize(62, 48);
+        hitbox.setPrefSize(62, 48);
+        hitbox.setMaxSize(62, 48);
+        return hitbox;
     }
 }

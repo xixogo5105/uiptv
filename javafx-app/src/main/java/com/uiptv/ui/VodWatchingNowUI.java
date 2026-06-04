@@ -354,6 +354,13 @@ public class VodWatchingNowUI extends VBox {
         target.imdbUrl = firstNonBlank(source.imdbUrl, target.imdbUrl);
         target.imdbLoaded = target.imdbLoaded || source.imdbLoaded;
         target.imdbLoading = target.imdbLoading || source.imdbLoading;
+        target.thumbnailMetadataAttempted = target.thumbnailMetadataAttempted || source.thumbnailMetadataAttempted;
+        if (ThumbnailAwareUI.areThumbnailsEnabled()
+                && target.imdbLoaded
+                && !target.thumbnailMetadataAttempted
+                && isBlank(target.metadata.coverUrl)) {
+            target.imdbLoaded = false;
+        }
     }
 
     private void showLoadingPlaceholderIfEmpty() {
@@ -389,6 +396,7 @@ public class VodWatchingNowUI extends VBox {
         cached.applyTo(data);
         data.imdbLoaded = true;
         data.imdbLoading = false;
+        data.thumbnailMetadataAttempted = cached.thumbnailMetadataAttempted;
     }
 
     private HBox createCard(VodPanelData data) {
@@ -756,7 +764,17 @@ public class VodWatchingNowUI extends VBox {
     }
 
     private void triggerImdbLoad(VodPanelData data) {
-        if (data == null || data.imdbLoaded || data.imdbLoading) {
+        if (data == null) {
+            return;
+        }
+        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+            data.imdbLoading = false;
+            return;
+        }
+        if (data.imdbLoaded && !data.thumbnailMetadataAttempted && isBlank(data.metadata.coverUrl)) {
+            data.imdbLoaded = false;
+        }
+        if (data.imdbLoaded || data.imdbLoading) {
             return;
         }
         data.imdbLoading = true;
@@ -776,6 +794,7 @@ public class VodWatchingNowUI extends VBox {
                     if (isPanelCurrent(data, generation)) {
                         data.imdbLoaded = true;
                         data.imdbLoading = false;
+                        data.thumbnailMetadataAttempted = true;
                         refreshRenderedCards();
                     }
                 });
@@ -1116,6 +1135,7 @@ public class VodWatchingNowUI extends VBox {
         private String imdbUrl = "";
         private boolean imdbLoaded;
         private boolean imdbLoading;
+        private boolean thumbnailMetadataAttempted;
         private Label ratingNode;
         private Label releaseNode;
         private Label durationNode;
@@ -1176,25 +1196,28 @@ public class VodWatchingNowUI extends VBox {
         private final String releaseDate;
         private final String rating;
         private final String imdbUrl;
+        private final boolean thumbnailMetadataAttempted;
 
-        private VodImdbCacheEntry(String coverUrl, String plot, String releaseDate, String rating, String imdbUrl) {
+        private VodImdbCacheEntry(String coverUrl, String plot, String releaseDate, String rating, String imdbUrl, boolean thumbnailMetadataAttempted) {
             this.coverUrl = coverUrl == null ? "" : coverUrl;
             this.plot = plot == null ? "" : plot;
             this.releaseDate = releaseDate == null ? "" : releaseDate;
             this.rating = rating == null ? "" : rating;
             this.imdbUrl = imdbUrl == null ? "" : imdbUrl;
+            this.thumbnailMetadataAttempted = thumbnailMetadataAttempted;
         }
 
         private static VodImdbCacheEntry from(VodPanelData data) {
             if (data == null || data.metadata == null) {
-                return new VodImdbCacheEntry("", "", "", "", "");
+                return new VodImdbCacheEntry("", "", "", "", "", false);
             }
             return new VodImdbCacheEntry(
                     data.metadata.coverUrl,
                     data.metadata.plot,
                     data.metadata.releaseDate,
                     data.metadata.rating,
-                    data.imdbUrl
+                    data.imdbUrl,
+                    data.thumbnailMetadataAttempted
             );
         }
 

@@ -133,6 +133,7 @@ public class EpisodesListUI extends HBox {
             } else if (!thumbnailListenerRegistered) {
                 ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
                 thumbnailListenerRegistered = true;
+                refreshThumbnailMode();
             }
         });
     }

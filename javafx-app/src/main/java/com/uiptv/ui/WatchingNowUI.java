@@ -201,11 +201,21 @@ public class WatchingNowUI extends VBox {
             } else if (!thumbnailListenerRegistered) {
                 ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
                 thumbnailListenerRegistered = true;
-                if (seriesDelegate == null || vodDelegate == null) {
-                    buildContent();
-                }
+                syncThumbnailModeWithConfiguration();
             }
         });
+    }
+
+    private void syncThumbnailModeWithConfiguration() {
+        if (seriesDelegate == null || vodDelegate == null || modePillBar == null) {
+            buildContent();
+            return;
+        }
+        boolean shouldUseThumbnails = ThumbnailAwareUI.areThumbnailsEnabled();
+        boolean usingThumbnailDelegate = seriesDelegate instanceof ThumbnailWatchingNowUI;
+        if (shouldUseThumbnails != usingThumbnailDelegate) {
+            refreshThumbnailMode();
+        }
     }
 
     private void registerActivationRefreshTriggers() {

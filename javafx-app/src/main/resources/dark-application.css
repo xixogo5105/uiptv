@@ -777,6 +777,11 @@
     -fx-cursor: hand;
 }
 
+.uiptv-app-tabs:left > .tab-header-area > .headers-region > .tab .tab-container,
+.uiptv-app-tabs:left > .tab-header-area > .headers-region > .tab .tab-label {
+    -fx-cursor: hand;
+}
+
 .uiptv-app-tabs:left > .tab-header-area > .headers-region > .tab:hover {
     -fx-background-color: transparent;
 }
@@ -804,6 +809,12 @@
     -fx-background-color: transparent;
     -fx-background-radius: 8;
     -fx-padding: 0;
+    -fx-cursor: hand;
+}
+
+.uiptv-nav-hitbox,
+.uiptv-nav-hitbox .uiptv-nav-item,
+.uiptv-nav-hitbox .uiptv-nav-icon {
     -fx-cursor: hand;
 }
 
@@ -1320,6 +1331,10 @@
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.28), 16, 0.14, 0, 5);
 }
 
+.watching-now-series-info-panel-compact {
+    -fx-padding: 12;
+}
+
 .watching-now-series-poster-wrap {
     -fx-background-color: -uiptv-surface-muted;
     -fx-border-color: rgba(255, 255, 255, 0.08);
@@ -1458,6 +1473,27 @@
     -fx-padding: 12;
 }
 
+.watching-now-episode-card-compact {
+    -fx-padding: 7 10 7 10;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-effect: none;
+}
+
+.watching-now-episode-card-compact .strong-label {
+    -fx-font-size: 0.98em;
+}
+
+.watching-now-episode-compact-meta {
+    -fx-padding: 0 32 0 0;
+}
+
+.watching-now-episode-meta-label,
+.watching-now-episode-plot {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.92em;
+}
+
 .watching-now-series-card:hover,
 .watching-now-vod-card:hover,
 .watching-now-episode-card:hover {
@@ -1465,6 +1501,11 @@
     -fx-border-color: #4a515d;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.42), 16, 0.20, 0, 5);
     -fx-translate-y: -1;
+}
+
+.watching-now-episode-card-compact:hover {
+    -fx-effect: none;
+    -fx-translate-y: 0;
 }
 
 .watching-now-series-card:focused,
