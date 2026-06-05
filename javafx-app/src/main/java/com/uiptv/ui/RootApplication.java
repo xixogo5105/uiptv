@@ -10,13 +10,11 @@ import com.uiptv.service.FilterLockService;
 import com.uiptv.service.remotesync.RemoteSyncSessionService;
 import com.uiptv.ui.main.BaseMainApplicationUI;
 import com.uiptv.ui.main.MainApplicationUI;
-import com.uiptv.ui.main.WideMainApplicationUI;
 import com.uiptv.ui.util.StyleClassDecorator;
 import com.uiptv.ui.util.ThemeStylesheetResolver;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.AppLog;
-import com.uiptv.util.EmbeddedPlayerWideViewUtil;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.AppFonts;
@@ -193,7 +191,6 @@ public class RootApplication extends Application {
         RemoteSyncSessionService.getInstance().setNotifier(remoteSyncUiBridge);
 
         boolean embeddedEnabled = bootConfiguration != null && bootConfiguration.isEmbeddedPlayer();
-        boolean embeddedWideViewEnabled = EmbeddedPlayerWideViewUtil.isWideViewEnabled();
 
         primaryStage.setOnCloseRequest(event -> {
             Platform.exit();
@@ -210,7 +207,7 @@ public class RootApplication extends Application {
         autoStartInternalServer(bootConfiguration);
 
         Platform.runLater(() -> {
-            BaseMainApplicationUI mainUiRoute = selectMainUiRoute(embeddedEnabled, embeddedWideViewEnabled);
+            BaseMainApplicationUI mainUiRoute = selectMainUiRoute(embeddedEnabled);
             Scene scene = mainUiRoute.buildScene();
             UiI18n.applySceneOrientation(scene);
             primaryStage.setScene(scene);
@@ -230,18 +227,7 @@ public class RootApplication extends Application {
         stage.setMaximized(true);
     }
 
-    private BaseMainApplicationUI selectMainUiRoute(boolean embeddedEnabled, boolean embeddedWideViewEnabled) {
-        if (embeddedEnabled && embeddedWideViewEnabled) {
-            return new WideMainApplicationUI(
-                    primaryStage,
-                    getHostServices(),
-                    configurationService,
-                    this::configureFontStyles,
-                    GUIDED_MAX_WIDTH_PIXELS,
-                    GUIDED_MAX_HEIGHT_PIXELS
-            );
-        }
-
+    private BaseMainApplicationUI selectMainUiRoute(boolean embeddedEnabled) {
         return new MainApplicationUI(
                 primaryStage,
                 getHostServices(),

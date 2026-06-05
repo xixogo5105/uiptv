@@ -1850,9 +1850,7 @@ public class ConfigurationUI extends VBox {
 
     private boolean restartRequired(Configuration previous, Configuration current) {
         boolean previousEmbeddedPlayer = previous != null && previous.isEmbeddedPlayer();
-        boolean previousWideView = previous != null && previous.isWideView();
         return previousEmbeddedPlayer != current.isEmbeddedPlayer()
-                || previousWideView != current.isWideView()
                 || !Objects.equals(previous == null ? null : previous.getLanguageLocale(), current.getLanguageLocale());
     }
 
