@@ -21,11 +21,14 @@ import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
 import org.json.JSONArray;
@@ -896,6 +899,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         episodeCards.setMinWidth(0);
         episodeCards.setMaxWidth(Double.MAX_VALUE);
         episodeCards.setFillWidth(true);
+        episodeCards.setOnKeyPressed(event -> handleSeriesEpisodeNavigationKeyPressed(data, event));
         data.episodeCardsContainer = episodeCards;
         LoadingStateView loadingNode = createSeriesEpisodeLoadingNode(I18n.tr("autoLoadingIMDbDetails"));
         loadingNode.setVisible(false);
@@ -1193,6 +1197,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         data.seasonCardsBySeason.put(selectedSeason, cards);
         data.episodeCardsContainer.getChildren().setAll(cards);
         syncSeriesEpisodeLoadingNode(data);
+        scheduleInitialSeriesEpisodeFocus(data);
     }
 
     private VBox buildEpisodeCards(SeriesPanelData data, javafx.collections.ObservableList<WatchingEpisode> items) {
@@ -1404,8 +1409,16 @@ public abstract class BaseWatchingNowUI extends VBox {
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
         root.setOnMouseClicked(event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
+                setSelectedEpisodeCard(data, root);
+                root.requestFocus();
                 playEpisode(data, row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
             } else if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
+                setSelectedEpisodeCard(data, root);
+                root.requestFocus();
+            }
+        });
+        root.focusedProperty().addListener((_, _, focused) -> {
+            if (Boolean.TRUE.equals(focused)) {
                 setSelectedEpisodeCard(data, root);
             }
         });
@@ -1454,6 +1467,114 @@ public abstract class BaseWatchingNowUI extends VBox {
         plot.getStyleClass().add("watching-now-episode-plot");
         root.getChildren().add(plot);
         cardLabels.add(plot);
+    }
+
+    private void handleSeriesEpisodeNavigationKeyPressed(SeriesPanelData data, KeyEvent event) {
+        List<VBox> cards = seriesEpisodeCards(data);
+        if (cards.isEmpty()) {
+            return;
+        }
+        int currentIndex = currentSeriesEpisodeCardIndex(data, cards);
+        int targetIndex = switch (event.getCode()) {
+            case UP -> Math.max(0, currentIndex - 1);
+            case DOWN -> Math.min(cards.size() - 1, currentIndex + 1);
+            case HOME -> 0;
+            case END -> cards.size() - 1;
+            default -> currentIndex;
+        };
+        if (targetIndex != currentIndex) {
+            focusSeriesEpisodeCard(data, cards.get(targetIndex));
+            event.consume();
+        }
+    }
+
+    private List<VBox> seriesEpisodeCards(SeriesPanelData data) {
+        VBox group = activeSeriesEpisodeCardGroup(data);
+        if (group == null) {
+            return List.of();
+        }
+        return group.getChildren().stream()
+                .filter(VBox.class::isInstance)
+                .map(VBox.class::cast)
+                .filter(VBox::isFocusTraversable)
+                .toList();
+    }
+
+    private VBox activeSeriesEpisodeCardGroup(SeriesPanelData data) {
+        if (data == null || data.episodeCardsContainer == null) {
+            return null;
+        }
+        for (Node child : data.episodeCardsContainer.getChildren()) {
+            if (child instanceof VBox group && group.getStyleClass().contains("watching-now-season-card-group")) {
+                return group;
+            }
+        }
+        return null;
+    }
+
+    private int currentSeriesEpisodeCardIndex(SeriesPanelData data, List<VBox> cards) {
+        int selectedIndex = data == null || data.selectedEpisodeCard == null ? -1 : cards.indexOf(data.selectedEpisodeCard);
+        if (selectedIndex >= 0) {
+            return selectedIndex;
+        }
+        Node focusOwner = getScene() == null ? null : getScene().getFocusOwner();
+        for (int index = 0; index < cards.size(); index++) {
+            if (isDescendantOf(focusOwner, cards.get(index))) {
+                return index;
+            }
+        }
+        return 0;
+    }
+
+    private void scheduleInitialSeriesEpisodeFocus(SeriesPanelData data) {
+        if (data == null) {
+            return;
+        }
+        Platform.runLater(() -> {
+            List<VBox> cards = seriesEpisodeCards(data);
+            if (cards.isEmpty() || getScene() == null || !isVisible()) {
+                return;
+            }
+            VBox target = data != null && data.selectedEpisodeCard != null && cards.contains(data.selectedEpisodeCard)
+                    ? data.selectedEpisodeCard
+                    : cards.getFirst();
+            setSelectedEpisodeCard(data, target);
+            Node focusOwner = getScene().getFocusOwner();
+            if (!isDescendantOf(focusOwner, data.episodeCardsContainer)) {
+                focusSeriesEpisodeCard(data, target);
+            }
+        });
+    }
+
+    private void focusSeriesEpisodeCard(SeriesPanelData data, VBox card) {
+        if (data == null || card == null) {
+            return;
+        }
+        setSelectedEpisodeCard(data, card);
+        card.requestFocus();
+        scrollSeriesEpisodeCardIntoView(card);
+    }
+
+    private void scrollSeriesEpisodeCardIntoView(VBox card) {
+        if (card == null || card.getScene() == null) {
+            return;
+        }
+        double viewportHeight = scrollPane.getViewportBounds().getHeight();
+        double contentHeight = contentBox.getBoundsInLocal().getHeight();
+        double scrollableHeight = contentHeight - viewportHeight;
+        if (viewportHeight <= 0 || scrollableHeight <= 0) {
+            return;
+        }
+        Bounds bounds = contentBox.sceneToLocal(card.localToScene(card.getBoundsInLocal()));
+        double viewportTop = scrollPane.getVvalue() * scrollableHeight;
+        double viewportBottom = viewportTop + viewportHeight;
+        double targetTop = bounds.getMinY();
+        double targetBottom = bounds.getMaxY();
+        if (targetTop >= viewportTop && targetBottom <= viewportBottom) {
+            return;
+        }
+        double nextTop = targetTop < viewportTop ? targetTop : targetBottom - viewportHeight;
+        scrollPane.setVvalue(Math.max(0, Math.min(1, nextTop / scrollableHeight)));
     }
 
     private void setSelectedSeriesCard(HBox current) {
@@ -2616,6 +2737,15 @@ public abstract class BaseWatchingNowUI extends VBox {
             return "";
         }
         return safe(account.getDbId()) + "|" + safe(state.getCategoryId()) + "|" + safe(state.getSeriesId());
+    }
+
+    private boolean isDescendantOf(Node node, Node ancestor) {
+        for (Node current = node; current != null; current = current.getParent()) {
+            if (current == ancestor) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static final class EpisodeMetaIndex {
