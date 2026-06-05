@@ -4,6 +4,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.Event;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.input.ContextMenuEvent;
@@ -15,6 +16,7 @@ import javafx.scene.input.PickResult;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -84,7 +86,7 @@ class ResponsiveCardGridTest {
     }
 
     @Test
-    void singleClickActivationCanBeRestrictedByPredicate() throws Exception {
+    void singleClickActivationRequestStillRequiresDoubleClick() throws Exception {
         ResponsiveCardGrid<String> grid = runOnFxThread(ResponsiveCardGridTest::newGrid);
         AtomicReference<String> activated = new AtomicReference<>();
         runOnFxThread(() -> {
@@ -104,6 +106,12 @@ class ResponsiveCardGridTest {
         Region secondCard = runOnFxThread(() -> cardAt(grid, 1));
         runOnFxThread(() -> {
             Event.fireEvent(secondCard, mouseClick(secondCard, 1, false, false));
+            return null;
+        });
+        assertNull(activated.get());
+
+        runOnFxThread(() -> {
+            Event.fireEvent(secondCard, mouseClick(secondCard, 2, false, false));
             return null;
         });
         assertEquals("two", activated.get());
@@ -135,6 +143,111 @@ class ResponsiveCardGridTest {
             return null;
         });
         assertEquals(List.of("two"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+    }
+
+    @Test
+    void metaClickManagesSelectionForMacShortcutSelection() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(ResponsiveCardGridTest::newGrid);
+        AtomicReference<String> activated = new AtomicReference<>();
+        runOnFxThread(() -> {
+            grid.setOnItemActivated(activated::set);
+            grid.setActivateOnSingleClick(true);
+            grid.setSingleClickActivationPredicate("three"::equals);
+            return null;
+        });
+
+        Region firstCard = runOnFxThread(() -> cardAt(grid, 0));
+        Region thirdCard = runOnFxThread(() -> cardAt(grid, 2));
+        runOnFxThread(() -> {
+            Event.fireEvent(firstCard, mouseClick(firstCard, 1, false, false));
+            Event.fireEvent(thirdCard, mouseClick(thirdCard, 1, false, false, true));
+            return null;
+        });
+
+        assertEquals(List.of("one", "three"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+        assertNull(activated.get());
+    }
+
+    @Test
+    void modifiedMousePressAndClickToggleSelectionOnlyOnce() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(ResponsiveCardGridTest::newGrid);
+
+        Region thirdCard = runOnFxThread(() -> cardAt(grid, 2));
+        runOnFxThread(() -> {
+            Event.fireEvent(thirdCard, mousePressed(thirdCard, MouseButton.PRIMARY, false, false, true));
+            Event.fireEvent(thirdCard, mouseClick(thirdCard, 1, false, false, true));
+            return null;
+        });
+
+        assertEquals(List.of("one", "three"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+    }
+
+    @Test
+    void shortcutASelectsAllVisibleCards() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(ResponsiveCardGridTest::newGrid);
+
+        runOnFxThread(() -> {
+            Event.fireEvent(grid, keyPressed(KeyCode.A, false, true, false));
+            return null;
+        });
+
+        assertEquals(List.of("one", "two", "three"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+    }
+
+    @Test
+    void shiftArrowExtendsSelectionFromAnchor() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(ResponsiveCardGridTest::newGrid);
+
+        runOnFxThread(() -> {
+            Event.fireEvent(grid, keyPressed(KeyCode.RIGHT, true, false, false));
+            return null;
+        });
+
+        assertEquals(List.of("one", "two"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+        assertEquals("two", runOnFxThread(grid::getFocusedItem));
+    }
+
+    @Test
+    void contextMenuOnSelectedItemPreservesMultiSelection() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(ResponsiveCardGridTest::newGrid);
+        AtomicReference<List<String>> selectionRef = new AtomicReference<>();
+
+        runOnFxThread(() -> {
+            grid.selectItems(List.of("one", "three"));
+            grid.setContextMenuFactory((_, selectedItems, _) -> {
+                selectionRef.set(selectedItems);
+                return null;
+            });
+            return null;
+        });
+
+        Region thirdCard = runOnFxThread(() -> cardAt(grid, 2));
+        runOnFxThread(() -> {
+            Event.fireEvent(thirdCard, contextMenuEvent(thirdCard));
+            return null;
+        });
+
+        assertEquals(List.of("one", "three"), selectionRef.get());
+        assertEquals(List.of("one", "three"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+    }
+
+    @Test
+    void focusingAlreadySelectedCardPreservesMultiSelection() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> cardGrid = newGrid();
+            new Scene(new StackPane(cardGrid), 420, 240);
+            cardGrid.selectItems(List.of("one", "three"));
+            return cardGrid;
+        });
+
+        Region thirdCard = runOnFxThread(() -> cardAt(grid, 2));
+        runOnFxThread(() -> {
+            thirdCard.requestFocus();
+            return null;
+        });
+
+        assertEquals(List.of("one", "three"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+        assertEquals("three", runOnFxThread(grid::getFocusedItem));
     }
 
     @Test
@@ -350,15 +463,19 @@ class ResponsiveCardGridTest {
     }
 
     private static KeyEvent keyPressed(KeyCode keyCode) {
+        return keyPressed(keyCode, false, false, false);
+    }
+
+    private static KeyEvent keyPressed(KeyCode keyCode, boolean shiftDown, boolean controlDown, boolean metaDown) {
         return new KeyEvent(
                 KeyEvent.KEY_PRESSED,
                 "",
                 "",
                 keyCode,
+                shiftDown,
+                controlDown,
                 false,
-                false,
-                false,
-                false
+                metaDown
         );
     }
 
@@ -367,6 +484,10 @@ class ResponsiveCardGridTest {
     }
 
     private static MouseEvent mouseClick(Node target, int clickCount, boolean shiftDown, boolean controlDown) {
+        return mouseClick(target, clickCount, shiftDown, controlDown, false);
+    }
+
+    private static MouseEvent mouseClick(Node target, int clickCount, boolean shiftDown, boolean controlDown, boolean metaDown) {
         return new MouseEvent(
                 MouseEvent.MOUSE_CLICKED,
                 0,
@@ -378,7 +499,7 @@ class ResponsiveCardGridTest {
                 shiftDown,
                 controlDown,
                 false,
-                false,
+                metaDown,
                 true,
                 false,
                 false,
@@ -402,6 +523,14 @@ class ResponsiveCardGridTest {
     }
 
     private static MouseEvent mousePressed(Node target, MouseButton button) {
+        return mousePressed(target, button, false, false, false);
+    }
+
+    private static MouseEvent mousePressed(Node target,
+                                           MouseButton button,
+                                           boolean shiftDown,
+                                           boolean controlDown,
+                                           boolean metaDown) {
         return new MouseEvent(
                 MouseEvent.MOUSE_PRESSED,
                 0,
@@ -410,10 +539,10 @@ class ResponsiveCardGridTest {
                 0,
                 button,
                 1,
+                shiftDown,
+                controlDown,
                 false,
-                false,
-                false,
-                false,
+                metaDown,
                 button == MouseButton.PRIMARY,
                 false,
                 button == MouseButton.SECONDARY,

@@ -8,6 +8,7 @@ import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.BookmarkCard;
+import com.uiptv.widget.IconActionButton;
 import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
@@ -47,8 +48,14 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 46;
     private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
+    private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
+    private static final String ICON_MANAGE_TABS = "M3 5H11V11H3V5ZM13 5H21V11H13V5ZM3 13H11V19H3V13ZM13 13H21V19H13V13Z";
+    private static final Comparator<BookmarkItem> BOOKMARK_NAME_COMPARATOR =
+            Comparator.comparing(BookmarkItem::getChannelName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                    .thenComparing(BookmarkItem::getChannelName, Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparing(BookmarkItem::getAccountName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                    .thenComparing(BookmarkItem::getAccountName, Comparator.nullsLast(Comparator.naturalOrder()));
     private final TextField searchTextField = new TextField();
-    private final Button manageCategoriesButton = new Button(I18n.tr("commonAdd"));
     private final ResponsiveCardGrid<BookmarkItem> bookmarkGrid = new ResponsiveCardGrid<>(this::createBookmarkCard);
     private final StackPane bookmarkGridFrame = new StackPane();
     private final LoadingStateView bookmarkLoadingOverlay = new LoadingStateView(I18n.tr("autoLoadingBookmarks"));
@@ -75,6 +82,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private volatile boolean reloadRequestedWhileReloading = false;
     private boolean changeListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
+    private BookmarkSortMode bookmarkSortMode = BookmarkSortMode.DEFAULT;
+    private IconActionButton bookmarkSortButton;
     private volatile boolean suppressAutoReloadOnBookmarkChange = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> runLater(() -> {
         if (!changeListenerRegistered || suppressAutoReloadOnBookmarkChange) {
@@ -307,7 +316,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         setupBookmarkGrid();
         setupCategoryPillListener();
         setupSearchTextFieldListener();
-        setupManageCategoriesButton();
 
         VBox page = new VBox(12);
         UiRenderQuality.optimizeLayout(page);
@@ -328,7 +336,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         pageScroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         VBox.setVgrow(pageScroll, Priority.ALWAYS);
 
-        page.getChildren().setAll(createHeaderArea(), pageScroll, createBookmarkFooter());
+        page.getChildren().setAll(createHeaderArea(), pageScroll);
 
         getChildren().setAll(page);
         HBox.setHgrow(page, Priority.ALWAYS);
@@ -339,8 +347,11 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         TextField searchField = searchTextField;
         searchField.setPromptText(I18n.tr("commonSearch"));
 
-        AppPageHeader header = new AppPageHeader(I18n.tr("autoFavorite"), searchField,
+        HBox headerActions = new HBox(6, createBookmarkSortButton(), createManageTabsHeaderButton(),
                 new AppHeaderActions(hostServices, themeToggleHandler, null));
+        headerActions.setAlignment(Pos.CENTER_RIGHT);
+
+        AppPageHeader header = new AppPageHeader(I18n.tr("autoFavorite"), searchField, headerActions);
         header.getStyleClass().add("bookmarks-header-stack");
 
         VBox categoryRow = createCategoryRow();
@@ -359,16 +370,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         categoryPillBar.setMaxHeight(Region.USE_PREF_SIZE);
         row.getChildren().setAll(categoryPillBar);
         return row;
-    }
-
-    private HBox createBookmarkFooter() {
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox footer = new HBox(8, spacer, manageCategoriesButton);
-        footer.getStyleClass().add("bookmark-footer");
-        footer.setAlignment(Pos.CENTER_RIGHT);
-        footer.setMaxWidth(Double.MAX_VALUE);
-        return footer;
     }
 
     private void setupBookmarkGrid() {
@@ -390,6 +391,71 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         StackPane.setAlignment(bookmarkLoadingOverlay, Pos.TOP_CENTER);
         StackPane.setMargin(bookmarkLoadingOverlay, new Insets(10, 0, 0, 0));
         bookmarkGridFrame.getChildren().setAll(bookmarkGrid, bookmarkLoadingOverlay);
+    }
+
+    private IconActionButton createBookmarkSortButton() {
+        IconActionButton button = new IconActionButton(bookmarkSortTooltip(), ICON_SORT, () -> {});
+        button.setOnAction(_ -> showBookmarkSortMenu(button));
+        bookmarkSortButton = button;
+        updateBookmarkSortButton();
+        return button;
+    }
+
+    private IconActionButton createManageTabsHeaderButton() {
+        return new IconActionButton(I18n.tr("searchableTableManageTabs"), ICON_MANAGE_TABS, this::openCategoryManagementInline);
+    }
+
+    private void showBookmarkSortMenu(Node owner) {
+        ContextMenu menu = new ContextMenu(
+                createBookmarkSortMenuItem(I18n.tr("autoSortDefault"), BookmarkSortMode.DEFAULT),
+                createBookmarkSortMenuItem(I18n.tr("autoSortNameAscending"), BookmarkSortMode.ASCENDING),
+                createBookmarkSortMenuItem(I18n.tr("autoSortNameDescending"), BookmarkSortMode.DESCENDING)
+        );
+        ToggleGroup group = new ToggleGroup();
+        for (MenuItem item : menu.getItems()) {
+            if (item instanceof RadioMenuItem radioMenuItem) {
+                radioMenuItem.setToggleGroup(group);
+            }
+        }
+        UiI18n.preparePopupControl(menu, owner);
+        menu.show(owner, Side.BOTTOM, 0, 0);
+    }
+
+    private RadioMenuItem createBookmarkSortMenuItem(String label, BookmarkSortMode sortMode) {
+        RadioMenuItem item = new RadioMenuItem(label);
+        item.setSelected(bookmarkSortMode == sortMode);
+        item.setOnAction(_ -> setBookmarkSortMode(sortMode));
+        return item;
+    }
+
+    private void setBookmarkSortMode(BookmarkSortMode sortMode) {
+        bookmarkSortMode = sortMode == null ? BookmarkSortMode.DEFAULT : sortMode;
+        bookmarkGrid.setReorderEnabled(bookmarkSortMode == BookmarkSortMode.DEFAULT);
+        filterView();
+        updateBookmarkSortButton();
+    }
+
+    private void updateBookmarkSortButton() {
+        if (bookmarkSortButton == null) {
+            return;
+        }
+        bookmarkSortButton.setTooltipText(bookmarkSortTooltip());
+        bookmarkSortButton.getStyleClass().remove("bookmarks-quick-action-button-active");
+        if (bookmarkSortMode != BookmarkSortMode.DEFAULT) {
+            bookmarkSortButton.getStyleClass().add("bookmarks-quick-action-button-active");
+        }
+    }
+
+    private String bookmarkSortTooltip() {
+        return I18n.tr("autoSort") + ": " + bookmarkSortLabel(bookmarkSortMode);
+    }
+
+    private String bookmarkSortLabel(BookmarkSortMode sortMode) {
+        return switch (sortMode == null ? BookmarkSortMode.DEFAULT : sortMode) {
+            case DEFAULT -> I18n.tr("autoSortDefault");
+            case ASCENDING -> I18n.tr("autoSortNameAscending");
+            case DESCENDING -> I18n.tr("autoSortNameDescending");
+        };
     }
 
     private void setBookmarkLoadingOverlayVisible(boolean visible) {
@@ -521,15 +587,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         }
     }
 
-    private void setupManageCategoriesButton() {
-        manageCategoriesButton.setText(I18n.tr("searchableTableManageTabs"));
-        manageCategoriesButton.getStyleClass().add("bookmark-manage-categories-button");
-        manageCategoriesButton.setMinWidth(Region.USE_PREF_SIZE);
-        manageCategoriesButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
-        manageCategoriesButton.setMaxWidth(Region.USE_PREF_SIZE);
-        manageCategoriesButton.setOnAction(event -> openCategoryManagementInline());
-    }
-
     void populateCategoryTabPane() {
         List<BookmarkCategory> categories = new ArrayList<>();
         categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
@@ -556,7 +613,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                             || item.getAccountName().toLowerCase().contains(searchText);
                     return categoryMatch && searchMatch;
                 })
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
+        applyBookmarkSort(filteredList);
 
         if (!sameFilteredItems(filteredList)) {
             filteredItems.setAll(filteredList);
@@ -586,6 +644,19 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             }
         }
         return true;
+    }
+
+    private void applyBookmarkSort(List<BookmarkItem> items) {
+        if (items == null || items.size() < 2) {
+            return;
+        }
+        switch (bookmarkSortMode) {
+            case ASCENDING -> items.sort(BOOKMARK_NAME_COMPARATOR);
+            case DESCENDING -> items.sort(BOOKMARK_NAME_COMPARATOR.reversed());
+            case DEFAULT -> {
+                // Default order is the persisted order already represented by allBookmarkItems.
+            }
+        }
     }
 
     private boolean sameBookmarkItems(List<BookmarkItem> loadedItems) {
@@ -670,6 +741,9 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private void applyDraggedBookmarkOrder() {
+        if (bookmarkSortMode != BookmarkSortMode.DEFAULT) {
+            return;
+        }
         List<String> orderedDbIds = bookmarkGrid.getItems().stream()
                 .map(BookmarkItem::getBookmarkId)
                 .toList();
@@ -1172,5 +1246,11 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         public String getManifestType() {
             return manifestType;
         }
+    }
+
+    private enum BookmarkSortMode {
+        DEFAULT,
+        ASCENDING,
+        DESCENDING
     }
 }

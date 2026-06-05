@@ -13,6 +13,7 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
+import com.uiptv.widget.IconActionButton;
 import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
@@ -60,6 +61,8 @@ public class AccountListUI extends HBox implements SearchTarget {
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 42;
+    private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
+    private static final String ICON_ADD_ACCOUNT = "M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z";
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
             Comparator.comparing(AccountItem::getAccountName, String.CASE_INSENSITIVE_ORDER)
                     .thenComparing(AccountItem::getAccountName);
@@ -80,7 +83,6 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final HBox browserLayout = new HBox(12);
     private final PillBar<AccountTypeFilter> accountTypePillBar =
             new PillBar<>(AccountTypeFilter::label, AccountTypeFilter::key);
-    private final Button newAccountButton = new Button(I18n.tr("autoAdd"));
     private final Deque<Node> viewStack = new ArrayDeque<>();
     private final VBox embeddedContainer = new VBox();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
@@ -97,13 +99,14 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final AccountChangeListener accountChangeListener = revision -> Platform.runLater(this::refreshIfAttached);
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private AppPageHeader pageHeader;
+    private IconActionButton accountSortButton;
     private VBox accountToolbar;
-    private HBox accountFooter;
     private CategoryListUI activeCategoryListUI;
     private final AtomicLong refreshGeneration = new AtomicLong();
     private boolean refreshPending = true;
     private boolean mediaDrawerMode;
     private boolean thumbnailListenerRegistered;
+    private boolean accountBrowserCompact;
     private HeaderSearchMode headerSearchMode = HeaderSearchMode.ACCOUNTS;
     private boolean updatingHeaderSearchText;
     private String accountHeaderSearchText = "";
@@ -173,9 +176,11 @@ public class AccountListUI extends HBox implements SearchTarget {
             }
             return;
         }
+        boolean wasSingleLine = useSingleLineAccountRows();
         mediaDrawerMode = enabled;
         setMinWidth(0);
         updateMediaDrawerStyle();
+        refreshAccountGridIfRowModeChanged(wasSingleLine);
         if (activeCategoryListUI != null) {
             activeCategoryListUI.setMediaDrawerMode(enabled);
             if (currentContent == browserLayout || currentContent == activeCategoryListUI) {
@@ -256,7 +261,12 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private Account accountCopyForMetrics(String accountId) {
-        Account source = accountService.getById(accountId);
+        Account source;
+        try {
+            source = accountService.getById(accountId);
+        } catch (Exception _) {
+            return null;
+        }
         if (source == null) {
             return null;
         }
@@ -318,18 +328,15 @@ public class AccountListUI extends HBox implements SearchTarget {
         HBox.setHgrow(table.getTextField(), Priority.ALWAYS);
         table.getTextField().setMinWidth(120);
         table.getTextField().setMaxWidth(Double.MAX_VALUE);
-        newAccountButton.setManaged(embeddedMode);
-        newAccountButton.setVisible(embeddedMode);
 
         configureAccountTypePillBar();
         pageHeader = createPageHeader();
         accountToolbar = createAccountToolbar();
-        accountFooter = createAccountFooter();
         configurePageContainers();
         configureAccountGrid();
         configureAccountScrollPane();
         configureBrowserLayout();
-        listView.getChildren().setAll(accountToolbar, accountScrollPane, accountFooter);
+        listView.getChildren().setAll(accountToolbar, accountScrollPane);
         getChildren().setAll(pageContainer);
 
         if (embeddedMode) {
@@ -350,7 +357,6 @@ public class AccountListUI extends HBox implements SearchTarget {
         listView.setMinHeight(0);
         detailView.setMaxHeight(Double.MAX_VALUE);
         detailView.setMinHeight(0);
-        configureNewAccountButton();
         addAccountClickHandler();
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         table.getTextField().textProperty().addListener((_, _, text) -> handleHeaderSearchTextChanged(text));
@@ -374,7 +380,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         accountGrid.setCardWidthRange(GRID_NORMAL_CARD_MIN_WIDTH, GRID_NORMAL_CARD_MAX_WIDTH);
         applyAccountGridDisplayMode(ThumbnailAwareUI.areThumbnailsEnabled());
         accountGrid.setPlaceholderText(I18n.tr("autoNothingFoundFor", I18n.tr("autoAccount")));
-        accountGrid.setActivateOnSingleClick(true);
+        accountGrid.setActivateOnSingleClick(false);
         accountGrid.setOnItemActivated(item -> retrieveThreadedAccountCategories(item, itv));
         accountGrid.setContextMenuFactory((item, selectedItems, owner) -> createAccountContextMenu(item, selectedItems, owner));
         accountGrid.setOnKeyReleased(event -> {
@@ -417,7 +423,8 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private AppPageHeader createPageHeader() {
-        HBox headerActions = new HBox(6, new AppHeaderActions(hostServices, themeToggleHandler, null));
+        HBox headerActions = new HBox(6, createAccountSortButton(), createAddAccountHeaderButton(),
+                new AppHeaderActions(hostServices, themeToggleHandler, null));
         headerActions.setAlignment(Pos.CENTER_RIGHT);
         return new AppPageHeader(
                 I18n.tr("autoAccount"),
@@ -433,16 +440,6 @@ public class AccountListUI extends HBox implements SearchTarget {
         toolbar.setFillWidth(true);
         toolbar.setMaxWidth(Double.MAX_VALUE);
         return toolbar;
-    }
-
-    private HBox createAccountFooter() {
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox footer = new HBox(8, spacer, newAccountButton);
-        footer.getStyleClass().add("account-footer");
-        footer.setAlignment(Pos.CENTER_RIGHT);
-        footer.setMaxWidth(Double.MAX_VALUE);
-        return footer;
     }
 
     private void configurePageContainers() {
@@ -472,27 +469,43 @@ public class AccountListUI extends HBox implements SearchTarget {
         VBox.setVgrow(content, Priority.ALWAYS);
     }
 
-    private void configureNewAccountButton() {
-        newAccountButton.setText(I18n.tr("autoNewAccount"));
-        newAccountButton.getStyleClass().add("account-add-button");
-        newAccountButton.setMinWidth(Region.USE_PREF_SIZE);
-        newAccountButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
-        newAccountButton.setMaxWidth(Region.USE_PREF_SIZE);
-        newAccountButton.setMinHeight(Region.USE_COMPUTED_SIZE);
-        newAccountButton.setPrefHeight(Region.USE_COMPUTED_SIZE);
-        newAccountButton.setPadding(new Insets(6, 12, 6, 12));
-        newAccountButton.setTooltip(new Tooltip(I18n.tr("autoNewAccount")));
-        newAccountButton.setOnAction(_ -> {
-            if (!embeddedMode) {
-                return;
-            }
-            if (manageAccountUI == null) {
-                showErrorAlert(I18n.tr("autoManageAccountUIIsNotAvailable"));
-                return;
-            }
-            manageAccountUI.clearAll();
-            showDetailView(manageAccountUI);
-        });
+    private IconActionButton createAddAccountHeaderButton() {
+        IconActionButton button = new IconActionButton(I18n.tr("autoNewAccount"), ICON_ADD_ACCOUNT, this::openNewAccountInline);
+        button.setManaged(embeddedMode);
+        button.setVisible(embeddedMode);
+        return button;
+    }
+
+    private IconActionButton createAccountSortButton() {
+        IconActionButton button = new IconActionButton(accountSortTooltip(), ICON_SORT, () -> {});
+        button.setOnAction(_ -> showAccountSortMenu(button));
+        accountSortButton = button;
+        updateAccountSortButton();
+        return button;
+    }
+
+    private void showAccountSortMenu(Node owner) {
+        ContextMenu menu = createSortMenu(
+                AccountSortMode.DEFAULT,
+                accountSortMode,
+                this::setAccountSortMode,
+                AccountSortMode.ASCENDING,
+                AccountSortMode.DESCENDING
+        );
+        UiI18n.preparePopupControl(menu, owner);
+        menu.show(owner, Side.BOTTOM, 0, 0);
+    }
+
+    private void openNewAccountInline() {
+        if (!embeddedMode) {
+            return;
+        }
+        if (manageAccountUI == null) {
+            showErrorAlert(I18n.tr("autoManageAccountUIIsNotAvailable"));
+            return;
+        }
+        manageAccountUI.clearAll();
+        showDetailView(manageAccountUI);
     }
 
     private void initDetailView() {
@@ -570,20 +583,27 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void setAccountBrowserCompact(boolean compact) {
+        boolean wasSingleLine = useSingleLineAccountRows();
         if (mediaDrawerMode) {
+            accountBrowserCompact = false;
             listView.getStyleClass().remove("account-list-panel-compact");
             accountGrid.setCardWidthRange(GRID_DRAWER_CARD_MIN_WIDTH, GRID_DRAWER_CARD_MAX_WIDTH);
+            refreshAccountGridIfRowModeChanged(wasSingleLine);
             return;
         }
         if (compact) {
+            accountBrowserCompact = true;
             if (!listView.getStyleClass().contains("account-list-panel-compact")) {
                 listView.getStyleClass().add("account-list-panel-compact");
             }
             accountGrid.setCardWidthRange(GRID_COMPACT_CARD_MIN_WIDTH, GRID_COMPACT_CARD_MAX_WIDTH);
+            refreshAccountGridIfRowModeChanged(wasSingleLine);
             return;
         }
+        accountBrowserCompact = false;
         listView.getStyleClass().remove("account-list-panel-compact");
         accountGrid.setCardWidthRange(GRID_NORMAL_CARD_MIN_WIDTH, GRID_NORMAL_CARD_MAX_WIDTH);
+        refreshAccountGridIfRowModeChanged(wasSingleLine);
     }
 
     private void updateMediaDrawerStyle() {
@@ -677,8 +697,12 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private Region createAccountCard(AccountItem item) {
-        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+        boolean thumbnailsEnabled = ThumbnailAwareUI.areThumbnailsEnabled();
+        if (!thumbnailsEnabled) {
             return createPlainTextAccountCard(item);
+        }
+        if (accountBrowserCompact || mediaDrawerMode) {
+            return createCompactAccountCard(item);
         }
 
         VBox card = new VBox(7);
@@ -707,17 +731,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         metrics.setVisible(!metrics.getText().isBlank());
         metrics.setManaged(metrics.isVisible());
 
-        Button menuButton = new PlayMenuButton(I18n.tr("autoManage"));
-        menuButton.getStyleClass().add("account-card-menu-button");
-        menuButton.setOnAction(event -> {
-            event.consume();
-            if (item != null) {
-                accountGrid.selectItems(List.of(item));
-                ContextMenu menu = createAccountContextMenu(item, List.of(item), menuButton);
-                UiI18n.preparePopupControl(menu, menuButton);
-                menu.show(menuButton, Side.BOTTOM, 0, 0);
-            }
-        });
+        Button menuButton = createAccountCardMenuButton(item);
 
         HBox topRow = new HBox(7);
         topRow.setAlignment(Pos.TOP_LEFT);
@@ -733,6 +747,60 @@ public class AccountListUI extends HBox implements SearchTarget {
             card.getChildren().add(metrics);
         }
         return card;
+    }
+
+    private Region createCompactAccountCard(AccountItem item) {
+        HBox card = new HBox(7);
+        card.getStyleClass().addAll("account-card", "plain-text-row-card");
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setMinWidth(0);
+        card.setMaxWidth(Double.MAX_VALUE);
+
+        Label title = new Label(item == null ? "" : item.getAccountName());
+        title.getStyleClass().add("account-card-title");
+        title.setWrapText(false);
+        title.setTextOverrun(OverrunStyle.ELLIPSIS);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(title, Priority.ALWAYS);
+
+        if (item != null && item.isPinToTop()) {
+            card.getChildren().add(createAccountPinIcon());
+        }
+        card.getChildren().addAll(title, createAccountCardMenuButton(item));
+        return card;
+    }
+
+    private Button createAccountCardMenuButton(AccountItem item) {
+        Button menuButton = new PlayMenuButton(I18n.tr("autoManage"));
+        menuButton.getStyleClass().add("account-card-menu-button");
+        menuButton.setOnAction(event -> {
+            event.consume();
+            if (item != null) {
+                List<AccountItem> selectedItems = selectedAccountsForAccountMenuButton(item);
+                ContextMenu menu = createAccountContextMenu(item, selectedItems, menuButton);
+                UiI18n.preparePopupControl(menu, menuButton);
+                menu.show(menuButton, Side.BOTTOM, 0, 0);
+            }
+        });
+        return menuButton;
+    }
+
+    private List<AccountItem> selectedAccountsForAccountMenuButton(AccountItem item) {
+        if (item == null) {
+            return List.of();
+        }
+        List<AccountItem> selectedItems = List.copyOf(accountGrid.getSelectedItems());
+        boolean itemInSelection = selectedItems.stream().anyMatch(selectedItem -> isSameAccountItem(selectedItem, item));
+        if (itemInSelection) {
+            return selectedItems;
+        }
+        accountGrid.selectItems(List.of(item));
+        return List.of(item);
+    }
+
+    private boolean isSameAccountItem(AccountItem left, AccountItem right) {
+        return left != null && right != null && Objects.equals(left.getAccountId(), right.getAccountId());
     }
 
     private Region createPlainTextAccountCard(AccountItem item) {
@@ -839,8 +907,19 @@ public class AccountListUI extends HBox implements SearchTarget {
                 .anyMatch(CACHE_SUPPORTED::contains);
         reloadCache.setVisible(cacheSupported);
 
-        menu.getItems().addAll(editAccount, new SeparatorMenuItem(), itvItem, vodItem, seriesItem,
-                new SeparatorMenuItem(), reloadCache, deleteItem);
+        if (actionItems.size() > 1) {
+            if (cacheSupported) {
+                menu.getItems().add(reloadCache);
+            }
+            menu.getItems().add(deleteItem);
+            return menu;
+        }
+
+        menu.getItems().addAll(editAccount, new SeparatorMenuItem(), itvItem, vodItem, seriesItem);
+        if (cacheSupported) {
+            menu.getItems().addAll(new SeparatorMenuItem(), reloadCache);
+        }
+        menu.getItems().add(deleteItem);
         return menu;
     }
 
@@ -946,13 +1025,25 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void applyAccountGridDisplayMode(boolean thumbnailsEnabled) {
-        accountGrid.setSingleColumn(!thumbnailsEnabled);
-        accountGrid.setCardMinHeight(thumbnailsEnabled
-                ? GRID_NORMAL_CARD_MIN_HEIGHT
-                : GRID_PLAIN_TEXT_CARD_MIN_HEIGHT);
-        accountGrid.setGaps(16, thumbnailsEnabled
-                ? GRID_NORMAL_VERTICAL_GAP
-                : GRID_PLAIN_TEXT_VERTICAL_GAP);
+        boolean singleLine = !thumbnailsEnabled || accountBrowserCompact || mediaDrawerMode;
+        accountGrid.setSingleColumn(singleLine);
+        accountGrid.setCardMinHeight(singleLine
+                ? GRID_PLAIN_TEXT_CARD_MIN_HEIGHT
+                : GRID_NORMAL_CARD_MIN_HEIGHT);
+        accountGrid.setGaps(16, singleLine
+                ? GRID_PLAIN_TEXT_VERTICAL_GAP
+                : GRID_NORMAL_VERTICAL_GAP);
+    }
+
+    private boolean useSingleLineAccountRows() {
+        return !ThumbnailAwareUI.areThumbnailsEnabled() || accountBrowserCompact || mediaDrawerMode;
+    }
+
+    private void refreshAccountGridIfRowModeChanged(boolean wasSingleLine) {
+        applyAccountGridDisplayMode(ThumbnailAwareUI.areThumbnailsEnabled());
+        if (wasSingleLine != useSingleLineAccountRows()) {
+            accountGrid.refresh();
+        }
     }
 
     private void detachFromParent(Node node) {
@@ -1011,6 +1102,7 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     private void applyActiveBrowserSearch() {
         SearchTarget.apply(activeCategoryListUI, browserHeaderSearchText);
+        applyAccountOrdering();
     }
 
     private void replaceBrowserHeaderSearchText(String text) {
@@ -1026,6 +1118,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         } finally {
             updatingHeaderSearchText = false;
         }
+        applyActiveBrowserSearch();
     }
 
     private void applyAccountOrdering() {
@@ -1084,16 +1177,63 @@ public class AccountListUI extends HBox implements SearchTarget {
         if (event.getButton() != MouseButton.PRIMARY || event.getClickCount() != 1) {
             return;
         }
-        accountSortMode = switch (accountSortMode) {
+        setAccountSortMode(nextAccountSortMode());
+        event.consume();
+    }
+
+    private AccountSortMode nextAccountSortMode() {
+        return switch (accountSortMode) {
             case DEFAULT -> AccountSortMode.ASCENDING;
             case ASCENDING -> AccountSortMode.DESCENDING;
             case DESCENDING -> AccountSortMode.DEFAULT;
         };
+    }
+
+    private void setAccountSortMode(AccountSortMode sortMode) {
+        accountSortMode = sortMode == null ? AccountSortMode.DEFAULT : sortMode;
         accountName.setSortType(accountSortMode == AccountSortMode.DESCENDING
                 ? TableColumn.SortType.DESCENDING
                 : TableColumn.SortType.ASCENDING);
         applyAccountOrdering();
-        event.consume();
+        updateAccountSortButton();
+    }
+
+    private void updateAccountSortButton() {
+        if (accountSortButton == null) {
+            return;
+        }
+        accountSortButton.setTooltipText(accountSortTooltip());
+        updateStyleClass(accountSortButton, "bookmarks-quick-action-button-active", accountSortMode != AccountSortMode.DEFAULT);
+    }
+
+    private String accountSortTooltip() {
+        return I18n.tr("autoSort") + ": " + sortLabel(accountSortMode);
+    }
+
+    private String sortLabel(AccountSortMode sortMode) {
+        return switch (sortMode == null ? AccountSortMode.DEFAULT : sortMode) {
+            case DEFAULT -> I18n.tr("autoSortDefault");
+            case ASCENDING -> I18n.tr("autoSortNameAscending");
+            case DESCENDING -> I18n.tr("autoSortNameDescending");
+        };
+    }
+
+    private <T> ContextMenu createSortMenu(T defaultMode, T selectedMode, java.util.function.Consumer<T> sortModeConsumer,
+                                           T ascendingMode, T descendingMode) {
+        ToggleGroup group = new ToggleGroup();
+        RadioMenuItem defaultItem = createSortMenuItem(I18n.tr("autoSortDefault"), defaultMode, selectedMode, group, sortModeConsumer);
+        RadioMenuItem ascendingItem = createSortMenuItem(I18n.tr("autoSortNameAscending"), ascendingMode, selectedMode, group, sortModeConsumer);
+        RadioMenuItem descendingItem = createSortMenuItem(I18n.tr("autoSortNameDescending"), descendingMode, selectedMode, group, sortModeConsumer);
+        return new ContextMenu(defaultItem, ascendingItem, descendingItem);
+    }
+
+    private <T> RadioMenuItem createSortMenuItem(String label, T mode, T selectedMode, ToggleGroup group,
+                                                 java.util.function.Consumer<T> sortModeConsumer) {
+        RadioMenuItem item = new RadioMenuItem(label);
+        item.setToggleGroup(group);
+        item.setSelected(Objects.equals(mode, selectedMode));
+        item.setOnAction(_ -> sortModeConsumer.accept(mode));
+        return item;
     }
 
     private void addAccountClickHandler() {
@@ -1137,12 +1277,12 @@ public class AccountListUI extends HBox implements SearchTarget {
         if (row.isEmpty() || event.getButton() != MouseButton.PRIMARY) {
             return;
         }
-        if (!embeddedMode && event.getClickCount() == 1) {
-            openManageAccount(row.getItem());
-            return;
-        }
         if (event.getClickCount() == 2) {
-            retrieveThreadedAccountCategories(row.getItem(), itv);
+            if (!embeddedMode) {
+                openManageAccount(row.getItem());
+            } else {
+                retrieveThreadedAccountCategories(row.getItem(), itv);
+            }
         }
     }
 

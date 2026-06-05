@@ -9,16 +9,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class WatchingNowActionMenuTest {
 
     @Test
-    void episodeStyleActions_forNewItem_addsWatchingNowBeforePlayers() {
+    void episodeStyleActions_forNewItem_addsPlayersBeforeWatchingNow() {
         List<WatchingNowActionMenu.ActionDescriptor> actions = WatchingNowActionMenu.buildEpisodeStyleActions(
                 false,
                 List.of(new PlaybackUIService.PlayerOption("Embedded", "embedded"))
         );
 
         assertEquals(List.of(
-                WatchingNowActionMenu.ActionKind.WATCHING_NOW,
+                WatchingNowActionMenu.ActionKind.PLAYER,
                 WatchingNowActionMenu.ActionKind.SEPARATOR,
-                WatchingNowActionMenu.ActionKind.PLAYER
+                WatchingNowActionMenu.ActionKind.WATCHING_NOW
         ), actions.stream().map(WatchingNowActionMenu.ActionDescriptor::kind).toList());
     }
 

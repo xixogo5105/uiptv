@@ -45,7 +45,7 @@ class AppPageHeaderTest {
     }
 
     @Test
-    void compactLayoutStacksSearchBelowTitleRowAndCanReturnWide() throws Exception {
+    void compactLayoutStacksTitleActionsAndSearchThenCanReturnWide() throws Exception {
         TextField search = runOnFxThread(TextField::new);
         Button action = runOnFxThread(() -> new Button("Back"));
         AppPageHeader header = runOnFxThread(() -> new AppPageHeader("Episodes", search, List.of(action)));
@@ -56,9 +56,12 @@ class AppPageHeaderTest {
             return null;
         });
 
-        assertEquals(2, runOnFxThread(() -> header.getChildren().size()));
+        assertEquals(3, runOnFxThread(() -> header.getChildren().size()));
         assertInstanceOf(HBox.class, runOnFxThread(() -> header.getChildren().get(0)));
-        assertSame(search, runOnFxThread(() -> header.getChildren().get(1)));
+        assertInstanceOf(HBox.class, runOnFxThread(() -> header.getChildren().get(1)));
+        assertSame(search, runOnFxThread(() -> header.getChildren().get(2)));
+        assertTrue(runOnFxThread(() -> containsNode(header.getChildren().get(1), action)));
+        assertEquals(0.0, runOnFxThread(search::getMinWidth));
         assertEquals(Double.MAX_VALUE, runOnFxThread(search::getMaxWidth));
 
         runOnFxThread(() -> {
@@ -69,6 +72,8 @@ class AppPageHeaderTest {
 
         assertEquals(1, runOnFxThread(() -> header.getChildren().size()));
         assertInstanceOf(StackPane.class, runOnFxThread(() -> header.getChildren().get(0)));
+        assertEquals(180.0, runOnFxThread(search::getMinWidth));
+        assertEquals(560.0, runOnFxThread(search::getMaxWidth));
     }
 
     @Test
@@ -98,5 +103,19 @@ class AppPageHeaderTest {
             }
         }
         return null;
+    }
+
+    private static boolean containsNode(Node root, Node target) {
+        if (root == target) {
+            return true;
+        }
+        if (root instanceof javafx.scene.Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                if (containsNode(child, target)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

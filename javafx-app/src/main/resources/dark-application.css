@@ -25,6 +25,9 @@
     -uiptv-action-fg: #171923;
     -uiptv-action-hover-bg: #e2e6ee;
     -uiptv-action-pressed-bg: #ffffff;
+    -uiptv-header-action-hover-bg: rgba(96, 165, 250, 0.18);
+    -uiptv-header-action-hover-border: rgba(147, 197, 253, 0.34);
+    -uiptv-header-action-hover-fg: #93c5fd;
     -uiptv-accent: #f0f2f7;
     -uiptv-selected-card-bg: #dbe7ff;
     -uiptv-selected-card-border: #9fb9e8;
@@ -1387,9 +1390,9 @@
 
 .bookmarks-quick-action-button:hover,
 .bookmarks-quick-action-button:focused {
-    -fx-background-color: -uiptv-surface-hover;
-    -fx-border-color: -uiptv-border-subtle;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.32), 10, 0.12, 0, 2);
+    -fx-background-color: -uiptv-header-action-hover-bg;
+    -fx-border-color: -uiptv-header-action-hover-border;
+    -fx-effect: dropshadow(gaussian, rgba(96, 165, 250, 0.24), 10, 0.12, 0, 2);
 }
 
 .bookmarks-quick-action-button-lock-ok .bookmarks-quick-action-icon,
@@ -1435,7 +1438,7 @@
 
 .bookmarks-quick-action-button:hover .bookmarks-quick-action-icon,
 .bookmarks-quick-action-button:focused .bookmarks-quick-action-icon {
-    -fx-fill: -uiptv-text-primary;
+    -fx-fill: -uiptv-header-action-hover-fg;
 }
 
 .plain-text-mode-header-button {
@@ -1455,8 +1458,8 @@
 
 .bookmarks-quick-action-button:hover .plain-text-mode-quick-icon,
 .bookmarks-quick-action-button:focused .plain-text-mode-quick-icon {
-    -fx-border-color: -uiptv-text-primary;
-    -fx-text-fill: -uiptv-text-primary;
+    -fx-border-color: -uiptv-header-action-hover-fg;
+    -fx-text-fill: -uiptv-header-action-hover-fg;
 }
 
 .bookmarks-quick-action-button-active .plain-text-mode-quick-icon,
@@ -3848,8 +3851,14 @@
     -fx-effect: none;
 }
 
-.player-icon-button-active {
-    -fx-background-color: rgba(255, 255, 255, 0.18);
+.player-layout-mode-button:focused {
+    -fx-background-color: transparent;
+    -fx-background-radius: 4;
+}
+
+.player-layout-mode-button:hover,
+.player-layout-mode-button:armed {
+    -fx-background-color: rgba(255, 255, 255, 0.2);
     -fx-background-radius: 4;
 }
 
@@ -4246,4 +4255,16 @@
 
 .about-actions {
     -fx-padding: 4 0 0 0;
+}
+
+.about-actions .button {
+    -fx-min-width: 120;
+}
+
+.about-update-button:disabled {
+    -fx-opacity: 1;
+    -fx-background-color: #284463;
+    -fx-border-color: #3b638f;
+    -fx-text-fill: #bfdcff;
+    -fx-cursor: default;
 }

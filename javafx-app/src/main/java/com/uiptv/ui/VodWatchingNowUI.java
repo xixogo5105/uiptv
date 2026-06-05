@@ -102,7 +102,7 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         vodGrid.setSingleColumn(!ThumbnailAwareUI.areThumbnailsEnabled());
         vodGrid.setGaps(18, 16);
         vodGrid.setPlaceholderText(I18n.tr("autoNoWatchingNowVodFound"));
-        vodGrid.setActivateOnSingleClick(true);
+        vodGrid.setActivateOnSingleClick(false);
         vodGrid.setOnItemActivated(this::showVodDetail);
         vodGrid.setContextMenuFactory((item, _, owner) -> createContextMenu(item, owner));
         vodGrid.setOnKeyReleased(event -> {

@@ -8,6 +8,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -19,9 +20,23 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AccountListUIInlinePanelTest extends DbBackedUiTest {
+    private StackPane host;
+
     @BeforeAll
     static void setUpJavaFx() throws Exception {
         FxTestSupport.initJavaFx();
+    }
+
+    @AfterEach
+    void detachAccountUiFromScene() throws Exception {
+        if (host == null) {
+            return;
+        }
+        runOnFxThread(() -> {
+            host.getChildren().clear();
+            return null;
+        });
+        FxTestSupport.waitForFxEvents();
     }
 
     @Test
@@ -29,7 +44,7 @@ class AccountListUIInlinePanelTest extends DbBackedUiTest {
         AccountListUI accountListUI = runOnFxThread(() -> new AccountListUI(true, null, null));
         Label manageAccountContent = runOnFxThread(() -> new Label("Manage account form"));
 
-        StackPane host = runOnFxThread(() -> {
+        host = runOnFxThread(() -> {
             showDetailView(accountListUI, manageAccountContent);
             StackPane inlineHost = InlinePanelService.createHost(accountListUI);
             InlinePanelService.install(inlineHost);

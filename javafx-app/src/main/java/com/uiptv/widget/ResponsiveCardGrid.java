@@ -51,13 +51,13 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private ContextMenuFactory<T> contextMenuFactory;
     private Consumer<T> itemActivatedHandler;
     private Consumer<List<T>> itemsReorderedHandler;
-    private Predicate<T> singleClickActivationPredicate = _ -> true;
     private T focusedItem;
     private T anchorItem;
+    private T mousePressedSelectionItem;
     private int focusedItemIndex = -1;
     private boolean reorderEnabled;
     private boolean mouseSelectionInProgress;
-    private boolean activateOnSingleClick;
+    private boolean suppressFocusSelection;
     private boolean singleColumn;
     private int columnCount = 1;
     private double minCardWidth = DEFAULT_MIN_CARD_WIDTH;
@@ -156,11 +156,11 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     public void setActivateOnSingleClick(boolean activateOnSingleClick) {
-        this.activateOnSingleClick = activateOnSingleClick;
+        // Single-click card activation is intentionally disabled; cards activate on double click.
     }
 
     public void setSingleClickActivationPredicate(Predicate<T> singleClickActivationPredicate) {
-        this.singleClickActivationPredicate = singleClickActivationPredicate == null ? _ -> true : singleClickActivationPredicate;
+        // Retained for source compatibility with older call sites.
     }
 
     public void setSingleColumn(boolean singleColumn) {
@@ -318,12 +318,15 @@ public class ResponsiveCardGrid<T> extends StackPane {
             card.requestFocus();
             if (event.getButton() == MouseButton.SECONDARY) {
                 normalizeContextSelection(item);
+            } else if (event.getButton() == MouseButton.PRIMARY && !isInteractiveChildEvent(card, event)) {
+                updateSelectionForClick(item, event);
+                mousePressedSelectionItem = item;
             }
             Platform.runLater(() -> mouseSelectionInProgress = false);
         });
         card.focusedProperty().addListener((_, _, focused) -> {
-            if (Boolean.TRUE.equals(focused) && !mouseSelectionInProgress) {
-                focusSelection(item);
+            if (Boolean.TRUE.equals(focused) && !mouseSelectionInProgress && !suppressFocusSelection) {
+                focusSelectionFromFocusEvent(item);
             }
         });
         card.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> handleCardClicked(item, card, event));
@@ -340,12 +343,15 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (isInteractiveChildEvent(card, event)) {
             return;
         }
-        updateSelectionForClick(item, event);
+        boolean selectionHandledOnPress = Objects.equals(mousePressedSelectionItem, item);
+        mousePressedSelectionItem = null;
+        if (!selectionHandledOnPress) {
+            updateSelectionForClick(item, event);
+        }
         card.requestFocus();
         boolean shouldActivate = itemActivatedHandler != null
-                && (event.getClickCount() == 2 || (activateOnSingleClick && event.getClickCount() == 1
-                && !event.isShiftDown() && !event.isShortcutDown() && !event.isControlDown()
-                && singleClickActivationPredicate.test(item)));
+                && event.getClickCount() == 2
+                && !isSelectionModifierDown(event);
         if (shouldActivate) {
             itemActivatedHandler.accept(item);
         }
@@ -366,7 +372,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private void updateSelectionForClick(T item, MouseEvent event) {
         if (event.isShiftDown() && anchorItem != null && items.contains(anchorItem)) {
             selectRange(anchorItem, item);
-        } else if (event.isShortcutDown() || event.isControlDown()) {
+        } else if (isAdditiveSelectionModifierDown(event)) {
             toggleSelection(item);
             anchorItem = item;
         } else {
@@ -376,6 +382,18 @@ public class ResponsiveCardGrid<T> extends StackPane {
         focusedItem = item;
         rememberFocusedIndex(item);
         updateSelectionStyles();
+    }
+
+    private boolean isSelectionModifierDown(MouseEvent event) {
+        return event != null && (event.isShiftDown() || isAdditiveSelectionModifierDown(event));
+    }
+
+    private boolean isAdditiveSelectionModifierDown(MouseEvent event) {
+        return event != null && (event.isShortcutDown() || event.isControlDown() || event.isMetaDown());
+    }
+
+    private boolean isAdditiveSelectionModifierDown(KeyEvent event) {
+        return event != null && (event.isShortcutDown() || event.isControlDown() || event.isMetaDown());
     }
 
     private void normalizeContextSelection(T item) {
@@ -481,6 +499,11 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (items.isEmpty()) {
             return;
         }
+        if (event.getCode() == KeyCode.A && isAdditiveSelectionModifierDown(event)) {
+            selectItems(items);
+            event.consume();
+            return;
+        }
         int currentIndex = currentKeyboardIndex();
         int targetIndex = switch (event.getCode()) {
             case LEFT -> Math.max(0, currentIndex - 1);
@@ -493,7 +516,19 @@ public class ResponsiveCardGrid<T> extends StackPane {
         };
         if (targetIndex != currentIndex) {
             T target = items.get(targetIndex);
-            focusItem(target);
+            if (event.isShiftDown() && anchorItem != null && items.contains(anchorItem)) {
+                selectRange(anchorItem, target);
+                focusedItem = target;
+                rememberFocusedIndex(target);
+                updateSelectionStyles();
+                requestFocusForItemPreservingSelection(target);
+            } else if (isAdditiveSelectionModifierDown(event)) {
+                focusedItem = target;
+                rememberFocusedIndex(target);
+                requestFocusForItemPreservingSelection(target);
+            } else {
+                focusItem(target);
+            }
             event.consume();
         }
     }
@@ -623,9 +658,27 @@ public class ResponsiveCardGrid<T> extends StackPane {
 
     private void focusItem(T item) {
         focusSelection(item);
+        requestFocusForItem(item);
+    }
+
+    private void requestFocusForItem(T item) {
+        requestFocusForItem(item, false);
+    }
+
+    private void requestFocusForItemPreservingSelection(T item) {
+        requestFocusForItem(item, true);
+    }
+
+    private void requestFocusForItem(T item, boolean preserveSelection) {
         Region card = cardsByItem.get(item);
         if (card != null) {
-            card.requestFocus();
+            boolean previousSuppressFocusSelection = suppressFocusSelection;
+            suppressFocusSelection = suppressFocusSelection || preserveSelection;
+            try {
+                card.requestFocus();
+            } finally {
+                suppressFocusSelection = previousSuppressFocusSelection;
+            }
             scrollIntoPageView(card);
         }
     }
@@ -636,6 +689,19 @@ public class ResponsiveCardGrid<T> extends StackPane {
         rememberFocusedIndex(item);
         anchorItem = item;
         updateSelectionStyles();
+    }
+
+    private void focusSelectionFromFocusEvent(T item) {
+        if (selectedItems.contains(item)) {
+            focusedItem = item;
+            rememberFocusedIndex(item);
+            if (anchorItem == null || !items.contains(anchorItem)) {
+                anchorItem = item;
+            }
+            updateSelectionStyles();
+            return;
+        }
+        focusSelection(item);
     }
 
     private void scrollIntoPageView(Region card) {

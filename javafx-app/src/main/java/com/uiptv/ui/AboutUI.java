@@ -126,12 +126,12 @@ public class AboutUI {
         HBox.setHgrow(infoBox, Priority.ALWAYS);
 
         Button updateButton = new Button(I18n.tr("autoCheckForUpdates"));
-        updateButton.setDefaultButton(true);
-        updateButton.getStyleClass().add("prominent");
+        updateButton.getStyleClass().addAll("uiptv-inline-primary-button", "about-update-button");
         updateButton.setOnAction(e -> UpdateChecker.checkForUpdates(hostServices));
 
         Button closeButton = new Button(I18n.tr("autoClose"));
         closeButton.setCancelButton(true);
+        closeButton.getStyleClass().addAll("uiptv-inline-secondary-button", "about-close-button");
         closeButton.setOnAction(e -> closeAction.run());
 
         VBox content = new VBox(14, heroBox, infoBox);

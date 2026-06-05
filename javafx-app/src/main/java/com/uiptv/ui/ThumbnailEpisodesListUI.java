@@ -156,8 +156,11 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         VBox.setVgrow(cardsScroll, Priority.ALWAYS);
         VBox.setVgrow(cardsFrame, Priority.ALWAYS);
         VBox.setVgrow(seasonPillBar, Priority.NEVER);
+        contentStack.heightProperty().addListener((_, _, _) -> updateWatchingNowEpisodeScrollHeight());
+        watchingNowEpisodesPanel.heightProperty().addListener((_, _, _) -> updateWatchingNowEpisodeScrollHeight());
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene != null) {
+                updateWatchingNowEpisodeScrollHeight();
                 scheduleInitialEpisodeFocus();
             }
         });
@@ -412,6 +415,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             bodyContainer.getChildren().setAll(watchingNowDetailLayout);
             VBox.setVgrow(watchingNowDetailLayout, Priority.ALWAYS);
         }
+        updateWatchingNowEpisodeScrollHeight();
         header.setMinWidth(0);
         header.setPrefWidth(330);
         header.setMaxWidth(380);
@@ -422,6 +426,44 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         applyWatchingNowLayoutSizing(watchingNowDetailLayout.getWidth());
         watchingNowDetailLayout.widthProperty().addListener((_, _, width) ->
                 applyWatchingNowLayoutSizing(width.doubleValue()));
+    }
+
+    private void updateWatchingNowEpisodeScrollHeight() {
+        if (!watchingNowDetailStylingApplied) {
+            return;
+        }
+        double availableHeight = contentStack.getHeight() > 0 ? contentStack.getHeight() : getHeight();
+        if (availableHeight <= 0) {
+            return;
+        }
+
+        double panelHeight = Math.max(180, availableHeight);
+        watchingNowDetailLayout.setPrefHeight(panelHeight);
+        watchingNowDetailLayout.setMaxHeight(panelHeight);
+        watchingNowEpisodesPanel.setPrefHeight(panelHeight);
+        watchingNowEpisodesPanel.setMaxHeight(panelHeight);
+
+        double reservedHeight = managedPrefHeight(watchingNowEpisodesTitleRow)
+                + managedPrefHeight(seasonPillBar)
+                + Math.max(0, watchingNowEpisodesPanel.getChildren().size() - 1) * watchingNowEpisodesPanel.getSpacing()
+                + 30;
+        double cardsHeight = Math.max(140, panelHeight - reservedHeight);
+        cardsFrame.setPrefHeight(cardsHeight);
+        cardsFrame.setMaxHeight(cardsHeight);
+        cardsScroll.setPrefHeight(cardsHeight);
+        cardsScroll.setMaxHeight(cardsHeight);
+        cardsScroll.setPrefViewportHeight(cardsHeight);
+    }
+
+    private double managedPrefHeight(Node node) {
+        if (node == null || !node.isManaged() || !node.isVisible()) {
+            return 0;
+        }
+        if (node instanceof Region region) {
+            return Math.max(0, region.prefHeight(-1));
+        }
+        Bounds bounds = node.getLayoutBounds();
+        return bounds == null ? 0 : Math.max(0, bounds.getHeight());
     }
 
     private void configureWatchingNowEpisodesPanel() {

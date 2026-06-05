@@ -317,9 +317,9 @@ public class CategoryListUI extends HBox implements SearchTarget {
             if (event.getButton() != MouseButton.PRIMARY) {
                 return;
             }
-            boolean toggleSelection = event.isShortcutDown() || event.isControlDown();
+            boolean toggleSelection = event.isShortcutDown() || event.isControlDown() || event.isMetaDown();
             selectCategoryItem(item, toggleSelection);
-            if (!toggleSelection) {
+            if (!toggleSelection && event.getClickCount() == 2) {
                 doRetrieveChannels(item);
             }
             event.consume();
@@ -446,6 +446,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
             return;
         }
         replaceSearchText("", true);
+        rebuildCategoryCards();
         detailTitle.setText(title);
         detailContent.getChildren().setAll(ui);
         ui.setSearchQuery(searchText);

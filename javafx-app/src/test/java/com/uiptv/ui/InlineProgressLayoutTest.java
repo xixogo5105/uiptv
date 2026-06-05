@@ -1,7 +1,9 @@
 package com.uiptv.ui;
 
+import com.uiptv.model.Account;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
+import com.uiptv.util.AccountType;
 import com.uiptv.widget.SegmentedProgressBar;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -14,8 +16,11 @@ import javafx.scene.layout.Region;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InlineProgressLayoutTest extends DbBackedUiTest {
@@ -30,6 +35,18 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
                 snapshot(new ReloadCacheInline(), "reload-progress-row"));
 
         assertInlineProgressRow(snapshot);
+    }
+
+    @Test
+    void preselectedReloadCacheRunHidesFailureHandlingCard() throws Exception {
+        Account account = new Account();
+        account.setDbId("not-saved");
+        account.setAccountName("Not saved");
+        account.setType(AccountType.STALKER_PORTAL);
+
+        ReloadCacheInline inline = runOnFxThread(() -> new ReloadCacheInline(List.of(account)));
+
+        assertNull(findDescendantByStyle(inline, Region.class, "reload-failure-policy-card"));
     }
 
     @Test

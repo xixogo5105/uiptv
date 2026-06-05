@@ -67,7 +67,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private static final int MAX_HLS_RESOLUTION_DEPTH = 8;
     private static final String STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON = "player-round-control-button";
     private static final String STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON = "player-pip-overlay-button";
-    private static final String STYLE_CLASS_PLAYER_ICON_BUTTON_ACTIVE = "player-icon-button-active";
+    private static final String STYLE_CLASS_PLAYER_LAYOUT_MODE_BUTTON = "player-layout-mode-button";
     public static final String PLAYER_ICON_BUTTON = "player-icon-button";
     public static final String PLAYER_TRACKS_MENU_ITEM = "player-tracks-menu-item";
     private static final String WIDE_LAYOUT_ICON = "M3 5H21V19H3V5ZM5 7V17H11V7H5ZM13 7V17H19V7H13Z";
@@ -232,6 +232,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btnFullscreen = createIconButton(fullscreenIcon);
         btnPip = createIconButton(pipIcon);
         btnLayoutMode = createIconButton(layoutModeIcon);
+        btnLayoutMode.getStyleClass().add(STYLE_CLASS_PLAYER_LAYOUT_MODE_BUTTON);
+        btnLayoutMode.setFocusTraversable(false);
         btnAspectRatio = createIconButton(aspectRatioIcon);
         btnAspectRatio.setTooltip(new Tooltip(I18n.tr("autoFit")));
         updateLayoutModeButton();
@@ -1111,10 +1113,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btnLayoutMode.setManaged(available);
         layoutModeIcon.setContent(wideView ? WIDE_LAYOUT_ICON : NARROW_LAYOUT_ICON);
         layoutModeIcon.setOpacity(wideView ? 1.0 : 0.72);
-        btnLayoutMode.getStyleClass().remove(STYLE_CLASS_PLAYER_ICON_BUTTON_ACTIVE);
-        if (wideView) {
-            btnLayoutMode.getStyleClass().add(STYLE_CLASS_PLAYER_ICON_BUTTON_ACTIVE);
-        }
         String tooltipText = I18n.tr("configWideView") + ": " + I18n.tr(wideView ? "commonEnabled" : "commonDisabled");
         if (btnLayoutMode.getTooltip() == null) {
             btnLayoutMode.setTooltip(new Tooltip(tooltipText));

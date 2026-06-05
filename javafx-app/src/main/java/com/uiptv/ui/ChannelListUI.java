@@ -510,7 +510,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
         channelGrid.setItems(table.getItems());
         channelGrid.setPlaceholderNode(new LoadingStateView(I18n.tr("autoLoadingChannelsFor", categoryTitle)));
         channelGrid.setOnItemActivated(this::playOrShowSeries);
-        channelGrid.setSingleClickActivationPredicate(this::canActivateOnSingleClick);
         channelGrid.setContextMenuFactory((item, selectedItems, owner) -> createChannelContextMenu(item, selectedItems, owner));
         channelGrid.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
@@ -529,29 +528,25 @@ public class ChannelListUI extends HBox implements SearchTarget {
             channelGrid.setCardMinHeight(42);
             channelGrid.setCardWidthRange(240, 760);
             channelGrid.setGaps(16, 6);
-            channelGrid.setActivateOnSingleClick(listAction == series);
+            channelGrid.setActivateOnSingleClick(false);
             return;
         }
         channelGrid.setCardMinHeight(76);
         if (mediaDrawerMode) {
             channelGrid.setCardWidthRange(260, 520);
             channelGrid.setGaps(7, 7);
-            channelGrid.setActivateOnSingleClick(listAction == series);
+            channelGrid.setActivateOnSingleClick(false);
             return;
         }
         if (isMediaCatalogMode()) {
             channelGrid.setCardWidthRange(embeddedMode ? 360 : 520, 760);
             channelGrid.setGaps(18, 16);
-            channelGrid.setActivateOnSingleClick(listAction == series);
+            channelGrid.setActivateOnSingleClick(false);
             return;
         }
         channelGrid.setCardWidthRange(255, 345);
         channelGrid.setGaps(16, 14);
         channelGrid.setActivateOnSingleClick(false);
-    }
-
-    private boolean canActivateOnSingleClick(ChannelItem item) {
-        return item != null && listAction == series && !isDirectPlaybackSeriesItem(item);
     }
 
     private boolean isDirectPlaybackSeriesItem(ChannelItem item) {
@@ -998,13 +993,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
             return menu;
         }
 
-        Menu bookmarkMenu = new Menu(I18n.tr("autoBookmark"));
-        menu.getItems().add(bookmarkMenu);
         List<ChannelItem> effectiveSelection = selectedItems == null || selectedItems.isEmpty()
                 ? List.of(item)
                 : selectedItems;
-        loadBookmarkMenuItemsAsync(effectiveSelection, bookmarkMenu);
         addPlayerItems(menu, item);
+        addSeparatorIfNeeded(menu);
+        Menu bookmarkMenu = new Menu(I18n.tr("autoBookmark"));
+        menu.getItems().add(bookmarkMenu);
+        menu.setOnShowing(_ -> loadBookmarkMenuItemsAsync(effectiveSelection, bookmarkMenu));
         return menu;
     }
 
@@ -1762,11 +1758,18 @@ public class ChannelListUI extends HBox implements SearchTarget {
             return;
         }
 
+        addPlayerItems(row, rowMenu);
+        addSeparatorIfNeeded(rowMenu);
         Menu bookmarkMenu = new Menu(I18n.tr("autoBookmark"));
         rowMenu.getItems().add(bookmarkMenu);
         configureBookmarkMenu(row, rowMenu, bookmarkMenu);
-        addPlayerItems(row, rowMenu);
         bindRowContextMenu(row, rowMenu);
+    }
+
+    private void addSeparatorIfNeeded(ContextMenu menu) {
+        if (menu != null && !menu.getItems().isEmpty()) {
+            menu.getItems().add(new SeparatorMenuItem());
+        }
     }
 
     private void addPlayerItems(TableRow<ChannelItem> row, ContextMenu rowMenu) {
@@ -1845,19 +1848,25 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void loadBookmarkMenuItemsAsync(List<ChannelItem> items, Menu bookmarkMenu) {
-        new Thread(() -> {
-            List<Bookmark> accountBookmarks = loadBookmarksForAccount();
-            List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
-            Map<ChannelItem, Bookmark> existingBookmarks = new LinkedHashMap<>();
-            for (ChannelItem item : items) {
-                BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
-                Bookmark existingBookmark = findMatchingBookmark(item.getChannel(), ctx, accountBookmarks);
-                if (existingBookmark != null) {
-                    existingBookmarks.put(item, existingBookmark);
+        Thread bookmarkMenuThread = new Thread(() -> {
+            try {
+                List<Bookmark> accountBookmarks = loadBookmarksForAccount();
+                List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
+                Map<ChannelItem, Bookmark> existingBookmarks = new LinkedHashMap<>();
+                for (ChannelItem item : items) {
+                    BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
+                    Bookmark existingBookmark = findMatchingBookmark(item.getChannel(), ctx, accountBookmarks);
+                    if (existingBookmark != null) {
+                        existingBookmarks.put(item, existingBookmark);
+                    }
                 }
+                Platform.runLater(() -> populateBookmarkMenuItems(items, bookmarkMenu, categories, existingBookmarks));
+            } catch (RuntimeException _) {
+                // Context menus remain usable without bookmark sub-items if the cache is unavailable.
             }
-            Platform.runLater(() -> populateBookmarkMenuItems(items, bookmarkMenu, categories, existingBookmarks));
-        }).start();
+        }, "channel-bookmark-menu-loader");
+        bookmarkMenuThread.setDaemon(true);
+        bookmarkMenuThread.start();
     }
 
     private void populateBookmarkMenuItems(List<ChannelItem> items,

@@ -1,5 +1,6 @@
 package com.uiptv.player;
 
+import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.util.HttpUtil;
 import javafx.application.Platform;
@@ -15,6 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BaseVideoPlayerHlsResolutionTest {
     private static final AtomicBoolean FX_STARTED = new AtomicBoolean(false);
@@ -90,6 +93,36 @@ class BaseVideoPlayerHlsResolutionTest {
         }
     }
 
+    @Test
+    void layoutModeButtonDoesNotLookSelectedWhenWideViewIsSaved() throws Exception {
+        LayoutButtonState state = runOnFxThread(() -> {
+            Configuration configuration = new Configuration();
+            configuration.setEmbeddedPlayer(true);
+            configuration.setWideView(true);
+
+            ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+            try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class)) {
+                configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+                Mockito.when(configurationService.read()).thenReturn(configuration);
+
+                TestPlayer player = new TestPlayer();
+                return new LayoutButtonState(
+                        player.layoutButtonVisible(),
+                        player.layoutButtonHasStyle("player-layout-mode-button"),
+                        player.layoutButtonHasStyle("player-icon-button-active"),
+                        player.layoutButtonFocusTraversable(),
+                        player.layoutIconContent()
+                );
+            }
+        });
+
+        assertTrue(state.visible());
+        assertTrue(state.layoutStyle());
+        assertFalse(state.activeStyle());
+        assertFalse(state.focusTraversable());
+        assertEquals("M3 5H21V19H3V5ZM5 7V17H11V7H5ZM13 7V17H19V7H13Z", state.iconContent());
+    }
+
     private static <T> T runOnFxThread(FxCallable<T> task) throws Exception {
         if (Platform.isFxApplicationThread()) {
             return task.call();
@@ -124,6 +157,15 @@ class BaseVideoPlayerHlsResolutionTest {
         T call() throws Exception;
     }
 
+    private record LayoutButtonState(
+            boolean visible,
+            boolean layoutStyle,
+            boolean activeStyle,
+            boolean focusTraversable,
+            String iconContent
+    ) {
+    }
+
     private static final class TestPlayer extends BaseVideoPlayer {
         @Override protected javafx.scene.Node getVideoView() { return null; }
         @Override protected void playMedia(String uri) { /* Test stub: playback is not exercised here. */ }
@@ -141,6 +183,22 @@ class BaseVideoPlayerHlsResolutionTest {
 
         String resolve(String uri) {
             return resolveHlsPlaylistChain(uri);
+        }
+
+        boolean layoutButtonVisible() {
+            return btnLayoutMode.isVisible();
+        }
+
+        boolean layoutButtonHasStyle(String styleClass) {
+            return btnLayoutMode.getStyleClass().contains(styleClass);
+        }
+
+        boolean layoutButtonFocusTraversable() {
+            return btnLayoutMode.isFocusTraversable();
+        }
+
+        String layoutIconContent() {
+            return layoutModeIcon.getContent();
         }
     }
 }

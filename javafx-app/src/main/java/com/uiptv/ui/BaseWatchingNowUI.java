@@ -125,7 +125,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         seriesGrid.setSingleColumn(!thumbnailsEnabled());
         seriesGrid.setGaps(18, 16);
         seriesGrid.setPlaceholderText(I18n.tr(MESSAGE_NO_CURRENTLY_WATCHED_SERIES));
-        seriesGrid.setActivateOnSingleClick(true);
+        seriesGrid.setActivateOnSingleClick(false);
         seriesGrid.setOnItemActivated(this::openSeriesDetail);
         seriesGrid.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.ENTER || event.getCode() == KeyCode.SPACE) {
@@ -1764,6 +1764,13 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
 
     private void populateEpisodeContextMenu(ContextMenu rowMenu, SeriesPanelData data, WatchingEpisode item) {
         rowMenu.getItems().clear();
+        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
+            MenuItem playerItem = new MenuItem(option.label());
+            playerItem.getStyleClass().add(EPISODE_MENU_ITEM);
+            playerItem.setOnAction(e -> playEpisode(data, item, option.playerPath()));
+            rowMenu.getItems().add(playerItem);
+        }
+        addEpisodeContextMenuSeparatorIfNeeded(rowMenu);
         if (!item.watched) {
             MenuItem watchingNow = new MenuItem(I18n.tr("autoWatchingNow"));
             watchingNow.getStyleClass().add(EPISODE_MENU_ITEM);
@@ -1772,16 +1779,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                 updateWatchingStatusUI(data, item);
             });
             rowMenu.getItems().add(watchingNow);
-            rowMenu.getItems().add(new SeparatorMenuItem());
-        }
-        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
-            MenuItem playerItem = new MenuItem(option.label());
-            playerItem.getStyleClass().add(EPISODE_MENU_ITEM);
-            playerItem.setOnAction(e -> playEpisode(data, item, option.playerPath()));
-            rowMenu.getItems().add(playerItem);
-        }
-        if (item.watched) {
-            rowMenu.getItems().add(new SeparatorMenuItem());
+        } else {
             MenuItem removeWatchingNow = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
             removeWatchingNow.getStyleClass().add("danger-menu-item");
             removeWatchingNow.getStyleClass().add(EPISODE_MENU_ITEM);
@@ -1790,6 +1788,12 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                 clearWatchingStatusUI(data);
             });
             rowMenu.getItems().add(removeWatchingNow);
+        }
+    }
+
+    private void addEpisodeContextMenuSeparatorIfNeeded(ContextMenu rowMenu) {
+        if (rowMenu != null && !rowMenu.getItems().isEmpty()) {
+            rowMenu.getItems().add(new SeparatorMenuItem());
         }
     }
 

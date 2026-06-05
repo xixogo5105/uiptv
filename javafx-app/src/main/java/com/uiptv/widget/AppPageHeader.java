@@ -22,6 +22,7 @@ public class AppPageHeader extends VBox {
     private final HBox actions = new HBox(6);
     private final StackPane wideHeaderRow = new StackPane();
     private final HBox compactTitleRow = new HBox(10);
+    private final HBox compactControlsRow = new HBox(8);
     private boolean compactLayout;
 
     public AppPageHeader(String title, TextField searchField, List<? extends Node> actionNodes) {
@@ -39,6 +40,7 @@ public class AppPageHeader extends VBox {
         UiRenderQuality.optimizeLayout(actions);
         UiRenderQuality.optimizeLayout(wideHeaderRow);
         UiRenderQuality.optimizeLayout(compactTitleRow);
+        UiRenderQuality.optimizeLayout(compactControlsRow);
         UiRenderQuality.optimizeTextNode(titleLabel);
         if (this.searchField != null) {
             UiRenderQuality.optimizeTextNode(this.searchField);
@@ -48,7 +50,7 @@ public class AppPageHeader extends VBox {
 
         titleLabel.setText(title == null ? "" : title);
         titleLabel.getStyleClass().add("uiptv-page-title");
-        titleLabel.setMaxWidth(Region.USE_PREF_SIZE);
+        titleLabel.setMaxWidth(Double.MAX_VALUE);
         titleLabel.setPickOnBounds(false);
 
         if (this.searchField != null) {
@@ -71,6 +73,8 @@ public class AppPageHeader extends VBox {
         wideHeaderRow.setMaxWidth(Double.MAX_VALUE);
         compactTitleRow.setAlignment(Pos.CENTER_LEFT);
         compactTitleRow.setMaxWidth(Double.MAX_VALUE);
+        compactControlsRow.setAlignment(Pos.CENTER_RIGHT);
+        compactControlsRow.setMaxWidth(Double.MAX_VALUE);
 
         applyLayout(false);
         widthProperty().addListener((_, _, width) -> applyLayoutForWidth(width.doubleValue()));
@@ -103,20 +107,22 @@ public class AppPageHeader extends VBox {
 
         wideHeaderRow.getChildren().clear();
         compactTitleRow.getChildren().clear();
+        compactControlsRow.getChildren().clear();
         getChildren().clear();
         compactLayout = compact;
 
         if (compact) {
+            HBox.setHgrow(titleLabel, Priority.ALWAYS);
+            compactTitleRow.getChildren().setAll(titleLabel);
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
+            compactControlsRow.getChildren().setAll(spacer, actions);
             if (searchField != null) {
+                searchField.setMinWidth(0);
                 searchField.setMaxWidth(Double.MAX_VALUE);
-            }
-            compactTitleRow.getChildren().setAll(titleLabel, spacer, actions);
-            if (searchField == null) {
-                getChildren().setAll(compactTitleRow);
+                getChildren().setAll(compactTitleRow, compactControlsRow, searchField);
             } else {
-                getChildren().setAll(compactTitleRow, searchField);
+                getChildren().setAll(compactTitleRow, compactControlsRow);
             }
             return;
         }
@@ -126,6 +132,7 @@ public class AppPageHeader extends VBox {
         if (searchField == null) {
             wideHeaderRow.getChildren().setAll(titleLabel, actions);
         } else {
+            searchField.setMinWidth(180);
             searchField.setMaxWidth(WIDE_SEARCH_WIDTH);
             StackPane.setAlignment(searchField, Pos.CENTER);
             wideHeaderRow.getChildren().setAll(titleLabel, searchField, actions);

@@ -137,6 +137,7 @@ public class ReloadCacheInline extends VBox {
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean logDrainScheduled = new AtomicBoolean(false);
     private final AtomicReference<Thread> reloadThread = new AtomicReference<>();
+    private final boolean showFailureHandlingCard;
     private volatile boolean stopRequested = false;
     private volatile boolean disposed = false;
     private volatile GlobalFailureDecision automaticGlobalFailureDecision;
@@ -178,7 +179,14 @@ public class ReloadCacheInline extends VBox {
     }
 
     public ReloadCacheInline(List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
+        this(preselectedAccounts, onAccountsDeleted, preselectedAccounts == null || preselectedAccounts.isEmpty());
+    }
+
+    private ReloadCacheInline(List<Account> preselectedAccounts,
+                              Runnable onAccountsDeleted,
+                              boolean showFailureHandlingCard) {
         this.onAccountsDeleted = onAccountsDeleted;
+        this.showFailureHandlingCard = showFailureHandlingCard;
         initializeLayout();
         List<Account> supportedAccounts = loadSupportedAccounts();
         populateAccountCheckboxes(supportedAccounts);
@@ -188,7 +196,11 @@ public class ReloadCacheInline extends VBox {
         VBox failureHandlingCard = buildFailureHandlingCard();
         GridPane mainContent = buildMainContent(selectControls);
         HBox buttonBox = buildButtonBox();
-        getChildren().addAll(buildHeader(), progressCard, failureHandlingCard, mainContent, buttonBox);
+        getChildren().addAll(buildHeader(), progressCard);
+        if (this.showFailureHandlingCard) {
+            getChildren().add(failureHandlingCard);
+        }
+        getChildren().addAll(mainContent, buttonBox);
 
         if (preselectedAccounts != null && !preselectedAccounts.isEmpty()) {
             preselectAccounts(preselectedAccounts);
