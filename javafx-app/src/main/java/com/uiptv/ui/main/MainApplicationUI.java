@@ -17,7 +17,11 @@ import javafx.stage.Stage;
 import java.util.function.Consumer;
 
 public class MainApplicationUI extends BaseMainApplicationUI {
-    private static final double WIDE_NAVIGATION_PREF_WIDTH = 520;
+    private static final double WIDE_APP_AREA_FRACTION = 0.44;
+    private static final double WIDE_APP_AREA_MIN_WIDTH = 720;
+    private static final double WIDE_APP_AREA_SMALL_SCREEN_MIN_WIDTH = 560;
+    private static final double WIDE_APP_AREA_SMALL_SCREEN_THRESHOLD = 1300;
+    private static final double WIDE_APP_AREA_MAX_WIDTH = 900;
     private final boolean embeddedEnabled;
     private final ConfigurationChangeListener embeddedLayoutChangeListener =
             _ -> Platform.runLater(this::applyEmbeddedPlayerLayoutFromConfiguration);
@@ -54,6 +58,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         mainContent.setFillHeight(true);
         mainContent.setMinSize(0, 0);
         mainContent.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        mainContent.widthProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
 
         tabPane.setMinWidth(0);
         tabPane.setPrefWidth(guidedMaxWidthPixels);
@@ -102,18 +107,33 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     }
 
     private void applyWideEmbeddedLayout() {
+        double appAreaWidth = preferredWideAppAreaWidth();
         activeTabPane.setMinWidth(0);
-        activeTabPane.setPrefWidth(WIDE_NAVIGATION_PREF_WIDTH);
+        activeTabPane.setPrefWidth(appAreaWidth);
         activeTabPane.setMaxWidth(Double.MAX_VALUE);
         activeTabPane.setMaxHeight(Double.MAX_VALUE);
         activeTabPane.setMinHeight(0);
 
         navigationShell.setMinWidth(0);
-        navigationShell.setPrefWidth(WIDE_NAVIGATION_PREF_WIDTH);
-        navigationShell.setMaxWidth(WIDE_NAVIGATION_PREF_WIDTH);
+        navigationShell.setPrefWidth(appAreaWidth);
+        navigationShell.setMaxWidth(appAreaWidth);
         HBox.setHgrow(navigationShell, Priority.NEVER);
 
         applyWideEmbeddedPlayerSize(embeddedPlayer);
         HBox.setHgrow(embeddedPlayer, Priority.ALWAYS);
+    }
+
+    private double preferredWideAppAreaWidth() {
+        double availableWidth = mainContent == null ? 0 : mainContent.getWidth();
+        if (availableWidth <= 0 && primaryStage != null) {
+            availableWidth = primaryStage.getWidth();
+        }
+        if (availableWidth <= 0) {
+            availableWidth = guidedMaxWidthPixels;
+        }
+        double minWidth = availableWidth < WIDE_APP_AREA_SMALL_SCREEN_THRESHOLD
+                ? WIDE_APP_AREA_SMALL_SCREEN_MIN_WIDTH
+                : WIDE_APP_AREA_MIN_WIDTH;
+        return Math.max(minWidth, Math.min(WIDE_APP_AREA_MAX_WIDTH, availableWidth * WIDE_APP_AREA_FRACTION));
     }
 }
