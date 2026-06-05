@@ -93,10 +93,6 @@ public class BookmarkChannelListUI extends HBox {
         }
     });
 
-    public BookmarkChannelListUI() {
-        this(null, null);
-    }
-
     public BookmarkChannelListUI(HostServices hostServices, Runnable themeToggleHandler) {
         this.hostServices = hostServices;
         this.themeToggleHandler = themeToggleHandler;

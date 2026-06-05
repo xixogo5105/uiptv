@@ -119,15 +119,6 @@ public class ChannelListUI extends HBox {
     private final VBox loadingProgressBox = new VBox(6, loadingProgressHeader, loadingProgress);
     private PauseTransition loadingProgressHideTimer;
 
-    public ChannelListUI(List<Channel> channelList, Account account, String categoryTitle, String categoryId) {
-        this(account, categoryTitle, categoryId, account == null ? null : account.getAction());
-        addItems(channelList);
-    }
-
-    public ChannelListUI(Account account, String categoryTitle, String categoryId) {
-        this(account, categoryTitle, categoryId, account == null ? null : account.getAction());
-    }
-
     public ChannelListUI(Account account, String categoryTitle, String categoryId, Account.AccountAction listAction) {
         this.categoryId = categoryId;
         this.channelList = new ArrayList<>();
@@ -139,8 +130,7 @@ public class ChannelListUI extends HBox {
         this.categoryTitle = categoryTitle;
         preloadAllCategoryContextAsync();
         initWidgets();
-        registerBookmarkListener();
-        registerThumbnailModeListener();
+        registerSceneLifecycleListener();
         table.setPlaceholder(new Label(I18n.tr("autoLoadingChannelsFor", categoryTitle)));
     }
 
@@ -1159,6 +1149,31 @@ public class ChannelListUI extends HBox {
         };
     }
 
+    private void registerSceneLifecycleListener() {
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null) {
+                unregisterBookmarkListener();
+                unregisterThumbnailModeListener();
+                if (!embeddedMode && !inlineEpisodeNavigationEnabled) {
+                    releaseTransientState();
+                }
+                return;
+            }
+            if (!disposed.get()) {
+                registerBookmarkListener();
+                registerThumbnailModeListener();
+                applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
+                refreshBookmarkStatesAsync();
+            }
+        });
+        if (getScene() != null && !disposed.get()) {
+            registerBookmarkListener();
+            registerThumbnailModeListener();
+            applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
+            refreshBookmarkStatesAsync();
+        }
+    }
+
     private void registerBookmarkListener() {
         if (bookmarkListenerRegistered) {
             return;
@@ -1169,22 +1184,6 @@ public class ChannelListUI extends HBox {
             VodWatchStateService.getInstance().addChangeListener(vodWatchStateChangeListener);
             vodWatchStateListenerRegistered = true;
         }
-        sceneProperty().addListener((_, _, newScene) -> {
-            if (newScene == null) {
-                unregisterBookmarkListener();
-                if (!embeddedMode && !inlineEpisodeNavigationEnabled) {
-                    releaseTransientState();
-                }
-            } else if (!bookmarkListenerRegistered) {
-                BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
-                bookmarkListenerRegistered = true;
-                if (listAction == vod && !vodWatchStateListenerRegistered) {
-                    VodWatchStateService.getInstance().addChangeListener(vodWatchStateChangeListener);
-                    vodWatchStateListenerRegistered = true;
-                }
-                refreshBookmarkStatesAsync();
-            }
-        });
     }
 
     private void registerThumbnailModeListener() {
@@ -1193,16 +1192,14 @@ public class ChannelListUI extends HBox {
         }
         ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
         thumbnailListenerRegistered = true;
-        sceneProperty().addListener((_, _, newScene) -> {
-            if (newScene == null) {
-                ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
-                thumbnailListenerRegistered = false;
-            } else if (!thumbnailListenerRegistered) {
-                ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
-                thumbnailListenerRegistered = true;
-                applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
-            }
-        });
+    }
+
+    private void unregisterThumbnailModeListener() {
+        if (!thumbnailListenerRegistered) {
+            return;
+        }
+        ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
+        thumbnailListenerRegistered = false;
     }
 
     private void onThumbnailModeChanged(boolean enabled) {
@@ -1230,10 +1227,7 @@ public class ChannelListUI extends HBox {
             return;
         }
         unregisterBookmarkListener();
-        if (thumbnailListenerRegistered) {
-            ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
-            thumbnailListenerRegistered = false;
-        }
+        unregisterThumbnailModeListener();
         releaseTransientState();
     }
 

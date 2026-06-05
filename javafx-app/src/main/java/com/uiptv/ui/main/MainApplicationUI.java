@@ -39,6 +39,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private TabPane activeTabPane;
     private AccountListUI activeAccountListUI;
     private boolean navigationCollapsed;
+    private boolean embeddedLayoutListenerRegistered;
     private double retainedWideAppAreaWidth = -1;
 
     public MainApplicationUI(
@@ -85,9 +86,34 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         tabPane.setMaxHeight(Double.MAX_VALUE);
         tabPane.setMinHeight(0);
 
-        configurationService.addChangeListener(embeddedLayoutChangeListener);
+        registerEmbeddedLayoutChangeListener();
+        mainContent.sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null) {
+                unregisterEmbeddedLayoutChangeListener();
+                WidePlayerNavigationControl.reset(wideNavigationToggleHandler);
+                return;
+            }
+            registerEmbeddedLayoutChangeListener();
+            applyEmbeddedPlayerLayoutFromConfiguration();
+        });
         applyEmbeddedPlayerLayoutFromConfiguration();
         return mainContent;
+    }
+
+    private void registerEmbeddedLayoutChangeListener() {
+        if (embeddedLayoutListenerRegistered) {
+            return;
+        }
+        configurationService.addChangeListener(embeddedLayoutChangeListener);
+        embeddedLayoutListenerRegistered = true;
+    }
+
+    private void unregisterEmbeddedLayoutChangeListener() {
+        if (!embeddedLayoutListenerRegistered) {
+            return;
+        }
+        configurationService.removeChangeListener(embeddedLayoutChangeListener);
+        embeddedLayoutListenerRegistered = false;
     }
 
     private void applyEmbeddedPlayerLayoutFromConfiguration() {

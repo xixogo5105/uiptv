@@ -8,7 +8,6 @@ import com.uiptv.service.AccountResolver;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ChannelService;
-import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
@@ -104,14 +103,6 @@ public class AccountListUI extends HBox {
     private boolean updatingHeaderSearchText;
     private String accountHeaderSearchText = "";
     private String browserHeaderSearchText = "";
-
-    public AccountListUI() { // Removed MediaPlayer argument
-        this(ConfigurationService.getInstance().read().isEmbeddedPlayer(), null, null);
-    }
-
-    public AccountListUI(boolean embeddedMode) {
-        this(embeddedMode, null, null);
-    }
 
     public AccountListUI(boolean embeddedMode, HostServices hostServices, Runnable themeToggleHandler) {
         this.embeddedMode = embeddedMode;

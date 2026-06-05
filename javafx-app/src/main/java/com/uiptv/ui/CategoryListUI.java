@@ -93,15 +93,6 @@ public class CategoryListUI extends HBox {
     private boolean categoryDataLoaded;
     private String searchText = "";
 
-    public CategoryListUI(List<Category> list, Account account) { // Removed MediaPlayer argument
-        this(account, false);
-        setItems(list);
-    }
-
-    public CategoryListUI(Account account) {
-        this(account, false);
-    }
-
     public CategoryListUI(Account account, boolean embeddedMode) {
         this.account = account;
         this.embeddedMode = embeddedMode;

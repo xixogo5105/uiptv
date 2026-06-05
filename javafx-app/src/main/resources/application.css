@@ -928,42 +928,6 @@
     -fx-padding: 6 13 6 13;
 }
 
-.account-drawer-collapse-button,
-.wide-player-drawer-collapse-button,
-.wide-player-drawer-expand-button {
-    -fx-min-height: 28;
-    -fx-pref-height: 28;
-    -fx-max-height: 28;
-    -fx-padding: 0 12 0 12;
-    -fx-font-weight: bold;
-    -fx-background-color: rgba(255, 255, 255, 0.92);
-    -fx-border-color: rgba(17, 19, 24, 0.14);
-    -fx-border-width: 1;
-    -fx-background-radius: 999;
-    -fx-border-radius: 999;
-    -fx-text-fill: -uiptv-text-primary;
-    -fx-cursor: hand;
-}
-
-.account-drawer-collapse-button:hover,
-.wide-player-drawer-collapse-button:hover,
-.wide-player-drawer-expand-button:hover {
-    -fx-background-color: #ffffff;
-    -fx-border-color: derive(-uiptv-accent, 18%);
-}
-
-.wide-player-drawer-collapse-button,
-.wide-player-drawer-expand-button {
-    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.20), 14, 0.18, 0, 4);
-}
-
-.account-drawer-collapse-button {
-    -fx-min-width: 28;
-    -fx-pref-width: 28;
-    -fx-max-width: 28;
-    -fx-padding: 0;
-}
-
 .wide-player-navigation-restore-shell {
     -fx-background-color: -uiptv-app-bg;
 }
