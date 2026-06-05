@@ -26,6 +26,8 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.layout.*;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
@@ -420,9 +422,10 @@ public class BookmarkChannelListUI extends HBox {
             menu.show(playButton, Side.BOTTOM, 0, 0);
         });
         return new BookmarkCard(
-                bookmarkDisplayTitle(item),
+                item == null ? "" : item.getChannelName(),
+                bookmarkAccountSuffix(item),
                 "",
-                item.getLogo(),
+                item == null ? "" : item.getLogo(),
                 thumbnailsEnabled,
                 BOOKMARK_CACHE,
                 isDrmProtected(item),
@@ -437,9 +440,7 @@ public class BookmarkChannelListUI extends HBox {
         card.setMinWidth(0);
         card.setMaxWidth(Double.MAX_VALUE);
 
-        Label title = new Label(bookmarkDisplayTitle(item));
-        title.getStyleClass().add("bookmark-channel-title");
-        title.setWrapText(true);
+        TextFlow title = createBookmarkTitleFlow(item);
         title.setMinWidth(0);
         title.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(title, Priority.ALWAYS);
@@ -448,19 +449,35 @@ public class BookmarkChannelListUI extends HBox {
         return card;
     }
 
-    private String bookmarkDisplayTitle(BookmarkItem item) {
+    private TextFlow createBookmarkTitleFlow(BookmarkItem item) {
+        String channelName = item == null || item.getChannelName() == null ? "" : item.getChannelName();
+        String accountSuffix = bookmarkAccountSuffix(item);
+        Text channelText = new Text(channelName);
+        channelText.getStyleClass().add("bookmark-channel-title-text");
+        UiRenderQuality.optimizeTextNode(channelText);
+
+        TextFlow titleFlow = new TextFlow(channelText);
+        titleFlow.getStyleClass().add("bookmark-title-flow");
+        titleFlow.setMinWidth(0);
+        titleFlow.setMaxWidth(Double.MAX_VALUE);
+        titleFlow.setLineSpacing(1.5);
+        UiRenderQuality.optimizeLayout(titleFlow);
+
+        if (!accountSuffix.isBlank()) {
+            Text accountText = new Text(channelName.isBlank() ? accountSuffix : " " + accountSuffix);
+            accountText.getStyleClass().add("bookmark-account-suffix-text");
+            UiRenderQuality.optimizeTextNode(accountText);
+            titleFlow.getChildren().add(accountText);
+        }
+        return titleFlow;
+    }
+
+    private String bookmarkAccountSuffix(BookmarkItem item) {
         if (item == null) {
             return "";
         }
-        String channelName = item.getChannelName();
         String accountName = item.getAccountName();
-        if (isBlank(accountName)) {
-            return channelName == null ? "" : channelName;
-        }
-        if (isBlank(channelName)) {
-            return "[" + accountName + "]";
-        }
-        return channelName + " [" + accountName + "]";
+        return isBlank(accountName) ? "" : "[" + accountName + "]";
     }
 
     private boolean isDrmProtected(BookmarkItem item) {

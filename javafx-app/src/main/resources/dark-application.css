@@ -2523,9 +2523,17 @@
 
 .uiptv-responsive-card:selected .bookmark-channel-title,
 .uiptv-responsive-card.selected .bookmark-channel-title,
+.uiptv-responsive-card:selected .bookmark-channel-title-text,
+.uiptv-responsive-card.selected .bookmark-channel-title-text,
 .uiptv-responsive-card:selected .bookmark-channel-account,
 .uiptv-responsive-card.selected .bookmark-channel-account {
     -fx-text-fill: -uiptv-selected-card-fg;
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .bookmark-account-suffix-text,
+.uiptv-responsive-card.selected .bookmark-account-suffix-text {
+    -fx-fill: rgba(255, 255, 255, 0.68);
 }
 
 .uiptv-responsive-card .channel-logo-view,
@@ -2555,6 +2563,22 @@
     -fx-font-size: 0.98em;
     -fx-font-weight: bold;
     -fx-text-fill: -uiptv-text-primary;
+}
+
+.bookmark-title-flow {
+    -fx-line-spacing: 1.5;
+}
+
+.bookmark-channel-title-text {
+    -fx-font-size: 0.98em;
+    -fx-font-weight: bold;
+    -fx-fill: -uiptv-text-primary;
+}
+
+.bookmark-account-suffix-text {
+    -fx-font-size: 0.82em;
+    -fx-font-weight: normal;
+    -fx-fill: -uiptv-text-secondary;
 }
 
 .bookmark-channel-account {
