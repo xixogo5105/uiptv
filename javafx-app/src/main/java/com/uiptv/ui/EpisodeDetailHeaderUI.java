@@ -2,13 +2,12 @@ package com.uiptv.ui;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuButton;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 final class EpisodeDetailHeaderUI {
@@ -25,8 +24,8 @@ final class EpisodeDetailHeaderUI {
         if (header == null || backButton == null || title == null || bingeWatchButton == null) {
             return;
         }
-        clearPlainHeader(header);
-        HBox actions = buildActionsRow(backButton, bingeWatchButton, reloadButton);
+        ResponsiveHeaderActions.clearPane(header);
+        FlowPane actions = buildActionsRow(backButton, bingeWatchButton, reloadButton);
         applyPlainTitleStyle(title);
         header.setMaxWidth(Double.MAX_VALUE);
         header.getChildren().setAll(actions, title);
@@ -36,12 +35,7 @@ final class EpisodeDetailHeaderUI {
         if (header == null) {
             return;
         }
-        for (Node child : header.getChildren()) {
-            if (child instanceof HBox row) {
-                row.getChildren().clear();
-            }
-        }
-        header.getChildren().clear();
+        ResponsiveHeaderActions.clearPane(header);
     }
 
     static void configureBackTitleHeader(HBox header, Button backButton, Label title) {
@@ -52,15 +46,24 @@ final class EpisodeDetailHeaderUI {
         if (header == null || backButton == null || title == null) {
             return;
         }
-        applyInlineTitleStyle(title);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(Insets.EMPTY);
         header.setMaxWidth(Double.MAX_VALUE);
-        header.getChildren().clear();
-        header.getChildren().add(backButton);
+        ResponsiveHeaderActions.clearPane(header);
         if (reloadButton != null) {
-            header.getChildren().add(reloadButton);
+            FlowPane actions = buildActionsRow(backButton, null, reloadButton);
+            VBox content = new VBox(6, actions, title);
+            content.setMinWidth(0);
+            content.setMaxWidth(Double.MAX_VALUE);
+            applyWrappedInlineTitleStyle(title);
+            HBox.setHgrow(content, Priority.ALWAYS);
+            header.getChildren().setAll(content);
+            return;
         }
+        applyInlineTitleStyle(title);
+        ResponsiveHeaderActions.keepActionLabelVisible(backButton);
+        header.getChildren().add(backButton);
+        HBox.setHgrow(title, Priority.ALWAYS);
         header.getChildren().add(title);
     }
 
@@ -71,38 +74,48 @@ final class EpisodeDetailHeaderUI {
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(Insets.EMPTY);
         header.setMaxWidth(Double.MAX_VALUE);
-        header.getChildren().clear();
+        ResponsiveHeaderActions.clearPane(header);
+        ResponsiveHeaderActions.keepActionLabelVisible(backButton);
         header.getChildren().setAll(backButton);
     }
 
-    private static HBox buildActionsRow(Button backButton, MenuButton bingeWatchButton, Button reloadButton) {
-        HBox actions = new HBox(8);
-        actions.setAlignment(Pos.CENTER_LEFT);
+    private static FlowPane buildActionsRow(Button backButton, MenuButton bingeWatchButton, Button reloadButton) {
+        FlowPane actions = ResponsiveHeaderActions.actionRow(backButton);
         actions.setPadding(Insets.EMPTY);
-        actions.setMaxWidth(Double.MAX_VALUE);
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        actions.getChildren().setAll(backButton, spacer);
         if (reloadButton != null) {
             actions.getChildren().add(reloadButton);
+            ResponsiveHeaderActions.keepActionLabelVisible(reloadButton);
         }
-        actions.getChildren().add(bingeWatchButton);
+        if (bingeWatchButton != null) {
+            actions.getChildren().add(bingeWatchButton);
+            ResponsiveHeaderActions.keepActionLabelVisible(bingeWatchButton);
+        }
         return actions;
     }
 
     private static void applyPlainTitleStyle(Label title) {
         title.setWrapText(true);
         title.setAlignment(Pos.CENTER);
+        title.setMinWidth(0);
         title.setMaxWidth(Double.MAX_VALUE);
         if (!title.getStyleClass().contains(STRONG_LABEL)) {
             title.getStyleClass().add(STRONG_LABEL);
         }
     }
 
+    private static void applyWrappedInlineTitleStyle(Label title) {
+        title.setWrapText(true);
+        title.setAlignment(Pos.CENTER_LEFT);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        title.getStyleClass().remove(STRONG_LABEL);
+    }
+
     private static void applyInlineTitleStyle(Label title) {
         title.setWrapText(false);
         title.setAlignment(Pos.CENTER_LEFT);
-        title.setMaxWidth(Region.USE_COMPUTED_SIZE);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
         title.getStyleClass().remove(STRONG_LABEL);
     }
 }

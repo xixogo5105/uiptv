@@ -477,11 +477,12 @@ public class VodWatchingNowUI extends VBox {
         headerText.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(headerText, Priority.ALWAYS);
 
-        HBox topBar = new HBox(10, headerText, play, back);
-        topBar.getStyleClass().add("watching-now-detail-topbar");
-        topBar.setAlignment(Pos.CENTER_LEFT);
-        topBar.setMinWidth(0);
-        topBar.setMaxWidth(Double.MAX_VALUE);
+        VBox topBar = ResponsiveHeaderActions.stackedTopBar(
+                headerText,
+                "watching-now-detail-topbar",
+                play,
+                back
+        );
 
         FlowPane detailLayout = new FlowPane(14, 14);
         detailLayout.getStyleClass().add("watching-now-vod-detail-layout");

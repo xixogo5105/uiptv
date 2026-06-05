@@ -747,11 +747,12 @@ public abstract class BaseWatchingNowUI extends VBox {
         headerText.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(headerText, Priority.ALWAYS);
 
-        HBox topBar = new HBox(10, headerText, reload, back);
-        topBar.getStyleClass().add("watching-now-detail-topbar");
-        topBar.setAlignment(Pos.CENTER_LEFT);
-        topBar.setMinWidth(0);
-        topBar.setMaxWidth(Double.MAX_VALUE);
+        VBox topBar = ResponsiveHeaderActions.stackedTopBar(
+                headerText,
+                "watching-now-detail-topbar",
+                reload,
+                back
+        );
 
         FlowPane detailLayout = new FlowPane(14, 14);
         detailLayout.getStyleClass().add("watching-now-series-detail-layout");
