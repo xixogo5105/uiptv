@@ -53,6 +53,10 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class AccountListUI extends HBox {
     private static final String MULTI_SELECTION_DISABLED_KEY = "autoThisActionIsDisabledForMultipleSelections";
+    private static final double GRID_NORMAL_VERTICAL_GAP = 14;
+    private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
+    private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
+    private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 42;
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
             Comparator.comparing(AccountItem::getAccountName, String.CASE_INSENSITIVE_ORDER)
                     .thenComparing(AccountItem::getAccountName);
@@ -89,6 +93,7 @@ public class AccountListUI extends HBox {
     private final ObservableList<AccountItem> masterAccountItems = FXCollections.observableArrayList();
     private AccountSortMode accountSortMode = AccountSortMode.DEFAULT;
     private final AccountChangeListener accountChangeListener = revision -> Platform.runLater(this::refreshIfAttached);
+    private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private AppPageHeader pageHeader;
     private VBox accountToolbar;
     private HBox accountFooter;
@@ -96,6 +101,7 @@ public class AccountListUI extends HBox {
     private final AtomicLong refreshGeneration = new AtomicLong();
     private boolean refreshPending = true;
     private boolean mediaDrawerMode;
+    private boolean thumbnailListenerRegistered;
     private Runnable wideDrawerCollapseHandler;
     private HeaderSearchMode headerSearchMode = HeaderSearchMode.ACCOUNTS;
     private boolean updatingHeaderSearchText;
@@ -117,6 +123,7 @@ public class AccountListUI extends HBox {
         initWidgets();
         // Don't load accounts on startup - load lazily when visible
         registerVisibilityListener();
+        registerThumbnailModeListener();
     }
 
     private void registerVisibilityListener() {
@@ -179,8 +186,9 @@ public class AccountListUI extends HBox {
         }
         mediaDrawerMode = enabled;
         setMinWidth(0);
-        drawerCollapseButton.setVisible(enabled);
-        drawerCollapseButton.setManaged(enabled);
+        boolean showLocalCollapseButton = enabled && wideDrawerCollapseHandler != null;
+        drawerCollapseButton.setVisible(showLocalCollapseButton);
+        drawerCollapseButton.setManaged(showLocalCollapseButton);
         updateMediaDrawerStyle();
         if (activeCategoryListUI != null) {
             activeCategoryListUI.setMediaDrawerMode(enabled);
@@ -378,7 +386,7 @@ public class AccountListUI extends HBox {
     private void configureAccountGrid() {
         accountGrid.getStyleClass().add("account-card-grid");
         accountGrid.setCardWidthRange(240, 340);
-        accountGrid.setGaps(16, 14);
+        applyAccountGridDisplayMode(ThumbnailAwareUI.areThumbnailsEnabled());
         accountGrid.setPlaceholderText(I18n.tr("autoNothingFoundFor", I18n.tr("autoAccount")));
         accountGrid.setActivateOnSingleClick(true);
         accountGrid.setOnItemActivated(item -> retrieveThreadedAccountCategories(item, itv));
@@ -693,6 +701,10 @@ public class AccountListUI extends HBox {
     }
 
     private Region createAccountCard(AccountItem item) {
+        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+            return createPlainTextAccountCard(item);
+        }
+
         VBox card = new VBox(7);
         card.getStyleClass().add("account-card");
         card.setMinWidth(0);
@@ -744,6 +756,25 @@ public class AccountListUI extends HBox {
         if (metrics.isVisible()) {
             card.getChildren().add(metrics);
         }
+        return card;
+    }
+
+    private Region createPlainTextAccountCard(AccountItem item) {
+        HBox card = new HBox();
+        card.getStyleClass().addAll("account-card", "plain-text-row-card");
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setMinWidth(0);
+        card.setMaxWidth(Double.MAX_VALUE);
+
+        Label title = new Label(item == null ? "" : item.getAccountName());
+        title.getStyleClass().add("account-card-title");
+        title.setWrapText(false);
+        title.setTextOverrun(OverrunStyle.ELLIPSIS);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(title, Priority.ALWAYS);
+
+        card.getChildren().add(title);
         return card;
     }
 
@@ -897,6 +928,43 @@ public class AccountListUI extends HBox {
                 viewStack.clear();
             }
         });
+    }
+
+    private void registerThumbnailModeListener() {
+        if (thumbnailListenerRegistered) {
+            return;
+        }
+        ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
+        thumbnailListenerRegistered = true;
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null) {
+                ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
+                thumbnailListenerRegistered = false;
+            } else if (!thumbnailListenerRegistered) {
+                ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
+                thumbnailListenerRegistered = true;
+                applyPlainTextMode(ThumbnailAwareUI.areThumbnailsEnabled());
+            }
+        });
+    }
+
+    private void onThumbnailModeChanged(boolean enabled) {
+        Platform.runLater(() -> applyPlainTextMode(enabled));
+    }
+
+    private void applyPlainTextMode(boolean thumbnailsEnabled) {
+        applyAccountGridDisplayMode(thumbnailsEnabled);
+        accountGrid.refresh();
+    }
+
+    private void applyAccountGridDisplayMode(boolean thumbnailsEnabled) {
+        accountGrid.setSingleColumn(!thumbnailsEnabled);
+        accountGrid.setCardMinHeight(thumbnailsEnabled
+                ? GRID_NORMAL_CARD_MIN_HEIGHT
+                : GRID_PLAIN_TEXT_CARD_MIN_HEIGHT);
+        accountGrid.setGaps(16, thumbnailsEnabled
+                ? GRID_NORMAL_VERTICAL_GAP
+                : GRID_PLAIN_TEXT_VERTICAL_GAP);
     }
 
     private void detachFromParent(Node node) {

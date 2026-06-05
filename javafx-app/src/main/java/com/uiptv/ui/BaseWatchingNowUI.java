@@ -99,7 +99,9 @@ public abstract class BaseWatchingNowUI extends VBox {
         setPadding(new Insets(5));
         setSpacing(5);
         scrollPane.setFitToWidth(true);
-        scrollPane.setFitToHeight(true);
+        scrollPane.setFitToHeight(false);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.getStyleClass().add("transparent-scroll-pane");
         contentBox.setPadding(new Insets(5));
         configureSeriesGrid();
@@ -117,6 +119,7 @@ public abstract class BaseWatchingNowUI extends VBox {
     private void configureSeriesGrid() {
         seriesGrid.getStyleClass().add("watching-now-series-grid");
         seriesGrid.setCardWidthRange(480, 720);
+        seriesGrid.setSingleColumn(!thumbnailsEnabled());
         seriesGrid.setGaps(18, 16);
         seriesGrid.setPlaceholderText(I18n.tr(MESSAGE_NO_CURRENTLY_WATCHED_SERIES));
         seriesGrid.setActivateOnSingleClick(true);

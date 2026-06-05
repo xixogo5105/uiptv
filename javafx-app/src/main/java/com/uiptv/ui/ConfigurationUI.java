@@ -13,6 +13,7 @@ import com.uiptv.service.remotesync.RemoteSyncOptions;
 import com.uiptv.service.remotesync.RemoteSyncProgressStep;
 import com.uiptv.service.*;
 import com.uiptv.ui.util.UiI18n;
+import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
@@ -260,6 +261,7 @@ public class ConfigurationUI extends VBox {
         settingsCardPane.setMaxWidth(Double.MAX_VALUE);
         settingsCardPane.setPrefWrapLength(SETTINGS_CARD_WIDTH * 3 + SETTINGS_CARD_HGAP * 2);
         contentContainer.widthProperty().addListener((_, _, _) -> updateSettingsCardWidths());
+        settingsCardPane.widthProperty().addListener((_, _, _) -> updateSettingsCardWidths());
         databaseFileChooser.setTitle(I18n.tr("configSelectDatabaseFile"));
         databaseFileChooser.getExtensionFilters().setAll(
                 new FileChooser.ExtensionFilter(I18n.tr("configDatabaseFiles"), "*.zip"),
@@ -313,8 +315,10 @@ public class ConfigurationUI extends VBox {
         playerPath1.setMaxWidth(Double.MAX_VALUE);
         playerPath2.setMaxWidth(Double.MAX_VALUE);
         playerPath3.setMaxWidth(Double.MAX_VALUE);
-        filterCategoriesWithTextContains.setMinWidth(250);
-        filterChannelWithTextContains.setMinWidth(250);
+        filterCategoriesWithTextContains.setMinWidth(0);
+        filterChannelWithTextContains.setMinWidth(0);
+        filterCategoriesWithTextContains.setMaxWidth(Double.MAX_VALUE);
+        filterChannelWithTextContains.setMaxWidth(Double.MAX_VALUE);
         filterCategoriesWithTextContains.setPrefRowCount(6);
         filterChannelWithTextContains.setPrefRowCount(6);
         filterCategoriesWithTextContains.getStyleClass().add("settings-filter-text-area");
@@ -325,13 +329,24 @@ public class ConfigurationUI extends VBox {
         filterLockStatusLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
         configureFilterPasswordProtectionSelector();
         configureFilterPauseModeSelector();
-        cacheExpiryDays.setPrefColumnCount(4);
-        cacheExpiryDays.setMaxWidth(70);
+        cacheExpiryDays.getStyleClass().add("settings-numeric-field");
+        cacheExpiryDays.setAlignment(Pos.CENTER);
+        cacheExpiryDays.setPrefColumnCount(5);
+        cacheExpiryDays.setMinWidth(92);
+        cacheExpiryDays.setPrefWidth(92);
+        cacheExpiryDays.setMaxWidth(92);
         Label cacheExpiryLabel = new Label(I18n.tr("configCacheExpiresInDays"));
-        HBox cacheExpiryRow = new HBox(8, cacheExpiryLabel, cacheExpiryDays);
+        cacheExpiryLabel.setMinWidth(0);
+        cacheExpiryLabel.setMaxWidth(Double.MAX_VALUE);
+        cacheExpiryLabel.setWrapText(true);
+        HBox.setHgrow(cacheExpiryLabel, Priority.ALWAYS);
+        HBox cacheExpiryRow = new HBox(10, cacheExpiryLabel, cacheExpiryDays);
+        cacheExpiryRow.setAlignment(Pos.CENTER_LEFT);
+        cacheExpiryRow.setMinWidth(0);
+        cacheExpiryRow.setMaxWidth(Double.MAX_VALUE);
         fileChooser.setTitle(I18n.tr("configSelectStreamingPlayer"));
         tmdbReadAccessToken.setPromptText(I18n.tr("configTmdbReadAccessTokenPrompt"));
-        tmdbReadAccessToken.setMinWidth(295);
+        tmdbReadAccessToken.setMinWidth(0);
         tmdbReadAccessToken.setPrefWidth(295);
         tmdbReadAccessToken.setMaxWidth(Double.MAX_VALUE);
         configurePlayerOptionSwitches();
@@ -339,7 +354,7 @@ public class ConfigurationUI extends VBox {
         Node resolveChainRow = createSettingSwitchHelpRow("configResolveChainAndDeepRedirects", resolveChainAndDeepRedirectsSwitch, resolveChainAndDeepRedirectsHelpLink);
         updateWideViewVisibility();
         Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
-        HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
+        FlowPane tmdbLinksRow = createWrappingRow(10, 4, tmdbApiGuideLink, tmdbApiKeyPageLink);
         VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbLinksRow);
         tmdbConfigSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         VBox playersGroup = new VBox(12, createPlayerChoicesPanel(), wideViewRow, resolveChainRow);
@@ -355,7 +370,7 @@ public class ConfigurationUI extends VBox {
 
         VBox themeOverridesGroup = buildThemeOverrideGroup();
 
-        HBox clearButtons = new HBox(10, clearCacheButton, clearWatchingNowButton);
+        FlowPane clearButtons = createWrappingRow(10, 6, clearCacheButton, clearWatchingNowButton);
         reloadCacheButton.setMaxWidth(Region.USE_PREF_SIZE);
         VBox cacheGroup = new VBox(10, createFilterPauseModeRow(), cacheExpiryRow, clearButtons, reloadCacheButton);
         refreshConfigurationBlockTitles();
@@ -493,13 +508,11 @@ public class ConfigurationUI extends VBox {
     }
 
     private void updateSettingsCardWidths() {
-        double availableWidth = contentContainer.getWidth();
-        if (availableWidth <= 0) {
-            availableWidth = getWidth() - 56;
-        }
+        double availableWidth = getSettingsCardAvailableWidth();
         double cardWidth = availableWidth < SETTINGS_CARD_WIDTH + 8
-                ? Math.max(SETTINGS_MIN_COMPACT_CARD_WIDTH, availableWidth - 4)
+                ? Math.max(SETTINGS_MIN_COMPACT_CARD_WIDTH, availableWidth)
                 : SETTINGS_CARD_WIDTH;
+        settingsCardPane.setPrefWrapLength(Math.max(1, availableWidth));
         for (Node node : settingsCardPane.getChildren()) {
             if (node instanceof Region region) {
                 region.setMinWidth(Math.min(SETTINGS_MIN_COMPACT_CARD_WIDTH, cardWidth));
@@ -507,6 +520,25 @@ public class ConfigurationUI extends VBox {
                 region.setMaxWidth(cardWidth);
             }
         }
+    }
+
+    private double getSettingsCardAvailableWidth() {
+        double availableWidth = settingsCardPane.getWidth();
+        if (availableWidth <= 0) {
+            availableWidth = contentContainer.getWidth();
+            Insets contentInsets = contentContainer.getInsets();
+            if (contentInsets != null) {
+                availableWidth -= contentInsets.getLeft() + contentInsets.getRight();
+            }
+        }
+        Insets cardPaneInsets = settingsCardPane.getInsets();
+        if (cardPaneInsets != null) {
+            availableWidth -= cardPaneInsets.getLeft() + cardPaneInsets.getRight();
+        }
+        if (availableWidth <= 0) {
+            availableWidth = Math.max(0, getWidth() - 56);
+        }
+        return Math.max(0, availableWidth);
     }
 
     private void detachFromParent(Node node) {
@@ -711,13 +743,19 @@ public class ConfigurationUI extends VBox {
     }
 
     private Node createServerActionRow() {
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox row = new HBox(10, startServerButton, spacer, publishM3u8Button);
+        FlowPane row = createWrappingRow(10, 6, startServerButton, publishM3u8Button);
         row.getStyleClass().add("settings-server-action-row");
+        return row;
+    }
+
+    private FlowPane createWrappingRow(double hgap, double vgap, Node... children) {
+        FlowPane row = new FlowPane();
+        row.setHgap(hgap);
+        row.setVgap(vgap);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setMinWidth(0);
         row.setMaxWidth(Double.MAX_VALUE);
+        row.getChildren().addAll(children);
         return row;
     }
 
@@ -773,37 +811,39 @@ public class ConfigurationUI extends VBox {
         Node themeModeRow = createSettingPillRow("configDarkTheme", themeModePillBar);
 
         languageComboBox.setMaxWidth(Double.MAX_VALUE);
-        Label languageLabel = new Label(I18n.tr("configLanguage"));
-        HBox.setHgrow(languageComboBox, Priority.ALWAYS);
+        languageComboBox.setMinWidth(0);
 
         themeZoomComboBox.getStyleClass().add("uiptv-combo-box");
         themeZoomComboBox.setMaxWidth(Double.MAX_VALUE);
-        Label themeZoomLabel = new Label(I18n.tr("configThemeZoom"));
-        HBox.setHgrow(themeZoomComboBox, Priority.ALWAYS);
+        themeZoomComboBox.setMinWidth(0);
 
-        GridPane languageAndZoomGrid = new GridPane();
-        languageAndZoomGrid.setHgap(8);
-        languageAndZoomGrid.setVgap(10);
-        languageAndZoomGrid.setMaxWidth(Double.MAX_VALUE);
-
-        ColumnConstraints labelColumn = new ColumnConstraints();
-        ColumnConstraints controlColumn = new ColumnConstraints();
-        controlColumn.setHgrow(Priority.ALWAYS);
-        controlColumn.setFillWidth(true);
-        languageAndZoomGrid.getColumnConstraints().addAll(labelColumn, controlColumn);
-
-        languageAndZoomGrid.add(languageLabel, 0, 0);
-        languageAndZoomGrid.add(languageComboBox, 1, 0);
-        languageAndZoomGrid.add(themeZoomLabel, 0, 1);
-        languageAndZoomGrid.add(themeZoomComboBox, 1, 1);
-        GridPane.setHgrow(languageComboBox, Priority.ALWAYS);
-        GridPane.setHgrow(themeZoomComboBox, Priority.ALWAYS);
-
-        VBox languageAndZoomSection = new VBox(10, languageAndZoomGrid);
+        VBox languageAndZoomSection = new VBox(
+                10,
+                createStackedSettingControlRow("configLanguage", languageComboBox),
+                createStackedSettingControlRow("configThemeZoom", themeZoomComboBox)
+        );
         languageAndZoomSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         languageAndZoomSection.setMaxWidth(Double.MAX_VALUE);
 
-        return new VBox(10, themeModeRow, createSettingSwitchRow("configEnableThumbnails", thumbnailModeSwitch), languageAndZoomSection);
+        return new VBox(10, themeModeRow, createSettingSwitchRow("configPlainTextMode", thumbnailModeSwitch), languageAndZoomSection);
+    }
+
+    private Node createStackedSettingControlRow(String labelKey, Region control) {
+        Label label = new Label(I18n.tr(labelKey));
+        label.getStyleClass().add("settings-filter-mode-label");
+        label.setMinWidth(0);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.setWrapText(true);
+        UiRenderQuality.optimizeTextNode(label);
+
+        control.setMinWidth(0);
+        control.setMaxWidth(Double.MAX_VALUE);
+        VBox.setVgrow(control, Priority.NEVER);
+
+        VBox row = new VBox(5, label, control);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        return row;
     }
 
     private Node createFilterPauseModeRow() {
@@ -821,7 +861,7 @@ public class ConfigurationUI extends VBox {
             if (syncingThumbnailModeSelector) {
                 return;
             }
-            enableThumbnailsCheckBox.setSelected(selected);
+            enableThumbnailsCheckBox.setSelected(!selected);
         });
         syncThumbnailModeSelector();
     }
@@ -926,7 +966,7 @@ public class ConfigurationUI extends VBox {
     private void syncThumbnailModeSelector() {
         syncingThumbnailModeSelector = true;
         try {
-            thumbnailModeSwitch.setSelected(enableThumbnailsCheckBox.isSelected());
+            thumbnailModeSwitch.setSelected(!enableThumbnailsCheckBox.isSelected());
         } finally {
             syncingThumbnailModeSelector = false;
         }
@@ -1793,6 +1833,9 @@ public class ConfigurationUI extends VBox {
 
     private void applyPostSaveEffects(Configuration previous, Configuration newConfiguration) {
         if (thumbnailModeChanged(previous, newConfiguration)) {
+            if (newConfiguration.isEnableThumbnails()) {
+                ImageCacheManager.clearTransientFailures();
+            }
             ThumbnailAwareUI.notifyThumbnailModeChanged(newConfiguration.isEnableThumbnails());
         }
         if (vlcSettingsChanged(previous, newConfiguration)) {

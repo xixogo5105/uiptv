@@ -55,9 +55,11 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private boolean reorderEnabled;
     private boolean mouseSelectionInProgress;
     private boolean activateOnSingleClick;
+    private boolean singleColumn;
     private int columnCount = 1;
     private double minCardWidth = DEFAULT_MIN_CARD_WIDTH;
     private double maxCardWidth = DEFAULT_MAX_CARD_WIDTH;
+    private double cardMinHeight = 76;
     private double horizontalGap = DEFAULT_HORIZONTAL_GAP;
     private double verticalGap = DEFAULT_VERTICAL_GAP;
 
@@ -144,6 +146,14 @@ public class ResponsiveCardGrid<T> extends StackPane {
         this.activateOnSingleClick = activateOnSingleClick;
     }
 
+    public void setSingleColumn(boolean singleColumn) {
+        if (this.singleColumn == singleColumn) {
+            return;
+        }
+        this.singleColumn = singleColumn;
+        updateCardWidths();
+    }
+
     public void setOnItemsReordered(Consumer<List<T>> itemsReorderedHandler) {
         this.itemsReorderedHandler = itemsReorderedHandler;
     }
@@ -165,6 +175,13 @@ public class ResponsiveCardGrid<T> extends StackPane {
         cardPane.setHgap(this.horizontalGap);
         cardPane.setVgap(this.verticalGap);
         updateCardWidths();
+    }
+
+    public void setCardMinHeight(double cardMinHeight) {
+        this.cardMinHeight = Math.max(24, cardMinHeight);
+        for (Region card : cardsByItem.values()) {
+            card.setMinHeight(this.cardMinHeight);
+        }
     }
 
     public void refresh() {
@@ -266,7 +283,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         card.setCursor(Cursor.HAND);
         UiRenderQuality.optimizeLayout(card);
         card.setFocusTraversable(true);
-        card.setMinHeight(76);
+        card.setMinHeight(cardMinHeight);
         card.setMaxWidth(maxCardWidth);
 
         card.addEventHandler(MouseEvent.MOUSE_PRESSED, event -> {
@@ -463,6 +480,17 @@ public class ResponsiveCardGrid<T> extends StackPane {
         Insets padding = cardPane.getPadding();
         available = Math.max(0, available - padding.getLeft() - padding.getRight() - 2);
         if (available <= 0) {
+            return;
+        }
+
+        if (singleColumn) {
+            columnCount = 1;
+            cardPane.setPrefWrapLength(available);
+            for (Region card : cardsByItem.values()) {
+                card.setMinWidth(available);
+                card.setPrefWidth(available);
+                card.setMaxWidth(available);
+            }
             return;
         }
 

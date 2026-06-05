@@ -99,6 +99,7 @@ public class VodWatchingNowUI extends VBox {
     private void configureVodGrid() {
         vodGrid.getStyleClass().add("watching-now-vod-grid");
         vodGrid.setCardWidthRange(520, 760);
+        vodGrid.setSingleColumn(!ThumbnailAwareUI.areThumbnailsEnabled());
         vodGrid.setGaps(18, 16);
         vodGrid.setPlaceholderText(I18n.tr("autoNoWatchingNowVodFound"));
         vodGrid.setActivateOnSingleClick(true);
@@ -412,7 +413,9 @@ public class VodWatchingNowUI extends VBox {
             showVodDetail(data);
         };
 
-        ImageView poster = SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 136, 204, VOD_WATCHING_NOW_CACHE);
+        ImageView poster = ThumbnailAwareUI.areThumbnailsEnabled()
+                ? SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 136, 204, VOD_WATCHING_NOW_CACHE)
+                : null;
         List<Label> metadataNodes = createMetadataNodes(data);
         WatchingNowMediaCardFactory.CardNodes cardNodes = WatchingNowMediaCardFactory.builder(WatchingNowMediaCardFactory.CardType.VOD)
                 .title(data.displayTitle)

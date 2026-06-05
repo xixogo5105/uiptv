@@ -3,7 +3,6 @@ package com.uiptv.ui;
 import com.uiptv.model.*;
 import com.uiptv.service.*;
 import com.uiptv.shared.Episode;
-import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
@@ -46,6 +45,10 @@ import static javafx.application.Platform.runLater;
 public class BookmarkChannelListUI extends HBox {
     private static final String BOOKMARK_CACHE = "bookmark";
     private static final double COMPACT_CATEGORY_WIDTH = 680;
+    private static final double GRID_NORMAL_VERTICAL_GAP = 14;
+    private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
+    private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
+    private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 42;
     private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
     private final TextField searchTextField = new TextField();
     private final Button manageCategoriesButton = new Button(I18n.tr("commonAdd"));
@@ -99,9 +102,6 @@ public class BookmarkChannelListUI extends HBox {
     public BookmarkChannelListUI(HostServices hostServices, Runnable themeToggleHandler) {
         this.hostServices = hostServices;
         this.themeToggleHandler = themeToggleHandler;
-        if (ThumbnailAwareUI.areThumbnailsEnabled()) {
-            ImageCacheManager.clearCache(BOOKMARK_CACHE);
-        }
         initWidgets();
         registerBookmarkChangeListener();
         registerThumbnailModeListener();
@@ -438,7 +438,11 @@ public class BookmarkChannelListUI extends HBox {
         }
     }
 
-    private BookmarkCard createBookmarkCard(BookmarkItem item) {
+    private Region createBookmarkCard(BookmarkItem item) {
+        if (!thumbnailsEnabled) {
+            return createPlainTextBookmarkCard(item);
+        }
+
         Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
         playButton.getStyleClass().add("bookmark-play-menu-button");
         playButton.setOnAction(event -> {
@@ -457,6 +461,25 @@ public class BookmarkChannelListUI extends HBox {
                 isDrmProtected(item),
                 playButton
         );
+    }
+
+    private Region createPlainTextBookmarkCard(BookmarkItem item) {
+        HBox card = new HBox();
+        card.getStyleClass().addAll("bookmark-card", "plain-text-row-card");
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setMinWidth(0);
+        card.setMaxWidth(Double.MAX_VALUE);
+
+        Label title = new Label(item == null ? "" : item.getChannelName());
+        title.getStyleClass().add("bookmark-channel-title");
+        title.setWrapText(false);
+        title.setTextOverrun(OverrunStyle.ELLIPSIS);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(title, Priority.ALWAYS);
+
+        card.getChildren().add(title);
+        return card;
     }
 
     private boolean isDrmProtected(BookmarkItem item) {
@@ -490,11 +513,19 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void applyThumbnailMode(boolean enabled) {
-        if (enabled) {
-            ImageCacheManager.clearCache(BOOKMARK_CACHE);
-        }
         thumbnailsEnabled = enabled;
+        applyBookmarkGridDisplayMode(enabled);
         bookmarkGrid.refresh();
+    }
+
+    private void applyBookmarkGridDisplayMode(boolean thumbnailsEnabled) {
+        bookmarkGrid.setSingleColumn(!thumbnailsEnabled);
+        bookmarkGrid.setCardMinHeight(thumbnailsEnabled
+                ? GRID_NORMAL_CARD_MIN_HEIGHT
+                : GRID_PLAIN_TEXT_CARD_MIN_HEIGHT);
+        bookmarkGrid.setGaps(16, thumbnailsEnabled
+                ? GRID_NORMAL_VERTICAL_GAP
+                : GRID_PLAIN_TEXT_VERTICAL_GAP);
     }
 
     private void setupCategoryPillListener() {

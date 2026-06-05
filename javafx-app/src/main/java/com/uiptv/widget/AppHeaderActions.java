@@ -5,13 +5,19 @@ import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.AboutUI;
 import com.uiptv.ui.FilterLockDialogs;
+import com.uiptv.ui.ThumbnailAwareUI;
+import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
 import javafx.application.HostServices;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
+import javafx.util.Duration;
 
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
@@ -31,9 +37,11 @@ public class AppHeaderActions extends HBox {
     private final Runnable parentalPauseChangedHandler;
     private final IconActionButton parentalPauseButton =
             new IconActionButton("Pause parental lock restrictions", ICON_PARENTAL_LOCK, this::toggleParentalPause);
+    private final Button plainTextModeButton = createPlainTextModeButton();
     private final ConfigurationChangeListener configurationChangeListener =
             _ -> Platform.runLater(() -> {
                 updateParentalPauseButton();
+                updatePlainTextModeButton();
             });
     private boolean configurationListenerRegistered;
 
@@ -53,13 +61,16 @@ public class AppHeaderActions extends HBox {
                 new IconActionButton("Report a bug", ICON_BUG, () -> openExternalUrl(REPORT_BUG_URL)),
                 new IconActionButton(I18n.tr("autoHelp"), ICON_HELP, () -> openExternalUrl(GUIDE_URL)),
                 parentalPauseButton,
-                new IconActionButton("Toggle theme", ICON_THEME, this::toggleTheme)
+                new IconActionButton("Toggle theme", ICON_THEME, this::toggleTheme),
+                plainTextModeButton
         );
         updateParentalPauseButton();
+        updatePlainTextModeButton();
         sceneProperty().addListener((_, oldScene, newScene) -> {
             if (oldScene == null && newScene != null) {
                 registerConfigurationChangeListener();
                 updateParentalPauseButton();
+                updatePlainTextModeButton();
             } else if (oldScene != null && newScene == null) {
                 unregisterConfigurationChangeListener();
             }
@@ -88,6 +99,7 @@ public class AppHeaderActions extends HBox {
 
     public void refreshState() {
         updateParentalPauseButton();
+        updatePlainTextModeButton();
     }
 
     private void updateParentalPauseButton() {
@@ -104,6 +116,60 @@ public class AppHeaderActions extends HBox {
             parentalPauseButton.getStyleClass().add("bookmarks-quick-action-button-lock-paused");
         } else {
             parentalPauseButton.getStyleClass().add("bookmarks-quick-action-button-lock-ok");
+        }
+    }
+
+    private Button createPlainTextModeButton() {
+        Button button = new Button();
+        button.getStyleClass().addAll("bookmarks-quick-action-button", "plain-text-mode-header-button");
+        button.setFocusTraversable(true);
+        button.setMinWidth(Region.USE_PREF_SIZE);
+        button.setMaxWidth(Region.USE_PREF_SIZE);
+
+        Label icon = new Label("1");
+        icon.getStyleClass().add("plain-text-mode-quick-icon");
+        icon.setMinSize(22, 22);
+        icon.setPrefSize(22, 22);
+        icon.setMaxSize(22, 22);
+        button.setGraphic(icon);
+
+        Tooltip tooltip = new Tooltip();
+        tooltip.setShowDelay(Duration.millis(250));
+        tooltip.setHideDelay(Duration.millis(80));
+        tooltip.setShowDuration(Duration.seconds(4));
+        button.setTooltip(tooltip);
+        button.setOnAction(_ -> togglePlainTextMode());
+        return button;
+    }
+
+    private void togglePlainTextMode() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        if (configuration == null) {
+            return;
+        }
+        boolean thumbnailsEnabled = !configuration.isEnableThumbnails();
+        configuration.setEnableThumbnails(thumbnailsEnabled);
+        ConfigurationService.getInstance().save(configuration);
+        if (thumbnailsEnabled) {
+            ImageCacheManager.clearTransientFailures();
+        }
+        ThumbnailAwareUI.notifyThumbnailModeChanged(thumbnailsEnabled);
+        updatePlainTextModeButton();
+    }
+
+    private void updatePlainTextModeButton() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        boolean plainTextMode = configuration != null && !configuration.isEnableThumbnails();
+        plainTextModeButton.getStyleClass().remove("bookmarks-quick-action-button-active");
+        if (plainTextMode) {
+            plainTextModeButton.getStyleClass().add("bookmarks-quick-action-button-active");
+        }
+        String tooltipText = plainTextMode
+                ? I18n.tr("autoDisablePlainTextMode")
+                : I18n.tr("autoEnablePlainTextMode");
+        plainTextModeButton.setAccessibleText(tooltipText);
+        if (plainTextModeButton.getTooltip() != null) {
+            plainTextModeButton.getTooltip().setText(tooltipText);
         }
     }
 

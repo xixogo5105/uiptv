@@ -627,6 +627,20 @@ public class ImageCacheManager {
         clearDiskCache(normalizedCaller);
     }
 
+    public static void clearTransientFailures() {
+        NEGATIVE_CACHE_UNTIL.clear();
+        HOST_BACKOFF_UNTIL.clear();
+        HOST_LOG_UNTIL.clear();
+    }
+
+    public static void clearTransientFailures(String caller) {
+        String normalizedCaller = normalizeCaller(caller);
+        String prefix = normalizedCaller + ":";
+        NEGATIVE_CACHE_UNTIL.keySet().removeIf(key -> key.startsWith(prefix));
+        HOST_BACKOFF_UNTIL.clear();
+        HOST_LOG_UNTIL.clear();
+    }
+
     private static void cancelLoadingTasks(String prefix) {
         for (Map.Entry<String, CompletableFuture<Image>> entry : new ArrayList<>(LOADING_TASKS.entrySet())) {
             if (prefix == null || prefix.isEmpty() || entry.getKey().startsWith(prefix)) {

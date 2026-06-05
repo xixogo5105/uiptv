@@ -3,7 +3,6 @@ package com.uiptv.ui;
 import com.uiptv.model.*;
 import com.uiptv.service.*;
 import com.uiptv.shared.EpisodeList;
-import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
@@ -533,10 +532,19 @@ public class ChannelListUI extends HBox {
         if (channelGrid == null) {
             return;
         }
+        channelGrid.setSingleColumn(mediaDrawerMode || !thumbnailsEnabled);
+        if (!thumbnailsEnabled) {
+            channelGrid.setCardMinHeight(42);
+            channelGrid.setCardWidthRange(240, 760);
+            channelGrid.setGaps(16, 6);
+            channelGrid.setActivateOnSingleClick(false);
+            return;
+        }
+        channelGrid.setCardMinHeight(76);
         if (mediaDrawerMode) {
             channelGrid.setCardWidthRange(260, 520);
             channelGrid.setGaps(7, 7);
-            channelGrid.setActivateOnSingleClick(true);
+            channelGrid.setActivateOnSingleClick(false);
             return;
         }
         if (isMediaCatalogMode()) {
@@ -691,6 +699,9 @@ public class ChannelListUI extends HBox {
     }
 
     private Region createChannelCard(ChannelItem item) {
+        if (!thumbnailsEnabled) {
+            return createPlainTextChannelCard(item);
+        }
         if (mediaDrawerMode) {
             return createDrawerChannelRow(item);
         }
@@ -724,6 +735,25 @@ public class ChannelListUI extends HBox {
                 item != null && item.getChannel() != null && PlayerService.getInstance().isDrmProtected(item.getChannel()),
                 playButton
         );
+    }
+
+    private Region createPlainTextChannelCard(ChannelItem item) {
+        HBox card = new HBox();
+        card.getStyleClass().addAll("bookmark-card", "plain-text-row-card");
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setMinWidth(0);
+        card.setMaxWidth(Double.MAX_VALUE);
+
+        Label title = new Label(item == null ? "" : item.getChannelName());
+        title.getStyleClass().add("bookmark-channel-title");
+        title.setWrapText(false);
+        title.setTextOverrun(OverrunStyle.ELLIPSIS);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(title, Priority.ALWAYS);
+
+        card.getChildren().add(title);
+        return card;
     }
 
     private Region createDrawerChannelRow(ChannelItem item) {
@@ -1170,11 +1200,11 @@ public class ChannelListUI extends HBox {
     private void applyThumbnailMode(boolean enabled) {
         thumbnailsEnabled = enabled;
         if (enabled) {
-            ImageCacheManager.clearCache(IMAGE_CACHE_KEY_CHANNEL);
             channelName.setCellFactory(column -> createThumbnailCell());
         } else {
             channelName.setCellFactory(column -> createPlainTextCell());
         }
+        applyChannelGridSizing();
         refreshChannelViews();
     }
 

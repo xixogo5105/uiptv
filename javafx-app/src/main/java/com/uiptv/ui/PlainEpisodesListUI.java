@@ -5,6 +5,7 @@ import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.shared.EpisodeList;
+import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -13,29 +14,35 @@ import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.OverrunStyle;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.control.TableCell;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableRow;
-import javafx.scene.control.TableView;
+import javafx.scene.Node;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class PlainEpisodesListUI extends BaseEpisodesListUI {
-    private final TableView<EpisodeItem> tableView = new TableView<>();
+    private static final String KEY_CARD_LABELS = "cardLabels";
+    private final VBox cardsContainer = new VBox(6);
+    private final ScrollPane cardsScroll = new ScrollPane(cardsContainer);
     private final PillBar<String> seasonPillBar = new PillBar<>(I18n::formatTabNumberLabel, season -> season);
     private final MenuButton bingeWatchButton = new MenuButton();
     private final Button reloadEpisodesButton = new Button();
+    private final Map<EpisodeItem, Pane> renderedCardsByItem = new HashMap<>();
     private HBox seasonControls;
     private VBox bodyContainer;
+    private Pane selectedEpisodeCard;
     private boolean internalReloadControlVisible = true;
     private List<String> seasonOptions = List.of();
 
@@ -64,7 +71,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         seasonPillBar.getStyleClass().add("watching-now-season-pill-bar");
         seasonPillBar.setMaxWidth(Double.MAX_VALUE);
         seasonPillBar.selectedItemProperty().addListener((_, _, _) -> {
-            applyTableFilter();
+            applyEpisodeRows();
             updateBingeWatchButton();
         });
 
@@ -74,79 +81,20 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         updateBingeWatchButton();
         configureReloadEpisodesButton();
 
-        tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        tableView.getColumns().add(createNameColumn());
-        configureRowInteractions();
-        contentStack.getChildren().add(buildTableBody());
+        cardsContainer.setPadding(new Insets(5));
+        cardsContainer.setFillWidth(true);
+        cardsContainer.setMaxWidth(Double.MAX_VALUE);
+        cardsScroll.setFitToWidth(true);
+        cardsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        cardsScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        cardsScroll.setMinSize(0, 0);
+        cardsScroll.setMaxWidth(Double.MAX_VALUE);
+        cardsScroll.setMaxHeight(Double.MAX_VALUE);
+        cardsScroll.getStyleClass().add("transparent-scroll-pane");
+        contentStack.getChildren().add(buildCardBody());
     }
 
-    private TableColumn<EpisodeItem, String> createNameColumn() {
-        TableColumn<EpisodeItem, String> nameCol = new TableColumn<>(I18n.tr("autoEpisodes"));
-        nameCol.setCellValueFactory(cellData -> cellData.getValue().episodeNameProperty());
-        nameCol.setCellFactory(col -> new TableCell<>() {
-            @Override
-            protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                updateEpisodeCell(item, empty);
-            }
-
-            private void updateEpisodeCell(String item, boolean empty) {
-                if (empty || item == null) {
-                    setText(null);
-                    setGraphic(null);
-                    return;
-                }
-                EpisodeItem row = getTableView().getItems().get(getIndex());
-                setGraphic(buildEpisodeCellGraphic(row, item));
-            }
-        });
-        return nameCol;
-    }
-
-    private HBox buildEpisodeCellGraphic(EpisodeItem row, String item) {
-        HBox box = new HBox(10);
-        box.setAlignment(Pos.CENTER_LEFT);
-        box.getChildren().add(new Label(buildEpisodeDisplayTitle(
-                row.getSeason(),
-                row.getEpisodeNumber(),
-                item
-        )));
-        if (row.isWatched()) {
-            Label watched = new Label(I18n.tr("autoWatching"));
-            watched.getStyleClass().add("drm-badge");
-            box.getChildren().add(watched);
-        }
-        return box;
-    }
-
-    private void configureRowInteractions() {
-        tableView.setRowFactory(_ -> {
-            TableRow<EpisodeItem> row = new TableRow<>();
-            row.setOnMouseClicked(event -> handleEpisodeRowClick(row, event));
-            addRightClickContextMenu(row);
-            return row;
-        });
-        tableView.setOnKeyPressed(event -> {
-            if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
-                playSelectedEpisode();
-            }
-        });
-    }
-
-    private void handleEpisodeRowClick(TableRow<EpisodeItem> row, javafx.scene.input.MouseEvent event) {
-        if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-            play(row.getItem(), ConfigurationService.getInstance().read().getDefaultPlayerPath());
-        }
-    }
-
-    private void playSelectedEpisode() {
-        EpisodeItem selected = tableView.getSelectionModel().getSelectedItem();
-        if (selected != null) {
-            play(selected, ConfigurationService.getInstance().read().getDefaultPlayerPath());
-        }
-    }
-
-    private VBox buildTableBody() {
+    private VBox buildCardBody() {
         seasonControls = new HBox(8, seasonPillBar, bingeWatchButton, reloadEpisodesButton);
         seasonControls.setAlignment(Pos.CENTER_LEFT);
         seasonControls.setMaxWidth(Double.MAX_VALUE);
@@ -156,11 +104,11 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         reloadEpisodesButton.setMinWidth(Region.USE_PREF_SIZE);
         reloadEpisodesButton.setMaxWidth(Region.USE_PREF_SIZE);
 
-        bodyContainer = new VBox(6, seasonControls, tableView);
+        bodyContainer = new VBox(6, seasonControls, cardsScroll);
         bodyContainer.setMaxWidth(Double.MAX_VALUE);
         bodyContainer.setMaxHeight(Double.MAX_VALUE);
         HBox.setHgrow(bodyContainer, Priority.ALWAYS);
-        VBox.setVgrow(tableView, Priority.ALWAYS);
+        VBox.setVgrow(cardsScroll, Priority.ALWAYS);
         return bodyContainer;
     }
 
@@ -175,13 +123,13 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     @Override
     protected void onItemsLoaded() {
         refreshSeasonTabs();
-        applyTableFilter();
+        applyEpisodeRows();
         updateBingeWatchButton();
     }
 
     @Override
     protected void showPlaceholder(String text) {
-        tableView.setPlaceholder(new Label(text));
+        cardsContainer.getChildren().setAll(new LoadingStateView(text));
     }
 
     @Override
@@ -191,8 +139,8 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             seasonControls.setVisible(!empty);
         }
         updateSeasonPillBarVisibility(!empty);
-        tableView.setManaged(!empty);
-        tableView.setVisible(!empty);
+        cardsScroll.setManaged(!empty);
+        cardsScroll.setVisible(!empty);
         emptyStateLabel.setText(message == null ? "" : message);
         emptyStateLabel.setManaged(empty);
         emptyStateLabel.setVisible(empty);
@@ -204,18 +152,18 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         channelList.getEpisodes().clear();
         allEpisodeItems.clear();
         refreshSeasonTabs();
-        applyTableFilter();
+        applyEpisodeRows();
         updateBingeWatchButton();
     }
 
     @Override
     protected void onBookmarksRefreshed() {
-        tableView.refresh();
+        applyEpisodeRows();
     }
 
     @Override
     protected void onWatchedStatesRefreshed() {
-        tableView.refresh();
+        applyEpisodeRows();
     }
 
     @Override
@@ -233,23 +181,67 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         if (!isBlank(targetSeason)) {
             selectSeasonTab(targetSeason);
         }
-        applyTableFilter();
-        tableView.getSelectionModel().select(match);
-        tableView.scrollTo(match);
+        applyEpisodeRows();
+        Pane card = renderedCardsByItem.get(match);
+        if (card != null) {
+            setSelectedEpisodeCard(card);
+            card.requestFocus();
+        }
     }
 
-    private void applyTableFilter() {
+    private void applyEpisodeRows() {
         if (allEpisodeItems.isEmpty()) {
             setEmptyState(I18n.tr("autoNoEpisodesFound"), true);
             return;
         }
         setEmptyState("", false);
         String season = selectedSeason();
-        if (isBlank(season)) {
-            tableView.setItems(allEpisodeItems);
-            return;
-        }
-        tableView.setItems(allEpisodeItems.filtered(item -> season.equals(item.getSeason())));
+        List<EpisodeItem> rows = isBlank(season)
+                ? List.copyOf(allEpisodeItems)
+                : allEpisodeItems.stream()
+                .filter(item -> season.equals(item.getSeason()))
+                .toList();
+        renderedCardsByItem.clear();
+        selectedEpisodeCard = null;
+        cardsContainer.getChildren().setAll(rows.stream()
+                .map(this::createEpisodeRow)
+                .toList());
+    }
+
+    private Pane createEpisodeRow(EpisodeItem row) {
+        HBox card = new HBox(8);
+        card.getStyleClass().addAll("uiptv-card", "plain-text-row-card", "watching-now-episode-card", "watching-now-episode-card-compact");
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setFocusTraversable(true);
+        card.setMinWidth(0);
+        card.setMaxWidth(Double.MAX_VALUE);
+        card.setMinHeight(42);
+
+        Label title = new Label(buildEpisodeDisplayTitle(
+                row.getSeason(),
+                row.getEpisodeNumber(),
+                row.getEpisodeName()
+        ));
+        title.getStyleClass().add("strong-label");
+        title.setWrapText(false);
+        title.setTextOverrun(OverrunStyle.ELLIPSIS);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        title.setMouseTransparent(true);
+        HBox.setHgrow(title, Priority.ALWAYS);
+
+        card.getChildren().add(title);
+        card.getProperties().put(KEY_CARD_LABELS, List.of(title));
+        addRightClickContextMenu(row, card);
+        card.setOnMouseClicked(event -> {
+            if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
+                play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            } else if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
+                setSelectedEpisodeCard(card);
+            }
+        });
+        renderedCardsByItem.put(row, card);
+        return card;
     }
 
     private void refreshSeasonTabs() {
@@ -350,18 +342,55 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         reloadEpisodesButton.setVisible(internalReloadControlVisible);
     }
 
-    private void addRightClickContextMenu(TableRow<EpisodeItem> row) {
+    @SuppressWarnings("unchecked")
+    private void setSelectedEpisodeCard(Pane current) {
+        if (current == null) {
+            return;
+        }
+        if (selectedEpisodeCard != null && selectedEpisodeCard != current) {
+            applyCardSelection(selectedEpisodeCard, false);
+        }
+        applyCardSelection(current, true);
+        selectedEpisodeCard = current;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void applyCardSelection(Pane card, boolean selected) {
+        if (card == null) {
+            return;
+        }
+        if (selected) {
+            card.getStyleClass().add("selected-card");
+        } else {
+            card.getStyleClass().remove("selected-card");
+        }
+        Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
+        if (labelsObj instanceof List<?> labels) {
+            for (Object labelObj : labels) {
+                if (labelObj instanceof Label label) {
+                    if (selected) {
+                        label.getStyleClass().add("selected-card-text");
+                    } else {
+                        label.getStyleClass().remove("selected-card-text");
+                    }
+                }
+            }
+        }
+    }
+
+    private ContextMenu addRightClickContextMenu(EpisodeItem item, Node owner) {
         final ContextMenu rowMenu = new ContextMenu();
-        UiI18n.preparePopupControl(rowMenu, row);
+        UiI18n.preparePopupControl(rowMenu, owner);
         rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
-        row.setOnContextMenuRequested(event -> {
-            populateEpisodeContextMenu(rowMenu, row.getItem());
+        owner.setOnContextMenuRequested(event -> {
+            populateEpisodeContextMenu(rowMenu, item);
             if (!rowMenu.getItems().isEmpty()) {
-                rowMenu.show(row, event.getScreenX(), event.getScreenY());
+                rowMenu.show(owner, event.getScreenX(), event.getScreenY());
             }
             event.consume();
         });
+        return rowMenu;
     }
 
     private void populateEpisodeContextMenu(ContextMenu rowMenu, EpisodeItem item) {
