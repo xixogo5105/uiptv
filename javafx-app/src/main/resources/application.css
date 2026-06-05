@@ -3363,6 +3363,11 @@
     -fx-effect: none;
 }
 
+.player-icon-button-active {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-background-radius: 4;
+}
+
 .player-tracks-menu {
     -fx-font-size: 1.077em;
     -fx-padding: 4;

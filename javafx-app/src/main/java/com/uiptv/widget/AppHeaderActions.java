@@ -43,6 +43,7 @@ public class AppHeaderActions extends HBox {
     private final Runnable wideNavigationListener = () -> Platform.runLater(this::updateWideNavigationButton);
     private final ConfigurationChangeListener configurationChangeListener =
             _ -> Platform.runLater(() -> {
+                updateWideNavigationButton();
                 updateParentalPauseButton();
                 updatePlainTextModeButton();
             });

@@ -96,20 +96,27 @@ public class MainApplicationUI extends BaseMainApplicationUI {
             return;
         }
         Configuration configuration = configurationService.read();
-        boolean widePlayerVisible = configuration != null
+        boolean embeddedPlayerVisible = configuration != null
                 && configuration.isEmbeddedPlayer()
-                && configuration.isWideView()
                 && embeddedPlayer.isManaged();
-        if (widePlayerVisible) {
-            activeAccountListUI.setMediaDrawerMode(true);
-            applyWideEmbeddedLayout();
-        } else {
+        boolean widePlayerPreferred = embeddedPlayerVisible && configuration.isWideView();
+        if (!embeddedPlayerVisible) {
             navigationCollapsed = false;
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(false);
             applyCompactEmbeddedLayout();
+        } else if (navigationCollapsed) {
+            activeAccountListUI.setMediaDrawerMode(false);
+            applyFocusedEmbeddedLayout();
+        } else if (widePlayerPreferred) {
+            activeAccountListUI.setMediaDrawerMode(true);
+            applyWideEmbeddedLayout();
+        } else {
+            retainedWideAppAreaWidth = -1;
+            activeAccountListUI.setMediaDrawerMode(false);
+            applyCompactEmbeddedLayout();
         }
-        WidePlayerNavigationControl.configure(widePlayerVisible, navigationCollapsed, wideNavigationToggleHandler);
+        WidePlayerNavigationControl.configure(embeddedPlayerVisible, navigationCollapsed, wideNavigationToggleHandler);
         if (mainContent != null) {
             mainContent.requestLayout();
         }
@@ -140,25 +147,47 @@ public class MainApplicationUI extends BaseMainApplicationUI {
 
     private void applyWideEmbeddedLayout() {
         double expandedAppAreaWidth = retainedWideAppAreaWidth();
-        double appAreaWidth = navigationCollapsed ? 0 : expandedAppAreaWidth;
-        double visibleAppAreaWidth = navigationCollapsed ? 0 : appAreaWidth;
-        activeTabPane.setMinWidth(visibleAppAreaWidth);
-        activeTabPane.setPrefWidth(appAreaWidth);
-        activeTabPane.setMaxWidth(visibleAppAreaWidth);
+        activeTabPane.setMinWidth(expandedAppAreaWidth);
+        activeTabPane.setPrefWidth(expandedAppAreaWidth);
+        activeTabPane.setMaxWidth(expandedAppAreaWidth);
         activeTabPane.setMaxHeight(Double.MAX_VALUE);
         activeTabPane.setMinHeight(0);
-        activeTabPane.setVisible(!navigationCollapsed);
-        activeTabPane.setManaged(!navigationCollapsed);
+        activeTabPane.setVisible(true);
+        activeTabPane.setManaged(true);
 
-        navigationShell.setMinWidth(visibleAppAreaWidth);
-        navigationShell.setPrefWidth(appAreaWidth);
-        navigationShell.setMaxWidth(appAreaWidth);
-        navigationShell.setVisible(!navigationCollapsed);
-        navigationShell.setManaged(!navigationCollapsed);
+        navigationShell.setMinWidth(expandedAppAreaWidth);
+        navigationShell.setPrefWidth(expandedAppAreaWidth);
+        navigationShell.setMaxWidth(expandedAppAreaWidth);
+        navigationShell.setVisible(true);
+        navigationShell.setManaged(true);
         HBox.setHgrow(navigationShell, Priority.NEVER);
 
-        collapsedNavigationHandleShell.setVisible(navigationCollapsed);
-        collapsedNavigationHandleShell.setManaged(navigationCollapsed);
+        collapsedNavigationHandleShell.setVisible(false);
+        collapsedNavigationHandleShell.setManaged(false);
+        HBox.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
+
+        applyWideEmbeddedPlayerSize(embeddedPlayer);
+        HBox.setHgrow(embeddedPlayer, Priority.ALWAYS);
+    }
+
+    private void applyFocusedEmbeddedLayout() {
+        activeTabPane.setMinWidth(0);
+        activeTabPane.setPrefWidth(0);
+        activeTabPane.setMaxWidth(0);
+        activeTabPane.setMaxHeight(Double.MAX_VALUE);
+        activeTabPane.setMinHeight(0);
+        activeTabPane.setVisible(false);
+        activeTabPane.setManaged(false);
+
+        navigationShell.setMinWidth(0);
+        navigationShell.setPrefWidth(0);
+        navigationShell.setMaxWidth(0);
+        navigationShell.setVisible(false);
+        navigationShell.setManaged(false);
+        HBox.setHgrow(navigationShell, Priority.NEVER);
+
+        collapsedNavigationHandleShell.setVisible(false);
+        collapsedNavigationHandleShell.setManaged(false);
         HBox.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
 
         applyWideEmbeddedPlayerSize(embeddedPlayer);

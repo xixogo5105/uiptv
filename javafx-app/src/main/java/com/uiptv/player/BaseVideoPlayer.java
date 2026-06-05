@@ -3,9 +3,11 @@ package com.uiptv.player;
 import com.uiptv.player.api.VideoPlayerInterface;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
+import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.BingeWatchService;
+import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
@@ -65,8 +67,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private static final int MAX_HLS_RESOLUTION_DEPTH = 8;
     private static final String STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON = "player-round-control-button";
     private static final String STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON = "player-pip-overlay-button";
+    private static final String STYLE_CLASS_PLAYER_ICON_BUTTON_ACTIVE = "player-icon-button-active";
     public static final String PLAYER_ICON_BUTTON = "player-icon-button";
     public static final String PLAYER_TRACKS_MENU_ITEM = "player-tracks-menu-item";
+    private static final String WIDE_LAYOUT_ICON = "M3 5H21V19H3V5ZM5 7V17H11V7H5ZM13 7V17H19V7H13Z";
+    private static final String NARROW_LAYOUT_ICON = "M3 5H21V19H3V5ZM5 7V17H14V7H5ZM16 7V17H19V7H16Z";
 
     // State
     protected boolean isMuted = true;
@@ -101,6 +106,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected Button btnFullscreen;
     protected Button btnReload;
     protected Button btnPip;
+    protected Button btnLayoutMode;
     protected Button btnStop;
     protected Button btnRewind;
     protected Button btnFastForward;
@@ -122,6 +128,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected ImageView reloadIcon;
     protected ImageView pipIcon;
     protected ImageView pipExitIcon;
+    protected SVGPath layoutModeIcon;
     protected ImageView aspectRatioIcon;
     protected ImageView aspectRatioFillIcon;
     protected ImageView aspectRatioStretchIcon;
@@ -148,6 +155,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected String activeBingeWatchEpisodeId = "";
     private SeriesWatchStateChangeListener bingeWatchStateChangeListener;
     private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);
+    private final ConfigurationChangeListener layoutModeConfigurationChangeListener =
+            _ -> Platform.runLater(this::updateLayoutModeButton);
     private double lastMouseEventScreenX = Double.NaN;
     private double lastMouseEventScreenY = Double.NaN;
 
@@ -181,6 +190,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         buildUI();
         setupEventHandlers();
         setupFadeAndIdleLogic();
+        ConfigurationService.getInstance().addChangeListener(layoutModeConfigurationChangeListener);
         playerContainer.sceneProperty().addListener((_, oldScene, newScene) -> {
             if (oldScene != newScene) {
                 uninstallSceneInputRecovery(oldScene);
@@ -221,8 +231,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btnReload = createIconButton(reloadIcon);
         btnFullscreen = createIconButton(fullscreenIcon);
         btnPip = createIconButton(pipIcon);
+        btnLayoutMode = createIconButton(layoutModeIcon);
         btnAspectRatio = createIconButton(aspectRatioIcon);
         btnAspectRatio.setTooltip(new Tooltip(I18n.tr("autoFit")));
+        updateLayoutModeButton();
 
         btnHideBar = createIconButton(hideBarIcon);
         btnHideBar.setTooltip(new Tooltip(I18n.tr("autoHideThisBar")));
@@ -255,7 +267,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         HBox buttonRow = new HBox(1.5);
         buttonRow.setAlignment(Pos.CENTER_LEFT);
-        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio);
+        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward, btnRepeat, btnReload, btnLayoutMode, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio);
         buttonRow.getChildren().add(btnTracks);
         buttonRow.getChildren().add(btnHideBar);
 
@@ -397,6 +409,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             exitFullscreen();
             togglePip();
         });
+        btnLayoutMode.setOnAction(e -> toggleWideViewPreference());
         btnAspectRatio.setOnAction(e -> toggleAspectRatio());
         btnHideBar.setOnAction(e -> hideControlBarByUser());
         btnMute.setOnAction(e -> {
@@ -918,6 +931,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             return;
         }
         try {
+            ConfigurationService.getInstance().removeChangeListener(layoutModeConfigurationChangeListener);
             // First stop any current playback and dispose current media
             stopForReload();
         } catch (Exception _) {
@@ -1046,6 +1060,56 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         aspectRatioMode = (aspectRatioMode + 1) % 3;
         updateAspectRatioButtonState();
         updateVideoSize();
+    }
+
+    private void toggleWideViewPreference() {
+        Configuration current = ConfigurationService.getInstance().read();
+        if (current == null || !current.isEmbeddedPlayer()) {
+            updateLayoutModeButton();
+            return;
+        }
+        boolean nextWideView = !current.isWideView();
+        applyLayoutModeButtonState(true, nextWideView);
+        Thread saveThread = new Thread(() -> saveWideViewPreference(nextWideView), "embedded-player-wide-view-save");
+        saveThread.setDaemon(true);
+        saveThread.start();
+    }
+
+    private void saveWideViewPreference(boolean wideView) {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        if (configuration == null || !configuration.isEmbeddedPlayer() || configuration.isWideView() == wideView) {
+            return;
+        }
+        configuration.setWideView(wideView);
+        ConfigurationService.getInstance().save(configuration);
+    }
+
+    private void updateLayoutModeButton() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        boolean available = configuration != null && configuration.isEmbeddedPlayer();
+        boolean wideView = available && configuration.isWideView();
+        applyLayoutModeButtonState(available, wideView);
+    }
+
+    private void applyLayoutModeButtonState(boolean available, boolean wideView) {
+        if (btnLayoutMode == null || layoutModeIcon == null) {
+            return;
+        }
+        btnLayoutMode.setVisible(available);
+        btnLayoutMode.setManaged(available);
+        layoutModeIcon.setContent(wideView ? WIDE_LAYOUT_ICON : NARROW_LAYOUT_ICON);
+        layoutModeIcon.setOpacity(wideView ? 1.0 : 0.72);
+        btnLayoutMode.getStyleClass().remove(STYLE_CLASS_PLAYER_ICON_BUTTON_ACTIVE);
+        if (wideView) {
+            btnLayoutMode.getStyleClass().add(STYLE_CLASS_PLAYER_ICON_BUTTON_ACTIVE);
+        }
+        String tooltipText = I18n.tr("configWideView") + ": " + I18n.tr(wideView ? "commonEnabled" : "commonDisabled");
+        if (btnLayoutMode.getTooltip() == null) {
+            btnLayoutMode.setTooltip(new Tooltip(tooltipText));
+        } else {
+            btnLayoutMode.getTooltip().setText(tooltipText);
+        }
+        btnLayoutMode.setAccessibleText(tooltipText);
     }
 
     private void updateAspectRatioButtonState() {
@@ -1561,6 +1625,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         muteOffIcon = createIconView("mute-off.png", true);
         pipIcon = createIconView("picture-in-picture.png", true);
         pipExitIcon = createIconView("picture-in-picture-exit.png", false);
+        layoutModeIcon = createLayoutModeIcon();
         aspectRatioIcon = createIconView("aspect-ratio.png", true);
         aspectRatioFillIcon = createIconView("aspect-ratio-fill.png", true);
         aspectRatioStretchIcon = createIconView("aspect-ratio-stretch.png", true);
@@ -1610,6 +1675,23 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btn.setPadding(new Insets(3));
         btn.getStyleClass().add(PLAYER_ICON_BUTTON);
         return btn;
+    }
+
+    private Button createIconButton(SVGPath icon) {
+        Button btn = new Button();
+        btn.setGraphic(icon);
+        btn.setPadding(new Insets(3));
+        btn.getStyleClass().add(PLAYER_ICON_BUTTON);
+        return btn;
+    }
+
+    private SVGPath createLayoutModeIcon() {
+        SVGPath icon = new SVGPath();
+        icon.setContent(NARROW_LAYOUT_ICON);
+        icon.setFill(Color.WHITE);
+        icon.setScaleX(0.9);
+        icon.setScaleY(0.9);
+        return icon;
     }
 
     private Button createTransportButton(ImageView icon, String tooltip) {
