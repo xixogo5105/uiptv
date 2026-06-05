@@ -6,6 +6,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.AccountInfo;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.util.AccountCopyUtil;
+import com.uiptv.widget.ThemedDialogSupport;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
@@ -29,7 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import static com.uiptv.widget.UIptvAlert.okButtonType;
+import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.util.StringUtils.SPACE;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
@@ -219,8 +220,10 @@ public class MacAddressManagementPopup extends VBox {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
                     I18n.tr("autoRemovingDefaultMacWarning"),
                     ButtonType.YES, ButtonType.NO);
-            alert.initOwner(stage);
-            if (alert.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) {
+            alert.setTitle(I18n.tr("commonConfirm"));
+            alert.setHeaderText(I18n.tr("commonConfirm"));
+            ThemedDialogSupport.prepare(alert, stage, "uiptv-alert-dialog");
+            if (ThemedDialogSupport.showAndWait(alert, stage).orElse(ButtonType.NO) != ButtonType.YES) {
                 return;
             }
         }
@@ -318,9 +321,7 @@ public class MacAddressManagementPopup extends VBox {
     }
 
     private void showAlert(String message) {
-        Alert alert = new Alert(Alert.AlertType.WARNING, message, okButtonType());
-        alert.initOwner(stage);
-        alert.showAndWait();
+        showErrorAlert(message);
     }
 
     private static class MacItem {

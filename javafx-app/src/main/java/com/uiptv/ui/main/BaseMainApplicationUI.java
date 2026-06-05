@@ -7,6 +7,7 @@ import com.uiptv.ui.*;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.SystemUtils;
+import com.uiptv.widget.AppNotificationCenter;
 import com.uiptv.widget.AppNavigationPane;
 import com.uiptv.widget.AppPageHeader;
 import javafx.animation.PauseTransition;
@@ -94,7 +95,10 @@ public abstract class BaseMainApplicationUI {
 
         MenuBar menuBar = createMenuBar();
 
-        VBox rootLayout = new VBox(menuBar, mainContent);
+        VBox notificationHost = AppNotificationCenter.createHost();
+        AppNotificationCenter.install(notificationHost);
+
+        VBox rootLayout = new VBox(notificationHost, menuBar, mainContent);
         VBox.setVgrow(mainContent, Priority.ALWAYS);
 
         Scene scene = new Scene(rootLayout, guidedMaxWidthPixels, guidedMaxHeightPixels);

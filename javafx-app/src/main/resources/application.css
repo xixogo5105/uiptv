@@ -435,7 +435,8 @@
     -fx-background-color: linear-gradient(to bottom right, #ffffff, #f6f7f9);
 }
 
-.verification-progress-summary {
+.verification-progress-summary,
+.reload-progress-summary {
     -fx-text-fill: -uiptv-text-secondary;
     -fx-font-weight: bold;
 }
@@ -2546,24 +2547,99 @@
     -fx-background-color: rgba(17, 24, 39, 0.48);
 }
 
-.uiptv-modal-dialog {
-    -fx-background-color: #ffffff;
-    -fx-background-insets: 0;
-    -fx-background-radius: 24;
-    -fx-border-color: rgba(255, 255, 255, 0.92);
-    -fx-border-insets: 0;
-    -fx-border-radius: 24;
+.uiptv-notification-host {
+    -fx-padding: 10 14 0 14;
+}
+
+.uiptv-notification-card {
+    -fx-padding: 12 14 12 14;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
     -fx-border-width: 1;
-    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.16), 18, 0.18, 0, 6);
+}
+
+.uiptv-notification-card.info {
+    -fx-background-color: linear-gradient(to right, #eef6ff, #f8fbff);
+    -fx-border-color: #9cc8ff;
+}
+
+.uiptv-notification-card.error {
+    -fx-background-color: linear-gradient(to right, #fff1f2, #fff8f8);
+    -fx-border-color: #f4a6ad;
+}
+
+.uiptv-notification-icon-shell {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.uiptv-notification-icon-shell.info {
+    -fx-background-color: #dbeafe;
+    -fx-border-color: #93c5fd;
+}
+
+.uiptv-notification-icon-shell.error {
+    -fx-background-color: #fee2e2;
+    -fx-border-color: #fca5a5;
+}
+
+.uiptv-notification-icon {
+    -fx-font-weight: bold;
+    -fx-font-size: 1.08em;
+}
+
+.uiptv-notification-icon-shell.info .uiptv-notification-icon {
+    -fx-text-fill: #0b57d0;
+}
+
+.uiptv-notification-icon-shell.error .uiptv-notification-icon {
+    -fx-text-fill: #b91c1c;
+}
+
+.uiptv-notification-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-notification-message {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.uiptv-notification-close {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 4 8 4 8;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.uiptv-notification-close:hover,
+.uiptv-notification-close:focused {
+    -fx-background-color: rgba(15, 23, 42, 0.08);
+    -fx-background-radius: 999;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-modal-dialog {
+    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f8fafc);
+    -fx-background-insets: 0;
+    -fx-background-radius: 22;
+    -fx-border-color: rgba(15, 23, 42, 0.10);
+    -fx-border-insets: 0;
+    -fx-border-radius: 22;
+    -fx-border-width: 1;
+    -fx-padding: 22;
     -fx-min-width: 520;
     -fx-pref-width: 560;
-    -fx-effect: dropshadow(gaussian, transparent, 0, 0, 0, 0);
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.24), 28, 0.20, 0, 12);
 }
 
 .uiptv-modal-dialog > .content {
     -fx-background-color: transparent;
     -fx-background-insets: 0;
-    -fx-padding: 6 2 14 2;
+    -fx-padding: 4 2 12 2;
 }
 
 .uiptv-modal-dialog > .header-panel,
@@ -2573,20 +2649,33 @@
     -fx-background-insets: 0;
 }
 
+.uiptv-modal-dialog > .header-panel {
+    -fx-padding: 0 0 10 0;
+}
+
+.uiptv-modal-dialog > .header-panel .label {
+    -fx-font-size: 1.24em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
 .uiptv-modal-dialog .label {
     -fx-text-fill: -uiptv-text-primary;
 }
 
 .uiptv-modal-dialog > .button-bar > .container {
-    -fx-padding: 12 0 0 0;
+    -fx-padding: 14 0 0 0;
 }
 
 .uiptv-modal-dialog .button {
-    -fx-background-radius: 14;
-    -fx-border-radius: 14;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
     -fx-border-width: 1;
-    -fx-padding: 8 16 8 16;
+    -fx-padding: 9 18 9 18;
+    -fx-min-height: 40;
+    -fx-min-width: 104;
     -fx-cursor: hand;
+    -fx-font-weight: bold;
 }
 
 .uiptv-modal-dialog .uiptv-dialog-primary-button {
@@ -2596,7 +2685,8 @@
 }
 
 .uiptv-modal-dialog .uiptv-dialog-primary-button:hover {
-    -fx-opacity: 0.88;
+    -fx-background-color: derive(-uiptv-action-bg, 10%);
+    -fx-border-color: derive(-uiptv-action-bg, 10%);
 }
 
 .uiptv-modal-dialog .uiptv-dialog-secondary-button {
@@ -2620,7 +2710,38 @@
 }
 
 .uiptv-alert-dialog > .graphic-container {
-    -fx-padding: 6 14 0 0;
+    -fx-padding: 2 16 0 0;
+}
+
+.uiptv-dialog-glyph {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+}
+
+.uiptv-dialog-glyph-text {
+    -fx-font-size: 1.42em;
+    -fx-font-weight: bold;
+}
+
+.uiptv-dialog-glyph.uiptv-confirm-dialog {
+    -fx-background-color: #dbeafe;
+    -fx-border-color: #93c5fd;
+}
+
+.uiptv-dialog-glyph.uiptv-confirm-dialog .uiptv-dialog-glyph-text {
+    -fx-text-fill: #0b57d0;
+}
+
+.uiptv-dialog-glyph.uiptv-error-dialog,
+.uiptv-dialog-glyph.uiptv-warning-dialog {
+    -fx-background-color: #fee2e2;
+    -fx-border-color: #fca5a5;
+}
+
+.uiptv-dialog-glyph.uiptv-error-dialog .uiptv-dialog-glyph-text,
+.uiptv-dialog-glyph.uiptv-warning-dialog .uiptv-dialog-glyph-text {
+    -fx-text-fill: #b91c1c;
 }
 
 .uiptv-help-dialog {
@@ -3150,6 +3271,10 @@
 
 .reload-cache-popup {
     -fx-background-color: linear-gradient(to bottom right, #ffffff, #f4f6f8);
+}
+
+.reload-progress-card {
+    -fx-min-height: 64;
 }
 
 .reload-account-list,

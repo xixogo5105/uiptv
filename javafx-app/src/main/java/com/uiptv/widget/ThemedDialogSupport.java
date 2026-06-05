@@ -7,6 +7,7 @@ import javafx.beans.value.ChangeListener;
 import javafx.geometry.NodeOrientation;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
@@ -15,6 +16,7 @@ import javafx.scene.control.Label;
 import javafx.scene.effect.ColorAdjust;
 import javafx.scene.effect.Effect;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
@@ -32,7 +34,6 @@ public final class ThemedDialogSupport {
     }
 
     public static void prepare(Dialog<?> dialog, Window ownerWindow, String styleClass) {
-        dialog.setHeaderText(null);
         dialog.initModality(Modality.APPLICATION_MODAL);
         dialog.initStyle(StageStyle.TRANSPARENT);
         if (ownerWindow != null) {
@@ -42,6 +43,8 @@ public final class ThemedDialogSupport {
         if (styleClass != null && !styleClass.isBlank()) {
             dialog.getDialogPane().getStyleClass().add(styleClass);
         }
+        decorateAlert(dialog);
+        styleDialogButtons(dialog);
         String theme = RootApplication.getCurrentTheme();
         if (theme != null) {
             dialog.getDialogPane().getStylesheets().add(theme);
@@ -61,6 +64,73 @@ public final class ThemedDialogSupport {
             focusDialogRepeatedly(dialog);
         });
         dialog.setOnHidden(_ -> uninstallFocusBridge(dialog));
+    }
+
+    public static void styleDialogButtons(Dialog<?> dialog) {
+        if (dialog == null || dialog.getDialogPane() == null) {
+            return;
+        }
+        for (ButtonType buttonType : dialog.getDialogPane().getButtonTypes()) {
+            Button button = (Button) dialog.getDialogPane().lookupButton(buttonType);
+            if (button == null) {
+                continue;
+            }
+            ButtonBar.ButtonData data = buttonType.getButtonData();
+            addStyleClass(button, data != null && data.isDefaultButton()
+                    ? "uiptv-dialog-primary-button"
+                    : "uiptv-dialog-secondary-button");
+        }
+    }
+
+    private static void addStyleClass(Node node, String styleClass) {
+        if (node != null && styleClass != null && !node.getStyleClass().contains(styleClass)) {
+            node.getStyleClass().add(styleClass);
+        }
+    }
+
+    private static void decorateAlert(Dialog<?> dialog) {
+        if (!(dialog instanceof Alert alert)) {
+            return;
+        }
+        Alert.AlertType alertType = alert.getAlertType();
+        String styleClass = alertStyleClass(alertType);
+        if (styleClass == null) {
+            return;
+        }
+        dialog.getDialogPane().getStyleClass().add(styleClass);
+        if (alert.getHeaderText() == null || alert.getHeaderText().isBlank()) {
+            alert.setHeaderText(defaultAlertHeader(alertType));
+        }
+        alert.setGraphic(createAlertGraphic(alertType));
+    }
+
+    private static String alertStyleClass(Alert.AlertType alertType) {
+        return switch (alertType) {
+            case CONFIRMATION -> "uiptv-confirm-dialog";
+            case ERROR -> "uiptv-error-dialog";
+            case WARNING -> "uiptv-warning-dialog";
+            default -> null;
+        };
+    }
+
+    private static String defaultAlertHeader(Alert.AlertType alertType) {
+        return switch (alertType) {
+            case CONFIRMATION -> I18n.tr("commonConfirm");
+            case ERROR -> I18n.tr("commonError");
+            case WARNING -> I18n.tr("commonInfo");
+            default -> "";
+        };
+    }
+
+    private static StackPane createAlertGraphic(Alert.AlertType alertType) {
+        Label glyph = new Label(alertType == Alert.AlertType.CONFIRMATION ? "?" : "!");
+        glyph.getStyleClass().add("uiptv-dialog-glyph-text");
+        StackPane shell = new StackPane(glyph);
+        shell.getStyleClass().addAll("uiptv-dialog-glyph", alertStyleClass(alertType));
+        shell.setMinSize(44, 44);
+        shell.setPrefSize(44, 44);
+        shell.setMaxSize(44, 44);
+        return shell;
     }
 
     public static <T> Optional<T> showAndWait(Dialog<T> dialog, Window ownerWindow) {

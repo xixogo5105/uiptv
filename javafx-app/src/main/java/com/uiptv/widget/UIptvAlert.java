@@ -39,12 +39,16 @@ public class UIptvAlert {
             AppLog.addInfoLog(UIptvAlert.class, "Message alert coalesced: " + message);
             return;
         }
-        showVoidAlertLater(() -> {
-            Alert alert = new Alert(Alert.AlertType.INFORMATION, message, closeButtonType());
-            alert.setTitle(I18n.tr("commonInfo"));
-            prepareAlert(alert, null, alert.getButtonTypes().getFirst());
-            return alert;
-        }, () -> ACTIVE_VOID_ALERTS.remove(alertKey));
+        Runnable cleanup = () -> ACTIVE_VOID_ALERTS.remove(alertKey);
+        if (!AppNotificationCenter.showInfo(message, cleanup)) {
+            showVoidAlertLater(() -> {
+                Alert alert = new Alert(Alert.AlertType.INFORMATION, message, closeButtonType());
+                alert.setTitle(I18n.tr("commonInfo"));
+                alert.setHeaderText(I18n.tr("commonInfo"));
+                prepareAlert(alert, null, alert.getButtonTypes().getFirst());
+                return alert;
+            }, cleanup);
+        }
     }
 
     public static boolean showConfirmationAlert(String contents) {
@@ -58,6 +62,7 @@ public class UIptvAlert {
         ButtonType closeButton = closeButtonType();
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message, okButton, closeButton);
         alert.setTitle(I18n.tr("commonConfirm"));
+        alert.setHeaderText(I18n.tr("commonConfirm"));
         prepareAlert(alert, okButton, closeButton);
         Optional<ButtonType> result = ThemedDialogSupport.showAndWait(alert, alertOwnerWindow());
         return result.isPresent() && result.get() == okButton;
@@ -101,12 +106,16 @@ public class UIptvAlert {
             AppLog.addInfoLog(UIptvAlert.class, "Error alert coalesced: " + message);
             return;
         }
-        showVoidAlertLater(() -> {
-            Alert alert = new Alert(Alert.AlertType.ERROR, message, closeButtonType());
-            alert.setTitle(I18n.tr("commonError"));
-            prepareAlert(alert, null, alert.getButtonTypes().getFirst());
-            return alert;
-        }, () -> ACTIVE_VOID_ALERTS.remove(alertKey));
+        Runnable cleanup = () -> ACTIVE_VOID_ALERTS.remove(alertKey);
+        if (!AppNotificationCenter.showError(message, cleanup)) {
+            showVoidAlertLater(() -> {
+                Alert alert = new Alert(Alert.AlertType.ERROR, message, closeButtonType());
+                alert.setTitle(I18n.tr("commonError"));
+                alert.setHeaderText(I18n.tr("commonError"));
+                prepareAlert(alert, null, alert.getButtonTypes().getFirst());
+                return alert;
+            }, cleanup);
+        }
     }
 
     private static void showVoidAlertLater(Supplier<Alert> alertSupplier, Runnable cleanup) {
@@ -131,7 +140,7 @@ public class UIptvAlert {
             return;
         }
         Button button = (Button) alert.getDialogPane().lookupButton(buttonType);
-        if (button != null) {
+        if (button != null && !button.getStyleClass().contains(styleClass)) {
             button.getStyleClass().add(styleClass);
         }
     }

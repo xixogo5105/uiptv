@@ -23,8 +23,9 @@ public class DialogAlert {
         }
         Alert confirmDialogue = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.YES, ButtonType.NO);
         if (title != null) {
-            confirmDialogue.setTitle(I18n.tr(title));
-            confirmDialogue.setHeaderText(null);
+            String localizedTitle = I18n.tr(title);
+            confirmDialogue.setTitle(localizedTitle);
+            confirmDialogue.setHeaderText(localizedTitle);
         }
         Button yesButton = (Button) confirmDialogue.getDialogPane().lookupButton(ButtonType.YES);
         yesButton.setDefaultButton(false);

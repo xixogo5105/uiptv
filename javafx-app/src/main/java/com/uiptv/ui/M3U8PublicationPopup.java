@@ -40,15 +40,21 @@ public class M3U8PublicationPopup extends VBox {
         this.savedSelections = service.getSelections();
         this.currentCategorySelections = new LinkedHashMap<>(savedSelections.categorySelections());
         this.currentChannelSelections = new LinkedHashMap<>(savedSelections.channelSelections());
-        setPadding(new Insets(10));
-        setSpacing(10);
+        getStyleClass().addAll("management-popup-root", "m3u8-publication-popup");
+        setPadding(new Insets(18));
+        setSpacing(14);
 
         Label label = new Label(I18n.tr("autoSelectM3U8AccountsToPublish"));
+        label.getStyleClass().add("management-popup-title");
+        label.setWrapText(true);
         configureCategoryModeComboBox();
         VBox categoryModeSection = new VBox(6,
                 new Label(I18n.tr("publishM3uCategoryModeLabel")),
                 categoryModeComboBox);
+        categoryModeSection.getStyleClass().add("management-popup-card");
+        categoryModeSection.setMaxWidth(Double.MAX_VALUE);
         VBox content = new VBox(8);
+        content.getStyleClass().add("m3u8-publication-account-list");
         content.setFillWidth(true);
 
         for (M3U8PublicationService.PlaylistAccountSummary account : service.getAvailableAccounts()) {
@@ -59,9 +65,11 @@ public class M3U8PublicationPopup extends VBox {
 
         ScrollPane scrollPane = new ScrollPane(content);
         scrollPane.setFitToWidth(true);
+        scrollPane.getStyleClass().add("transparent-scroll-pane");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
         Button okButton = new Button(I18n.tr("autoOk"));
+        okButton.getStyleClass().add("prominent");
         okButton.setOnAction(e -> {
             saveCategoryModeSelection();
             service.saveSelections(buildSelectionsToSave());
@@ -72,9 +80,16 @@ public class M3U8PublicationPopup extends VBox {
         cancelButton.setOnAction(e -> stage.close());
 
         HBox buttons = new HBox(10, okButton, cancelButton);
+        buttons.getStyleClass().add("management-popup-footer");
         buttons.setAlignment(Pos.CENTER_RIGHT);
 
-        getChildren().addAll(label, categoryModeSection, scrollPane, buttons);
+        VBox accountCard = new VBox(10, scrollPane);
+        accountCard.getStyleClass().add("management-popup-card");
+        accountCard.setMaxWidth(Double.MAX_VALUE);
+        accountCard.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(accountCard, Priority.ALWAYS);
+
+        getChildren().addAll(label, categoryModeSection, accountCard, buttons);
     }
 
     private void configureCategoryModeComboBox() {

@@ -12,13 +12,11 @@ import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
-import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -32,7 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import static com.uiptv.widget.UIptvAlert.okButtonType;
+import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class XtremeCredentialsManagementPopup extends VBox {
@@ -94,8 +92,9 @@ public class XtremeCredentialsManagementPopup extends VBox {
     }
 
     private void configureLayout() {
-        setPadding(new Insets(10));
-        setSpacing(10);
+        getStyleClass().addAll("management-popup-root", "xtreme-credentials-popup");
+        setPadding(new Insets(18));
+        setSpacing(14);
     }
 
     private void configureSelectionHandling() {
@@ -117,9 +116,12 @@ public class XtremeCredentialsManagementPopup extends VBox {
     private void configureListView() {
         credentialListView.setItems(credentialItems);
         credentialListView.setCellFactory(param -> new CredentialListCell());
+        credentialListView.getStyleClass().add("management-list-view");
         VBox.setVgrow(credentialListView, Priority.ALWAYS);
         usernameField.setPromptText(I18n.tr("manageUserNamePrompt"));
         passwordField.setPromptText(I18n.tr("managePasswordPrompt"));
+        usernameField.getStyleClass().add("management-popup-text-field");
+        passwordField.getStyleClass().add("management-popup-text-field");
         credentialItems.addListener((javafx.collections.ListChangeListener<CredentialItem>) change -> updateActionButtons());
     }
 
@@ -134,7 +136,9 @@ public class XtremeCredentialsManagementPopup extends VBox {
 
     private void buildContent() {
         HBox actionBox = new HBox(10, removeButton, setDefaultButton);
+        actionBox.getStyleClass().add("management-popup-action-strip");
         HBox bottomBox = new HBox(10, saveButton, closeButton);
+        bottomBox.getStyleClass().add("management-popup-footer");
         bottomBox.setAlignment(Pos.CENTER_RIGHT);
 
         HBox inputRow = new HBox(10, usernameField, passwordField);
@@ -142,18 +146,37 @@ public class XtremeCredentialsManagementPopup extends VBox {
         HBox.setHgrow(passwordField, Priority.ALWAYS);
 
         HBox inputActions = new HBox(10, addButton, updateButton);
+        inputActions.getStyleClass().add("management-popup-action-strip");
+
+        Label addTitle = new Label(I18n.tr("autoAddNew"));
+        addTitle.getStyleClass().add("management-popup-section-title");
+
+        VBox listCard = new VBox(10, selectAllCheckBox, credentialListView);
+        listCard.getStyleClass().add("management-popup-card");
+        listCard.setMaxWidth(Double.MAX_VALUE);
+        listCard.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(listCard, Priority.ALWAYS);
+
+        VBox addCard = new VBox(10, addTitle, inputRow, inputActions);
+        addCard.getStyleClass().add("management-popup-card");
+        addCard.setMaxWidth(Double.MAX_VALUE);
 
         getChildren().addAll(
-                selectAllCheckBox,
-                credentialListView,
+                buildHeader(),
+                listCard,
                 actionBox,
-                new Separator(),
-                new Label(I18n.tr("autoAddNew")),
-                inputRow,
-                inputActions,
-                new Separator(),
+                addCard,
                 bottomBox
         );
+    }
+
+    private VBox buildHeader() {
+        Label title = new Label(I18n.tr("autoManage") + " Xtreme");
+        title.getStyleClass().add("management-popup-title");
+
+        VBox header = new VBox(2, title);
+        header.getStyleClass().add("management-popup-header");
+        return header;
     }
 
     private Scene createScene(Stage owner) {
@@ -161,6 +184,8 @@ public class XtremeCredentialsManagementPopup extends VBox {
         UiI18n.applySceneOrientation(scene);
         if (owner != null && owner.getScene() != null) {
             scene.getStylesheets().addAll(owner.getScene().getStylesheets());
+        } else if (RootApplication.getCurrentTheme() != null) {
+            scene.getStylesheets().add(RootApplication.getCurrentTheme());
         }
         return scene;
     }
@@ -272,9 +297,7 @@ public class XtremeCredentialsManagementPopup extends VBox {
     }
 
     private void showAlert(String message) {
-        Alert alert = new Alert(Alert.AlertType.WARNING, message, okButtonType());
-        alert.initOwner(stage);
-        alert.showAndWait();
+        showErrorAlert(message);
     }
 
     private static class CredentialItem {

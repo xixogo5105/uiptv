@@ -798,20 +798,25 @@ public class AccountListUI extends HBox implements SearchTarget {
         menu.setHideOnEscape(true);
         menu.setAutoHide(true);
 
+        List<AccountItem> actionItems = selectedAccountsForAction(contextItem, selectedItems);
+
         MenuItem editAccount = new MenuItem(I18n.tr("autoEditManageAccount"));
-        editAccount.setOnAction(_ -> runSingleSelectionAction(() -> openManageAccount(contextItem, true)));
+        editAccount.setOnAction(_ -> runSingleSelectionAction(actionItems, () -> openManageAccount(contextItem, true)));
 
         MenuItem itvItem = new MenuItem(I18n.tr("autoTvChannels"));
-        itvItem.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(contextItem, Account.AccountAction.itv)));
+        itvItem.setOnAction(_ -> runSingleSelectionAction(actionItems,
+                () -> retrieveThreadedAccountCategories(contextItem, Account.AccountAction.itv)));
 
         MenuItem vodItem = new MenuItem(I18n.tr("autoVod"));
-        vodItem.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(contextItem, Account.AccountAction.vod)));
+        vodItem.setOnAction(_ -> runSingleSelectionAction(actionItems,
+                () -> retrieveThreadedAccountCategories(contextItem, Account.AccountAction.vod)));
 
         MenuItem seriesItem = new MenuItem(I18n.tr("autoSeries"));
-        seriesItem.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(contextItem, Account.AccountAction.series)));
+        seriesItem.setOnAction(_ -> runSingleSelectionAction(actionItems,
+                () -> retrieveThreadedAccountCategories(contextItem, Account.AccountAction.series)));
 
         MenuItem reloadCache = new MenuItem(I18n.tr("autoReloadCache"));
-        reloadCache.setOnAction(_ -> handleReloadCache(contextItem));
+        reloadCache.setOnAction(_ -> handleReloadCache(contextItem, actionItems));
 
         MenuItem deleteItem = new MenuItem(I18n.tr("autoDeleteAccount"));
         deleteItem.getStyleClass().add("danger-menu-item");
@@ -821,7 +826,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         boolean vodSupported = account != null && VOD_AND_SERIES_SUPPORTED.contains(account.getType());
         vodItem.setVisible(vodSupported);
         seriesItem.setVisible(vodSupported);
-        boolean cacheSupported = selectedAccountsForAction(contextItem).stream()
+        boolean cacheSupported = actionItems.stream()
                 .map(AccountItem::getAccountType)
                 .anyMatch(CACHE_SUPPORTED::contains);
         reloadCache.setVisible(cacheSupported);
@@ -1181,7 +1186,11 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void handleReloadCache(AccountItem contextItem) {
-        List<Account> accounts = resolveAccountsForReload(contextItem);
+        handleReloadCache(contextItem, null);
+    }
+
+    private void handleReloadCache(AccountItem contextItem, List<AccountItem> selectedItems) {
+        List<Account> accounts = resolveAccountsForReload(contextItem, selectedItems);
         if (accounts.isEmpty()) {
             showErrorAlert(I18n.tr("autoNoCacheSupportedAccountSelected"));
             return;
@@ -1190,7 +1199,11 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void runSingleSelectionAction(Runnable action) {
-        if (selectedAccountsForAction(null).size() > 1) {
+        runSingleSelectionAction(selectedAccountsForAction(null), action);
+    }
+
+    private void runSingleSelectionAction(List<AccountItem> selectedItems, Runnable action) {
+        if (selectedItems != null && selectedItems.size() > 1) {
             showErrorAlert(I18n.tr(MULTI_SELECTION_DISABLED_KEY));
             return;
         }
@@ -1198,7 +1211,11 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private List<Account> resolveAccountsForReload(AccountItem contextItem) {
-        List<AccountItem> sourceItems = selectedAccountsForAction(contextItem);
+        return resolveAccountsForReload(contextItem, null);
+    }
+
+    private List<Account> resolveAccountsForReload(AccountItem contextItem, List<AccountItem> selectedItems) {
+        List<AccountItem> sourceItems = selectedAccountsForAction(contextItem, selectedItems);
 
         LinkedHashSet<String> uniqueAccountIds = new LinkedHashSet<>();
         List<Account> accounts = new ArrayList<>();
@@ -1215,7 +1232,16 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private List<AccountItem> selectedAccountsForAction(AccountItem contextItem) {
-        List<AccountItem> selectedItems = new ArrayList<>(accountGrid.getSelectedItems());
+        return selectedAccountsForAction(contextItem, null);
+    }
+
+    private List<AccountItem> selectedAccountsForAction(AccountItem contextItem, List<AccountItem> preferredSelection) {
+        List<AccountItem> selectedItems = new ArrayList<>();
+        if (preferredSelection != null && !preferredSelection.isEmpty()) {
+            selectedItems.addAll(preferredSelection);
+        } else {
+            selectedItems.addAll(accountGrid.getSelectedItems());
+        }
         if (selectedItems.isEmpty()) {
             selectedItems.addAll(table.getSelectionModel().getSelectedItems());
         }

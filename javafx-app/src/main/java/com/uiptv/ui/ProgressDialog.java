@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.SegmentedProgressBar;
+import com.uiptv.widget.ThemedDialogSupport;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -320,8 +321,10 @@ public class ProgressDialog extends Stage {
     public void setOnClose(Runnable action) {
         cancelButton.setOnAction(event -> {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Are you sure you want to cancel the verification process? No changes will be saved.", ButtonType.YES, ButtonType.NO);
-            alert.initOwner(this);
-            alert.showAndWait().ifPresent(response -> {
+            alert.setTitle(I18n.tr("commonConfirm"));
+            alert.setHeaderText(I18n.tr("commonConfirm"));
+            ThemedDialogSupport.prepare(alert, this, "uiptv-alert-dialog");
+            ThemedDialogSupport.showAndWait(alert, this).ifPresent(response -> {
                 if (response == ButtonType.YES) {
                     action.run();
                     close();
@@ -338,8 +341,10 @@ public class ProgressDialog extends Stage {
     public void setOnStop(Runnable action) {
         stopButton.setOnAction(event -> {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Are you sure you want to stop? Invalid MACs found so far will be processed.", ButtonType.YES, ButtonType.NO);
-            alert.initOwner(this);
-            alert.showAndWait().ifPresent(response -> {
+            alert.setTitle(I18n.tr("commonConfirm"));
+            alert.setHeaderText(I18n.tr("commonConfirm"));
+            ThemedDialogSupport.prepare(alert, this, "uiptv-alert-dialog");
+            ThemedDialogSupport.showAndWait(alert, this).ifPresent(response -> {
                 if (response == ButtonType.YES) {
                     action.run();
                 }

@@ -4,6 +4,7 @@ import com.uiptv.service.remotesync.RemoteSyncApprovalPrompt;
 import com.uiptv.service.remotesync.RemoteSyncApprovalRequest;
 import com.uiptv.service.remotesync.RemoteSyncNotifier;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.ThemedDialogSupport;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
@@ -50,7 +51,8 @@ public class FxRemoteSyncUiBridge implements RemoteSyncApprovalPrompt, RemoteSyn
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION, buildApprovalMessage(request), allowButton, rejectButton);
         alert.setTitle(I18n.tr("remoteSyncApprovalTitle"));
         alert.setHeaderText(I18n.tr("remoteSyncApprovalHeader"));
-        Optional<ButtonType> result = alert.showAndWait();
+        ThemedDialogSupport.prepare(alert, ThemedDialogSupport.primaryOwnerWindow(), "uiptv-alert-dialog");
+        Optional<ButtonType> result = ThemedDialogSupport.showAndWait(alert, ThemedDialogSupport.primaryOwnerWindow());
         return result.isPresent() && result.get() == allowButton;
     }
 

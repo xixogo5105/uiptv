@@ -13,6 +13,7 @@ import com.uiptv.util.AccountType;
 import com.uiptv.widget.AppFonts;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.SegmentedProgressBar;
+import com.uiptv.widget.ThemedDialogSupport;
 import javafx.application.Platform;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
@@ -119,6 +120,7 @@ public class ReloadCachePopup extends VBox {
     private final ScrollPane accountsScrollPane = new ScrollPane();
     private final ScrollPane logScrollPane = new ScrollPane(logVBox);
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
+    private final Label progressSummaryLabel = new Label();
     private final ProminentButton reloadButton = new ProminentButton(I18n.tr("autoReloadSelected"));
     private final Button stopButton = new Button(I18n.tr("autoStop"));
     private final CacheService cacheService = new CacheServiceImpl();
@@ -183,9 +185,10 @@ public class ReloadCachePopup extends VBox {
         populateAccountCheckboxes(supportedAccounts);
         MenuButton selectMenu = buildSelectMenu();
         configureScrollPanes();
+        VBox progressCard = buildProgressCard();
         GridPane mainContent = buildMainContent(selectMenu);
         HBox buttonBox = buildButtonBox();
-        getChildren().addAll(buildHeader(), progressBar, mainContent, buttonBox);
+        getChildren().addAll(buildHeader(), progressCard, mainContent, buttonBox);
         registerStageCloseListener();
 
         if (preselectedAccounts != null && !preselectedAccounts.isEmpty()) {
@@ -198,7 +201,7 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void initializeLayout() {
-        getStyleClass().add("reload-cache-popup");
+        getStyleClass().addAll("management-popup-root", "reload-cache-popup");
         setSpacing(14);
         setPadding(new Insets(18));
         setPrefSize(1368, 720);
@@ -216,6 +219,19 @@ public class ReloadCachePopup extends VBox {
         VBox header = new VBox(2, title);
         header.getStyleClass().add("management-popup-header");
         return header;
+    }
+
+    private VBox buildProgressCard() {
+        progressSummaryLabel.getStyleClass().add("reload-progress-summary");
+        progressSummaryLabel.setText(I18n.tr("autoQueued"));
+
+        progressBar.setMaxWidth(Double.MAX_VALUE);
+
+        VBox progressCard = new VBox(8, progressSummaryLabel, progressBar);
+        progressCard.getStyleClass().addAll("management-popup-card", "reload-progress-card");
+        progressCard.setMaxWidth(Double.MAX_VALUE);
+        progressBar.prefWidthProperty().bind(progressCard.widthProperty().subtract(28));
+        return progressCard;
     }
 
     private List<Account> loadSupportedAccounts() {
@@ -537,9 +553,6 @@ public class ReloadCachePopup extends VBox {
         ButtonType okButton = new ButtonType(I18n.tr("commonOk"), ButtonBar.ButtonData.OK_DONE);
         ButtonType closeButton = new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
         Dialog<AutomaticFailureDecisionOption> dialog = new Dialog<>();
-        if (stage != null) {
-            dialog.initOwner(stage);
-        }
         dialog.setTitle(I18n.tr("reloadBulkFailureHandlingTitle"));
         dialog.setHeaderText(I18n.tr("reloadBulkFailureHandlingHeader",
                 I18n.formatNumber(String.valueOf(selectedAccounts.size()))));
@@ -552,7 +565,7 @@ public class ReloadCachePopup extends VBox {
                 : null);
         applyDialogThemeAndOrientation(dialog);
 
-        return dialog.showAndWait()
+        return ThemedDialogSupport.showAndWait(dialog, ownerWindow())
                 .map(AutomaticFailureDecisionOption::decision)
                 .orElse(null);
     }
@@ -631,6 +644,7 @@ public class ReloadCachePopup extends VBox {
                                 result.accountIssues, result.acceptableZeroResult);
                         summaryStatusByAccountId.put(account.getDbId(), summaryStatus);
                         progressBar.updateSegment(i, segmentStatus(summaryStatus));
+                        updateProgressSummary(i + 1, selectedAccounts.size());
                         AccountRunStatus finalStatus = finalAccountRunStatus(summaryStatus, result.availableChannelCount, result.failed);
                         finalStatuses.put(account.getDbId(), finalStatus);
                         updateAccountStatus(account, finalStatus, result.availableChannelCount);
@@ -679,7 +693,21 @@ public class ReloadCachePopup extends VBox {
             stopButton.setVisible(true);
         });
         progressBar.setTotal(selectedAccounts.size());
+        updateProgressSummary(0, selectedAccounts.size());
         prepareAccountLogPanels(selectedAccounts);
+    }
+
+    private void updateProgressSummary(int completed, int total) {
+        Platform.runLater(() -> {
+            if (disposed) {
+                return;
+            }
+            int safeTotal = Math.max(0, total);
+            int safeCompleted = Math.max(0, Math.min(completed, safeTotal));
+            progressSummaryLabel.setText(safeTotal <= 0
+                    ? I18n.tr("autoQueued")
+                    : I18n.tr("autoRunningProgress", safeCompleted, safeTotal));
+        });
     }
 
     private void showReloadButton() {
@@ -975,13 +1003,10 @@ public class ReloadCachePopup extends VBox {
                 ButtonType.YES,
                 ButtonType.NO
         );
-        if (RootApplication.getCurrentTheme() != null) {
-            alert.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-        alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
-                ? javafx.geometry.NodeOrientation.RIGHT_TO_LEFT
-                : javafx.geometry.NodeOrientation.LEFT_TO_RIGHT);
-        return alert.showAndWait();
+        alert.setTitle(I18n.tr("commonConfirm"));
+        alert.setHeaderText(I18n.tr("commonConfirm"));
+        applyDialogThemeAndOrientation(alert);
+        return ThemedDialogSupport.showAndWait(alert, ownerWindow());
     }
 
     private void deleteAccountsAndRefresh(List<Account> toDelete) {
@@ -1737,7 +1762,7 @@ public class ReloadCachePopup extends VBox {
                 return;
             }
             GlobalFailurePrompt prompt = buildGlobalFailurePrompt(account, reason, canIgnoreDomain);
-            ButtonType selected = prompt.alert().showAndWait().orElse(prompt.markBadButton());
+            ButtonType selected = ThemedDialogSupport.showAndWait(prompt.alert(), ownerWindow()).orElse(prompt.markBadButton());
             decision[0] = resolveGlobalFailureDecision(selected, prompt);
         });
         return completed ? decision[0] : GlobalFailureDecision.STOP_ALL;
@@ -1780,12 +1805,11 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void applyDialogThemeAndOrientation(Dialog<?> dialog) {
-        if (RootApplication.getCurrentTheme() != null) {
-            dialog.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-        dialog.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl()
-                ? javafx.geometry.NodeOrientation.RIGHT_TO_LEFT
-                : javafx.geometry.NodeOrientation.LEFT_TO_RIGHT);
+        ThemedDialogSupport.prepare(dialog, ownerWindow(), "uiptv-alert-dialog");
+    }
+
+    private javafx.stage.Window ownerWindow() {
+        return stage == null ? ThemedDialogSupport.primaryOwnerWindow() : stage;
     }
 
     private GlobalFailureDecision resolveGlobalFailureDecision(ButtonType selected, GlobalFailurePrompt prompt) {

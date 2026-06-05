@@ -10,6 +10,7 @@ import com.uiptv.service.ChannelService;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.SearchableTableView;
+import com.uiptv.widget.ThemedDialogSupport;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
@@ -893,8 +894,12 @@ public class CategoryListUI extends HBox implements SearchTarget {
                 okButton,
                 closeButton);
         alert.setTitle(I18n.tr("categoryRemoveCachedTitle"));
-        alert.setHeaderText(null);
-        Optional<ButtonType> result = alert.showAndWait();
+        alert.setHeaderText(I18n.tr("categoryRemoveCachedTitle"));
+        javafx.stage.Window ownerWindow = getScene() == null
+                ? ThemedDialogSupport.primaryOwnerWindow()
+                : getScene().getWindow();
+        ThemedDialogSupport.prepare(alert, ownerWindow, "uiptv-alert-dialog");
+        Optional<ButtonType> result = ThemedDialogSupport.showAndWait(alert, ownerWindow);
         return result.isPresent() && result.get() == okButton;
     }
 
