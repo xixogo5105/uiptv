@@ -1592,11 +1592,20 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (data == null || current == null) {
             return;
         }
-        if (data.selectedEpisodeCard != null && data.selectedEpisodeCard != current) {
-            applyCardSelection(data.selectedEpisodeCard, false);
-        }
+        clearSeriesEpisodeCardSelections(data, current);
         applyCardSelection(current, true);
         data.selectedEpisodeCard = current;
+    }
+
+    private void clearSeriesEpisodeCardSelections(SeriesPanelData data, VBox except) {
+        for (VBox card : seriesEpisodeCards(data)) {
+            if (card != except) {
+                applyCardSelection(card, false);
+            }
+        }
+        if (data != null && data.selectedEpisodeCard != null && data.selectedEpisodeCard != except) {
+            applyCardSelection(data.selectedEpisodeCard, false);
+        }
     }
 
     @SuppressWarnings("unchecked")

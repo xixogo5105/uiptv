@@ -460,11 +460,20 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         if (current == null) {
             return;
         }
-        if (selectedEpisodeCard != null && selectedEpisodeCard != current) {
-            applyCardSelection(selectedEpisodeCard, false);
-        }
+        clearEpisodeCardSelections(current);
         applyCardSelection(current, true);
         selectedEpisodeCard = current;
+    }
+
+    private void clearEpisodeCardSelections(Pane except) {
+        for (Pane card : episodeCards()) {
+            if (card != except) {
+                applyCardSelection(card, false);
+            }
+        }
+        if (selectedEpisodeCard != null && selectedEpisodeCard != except) {
+            applyCardSelection(selectedEpisodeCard, false);
+        }
     }
 
     @SuppressWarnings("unchecked")
