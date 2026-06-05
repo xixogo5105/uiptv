@@ -58,7 +58,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
-public class ChannelListUI extends HBox {
+public class ChannelListUI extends HBox implements SearchTarget {
     private static final String IMAGE_CACHE_KEY_CHANNEL = "channel";
     private static final String DRM_BADGE_STYLE_CLASS = "drm-badge";
 
@@ -163,7 +163,8 @@ public class ChannelListUI extends HBox {
         channelGrid.refresh();
     }
 
-    public void setSearchText(String searchText) {
+    @Override
+    public void setSearchQuery(String searchText) {
         String value = searchText == null ? "" : searchText;
         TextField searchField = table.getSearchTextField();
         if (!Objects.equals(searchField.getText(), value)) {

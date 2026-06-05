@@ -43,7 +43,7 @@ import static com.uiptv.model.Account.AccountAction.vod;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
-public class VodWatchingNowUI extends VBox {
+public class VodWatchingNowUI extends VBox implements SearchTarget {
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_CARD_LINKS = "cardLinks";
     private static final String VOD_WATCHING_NOW_CACHE = "vod-watching-now";
@@ -122,7 +122,8 @@ public class VodWatchingNowUI extends VBox {
         dirty = true;
     }
 
-    void setSearchQuery(String query) {
+    @Override
+    public void setSearchQuery(String query) {
         String normalized = normalizeSearchQuery(query);
         if (Objects.equals(searchQuery, normalized)) {
             return;

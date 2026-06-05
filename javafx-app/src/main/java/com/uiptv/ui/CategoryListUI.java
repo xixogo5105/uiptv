@@ -46,7 +46,7 @@ import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.AccountType.XTREME_API;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
-public class CategoryListUI extends HBox {
+public class CategoryListUI extends HBox implements SearchTarget {
     private static final String ALL_CATEGORY_SENTINEL = "all";
     private static final String PARENTAL_LOCK_LOG_PREFIX = "[ParentalLock] ";
     private static final String LOG_ACCOUNT_START = "account=";
@@ -447,7 +447,7 @@ public class CategoryListUI extends HBox {
         replaceSearchText("", true);
         detailTitle.setText(title);
         detailContent.getChildren().setAll(ui);
-        ui.setSearchText(searchText);
+        ui.setSearchQuery(searchText);
         ui.setMinWidth(0);
         ui.setMaxWidth(Double.MAX_VALUE);
         ui.setMinHeight(0);
@@ -490,7 +490,8 @@ public class CategoryListUI extends HBox {
         showListView(true);
     }
 
-    public void setSearchText(String searchText) {
+    @Override
+    public void setSearchQuery(String searchText) {
         String value = searchText == null ? "" : searchText;
         if (Objects.equals(this.searchText, value)) {
             return;
@@ -498,7 +499,7 @@ public class CategoryListUI extends HBox {
         replaceSearchText(value, false);
         ModeState state = modeStates.get(activeMode);
         if (getChildren().contains(detailPane) && state != null && state.channelListUI != null) {
-            state.channelListUI.setSearchText(value);
+            state.channelListUI.setSearchQuery(value);
             return;
         }
         rebuildCategoryCards();

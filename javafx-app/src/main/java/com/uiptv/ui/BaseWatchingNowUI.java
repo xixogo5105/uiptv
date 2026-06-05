@@ -50,7 +50,7 @@ import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 @SuppressWarnings("java:S5843")
-public abstract class BaseWatchingNowUI extends VBox {
+public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_COVER = "cover";
     private static final String KEY_RELEASE_DATE = "releaseDate";
@@ -144,7 +144,8 @@ public abstract class BaseWatchingNowUI extends VBox {
         dirty = true;
     }
 
-    void setSearchQuery(String query) {
+    @Override
+    public void setSearchQuery(String query) {
         String normalized = normalizeSearchQuery(query);
         if (Objects.equals(searchQuery, normalized)) {
             return;

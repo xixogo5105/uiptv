@@ -42,7 +42,7 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 import static javafx.application.Platform.runLater;
 
-public class BookmarkChannelListUI extends HBox {
+public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final String BOOKMARK_CACHE = "bookmark";
     private static final double GRID_NORMAL_VERTICAL_GAP = 14;
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
@@ -512,6 +512,14 @@ public class BookmarkChannelListUI extends HBox {
 
     private void setupSearchTextFieldListener() {
         searchTextField.textProperty().addListener((observable, oldValue, newValue) -> filterView());
+    }
+
+    @Override
+    public void setSearchQuery(String query) {
+        String value = query == null ? "" : query;
+        if (!Objects.equals(searchTextField.getText(), value)) {
+            searchTextField.setText(value);
+        }
     }
 
     private void setupManageCategoriesButton() {

@@ -49,7 +49,7 @@ import static com.uiptv.model.Account.VOD_AND_SERIES_SUPPORTED;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
-public class AccountListUI extends HBox {
+public class AccountListUI extends HBox implements SearchTarget {
     private static final String MULTI_SELECTION_DISABLED_KEY = "autoThisActionIsDisabledForMultipleSelections";
     private static final double GRID_NORMAL_VERTICAL_GAP = 14;
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
@@ -947,6 +947,14 @@ public class AccountListUI extends HBox {
         }
     }
 
+    @Override
+    public void setSearchQuery(String query) {
+        String value = query == null ? "" : query;
+        if (!Objects.equals(table.getTextField().getText(), value)) {
+            table.getTextField().setText(value);
+        }
+    }
+
     private void handleHeaderSearchTextChanged(String text) {
         if (updatingHeaderSearchText) {
             return;
@@ -985,9 +993,7 @@ public class AccountListUI extends HBox {
     }
 
     private void applyActiveBrowserSearch() {
-        if (activeCategoryListUI != null) {
-            activeCategoryListUI.setSearchText(browserHeaderSearchText);
-        }
+        SearchTarget.apply(activeCategoryListUI, browserHeaderSearchText);
     }
 
     private void replaceBrowserHeaderSearchText(String text) {

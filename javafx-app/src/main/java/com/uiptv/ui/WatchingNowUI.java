@@ -115,12 +115,8 @@ public class WatchingNowUI extends VBox {
     }
 
     private void applySearchQuery(String query) {
-        if (seriesDelegate != null) {
-            seriesDelegate.setSearchQuery(query);
-        }
-        if (vodDelegate != null) {
-            vodDelegate.setSearchQuery(query);
-        }
+        SearchTarget.apply(seriesDelegate, query);
+        SearchTarget.apply(vodDelegate, query);
     }
 
     private void detachFromParent(Node node) {
