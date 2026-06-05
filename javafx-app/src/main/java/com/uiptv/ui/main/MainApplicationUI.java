@@ -186,8 +186,8 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         navigationShell.setManaged(false);
         HBox.setHgrow(navigationShell, Priority.NEVER);
 
-        collapsedNavigationHandleShell.setVisible(false);
-        collapsedNavigationHandleShell.setManaged(false);
+        collapsedNavigationHandleShell.setVisible(true);
+        collapsedNavigationHandleShell.setManaged(true);
         HBox.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
 
         applyWideEmbeddedPlayerSize(embeddedPlayer);
