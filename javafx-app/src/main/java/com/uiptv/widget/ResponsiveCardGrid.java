@@ -24,6 +24,7 @@ import javafx.scene.layout.StackPane;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class ResponsiveCardGrid<T> extends StackPane {
     @FunctionalInterface
@@ -50,6 +51,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private ContextMenuFactory<T> contextMenuFactory;
     private Consumer<T> itemActivatedHandler;
     private Consumer<List<T>> itemsReorderedHandler;
+    private Predicate<T> singleClickActivationPredicate = _ -> true;
     private T focusedItem;
     private T anchorItem;
     private boolean reorderEnabled;
@@ -154,6 +156,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
 
     public void setActivateOnSingleClick(boolean activateOnSingleClick) {
         this.activateOnSingleClick = activateOnSingleClick;
+    }
+
+    public void setSingleClickActivationPredicate(Predicate<T> singleClickActivationPredicate) {
+        this.singleClickActivationPredicate = singleClickActivationPredicate == null ? _ -> true : singleClickActivationPredicate;
     }
 
     public void setSingleColumn(boolean singleColumn) {
@@ -331,7 +337,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
         card.requestFocus();
         boolean shouldActivate = itemActivatedHandler != null
                 && (event.getClickCount() == 2 || (activateOnSingleClick && event.getClickCount() == 1
-                && !event.isShiftDown() && !event.isShortcutDown() && !event.isControlDown()));
+                && !event.isShiftDown() && !event.isShortcutDown() && !event.isControlDown()
+                && singleClickActivationPredicate.test(item)));
         if (shouldActivate) {
             itemActivatedHandler.accept(item);
         }

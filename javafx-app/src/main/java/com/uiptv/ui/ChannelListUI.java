@@ -519,6 +519,7 @@ public class ChannelListUI extends HBox {
         channelGrid.setItems(table.getItems());
         channelGrid.setPlaceholderNode(new LoadingStateView(I18n.tr("autoLoadingChannelsFor", categoryTitle)));
         channelGrid.setOnItemActivated(this::playOrShowSeries);
+        channelGrid.setSingleClickActivationPredicate(this::canActivateOnSingleClick);
         channelGrid.setContextMenuFactory((item, selectedItems, owner) -> createChannelContextMenu(item, selectedItems, owner));
         channelGrid.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
@@ -537,25 +538,36 @@ public class ChannelListUI extends HBox {
             channelGrid.setCardMinHeight(42);
             channelGrid.setCardWidthRange(240, 760);
             channelGrid.setGaps(16, 6);
-            channelGrid.setActivateOnSingleClick(false);
+            channelGrid.setActivateOnSingleClick(listAction == series);
             return;
         }
         channelGrid.setCardMinHeight(76);
         if (mediaDrawerMode) {
             channelGrid.setCardWidthRange(260, 520);
             channelGrid.setGaps(7, 7);
-            channelGrid.setActivateOnSingleClick(false);
+            channelGrid.setActivateOnSingleClick(listAction == series);
             return;
         }
         if (isMediaCatalogMode()) {
             channelGrid.setCardWidthRange(embeddedMode ? 360 : 520, 760);
             channelGrid.setGaps(18, 16);
-            channelGrid.setActivateOnSingleClick(false);
+            channelGrid.setActivateOnSingleClick(listAction == series);
             return;
         }
         channelGrid.setCardWidthRange(255, 345);
         channelGrid.setGaps(16, 14);
         channelGrid.setActivateOnSingleClick(false);
+    }
+
+    private boolean canActivateOnSingleClick(ChannelItem item) {
+        return item != null && listAction == series && !isDirectPlaybackSeriesItem(item);
+    }
+
+    private boolean isDirectPlaybackSeriesItem(ChannelItem item) {
+        return account != null
+                && account.getType() == STALKER_PORTAL
+                && item != null
+                && !isBlank(item.getCmd());
     }
 
     private void setupChannelGridScroll() {
@@ -1599,7 +1611,7 @@ public class ChannelListUI extends HBox {
             play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
             return;
         }
-        if (account.getType() == STALKER_PORTAL && !isBlank(item.getCmd())) {
+        if (isDirectPlaybackSeriesItem(item)) {
             play(item, ConfigurationService.getInstance().read().getDefaultPlayerPath());
             return;
         }
