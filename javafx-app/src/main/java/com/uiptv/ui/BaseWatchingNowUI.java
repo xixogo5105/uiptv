@@ -25,6 +25,7 @@ import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
@@ -94,7 +95,6 @@ public abstract class BaseWatchingNowUI extends VBox {
     private String searchQueryDisplay = "";
     private final SeriesWatchStateChangeListener watchStateChangeListener = this::onDataChanged;
     private final AccountChangeListener accountChangeListener = _ -> onAccountsChanged();
-    private HBox selectedSeriesCard;
     private boolean watchStateListenerRegistered = false;
     private boolean accountListenerRegistered = false;
 
@@ -488,7 +488,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         for (SeriesPanelData data : rows) {
             ensureSeriesThumbnailMetadataLoad(data);
         }
-        selectedSeriesCard = null;
+        clearSeriesListCardSelections();
         VBox.setVgrow(seriesGrid, Priority.ALWAYS);
         VBox.setVgrow(contentBox, Priority.ALWAYS);
     }
@@ -606,9 +606,8 @@ public abstract class BaseWatchingNowUI extends VBox {
 
         String titleText = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle);
         String accountText = data.account.getAccountName();
-        HBox[] cardRef = new HBox[1];
         Runnable openDetails = () -> {
-            setSelectedSeriesCard(cardRef[0]);
+            seriesGrid.selectItems(List.of(data));
             selectedSeriesKey = seriesPaneKey(data);
             showSeriesDetail(data);
         };
@@ -659,7 +658,6 @@ public abstract class BaseWatchingNowUI extends VBox {
                 .focusTraversable(true)
                 .build();
         HBox card = cardNodes.card();
-        cardRef[0] = card;
         data.seriesListTitleNode = cardNodes.title();
 
         List<Label> cardLabels = new ArrayList<>(List.of(cardNodes.account(), typeChip, episodeChip));
@@ -692,6 +690,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (data == null) {
             return;
         }
+        seriesGrid.selectItems(List.of(data));
         selectedSeriesKey = seriesPaneKey(data);
         showSeriesDetail(data);
     }
@@ -732,6 +731,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
         selectedSeriesKey = seriesPaneKey(data);
         renderedDetailKey = selectedSeriesKey;
+        clearSeriesListCardSelections();
         contentBox.getChildren().clear();
         contentBox.setPadding(new Insets(2));
         contentBox.setSpacing(12);
@@ -1439,6 +1439,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                     playEpisode(data, row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
                     event.consume();
                 }
+                case UP, DOWN, HOME, END -> handleSeriesEpisodeNavigationKeyPressed(data, event);
                 default -> {
                 }
             }
@@ -1595,17 +1596,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         scrollPane.setVvalue(Math.max(0, Math.min(1, nextTop / scrollableHeight)));
     }
 
-    private void setSelectedSeriesCard(HBox current) {
-        if (current == null) {
-            return;
-        }
-        if (selectedSeriesCard != null && selectedSeriesCard != current) {
-            applyCardSelection(selectedSeriesCard, false);
-        }
-        applyCardSelection(current, true);
-        selectedSeriesCard = current;
-    }
-
     private void setSelectedEpisodeCard(SeriesPanelData data, VBox current) {
         if (data == null || current == null) {
             return;
@@ -1626,16 +1616,29 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    private void clearSeriesListCardSelections() {
+        clearCardSelections(seriesGrid, "watching-now-series-card");
+    }
+
+    private void clearCardSelections(Node node, String cardStyleClass) {
+        if (node == null) {
+            return;
+        }
+        if (node instanceof Pane pane && pane.getStyleClass().contains(cardStyleClass)) {
+            applyCardSelection(pane, false);
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                clearCardSelections(child, cardStyleClass);
+            }
+        }
+    }
+
     private void applyCardSelection(Pane card, boolean selected) {
         if (card == null) {
             return;
         }
-        if (selected) {
-            card.getStyleClass().add("selected-card");
-        } else {
-            card.getStyleClass().remove("selected-card");
-        }
+        toggleStyleClass(card.getStyleClass(), "selected-card", selected);
         Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
         if (labelsObj instanceof List<?> labels) {
             for (Object labelObj : labels) {
@@ -1654,26 +1657,28 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
     }
 
+    private void toggleStyleClass(List<String> styleClasses, String styleClass, boolean enabled) {
+        if (enabled) {
+            if (!styleClasses.contains(styleClass)) {
+                styleClasses.add(styleClass);
+            }
+            return;
+        }
+        styleClasses.remove(styleClass);
+    }
+
     private void applyLabelSelection(Label label, boolean selected) {
         if (label == null) {
             return;
         }
-        if (selected) {
-            label.getStyleClass().add("selected-card-text");
-        } else {
-            label.getStyleClass().remove("selected-card-text");
-        }
+        toggleStyleClass(label.getStyleClass(), "selected-card-text", selected);
     }
 
     private void applyHyperlinkSelection(Hyperlink link, boolean selected) {
         if (link == null) {
             return;
         }
-        if (selected) {
-            link.getStyleClass().add("selected-card-link");
-        } else {
-            link.getStyleClass().remove("selected-card-link");
-        }
+        toggleStyleClass(link.getStyleClass(), "selected-card-link", selected);
     }
 
     private ContextMenu addEpisodeContextMenu(SeriesPanelData data, WatchingEpisode item, Pane target) {
@@ -2749,7 +2754,6 @@ public abstract class BaseWatchingNowUI extends VBox {
         imdbCacheByPanelKey.clear();
         selectedSeriesKey = "";
         renderedDetailKey = "";
-        selectedSeriesCard = null;
         contentBox.getChildren().clear();
     }
 
