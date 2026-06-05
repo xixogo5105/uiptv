@@ -26,6 +26,7 @@
     -uiptv-selected-card-bg: #101827;
     -uiptv-selected-card-border: #1f2a44;
     -uiptv-selected-card-fg: #ffffff;
+    -uiptv-selected-card-muted-fg: rgba(255, 255, 255, 0.72);
 }
 
 .scroll-bar:vertical {
@@ -2486,19 +2487,35 @@
 .uiptv-responsive-card:selected .bookmark-channel-title,
 .uiptv-responsive-card.selected .bookmark-channel-title,
 .uiptv-responsive-card:selected .bookmark-channel-title-text,
-.uiptv-responsive-card.selected .bookmark-channel-title-text {
+.uiptv-responsive-card.selected .bookmark-channel-title-text,
+.uiptv-responsive-card:selected .account-card-title,
+.uiptv-responsive-card.selected .account-card-title,
+.uiptv-responsive-card:selected .account-category-card-title,
+.uiptv-responsive-card.selected .account-category-card-title,
+.uiptv-responsive-card:selected .account-drawer-channel-title,
+.uiptv-responsive-card.selected .account-drawer-channel-title,
+.uiptv-responsive-card:selected .watching-now-episode-drawer-title,
+.uiptv-responsive-card.selected .watching-now-episode-drawer-title {
     -fx-text-fill: -uiptv-selected-card-fg;
     -fx-fill: -uiptv-selected-card-fg;
 }
 
 .uiptv-responsive-card:selected .bookmark-channel-account,
-.uiptv-responsive-card.selected .bookmark-channel-account {
-    -fx-text-fill: rgba(255, 255, 255, 0.68);
+.uiptv-responsive-card.selected .bookmark-channel-account,
+.uiptv-responsive-card:selected .account-card-type,
+.uiptv-responsive-card.selected .account-card-type,
+.uiptv-responsive-card:selected .account-card-metrics,
+.uiptv-responsive-card.selected .account-card-metrics,
+.uiptv-responsive-card:selected .account-drawer-channel-meta,
+.uiptv-responsive-card.selected .account-drawer-channel-meta,
+.uiptv-responsive-card:selected .watching-now-episode-drawer-meta,
+.uiptv-responsive-card.selected .watching-now-episode-drawer-meta {
+    -fx-text-fill: -uiptv-selected-card-muted-fg;
 }
 
 .uiptv-responsive-card:selected .bookmark-account-suffix-text,
 .uiptv-responsive-card.selected .bookmark-account-suffix-text {
-    -fx-fill: rgba(255, 255, 255, 0.68);
+    -fx-fill: -uiptv-selected-card-muted-fg;
 }
 
 .uiptv-responsive-card .channel-logo-view,
@@ -2973,6 +2990,16 @@
 .selected-card-text,
 .selected-card-link {
     -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.selected-card .account-drawer-channel-title,
+.selected-card .watching-now-episode-drawer-title {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.selected-card .account-drawer-channel-meta,
+.selected-card .watching-now-episode-drawer-meta {
+    -fx-text-fill: -uiptv-selected-card-muted-fg;
 }
 
 .imdb-pill {
