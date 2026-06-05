@@ -88,7 +88,7 @@ public class ParseMultipleAccountUI extends VBox {
         setSpacing(0);
         getStyleClass().add("bulk-import-page");
         contentContainer.getStyleClass().add("bulk-import-content");
-        contentContainer.setPadding(new Insets(24, 28, 20, 28));
+        contentContainer.setPadding(new Insets(24, 10, 20, 10));
         contentContainer.setSpacing(14);
         contentContainer.setFillWidth(true);
         contentContainer.setMinSize(0, 0);

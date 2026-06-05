@@ -11,6 +11,7 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -21,6 +22,9 @@ import java.util.Objects;
 import java.util.function.Function;
 
 public class PillBar<T> extends StackPane {
+    private static final double DEFAULT_MIN_HEIGHT = 30;
+    private static final double SCROLLBAR_WIDTH_GUTTER = 18;
+
     private final FlowPane content = new FlowPane();
     private final ToggleGroup toggleGroup = new ToggleGroup();
     private final Function<T, String> labelFactory;
@@ -43,7 +47,7 @@ public class PillBar<T> extends StackPane {
         setFocusTraversable(false);
         setMinWidth(0);
         setMaxWidth(Double.MAX_VALUE);
-        setMinHeight(30);
+        setMinHeight(DEFAULT_MIN_HEIGHT);
         setMaxHeight(Region.USE_PREF_SIZE);
 
         Rectangle clip = new Rectangle();
@@ -63,11 +67,8 @@ public class PillBar<T> extends StackPane {
         getChildren().add(content);
         StackPane.setAlignment(content, Pos.CENTER_LEFT);
         widthProperty().addListener((_, _, width) -> {
-            content.setPrefWrapLength(Math.max(1, width.doubleValue() - snappedLeftInset() - snappedRightInset()));
-            requestLayout();
-            if (getParent() != null) {
-                getParent().requestLayout();
-            }
+            updateContentWrapLength(width.doubleValue());
+            requestAncestorLayout();
         });
 
         toggleGroup.selectedToggleProperty().addListener((_, oldValue, newValue) -> {
@@ -120,10 +121,8 @@ public class PillBar<T> extends StackPane {
         }
         toggleGroup.selectToggle(restored);
         selectedItem.set(restored == null ? null : itemFromToggle(restored));
-        requestLayout();
-        if (getParent() != null) {
-            getParent().requestLayout();
-        }
+        updateContentWrapLength(getWidth());
+        requestAncestorLayout();
     }
 
     @Override
@@ -143,11 +142,29 @@ public class PillBar<T> extends StackPane {
 
     private double computeWrappedHeight(double width) {
         double insets = snappedTopInset() + snappedBottomInset();
+        double contentWidth = effectiveContentWidth(width);
+        return Math.max(DEFAULT_MIN_HEIGHT, content.prefHeight(contentWidth) + insets);
+    }
+
+    private void updateContentWrapLength(double width) {
+        content.setPrefWrapLength(effectiveContentWidth(width));
+    }
+
+    private double effectiveContentWidth(double width) {
         double measuredWidth = width > 0 ? width : getWidth();
         double contentWidth = measuredWidth > 0
-                ? Math.max(1, measuredWidth - snappedLeftInset() - snappedRightInset())
+                ? measuredWidth - snappedLeftInset() - snappedRightInset()
                 : content.getPrefWrapLength();
-        return Math.max(30, content.prefHeight(contentWidth) + insets);
+        return Math.max(1, contentWidth - SCROLLBAR_WIDTH_GUTTER);
+    }
+
+    private void requestAncestorLayout() {
+        requestLayout();
+        Parent parent = getParent();
+        while (parent != null) {
+            parent.requestLayout();
+            parent = parent.getParent();
+        }
     }
 
     private ToggleButton createPill(T item) {

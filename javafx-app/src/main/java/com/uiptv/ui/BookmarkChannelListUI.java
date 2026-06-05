@@ -26,8 +26,6 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.layout.*;
-import javafx.scene.text.Text;
-import javafx.scene.text.TextFlow;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
@@ -49,7 +47,7 @@ public class BookmarkChannelListUI extends HBox {
     private static final double GRID_NORMAL_VERTICAL_GAP = 14;
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
-    private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 42;
+    private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 46;
     private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
     private final TextField searchTextField = new TextField();
     private final Button manageCategoriesButton = new Button(I18n.tr("commonAdd"));
@@ -423,8 +421,7 @@ public class BookmarkChannelListUI extends HBox {
         });
         return new BookmarkCard(
                 item == null ? "" : item.getChannelName(),
-                bookmarkAccountSuffix(item),
-                "",
+                bookmarkAccountName(item),
                 item == null ? "" : item.getLogo(),
                 thumbnailsEnabled,
                 BOOKMARK_CACHE,
@@ -434,50 +431,37 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private Region createPlainTextBookmarkCard(BookmarkItem item) {
-        HBox card = new HBox();
-        card.getStyleClass().addAll("bookmark-card", "plain-text-row-card");
+        VBox card = new VBox(1);
+        card.getStyleClass().addAll("bookmark-card", "plain-text-row-card", "bookmark-plain-text-row-card");
         card.setAlignment(Pos.CENTER_LEFT);
         card.setMinWidth(0);
         card.setMaxWidth(Double.MAX_VALUE);
 
-        TextFlow title = createBookmarkTitleFlow(item);
+        Label title = new Label(item == null || item.getChannelName() == null ? "" : item.getChannelName());
+        title.getStyleClass().add("bookmark-channel-title");
+        title.setWrapText(true);
         title.setMinWidth(0);
         title.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(title, Priority.ALWAYS);
 
         card.getChildren().add(title);
+        String accountName = bookmarkAccountName(item);
+        if (!accountName.isBlank()) {
+            Label account = new Label(accountName);
+            account.getStyleClass().add("bookmark-channel-account");
+            account.setWrapText(true);
+            account.setMinWidth(0);
+            account.setMaxWidth(Double.MAX_VALUE);
+            card.getChildren().add(account);
+        }
         return card;
     }
 
-    private TextFlow createBookmarkTitleFlow(BookmarkItem item) {
-        String channelName = item == null || item.getChannelName() == null ? "" : item.getChannelName();
-        String accountSuffix = bookmarkAccountSuffix(item);
-        Text channelText = new Text(channelName);
-        channelText.getStyleClass().add("bookmark-channel-title-text");
-        UiRenderQuality.optimizeTextNode(channelText);
-
-        TextFlow titleFlow = new TextFlow(channelText);
-        titleFlow.getStyleClass().add("bookmark-title-flow");
-        titleFlow.setMinWidth(0);
-        titleFlow.setMaxWidth(Double.MAX_VALUE);
-        titleFlow.setLineSpacing(1.5);
-        UiRenderQuality.optimizeLayout(titleFlow);
-
-        if (!accountSuffix.isBlank()) {
-            Text accountText = new Text(channelName.isBlank() ? accountSuffix : " " + accountSuffix);
-            accountText.getStyleClass().add("bookmark-account-suffix-text");
-            UiRenderQuality.optimizeTextNode(accountText);
-            titleFlow.getChildren().add(accountText);
-        }
-        return titleFlow;
-    }
-
-    private String bookmarkAccountSuffix(BookmarkItem item) {
+    private String bookmarkAccountName(BookmarkItem item) {
         if (item == null) {
             return "";
         }
         String accountName = item.getAccountName();
-        return isBlank(accountName) ? "" : "[" + accountName + "]";
+        return isBlank(accountName) ? "" : accountName;
     }
 
     private boolean isDrmProtected(BookmarkItem item) {

@@ -59,7 +59,7 @@ public class LogDisplayUI extends VBox {
         setSpacing(0);
         getStyleClass().add("log-page");
         contentBox.getStyleClass().add("log-content");
-        contentBox.setPadding(new Insets(24, 28, 20, 28));
+        contentBox.setPadding(new Insets(24, 10, 20, 10));
         contentBox.setSpacing(14);
         contentBox.setFillWidth(true);
         contentBox.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);

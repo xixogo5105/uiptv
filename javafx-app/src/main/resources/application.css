@@ -806,7 +806,7 @@
 .account-page,
 .account-list-page,
 .settings-page {
-    -fx-padding: 24 28 20 28;
+    -fx-padding: 24 10 20 10;
 }
 
 .account-list-page-compact {
@@ -1558,7 +1558,7 @@
 
 .watching-now-page {
     -fx-background-color: -uiptv-app-bg;
-    -fx-padding: 24 28 20 28;
+    -fx-padding: 24 10 20 10;
 }
 
 .watching-now-mode-pill-bar {
@@ -2424,6 +2424,10 @@
     -fx-border-radius: 10;
 }
 
+.bookmark-card.bookmark-plain-text-row-card {
+    -fx-padding: 6 12 6 12;
+}
+
 .account-drawer-channel-row {
     -fx-padding: 8 9 8 9;
     -fx-background-radius: 10;
@@ -2478,11 +2482,14 @@
 .uiptv-responsive-card:selected .bookmark-channel-title,
 .uiptv-responsive-card.selected .bookmark-channel-title,
 .uiptv-responsive-card:selected .bookmark-channel-title-text,
-.uiptv-responsive-card.selected .bookmark-channel-title-text,
-.uiptv-responsive-card:selected .bookmark-channel-account,
-.uiptv-responsive-card.selected .bookmark-channel-account {
+.uiptv-responsive-card.selected .bookmark-channel-title-text {
     -fx-text-fill: -uiptv-selected-card-fg;
     -fx-fill: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .bookmark-channel-account,
+.uiptv-responsive-card.selected .bookmark-channel-account {
+    -fx-text-fill: rgba(255, 255, 255, 0.68);
 }
 
 .uiptv-responsive-card:selected .bookmark-account-suffix-text,
