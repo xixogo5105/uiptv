@@ -54,6 +54,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private Predicate<T> singleClickActivationPredicate = _ -> true;
     private T focusedItem;
     private T anchorItem;
+    private int focusedItemIndex = -1;
     private boolean reorderEnabled;
     private boolean mouseSelectionInProgress;
     private boolean activateOnSingleClick;
@@ -208,6 +209,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         selectedItems.clear();
         anchorItem = null;
         focusedItem = null;
+        focusedItemIndex = -1;
         updateSelectionStyles();
     }
 
@@ -221,6 +223,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             }
         }
         focusedItem = selectedItems.isEmpty() ? null : selectedItems.getLast();
+        rememberFocusedIndex(focusedItem);
         anchorItem = focusedItem;
         updateSelectionStyles();
     }
@@ -367,6 +370,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             anchorItem = item;
         }
         focusedItem = item;
+        rememberFocusedIndex(item);
         updateSelectionStyles();
     }
 
@@ -375,6 +379,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             selectOnly(item);
         }
         focusedItem = item;
+        rememberFocusedIndex(item);
         anchorItem = item;
         updateSelectionStyles();
     }
@@ -459,6 +464,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         items.add(adjustedTarget, moved);
         focusedItem = moved;
+        rememberFocusedIndex(moved);
         selectOnly(moved);
         anchorItem = moved;
         if (itemsReorderedHandler != null) {
@@ -501,19 +507,22 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (items.isEmpty()) {
             focusedItem = null;
             anchorItem = null;
+            focusedItemIndex = -1;
             updateSelectionStyles();
             return;
         }
         if (focusedItem != null && items.contains(focusedItem)) {
+            rememberFocusedIndex(focusedItem);
             return;
         }
         if (!selectedItems.isEmpty()) {
             focusedItem = selectedItems.getFirst();
+            rememberFocusedIndex(focusedItem);
             anchorItem = focusedItem;
             updateSelectionStyles();
             return;
         }
-        focusedItem = items.getFirst();
+        focusedItem = itemAtRememberedIndex();
         anchorItem = focusedItem;
         selectOnly(focusedItem);
         updateSelectionStyles();
@@ -532,6 +541,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
 
     private void focusSelectedItemIfAppropriate(T item) {
         if (item == null || getScene() == null || !isVisible() || !items.contains(item)) {
+            return;
+        }
+        if (!Objects.equals(item, getFocusedItem())) {
             return;
         }
         Node focusOwner = getScene().getFocusOwner();
@@ -603,6 +615,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private void focusSelection(T item) {
         selectOnly(item);
         focusedItem = item;
+        rememberFocusedIndex(item);
         anchorItem = item;
         updateSelectionStyles();
     }
@@ -653,7 +666,12 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private void pruneSelection() {
         selectedItems.removeIf(item -> !items.contains(item));
         if (focusedItem != null && !items.contains(focusedItem)) {
-            focusedItem = selectedItems.isEmpty() ? null : selectedItems.getFirst();
+            if (selectedItems.isEmpty()) {
+                focusedItem = null;
+            } else {
+                focusedItem = selectedItems.getFirst();
+                rememberFocusedIndex(focusedItem);
+            }
         }
         if (anchorItem != null && !items.contains(anchorItem)) {
             anchorItem = focusedItem;
@@ -676,6 +694,17 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private void selectOnly(T item) {
         selectedItems.clear();
         selectedItems.add(item);
+    }
+
+    private void rememberFocusedIndex(T item) {
+        focusedItemIndex = item == null ? -1 : items.indexOf(item);
+    }
+
+    private T itemAtRememberedIndex() {
+        if (focusedItemIndex >= 0 && focusedItemIndex < items.size()) {
+            return items.get(focusedItemIndex);
+        }
+        return items.getFirst();
     }
 
     private void updatePlaceholderVisibility() {
