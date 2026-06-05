@@ -2,15 +2,18 @@ package com.uiptv.ui;
 
 import com.uiptv.model.Account;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.I18n;
 import com.uiptv.util.XtremeCredentialsJson;
+import com.uiptv.widget.InlinePanelService;
+import com.uiptv.widget.InlinePanelService.InlinePanelHandle;
 import com.uiptv.widget.UIptvCombo;
 import com.uiptv.widget.UIptvText;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.layout.HBox;
-import javafx.stage.Stage;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
@@ -51,9 +54,9 @@ public class ManageAccountXtremeCredentialsHelper {
         }
     }
 
-    public void openManagementPopup(Stage owner, Runnable onChangePersist) {
-        XtremeCredentialsManagementPopup popup = new XtremeCredentialsManagementPopup(
-                owner,
+    public void openManagementInline(Runnable onChangePersist) {
+        AtomicReference<InlinePanelHandle> handleRef = new AtomicReference<>();
+        XtremeCredentialsManagementInline inline = new XtremeCredentialsManagementInline(
                 xtremeCredentials,
                 xtremeDefaultUsername,
                 (newEntries, newDefault) -> {
@@ -63,9 +66,15 @@ public class ManageAccountXtremeCredentialsHelper {
                     if (onChangePersist != null) {
                         onChangePersist.run();
                     }
+                },
+                () -> {
+                    InlinePanelHandle handle = handleRef.get();
+                    if (handle != null) {
+                        handle.close();
+                    }
                 }
         );
-        popup.show();
+        InlinePanelService.open(I18n.tr("autoManage") + " Xtreme", inline).ifPresent(handleRef::set);
     }
 
     public void loadFromAccount(Account account) {

@@ -81,8 +81,11 @@ public final class AppNotificationCenter {
             return;
         }
         while (currentHost.getChildren().size() >= MAX_VISIBLE_NOTIFICATIONS) {
-            dismiss(currentHost.getChildren().getFirst());
+            Node oldest = currentHost.getChildren().getFirst();
+            dismiss(oldest);
+            currentHost.getChildren().remove(oldest);
         }
+        updateHostVisibility(currentHost);
 
         StackPane card = createNotificationCard(type, message);
         currentHost.getChildren().add(card);

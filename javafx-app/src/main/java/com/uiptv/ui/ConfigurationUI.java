@@ -12,7 +12,6 @@ import com.uiptv.service.remotesync.RemoteSyncExecutionResult;
 import com.uiptv.service.remotesync.RemoteSyncOptions;
 import com.uiptv.service.remotesync.RemoteSyncProgressStep;
 import com.uiptv.service.*;
-import com.uiptv.ui.util.UiI18n;
 import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
@@ -20,10 +19,11 @@ import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.ExternalPlayerPathCard;
+import com.uiptv.widget.InlinePanelService;
+import com.uiptv.widget.InlinePanelService.InlinePanelHandle;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayerOptionCard;
 import com.uiptv.widget.SwitchToggle;
-import com.uiptv.widget.ThemedDialogSupport;
 import com.uiptv.widget.UiRenderQuality;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
@@ -43,7 +43,6 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.shape.SVGPath;
 import javafx.stage.FileChooser;
-import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.util.Duration;
 
@@ -71,7 +70,6 @@ public class ConfigurationUI extends VBox {
     private static final String CONFIG_EXPORT_DATABASE = "configExportDatabase";
     private static final String CONFIG_IMPORT_DATABASE = "configImportDatabase";
     private static final String FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON = "filterLockUnlockManageFiltersReason";
-    private static final String DIALOG_TITLE_COMMON_INFO = "commonInfo";
     private static final String STYLE_CLASS_DANGEROUS = "dangerous";
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
     private static final String STYLE_CLASS_NO_DIM_DISABLED = "no-dim-disabled";
@@ -88,14 +86,15 @@ public class ConfigurationUI extends VBox {
     private static final double STATUS_ICON_SIZE = 18;
     private static final Duration STATUS_TITLE_REFRESH_INTERVAL = Duration.seconds(30);
     private static final Duration AUTO_SAVE_DEBOUNCE = Duration.millis(450);
-    private static final double DATABASE_SYNC_POPUP_WIDTH = 672;
+    private static final double DATABASE_SYNC_INLINE_WIDTH = 672;
     private static final double SETTINGS_CARD_WIDTH = 440;
     private static final double SETTINGS_MIN_COMPACT_CARD_WIDTH = 280;
     private static final double SETTINGS_CARD_HGAP = 14;
     private static final double SETTINGS_SWITCH_WIDTH = 52;
     private static final double SETTINGS_THEME_PILL_WIDTH = 181;
-    private static final AtomicReference<Stage> activePublishM3u8PopupStage = new AtomicReference<>();
-    private static final AtomicReference<Stage> activeDatabaseSyncPopupStage = new AtomicReference<>();
+    private static final AtomicReference<InlinePanelHandle> activePublishM3u8InlinePanel = new AtomicReference<>();
+    private static final AtomicReference<InlinePanelHandle> activeVlcOptionsInlinePanel = new AtomicReference<>();
+    private static final AtomicReference<InlinePanelHandle> activeDatabaseSyncInlinePanel = new AtomicReference<>();
     final ToggleGroup group = new ToggleGroup();
     final Button browserButtonPlayerPath1 = new Button("...");
     final Button browserButtonPlayerPath2 = new Button("...");
@@ -1126,7 +1125,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addReloadCacheButtonClickHandler() {
-        reloadCacheButton.setOnAction(event -> ReloadCachePopup.showPopup((Stage) getScene().getWindow(), null, this::notifyAccountsChanged));
+        reloadCacheButton.setOnAction(event -> ReloadCacheInline.open(null, this::notifyAccountsChanged));
     }
 
     private void notifyAccountsChanged() {
@@ -1198,23 +1197,28 @@ public class ConfigurationUI extends VBox {
 
     private void addPublishM3u8ButtonClickHandler() {
         publishM3u8Button.setOnAction(event -> {
-            Stage activePopupStage = activePublishM3u8PopupStage.get();
-            if (activePopupStage != null && activePopupStage.isShowing()) {
-                activePopupStage.toFront();
-                activePopupStage.requestFocus();
+            InlinePanelHandle activePanel = activePublishM3u8InlinePanel.get();
+            if (activePanel != null) {
                 return;
             }
-            Stage popupStage = new Stage();
-            M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
-            Scene scene = new Scene(popup, 680, 560);
-            UiI18n.applySceneOrientation(scene);
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-            popupStage.setTitle(I18n.tr("configPublishM3u8"));
-            popupStage.setScene(scene);
-            popupStage.setOnHidden(hiddenEvent -> activePublishM3u8PopupStage.compareAndSet(popupStage, null));
-            activePublishM3u8PopupStage.set(popupStage);
-            popupStage.show();
-            popupStage.toFront();
+            AtomicReference<InlinePanelHandle> handleRef = new AtomicReference<>();
+            M3U8PublicationInline inline = new M3U8PublicationInline(() -> {
+                InlinePanelHandle handle = handleRef.get();
+                if (handle != null) {
+                    handle.close();
+                }
+            });
+            InlinePanelService.open(I18n.tr("configPublishM3u8"), inline, I18n.tr("commonClose"), () -> {
+                InlinePanelHandle handle = handleRef.get();
+                if (handle != null) {
+                    activePublishM3u8InlinePanel.compareAndSet(handle, null);
+                } else {
+                    activePublishM3u8InlinePanel.set(null);
+                }
+            }).ifPresent(handle -> {
+                handleRef.set(handle);
+                activePublishM3u8InlinePanel.set(handle);
+            });
         });
     }
 
@@ -1368,7 +1372,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addVlcOptionsLinkClickHandler() {
-        vlcOptionsLink.setOnAction(event -> openVlcOptionsPopup());
+        vlcOptionsLink.setOnAction(event -> openVlcOptionsInline());
     }
 
     private void configureHelpLinks() {
@@ -1428,8 +1432,8 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addDatabaseSyncButtonHandlers() {
-        importDatabaseButton.setOnAction(event -> openDatabaseSyncPopup(true));
-        exportDatabaseButton.setOnAction(event -> openDatabaseSyncPopup(false));
+        importDatabaseButton.setOnAction(event -> openDatabaseSyncInline(true));
+        exportDatabaseButton.setOnAction(event -> openDatabaseSyncInline(false));
     }
 
     private VBox createPlayerChoicesPanel() {
@@ -1882,10 +1886,11 @@ public class ConfigurationUI extends VBox {
         }
     }
 
-    private void openVlcOptionsPopup() {
-        Window ownerWindow = getScene() == null ? ThemedDialogSupport.primaryOwnerWindow() : getScene().getWindow();
-        Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle(I18n.tr("configVlcPopupTitle"));
+    private void openVlcOptionsInline() {
+        if (activeVlcOptionsInlinePanel.get() != null) {
+            return;
+        }
+        AtomicReference<InlinePanelHandle> handleRef = new AtomicReference<>();
 
         ComboBox<VlcCachingOption> networkCachingComboBox = createVlcCachingComboBox();
         ComboBox<VlcCachingOption> liveCachingComboBox = createVlcCachingComboBox();
@@ -1929,42 +1934,61 @@ public class ConfigurationUI extends VBox {
         root.setMaxWidth(Double.MAX_VALUE);
         UiRenderQuality.optimizeLayout(root);
 
-        ButtonType saveButtonType = new ButtonType(I18n.tr("commonSave"), ButtonBar.ButtonData.OK_DONE);
-        ButtonType resetButtonType = new ButtonType(I18n.tr("configVlcResetDefaults"), ButtonBar.ButtonData.OTHER);
-        ButtonType closeButtonType = UIptvAlert.closeButtonType();
-        dialog.getDialogPane().setContent(root);
-        dialog.getDialogPane().getButtonTypes().setAll(saveButtonType, resetButtonType, closeButtonType);
-        ThemedDialogSupport.prepare(dialog, ownerWindow, "uiptv-vlc-options-dialog");
+        Runnable closeAction = () -> {
+            InlinePanelHandle handle = handleRef.get();
+            if (handle != null) {
+                handle.close();
+            }
+        };
 
-        Button saveButton = (Button) dialog.getDialogPane().lookupButton(saveButtonType);
-        Button resetButton = (Button) dialog.getDialogPane().lookupButton(resetButtonType);
-        Button closeButton = (Button) dialog.getDialogPane().lookupButton(closeButtonType);
-        if (saveButton != null) {
-            saveButton.getStyleClass().add("uiptv-dialog-primary-button");
-            saveButton.setDefaultButton(true);
-            saveButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
-                vlcNetworkCachingMs = selectedCachingValue(networkCachingComboBox);
-                vlcLiveCachingMs = selectedCachingValue(liveCachingComboBox);
-                vlcHttpUserAgentEnabled = userAgentSwitch.isSelected();
-                vlcHttpForwardCookiesEnabled = forwardCookiesSwitch.isSelected();
-                saveVlcOptionsConfiguration(true);
-            });
-        }
-        if (resetButton != null) {
-            resetButton.getStyleClass().add("uiptv-dialog-secondary-button");
-            resetButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
-                vlcNetworkCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
-                vlcLiveCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
-                vlcHttpUserAgentEnabled = true;
-                vlcHttpForwardCookiesEnabled = true;
-                saveVlcOptionsConfiguration(true);
-            });
-        }
-        if (closeButton != null) {
-            closeButton.getStyleClass().add("uiptv-dialog-secondary-button");
-        }
+        Button saveButton = new Button(I18n.tr("commonSave"));
+        saveButton.getStyleClass().add("uiptv-inline-primary-button");
+        saveButton.setDefaultButton(true);
+        saveButton.setOnAction(event -> {
+            vlcNetworkCachingMs = selectedCachingValue(networkCachingComboBox);
+            vlcLiveCachingMs = selectedCachingValue(liveCachingComboBox);
+            vlcHttpUserAgentEnabled = userAgentSwitch.isSelected();
+            vlcHttpForwardCookiesEnabled = forwardCookiesSwitch.isSelected();
+            saveVlcOptionsConfiguration(true);
+            closeAction.run();
+        });
 
-        ThemedDialogSupport.showAndWait(dialog, ownerWindow);
+        Button resetButton = new Button(I18n.tr("configVlcResetDefaults"));
+        resetButton.getStyleClass().add("uiptv-inline-secondary-button");
+        resetButton.setOnAction(event -> {
+            vlcNetworkCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
+            vlcLiveCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
+            vlcHttpUserAgentEnabled = true;
+            vlcHttpForwardCookiesEnabled = true;
+            saveVlcOptionsConfiguration(true);
+            closeAction.run();
+        });
+
+        Button closeButton = new Button(I18n.tr("commonClose"));
+        closeButton.getStyleClass().add("uiptv-inline-secondary-button");
+        closeButton.setOnAction(event -> closeAction.run());
+
+        HBox buttons = new HBox(10, resetButton, saveButton, closeButton);
+        buttons.setAlignment(Pos.CENTER_RIGHT);
+        buttons.getStyleClass().add("management-popup-footer");
+        root.getChildren().add(buttons);
+
+        InlinePanelService.open(
+                I18n.tr("configVlcPopupTitle"),
+                root,
+                I18n.tr("commonClose"),
+                () -> {
+                    InlinePanelHandle handle = handleRef.get();
+                    if (handle != null) {
+                        activeVlcOptionsInlinePanel.compareAndSet(handle, null);
+                    } else {
+                        activeVlcOptionsInlinePanel.set(null);
+                    }
+                }
+        ).ifPresent(handle -> {
+            handleRef.set(handle);
+            activeVlcOptionsInlinePanel.set(handle);
+        });
     }
 
     private Node createVlcComboOptionRow(String labelKey, ComboBox<VlcCachingOption> comboBox) {
@@ -2103,7 +2127,7 @@ public class ConfigurationUI extends VBox {
             if (event.getTarget() instanceof Node node && isNodeInside(node, actionLink)) {
                 return;
             }
-            openDatabaseSyncPopup(importMode);
+            openDatabaseSyncInline(importMode);
         });
         card.setOnKeyPressed(event -> {
             if (event.getTarget() instanceof Node node && isNodeInside(node, actionLink)) {
@@ -2111,7 +2135,7 @@ public class ConfigurationUI extends VBox {
             }
             switch (event.getCode()) {
                 case ENTER, SPACE -> {
-                    openDatabaseSyncPopup(importMode);
+                    openDatabaseSyncInline(importMode);
                     event.consume();
                 }
                 default -> {
@@ -2154,14 +2178,11 @@ public class ConfigurationUI extends VBox {
         }
     }
 
-    private void openDatabaseSyncPopup(boolean importMode) {
-        Stage activePopupStage = activeDatabaseSyncPopupStage.get();
-        if (activePopupStage != null && activePopupStage.isShowing()) {
-            activePopupStage.close();
+    private void openDatabaseSyncInline(boolean importMode) {
+        if (activeDatabaseSyncInlinePanel.get() != null) {
+            return;
         }
-        Stage popupStage = new Stage();
-        popupStage.initOwner(getScene() == null ? RootApplication.getPrimaryStage() : (Stage) getScene().getWindow());
-
+        AtomicReference<InlinePanelHandle> handleRef = new AtomicReference<>();
         ToggleGroup locationModeGroup = new ToggleGroup();
         RadioButton fileModeButton = new RadioButton(I18n.tr("configDatabaseSyncModeFile"));
         RadioButton remoteModeButton = new RadioButton(I18n.tr("configDatabaseSyncModeRemote"));
@@ -2191,6 +2212,15 @@ public class ConfigurationUI extends VBox {
         Label progressLabel = new Label();
         TextArea resultTextArea = new TextArea();
         AtomicBoolean syncRunning = new AtomicBoolean(false);
+        Runnable closeAction = () -> {
+            if (syncRunning.get()) {
+                return;
+            }
+            InlinePanelHandle handle = handleRef.get();
+            if (handle != null) {
+                handle.close();
+            }
+        };
 
         progressBar.setMaxWidth(Double.MAX_VALUE);
         progressBar.setVisible(false);
@@ -2215,9 +2245,10 @@ public class ConfigurationUI extends VBox {
 
         browseButton.setOnAction(event -> {
             configureDatabaseBackupFileChooser(importMode);
+            Window chooserOwner = getScene() == null ? RootApplication.getPrimaryStage() : getScene().getWindow();
             File selected = importMode
-                    ? databaseFileChooser.showOpenDialog(popupStage)
-                    : databaseFileChooser.showSaveDialog(popupStage);
+                    ? databaseFileChooser.showOpenDialog(chooserOwner)
+                    : databaseFileChooser.showSaveDialog(chooserOwner);
             if (selected != null) {
                 databasePathField.setText((importMode ? selected : ensureZipExtension(selected)).getAbsolutePath());
             }
@@ -2241,7 +2272,6 @@ public class ConfigurationUI extends VBox {
         );
 
         runButton.setOnAction(event -> runDatabaseSyncAction(new DatabaseSyncRunRequest(
-                popupStage,
                 importMode,
                 fileModeButton.isSelected(),
                 databasePathField.getText(),
@@ -2251,12 +2281,7 @@ public class ConfigurationUI extends VBox {
                 syncExternalPlayerPathsCheckBox.isSelected(),
                 controls
         )));
-        cancelButton.setOnAction(event -> popupStage.close());
-        popupStage.setOnCloseRequest(event -> {
-            if (syncRunning.get()) {
-                event.consume();
-            }
-        });
+        cancelButton.setOnAction(event -> closeAction.run());
 
         HBox modeRow = new HBox(12, fileModeButton, remoteModeButton);
         HBox pathRow = new HBox(8, databasePathField, browseButton);
@@ -2274,11 +2299,14 @@ public class ConfigurationUI extends VBox {
         bindManagedVisibility(remoteRow, remoteModeButton.selectedProperty());
         HBox buttons = new HBox(10, runButton, cancelButton);
         buttons.setAlignment(Pos.CENTER_RIGHT);
+        Label directionTitleLabel = new Label();
+        directionTitleLabel.getStyleClass().add("management-popup-section-title");
+        directionTitleLabel.setWrapText(true);
         Label descriptionLabel = new Label();
         descriptionLabel.setWrapText(true);
 
         Runnable textUpdater = () -> updateDatabaseSyncDirectionalText(
-                popupStage,
+                directionTitleLabel,
                 descriptionLabel,
                 runButton,
                 importMode,
@@ -2286,16 +2314,15 @@ public class ConfigurationUI extends VBox {
         );
         fileModeButton.selectedProperty().addListener((obs, oldValue, newValue) -> {
             textUpdater.run();
-            resizeDatabaseSyncPopup(popupStage);
         });
         remoteModeButton.selectedProperty().addListener((obs, oldValue, newValue) -> {
             textUpdater.run();
-            resizeDatabaseSyncPopup(popupStage);
         });
         textUpdater.run();
 
         VBox root = new VBox(
                 12,
+                directionTitleLabel,
                 descriptionLabel,
                 modeRow,
                 pathRow,
@@ -2307,38 +2334,38 @@ public class ConfigurationUI extends VBox {
                 resultTextArea,
                 buttons
         );
+        root.getStyleClass().addAll("management-popup-root", "database-sync-inline");
         root.setPadding(new Insets(14));
+        root.setPrefWidth(DATABASE_SYNC_INLINE_WIDTH);
+        root.setMaxWidth(Double.MAX_VALUE);
 
-        Scene scene = new Scene(root, DATABASE_SYNC_POPUP_WIDTH, Region.USE_COMPUTED_SIZE);
-        UiI18n.applySceneOrientation(scene);
-        scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        popupStage.setScene(scene);
-        popupStage.setOnShown(event -> resizeDatabaseSyncPopup(popupStage));
-        popupStage.setOnHidden(hiddenEvent -> activeDatabaseSyncPopupStage.compareAndSet(popupStage, null));
-        activeDatabaseSyncPopupStage.set(popupStage);
-        popupStage.showAndWait();
-    }
-
-    private void resizeDatabaseSyncPopup(Stage popupStage) {
-        if (popupStage.getScene() == null) {
-            return;
-        }
-        popupStage.sizeToScene();
-        Platform.runLater(() -> {
-            if (popupStage.isShowing()) {
-                popupStage.sizeToScene();
-            }
+        InlinePanelService.open(
+                I18n.tr(importMode ? CONFIG_IMPORT_DATABASE : CONFIG_EXPORT_DATABASE),
+                root,
+                I18n.tr("commonClose"),
+                () -> {
+                    InlinePanelHandle handle = handleRef.get();
+                    if (handle != null) {
+                        activeDatabaseSyncInlinePanel.compareAndSet(handle, null);
+                    } else {
+                        activeDatabaseSyncInlinePanel.set(null);
+                    }
+                },
+                _ -> closeAction.run()
+        ).ifPresent(handle -> {
+            handleRef.set(handle);
+            activeDatabaseSyncInlinePanel.set(handle);
         });
     }
 
-    private void updateDatabaseSyncDirectionalText(Stage popupStage,
+    private void updateDatabaseSyncDirectionalText(Label directionTitleLabel,
                                                    Label descriptionLabel,
                                                    Button runButton,
                                                    boolean importMode,
                                                    boolean fileMode) {
         String sourceLabel = databaseSyncSourceLabel(importMode, fileMode);
         String destinationLabel = databaseSyncDestinationLabel(importMode, fileMode);
-        popupStage.setTitle(I18n.tr("configDatabaseSyncDirectionTitle", sourceLabel, destinationLabel));
+        directionTitleLabel.setText(I18n.tr("configDatabaseSyncDirectionTitle", sourceLabel, destinationLabel));
         descriptionLabel.setText(I18n.tr("configDatabaseSyncDirectionDescription", sourceLabel, destinationLabel));
         runButton.setText(I18n.tr(databaseSyncActionKey(importMode)));
     }
@@ -2360,7 +2387,6 @@ public class ConfigurationUI extends VBox {
     private void runDatabaseSyncAction(DatabaseSyncRunRequest request) {
         if (!request.fileMode()) {
             runRemoteDatabaseSyncAction(
-                    request.popupStage(),
                     request.importMode(),
                     request.remoteHost(),
                     request.remotePort(),
@@ -2405,7 +2431,6 @@ public class ConfigurationUI extends VBox {
         controls.resultTextArea().setManaged(false);
         controls.progressBar().setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
         controls.progressLabel().setText(I18n.tr(CONFIG_DATABASE_SYNC_IN_PROGRESS));
-        request.popupStage().sizeToScene();
 
         Task<DatabaseBackupArchiveService.BackupArchiveReport> task = new Task<>() {
             @Override
@@ -2428,7 +2453,6 @@ public class ConfigurationUI extends VBox {
             controls.resultTextArea().setVisible(true);
             controls.resultTextArea().setManaged(true);
             controls.cancelButton().setDisable(false);
-            request.popupStage().sizeToScene();
         });
 
         task.setOnFailed(event -> {
@@ -2441,7 +2465,6 @@ public class ConfigurationUI extends VBox {
             controls.resultTextArea().setVisible(true);
             controls.resultTextArea().setManaged(true);
             controls.cancelButton().setDisable(false);
-            request.popupStage().sizeToScene();
         });
 
         Thread worker = new Thread(task, request.importMode() ? "database-restore-task" : "database-backup-task");
@@ -2449,8 +2472,7 @@ public class ConfigurationUI extends VBox {
         worker.start();
     }
 
-    private void runRemoteDatabaseSyncAction(Stage popupStage,
-                                             boolean importMode,
+    private void runRemoteDatabaseSyncAction(boolean importMode,
                                              String remoteHost,
                                              String remotePort,
                                              boolean syncConfiguration,
@@ -2487,7 +2509,6 @@ public class ConfigurationUI extends VBox {
         controls.resultTextArea().clear();
         controls.resultTextArea().setVisible(false);
         controls.resultTextArea().setManaged(false);
-        popupStage.sizeToScene();
 
         Task<RemoteSyncExecutionResult> task = new Task<>() {
             @Override
@@ -2522,7 +2543,6 @@ public class ConfigurationUI extends VBox {
             controls.resultTextArea().setVisible(true);
             controls.resultTextArea().setManaged(true);
             controls.cancelButton().setDisable(false);
-            popupStage.sizeToScene();
             showMessageAlert(I18n.tr("remoteSyncRemoteCompletedMessage"));
         });
         task.setOnFailed(event -> {
@@ -2536,7 +2556,6 @@ public class ConfigurationUI extends VBox {
             controls.resultTextArea().setVisible(true);
             controls.resultTextArea().setManaged(true);
             controls.cancelButton().setDisable(false);
-            popupStage.sizeToScene();
             showErrorAlert(I18n.tr("remoteSyncRemoteFailedMessage"));
         });
 
@@ -2616,8 +2635,7 @@ public class ConfigurationUI extends VBox {
                                               AtomicBoolean syncRunning) {
     }
 
-    private record DatabaseSyncRunRequest(Stage popupStage,
-                                          boolean importMode,
+    private record DatabaseSyncRunRequest(boolean importMode,
                                           boolean fileMode,
                                           String selectedPath,
                                           String remoteHost,
@@ -2881,18 +2899,14 @@ public class ConfigurationUI extends VBox {
     }
 
     private void showHelpDialog(String title, String text) {
-        ButtonType okButton = UIptvAlert.okButtonType();
-        Alert alert = new Alert(Alert.AlertType.INFORMATION, text, okButton);
-        Window ownerWindow = getScene() == null ? ThemedDialogSupport.primaryOwnerWindow() : getScene().getWindow();
-        alert.setTitle(I18n.tr(DIALOG_TITLE_COMMON_INFO));
-        alert.setHeaderText(title);
-        alert.setGraphic(null);
-        ThemedDialogSupport.prepare(alert, ownerWindow, "uiptv-help-dialog");
-        Button ok = (Button) alert.getDialogPane().lookupButton(okButton);
-        if (ok != null) {
-            ok.getStyleClass().add("uiptv-dialog-primary-button");
-        }
-        ThemedDialogSupport.showAndWait(alert, ownerWindow);
+        Label helpText = new Label(text);
+        helpText.getStyleClass().add("uiptv-dialog-description");
+        helpText.setWrapText(true);
+        helpText.setMinWidth(0);
+        helpText.setMaxWidth(Double.MAX_VALUE);
+
+        ButtonType closeButton = new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        InlinePanelService.showChoice(title, helpText, List.of(closeButton), closeButton);
     }
     private record VlcCachingOption(String value, String label) {
         private static java.util.List<VlcCachingOption> all() {

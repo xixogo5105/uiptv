@@ -10,6 +10,7 @@ import com.uiptv.util.SystemUtils;
 import com.uiptv.widget.AppNotificationCenter;
 import com.uiptv.widget.AppNavigationPane;
 import com.uiptv.widget.AppPageHeader;
+import com.uiptv.widget.InlinePanelService;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.application.HostServices;
@@ -97,9 +98,12 @@ public abstract class BaseMainApplicationUI {
 
         VBox notificationHost = AppNotificationCenter.createHost();
         AppNotificationCenter.install(notificationHost);
+        StackPane inlineHost = InlinePanelService.createHost(mainContent);
+        InlinePanelService.install(inlineHost);
 
-        VBox rootLayout = new VBox(notificationHost, menuBar, mainContent);
-        VBox.setVgrow(mainContent, Priority.ALWAYS);
+        VBox rootLayout = new VBox(notificationHost, menuBar, inlineHost);
+        rootLayout.getStyleClass().add("uiptv-app-root");
+        VBox.setVgrow(inlineHost, Priority.ALWAYS);
 
         Scene scene = new Scene(rootLayout, guidedMaxWidthPixels, guidedMaxHeightPixels);
         UiI18n.applySceneOrientation(scene);

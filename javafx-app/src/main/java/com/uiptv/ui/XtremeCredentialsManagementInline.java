@@ -1,6 +1,5 @@
 package com.uiptv.ui;
 
-import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.XtremeCredentialsJson;
 import javafx.beans.property.BooleanProperty;
@@ -11,7 +10,6 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
@@ -23,8 +21,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,8 +29,7 @@ import java.util.function.BiConsumer;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.util.StringUtils.isBlank;
 
-public class XtremeCredentialsManagementPopup extends VBox {
-    private final Stage stage;
+public class XtremeCredentialsManagementInline extends VBox {
     private final ListView<CredentialItem> credentialListView = new ListView<>();
     private final TextField usernameField = new TextField();
     private final TextField passwordField = new TextField();
@@ -49,13 +44,21 @@ public class XtremeCredentialsManagementPopup extends VBox {
     private ObservableList<CredentialItem> credentialItems;
     private String defaultUsername;
     private final BiConsumer<List<XtremeCredentialsJson.Entry>, String> onSave;
+    private final Runnable closeHandler;
 
-    public XtremeCredentialsManagementPopup(Stage owner,
-                                            List<XtremeCredentialsJson.Entry> initialEntries,
-                                            String currentDefaultUsername,
-                                            BiConsumer<List<XtremeCredentialsJson.Entry>, String> onSave) {
+    public XtremeCredentialsManagementInline(List<XtremeCredentialsJson.Entry> initialEntries,
+                                             String currentDefaultUsername,
+                                             BiConsumer<List<XtremeCredentialsJson.Entry>, String> onSave) {
+        this(initialEntries, currentDefaultUsername, onSave, null);
+    }
+
+    public XtremeCredentialsManagementInline(List<XtremeCredentialsJson.Entry> initialEntries,
+                                             String currentDefaultUsername,
+                                             BiConsumer<List<XtremeCredentialsJson.Entry>, String> onSave,
+                                             Runnable closeHandler) {
         this.defaultUsername = currentDefaultUsername;
         this.onSave = onSave;
+        this.closeHandler = closeHandler == null ? () -> { } : closeHandler;
         List<CredentialItem> items = new ArrayList<>();
         if (initialEntries != null) {
             for (XtremeCredentialsJson.Entry entry : initialEntries) {
@@ -69,26 +72,12 @@ public class XtremeCredentialsManagementPopup extends VBox {
             }
         }
         this.credentialItems = FXCollections.observableArrayList(items);
-        stage = createStage(owner);
         configureLayout();
         configureSelectionHandling();
         configureListView();
         configureButtons();
         buildContent();
         updateActionButtons();
-        stage.setScene(createScene(owner));
-    }
-
-    public void show() {
-        stage.show();
-    }
-
-    private Stage createStage(Stage owner) {
-        Stage popupStage = new Stage();
-        popupStage.initOwner(owner);
-        popupStage.initModality(Modality.APPLICATION_MODAL);
-        popupStage.setTitle(I18n.tr("autoManage") + " Xtreme");
-        return popupStage;
     }
 
     private void configureLayout() {
@@ -131,7 +120,7 @@ public class XtremeCredentialsManagementPopup extends VBox {
         removeButton.setOnAction(e -> removeCredentials());
         setDefaultButton.setOnAction(e -> setDefaultCredential());
         saveButton.setOnAction(e -> saveAndClose());
-        closeButton.setOnAction(e -> stage.close());
+        closeButton.setOnAction(e -> closeHandler.run());
     }
 
     private void buildContent() {
@@ -177,17 +166,6 @@ public class XtremeCredentialsManagementPopup extends VBox {
         VBox header = new VBox(2, title);
         header.getStyleClass().add("management-popup-header");
         return header;
-    }
-
-    private Scene createScene(Stage owner) {
-        Scene scene = new Scene(this, 480, 520);
-        UiI18n.applySceneOrientation(scene);
-        if (owner != null && owner.getScene() != null) {
-            scene.getStylesheets().addAll(owner.getScene().getStylesheets());
-        } else if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-        return scene;
     }
 
     private void addCredential() {
@@ -293,7 +271,7 @@ public class XtremeCredentialsManagementPopup extends VBox {
                     .toList();
             onSave.accept(entries, defaultUsername);
         }
-        stage.close();
+        closeHandler.run();
     }
 
     private void showAlert(String message) {

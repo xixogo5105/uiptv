@@ -8,6 +8,7 @@ import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.BookmarkCard;
+import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
@@ -22,12 +23,9 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Node;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.layout.*;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
 
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -282,6 +280,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private void releaseTransientState() {
         reloadGeneration.incrementAndGet();
         reloadInProgress = false;
+        loadedOnce = false;
         reloadRequestedWhileReloading = false;
         allBookmarkItems.clear();
         filteredItems.clear();
@@ -528,7 +527,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         manageCategoriesButton.setMinWidth(Region.USE_PREF_SIZE);
         manageCategoriesButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
         manageCategoriesButton.setMaxWidth(Region.USE_PREF_SIZE);
-        manageCategoriesButton.setOnAction(event -> openCategoryManagementPopup());
+        manageCategoriesButton.setOnAction(event -> openCategoryManagementInline());
     }
 
     void populateCategoryTabPane() {
@@ -643,23 +642,9 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         );
     }
 
-    private void openCategoryManagementPopup() {
-        Stage popupStage = new Stage();
-        Stage owner = getScene() != null && getScene().getWindow() instanceof Stage stage ? stage : null;
-        if (owner != null) {
-            popupStage.initOwner(owner);
-            popupStage.initModality(Modality.WINDOW_MODAL);
-        }
-        CategoryManagementPopup popup = new CategoryManagementPopup(this);
-        Scene scene = new Scene(popup, 520, 560);
-        UiI18n.applySceneOrientation(scene);
-        scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        popupStage.setTitle(I18n.tr("autoManageCategories"));
-        popupStage.setMinWidth(460);
-        popupStage.setMinHeight(480);
-        popupStage.setScene(scene);
-        popupStage.showAndWait();
-        forceReload();
+    private void openCategoryManagementInline() {
+        CategoryManagementInline inline = new CategoryManagementInline(this);
+        InlinePanelService.open(I18n.tr("autoManageCategories"), inline, I18n.tr("commonClose"), this::forceReload);
     }
 
     private void addChannelClickHandler() {

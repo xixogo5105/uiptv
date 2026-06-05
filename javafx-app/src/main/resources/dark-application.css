@@ -397,30 +397,41 @@
 
 /* Custom segmented progress bar */
 .progress-bar-container {
-    -fx-background-color: #2f3340;
+    -fx-background-color: rgba(255, 255, 255, 0.10);
     -fx-padding: 3;
-    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-color: rgba(255, 255, 255, 0.09);
     -fx-border-width: 1;
     -fx-border-radius: 999;
     -fx-background-radius: 999;
+    -fx-effect: innershadow(gaussian, rgba(0, 0, 0, 0.26), 4, 0.18, 0, 1);
+}
+
+.progress-bar-container.empty {
+    -fx-background-color: rgba(255, 255, 255, 0.07);
 }
 
 .progress-bar-segment {
-    -fx-background-color: #4b5260;
+    -fx-min-height: 6;
+    -fx-pref-height: 6;
+    -fx-background-color: rgba(148, 163, 184, 0.22);
     -fx-background-radius: 999;
-    -fx-background-insets: 1;
+    -fx-background-insets: 0;
+}
+
+.progress-bar-segment.progress-bar-segment-default {
+    -fx-background-color: rgba(148, 163, 184, 0.24);
 }
 
 .progress-bar-segment.success {
-    -fx-background-color: #22c55e;
+    -fx-background-color: linear-gradient(to right, #4ade80, #22c55e);
 }
 
 .progress-bar-segment.warning {
-    -fx-background-color: #f59e0b;
+    -fx-background-color: linear-gradient(to right, #facc15, #f59e0b);
 }
 
 .progress-bar-segment.failure {
-    -fx-background-color: #ef4444;
+    -fx-background-color: linear-gradient(to right, #f87171, #ef4444);
 }
 
 /* terminal.css */
@@ -485,6 +496,7 @@
 .verification-progress-summary,
 .reload-progress-summary {
     -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.94em;
     -fx-font-weight: bold;
 }
 
@@ -2594,7 +2606,8 @@
 }
 
 .uiptv-notification-host {
-    -fx-padding: 10 14 0 14;
+    -fx-background-color: -uiptv-app-bg;
+    -fx-padding: 10 14 14 14;
 }
 
 .uiptv-notification-card {
@@ -2665,6 +2678,94 @@
 .uiptv-notification-close:focused {
     -fx-background-color: rgba(255, 255, 255, 0.10);
     -fx-background-radius: 999;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-inline-host {
+    -fx-background-color: transparent;
+}
+
+.uiptv-inline-panel {
+    -fx-background-color: linear-gradient(to bottom right, #1b1d28, #171924);
+}
+
+.uiptv-inline-header {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 12 14 12 16;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.30), 18, 0.16, 0, 6);
+}
+
+.uiptv-inline-title {
+    -fx-font-size: 1.26em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-inline-close-button,
+.uiptv-inline-primary-button,
+.uiptv-inline-secondary-button {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+    -fx-padding: 8 16 8 16;
+    -fx-min-height: 38;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.uiptv-inline-close-button,
+.uiptv-inline-secondary-button {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.uiptv-inline-close-button:hover,
+.uiptv-inline-close-button:focused,
+.uiptv-inline-secondary-button:hover,
+.uiptv-inline-secondary-button:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-border-color: -uiptv-accent;
+}
+
+.uiptv-inline-primary-button {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
+}
+
+.uiptv-inline-primary-button:hover,
+.uiptv-inline-primary-button:focused {
+    -fx-background-color: derive(-uiptv-action-bg, 12%);
+    -fx-border-color: derive(-uiptv-action-bg, 12%);
+}
+
+.uiptv-inline-scroll-pane {
+    -fx-background-color: transparent;
+}
+
+.uiptv-inline-content-shell {
+    -fx-alignment: top-center;
+    -fx-padding: 18 0 18 0;
+}
+
+.uiptv-inline-confirm-card {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 20;
+    -fx-border-radius: 20;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.36), 24, 0.22, 0, 9);
+}
+
+.uiptv-inline-confirm-message {
+    -fx-font-size: 1.08em;
     -fx-text-fill: -uiptv-text-primary;
 }
 
@@ -3320,7 +3421,41 @@
 }
 
 .reload-progress-card {
-    -fx-min-height: 64;
+    -fx-min-height: 52;
+    -fx-padding: 12 16 12 16;
+}
+
+.reload-failure-policy-card {
+    -fx-padding: 12 16 12 16;
+}
+
+.reload-failure-policy-row {
+    -fx-spacing: 12;
+}
+
+.reload-failure-policy-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.reload-failure-policy-description {
+    -fx-font-size: 0.92em;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.reload-failure-policy-combo {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-min-height: 38;
+}
+
+.reload-failure-policy-combo:hover,
+.reload-failure-policy-combo:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-accent;
 }
 
 .reload-account-list,
@@ -3328,13 +3463,44 @@
     -fx-spacing: 8;
 }
 
+.reload-select-chip-row {
+    -fx-padding: 2 0 4 0;
+}
+
+.reload-select-chip {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 7 12 7 12;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.reload-select-chip:hover,
+.reload-select-chip:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-accent;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.reload-select-chip:selected {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
+}
+
 .reload-account-row {
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
-    -fx-background-radius: 13;
-    -fx-border-radius: 13;
-    -fx-padding: 9 11 9 11;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-padding: 10 12 10 12;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
 }
 
 .reload-account-row-alt {
@@ -3346,10 +3512,28 @@
     -fx-border-color: -uiptv-accent;
 }
 
-.reload-select-menu {
-    -fx-min-height: 34;
-    -fx-background-radius: 13;
-    -fx-border-radius: 13;
+.reload-account-row:selected {
+    -fx-background-color: #dbe7ff;
+    -fx-border-color: -uiptv-selected-card-border;
+    -fx-text-fill: #101827;
+}
+
+.reload-account-row > .box {
+    -fx-background-color: transparent;
+    -fx-border-color: #596173;
+    -fx-border-width: 1.5;
+    -fx-background-radius: 7;
+    -fx-border-radius: 7;
+    -fx-padding: 4;
+}
+
+.reload-account-row:selected > .box {
+    -fx-background-color: #101827;
+    -fx-border-color: #101827;
+}
+
+.reload-account-row:selected > .box > .mark {
+    -fx-background-color: #ffffff;
 }
 
 .reload-summary-box {
@@ -3420,6 +3604,145 @@
 .reload-status-bad,
 .reload-problem-level-bad {
     -fx-text-fill: #ff8a80;
+}
+
+.reload-problem-accounts-popup {
+    -fx-padding: 8 0 0 0;
+}
+
+.reload-problem-accounts-card {
+    -fx-spacing: 14;
+    -fx-padding: 18 18 16 18;
+}
+
+.reload-problem-warning {
+    -fx-background-color: rgba(56, 189, 248, 0.10);
+    -fx-border-color: rgba(56, 189, 248, 0.20);
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 11 13 11 13;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.reload-problem-select-all {
+    -fx-padding: 2 0 0 2;
+    -fx-font-weight: bold;
+}
+
+.reload-problem-account-scroll {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.reload-problem-account-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.reload-problem-account-list {
+    -fx-background-color: transparent;
+    -fx-spacing: 9;
+    -fx-padding: 2;
+}
+
+.reload-problem-section-title {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 5 11 5 11;
+    -fx-font-size: 0.88em;
+}
+
+.reload-problem-account-row {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 15;
+    -fx-border-radius: 15;
+    -fx-padding: 10 12 10 12;
+    -fx-cursor: hand;
+}
+
+.reload-problem-account-row:hover,
+.reload-problem-account-row:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: rgba(56, 189, 248, 0.30);
+}
+
+.reload-problem-account-row:selected {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-border;
+}
+
+.reload-problem-account-row.reload-problem-account-yellow {
+    -fx-background-color: rgba(250, 204, 21, 0.10);
+    -fx-border-color: rgba(250, 204, 21, 0.26);
+}
+
+.reload-problem-account-row.reload-problem-account-bad {
+    -fx-background-color: rgba(248, 113, 113, 0.09);
+    -fx-border-color: rgba(248, 113, 113, 0.24);
+}
+
+.reload-problem-account-row.reload-problem-account-yellow:hover,
+.reload-problem-account-row.reload-problem-account-yellow:focused {
+    -fx-background-color: rgba(250, 204, 21, 0.14);
+    -fx-border-color: rgba(250, 204, 21, 0.36);
+}
+
+.reload-problem-account-row.reload-problem-account-bad:hover,
+.reload-problem-account-row.reload-problem-account-bad:focused {
+    -fx-background-color: rgba(248, 113, 113, 0.13);
+    -fx-border-color: rgba(248, 113, 113, 0.34);
+}
+
+.reload-problem-account-content {
+    -fx-background-color: transparent;
+}
+
+.reload-problem-account-name {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.reload-problem-account-yellow .reload-problem-account-name {
+    -fx-text-fill: #facc15;
+}
+
+.reload-problem-account-bad .reload-problem-account-name {
+    -fx-text-fill: #f87171;
+}
+
+.reload-problem-account-type {
+    -fx-background-color: rgba(255, 255, 255, 0.09);
+    -fx-background-radius: 999;
+    -fx-padding: 3 9 3 9;
+    -fx-font-size: 0.86em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.reload-problem-account-reason {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.94em;
+}
+
+.reload-problem-account-row:selected .reload-problem-account-name,
+.reload-problem-account-row:selected .reload-problem-account-reason {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.reload-problem-account-row:selected .reload-problem-account-type {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.reload-problem-actions {
+    -fx-padding: 2 0 0 0;
 }
 
 .player-container {
@@ -3826,8 +4149,14 @@
     -fx-font-weight: bold;
 }
 
-.about-root {
-    -fx-background-color: -fx-base;
+.about-dialog-card {
+    -fx-background-color: linear-gradient(to bottom right, #242a34, #1f2430);
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-width: 1;
+    -fx-border-radius: 24;
+    -fx-background-radius: 24;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.38), 24, 0.16, 0, 8);
 }
 
 .about-hero {
@@ -3916,5 +4245,5 @@
 }
 
 .about-actions {
-    -fx-padding: 14 0 0 0;
+    -fx-padding: 4 0 0 0;
 }

@@ -23,6 +23,7 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.stage.Window;
 
+import java.util.List;
 import java.util.Optional;
 
 public final class ThemedDialogSupport {
@@ -134,6 +135,10 @@ public final class ThemedDialogSupport {
     }
 
     public static <T> Optional<T> showAndWait(Dialog<T> dialog, Window ownerWindow) {
+        Optional<T> inlineResult = showInlineIfSupported(dialog, ownerWindow);
+        if (inlineResult.isPresent()) {
+            return inlineResult;
+        }
         Runnable removeOwnerDimming = applyOwnerDimming(ownerWindow);
         try {
             Platform.runLater(() -> focusDialogRepeatedly(dialog));
@@ -142,6 +147,48 @@ public final class ThemedDialogSupport {
             removeOwnerDimming.run();
             uninstallFocusBridge(dialog);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Optional<T> showInlineIfSupported(Dialog<T> dialog, Window ownerWindow) {
+        if (!(dialog instanceof Alert alert) || alert.getAlertType() != Alert.AlertType.CONFIRMATION) {
+            return Optional.empty();
+        }
+        Window primaryOwner = primaryOwnerWindow();
+        if (ownerWindow != null && primaryOwner != null && ownerWindow != primaryOwner) {
+            return Optional.empty();
+        }
+        List<ButtonType> buttons = List.copyOf(dialog.getDialogPane().getButtonTypes());
+        ButtonType fallback = fallbackButton(buttons);
+        Optional<ButtonType> result = InlinePanelService.showChoice(
+                firstNonBlank(alert.getHeaderText(), alert.getTitle(), I18n.tr("commonConfirm")),
+                alert.getContentText(),
+                buttons,
+                fallback
+        );
+        return result.map(buttonType -> (T) buttonType);
+    }
+
+    private static ButtonType fallbackButton(List<ButtonType> buttons) {
+        if (buttons == null || buttons.isEmpty()) {
+            return new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        }
+        return buttons.stream()
+                .filter(buttonType -> buttonType.getButtonData() != null && buttonType.getButtonData().isCancelButton())
+                .findFirst()
+                .orElse(buttons.getLast());
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 
     public static Window primaryOwnerWindow() {

@@ -13,13 +13,13 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
+import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
 import com.uiptv.widget.SearchableFilterableTableView;
 import javafx.application.Platform;
 import javafx.application.HostServices;
-import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -36,7 +36,6 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
-import javafx.stage.Stage;
 import lombok.Setter;
 
 import java.util.*;
@@ -51,6 +50,12 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 public class AccountListUI extends HBox implements SearchTarget {
     private static final String MULTI_SELECTION_DISABLED_KEY = "autoThisActionIsDisabledForMultipleSelections";
+    private static final double GRID_NORMAL_CARD_MIN_WIDTH = 300;
+    private static final double GRID_NORMAL_CARD_MAX_WIDTH = 430;
+    private static final double GRID_COMPACT_CARD_MIN_WIDTH = 190;
+    private static final double GRID_COMPACT_CARD_MAX_WIDTH = 270;
+    private static final double GRID_DRAWER_CARD_MIN_WIDTH = 230;
+    private static final double GRID_DRAWER_CARD_MAX_WIDTH = 380;
     private static final double GRID_NORMAL_VERTICAL_GAP = 14;
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
@@ -366,12 +371,12 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     private void configureAccountGrid() {
         accountGrid.getStyleClass().add("account-card-grid");
-        accountGrid.setCardWidthRange(240, 340);
+        accountGrid.setCardWidthRange(GRID_NORMAL_CARD_MIN_WIDTH, GRID_NORMAL_CARD_MAX_WIDTH);
         applyAccountGridDisplayMode(ThumbnailAwareUI.areThumbnailsEnabled());
         accountGrid.setPlaceholderText(I18n.tr("autoNothingFoundFor", I18n.tr("autoAccount")));
         accountGrid.setActivateOnSingleClick(true);
         accountGrid.setOnItemActivated(item -> retrieveThreadedAccountCategories(item, itv));
-        accountGrid.setContextMenuFactory((item, selectedItems, owner) -> createAccountContextMenu(item, selectedItems));
+        accountGrid.setContextMenuFactory((item, selectedItems, owner) -> createAccountContextMenu(item, selectedItems, owner));
         accountGrid.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.DELETE) {
                 handleDeleteAccounts();
@@ -567,18 +572,18 @@ public class AccountListUI extends HBox implements SearchTarget {
     private void setAccountBrowserCompact(boolean compact) {
         if (mediaDrawerMode) {
             listView.getStyleClass().remove("account-list-panel-compact");
-            accountGrid.setCardWidthRange(230, 380);
+            accountGrid.setCardWidthRange(GRID_DRAWER_CARD_MIN_WIDTH, GRID_DRAWER_CARD_MAX_WIDTH);
             return;
         }
         if (compact) {
             if (!listView.getStyleClass().contains("account-list-panel-compact")) {
                 listView.getStyleClass().add("account-list-panel-compact");
             }
-            accountGrid.setCardWidthRange(190, 270);
+            accountGrid.setCardWidthRange(GRID_COMPACT_CARD_MIN_WIDTH, GRID_COMPACT_CARD_MAX_WIDTH);
             return;
         }
         listView.getStyleClass().remove("account-list-panel-compact");
-        accountGrid.setCardWidthRange(240, 340);
+        accountGrid.setCardWidthRange(GRID_NORMAL_CARD_MIN_WIDTH, GRID_NORMAL_CARD_MAX_WIDTH);
     }
 
     private void updateMediaDrawerStyle() {
@@ -708,7 +713,7 @@ public class AccountListUI extends HBox implements SearchTarget {
             event.consume();
             if (item != null) {
                 accountGrid.selectItems(List.of(item));
-                ContextMenu menu = createAccountContextMenu(item, List.of(item));
+                ContextMenu menu = createAccountContextMenu(item, List.of(item), menuButton);
                 UiI18n.preparePopupControl(menu, menuButton);
                 menu.show(menuButton, Side.BOTTOM, 0, 0);
             }
@@ -792,9 +797,9 @@ public class AccountListUI extends HBox implements SearchTarget {
         return pinIconWrapper;
     }
 
-    private ContextMenu createAccountContextMenu(AccountItem contextItem, List<AccountItem> selectedItems) {
+    private ContextMenu createAccountContextMenu(AccountItem contextItem, List<AccountItem> selectedItems, Node owner) {
         ContextMenu menu = new ContextMenu();
-        UiI18n.preparePopupControl(menu, accountGrid);
+        UiI18n.preparePopupControl(menu, owner == null ? accountGrid : owner);
         menu.setHideOnEscape(true);
         menu.setAutoHide(true);
 
@@ -820,14 +825,17 @@ public class AccountListUI extends HBox implements SearchTarget {
 
         MenuItem deleteItem = new MenuItem(I18n.tr("autoDeleteAccount"));
         deleteItem.getStyleClass().add("danger-menu-item");
-        deleteItem.setOnAction(_ -> handleDeleteAccounts());
+        deleteItem.setOnAction(_ -> handleDeleteAccounts(actionItems));
 
         Account account = contextItem == null ? null : accountService.getById(contextItem.getAccountId());
         boolean vodSupported = account != null && VOD_AND_SERIES_SUPPORTED.contains(account.getType());
         vodItem.setVisible(vodSupported);
         seriesItem.setVisible(vodSupported);
         boolean cacheSupported = actionItems.stream()
-                .map(AccountItem::getAccountType)
+                .map(AccountItem::getAccountId)
+                .map(accountService::getById)
+                .filter(Objects::nonNull)
+                .map(Account::getType)
                 .anyMatch(CACHE_SUPPORTED::contains);
         reloadCache.setVisible(cacheSupported);
 
@@ -897,6 +905,10 @@ public class AccountListUI extends HBox implements SearchTarget {
     private void registerSceneCleanupListener() {
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
+                if (InlinePanelService.hasOpenPanel()) {
+                    return;
+                }
+                markRefreshPending();
                 table.getItems().clear();
                 accountGrid.setItems(FXCollections.observableArrayList());
                 masterAccountItems.clear();
@@ -1135,54 +1147,18 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void addRightClickContextMenu(TableRow<AccountItem> row) {
-        final ContextMenu rowMenu = new ContextMenu();
-        UiI18n.preparePopupControl(rowMenu, row);
-        rowMenu.setHideOnEscape(true);
-        rowMenu.setAutoHide(true);
-
-        MenuItem editAccount = new MenuItem(I18n.tr("autoEditManageAccount"));
-        editAccount.setOnAction(_ -> runSingleSelectionAction(() -> openManageAccount(row.getItem(), true)));
-
-        MenuItem itv = new MenuItem(I18n.tr("autoTvChannels"));
-        itv.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.itv)));
-
-        MenuItem vod = new MenuItem(I18n.tr("autoVod"));
-        vod.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.vod)));
-
-        MenuItem series = new MenuItem(I18n.tr("autoSeries"));
-        series.setOnAction(_ -> runSingleSelectionAction(() -> retrieveThreadedAccountCategories(row.getItem(), Account.AccountAction.series)));
-
-        MenuItem reloadCache = new MenuItem(I18n.tr("autoReloadCache"));
-        reloadCache.setOnAction(_ -> handleReloadCache(row.getItem()));
-
-        MenuItem deleteItem = new MenuItem(I18n.tr("autoDeleteAccount"));
-        deleteItem.getStyleClass().add("danger-menu-item");
-        deleteItem.setOnAction(_ -> handleDeleteAccounts());
-
-        rowMenu.getItems().addAll(editAccount, new SeparatorMenuItem(), itv, vod, series, new SeparatorMenuItem(), reloadCache, deleteItem);
-
-        rowMenu.setOnShowing(_ -> {
-            if (row.getItem() != null) {
-                Account account = accountService.getById(row.getItem().getAccountId());
-                if (account == null) {
-                    vod.setVisible(false);
-                    series.setVisible(false);
-                    reloadCache.setVisible(false);
-                    return;
-                }
-                boolean vodSupported = VOD_AND_SERIES_SUPPORTED.contains(account.getType());
-                vod.setVisible(vodSupported);
-                series.setVisible(vodSupported);
-
-                boolean cacheSupported = CACHE_SUPPORTED.contains(account.getType());
-                reloadCache.setVisible(cacheSupported);
+        row.setOnContextMenuRequested(event -> {
+            if (row.isEmpty() || row.getItem() == null) {
+                return;
             }
+            ContextMenu menu = createAccountContextMenu(
+                    row.getItem(),
+                    selectedAccountsForAction(row.getItem()),
+                    row
+            );
+            menu.show(row, event.getScreenX(), event.getScreenY());
+            event.consume();
         });
-
-        row.contextMenuProperty().bind(
-                Bindings.when(row.emptyProperty())
-                        .then((ContextMenu) null)
-                        .otherwise(rowMenu));
     }
 
     private void handleReloadCache(AccountItem contextItem) {
@@ -1195,7 +1171,7 @@ public class AccountListUI extends HBox implements SearchTarget {
             showErrorAlert(I18n.tr("autoNoCacheSupportedAccountSelected"));
             return;
         }
-        ReloadCachePopup.showPopup(resolveOwnerStage(), accounts, this::refresh);
+        ReloadCacheInline.open(accounts, this::refresh);
     }
 
     private void runSingleSelectionAction(Runnable action) {
@@ -1254,21 +1230,25 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void handleDeleteAccounts() {
-        List<AccountItem> selectedAccounts = selectedAccountsForAction(null);
-        int selectedCount = selectedAccounts.size();
-        if (selectedAccounts.isEmpty()) {
+        handleDeleteAccounts(selectedAccountsForAction(null));
+    }
+
+    private void handleDeleteAccounts(List<AccountItem> selectedAccounts) {
+        List<AccountItem> safeSelectedAccounts = selectedAccounts == null ? List.of() : selectedAccounts;
+        int selectedCount = safeSelectedAccounts.size();
+        if (safeSelectedAccounts.isEmpty()) {
             return;
         }
         String localizedMessage = I18n.tr(
                 "accountListDeleteAccountsConfirm",
                 selectedCount,
-                selectedAccounts.stream()
+                safeSelectedAccounts.stream()
                         .map(AccountItem::getAccountName)
                         .collect(Collectors.joining(", "))
         );
         isPromptShowing = true;
         if (showConfirmationAlert(localizedMessage)) {
-            for (AccountItem selectedItem : selectedAccounts) {
+            for (AccountItem selectedItem : safeSelectedAccounts) {
                 AccountService.getInstance().delete(selectedItem.getAccountId());
                 if (onDeleteCallback != null) {
                     onDeleteCallback.call(accountService.getById(selectedItem.getAccountId()));
@@ -1318,13 +1298,6 @@ public class AccountListUI extends HBox implements SearchTarget {
                 Platform.runLater(() -> RootApplication.getPrimaryStage().getScene().setCursor(Cursor.DEFAULT));
             }
         }).start();
-    }
-
-    private Stage resolveOwnerStage() {
-        if (getScene() != null && getScene().getWindow() instanceof Stage stage) {
-            return stage;
-        }
-        return RootApplication.getPrimaryStage();
     }
 
     private void openManageAccount(AccountItem item) {

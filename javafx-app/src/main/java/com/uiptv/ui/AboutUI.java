@@ -1,49 +1,40 @@
 package com.uiptv.ui;
 
-import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.VersionManager;
+import com.uiptv.widget.InlinePanelService;
+import com.uiptv.widget.InlinePanelService.InlinePanelHandle;
 import javafx.application.HostServices;
-import javafx.geometry.Rectangle2D;
-import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.OverrunStyle;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.stage.Modality;
-import javafx.stage.Screen;
-import javafx.stage.Stage;
+
+import java.util.concurrent.atomic.AtomicReference;
 
 public class AboutUI {
     private static final String FALLBACK_PROJECT_URL = "https://github.com/xixogo5105/uiptv";
-    private static final double BASE_SCENE_WIDTH = 760;
-    private static final double BASE_SCENE_HEIGHT = 561;
-    private static final double MIN_SCENE_WIDTH = 560;
-    private static final double MIN_SCENE_HEIGHT = 420;
     private static final double CONTENT_MAX_WIDTH = 720;
 
     private AboutUI(HostServices hostServices) {
-        Stage stage = new Stage();
-        stage.initModality(Modality.APPLICATION_MODAL);
-        stage.setTitle(I18n.tr("autoAboutUIPTV"));
-        stage.setMinWidth(MIN_SCENE_WIDTH);
-        stage.setMinHeight(MIN_SCENE_HEIGHT);
-        stage.setResizable(true);
+        AtomicReference<InlinePanelHandle> handleRef = new AtomicReference<>();
+        Runnable closeAction = () -> {
+            InlinePanelHandle handle = handleRef.get();
+            if (handle != null) {
+                handle.close();
+            }
+        };
 
         Image image = new Image(getClass().getResourceAsStream("/icon.png"));
-        stage.getIcons().add(image);
 
         ImageView imageView = new ImageView(image);
         imageView.setFitHeight(72);
@@ -141,37 +132,30 @@ public class AboutUI {
 
         Button closeButton = new Button(I18n.tr("autoClose"));
         closeButton.setCancelButton(true);
-        closeButton.setOnAction(e -> stage.close());
+        closeButton.setOnAction(e -> closeAction.run());
 
         VBox content = new VBox(14, heroBox, infoBox);
         content.setAlignment(Pos.TOP_LEFT);
         content.setFillWidth(true);
-        content.setMaxWidth(CONTENT_MAX_WIDTH);
+        content.setMinWidth(0);
+        content.setMaxWidth(Double.MAX_VALUE);
 
         HBox actions = new HBox(8, closeButton, updateButton);
         actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.setMinWidth(0);
+        actions.setMaxWidth(Double.MAX_VALUE);
         actions.getStyleClass().add("about-actions");
 
-        ScrollPane scrollPane = new ScrollPane(content);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setFitToHeight(false);
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scrollPane.getStyleClass().add("transparent-scroll-pane");
+        VBox dialogCard = new VBox(14, content, actions);
+        dialogCard.setAlignment(Pos.TOP_LEFT);
+        dialogCard.setFillWidth(true);
+        dialogCard.setMinWidth(0);
+        dialogCard.setPrefWidth(CONTENT_MAX_WIDTH);
+        dialogCard.setMaxWidth(CONTENT_MAX_WIDTH);
+        dialogCard.getStyleClass().add("about-dialog-card");
 
-        BorderPane root = new BorderPane();
-        root.setPadding(new Insets(18));
-        root.getStyleClass().add("about-root");
-        root.setCenter(scrollPane);
-        root.setBottom(actions);
-
-        Scene scene = new Scene(root, resolveSceneWidth(), resolveSceneHeight());
-        UiI18n.applySceneOrientation(scene);
-        if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-        stage.setScene(scene);
-        stage.showAndWait();
+        InlinePanelService.open(I18n.tr("autoAboutUIPTV"), dialogCard, I18n.tr("commonClose"), null)
+                .ifPresent(handleRef::set);
     }
 
     public static void show(HostServices hostServices) {
@@ -215,20 +199,6 @@ public class AboutUI {
         spacer.setMinHeight(height);
         spacer.setPrefHeight(height);
         return spacer;
-    }
-
-    private static double resolveSceneWidth() {
-        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
-        return clamp(bounds.getWidth() - 80, MIN_SCENE_WIDTH, BASE_SCENE_WIDTH);
-    }
-
-    private static double resolveSceneHeight() {
-        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
-        return clamp(bounds.getHeight() - 56, MIN_SCENE_HEIGHT, BASE_SCENE_HEIGHT);
-    }
-
-    private static double clamp(double value, double min, double max) {
-        return Math.clamp(value, min, max);
     }
 
     private static String resolveReleaseSummary() {

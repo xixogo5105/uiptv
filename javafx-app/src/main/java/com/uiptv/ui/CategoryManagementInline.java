@@ -16,14 +16,14 @@ import javafx.scene.layout.VBox;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CategoryManagementPopup extends VBox {
+public class CategoryManagementInline extends VBox {
     private final ListView<BookmarkItem> categoryListView = new ListView<>();
     private final TextField categoryNameField = new TextField();
     private final Button addButton = new Button(I18n.tr("autoAdd"));
     private final Button removeButton = new Button(I18n.tr("autoRemove"));
     private final BookmarkChannelListUI parent;
 
-    public CategoryManagementPopup(BookmarkChannelListUI parent) {
+    public CategoryManagementInline(BookmarkChannelListUI parent) {
         this.parent = parent;
         configureLayout();
         configureControls();

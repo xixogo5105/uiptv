@@ -1,17 +1,13 @@
 package com.uiptv.ui;
 
-import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.SegmentedProgressBar;
-import com.uiptv.widget.ThemedDialogSupport;
+import com.uiptv.widget.InlinePanelService.InlinePanelHandle;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
@@ -25,13 +21,13 @@ import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class ProgressDialog extends Stage {
+import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
+
+public class ProgressInline extends BorderPane {
     private static final String LOG_TEXT_STYLE_CLASS = "log-text";
 
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
@@ -45,22 +41,18 @@ public class ProgressDialog extends Stage {
     private int completedItems;
     private VBox currentVerificationDetails;
     private TextFlow lastRenderedLine;
+    private Runnable closeAction = () -> { };
+    private InlinePanelHandle panelHandle;
+    private boolean completed;
     
     // Pause Widget Components
     private final HBox pauseWidget = new HBox(10);
     private final Line clockHand = new Line(0, 0, 0, -10);
     private final Label pauseLabel = new Label();
 
-    public ProgressDialog(Stage owner) {
-        initOwner(owner);
-        initModality(Modality.APPLICATION_MODAL);
-        setTitle(I18n.tr("autoVerifyingMacAddresses"));
-        setMinWidth(620);
-        setMinHeight(500);
-
-        BorderPane root = new BorderPane();
-        root.getStyleClass().addAll("management-popup-root", "verification-progress-root");
-        root.setPadding(new Insets(18));
+    public ProgressInline() {
+        getStyleClass().addAll("management-popup-root", "verification-progress-root");
+        setPadding(new Insets(18));
 
         VBox header = buildHeader();
         VBox progressCard = buildProgressCard();
@@ -70,21 +62,14 @@ public class ProgressDialog extends Stage {
 
         HBox bottomBar = buildBottomBar();
 
-        root.setTop(topContent);
-        root.setCenter(logCard);
+        setTop(topContent);
+        setCenter(logCard);
         BorderPane.setMargin(bottomBar, new Insets(14, 0, 0, 0));
-        root.setBottom(bottomBar);
+        setBottom(bottomBar);
+    }
 
-        Scene scene = new Scene(root, 640, 520);
-        UiI18n.applySceneOrientation(scene);
-        if (owner != null && owner.getScene() != null) {
-            scene.getStylesheets().addAll(owner.getScene().getStylesheets());
-        } else if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-        setScene(scene);
-
-        progressBar.prefWidthProperty().bind(progressCard.widthProperty().subtract(28));
+    public void setPanelHandle(InlinePanelHandle panelHandle) {
+        this.panelHandle = panelHandle;
     }
 
     private VBox buildHeader() {
@@ -98,10 +83,24 @@ public class ProgressDialog extends Stage {
 
     private VBox buildProgressCard() {
         progressSummaryLabel.getStyleClass().add("verification-progress-summary");
+        progressSummaryLabel.setMinWidth(Region.USE_PREF_SIZE);
+        progressSummaryLabel.setMaxWidth(Region.USE_PREF_SIZE);
         updateProgressSummary();
 
-        VBox progressCard = new VBox(8, progressSummaryLabel, progressBar);
+        progressBar.setMinWidth(0);
+        progressBar.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(progressBar, Priority.ALWAYS);
+
+        HBox progressRow = new HBox(12, progressSummaryLabel, progressBar);
+        progressRow.getStyleClass().add("verification-progress-row");
+        progressRow.setAlignment(Pos.CENTER_LEFT);
+        progressRow.setMaxWidth(Double.MAX_VALUE);
+
+        VBox progressCard = new VBox(progressRow);
         progressCard.getStyleClass().addAll("management-popup-card", "verification-progress-card");
+        progressCard.setAlignment(Pos.CENTER_LEFT);
+        progressCard.setFillWidth(true);
+        progressCard.setMinWidth(0);
         progressCard.setMaxWidth(Double.MAX_VALUE);
         return progressCard;
     }
@@ -319,43 +318,39 @@ public class ProgressDialog extends Stage {
     }
 
     public void setOnClose(Runnable action) {
-        cancelButton.setOnAction(event -> {
-            Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Are you sure you want to cancel the verification process? No changes will be saved.", ButtonType.YES, ButtonType.NO);
-            alert.setTitle(I18n.tr("commonConfirm"));
-            alert.setHeaderText(I18n.tr("commonConfirm"));
-            ThemedDialogSupport.prepare(alert, this, "uiptv-alert-dialog");
-            ThemedDialogSupport.showAndWait(alert, this).ifPresent(response -> {
-                if (response == ButtonType.YES) {
-                    action.run();
-                    close();
-                }
-            });
-        });
+        closeAction = action == null ? () -> { } : action;
+        cancelButton.setOnAction(event -> requestClose());
+    }
 
-        setOnCloseRequest(event -> {
-            event.consume();
-            cancelButton.fire();
-        });
+    public void requestClose() {
+        if (completed) {
+            closePanel();
+            return;
+        }
+        if (showConfirmationAlert("Are you sure you want to cancel the verification process? No changes will be saved.")) {
+            closeAction.run();
+            closePanel();
+        }
     }
 
     public void setOnStop(Runnable action) {
         stopButton.setOnAction(event -> {
-            Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Are you sure you want to stop? Invalid MACs found so far will be processed.", ButtonType.YES, ButtonType.NO);
-            alert.setTitle(I18n.tr("commonConfirm"));
-            alert.setHeaderText(I18n.tr("commonConfirm"));
-            ThemedDialogSupport.prepare(alert, this, "uiptv-alert-dialog");
-            ThemedDialogSupport.showAndWait(alert, this).ifPresent(response -> {
-                if (response == ButtonType.YES) {
-                    action.run();
-                }
-            });
+            if (showConfirmationAlert("Are you sure you want to stop? Invalid MACs found so far will be processed.")) {
+                action.run();
+            }
         });
     }
 
     public void markCompleted() {
+        completed = true;
         stopButton.setDisable(true);
         cancelButton.setText(I18n.tr("commonClose"));
-        cancelButton.setOnAction(event -> close());
-        setOnCloseRequest(event -> close());
+        cancelButton.setOnAction(event -> closePanel());
+    }
+
+    private void closePanel() {
+        if (panelHandle != null) {
+            panelHandle.close();
+        }
     }
 }

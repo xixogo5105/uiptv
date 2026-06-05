@@ -20,7 +20,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.application.HostServices;
-import javafx.stage.Stage;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -295,10 +294,7 @@ public class ParseMultipleAccountUI extends VBox {
     }
 
     private void openVerificationPopup(List<Account> accountsToVerify) {
-        Stage owner = getScene() != null && getScene().getWindow() instanceof Stage stage
-                ? stage
-                : null;
-        ReloadCachePopup.showPopup(owner, accountsToVerify, this::notifyAccountsChanged);
+        ReloadCacheInline.open(accountsToVerify, this::notifyAccountsChanged);
     }
 
     private void notifyAccountsChanged() {

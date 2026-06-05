@@ -1,13 +1,12 @@
 package com.uiptv.ui.dialog;
 
-import com.uiptv.ui.RootApplication;
 import com.uiptv.ui.UpdateInfo;
-import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.InlinePanelService;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Scene;
-import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
@@ -21,12 +20,10 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Screen;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
 import javafx.geometry.Rectangle2D;
 
 import java.io.InputStream;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.List;
 
 public final class UpdateAvailableDialog {
     private static final String APP_ICON_RESOURCE = "/icon.png";
@@ -39,35 +36,26 @@ public final class UpdateAvailableDialog {
     }
 
     public static boolean show(UpdateInfo updateInfo) {
-        AtomicBoolean shouldDownload = new AtomicBoolean(false);
-        Stage stage = new Stage();
-        stage.initModality(Modality.APPLICATION_MODAL);
-        stage.setTitle("Update Available");
-        stage.setMinWidth(MIN_SCENE_WIDTH);
-        stage.setMinHeight(MIN_SCENE_HEIGHT);
-        stage.setResizable(true);
-
         Image appIcon = loadAppIcon();
-        if (appIcon != null) {
-            stage.getIcons().add(appIcon);
-        }
 
         BorderPane root = new BorderPane();
         root.getStyleClass().add("update-dialog-stage-root");
         root.setPadding(new Insets(18, 24, 18, 24));
         root.setCenter(createScrollContent(updateInfo, appIcon));
-        root.setBottom(createActions(stage, shouldDownload));
-        BorderPane.setMargin(root.getBottom(), new Insets(14, 0, 0, 0));
+        root.setPrefSize(resolveSceneWidth(), resolveSceneHeight());
+        root.setMaxWidth(Double.MAX_VALUE);
+        root.setMaxHeight(Double.MAX_VALUE);
 
-        Scene scene = new Scene(root, resolveSceneWidth(), resolveSceneHeight());
-        UiI18n.applySceneOrientation(scene);
-        if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-
-        stage.setScene(scene);
-        stage.showAndWait();
-        return shouldDownload.get();
+        ButtonType closeButton = new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        ButtonType downloadButton = new ButtonType("Download", ButtonBar.ButtonData.OK_DONE);
+        return InlinePanelService.showChoice(
+                        "Update Available",
+                        root,
+                        List.of(closeButton, downloadButton),
+                        closeButton
+                )
+                .filter(downloadButton::equals)
+                .isPresent();
     }
 
     private static ScrollPane createScrollContent(UpdateInfo updateInfo, Image appIcon) {
@@ -159,25 +147,6 @@ public final class UpdateAvailableDialog {
         }
 
         return imageShell;
-    }
-
-    private static HBox createActions(Stage stage, AtomicBoolean shouldDownload) {
-        Button closeButton = new Button(I18n.tr("commonClose"));
-        closeButton.setCancelButton(true);
-        closeButton.setOnAction(event -> stage.close());
-
-        Button downloadButton = new Button("Download");
-        downloadButton.getStyleClass().add("prominent");
-        downloadButton.setDefaultButton(true);
-        downloadButton.setOnAction(event -> {
-            shouldDownload.set(true);
-            stage.close();
-        });
-
-        HBox actions = new HBox(10, closeButton, downloadButton);
-        actions.getStyleClass().add("update-dialog-actions");
-        actions.setAlignment(Pos.CENTER_RIGHT);
-        return actions;
     }
 
     private static Image loadAppIcon() {

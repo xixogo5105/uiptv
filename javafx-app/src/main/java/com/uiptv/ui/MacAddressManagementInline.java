@@ -1,12 +1,10 @@
 package com.uiptv.ui;
 
-import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
 import com.uiptv.model.AccountInfo;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.util.AccountCopyUtil;
-import com.uiptv.widget.ThemedDialogSupport;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
@@ -17,27 +15,29 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.ListView;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
 
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
+import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.util.StringUtils.SPACE;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
-public class MacAddressManagementPopup extends VBox {
+public class MacAddressManagementInline extends VBox {
 
-    private final Stage stage;
     private final ListView<MacItem> macListView = new ListView<>();
     private final TextField addMacField = new TextField();
     private final Button addButton = new Button(I18n.tr("autoAdd"));
@@ -52,34 +52,24 @@ public class MacAddressManagementPopup extends VBox {
     private String defaultMac;
     private final Account baseAccount;
     private final BiConsumer<List<String>, String> onSave;
+    private final Runnable closeHandler;
 
-    public MacAddressManagementPopup(Stage owner, Account baseAccount, List<String> initialMacs, String currentDefaultMac, BiConsumer<List<String>, String> onSave) {
+    public MacAddressManagementInline(Account baseAccount,
+                                      List<String> initialMacs,
+                                      String currentDefaultMac,
+                                      BiConsumer<List<String>, String> onSave,
+                                      Runnable closeHandler) {
         this.defaultMac = currentDefaultMac;
         this.baseAccount = baseAccount;
         this.onSave = onSave;
+        this.closeHandler = closeHandler == null ? () -> { } : closeHandler;
         this.macItems = FXCollections.observableArrayList(initialMacs.stream().map(MacItem::new).toList());
-        stage = createStage(owner);
         configureLayout();
         configureSelectionHandling();
         configureListView();
         configureButtons();
         buildContent();
         updateActionButtons();
-        stage.setScene(createScene(owner));
-    }
-
-    public void show() {
-        stage.show();
-    }
-
-    private Stage createStage(Stage owner) {
-        Stage popupStage = new Stage();
-        popupStage.initOwner(owner);
-        popupStage.initModality(Modality.APPLICATION_MODAL);
-        popupStage.setTitle(I18n.tr("autoManageMACAddresses"));
-        popupStage.setMinWidth(560);
-        popupStage.setMinHeight(560);
-        return popupStage;
     }
 
     private void configureLayout() {
@@ -118,7 +108,7 @@ public class MacAddressManagementPopup extends VBox {
         setDefaultButton.setOnAction(e -> setDefaultMac());
         verifyInfoButton.setOnAction(e -> verifyMacInfo());
         saveButton.setOnAction(e -> saveAndClose());
-        closeButton.setOnAction(e -> stage.close());
+        closeButton.setOnAction(e -> closeHandler.run());
     }
 
     private void buildContent() {
@@ -172,17 +162,6 @@ public class MacAddressManagementPopup extends VBox {
         return label;
     }
 
-    private Scene createScene(Stage owner) {
-        Scene scene = new Scene(this, 620, 620);
-        UiI18n.applySceneOrientation(scene);
-        if (owner != null && owner.getScene() != null) {
-            scene.getStylesheets().addAll(owner.getScene().getStylesheets());
-        } else if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-        return scene;
-    }
-
     private void addMacs() {
         String text = addMacField.getText();
         if (isBlank(text)) return;
@@ -217,13 +196,7 @@ public class MacAddressManagementPopup extends VBox {
         boolean removingDefault = selectedItems.stream().anyMatch(item -> item.getMac().equalsIgnoreCase(defaultMac));
 
         if (removingDefault) {
-            Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
-                    I18n.tr("autoRemovingDefaultMacWarning"),
-                    ButtonType.YES, ButtonType.NO);
-            alert.setTitle(I18n.tr("commonConfirm"));
-            alert.setHeaderText(I18n.tr("commonConfirm"));
-            ThemedDialogSupport.prepare(alert, stage, "uiptv-alert-dialog");
-            if (ThemedDialogSupport.showAndWait(alert, stage).orElse(ButtonType.NO) != ButtonType.YES) {
+            if (!showConfirmationAlert(I18n.tr("autoRemovingDefaultMacWarning"))) {
                 return;
             }
         }
@@ -268,7 +241,7 @@ public class MacAddressManagementPopup extends VBox {
             List<String> macStrings = macItems.stream().map(MacItem::getMac).toList();
             onSave.accept(macStrings, defaultMac);
         }
-        stage.close();
+        closeHandler.run();
     }
 
     private void verifyMacInfo() {

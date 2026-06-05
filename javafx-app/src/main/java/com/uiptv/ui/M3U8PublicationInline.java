@@ -17,7 +17,6 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import javafx.stage.Stage;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -26,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class M3U8PublicationPopup extends VBox {
+public class M3U8PublicationInline extends VBox {
     private static final String CUSTOMIZED_CHECKBOX_STYLE_CLASS = "published-m3u-customized-checkbox";
     private static final String SHOW_TRANSLATION_KEY = "commonShow";
     private final List<AccountNode> accountNodes = new ArrayList<>();
@@ -36,7 +35,14 @@ public class M3U8PublicationPopup extends VBox {
     private final Map<M3U8PublicationService.ChannelSelectionKey, Boolean> currentChannelSelections;
     private final ComboBox<M3U8PublicationService.PublishedCategoryMode> categoryModeComboBox = new ComboBox<>();
 
-    public M3U8PublicationPopup(Stage stage) {
+    private final Runnable closeHandler;
+
+    public M3U8PublicationInline() {
+        this(null);
+    }
+
+    public M3U8PublicationInline(Runnable closeHandler) {
+        this.closeHandler = closeHandler == null ? () -> { } : closeHandler;
         this.savedSelections = service.getSelections();
         this.currentCategorySelections = new LinkedHashMap<>(savedSelections.categorySelections());
         this.currentChannelSelections = new LinkedHashMap<>(savedSelections.channelSelections());
@@ -73,11 +79,11 @@ public class M3U8PublicationPopup extends VBox {
         okButton.setOnAction(e -> {
             saveCategoryModeSelection();
             service.saveSelections(buildSelectionsToSave());
-            stage.close();
+            this.closeHandler.run();
         });
 
         Button cancelButton = new Button(I18n.tr("autoCancel"));
-        cancelButton.setOnAction(e -> stage.close());
+        cancelButton.setOnAction(e -> this.closeHandler.run());
 
         HBox buttons = new HBox(10, okButton, cancelButton);
         buttons.getStyleClass().add("management-popup-footer");

@@ -60,6 +60,15 @@ public class UIptvAlert {
         }
         ButtonType okButton = okButtonType();
         ButtonType closeButton = closeButtonType();
+        Optional<ButtonType> inlineResult = InlinePanelService.showConfirmation(
+                I18n.tr("commonConfirm"),
+                message,
+                okButton,
+                closeButton
+        );
+        if (inlineResult.isPresent()) {
+            return inlineResult.get() == okButton;
+        }
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message, okButton, closeButton);
         alert.setTitle(I18n.tr("commonConfirm"));
         alert.setHeaderText(I18n.tr("commonConfirm"));

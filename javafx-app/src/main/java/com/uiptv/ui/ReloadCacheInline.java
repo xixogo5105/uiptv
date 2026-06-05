@@ -1,7 +1,6 @@
 package com.uiptv.ui;
 
 import com.uiptv.application.ConfigurationApplicationService;
-import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
 import com.uiptv.model.AccountInfo;
@@ -10,7 +9,8 @@ import com.uiptv.service.AccountInfoService;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.util.AccountType;
-import com.uiptv.widget.AppFonts;
+import com.uiptv.widget.InlinePanelService;
+import com.uiptv.widget.InlinePanelService.InlinePanelHandle;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.SegmentedProgressBar;
 import com.uiptv.widget.ThemedDialogSupport;
@@ -19,17 +19,12 @@ import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
 
 import java.net.URI;
 import java.util.ArrayDeque;
@@ -51,7 +46,8 @@ import java.util.regex.Pattern;
 
 import static com.uiptv.model.Account.CACHE_SUPPORTED;
 
-public class ReloadCachePopup extends VBox {
+public class ReloadCacheInline extends VBox {
+    private static final double STACKED_LAYOUT_WIDTH = 860;
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d+)");
     private static final Pattern DISPLAY_CENSORED_COUNT_PATTERN =
             Pattern.compile("^(.*\\bcensored\\s+(?:categories|channels):\\s*)([\\p{Nd},.]+)(.*)$",
@@ -78,14 +74,16 @@ public class ReloadCachePopup extends VBox {
     private static final String TR_RELOAD_NO_CHANNELS_LOADED = "reloadNoChannelsLoaded";
     private static final int MAX_LOG_LINES_PER_ACCOUNT = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxLinesPerAccount", 500));
     private static final int MAX_PENDING_LOG_LINES = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxPending", 2_000));
-    private static final double BULK_FAILURE_DIALOG_CONTENT_WIDTH = 520;
-    private static final double BULK_FAILURE_DIALOG_CONTENT_INSET = 14;
     private static final boolean POST_RELOAD_MEMORY_CLEANUP_ENABLED = Boolean.parseBoolean(
             System.getProperty("uiptv.reload.memoryCleanup.enabled", "true"));
     private static final int POST_RELOAD_MEMORY_CLEANUP_MIN_ACCOUNTS = Math.max(1,
             Integer.getInteger("uiptv.reload.memoryCleanup.minAccounts", 1));
     private static final long POST_RELOAD_MEMORY_CLEANUP_DELAY_MS = Math.max(0L,
             Long.getLong("uiptv.reload.memoryCleanup.delayMs", 1_500L));
+    private static final double PROBLEM_ACCOUNTS_CARD_MAX_WIDTH = 980;
+    private static final double PROBLEM_ACCOUNTS_MIN_LIST_HEIGHT = 170;
+    private static final double PROBLEM_ACCOUNTS_MAX_LIST_HEIGHT = 420;
+    private static final double PROBLEM_ACCOUNTS_ROW_HEIGHT_ESTIMATE = 64;
 
     private enum AccountRunStatus {
         QUEUED, RUNNING, DONE, YELLOW, FAILED, EMPTY
@@ -114,13 +112,13 @@ public class ReloadCachePopup extends VBox {
     private record PendingLogLine(String accountId, String line) {
     }
 
-    private final Stage stage;
     private final VBox accountsVBox = new VBox(5);
     private final VBox logVBox = new VBox(8);
     private final ScrollPane accountsScrollPane = new ScrollPane();
     private final ScrollPane logScrollPane = new ScrollPane(logVBox);
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
     private final Label progressSummaryLabel = new Label();
+    private final ComboBox<AutomaticFailureDecisionOption> failureDecisionComboBox = new ComboBox<>();
     private final ProminentButton reloadButton = new ProminentButton(I18n.tr("autoReloadSelected"));
     private final Button stopButton = new Button(I18n.tr("autoStop"));
     private final CacheService cacheService = new CacheServiceImpl();
@@ -143,53 +141,54 @@ public class ReloadCachePopup extends VBox {
     private volatile boolean disposed = false;
     private volatile GlobalFailureDecision automaticGlobalFailureDecision;
     private final Runnable onAccountsDeleted;
+    private InlinePanelHandle panelHandle;
+    private GridPane mainContent;
     private VBox accountColumn;
+    private VBox logColumn;
     private ColumnConstraints accountsColumn;
     private ColumnConstraints logsColumn;
+    private boolean accountSelectionHidden;
+    private boolean stackedMainContent;
 
-    public static void showPopup(Stage owner) {
-        showPopup(owner, null);
+    public static void open() {
+        open(null, null);
     }
 
-    public static void showPopup(Stage owner, List<Account> preselectedAccounts) {
-        showPopup(owner, preselectedAccounts, null);
+    public static void open(List<Account> preselectedAccounts) {
+        open(preselectedAccounts, null);
     }
 
-    public static void showPopup(Stage owner, List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
-        Stage popupStage = new Stage();
-        if (owner != null) {
-            popupStage.initOwner(owner);
-            popupStage.initModality(Modality.WINDOW_MODAL);
-        }
-        ReloadCachePopup popup = new ReloadCachePopup(popupStage, preselectedAccounts, onAccountsDeleted);
-        Scene scene = new Scene(popup, 1368, 720);
-        UiI18n.applySceneOrientation(scene);
-        popupStage.setTitle(I18n.tr("autoReloadAccountsCache"));
-        popupStage.setScene(scene);
-        popupStage.showAndWait();
+    public static void open(List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
+        ReloadCacheInline inline = new ReloadCacheInline(preselectedAccounts, onAccountsDeleted);
+        InlinePanelService.open(
+                I18n.tr("autoReloadAccountsCache"),
+                inline,
+                I18n.tr("commonClose"),
+                inline::disposeInline,
+                _ -> inline.requestClose()
+        ).ifPresent(inline::setPanelHandle);
     }
 
-    public ReloadCachePopup(Stage stage) {
-        this(stage, null);
+    public ReloadCacheInline() {
+        this(null);
     }
 
-    public ReloadCachePopup(Stage stage, List<Account> preselectedAccounts) {
-        this(stage, preselectedAccounts, null);
+    public ReloadCacheInline(List<Account> preselectedAccounts) {
+        this(preselectedAccounts, null);
     }
 
-    public ReloadCachePopup(Stage stage, List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
-        this.stage = stage;
+    public ReloadCacheInline(List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
         this.onAccountsDeleted = onAccountsDeleted;
         initializeLayout();
         List<Account> supportedAccounts = loadSupportedAccounts();
         populateAccountCheckboxes(supportedAccounts);
-        MenuButton selectMenu = buildSelectMenu();
+        FlowPane selectControls = buildSelectControls();
         configureScrollPanes();
         VBox progressCard = buildProgressCard();
-        GridPane mainContent = buildMainContent(selectMenu);
+        VBox failureHandlingCard = buildFailureHandlingCard();
+        GridPane mainContent = buildMainContent(selectControls);
         HBox buttonBox = buildButtonBox();
-        getChildren().addAll(buildHeader(), progressCard, mainContent, buttonBox);
-        registerStageCloseListener();
+        getChildren().addAll(buildHeader(), progressCard, failureHandlingCard, mainContent, buttonBox);
 
         if (preselectedAccounts != null && !preselectedAccounts.isEmpty()) {
             preselectAccounts(preselectedAccounts);
@@ -201,15 +200,19 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void initializeLayout() {
-        getStyleClass().addAll("management-popup-root", "reload-cache-popup");
+        getStyleClass().addAll("management-popup-root", "reload-cache-popup", InlinePanelService.FILL_HEIGHT_STYLE_CLASS);
         setSpacing(14);
         setPadding(new Insets(18));
-        setPrefSize(1368, 720);
-        getStylesheets().add(RootApplication.getCurrentTheme());
+        setFillWidth(true);
+        setMinSize(0, 0);
+        setPrefSize(Region.USE_COMPUTED_SIZE, Region.USE_COMPUTED_SIZE);
+        setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         accountsVBox.getStyleClass().add("reload-account-list");
         accountsVBox.setPadding(new Insets(2));
+        accountsVBox.setFillWidth(true);
         logVBox.getStyleClass().add("reload-log-list");
         logVBox.setPadding(new Insets(2));
+        logVBox.setFillWidth(true);
     }
 
     private VBox buildHeader() {
@@ -223,15 +226,80 @@ public class ReloadCachePopup extends VBox {
 
     private VBox buildProgressCard() {
         progressSummaryLabel.getStyleClass().add("reload-progress-summary");
+        progressSummaryLabel.setMinWidth(Region.USE_PREF_SIZE);
+        progressSummaryLabel.setMaxWidth(Region.USE_PREF_SIZE);
         progressSummaryLabel.setText(I18n.tr("autoQueued"));
 
+        progressBar.setMinWidth(0);
         progressBar.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(progressBar, Priority.ALWAYS);
 
-        VBox progressCard = new VBox(8, progressSummaryLabel, progressBar);
+        HBox progressRow = new HBox(12, progressSummaryLabel, progressBar);
+        progressRow.getStyleClass().add("reload-progress-row");
+        progressRow.setAlignment(Pos.CENTER_LEFT);
+        progressRow.setMaxWidth(Double.MAX_VALUE);
+
+        VBox progressCard = new VBox(progressRow);
         progressCard.getStyleClass().addAll("management-popup-card", "reload-progress-card");
+        progressCard.setAlignment(Pos.CENTER_LEFT);
+        progressCard.setFillWidth(true);
+        progressCard.setMinWidth(0);
         progressCard.setMaxWidth(Double.MAX_VALUE);
-        progressBar.prefWidthProperty().bind(progressCard.widthProperty().subtract(28));
         return progressCard;
+    }
+
+    private VBox buildFailureHandlingCard() {
+        Label title = new Label(I18n.tr("reloadBulkFailureHandlingTitle"));
+        title.getStyleClass().add("reload-failure-policy-title");
+
+        Label description = new Label(I18n.tr("reloadBulkFailureHandlingMessage"));
+        description.getStyleClass().add("reload-failure-policy-description");
+        description.setWrapText(true);
+        description.setMinWidth(0);
+        description.setMaxWidth(Double.MAX_VALUE);
+
+        configureFailureDecisionComboBox();
+
+        VBox text = new VBox(3, title, description);
+        text.setMinWidth(0);
+        text.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(text, Priority.ALWAYS);
+
+        HBox row = new HBox(12, text, failureDecisionComboBox);
+        row.getStyleClass().add("reload-failure-policy-row");
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+
+        VBox card = new VBox(row);
+        card.getStyleClass().addAll("management-popup-card", "reload-failure-policy-card");
+        card.setFillWidth(true);
+        card.setMinWidth(0);
+        card.setMaxWidth(Double.MAX_VALUE);
+        return card;
+    }
+
+    private void configureFailureDecisionComboBox() {
+        failureDecisionComboBox.getStyleClass().add("reload-failure-policy-combo");
+        failureDecisionComboBox.getItems().setAll(automaticFailureDecisionOptions());
+        failureDecisionComboBox.setValue(failureDecisionComboBox.getItems().isEmpty()
+                ? null
+                : failureDecisionComboBox.getItems().getFirst());
+        failureDecisionComboBox.setCellFactory(_ -> createFailureDecisionOptionCell());
+        failureDecisionComboBox.setButtonCell(createFailureDecisionOptionCell());
+        failureDecisionComboBox.setMinWidth(260);
+        failureDecisionComboBox.setPrefWidth(340);
+        failureDecisionComboBox.setMaxWidth(420);
+    }
+
+    private ListCell<AutomaticFailureDecisionOption> createFailureDecisionOptionCell() {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(AutomaticFailureDecisionOption item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.label());
+            }
+        };
     }
 
     private List<Account> loadSupportedAccounts() {
@@ -271,73 +339,96 @@ public class ReloadCachePopup extends VBox {
         return accountCheckBox;
     }
 
-    private MenuButton buildSelectMenu() {
-        MenuButton selectMenu = new MenuButton(I18n.tr("autoSelectByTypes"));
-        selectMenu.getStyleClass().add("reload-select-menu");
-        CheckMenuItem allItem = new CheckMenuItem(I18n.tr("commonAll"));
-        CheckMenuItem stalkerItem = new CheckMenuItem(I18n.tr("reloadStalkerPortalAccounts"));
-        CheckMenuItem xtremeItem = new CheckMenuItem(I18n.tr("reloadXtremeAccount"));
-        CheckMenuItem m3uLocalItem = new CheckMenuItem(I18n.tr("reloadM3uLocalPlaylist"));
-        CheckMenuItem m3uRemoteItem = new CheckMenuItem(I18n.tr("reloadM3uRemotePlaylist"));
-        configureSelectMenuHandlers(allItem, stalkerItem, xtremeItem, m3uLocalItem, m3uRemoteItem);
-        selectMenu.setPrefWidth(200);
-        selectMenu.getItems().addAll(allItem, new SeparatorMenuItem(), stalkerItem, xtremeItem, m3uLocalItem, m3uRemoteItem);
-        return selectMenu;
+    private FlowPane buildSelectControls() {
+        ToggleButton allChip = createSelectChip(I18n.tr("commonAll"));
+        ToggleButton stalkerChip = createSelectChip(I18n.tr("reloadStalkerPortalAccounts"));
+        ToggleButton xtremeChip = createSelectChip(I18n.tr("reloadXtremeAccount"));
+        ToggleButton m3uLocalChip = createSelectChip(I18n.tr("reloadM3uLocalPlaylist"));
+        ToggleButton m3uRemoteChip = createSelectChip(I18n.tr("reloadM3uRemotePlaylist"));
+
+        allChip.setOnAction(e -> {
+            boolean selected = allChip.isSelected();
+            setAllSelectionStates(selected);
+            stalkerChip.setSelected(selected);
+            xtremeChip.setSelected(selected);
+            m3uLocalChip.setSelected(selected);
+            m3uRemoteChip.setSelected(selected);
+        });
+        stalkerChip.setOnAction(e -> updateCheckboxes(AccountType.STALKER_PORTAL, stalkerChip.isSelected()));
+        xtremeChip.setOnAction(e -> updateCheckboxes(AccountType.XTREME_API, xtremeChip.isSelected()));
+        m3uLocalChip.setOnAction(e -> updateCheckboxes(AccountType.M3U8_LOCAL, m3uLocalChip.isSelected()));
+        m3uRemoteChip.setOnAction(e -> updateCheckboxes(AccountType.M3U8_URL, m3uRemoteChip.isSelected()));
+
+        FlowPane chips = new FlowPane(8, 8, allChip, stalkerChip, xtremeChip, m3uLocalChip, m3uRemoteChip);
+        chips.getStyleClass().add("reload-select-chip-row");
+        chips.setAlignment(Pos.CENTER_LEFT);
+        chips.setMinWidth(0);
+        chips.setMaxWidth(Double.MAX_VALUE);
+        return chips;
     }
 
-    private void configureSelectMenuHandlers(CheckMenuItem allItem, CheckMenuItem stalkerItem, CheckMenuItem xtremeItem,
-                                             CheckMenuItem m3uLocalItem, CheckMenuItem m3uRemoteItem) {
-        allItem.setOnAction(e -> setAllSelectionStates(allItem.isSelected(), stalkerItem, xtremeItem, m3uLocalItem, m3uRemoteItem));
-        stalkerItem.setOnAction(e -> updateCheckboxes(AccountType.STALKER_PORTAL, stalkerItem.isSelected()));
-        xtremeItem.setOnAction(e -> updateCheckboxes(AccountType.XTREME_API, xtremeItem.isSelected()));
-        m3uLocalItem.setOnAction(e -> updateCheckboxes(AccountType.M3U8_LOCAL, m3uLocalItem.isSelected()));
-        m3uRemoteItem.setOnAction(e -> updateCheckboxes(AccountType.M3U8_URL, m3uRemoteItem.isSelected()));
+    private ToggleButton createSelectChip(String text) {
+        ToggleButton chip = new ToggleButton(text);
+        chip.getStyleClass().add("reload-select-chip");
+        chip.setFocusTraversable(false);
+        chip.setMinHeight(32);
+        return chip;
     }
 
-    private void setAllSelectionStates(boolean selected, CheckMenuItem stalkerItem, CheckMenuItem xtremeItem,
-                                       CheckMenuItem m3uLocalItem, CheckMenuItem m3uRemoteItem) {
+    private void setAllSelectionStates(boolean selected) {
         checkBoxes.forEach(cb -> cb.setSelected(selected));
-        stalkerItem.setSelected(selected);
-        xtremeItem.setSelected(selected);
-        m3uLocalItem.setSelected(selected);
-        m3uRemoteItem.setSelected(selected);
     }
 
     private void configureScrollPanes() {
         accountsScrollPane.setContent(accountsVBox);
         accountsScrollPane.setFitToWidth(true);
-        accountsScrollPane.setMinHeight(250);
+        accountsScrollPane.setFitToHeight(true);
+        accountsScrollPane.setMinWidth(0);
+        accountsScrollPane.setMinHeight(0);
         accountsScrollPane.setMaxWidth(Double.MAX_VALUE);
+        accountsScrollPane.setMaxHeight(Double.MAX_VALUE);
         accountsScrollPane.getStyleClass().addAll("transparent-scroll-pane", "reload-account-scroll");
         VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
         logScrollPane.setFitToWidth(true);
-        logScrollPane.setMinHeight(250);
+        logScrollPane.setFitToHeight(true);
+        logScrollPane.setMinWidth(0);
+        logScrollPane.setMinHeight(0);
         logScrollPane.setMaxWidth(Double.MAX_VALUE);
+        logScrollPane.setMaxHeight(Double.MAX_VALUE);
         logScrollPane.getStyleClass().addAll("transparent-scroll-pane", "reload-log-scroll");
         VBox.setVgrow(logScrollPane, Priority.ALWAYS);
     }
 
-    private GridPane buildMainContent(MenuButton selectMenu) {
+    private GridPane buildMainContent(FlowPane selectControls) {
         Label accountTitle = createColumnTitle(I18n.tr("autoAccount"));
-        accountColumn = new VBox(10, accountTitle, selectMenu, accountsScrollPane);
+        accountColumn = new VBox(10, accountTitle, selectControls, accountsScrollPane);
         accountColumn.getStyleClass().addAll("management-popup-card", "reload-column-card", "reload-account-column");
+        accountColumn.setFillWidth(true);
+        accountColumn.setMinSize(0, 0);
         accountColumn.setMaxWidth(Double.MAX_VALUE);
         accountColumn.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
 
         Label logTitle = createColumnTitle(I18n.tr("autoLogs"));
-        VBox logColumn = new VBox(10, logTitle, logScrollPane);
+        logColumn = new VBox(10, logTitle, logScrollPane);
         logColumn.getStyleClass().addAll("management-popup-card", "reload-column-card", "reload-log-column");
+        logColumn.setFillWidth(true);
+        logColumn.setMinSize(0, 0);
         logColumn.setMaxWidth(Double.MAX_VALUE);
         logColumn.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(logScrollPane, Priority.ALWAYS);
+        GridPane.setHgrow(accountColumn, Priority.ALWAYS);
+        GridPane.setHgrow(logColumn, Priority.ALWAYS);
         GridPane.setVgrow(accountColumn, Priority.ALWAYS);
         GridPane.setVgrow(logColumn, Priority.ALWAYS);
 
-        GridPane mainContent = new GridPane();
+        mainContent = new GridPane();
         mainContent.getStyleClass().add("reload-main-content");
         mainContent.setHgap(14);
+        mainContent.setVgap(0);
+        mainContent.setMinSize(0, 0);
         mainContent.setMaxWidth(Double.MAX_VALUE);
+        mainContent.setMaxHeight(Double.MAX_VALUE);
         accountsColumn = createContentColumn(35);
         logsColumn = createContentColumn(65);
         RowConstraints contentRow = new RowConstraints();
@@ -348,6 +439,7 @@ public class ReloadCachePopup extends VBox {
         mainContent.add(accountColumn, 0, 0);
         mainContent.add(logColumn, 1, 0);
         VBox.setVgrow(mainContent, Priority.ALWAYS);
+        configureResponsiveMainContent(mainContent);
         return mainContent;
     }
 
@@ -365,6 +457,102 @@ public class ReloadCachePopup extends VBox {
         return column;
     }
 
+    private RowConstraints createContentRow() {
+        RowConstraints row = new RowConstraints();
+        row.setFillHeight(true);
+        row.setVgrow(Priority.ALWAYS);
+        return row;
+    }
+
+    private RowConstraints createContentRow(double heightPercent) {
+        RowConstraints row = createContentRow();
+        row.setPercentHeight(heightPercent);
+        return row;
+    }
+
+    private void configureResponsiveMainContent(GridPane content) {
+        content.widthProperty().addListener((_, _, width) -> updateMainContentLayout(width.doubleValue()));
+        Platform.runLater(() -> updateMainContentLayout(content.getWidth()));
+    }
+
+    private void updateMainContentLayout(double width) {
+        if (mainContent == null || logColumn == null || accountColumn == null) {
+            return;
+        }
+        if (accountSelectionHidden) {
+            applyLogOnlyLayout();
+            return;
+        }
+        if (width <= 0) {
+            return;
+        }
+        boolean shouldStack = width < STACKED_LAYOUT_WIDTH;
+        if (shouldStack == stackedMainContent
+                && mainContent.getColumnConstraints().size() == (shouldStack ? 1 : 2)
+                && mainContent.getRowConstraints().size() == (shouldStack ? 2 : 1)) {
+            return;
+        }
+        stackedMainContent = shouldStack;
+        if (shouldStack) {
+            applyStackedLayout();
+        } else {
+            applyTwoColumnLayout();
+        }
+    }
+
+    private void applyTwoColumnLayout() {
+        accountColumn.setVisible(true);
+        accountColumn.setManaged(true);
+        accountsColumn = createContentColumn(35);
+        logsColumn = createContentColumn(65);
+        mainContent.getColumnConstraints().setAll(accountsColumn, logsColumn);
+        mainContent.getRowConstraints().setAll(createContentRow());
+        mainContent.setHgap(14);
+        mainContent.setVgap(0);
+        GridPane.setColumnIndex(accountColumn, 0);
+        GridPane.setRowIndex(accountColumn, 0);
+        GridPane.setColumnSpan(accountColumn, 1);
+        GridPane.setRowSpan(accountColumn, 1);
+        GridPane.setColumnIndex(logColumn, 1);
+        GridPane.setRowIndex(logColumn, 0);
+        GridPane.setColumnSpan(logColumn, 1);
+        GridPane.setRowSpan(logColumn, 1);
+    }
+
+    private void applyStackedLayout() {
+        accountColumn.setVisible(true);
+        accountColumn.setManaged(true);
+        accountsColumn = createContentColumn(100);
+        logsColumn = null;
+        mainContent.getColumnConstraints().setAll(accountsColumn);
+        mainContent.getRowConstraints().setAll(createContentRow(44), createContentRow(56));
+        mainContent.setHgap(0);
+        mainContent.setVgap(14);
+        GridPane.setColumnIndex(accountColumn, 0);
+        GridPane.setRowIndex(accountColumn, 0);
+        GridPane.setColumnSpan(accountColumn, 1);
+        GridPane.setRowSpan(accountColumn, 1);
+        GridPane.setColumnIndex(logColumn, 0);
+        GridPane.setRowIndex(logColumn, 1);
+        GridPane.setColumnSpan(logColumn, 1);
+        GridPane.setRowSpan(logColumn, 1);
+    }
+
+    private void applyLogOnlyLayout() {
+        accountColumn.setVisible(false);
+        accountColumn.setManaged(false);
+        accountsColumn = createContentColumn(100);
+        logsColumn = null;
+        mainContent.getColumnConstraints().setAll(accountsColumn);
+        mainContent.getRowConstraints().setAll(createContentRow());
+        mainContent.setHgap(0);
+        mainContent.setVgap(0);
+        GridPane.setColumnIndex(logColumn, 0);
+        GridPane.setRowIndex(logColumn, 0);
+        GridPane.setColumnSpan(logColumn, 1);
+        GridPane.setRowSpan(logColumn, 1);
+    }
+
     private HBox buildButtonBox() {
         reloadButton.setOnAction(event -> startReloadInBackground());
         reloadButton.managedProperty().bind(reloadButton.visibleProperty());
@@ -377,12 +565,14 @@ public class ReloadCachePopup extends VBox {
         copyLogButton.setOnAction(event -> copyLogsToClipboard());
         Button closeButton = new Button(I18n.tr("autoClose"));
         closeButton.getStyleClass().add("reload-secondary-button");
-        closeButton.setOnAction(event -> stage.close());
+        closeButton.setOnAction(event -> requestClose());
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         HBox buttonBox = new HBox(10, reloadButton, stopButton, spacer, copyLogButton, closeButton);
         buttonBox.getStyleClass().add("management-popup-footer");
         buttonBox.setAlignment(Pos.CENTER_LEFT);
+        buttonBox.setMinWidth(0);
+        buttonBox.setMaxWidth(Double.MAX_VALUE);
         return buttonBox;
     }
 
@@ -431,12 +621,21 @@ public class ReloadCachePopup extends VBox {
         sb.append("\n");
     }
 
-    private void registerStageCloseListener() {
-        stage.setOnCloseRequest(event -> disposePopup());
-        stage.setOnHidden(event -> disposePopup());
+    private void setPanelHandle(InlinePanelHandle panelHandle) {
+        this.panelHandle = panelHandle;
     }
 
-    private void disposePopup() {
+    private void requestClose() {
+        disposeInline();
+        if (panelHandle != null) {
+            panelHandle.close();
+        }
+    }
+
+    private void disposeInline() {
+        if (disposed) {
+            return;
+        }
         disposed = true;
         requestStop();
         clearPendingLogLines();
@@ -486,12 +685,8 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void hideAccountSelectionColumn() {
-        accountColumn.setVisible(false);
-        accountColumn.setManaged(false);
-        accountsColumn.setPercentWidth(0);
-        accountsColumn.setMinWidth(0);
-        accountsColumn.setMaxWidth(0);
-        logsColumn.setPercentWidth(100);
+        accountSelectionHidden = true;
+        applyLogOnlyLayout();
     }
 
     private void updateCheckboxes(AccountType type, boolean selected) {
@@ -509,7 +704,7 @@ public class ReloadCachePopup extends VBox {
         }
 
         List<Account> selectedAccounts = selectedAccountsSnapshot();
-        GlobalFailureDecision selectedAutomaticDecision = promptAutomaticGlobalFailureDecision(selectedAccounts);
+        GlobalFailureDecision selectedAutomaticDecision = selectedFailureDecision();
         if (!reloadInProgress.compareAndSet(false, true)) {
             return;
         }
@@ -520,54 +715,13 @@ public class ReloadCachePopup extends VBox {
         thread.start();
     }
 
-    private GlobalFailureDecision promptAutomaticGlobalFailureDecision(List<Account> selectedAccounts) {
-        if (selectedAccounts == null || selectedAccounts.size() <= 1 || disposed) {
-            return null;
-        }
-
-        List<AutomaticFailureDecisionOption> options = automaticFailureDecisionOptions();
-        ToggleGroup optionGroup = new ToggleGroup();
-        VBox optionBox = new VBox(8);
-        optionBox.setFillWidth(true);
-        for (AutomaticFailureDecisionOption option : options) {
-            RadioButton optionButton = new RadioButton(option.label());
-            optionButton.setToggleGroup(optionGroup);
-            optionButton.setUserData(option);
-            optionButton.setWrapText(true);
-            optionButton.setMaxWidth(Double.MAX_VALUE);
-            optionBox.getChildren().add(optionButton);
-        }
-        if (!optionGroup.getToggles().isEmpty()) {
-            optionGroup.selectToggle(optionGroup.getToggles().get(0));
-        }
-
-        Label message = new Label(I18n.tr("reloadBulkFailureHandlingMessage"));
-        message.setWrapText(true);
-        message.setPrefWidth(BULK_FAILURE_DIALOG_CONTENT_WIDTH);
-        message.setMinHeight(Region.USE_PREF_SIZE);
-        VBox content = new VBox(12, message, optionBox);
-        content.setPadding(new Insets(8, BULK_FAILURE_DIALOG_CONTENT_INSET, 0, BULK_FAILURE_DIALOG_CONTENT_INSET));
-        content.setPrefWidth(BULK_FAILURE_DIALOG_CONTENT_WIDTH);
-        content.setMaxWidth(BULK_FAILURE_DIALOG_CONTENT_WIDTH);
-
-        ButtonType okButton = new ButtonType(I18n.tr("commonOk"), ButtonBar.ButtonData.OK_DONE);
-        ButtonType closeButton = new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
-        Dialog<AutomaticFailureDecisionOption> dialog = new Dialog<>();
-        dialog.setTitle(I18n.tr("reloadBulkFailureHandlingTitle"));
-        dialog.setHeaderText(I18n.tr("reloadBulkFailureHandlingHeader",
-                I18n.formatNumber(String.valueOf(selectedAccounts.size()))));
-        dialog.getDialogPane().setContent(content);
-        dialog.getDialogPane().setPrefWidth(BULK_FAILURE_DIALOG_CONTENT_WIDTH
-                + (BULK_FAILURE_DIALOG_CONTENT_INSET * 2));
-        dialog.getDialogPane().getButtonTypes().setAll(okButton, closeButton);
-        dialog.setResultConverter(button -> button == okButton && optionGroup.getSelectedToggle() != null
-                ? (AutomaticFailureDecisionOption) optionGroup.getSelectedToggle().getUserData()
-                : null);
-        applyDialogThemeAndOrientation(dialog);
-
-        return ThemedDialogSupport.showAndWait(dialog, ownerWindow())
-                .map(AutomaticFailureDecisionOption::decision)
-                .orElse(null);
+    private GlobalFailureDecision selectedFailureDecision() {
+        AtomicReference<GlobalFailureDecision> decision = new AtomicReference<>();
+        runOnFxThreadAndWait(() -> {
+            AutomaticFailureDecisionOption selected = failureDecisionComboBox.getValue();
+            decision.set(selected == null ? null : selected.decision());
+        });
+        return decision.get();
     }
 
     private List<AutomaticFailureDecisionOption> automaticFailureDecisionOptions() {
@@ -691,6 +845,7 @@ public class ReloadCachePopup extends VBox {
             }
             reloadButton.setVisible(false);
             stopButton.setVisible(true);
+            failureDecisionComboBox.setDisable(true);
         });
         progressBar.setTotal(selectedAccounts.size());
         updateProgressSummary(0, selectedAccounts.size());
@@ -717,6 +872,7 @@ public class ReloadCachePopup extends VBox {
             }
             reloadButton.setVisible(true);
             stopButton.setVisible(false);
+            failureDecisionComboBox.setDisable(false);
         });
     }
 
@@ -829,15 +985,16 @@ public class ReloadCachePopup extends VBox {
                 return;
             }
             drainPendingLogLines();
-            com.uiptv.util.AppLog.addInfoLog(ReloadCachePopup.class, "Reload run completed.");
+            com.uiptv.util.AppLog.addInfoLog(ReloadCacheInline.class, "Reload run completed.");
             reloadButton.setVisible(true);
             stopButton.setVisible(false);
+            failureDecisionComboBox.setDisable(false);
             latestAccountSummaries.clear();
             latestAccountSummaries.putAll(summaryStatusByAccountId);
             appendRunSummary(processedAccounts, finalStatuses, totalFetchedChannels);
             Map<String, SummaryStatus> problematicAccounts = collectProblematicAccounts(processedAccounts, summaryStatusByAccountId);
-            if (!problematicAccounts.isEmpty() && stage.isShowing()) {
-                showDeleteProblemAccountsPopup(processedAccounts, problematicAccounts);
+            if (!problematicAccounts.isEmpty()) {
+                showDeleteProblemAccountsInline(processedAccounts, problematicAccounts);
             }
         });
     }
@@ -875,48 +1032,60 @@ public class ReloadCachePopup extends VBox {
         }
     }
 
-    private void showDeleteProblemAccountsPopup(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts) {
-        if (disposed || !stage.isShowing()) {
+    private void showDeleteProblemAccountsInline(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts) {
+        if (disposed) {
             return;
         }
-        Stage popupStage = createProblemAccountsStage();
         VBox accountsBox = new VBox(5);
-        VBox root = buildProblemAccountsPopupRoot(processedAccounts, problematicAccounts, popupStage, accountsBox);
-        popupStage.setScene(buildProblemAccountsScene(root));
-        popupStage.show();
+        AtomicReference<InlinePanelHandle> handleRef = new AtomicReference<>();
+        Runnable closeAction = () -> {
+            InlinePanelHandle handle = handleRef.get();
+            if (handle != null) {
+                handle.close();
+            }
+        };
+        VBox root = buildProblemAccountsInlineRoot(processedAccounts, problematicAccounts, accountsBox, closeAction);
+        InlinePanelService.open(I18n.tr("autoDeleteProblematicAccounts"), root, I18n.tr("commonClose"), null)
+                .ifPresent(handleRef::set);
     }
 
-    private Stage createProblemAccountsStage() {
-        Stage popupStage = new Stage();
-        popupStage.initModality(Modality.APPLICATION_MODAL);
-        popupStage.setTitle(I18n.tr("autoDeleteProblematicAccounts"));
-        return popupStage;
-    }
-
-    private VBox buildProblemAccountsPopupRoot(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts,
-                                               Stage popupStage, VBox accountsBox) {
-        VBox root = new VBox(10);
-        root.getStyleClass().addAll("management-popup-root", "reload-problem-accounts-popup");
-        root.setPadding(new Insets(20));
-        root.getChildren().addAll(
+    private VBox buildProblemAccountsInlineRoot(List<Account> processedAccounts,
+                                                Map<String, SummaryStatus> problematicAccounts,
+                                                VBox accountsBox,
+                                                Runnable closeAction) {
+        VBox card = new VBox(14);
+        card.getStyleClass().addAll("management-popup-card", "reload-problem-accounts-card");
+        card.setFillWidth(true);
+        card.setMinWidth(0);
+        card.setMaxWidth(Double.MAX_VALUE);
+        card.getChildren().addAll(
                 createProblemAccountsWarningLabel(),
                 createSelectAllCheckBox(accountsBox),
                 buildProblemAccountsScrollPane(processedAccounts, problematicAccounts, accountsBox),
-                buildProblemAccountsButtons(popupStage, accountsBox)
+                buildProblemAccountsButtons(accountsBox, closeAction)
         );
+
+        VBox root = new VBox(card);
+        root.getStyleClass().addAll("reload-problem-accounts-popup");
+        root.setAlignment(Pos.TOP_CENTER);
+        root.setFillWidth(true);
+        root.setMinWidth(0);
+        root.setMaxWidth(PROBLEM_ACCOUNTS_CARD_MAX_WIDTH);
         return root;
     }
 
     private Label createProblemAccountsWarningLabel() {
         Label warningLabel = new Label(I18n.tr("autoTheFollowingAccountsAreFlaggedAsBADOrYELLOWSelectTheOnesYouWantToDelete"));
+        warningLabel.getStyleClass().add("reload-problem-warning");
         warningLabel.setWrapText(true);
-        AppFonts.load();
-        warningLabel.setFont(Font.font(AppFonts.UI_FONT_FAMILY, FontWeight.BOLD, 14));
+        warningLabel.setMinWidth(0);
+        warningLabel.setMaxWidth(Double.MAX_VALUE);
         return warningLabel;
     }
 
     private CheckBox createSelectAllCheckBox(VBox accountsBox) {
         CheckBox selectAll = new CheckBox(I18n.tr("autoSelectAll"));
+        selectAll.getStyleClass().add("reload-problem-select-all");
         selectAll.setOnAction(e -> accountsBox.getChildren().forEach(node -> {
             if (node instanceof CheckBox checkBox) {
                 checkBox.setSelected(selectAll.isSelected());
@@ -928,10 +1097,25 @@ public class ReloadCachePopup extends VBox {
     private ScrollPane buildProblemAccountsScrollPane(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts,
                                                       VBox accountsBox) {
         populateProblemAccountsBox(accountsBox, processedAccounts, problematicAccounts);
+        accountsBox.getStyleClass().add("reload-problem-account-list");
+        accountsBox.setFillWidth(true);
+        accountsBox.setMinWidth(0);
         ScrollPane scrollPane = new ScrollPane(accountsBox);
+        scrollPane.getStyleClass().addAll("transparent-scroll-pane", "reload-problem-account-scroll");
         scrollPane.setFitToWidth(true);
-        scrollPane.setPrefHeight(300);
+        scrollPane.setMinHeight(PROBLEM_ACCOUNTS_MIN_LIST_HEIGHT);
+        scrollPane.setPrefViewportHeight(problemAccountsListHeight(accountsBox));
+        scrollPane.setMaxHeight(PROBLEM_ACCOUNTS_MAX_LIST_HEIGHT);
         return scrollPane;
+    }
+
+    private double problemAccountsListHeight(VBox accountsBox) {
+        long selectableRows = accountsBox.getChildren().stream()
+                .filter(CheckBox.class::isInstance)
+                .count();
+        long sectionRows = Math.max(1, accountsBox.getChildren().size() - selectableRows);
+        double estimatedHeight = selectableRows * PROBLEM_ACCOUNTS_ROW_HEIGHT_ESTIMATE + sectionRows * 34 + 16;
+        return Math.min(PROBLEM_ACCOUNTS_MAX_LIST_HEIGHT, Math.max(PROBLEM_ACCOUNTS_MIN_LIST_HEIGHT, estimatedHeight));
     }
 
     private void populateProblemAccountsBox(VBox accountsBox, List<Account> processedAccounts,
@@ -950,7 +1134,7 @@ public class ReloadCachePopup extends VBox {
             return;
         }
         Label label = new Label(title);
-        label.getStyleClass().add(styleClass);
+        label.getStyleClass().addAll("reload-problem-section-title", styleClass);
         accountsBox.getChildren().add(label);
         addProblemAccountsToDeleteBox(accountsBox, accounts, problematicAccounts);
     }
@@ -963,20 +1147,22 @@ public class ReloadCachePopup extends VBox {
                 .toList();
     }
 
-    private HBox buildProblemAccountsButtons(Stage popupStage, VBox accountsBox) {
+    private HBox buildProblemAccountsButtons(VBox accountsBox, Runnable closeAction) {
         Button deleteButton = new Button(I18n.tr("autoDeleteSelected"));
         deleteButton.getStyleClass().add("dangerous");
-        deleteButton.setOnAction(e -> deleteSelectedProblemAccounts(popupStage, accountsBox));
+        deleteButton.setOnAction(e -> deleteSelectedProblemAccounts(accountsBox, closeAction));
 
         Button cancelButton = new Button(I18n.tr("autoCancel"));
-        cancelButton.setOnAction(e -> popupStage.close());
+        cancelButton.getStyleClass().add("reload-secondary-button");
+        cancelButton.setOnAction(e -> closeAction.run());
 
         HBox buttons = new HBox(10, deleteButton, cancelButton);
+        buttons.getStyleClass().add("reload-problem-actions");
         buttons.setAlignment(Pos.CENTER_RIGHT);
         return buttons;
     }
 
-    private void deleteSelectedProblemAccounts(Stage popupStage, VBox accountsBox) {
+    private void deleteSelectedProblemAccounts(VBox accountsBox, Runnable closeAction) {
         List<Account> toDelete = selectedProblemAccounts(accountsBox);
         if (toDelete.isEmpty()) {
             return;
@@ -984,7 +1170,7 @@ public class ReloadCachePopup extends VBox {
         confirmDeleteProblemAccounts(toDelete).ifPresent(response -> {
             if (response == ButtonType.YES) {
                 deleteAccountsAndRefresh(toDelete);
-                popupStage.close();
+                closeAction.run();
             }
         });
     }
@@ -997,6 +1183,15 @@ public class ReloadCachePopup extends VBox {
     }
 
     private java.util.Optional<ButtonType> confirmDeleteProblemAccounts(List<Account> toDelete) {
+        java.util.Optional<ButtonType> inlineResult = InlinePanelService.showConfirmation(
+                I18n.tr("commonConfirm"),
+                I18n.tr("reloadConfirmDeleteAccounts", toDelete.size()),
+                ButtonType.YES,
+                ButtonType.NO
+        );
+        if (inlineResult.isPresent()) {
+            return inlineResult;
+        }
         Alert alert = new Alert(
                 Alert.AlertType.CONFIRMATION,
                 I18n.tr("reloadConfirmDeleteAccounts", toDelete.size()),
@@ -1016,26 +1211,59 @@ public class ReloadCachePopup extends VBox {
         }
     }
 
-    private Scene buildProblemAccountsScene(VBox root) {
-        Scene scene = new Scene(root, 500, 500);
-        UiI18n.applySceneOrientation(scene);
-        if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-        return scene;
-    }
-
     private void addProblemAccountsToDeleteBox(VBox accountsBox, List<Account> accounts, Map<String, SummaryStatus> problematicAccounts) {
         for (Account account : accounts) {
             SummaryStatus status = problematicAccounts.get(account.getDbId());
             String reasons = status == null || status.reasons.isEmpty()
                     ? I18n.tr("reloadNoReasonCaptured")
                     : String.join(" | ", status.reasons);
-            CheckBox cb = new CheckBox(account.getAccountName() + " (" + account.getType().getDisplay() + ") - " + reasons);
-            cb.setWrapText(true);
+            CheckBox cb = new CheckBox();
+            cb.getStyleClass().addAll("reload-problem-account-row", problemAccountStyleClass(status));
+            cb.setGraphic(buildProblemAccountGraphic(account, reasons));
+            cb.setMaxWidth(Double.MAX_VALUE);
             cb.setUserData(account);
             accountsBox.getChildren().add(cb);
         }
+    }
+
+    private String problemAccountStyleClass(SummaryStatus status) {
+        SummaryLevel level = status == null ? SummaryLevel.BAD : status.level;
+        return level == SummaryLevel.YELLOW ? "reload-problem-account-yellow" : "reload-problem-account-bad";
+    }
+
+    private Node buildProblemAccountGraphic(Account account, String reasons) {
+        Label nameLabel = new Label(account.getAccountName());
+        nameLabel.getStyleClass().add("reload-problem-account-name");
+        nameLabel.setWrapText(true);
+        nameLabel.setMinWidth(0);
+        HBox.setHgrow(nameLabel, Priority.ALWAYS);
+
+        Label typeLabel = new Label(account.getType().getDisplay());
+        typeLabel.getStyleClass().add("reload-problem-account-type");
+        typeLabel.setMinWidth(Region.USE_PREF_SIZE);
+
+        HBox titleRow = new HBox(8, nameLabel, typeLabel);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.setMinWidth(0);
+        titleRow.setMaxWidth(Double.MAX_VALUE);
+
+        Label reasonLabel = new Label(reasons);
+        reasonLabel.getStyleClass().add("reload-problem-account-reason");
+        reasonLabel.setWrapText(true);
+        reasonLabel.setMinWidth(0);
+        reasonLabel.setMaxWidth(Double.MAX_VALUE);
+
+        VBox text = new VBox(5, titleRow, reasonLabel);
+        text.setMinWidth(0);
+        text.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(text, Priority.ALWAYS);
+
+        HBox row = new HBox(text);
+        row.getStyleClass().add("reload-problem-account-content");
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        return row;
     }
 
     private void prepareAccountLogPanels(List<Account> selectedAccounts) {
@@ -1809,7 +2037,7 @@ public class ReloadCachePopup extends VBox {
     }
 
     private javafx.stage.Window ownerWindow() {
-        return stage == null ? ThemedDialogSupport.primaryOwnerWindow() : stage;
+        return ThemedDialogSupport.primaryOwnerWindow();
     }
 
     private GlobalFailureDecision resolveGlobalFailureDecision(ButtonType selected, GlobalFailurePrompt prompt) {
