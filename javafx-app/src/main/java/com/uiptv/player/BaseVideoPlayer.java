@@ -1063,7 +1063,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void toggleWideViewPreference() {
-        Configuration current = ConfigurationService.getInstance().read();
+        Configuration current = readConfigurationSafely();
         if (current == null || !current.isEmbeddedPlayer()) {
             updateLayoutModeButton();
             return;
@@ -1076,19 +1076,31 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private void saveWideViewPreference(boolean wideView) {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = readConfigurationSafely();
         if (configuration == null || !configuration.isEmbeddedPlayer() || configuration.isWideView() == wideView) {
             return;
         }
         configuration.setWideView(wideView);
-        ConfigurationService.getInstance().save(configuration);
+        try {
+            ConfigurationService.getInstance().save(configuration);
+        } catch (RuntimeException _) {
+            Platform.runLater(this::updateLayoutModeButton);
+        }
     }
 
     private void updateLayoutModeButton() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = readConfigurationSafely();
         boolean available = configuration != null && configuration.isEmbeddedPlayer();
         boolean wideView = available && configuration.isWideView();
         applyLayoutModeButtonState(available, wideView);
+    }
+
+    private Configuration readConfigurationSafely() {
+        try {
+            return ConfigurationService.getInstance().read();
+        } catch (RuntimeException _) {
+            return null;
+        }
     }
 
     private void applyLayoutModeButtonState(boolean available, boolean wideView) {
