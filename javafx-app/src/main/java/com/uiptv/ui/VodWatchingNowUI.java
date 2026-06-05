@@ -748,6 +748,12 @@ public class VodWatchingNowUI extends VBox {
         }
     }
 
+    void requestContentFocus() {
+        if (isDisplayable() && isBlank(renderedDetailKey)) {
+            vodGrid.requestContentFocus();
+        }
+    }
+
     private void mergeImdb(VodPanelData data, JSONObject imdb) {
         if (data == null || imdb == null) {
             return;

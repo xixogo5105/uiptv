@@ -156,6 +156,17 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
     }
 
+    void requestContentFocus() {
+        if (!isDisplayable()) {
+            return;
+        }
+        if (!isBlank(renderedDetailKey)) {
+            scheduleInitialSeriesEpisodeFocus(panelDataByKey.get(renderedDetailKey));
+            return;
+        }
+        seriesGrid.requestContentFocus();
+    }
+
     public void refreshIfNeeded() {
         if (!dirty || !isDisplayable()) {
             return;
@@ -1530,20 +1541,27 @@ public abstract class BaseWatchingNowUI extends VBox {
         if (data == null) {
             return;
         }
-        Platform.runLater(() -> {
-            List<VBox> cards = seriesEpisodeCards(data);
-            if (cards.isEmpty() || getScene() == null || !isVisible()) {
-                return;
-            }
-            VBox target = data != null && data.selectedEpisodeCard != null && cards.contains(data.selectedEpisodeCard)
-                    ? data.selectedEpisodeCard
-                    : cards.getFirst();
-            setSelectedEpisodeCard(data, target);
-            Node focusOwner = getScene().getFocusOwner();
-            if (!isDescendantOf(focusOwner, data.episodeCardsContainer)) {
-                focusSeriesEpisodeCard(data, target);
-            }
-        });
+        Platform.runLater(() -> focusSeriesEpisodeCardIfAppropriate(data));
+    }
+
+    private void focusSeriesEpisodeCardIfAppropriate(SeriesPanelData data) {
+        List<VBox> cards = seriesEpisodeCards(data);
+        if (cards.isEmpty() || !isDisplayable()) {
+            return;
+        }
+        VBox target = data.selectedEpisodeCard != null && cards.contains(data.selectedEpisodeCard)
+                ? data.selectedEpisodeCard
+                : cards.getFirst();
+        setSelectedEpisodeCard(data, target);
+        Node focusOwner = getScene().getFocusOwner();
+        if (isDescendantOf(focusOwner, data.episodeCardsContainer) || isProtectedFocusOwner(focusOwner)) {
+            return;
+        }
+        focusSeriesEpisodeCard(data, target);
+    }
+
+    private boolean isProtectedFocusOwner(Node focusOwner) {
+        return focusOwner instanceof TextInputControl textInput && !textInput.getText().isBlank();
     }
 
     private void focusSeriesEpisodeCard(SeriesPanelData data, VBox card) {

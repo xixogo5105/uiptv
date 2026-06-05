@@ -121,6 +121,12 @@ public class EpisodesListUI extends HBox {
         }
     }
 
+    public void requestContentFocus() {
+        if (delegate != null) {
+            delegate.requestContentFocus();
+        }
+    }
+
     public void useExternalSeriesTitle() {
         externalSeriesTitleRequested = true;
         applyDelegateHeaderPreferences(delegate);

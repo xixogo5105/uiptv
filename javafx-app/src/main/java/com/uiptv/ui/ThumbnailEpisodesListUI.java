@@ -24,6 +24,7 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.KeyEvent;
@@ -945,20 +946,46 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private void scheduleInitialEpisodeFocus() {
-        Platform.runLater(() -> {
-            List<VBox> cards = episodeCards();
-            if (cards.isEmpty() || getScene() == null || !isVisible()) {
-                return;
+        Platform.runLater(this::focusSelectedEpisodeIfAppropriate);
+    }
+
+    @Override
+    protected void requestContentFocus() {
+        scheduleInitialEpisodeFocus();
+    }
+
+    private void focusSelectedEpisodeIfAppropriate() {
+        List<VBox> cards = episodeCards();
+        if (cards.isEmpty() || !isDisplayable()) {
+            return;
+        }
+        VBox target = selectedEpisodeCard != null && cards.contains(selectedEpisodeCard)
+                ? selectedEpisodeCard
+                : cards.getFirst();
+        setSelectedEpisodeCard(target);
+        Node focusOwner = getScene().getFocusOwner();
+        if (isDescendantOf(focusOwner, cardsContainer) || isProtectedFocusOwner(focusOwner)) {
+            return;
+        }
+        focusEpisodeCard(target);
+    }
+
+    private boolean isProtectedFocusOwner(Node focusOwner) {
+        return focusOwner instanceof TextInputControl textInput && !textInput.getText().isBlank();
+    }
+
+    private boolean isDisplayable() {
+        if (getScene() == null) {
+            return false;
+        }
+        Node node = this;
+        while (node != null) {
+            if (!node.isVisible()) {
+                return false;
             }
-            VBox target = selectedEpisodeCard != null && cards.contains(selectedEpisodeCard)
-                    ? selectedEpisodeCard
-                    : cards.getFirst();
-            setSelectedEpisodeCard(target);
-            Node focusOwner = getScene().getFocusOwner();
-            if (!isDescendantOf(focusOwner, cardsContainer)) {
-                focusEpisodeCard(target);
-            }
-        });
+            node = node.getParent();
+        }
+        return true;
     }
 
     private void focusEpisodeCard(VBox card) {

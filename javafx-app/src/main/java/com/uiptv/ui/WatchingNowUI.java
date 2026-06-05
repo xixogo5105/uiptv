@@ -242,6 +242,20 @@ public class WatchingNowUI extends VBox {
                 return;
             }
             refreshIfNeeded();
+            requestActiveContentFocus();
+        });
+    }
+
+    private void requestActiveContentFocus() {
+        Platform.runLater(() -> {
+            if (!isPageDisplayable()) {
+                return;
+            }
+            if (isVodSelected()) {
+                vodDelegate.requestContentFocus();
+            } else if (seriesDelegate != null) {
+                seriesDelegate.requestContentFocus();
+            }
         });
     }
 

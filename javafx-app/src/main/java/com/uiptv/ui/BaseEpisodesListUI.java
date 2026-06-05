@@ -242,6 +242,7 @@ public abstract class BaseEpisodesListUI extends HBox {
             allEpisodeItems.setAll(items);
             onItemsLoaded();
             applyPendingNavigation();
+            requestContentFocus();
         });
     }
 
@@ -299,6 +300,10 @@ public abstract class BaseEpisodesListUI extends HBox {
     }
 
     protected void navigateToEpisodeTarget(String season, String episodeId, String episodeNumber, String episodeName) {
+        // Optional in subclasses.
+    }
+
+    protected void requestContentFocus() {
         // Optional in subclasses.
     }
 

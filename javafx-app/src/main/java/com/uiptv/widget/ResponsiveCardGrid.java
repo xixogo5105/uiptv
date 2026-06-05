@@ -205,6 +205,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
         rebuildCards();
     }
 
+    public void requestContentFocus() {
+        scheduleInitialItemFocus();
+    }
+
     public void clearSelection() {
         selectedItems.clear();
         anchorItem = null;
@@ -540,7 +544,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     private void focusSelectedItemIfAppropriate(T item) {
-        if (item == null || getScene() == null || !isVisible() || !items.contains(item)) {
+        if (item == null || !isDisplayable() || !items.contains(item)) {
             return;
         }
         if (!Objects.equals(item, getFocusedItem())) {
@@ -567,6 +571,20 @@ public class ResponsiveCardGrid<T> extends StackPane {
             current = current.getParent();
         }
         return false;
+    }
+
+    private boolean isDisplayable() {
+        if (getScene() == null) {
+            return false;
+        }
+        Node node = this;
+        while (node != null) {
+            if (!node.isVisible()) {
+                return false;
+            }
+            node = node.getParent();
+        }
+        return true;
     }
 
     private void updateCardWidths() {
