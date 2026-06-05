@@ -13,7 +13,6 @@ import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
-import com.uiptv.widget.AppNavigationPane;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
@@ -78,7 +77,6 @@ public class AccountListUI extends HBox {
     private final PillBar<AccountTypeFilter> accountTypePillBar =
             new PillBar<>(AccountTypeFilter::label, AccountTypeFilter::key);
     private final Button newAccountButton = new Button(I18n.tr("autoAdd"));
-    private final Button drawerCollapseButton = new Button("<");
     private final Deque<Node> viewStack = new ArrayDeque<>();
     private final VBox embeddedContainer = new VBox();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
@@ -102,7 +100,6 @@ public class AccountListUI extends HBox {
     private boolean refreshPending = true;
     private boolean mediaDrawerMode;
     private boolean thumbnailListenerRegistered;
-    private Runnable wideDrawerCollapseHandler;
     private HeaderSearchMode headerSearchMode = HeaderSearchMode.ACCOUNTS;
     private boolean updatingHeaderSearchText;
     private String accountHeaderSearchText = "";
@@ -173,10 +170,6 @@ public class AccountListUI extends HBox {
         this.onDeleteCallback = onDeleteCallback;
     }
 
-    public void setWideDrawerCollapseHandler(Runnable wideDrawerCollapseHandler) {
-        this.wideDrawerCollapseHandler = wideDrawerCollapseHandler;
-    }
-
     public void setMediaDrawerMode(boolean enabled) {
         if (mediaDrawerMode == enabled) {
             if (enabled && activeCategoryListUI != null && currentContent == listView) {
@@ -186,9 +179,6 @@ public class AccountListUI extends HBox {
         }
         mediaDrawerMode = enabled;
         setMinWidth(0);
-        boolean showLocalCollapseButton = enabled && wideDrawerCollapseHandler != null;
-        drawerCollapseButton.setVisible(showLocalCollapseButton);
-        drawerCollapseButton.setManaged(showLocalCollapseButton);
         updateMediaDrawerStyle();
         if (activeCategoryListUI != null) {
             activeCategoryListUI.setMediaDrawerMode(enabled);
@@ -431,17 +421,7 @@ public class AccountListUI extends HBox {
     }
 
     private AppPageHeader createPageHeader() {
-        drawerCollapseButton.getStyleClass().add("account-drawer-collapse-button");
-        drawerCollapseButton.setFocusTraversable(false);
-        drawerCollapseButton.setTooltip(AppNavigationPane.createImmediateTooltip(I18n.tr("autoHideThisBar")));
-        drawerCollapseButton.setVisible(false);
-        drawerCollapseButton.setManaged(false);
-        drawerCollapseButton.setOnAction(_ -> {
-            if (wideDrawerCollapseHandler != null) {
-                wideDrawerCollapseHandler.run();
-            }
-        });
-        HBox headerActions = new HBox(6, drawerCollapseButton, new AppHeaderActions(hostServices, themeToggleHandler, null));
+        HBox headerActions = new HBox(6, new AppHeaderActions(hostServices, themeToggleHandler, null));
         headerActions.setAlignment(Pos.CENTER_RIGHT);
         return new AppPageHeader(
                 I18n.tr("autoAccount"),

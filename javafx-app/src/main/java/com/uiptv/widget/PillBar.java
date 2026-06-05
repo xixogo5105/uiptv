@@ -1,5 +1,6 @@
 package com.uiptv.widget;
 
+import javafx.application.Platform;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Orientation;
@@ -67,7 +68,7 @@ public class PillBar<T> extends StackPane {
         getChildren().add(content);
         StackPane.setAlignment(content, Pos.CENTER_LEFT);
         widthProperty().addListener((_, _, width) -> {
-            updateContentWrapLength(width.doubleValue());
+            syncWrappedHeight(width.doubleValue());
             requestAncestorLayout();
         });
 
@@ -121,7 +122,8 @@ public class PillBar<T> extends StackPane {
         }
         toggleGroup.selectToggle(restored);
         selectedItem.set(restored == null ? null : itemFromToggle(restored));
-        updateContentWrapLength(getWidth());
+        syncWrappedHeight(getWidth());
+        Platform.runLater(() -> syncWrappedHeight(getWidth()));
         requestAncestorLayout();
     }
 
@@ -140,6 +142,12 @@ public class PillBar<T> extends StackPane {
         return computeWrappedHeight(width);
     }
 
+    @Override
+    protected void layoutChildren() {
+        syncWrappedHeight(getWidth());
+        super.layoutChildren();
+    }
+
     private double computeWrappedHeight(double width) {
         double insets = snappedTopInset() + snappedBottomInset();
         double contentWidth = effectiveContentWidth(width);
@@ -148,6 +156,17 @@ public class PillBar<T> extends StackPane {
 
     private void updateContentWrapLength(double width) {
         content.setPrefWrapLength(effectiveContentWidth(width));
+    }
+
+    private void syncWrappedHeight(double width) {
+        updateContentWrapLength(width);
+        double height = computeWrappedHeight(width);
+        if (Math.abs(getPrefHeight() - height) > 0.5) {
+            setPrefHeight(height);
+        }
+        if (Math.abs(getMinHeight() - height) > 0.5) {
+            setMinHeight(height);
+        }
     }
 
     private double effectiveContentWidth(double width) {

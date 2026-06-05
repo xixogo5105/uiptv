@@ -1011,6 +1011,10 @@
     -fx-padding: 0;
 }
 
+.wide-player-navigation-restore-shell {
+    -fx-background-color: -uiptv-app-bg;
+}
+
 .account-card-grid {
     -fx-background-color: transparent;
 }

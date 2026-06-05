@@ -5,13 +5,13 @@ import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.AccountListUI;
 import com.uiptv.util.I18n;
-import com.uiptv.widget.AppNavigationPane;
+import com.uiptv.widget.IconActionButton;
+import com.uiptv.widget.WidePlayerNavigationControl;
 import javafx.application.Platform;
 import javafx.application.HostServices;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -27,17 +27,19 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private static final double WIDE_APP_AREA_SMALL_SCREEN_MIN_WIDTH = 360;
     private static final double WIDE_APP_AREA_SMALL_SCREEN_THRESHOLD = 1300;
     private static final double WIDE_APP_AREA_MAX_WIDTH = 560;
+    private static final String ICON_SHOW_NAVIGATION = "M3 5H21V19H3V5ZM5 7V17H10V7H5ZM12.7 8.7L16.1 12 12.7 15.3 11.3 13.9 13.2 12 11.3 10.1Z";
     private final boolean embeddedEnabled;
+    private final Runnable wideNavigationToggleHandler = this::toggleWidePlayerNavigation;
     private final ConfigurationChangeListener embeddedLayoutChangeListener =
             _ -> Platform.runLater(this::applyEmbeddedPlayerLayoutFromConfiguration);
     private HBox mainContent;
     private HBox embeddedPlayer;
     private StackPane navigationShell;
+    private StackPane collapsedNavigationHandleShell;
     private TabPane activeTabPane;
     private AccountListUI activeAccountListUI;
-    private Button collapseNavigationButton;
-    private Button expandNavigationButton;
     private boolean navigationCollapsed;
+    private double retainedWideAppAreaWidth = -1;
 
     public MainApplicationUI(
             Stage primaryStage,
@@ -55,21 +57,27 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     @Override
     protected HBox buildMainContent(TabPane tabPane, AccountListUI accountListUI) {
         if (!embeddedEnabled) {
+            WidePlayerNavigationControl.configure(false, false, null);
             return createMainContent(tabPane, accountListUI);
         }
 
         activeTabPane = tabPane;
         activeAccountListUI = accountListUI;
         embeddedPlayer = createEmbeddedPlayerContainer();
-        installWidePlayerNavigationButtons(embeddedPlayer);
         embeddedPlayer.managedProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
         navigationShell = createNavigationShell(tabPane);
+        collapsedNavigationHandleShell = createCollapsedNavigationHandleShell();
 
-        mainContent = new HBox(navigationShell, embeddedPlayer);
+        mainContent = new HBox(navigationShell, collapsedNavigationHandleShell, embeddedPlayer);
         mainContent.setFillHeight(true);
         mainContent.setMinSize(0, 0);
         mainContent.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        mainContent.widthProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
+        mainContent.widthProperty().addListener((_, _, _) -> {
+            if (!navigationCollapsed) {
+                retainedWideAppAreaWidth = -1;
+            }
+            applyEmbeddedPlayerLayoutFromConfiguration();
+        });
 
         tabPane.setMinWidth(0);
         tabPane.setPrefWidth(guidedMaxWidthPixels);
@@ -83,7 +91,8 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     }
 
     private void applyEmbeddedPlayerLayoutFromConfiguration() {
-        if (embeddedPlayer == null || navigationShell == null || activeTabPane == null || activeAccountListUI == null) {
+        if (embeddedPlayer == null || navigationShell == null || collapsedNavigationHandleShell == null
+                || activeTabPane == null || activeAccountListUI == null) {
             return;
         }
         Configuration configuration = configurationService.read();
@@ -96,10 +105,11 @@ public class MainApplicationUI extends BaseMainApplicationUI {
             applyWideEmbeddedLayout();
         } else {
             navigationCollapsed = false;
+            retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(false);
             applyCompactEmbeddedLayout();
         }
-        updateWidePlayerNavigationButtons(widePlayerVisible);
+        WidePlayerNavigationControl.configure(widePlayerVisible, navigationCollapsed, wideNavigationToggleHandler);
         if (mainContent != null) {
             mainContent.requestLayout();
         }
@@ -117,16 +127,20 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         navigationShell.setMaxWidth(Double.MAX_VALUE);
         navigationShell.setVisible(true);
         navigationShell.setManaged(true);
+        collapsedNavigationHandleShell.setVisible(false);
+        collapsedNavigationHandleShell.setManaged(false);
         activeTabPane.setVisible(true);
         activeTabPane.setManaged(true);
         HBox.setHgrow(navigationShell, Priority.ALWAYS);
+        HBox.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
 
         applyCompactEmbeddedPlayerSize(embeddedPlayer);
         HBox.setHgrow(embeddedPlayer, Priority.NEVER);
     }
 
     private void applyWideEmbeddedLayout() {
-        double appAreaWidth = navigationCollapsed ? 0 : preferredWideAppAreaWidth();
+        double expandedAppAreaWidth = retainedWideAppAreaWidth();
+        double appAreaWidth = navigationCollapsed ? 0 : expandedAppAreaWidth;
         activeTabPane.setMinWidth(0);
         activeTabPane.setPrefWidth(appAreaWidth);
         activeTabPane.setMaxWidth(Double.MAX_VALUE);
@@ -142,55 +156,49 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         navigationShell.setManaged(!navigationCollapsed);
         HBox.setHgrow(navigationShell, Priority.NEVER);
 
+        collapsedNavigationHandleShell.setVisible(navigationCollapsed);
+        collapsedNavigationHandleShell.setManaged(navigationCollapsed);
+        HBox.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
+
         applyWideEmbeddedPlayerSize(embeddedPlayer);
         HBox.setHgrow(embeddedPlayer, Priority.ALWAYS);
     }
 
-    private void installWidePlayerNavigationButtons(HBox embeddedPlayer) {
-        if (embeddedPlayer == null || embeddedPlayer.getChildren().isEmpty()
-                || !(embeddedPlayer.getChildren().getFirst() instanceof StackPane playerShell)) {
-            return;
-        }
-        collapseNavigationButton = createWidePlayerNavigationButton(I18n.tr("autoHidePlaybackNavigation"));
-        collapseNavigationButton.getStyleClass().add("wide-player-drawer-collapse-button");
-        collapseNavigationButton.setOnAction(_ -> {
-            navigationCollapsed = true;
-            applyEmbeddedPlayerLayoutFromConfiguration();
-        });
-
-        expandNavigationButton = createWidePlayerNavigationButton(I18n.tr("autoShowPlaybackNavigation"));
-        expandNavigationButton.getStyleClass().add("wide-player-drawer-expand-button");
-        expandNavigationButton.setOnAction(_ -> {
-            navigationCollapsed = false;
-            applyEmbeddedPlayerLayoutFromConfiguration();
-        });
-
-        playerShell.getChildren().addAll(collapseNavigationButton, expandNavigationButton);
-        StackPane.setAlignment(collapseNavigationButton, Pos.TOP_LEFT);
-        StackPane.setAlignment(expandNavigationButton, Pos.TOP_LEFT);
-        StackPane.setMargin(collapseNavigationButton, new Insets(12));
-        StackPane.setMargin(expandNavigationButton, new Insets(12));
-        updateWidePlayerNavigationButtons(false);
+    private StackPane createCollapsedNavigationHandleShell() {
+        IconActionButton showButton = new IconActionButton(
+                I18n.tr("autoShowPlaybackNavigation"),
+                ICON_SHOW_NAVIGATION,
+                this::toggleWidePlayerNavigation
+        );
+        StackPane shell = new StackPane(showButton);
+        shell.getStyleClass().add("wide-player-navigation-restore-shell");
+        shell.setAlignment(Pos.TOP_CENTER);
+        shell.setPadding(new Insets(24, 4, 0, 4));
+        shell.setMinWidth(42);
+        shell.setPrefWidth(42);
+        shell.setMaxWidth(42);
+        shell.setVisible(false);
+        shell.setManaged(false);
+        return shell;
     }
 
-    private Button createWidePlayerNavigationButton(String text) {
-        Button button = new Button(text);
-        button.setFocusTraversable(false);
-        button.setTooltip(AppNavigationPane.createImmediateTooltip(text));
-        button.setAccessibleText(text);
-        return button;
-    }
-
-    private void updateWidePlayerNavigationButtons(boolean widePlayerVisible) {
-        if (collapseNavigationButton == null || expandNavigationButton == null) {
+    private void toggleWidePlayerNavigation() {
+        if (embeddedPlayer == null || !embeddedPlayer.isManaged()) {
+            WidePlayerNavigationControl.configure(false, false, wideNavigationToggleHandler);
             return;
         }
-        boolean showCollapse = widePlayerVisible && !navigationCollapsed;
-        boolean showExpand = widePlayerVisible && navigationCollapsed;
-        collapseNavigationButton.setVisible(showCollapse);
-        collapseNavigationButton.setManaged(showCollapse);
-        expandNavigationButton.setVisible(showExpand);
-        expandNavigationButton.setManaged(showExpand);
+        if (!navigationCollapsed) {
+            retainedWideAppAreaWidth = retainedWideAppAreaWidth();
+        }
+        navigationCollapsed = !navigationCollapsed;
+        applyEmbeddedPlayerLayoutFromConfiguration();
+    }
+
+    private double retainedWideAppAreaWidth() {
+        if (retainedWideAppAreaWidth <= 0) {
+            retainedWideAppAreaWidth = preferredWideAppAreaWidth();
+        }
+        return retainedWideAppAreaWidth;
     }
 
     private double preferredWideAppAreaWidth() {
