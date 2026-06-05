@@ -141,15 +141,16 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private void applyWideEmbeddedLayout() {
         double expandedAppAreaWidth = retainedWideAppAreaWidth();
         double appAreaWidth = navigationCollapsed ? 0 : expandedAppAreaWidth;
-        activeTabPane.setMinWidth(0);
+        double visibleAppAreaWidth = navigationCollapsed ? 0 : appAreaWidth;
+        activeTabPane.setMinWidth(visibleAppAreaWidth);
         activeTabPane.setPrefWidth(appAreaWidth);
-        activeTabPane.setMaxWidth(Double.MAX_VALUE);
+        activeTabPane.setMaxWidth(visibleAppAreaWidth);
         activeTabPane.setMaxHeight(Double.MAX_VALUE);
         activeTabPane.setMinHeight(0);
         activeTabPane.setVisible(!navigationCollapsed);
         activeTabPane.setManaged(!navigationCollapsed);
 
-        navigationShell.setMinWidth(0);
+        navigationShell.setMinWidth(visibleAppAreaWidth);
         navigationShell.setPrefWidth(appAreaWidth);
         navigationShell.setMaxWidth(appAreaWidth);
         navigationShell.setVisible(!navigationCollapsed);
