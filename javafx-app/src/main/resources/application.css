@@ -1453,6 +1453,12 @@
     -fx-padding: 0;
 }
 
+.bookmark-footer {
+    -fx-padding: 8 0 0 0;
+    -fx-border-color: rgba(17, 19, 24, 0.07) transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
 .uiptv-pill-bar,
 .bookmark-category-pill-bar {
     -fx-background-color: #f5f5f5;
@@ -1915,18 +1921,22 @@
 }
 
 .bookmark-manage-categories-button {
-    -fx-background-color: -uiptv-action-bg;
-    -fx-text-fill: -uiptv-action-fg;
-    -fx-background-radius: 14;
-    -fx-border-radius: 14;
-    -fx-border-width: 0;
-    -fx-padding: 8 14 8 14;
+    -fx-background-color: -uiptv-surface;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-background-radius: 11;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-radius: 11;
+    -fx-border-width: 1;
+    -fx-padding: 6 13 6 13;
     -fx-font-weight: bold;
     -fx-cursor: hand;
 }
 
-.bookmark-manage-categories-button:hover {
-    -fx-opacity: 0.86;
+.bookmark-manage-categories-button:hover,
+.bookmark-manage-categories-button:focused {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: #c9ced6;
+    -fx-text-fill: -uiptv-text-primary;
 }
 
 .settings-section-grid {

@@ -68,7 +68,10 @@ public class BookmarkCard extends HBox {
         subtitleLabel.setMinWidth(0);
         subtitleLabel.setMaxWidth(Double.MAX_VALUE);
         subtitleLabel.setWrapText(true);
-        subtitleLabel.setText(subtitle == null ? "" : subtitle);
+        String safeSubtitle = subtitle == null ? "" : subtitle;
+        subtitleLabel.setText(safeSubtitle);
+        subtitleLabel.setVisible(!safeSubtitle.isBlank());
+        subtitleLabel.setManaged(!safeSubtitle.isBlank());
 
         drmBadge.getStyleClass().add("drm-badge");
         drmBadge.setVisible(drmProtected);

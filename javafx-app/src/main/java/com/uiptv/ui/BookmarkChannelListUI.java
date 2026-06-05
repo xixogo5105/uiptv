@@ -44,7 +44,6 @@ import static javafx.application.Platform.runLater;
 
 public class BookmarkChannelListUI extends HBox {
     private static final String BOOKMARK_CACHE = "bookmark";
-    private static final double COMPACT_CATEGORY_WIDTH = 680;
     private static final double GRID_NORMAL_VERTICAL_GAP = 14;
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
@@ -71,7 +70,6 @@ public class BookmarkChannelListUI extends HBox {
     private final HostServices hostServices;
     private final Runnable themeToggleHandler;
     private boolean isPromptShowing = false;
-    private boolean compactCategoryLayout = false;
     private boolean thumbnailsEnabled = ThumbnailAwareUI.areThumbnailsEnabled();
     private volatile long lastKnownBookmarkRevision = 0;
     private volatile boolean reloadInProgress = false;
@@ -319,11 +317,11 @@ public class BookmarkChannelListUI extends HBox {
         VBox page = new VBox(12);
         UiRenderQuality.optimizeLayout(page);
         page.getStyleClass().add("bookmarks-page");
+        page.setFillWidth(true);
         page.setMinSize(0, 0);
         page.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        page.getChildren().setAll(createHeaderArea(), bookmarkGridFrame);
 
-        ScrollPane pageScroll = new ScrollPane(page);
+        ScrollPane pageScroll = new ScrollPane(bookmarkGridFrame);
         UiRenderQuality.optimizeLayout(pageScroll);
         pageScroll.getStyleClass().addAll("bookmarks-page-scroll", "transparent-scroll-pane");
         pageScroll.setFitToWidth(true);
@@ -333,9 +331,12 @@ public class BookmarkChannelListUI extends HBox {
         pageScroll.setFocusTraversable(false);
         pageScroll.setMinSize(0, 0);
         pageScroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        VBox.setVgrow(pageScroll, Priority.ALWAYS);
 
-        getChildren().setAll(pageScroll);
-        HBox.setHgrow(pageScroll, Priority.ALWAYS);
+        page.getChildren().setAll(createHeaderArea(), pageScroll, createBookmarkFooter());
+
+        getChildren().setAll(page);
+        HBox.setHgrow(page, Priority.ALWAYS);
         addChannelClickHandler();
     }
 
@@ -354,18 +355,6 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private VBox createCategoryRow() {
-        Button manageButton = manageCategoriesButton;
-        manageButton.getStyleClass().add("bookmark-manage-categories-button");
-        manageButton.setMinWidth(Region.USE_PREF_SIZE);
-
-        HBox wideRow = new HBox(10);
-        wideRow.setAlignment(Pos.CENTER_LEFT);
-        wideRow.setFillHeight(false);
-
-        HBox manageRow = new HBox(manageButton);
-        manageRow.setAlignment(Pos.CENTER_RIGHT);
-        manageRow.setFillHeight(false);
-
         VBox row = new VBox(8);
         row.setFillWidth(true);
         row.setMaxWidth(Double.MAX_VALUE);
@@ -373,40 +362,18 @@ public class BookmarkChannelListUI extends HBox {
 
         categoryPillBar.setMaxWidth(Double.MAX_VALUE);
         categoryPillBar.setMaxHeight(Region.USE_PREF_SIZE);
-        applyCategoryLayout(row, wideRow, manageRow, manageButton, false);
-        widthProperty().addListener((_, _, newWidth) -> applyCategoryLayout(
-                row,
-                wideRow,
-                manageRow,
-                manageButton,
-                newWidth.doubleValue() < COMPACT_CATEGORY_WIDTH
-        ));
+        row.getChildren().setAll(categoryPillBar);
         return row;
     }
 
-    private void applyCategoryLayout(VBox row,
-                                     HBox wideRow,
-                                     HBox manageRow,
-                                     Button manageButton,
-                                     boolean compact) {
-        if (compactCategoryLayout == compact && !row.getChildren().isEmpty()) {
-            return;
-        }
-
-        wideRow.getChildren().clear();
-        manageRow.getChildren().clear();
-        row.getChildren().clear();
-        compactCategoryLayout = compact;
-
-        if (compact) {
-            manageRow.getChildren().setAll(manageButton);
-            row.getChildren().setAll(categoryPillBar, manageRow);
-            return;
-        }
-
-        wideRow.getChildren().setAll(categoryPillBar, manageButton);
-        HBox.setHgrow(categoryPillBar, Priority.ALWAYS);
-        row.getChildren().setAll(wideRow);
+    private HBox createBookmarkFooter() {
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox footer = new HBox(8, spacer, manageCategoriesButton);
+        footer.getStyleClass().add("bookmark-footer");
+        footer.setAlignment(Pos.CENTER_RIGHT);
+        footer.setMaxWidth(Double.MAX_VALUE);
+        return footer;
     }
 
     private void setupBookmarkGrid() {
@@ -453,8 +420,8 @@ public class BookmarkChannelListUI extends HBox {
             menu.show(playButton, Side.BOTTOM, 0, 0);
         });
         return new BookmarkCard(
-                item.getChannelName(),
-                item.getAccountName(),
+                bookmarkDisplayTitle(item),
+                "",
                 item.getLogo(),
                 thumbnailsEnabled,
                 BOOKMARK_CACHE,
@@ -470,16 +437,30 @@ public class BookmarkChannelListUI extends HBox {
         card.setMinWidth(0);
         card.setMaxWidth(Double.MAX_VALUE);
 
-        Label title = new Label(item == null ? "" : item.getChannelName());
+        Label title = new Label(bookmarkDisplayTitle(item));
         title.getStyleClass().add("bookmark-channel-title");
-        title.setWrapText(false);
-        title.setTextOverrun(OverrunStyle.ELLIPSIS);
+        title.setWrapText(true);
         title.setMinWidth(0);
         title.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(title, Priority.ALWAYS);
 
         card.getChildren().add(title);
         return card;
+    }
+
+    private String bookmarkDisplayTitle(BookmarkItem item) {
+        if (item == null) {
+            return "";
+        }
+        String channelName = item.getChannelName();
+        String accountName = item.getAccountName();
+        if (isBlank(accountName)) {
+            return channelName == null ? "" : channelName;
+        }
+        if (isBlank(channelName)) {
+            return "[" + accountName + "]";
+        }
+        return channelName + " [" + accountName + "]";
     }
 
     private boolean isDrmProtected(BookmarkItem item) {
@@ -538,6 +519,10 @@ public class BookmarkChannelListUI extends HBox {
 
     private void setupManageCategoriesButton() {
         manageCategoriesButton.setText(I18n.tr("searchableTableManageTabs"));
+        manageCategoriesButton.getStyleClass().add("bookmark-manage-categories-button");
+        manageCategoriesButton.setMinWidth(Region.USE_PREF_SIZE);
+        manageCategoriesButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        manageCategoriesButton.setMaxWidth(Region.USE_PREF_SIZE);
         manageCategoriesButton.setOnAction(event -> openCategoryManagementPopup());
     }
 
