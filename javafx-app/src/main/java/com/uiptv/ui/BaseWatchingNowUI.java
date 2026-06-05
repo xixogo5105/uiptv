@@ -912,7 +912,8 @@ public abstract class BaseWatchingNowUI extends VBox {
         episodeCards.setFillWidth(true);
         episodeCards.setOnKeyPressed(event -> handleSeriesEpisodeNavigationKeyPressed(data, event));
         data.episodeCardsContainer = episodeCards;
-        LoadingStateView loadingNode = createSeriesEpisodeLoadingNode(I18n.tr("autoLoadingIMDbDetails"));
+        LoadingStateView loadingNode = createSeriesEpisodeLoadingNode(I18n.tr("autoLoadingEpisodesFor",
+                firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle)));
         loadingNode.setVisible(false);
         loadingNode.setManaged(false);
         data.episodeLoadingNode = loadingNode;
@@ -939,10 +940,13 @@ public abstract class BaseWatchingNowUI extends VBox {
     }
 
     private void setSeriesEpisodeLoadingOverlayVisible(SeriesPanelData data, boolean visible, String message) {
-        if (data == null || data.episodeCardsContainer == null || data.episodeLoadingNode == null) {
+        if (data == null) {
             return;
         }
         data.episodeLoadingVisible = visible;
+        if (data.episodeCardsContainer == null || data.episodeLoadingNode == null) {
+            return;
+        }
         if (message != null) {
             data.episodeLoadingNode.setMessage(message);
         }
@@ -1062,6 +1066,7 @@ public abstract class BaseWatchingNowUI extends VBox {
                     showErrorAlert(I18n.tr("autoFailed") + ": " + finalFailure.getMessage());
                     return;
                 }
+                setSeriesEpisodeLoadingOverlayVisible(data, false, null);
                 applyReloadedEpisodesToPanel(data, finalRefreshed);
                 showSeriesDetail(data);
             });
@@ -1076,11 +1081,18 @@ public abstract class BaseWatchingNowUI extends VBox {
         data.episodeList = safeList;
         data.episodes.clear();
         data.episodes.addAll(mapEpisodesFromCache(data.account, data.state, safeList));
-        imdbCacheByPanelKey.remove(panelCacheKey(data.account, data.state));
-        data.imdbLoaded = false;
+        data.episodeLoadingVisible = false;
         data.imdbLoading = false;
-        data.thumbnailMetadataAttempted = false;
-        loadSeriesListPosterImage(data);
+        if (thumbnailsEnabled()) {
+            imdbCacheByPanelKey.remove(panelCacheKey(data.account, data.state));
+            data.imdbLoaded = false;
+            data.thumbnailMetadataAttempted = false;
+            loadSeriesListPosterImage(data);
+        } else {
+            data.thumbnailMetadataAttempted = true;
+            data.seriesPosterNode = null;
+            data.seriesListPosterNode = null;
+        }
     }
 
     private String seriesPaneKey(SeriesPanelData data) {
