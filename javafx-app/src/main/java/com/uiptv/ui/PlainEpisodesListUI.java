@@ -7,6 +7,8 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
+import javafx.application.Platform;
+import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -19,6 +21,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.Node;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
@@ -91,6 +94,17 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         cardsScroll.setMaxWidth(Double.MAX_VALUE);
         cardsScroll.setMaxHeight(Double.MAX_VALUE);
         cardsScroll.getStyleClass().add("transparent-scroll-pane");
+        cardsContainer.addEventHandler(KeyEvent.KEY_PRESSED, this::handleEpisodeNavigationKeyPressed);
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene != null) {
+                scheduleInitialEpisodeFocus();
+            }
+        });
+        visibleProperty().addListener((_, _, visible) -> {
+            if (Boolean.TRUE.equals(visible)) {
+                scheduleInitialEpisodeFocus();
+            }
+        });
         contentStack.getChildren().add(buildCardBody());
     }
 
@@ -191,6 +205,9 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
     private void applyEpisodeRows() {
         if (allEpisodeItems.isEmpty()) {
+            renderedCardsByItem.clear();
+            selectedEpisodeCard = null;
+            cardsContainer.getChildren().clear();
             setEmptyState(I18n.tr("autoNoEpisodesFound"), true);
             return;
         }
@@ -206,6 +223,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         cardsContainer.getChildren().setAll(rows.stream()
                 .map(this::createEpisodeRow)
                 .toList());
+        scheduleInitialEpisodeFocus();
     }
 
     private Pane createEpisodeRow(EpisodeItem row) {
@@ -233,15 +251,110 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         card.getChildren().add(title);
         card.getProperties().put(KEY_CARD_LABELS, List.of(title));
         addRightClickContextMenu(row, card);
-        card.setOnMouseClicked(event -> {
-            if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
-            } else if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
+        card.focusedProperty().addListener((_, _, focused) -> {
+            if (Boolean.TRUE.equals(focused)) {
                 setSelectedEpisodeCard(card);
             }
         });
+        card.setOnMouseClicked(event -> {
+            if (event.getButton() != MouseButton.PRIMARY) {
+                return;
+            }
+            setSelectedEpisodeCard(card);
+            card.requestFocus();
+            if (event.getClickCount() == 2) {
+                play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            }
+            event.consume();
+        });
         renderedCardsByItem.put(row, card);
         return card;
+    }
+
+    private void handleEpisodeNavigationKeyPressed(KeyEvent event) {
+        List<Pane> cards = episodeCards();
+        if (cards.isEmpty()) {
+            return;
+        }
+        int currentIndex = currentEpisodeCardIndex(cards);
+        int targetIndex = switch (event.getCode()) {
+            case UP -> Math.max(0, currentIndex - 1);
+            case DOWN -> Math.min(cards.size() - 1, currentIndex + 1);
+            case HOME -> 0;
+            case END -> cards.size() - 1;
+            default -> currentIndex;
+        };
+        if (targetIndex != currentIndex) {
+            focusEpisodeCard(cards.get(targetIndex));
+            event.consume();
+        }
+    }
+
+    private List<Pane> episodeCards() {
+        return cardsContainer.getChildren().stream()
+                .filter(Pane.class::isInstance)
+                .map(Pane.class::cast)
+                .filter(Pane::isFocusTraversable)
+                .toList();
+    }
+
+    private int currentEpisodeCardIndex(List<Pane> cards) {
+        int selectedIndex = selectedEpisodeCard == null ? -1 : cards.indexOf(selectedEpisodeCard);
+        if (selectedIndex >= 0) {
+            return selectedIndex;
+        }
+        Node focusOwner = getScene() == null ? null : getScene().getFocusOwner();
+        for (int index = 0; index < cards.size(); index++) {
+            if (isDescendantOf(focusOwner, cards.get(index))) {
+                return index;
+            }
+        }
+        return 0;
+    }
+
+    private void scheduleInitialEpisodeFocus() {
+        Platform.runLater(() -> {
+            List<Pane> cards = episodeCards();
+            if (cards.isEmpty() || getScene() == null || !isVisible()) {
+                return;
+            }
+            Pane target = selectedEpisodeCard != null && cards.contains(selectedEpisodeCard)
+                    ? selectedEpisodeCard
+                    : cards.getFirst();
+            setSelectedEpisodeCard(target);
+            Node focusOwner = getScene().getFocusOwner();
+            if (!isDescendantOf(focusOwner, cardsContainer)) {
+                focusEpisodeCard(target);
+            }
+        });
+    }
+
+    private void focusEpisodeCard(Pane card) {
+        if (card == null) {
+            return;
+        }
+        setSelectedEpisodeCard(card);
+        card.requestFocus();
+        scrollEpisodeCardIntoView(card);
+    }
+
+    private void scrollEpisodeCardIntoView(Pane card) {
+        double viewportHeight = cardsScroll.getViewportBounds().getHeight();
+        double contentHeight = cardsContainer.getBoundsInLocal().getHeight();
+        double scrollableHeight = contentHeight - viewportHeight;
+        if (viewportHeight <= 0 || scrollableHeight <= 0) {
+            return;
+        }
+        Bounds bounds = card.getBoundsInParent();
+        double viewportTop = cardsScroll.getVvalue() * scrollableHeight;
+        double viewportBottom = viewportTop + viewportHeight;
+        double targetTop = bounds.getMinY();
+        double targetBottom = bounds.getMaxY();
+        if (targetTop >= viewportTop && targetBottom <= viewportBottom) {
+            return;
+        }
+        double nextTop = targetTop < viewportTop ? targetTop : targetBottom - viewportHeight;
+        cardsScroll.setVvalue(Math.max(0, Math.min(1, nextTop / scrollableHeight)));
     }
 
     private void refreshSeasonTabs() {
@@ -360,7 +473,9 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         if (selected) {
-            card.getStyleClass().add("selected-card");
+            if (!card.getStyleClass().contains("selected-card")) {
+                card.getStyleClass().add("selected-card");
+            }
         } else {
             card.getStyleClass().remove("selected-card");
         }
@@ -369,7 +484,9 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             for (Object labelObj : labels) {
                 if (labelObj instanceof Label label) {
                     if (selected) {
-                        label.getStyleClass().add("selected-card-text");
+                        if (!label.getStyleClass().contains("selected-card-text")) {
+                            label.getStyleClass().add("selected-card-text");
+                        }
                     } else {
                         label.getStyleClass().remove("selected-card-text");
                     }
@@ -384,6 +501,9 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
         owner.setOnContextMenuRequested(event -> {
+            if (owner instanceof Pane pane) {
+                focusEpisodeCard(pane);
+            }
             populateEpisodeContextMenu(rowMenu, item);
             if (!rowMenu.getItems().isEmpty()) {
                 rowMenu.show(owner, event.getScreenX(), event.getScreenY());
@@ -391,6 +511,17 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             event.consume();
         });
         return rowMenu;
+    }
+
+    private boolean isDescendantOf(Node node, Node ancestor) {
+        Node current = node;
+        while (current != null) {
+            if (current == ancestor) {
+                return true;
+            }
+            current = current.getParent();
+        }
+        return false;
     }
 
     private void populateEpisodeContextMenu(ContextMenu rowMenu, EpisodeItem item) {

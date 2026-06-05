@@ -11,10 +11,12 @@ import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
 import javafx.application.Platform;
+import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBase;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuButton;
@@ -24,6 +26,8 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.Node;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -124,6 +128,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         cardsContainer.setPadding(new Insets(5));
         cardsContainer.setFillWidth(true);
         cardsContainer.setMaxWidth(Double.MAX_VALUE);
+        cardsContainer.addEventHandler(KeyEvent.KEY_PRESSED, this::handleEpisodeNavigationKeyPressed);
 
         cardsScroll.setFitToWidth(true);
         cardsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
@@ -150,6 +155,16 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         VBox.setVgrow(cardsScroll, Priority.ALWAYS);
         VBox.setVgrow(cardsFrame, Priority.ALWAYS);
         VBox.setVgrow(seasonPillBar, Priority.NEVER);
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene != null) {
+                scheduleInitialEpisodeFocus();
+            }
+        });
+        visibleProperty().addListener((_, _, visible) -> {
+            if (Boolean.TRUE.equals(visible)) {
+                scheduleInitialEpisodeFocus();
+            }
+        });
         contentStack.getChildren().add(bodyContainer);
     }
 
@@ -239,14 +254,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         if (card == null) {
             return;
         }
-        setSelectedEpisodeCard(card);
-        int index = cardsContainer.getChildren().indexOf(card);
-        int size = cardsContainer.getChildren().size();
-        if (index >= 0 && size > 1) {
-            cardsScroll.setVvalue((double) index / (double) (size));
-        } else {
-            cardsScroll.setVvalue(0.0);
-        }
+        focusEpisodeCard(card);
     }
 
     private void setEpisodeLoadingOverlayVisible(boolean visible, String message) {
@@ -645,6 +653,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     private void applySeasonFilter() {
         if (allEpisodeItems.isEmpty()) {
+            selectedEpisodeCard = null;
+            renderedCardsByItem.clear();
+            cardsContainer.getChildren().clear();
             setEmptyState(I18n.tr("autoNoEpisodesFound"), true);
             updateBingeWatchButton();
             return;
@@ -674,6 +685,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         }
         syncEpisodeLoadingNode();
         updateBingeWatchButton();
+        scheduleInitialEpisodeFocus();
     }
 
     private String selectedSeason() {
@@ -790,14 +802,37 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             cardLabels.add(plot);
         }
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
-        root.setOnMouseClicked(event -> {
-            if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
-            } else if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
+        root.focusedProperty().addListener((_, _, focused) -> {
+            if (Boolean.TRUE.equals(focused)) {
                 setSelectedEpisodeCard(root);
             }
         });
+        root.setOnMouseClicked(event -> {
+            if (event.getButton() != MouseButton.PRIMARY) {
+                return;
+            }
+            if (isInteractiveChildEvent(root, event)) {
+                return;
+            }
+            setSelectedEpisodeCard(root);
+            root.requestFocus();
+            if (event.getClickCount() == 2) {
+                play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            }
+            event.consume();
+        });
         return root;
+    }
+
+    private boolean isInteractiveChildEvent(Pane card, MouseEvent event) {
+        Object target = event.getTarget();
+        while (target instanceof Node node && node != card) {
+            if (node instanceof ButtonBase) {
+                return true;
+            }
+            target = node.getParent();
+        }
+        return false;
     }
 
     private VBox createDrawerEpisodeRow(EpisodeItem row) {
@@ -848,19 +883,110 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         root.getChildren().addAll(titleRow, meta);
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
         addRightClickContextMenu(row, root);
+        root.focusedProperty().addListener((_, _, focused) -> {
+            if (Boolean.TRUE.equals(focused)) {
+                setSelectedEpisodeCard(root);
+            }
+        });
         root.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_CLICKED, event -> {
             if (event.getButton() != MouseButton.PRIMARY) {
                 return;
             }
-            if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
+            setSelectedEpisodeCard(root);
+            root.requestFocus();
+            if (event.getClickCount() == 2) {
                 event.consume();
                 play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
-            } else if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
-                event.consume();
-                setSelectedEpisodeCard(root);
             }
+            event.consume();
         });
         return root;
+    }
+
+    private void handleEpisodeNavigationKeyPressed(KeyEvent event) {
+        List<VBox> cards = episodeCards();
+        if (cards.isEmpty()) {
+            return;
+        }
+        int currentIndex = currentEpisodeCardIndex(cards);
+        int targetIndex = switch (event.getCode()) {
+            case UP -> Math.max(0, currentIndex - 1);
+            case DOWN -> Math.min(cards.size() - 1, currentIndex + 1);
+            case HOME -> 0;
+            case END -> cards.size() - 1;
+            default -> currentIndex;
+        };
+        if (targetIndex != currentIndex) {
+            focusEpisodeCard(cards.get(targetIndex));
+            event.consume();
+        }
+    }
+
+    private List<VBox> episodeCards() {
+        return cardsContainer.getChildren().stream()
+                .filter(VBox.class::isInstance)
+                .map(VBox.class::cast)
+                .filter(VBox::isFocusTraversable)
+                .toList();
+    }
+
+    private int currentEpisodeCardIndex(List<VBox> cards) {
+        int selectedIndex = selectedEpisodeCard == null ? -1 : cards.indexOf(selectedEpisodeCard);
+        if (selectedIndex >= 0) {
+            return selectedIndex;
+        }
+        Node focusOwner = getScene() == null ? null : getScene().getFocusOwner();
+        for (int index = 0; index < cards.size(); index++) {
+            if (isDescendantOf(focusOwner, cards.get(index))) {
+                return index;
+            }
+        }
+        return 0;
+    }
+
+    private void scheduleInitialEpisodeFocus() {
+        Platform.runLater(() -> {
+            List<VBox> cards = episodeCards();
+            if (cards.isEmpty() || getScene() == null || !isVisible()) {
+                return;
+            }
+            VBox target = selectedEpisodeCard != null && cards.contains(selectedEpisodeCard)
+                    ? selectedEpisodeCard
+                    : cards.getFirst();
+            setSelectedEpisodeCard(target);
+            Node focusOwner = getScene().getFocusOwner();
+            if (!isDescendantOf(focusOwner, cardsContainer)) {
+                focusEpisodeCard(target);
+            }
+        });
+    }
+
+    private void focusEpisodeCard(VBox card) {
+        if (card == null) {
+            return;
+        }
+        setSelectedEpisodeCard(card);
+        card.requestFocus();
+        scrollEpisodeCardIntoView(card);
+    }
+
+    private void scrollEpisodeCardIntoView(VBox card) {
+        double viewportHeight = cardsScroll.getViewportBounds().getHeight();
+        double contentHeight = cardsContainer.getBoundsInLocal().getHeight();
+        double scrollableHeight = contentHeight - viewportHeight;
+        if (viewportHeight <= 0 || scrollableHeight <= 0) {
+            return;
+        }
+        Bounds bounds = card.getBoundsInParent();
+        double viewportTop = cardsScroll.getVvalue() * scrollableHeight;
+        double viewportBottom = viewportTop + viewportHeight;
+        double targetTop = bounds.getMinY();
+        double targetBottom = bounds.getMaxY();
+        if (targetTop >= viewportTop && targetBottom <= viewportBottom) {
+            return;
+        }
+        double nextTop = targetTop < viewportTop ? targetTop : targetBottom - viewportHeight;
+        cardsScroll.setVvalue(Math.max(0, Math.min(1, nextTop / scrollableHeight)));
     }
 
     private String drawerEpisodeMeta(EpisodeItem row) {
@@ -959,7 +1085,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         if (selected) {
-            card.getStyleClass().add("selected-card");
+            if (!card.getStyleClass().contains("selected-card")) {
+                card.getStyleClass().add("selected-card");
+            }
         } else {
             card.getStyleClass().remove("selected-card");
         }
@@ -978,7 +1106,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         if (selected) {
-            label.getStyleClass().add("selected-card-text");
+            if (!label.getStyleClass().contains("selected-card-text")) {
+                label.getStyleClass().add("selected-card-text");
+            }
         } else {
             label.getStyleClass().remove("selected-card-text");
         }
@@ -990,6 +1120,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
         target.setOnContextMenuRequested(event -> {
+            focusEpisodeCard(target instanceof VBox vbox ? vbox : selectedEpisodeCard);
             populateEpisodeContextMenu(rowMenu, item);
             if (!rowMenu.getItems().isEmpty()) {
                 rowMenu.show(target, event.getScreenX(), event.getScreenY());
@@ -997,6 +1128,17 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             event.consume();
         });
         return rowMenu;
+    }
+
+    private boolean isDescendantOf(Node node, Node ancestor) {
+        Node current = node;
+        while (current != null) {
+            if (current == ancestor) {
+                return true;
+            }
+            current = current.getParent();
+        }
+        return false;
     }
 
     private void populateEpisodeContextMenu(ContextMenu rowMenu, EpisodeItem item) {

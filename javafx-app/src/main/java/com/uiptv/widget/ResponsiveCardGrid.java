@@ -88,6 +88,16 @@ public class ResponsiveCardGrid<T> extends StackPane {
         getChildren().addAll(cardPane, placeholder);
         items.addListener(itemChangeListener);
         widthProperty().addListener((_, _, _) -> updateCardWidths());
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene != null) {
+                scheduleInitialItemFocus();
+            }
+        });
+        visibleProperty().addListener((_, _, visible) -> {
+            if (Boolean.TRUE.equals(visible)) {
+                scheduleInitialItemFocus();
+            }
+        });
         addEventHandler(KeyEvent.KEY_PRESSED, this::handleNavigationKeyPressed);
         rebuildCards();
     }
@@ -222,6 +232,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
         updatePlaceholderVisibility();
         updateCardWidths();
         updateSelectionStyles();
+        ensureInitialSelection();
+        scheduleInitialItemFocus();
     }
 
     private void handleItemsChanged(ListChangeListener.Change<? extends T> change) {
@@ -249,6 +261,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
         updatePlaceholderVisibility();
         updateCardWidths();
         updateSelectionStyles();
+        ensureInitialSelection();
+        scheduleInitialItemFocus();
     }
 
     private void insertCards(int index, List<T> newItems) {
@@ -314,6 +328,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             return;
         }
         updateSelectionForClick(item, event);
+        card.requestFocus();
         boolean shouldActivate = itemActivatedHandler != null
                 && (event.getClickCount() == 2 || (activateOnSingleClick && event.getClickCount() == 1
                 && !event.isShiftDown() && !event.isShortcutDown() && !event.isControlDown()));
@@ -473,6 +488,66 @@ public class ResponsiveCardGrid<T> extends StackPane {
             return currentIndex;
         }
         return selectedItems.isEmpty() ? 0 : Math.max(0, items.indexOf(selectedItems.getFirst()));
+    }
+
+    private void ensureInitialSelection() {
+        if (items.isEmpty()) {
+            focusedItem = null;
+            anchorItem = null;
+            updateSelectionStyles();
+            return;
+        }
+        if (focusedItem != null && items.contains(focusedItem)) {
+            return;
+        }
+        if (!selectedItems.isEmpty()) {
+            focusedItem = selectedItems.getFirst();
+            anchorItem = focusedItem;
+            updateSelectionStyles();
+            return;
+        }
+        focusedItem = items.getFirst();
+        anchorItem = focusedItem;
+        selectOnly(focusedItem);
+        updateSelectionStyles();
+    }
+
+    private void scheduleInitialItemFocus() {
+        if (items.isEmpty()) {
+            return;
+        }
+        T target = getFocusedItem();
+        if (target == null) {
+            return;
+        }
+        Platform.runLater(() -> focusSelectedItemIfAppropriate(target));
+    }
+
+    private void focusSelectedItemIfAppropriate(T item) {
+        if (item == null || getScene() == null || !isVisible() || !items.contains(item)) {
+            return;
+        }
+        Node focusOwner = getScene().getFocusOwner();
+        if ((focusOwner instanceof TextInputControl textInput && !textInput.getText().isBlank())
+                || isDescendantOf(focusOwner, this)) {
+            return;
+        }
+        Region card = cardsByItem.get(item);
+        if (card != null) {
+            card.requestFocus();
+            scrollIntoPageView(card);
+        }
+    }
+
+    private boolean isDescendantOf(Node node, Node ancestor) {
+        Node current = node;
+        while (current != null) {
+            if (current == ancestor) {
+                return true;
+            }
+            current = current.getParent();
+        }
+        return false;
     }
 
     private void updateCardWidths() {
