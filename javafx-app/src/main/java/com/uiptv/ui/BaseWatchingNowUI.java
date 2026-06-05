@@ -1213,7 +1213,8 @@ public abstract class BaseWatchingNowUI extends VBox {
             return;
         }
         String selectedSeason = isBlank(season) ? "1" : season;
-        List<WatchingEpisode> episodes = episodesBySeason(data).getOrDefault(selectedSeason, List.of());
+        List<WatchingEpisode> episodes = filterSeasonEpisodes(
+                episodesBySeason(data).getOrDefault(selectedSeason, List.of()));
         data.selectedEpisodeCard = null;
         VBox cards = buildEpisodeCards(data, FXCollections.observableArrayList(episodes));
         cards.getStyleClass().add("watching-now-season-card-group");
@@ -1223,13 +1224,46 @@ public abstract class BaseWatchingNowUI extends VBox {
         scheduleInitialSeriesEpisodeFocus(data);
     }
 
+    private List<WatchingEpisode> filterSeasonEpisodes(List<WatchingEpisode> episodes) {
+        if (!isSearchActive() || episodes == null || episodes.isEmpty()) {
+            return episodes;
+        }
+        return episodes.stream()
+                .filter(episode -> matchesEpisodeSearch(episode, searchQuery))
+                .toList();
+    }
+
+    private boolean matchesEpisodeSearch(WatchingEpisode episode, String query) {
+        if (episode == null || isBlank(query)) {
+            return true;
+        }
+        StringBuilder searchable = new StringBuilder();
+        appendSearchText(searchable,
+                buildEpisodeDisplayTitle(episode.season, episode.episodeNum, episode.title),
+                episode.title,
+                episode.plot,
+                episode.releaseDate,
+                episode.rating,
+                episode.season,
+                episode.episodeNum);
+        if (episode.channel != null) {
+            appendSearchText(searchable,
+                    episode.channel.getName(),
+                    episode.channel.getChannelId(),
+                    episode.channel.getCmd());
+        }
+        return searchable.toString().toLowerCase(Locale.ROOT).contains(query);
+    }
+
     private VBox buildEpisodeCards(SeriesPanelData data, javafx.collections.ObservableList<WatchingEpisode> items) {
         VBox container = new VBox(thumbnailsEnabled() ? 10 : 6);
         container.setPadding(Insets.EMPTY);
         container.setFillWidth(true);
         VBox.setVgrow(container, Priority.ALWAYS);
         if (items == null || items.isEmpty()) {
-            container.getChildren().add(new Label(I18n.tr("autoNoEpisodesFound")));
+            container.getChildren().add(new Label(isSearchActive()
+                    ? I18n.tr("autoNothingFoundFor", searchQueryDisplay)
+                    : I18n.tr("autoNoEpisodesFound")));
             return container;
         }
         for (WatchingEpisode episode : items) {
