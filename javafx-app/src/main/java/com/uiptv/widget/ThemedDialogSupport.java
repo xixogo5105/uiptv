@@ -23,8 +23,12 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.stage.Window;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 public final class ThemedDialogSupport {
     private static final String FOCUS_BRIDGE_KEY = ThemedDialogSupport.class.getName() + ".focusBridge";
@@ -135,10 +139,6 @@ public final class ThemedDialogSupport {
     }
 
     public static <T> Optional<T> showAndWait(Dialog<T> dialog, Window ownerWindow) {
-        Optional<T> inlineResult = showInlineIfSupported(dialog, ownerWindow);
-        if (inlineResult.isPresent()) {
-            return inlineResult;
-        }
         Runnable removeOwnerDimming = applyOwnerDimming(ownerWindow);
         try {
             Platform.runLater(() -> focusDialogRepeatedly(dialog));
@@ -149,46 +149,78 @@ public final class ThemedDialogSupport {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> Optional<T> showInlineIfSupported(Dialog<T> dialog, Window ownerWindow) {
-        if (!(dialog instanceof Alert alert) || alert.getAlertType() != Alert.AlertType.CONFIRMATION) {
-            return Optional.empty();
-        }
-        Window primaryOwner = primaryOwnerWindow();
-        if (ownerWindow != null && primaryOwner != null && ownerWindow != primaryOwner) {
-            return Optional.empty();
-        }
-        List<ButtonType> buttons = List.copyOf(dialog.getDialogPane().getButtonTypes());
-        ButtonType fallback = fallbackButton(buttons);
-        Optional<ButtonType> result = InlinePanelService.showChoice(
-                firstNonBlank(alert.getHeaderText(), alert.getTitle(), I18n.tr("commonConfirm")),
-                alert.getContentText(),
-                buttons,
-                fallback
-        );
-        return result.map(buttonType -> (T) buttonType);
+    public static Optional<ButtonType> showChoice(String title,
+                                                  Node content,
+                                                  List<ButtonType> buttons,
+                                                  ButtonType fallbackButton) {
+        return showChoice(title, content, buttons, fallbackButton, null);
     }
 
-    private static ButtonType fallbackButton(List<ButtonType> buttons) {
-        if (buttons == null || buttons.isEmpty()) {
-            return new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
-        }
-        return buttons.stream()
-                .filter(buttonType -> buttonType.getButtonData() != null && buttonType.getButtonData().isCancelButton())
-                .findFirst()
-                .orElse(buttons.getLast());
+    public static Optional<ButtonType> showChoice(String title,
+                                                  Node content,
+                                                  List<ButtonType> buttons,
+                                                  ButtonType fallbackButton,
+                                                  Consumer<Map<ButtonType, Button>> buttonConfigurer) {
+        return showChoice(title, content, buttons, fallbackButton, buttonConfigurer, primaryOwnerWindow(), "uiptv-alert-dialog");
     }
 
-    private static String firstNonBlank(String... values) {
-        if (values == null) {
-            return "";
+    public static Optional<ButtonType> showChoice(String title,
+                                                  Node content,
+                                                  List<ButtonType> buttons,
+                                                  ButtonType fallbackButton,
+                                                  Consumer<Map<ButtonType, Button>> buttonConfigurer,
+                                                  Window ownerWindow,
+                                                  String styleClass) {
+        ButtonType fallback = fallbackButton == null
+                ? new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE)
+                : fallbackButton;
+        List<ButtonType> safeButtons = buttons == null || buttons.isEmpty()
+                ? List.of(fallback)
+                : buttons.stream().filter(Objects::nonNull).toList();
+        if (safeButtons.isEmpty()) {
+            safeButtons = List.of(fallback);
         }
-        for (String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle(Objects.toString(title, ""));
+        dialog.setHeaderText(Objects.toString(title, ""));
+        Node safeContent = content == null ? new Label("") : content;
+        dialog.getDialogPane().setContent(safeContent);
+        dialog.getDialogPane().getButtonTypes().setAll(safeButtons);
+        dialog.setResultConverter(buttonType -> buttonType == null ? fallback : buttonType);
+        prepare(dialog, ownerWindow, styleClass);
+        applyContentPreferredSize(dialog, safeContent);
+
+        if (buttonConfigurer != null) {
+            buttonConfigurer.accept(dialogButtons(dialog));
+        }
+
+        return showAndWait(dialog, ownerWindow).or(() -> Optional.of(fallback));
+    }
+
+    private static Map<ButtonType, Button> dialogButtons(Dialog<?> dialog) {
+        Map<ButtonType, Button> renderedButtons = new LinkedHashMap<>();
+        for (ButtonType buttonType : dialog.getDialogPane().getButtonTypes()) {
+            Button button = (Button) dialog.getDialogPane().lookupButton(buttonType);
+            if (button != null) {
+                renderedButtons.put(buttonType, button);
             }
         }
-        return "";
+        return Map.copyOf(renderedButtons);
+    }
+
+    private static void applyContentPreferredSize(Dialog<?> dialog, Node content) {
+        if (!(content instanceof Region region)) {
+            return;
+        }
+        double prefWidth = region.getPrefWidth();
+        if (prefWidth > 0 && prefWidth != Region.USE_COMPUTED_SIZE) {
+            dialog.getDialogPane().setPrefWidth(Math.max(DEFAULT_DIALOG_WIDTH, prefWidth));
+        }
+        double prefHeight = region.getPrefHeight();
+        if (prefHeight > 0 && prefHeight != Region.USE_COMPUTED_SIZE) {
+            dialog.getDialogPane().setPrefHeight(prefHeight);
+        }
     }
 
     public static Window primaryOwnerWindow() {

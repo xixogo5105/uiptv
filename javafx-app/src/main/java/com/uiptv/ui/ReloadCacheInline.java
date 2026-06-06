@@ -1273,15 +1273,6 @@ public class ReloadCacheInline extends VBox {
     }
 
     private java.util.Optional<ButtonType> confirmDeleteProblemAccounts(List<Account> toDelete) {
-        java.util.Optional<ButtonType> inlineResult = InlinePanelService.showConfirmation(
-                I18n.tr("commonConfirm"),
-                I18n.tr("reloadConfirmDeleteAccounts", toDelete.size()),
-                ButtonType.YES,
-                ButtonType.NO
-        );
-        if (inlineResult.isPresent()) {
-            return inlineResult;
-        }
         Alert alert = new Alert(
                 Alert.AlertType.CONFIRMATION,
                 I18n.tr("reloadConfirmDeleteAccounts", toDelete.size()),

@@ -2,7 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.service.FilterLockService;
 import com.uiptv.util.I18n;
-import com.uiptv.widget.InlinePanelService;
+import com.uiptv.widget.ThemedDialogSupport;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
@@ -36,7 +36,8 @@ public final class FilterLockDialogs {
         ButtonType unlockButtonType = new ButtonType(I18n.tr("filterLockUnlockAction"), ButtonBar.ButtonData.OK_DONE);
         ButtonType cancelButtonType = cancelButtonType();
 
-        Optional<ButtonType> result = showInlineChoice(
+        Optional<ButtonType> result = showPopupChoice(
+                owner,
                 "filterLockUnlockTitle",
                 createDialogContent(description, passwordField),
                 List.of(cancelButtonType, unlockButtonType),
@@ -74,7 +75,8 @@ public final class FilterLockDialogs {
         ButtonType saveButtonType = new ButtonType(I18n.tr("commonSave"), ButtonBar.ButtonData.OK_DONE);
         ButtonType cancelButtonType = cancelButtonType();
 
-        Optional<ButtonType> result = showInlineChoice(
+        Optional<ButtonType> result = showPopupChoice(
+                owner,
                 passwordAlreadySet ? "filterLockChangePasswordTitle" : "filterLockSetPasswordTitle",
                 content,
                 List.of(cancelButtonType, saveButtonType),
@@ -121,7 +123,8 @@ public final class FilterLockDialogs {
         ButtonType saveButtonType = new ButtonType(I18n.tr("commonSave"), ButtonBar.ButtonData.OK_DONE);
         ButtonType cancelButtonType = cancelButtonType();
 
-        Optional<ButtonType> result = showInlineChoice(
+        Optional<ButtonType> result = showPopupChoice(
+                owner,
                 "filterLockDisablePasswordTitle",
                 createDialogContent(warning, prompt, currentPassword),
                 List.of(cancelButtonType, saveButtonType),
@@ -169,12 +172,21 @@ public final class FilterLockDialogs {
         return content;
     }
 
-    private static Optional<ButtonType> showInlineChoice(String titleKey,
-                                                         Node content,
-                                                         List<ButtonType> buttons,
-                                                         ButtonType fallbackButton,
-                                                         Consumer<Map<ButtonType, Button>> buttonConfigurer) {
-        return InlinePanelService.showChoice(I18n.tr(titleKey), content, buttons, fallbackButton, buttonConfigurer);
+    private static Optional<ButtonType> showPopupChoice(Node owner,
+                                                        String titleKey,
+                                                        Node content,
+                                                        List<ButtonType> buttons,
+                                                        ButtonType fallbackButton,
+                                                        Consumer<Map<ButtonType, Button>> buttonConfigurer) {
+        return ThemedDialogSupport.showChoice(
+                I18n.tr(titleKey),
+                content,
+                buttons,
+                fallbackButton,
+                buttonConfigurer,
+                ThemedDialogSupport.ownerWindowOf(owner),
+                "uiptv-alert-dialog"
+        );
     }
 
     private static ButtonType cancelButtonType() {

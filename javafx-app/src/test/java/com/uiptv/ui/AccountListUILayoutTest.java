@@ -63,6 +63,10 @@ class AccountListUILayoutTest extends DbBackedUiTest {
             return new ToolbarSnapshot(
                     controlAccessibleTexts(ui),
                     containsStyleClass(ui, "account-footer"),
+                    containsStyleClass(ui, "list-filter-combo"),
+                    directChildHasStyle(ui, "list-toolbar-actions", "list-filter-combo"),
+                    toolbarHasLeadingSpacer(ui),
+                    regionMaxWidthByStyle(ui, "list-filter-combo"),
                     containsStyleClass(ui, "list-toolbar-actions"),
                     containsStyleClass(ui, "list-toolbar-sort-menu"),
                     containsStyleClass(ui, "list-toolbar-action-button"),
@@ -73,6 +77,10 @@ class AccountListUILayoutTest extends DbBackedUiTest {
 
         assertTrue(snapshot.accessibleTexts().contains(I18n.tr("autoSort") + ": " + I18n.tr("autoSortDefault")));
         assertTrue(snapshot.accessibleTexts().contains(I18n.tr("autoNewAccount")));
+        assertTrue(snapshot.hasFilterDropdown());
+        assertTrue(snapshot.filterDropdownSharesToolbarRow());
+        assertTrue(snapshot.toolbarHasLeadingSpacer());
+        assertTrue(snapshot.filterDropdownMaxWidth() <= 132.0);
         assertTrue(snapshot.hasToolbarActions());
         assertTrue(snapshot.hasSortDropdown());
         assertTrue(snapshot.hasQuietActionButton());
@@ -82,7 +90,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     }
 
     @Test
-    void accountToolbarKeepsSpacingBetweenPillBarAndActionsAfterCss() throws Exception {
+    void accountToolbarKeepsSpacingBetweenFilterDropdownAndActionsAfterCss() throws Exception {
         double spacing = runOnFxThread(() -> {
             AccountListUI ui = new AccountListUI(true, null, null);
             Scene scene = new Scene(ui, 520, 720);
@@ -92,7 +100,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
             ui.applyCss();
 
             Node toolbar = findByStyle(ui, "account-toolbar");
-            return toolbar instanceof VBox vBox ? vBox.getSpacing() : -1.0;
+            return toolbar instanceof HBox hBox ? hBox.getSpacing() : -1.0;
         });
 
         assertEquals(8.0, spacing, 0.01);
@@ -333,6 +341,29 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         return node instanceof Labeled labeled && labeled.getGraphic() != null;
     }
 
+    private static boolean directChildHasStyle(Node root, String parentStyleClass, String childStyleClass) {
+        Node node = findByStyle(root, parentStyleClass);
+        if (!(node instanceof Parent parent)) {
+            return false;
+        }
+        return parent.getChildrenUnmodifiable().stream()
+                .anyMatch(child -> child.getStyleClass().contains(childStyleClass));
+    }
+
+    private static boolean toolbarHasLeadingSpacer(Node root) {
+        Node node = findByStyle(root, "list-toolbar-actions");
+        if (!(node instanceof Parent parent) || parent.getChildrenUnmodifiable().isEmpty()) {
+            return false;
+        }
+        Node first = parent.getChildrenUnmodifiable().getFirst();
+        return first instanceof Region && first.getStyleClass().isEmpty();
+    }
+
+    private static double regionMaxWidthByStyle(Node root, String styleClass) {
+        Node node = findByStyle(root, styleClass);
+        return node instanceof Region region ? region.getMaxWidth() : Double.NaN;
+    }
+
     private static Node findByStyle(Node node, String styleClass) {
         if (node.getStyleClass().contains(styleClass)) {
             return node;
@@ -366,6 +397,10 @@ class AccountListUILayoutTest extends DbBackedUiTest {
 
     private record ToolbarSnapshot(List<String> accessibleTexts,
                                    boolean hasFooter,
+                                   boolean hasFilterDropdown,
+                                   boolean filterDropdownSharesToolbarRow,
+                                   boolean toolbarHasLeadingSpacer,
+                                   double filterDropdownMaxWidth,
                                    boolean hasToolbarActions,
                                    boolean hasSortDropdown,
                                    boolean hasQuietActionButton,

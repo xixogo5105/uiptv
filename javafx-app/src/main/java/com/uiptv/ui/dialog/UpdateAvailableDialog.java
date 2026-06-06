@@ -2,7 +2,7 @@ package com.uiptv.ui.dialog;
 
 import com.uiptv.ui.UpdateInfo;
 import com.uiptv.util.I18n;
-import com.uiptv.widget.InlinePanelService;
+import com.uiptv.widget.ThemedDialogSupport;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.ButtonBar;
@@ -48,7 +48,7 @@ public final class UpdateAvailableDialog {
 
         ButtonType closeButton = new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
         ButtonType downloadButton = new ButtonType("Download", ButtonBar.ButtonData.OK_DONE);
-        return InlinePanelService.showChoice(
+        return ThemedDialogSupport.showChoice(
                         "Update Available",
                         root,
                         List.of(closeButton, downloadButton),

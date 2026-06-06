@@ -9,9 +9,10 @@ import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.stage.Window;
 
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 public class UIptvAlert {
@@ -58,22 +59,30 @@ public class UIptvAlert {
             AppLog.addWarningLog(UIptvAlert.class, "Confirmation skipped in headless mode.");
             return false;
         }
+        if (!Platform.isFxApplicationThread()) {
+            AtomicBoolean confirmed = new AtomicBoolean(false);
+            CountDownLatch latch = new CountDownLatch(1);
+            Platform.runLater(() -> {
+                try {
+                    confirmed.set(showConfirmationAlertNow(message));
+                } finally {
+                    latch.countDown();
+                }
+            });
+            awaitLatch(latch);
+            return confirmed.get();
+        }
+        return showConfirmationAlertNow(message);
+    }
+
+    private static boolean showConfirmationAlertNow(String message) {
         ButtonType okButton = okButtonType();
         ButtonType closeButton = closeButtonType();
-        Optional<ButtonType> inlineResult = InlinePanelService.showConfirmation(
-                I18n.tr("commonConfirm"),
-                message,
-                okButton,
-                closeButton
-        );
-        if (inlineResult.isPresent()) {
-            return inlineResult.get() == okButton;
-        }
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message, okButton, closeButton);
         alert.setTitle(I18n.tr("commonConfirm"));
         alert.setHeaderText(I18n.tr("commonConfirm"));
         prepareAlert(alert, okButton, closeButton);
-        Optional<ButtonType> result = ThemedDialogSupport.showAndWait(alert, alertOwnerWindow());
+        java.util.Optional<ButtonType> result = ThemedDialogSupport.showAndWait(alert, alertOwnerWindow());
         return result.isPresent() && result.get() == okButton;
     }
 
@@ -160,6 +169,14 @@ public class UIptvAlert {
 
     private static boolean isHeadlessMode() {
         return Boolean.getBoolean("uiptv.headless");
+    }
+
+    private static void awaitLatch(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static void logError(String message, Exception ex) {

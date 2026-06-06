@@ -10,6 +10,7 @@ import com.uiptv.service.CategoryResolver;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.SearchableTableView;
 import com.uiptv.widget.ThemedDialogSupport;
@@ -574,7 +575,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private void releaseTransientStateIfAllowed() {
-        if (retainTransientStateOnDetach) {
+        if (retainTransientStateOnDetach || InlinePanelService.hasOpenPanel()) {
             transientStateReleasePending = true;
             return;
         }

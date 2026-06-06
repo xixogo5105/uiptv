@@ -37,6 +37,11 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
             return new ToolbarSnapshot(
                     controlAccessibleTexts(ui),
                     containsStyleClass(ui, "bookmark-footer"),
+                    containsStyleClass(ui, "bookmark-list-panel"),
+                    containsStyleClass(ui, "list-filter-combo"),
+                    directChildHasStyle(ui, "list-toolbar-actions", "list-filter-combo"),
+                    toolbarHasLeadingSpacer(ui),
+                    regionMaxWidthByStyle(ui, "list-filter-combo"),
                     containsStyleClass(ui, "list-toolbar-actions"),
                     containsStyleClass(ui, "list-toolbar-sort-menu"),
                     containsStyleClass(ui, "list-toolbar-action-button"),
@@ -47,6 +52,11 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
 
         assertTrue(snapshot.accessibleTexts().contains(I18n.tr("autoSort") + ": " + I18n.tr("autoSortDefault")));
         assertTrue(snapshot.accessibleTexts().contains(I18n.tr("searchableTableManageTabs")));
+        assertTrue(snapshot.hasListPanel());
+        assertTrue(snapshot.hasFilterDropdown());
+        assertTrue(snapshot.filterDropdownSharesToolbarRow());
+        assertTrue(snapshot.toolbarHasLeadingSpacer());
+        assertTrue(snapshot.filterDropdownMaxWidth() <= 132.0);
         assertTrue(snapshot.hasToolbarActions());
         assertTrue(snapshot.hasSortDropdown());
         assertTrue(snapshot.hasQuietActionButton());
@@ -255,6 +265,29 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
         return node instanceof Labeled labeled && labeled.getGraphic() != null;
     }
 
+    private static boolean directChildHasStyle(Node root, String parentStyleClass, String childStyleClass) {
+        Node node = findByStyle(root, parentStyleClass);
+        if (!(node instanceof Parent parent)) {
+            return false;
+        }
+        return parent.getChildrenUnmodifiable().stream()
+                .anyMatch(child -> child.getStyleClass().contains(childStyleClass));
+    }
+
+    private static boolean toolbarHasLeadingSpacer(Node root) {
+        Node node = findByStyle(root, "list-toolbar-actions");
+        if (!(node instanceof Parent parent) || parent.getChildrenUnmodifiable().isEmpty()) {
+            return false;
+        }
+        Node first = parent.getChildrenUnmodifiable().getFirst();
+        return first instanceof Region && first.getStyleClass().isEmpty();
+    }
+
+    private static double regionMaxWidthByStyle(Node root, String styleClass) {
+        Node node = findByStyle(root, styleClass);
+        return node instanceof Region region ? region.getMaxWidth() : Double.NaN;
+    }
+
     private static Node findByStyle(Node node, String styleClass) {
         if (node.getStyleClass().contains(styleClass)) {
             return node;
@@ -272,6 +305,11 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
 
     private record ToolbarSnapshot(List<String> accessibleTexts,
                                    boolean hasFooter,
+                                   boolean hasListPanel,
+                                   boolean hasFilterDropdown,
+                                   boolean filterDropdownSharesToolbarRow,
+                                   boolean toolbarHasLeadingSpacer,
+                                   double filterDropdownMaxWidth,
                                    boolean hasToolbarActions,
                                    boolean hasSortDropdown,
                                    boolean hasQuietActionButton,

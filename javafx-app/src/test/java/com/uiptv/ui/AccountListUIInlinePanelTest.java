@@ -111,6 +111,44 @@ class AccountListUIInlinePanelTest extends DbBackedUiTest {
         assertTrue(runOnFxThread(() -> categoryCardCount(categoryListUI) > 0));
     }
 
+    @Test
+    void temporaryInlineConfirmationDoesNotClearActiveCategoryBrowserItems() throws Exception {
+        AccountListUI accountListUI = runOnFxThread(() -> new AccountListUI(true, null, null));
+        CategoryListUI categoryListUI = runOnFxThread(() -> {
+            Account account = new Account();
+            account.setAccountName("Account");
+            account.setAction(Account.AccountAction.itv);
+            CategoryListUI ui = new CategoryListUI(account, true);
+            ui.setItems(java.util.List.of(
+                    category("news", "News"),
+                    category("sports", "Sports")
+            ));
+            return ui;
+        });
+
+        host = runOnFxThread(() -> {
+            StackPane inlineHost = InlinePanelService.createHost(accountListUI);
+            InlinePanelService.install(inlineHost);
+            new Scene(inlineHost, 900, 600);
+            showAccountBrowser(accountListUI, categoryListUI);
+            return inlineHost;
+        });
+        assertTrue(runOnFxThread(() -> categoryCardCount(categoryListUI) > 0));
+
+        InlinePanelService.InlinePanelHandle handle = runOnFxThread(() ->
+                InlinePanelService.open("DRM confirmation", new Label("DRM browser playback")).orElseThrow());
+        FxTestSupport.waitForFxEvents();
+
+        assertTrue(runOnFxThread(() -> categoryCardCount(categoryListUI) > 0));
+
+        runOnFxThread(() -> {
+            handle.close();
+            return null;
+        });
+
+        assertTrue(runOnFxThread(() -> categoryCardCount(categoryListUI) > 0));
+    }
+
     private static void showDetailView(AccountListUI accountListUI, Node content) throws Exception {
         Method method = AccountListUI.class.getDeclaredMethod("showDetailView", Node.class);
         method.setAccessible(true);

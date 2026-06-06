@@ -864,7 +864,7 @@
 
 .bookmarks-page-scroll,
 .bookmarks-page-scroll > .viewport {
-    -fx-background-color: -uiptv-app-bg;
+    -fx-background-color: transparent;
     -fx-border-color: transparent;
 }
 
@@ -872,6 +872,16 @@
 .episode-loading-frame,
 .watching-now-episode-card-frame {
     -fx-background-color: transparent;
+}
+
+.bookmark-list-panel {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 10;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
 }
 
 .bookmark-loading-overlay {
@@ -1489,6 +1499,17 @@
 
 .bookmark-category-row {
     -fx-padding: 0;
+}
+
+.list-filter-combo {
+    -fx-min-height: 42;
+    -fx-pref-height: 42;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+}
+
+.list-filter-combo .list-cell {
+    -fx-font-weight: 600;
 }
 
 .list-toolbar-actions {
@@ -2783,7 +2804,6 @@
     -fx-padding: 22;
     -fx-min-width: 520;
     -fx-pref-width: 560;
-    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.24), 28, 0.20, 0, 12);
 }
 
 .uiptv-modal-dialog > .content {

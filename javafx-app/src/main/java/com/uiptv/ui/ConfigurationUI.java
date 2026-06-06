@@ -24,6 +24,7 @@ import com.uiptv.widget.InlinePanelService.InlinePanelHandle;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayerOptionCard;
 import com.uiptv.widget.SwitchToggle;
+import com.uiptv.widget.ThemedDialogSupport;
 import com.uiptv.widget.UiRenderQuality;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
@@ -2903,7 +2904,7 @@ public class ConfigurationUI extends VBox {
         helpText.setMaxWidth(Double.MAX_VALUE);
 
         ButtonType closeButton = new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
-        InlinePanelService.showChoice(title, helpText, List.of(closeButton), closeButton);
+        ThemedDialogSupport.showChoice(title, helpText, List.of(closeButton), closeButton);
     }
     private record VlcCachingOption(String value, String label) {
         private static java.util.List<VlcCachingOption> all() {
