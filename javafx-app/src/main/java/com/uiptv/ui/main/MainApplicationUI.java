@@ -22,11 +22,11 @@ import javafx.stage.Stage;
 import java.util.function.Consumer;
 
 public class MainApplicationUI extends BaseMainApplicationUI {
-    private static final double WIDE_APP_AREA_FRACTION = 0.28;
+    private static final double WIDE_APP_AREA_FRACTION = 0.27;
     private static final double WIDE_APP_AREA_MIN_WIDTH = 420;
     private static final double WIDE_APP_AREA_SMALL_SCREEN_MIN_WIDTH = 360;
     private static final double WIDE_APP_AREA_SMALL_SCREEN_THRESHOLD = 1300;
-    private static final double WIDE_APP_AREA_MAX_WIDTH = 560;
+    private static final double WIDE_APP_AREA_MAX_WIDTH = 540;
     private static final String ICON_SHOW_NAVIGATION = "M3 5H21V19H3V5ZM5 7V17H10V7H5ZM12.7 8.7L16.1 12 12.7 15.3 11.3 13.9 13.2 12 11.3 10.1Z";
     private final boolean embeddedEnabled;
     private final Runnable wideNavigationToggleHandler = this::toggleWidePlayerNavigation;

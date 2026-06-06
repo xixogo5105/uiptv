@@ -123,6 +123,20 @@ class BaseVideoPlayerHlsResolutionTest {
         assertEquals("M3 5H21V19H3V5ZM5 7V17H11V7H5ZM13 7V17H19V7H13Z", state.iconContent());
     }
 
+    @Test
+    void layoutModeButtonSitsNextToZoomControl() throws Exception {
+        boolean adjacent = runOnFxThread(() -> {
+            ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+            try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class)) {
+                configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+                Mockito.when(configurationService.read()).thenReturn(new Configuration());
+                return new TestPlayer().layoutButtonIsImmediatelyBeforeAspectRatioButton();
+            }
+        });
+
+        assertTrue(adjacent);
+    }
+
     private static <T> T runOnFxThread(FxCallable<T> task) throws Exception {
         if (Platform.isFxApplicationThread()) {
             return task.call();
@@ -199,6 +213,14 @@ class BaseVideoPlayerHlsResolutionTest {
 
         String layoutIconContent() {
             return layoutModeIcon.getContent();
+        }
+
+        boolean layoutButtonIsImmediatelyBeforeAspectRatioButton() {
+            if (!(btnLayoutMode.getParent() instanceof javafx.scene.layout.HBox buttonRow)) {
+                return false;
+            }
+            return buttonRow.getChildren().indexOf(btnLayoutMode) + 1
+                    == buttonRow.getChildren().indexOf(btnAspectRatio);
         }
     }
 }

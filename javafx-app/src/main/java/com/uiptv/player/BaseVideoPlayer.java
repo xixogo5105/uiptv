@@ -269,7 +269,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         HBox buttonRow = new HBox(1.5);
         buttonRow.setAlignment(Pos.CENTER_LEFT);
-        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward, btnRepeat, btnReload, btnLayoutMode, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio);
+        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnLayoutMode, btnAspectRatio);
         buttonRow.getChildren().add(btnTracks);
         buttonRow.getChildren().add(btnHideBar);
 
