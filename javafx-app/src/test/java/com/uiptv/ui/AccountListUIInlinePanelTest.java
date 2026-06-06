@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import com.uiptv.model.Account;
+import com.uiptv.model.Category;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.widget.InlinePanelService;
@@ -69,15 +71,81 @@ class AccountListUIInlinePanelTest extends DbBackedUiTest {
         assertTrue(runOnFxThread(() -> detailContent(accountListUI).getChildren().contains(manageAccountContent)));
     }
 
+    @Test
+    void returningFromManageAccountKeepsActiveCategoryBrowserItems() throws Exception {
+        AccountListUI accountListUI = runOnFxThread(() -> new AccountListUI(true, null, null));
+        CategoryListUI categoryListUI = runOnFxThread(() -> {
+            Account account = new Account();
+            account.setAccountName("Account");
+            account.setAction(Account.AccountAction.itv);
+            CategoryListUI ui = new CategoryListUI(account, true);
+            ui.setItems(java.util.List.of(
+                    category("news", "News"),
+                    category("sports", "Sports")
+            ));
+            return ui;
+        });
+        Label manageAccountContent = runOnFxThread(() -> new Label("Manage account form"));
+
+        host = runOnFxThread(() -> {
+            StackPane root = new StackPane(accountListUI);
+            new Scene(root, 900, 600);
+            showAccountBrowser(accountListUI, categoryListUI);
+            return root;
+        });
+        assertTrue(runOnFxThread(() -> categoryCardCount(categoryListUI) > 0));
+
+        runOnFxThread(() -> {
+            showDetailView(accountListUI, manageAccountContent);
+            return null;
+        });
+        FxTestSupport.waitForFxEvents();
+
+        assertTrue(runOnFxThread(() -> categoryCardCount(categoryListUI) > 0));
+
+        runOnFxThread(() -> {
+            showPreviousView(accountListUI);
+            return null;
+        });
+
+        assertTrue(runOnFxThread(() -> categoryCardCount(categoryListUI) > 0));
+    }
+
     private static void showDetailView(AccountListUI accountListUI, Node content) throws Exception {
         Method method = AccountListUI.class.getDeclaredMethod("showDetailView", Node.class);
         method.setAccessible(true);
         method.invoke(accountListUI, content);
     }
 
+    private static void showAccountBrowser(AccountListUI accountListUI, CategoryListUI categoryListUI) throws Exception {
+        Method method = AccountListUI.class.getDeclaredMethod("showAccountBrowser", CategoryListUI.class);
+        method.setAccessible(true);
+        method.invoke(accountListUI, categoryListUI);
+    }
+
+    private static void showPreviousView(AccountListUI accountListUI) throws Exception {
+        Method method = AccountListUI.class.getDeclaredMethod("showPreviousView");
+        method.setAccessible(true);
+        method.invoke(accountListUI);
+    }
+
     private static VBox detailContent(AccountListUI accountListUI) throws Exception {
         Field field = AccountListUI.class.getDeclaredField("detailContent");
         field.setAccessible(true);
         return (VBox) field.get(accountListUI);
+    }
+
+    private static int categoryCardCount(CategoryListUI categoryListUI) throws Exception {
+        Field field = CategoryListUI.class.getDeclaredField("categoryCardList");
+        field.setAccessible(true);
+        return ((VBox) field.get(categoryListUI)).getChildren().size();
+    }
+
+    private static Category category(String id, String title) {
+        Category category = new Category();
+        category.setDbId(id);
+        category.setCategoryId(id);
+        category.setTitle(title);
+        return category;
     }
 }

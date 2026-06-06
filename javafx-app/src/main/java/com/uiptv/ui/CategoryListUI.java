@@ -92,6 +92,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private CategoryItem focusedCategoryItem;
     private boolean mediaDrawerMode;
     private boolean categoryDataLoaded;
+    private boolean retainTransientStateOnDetach;
+    private boolean transientStateReleasePending;
     private String searchText = "";
 
     public CategoryListUI(Account account, boolean embeddedMode) {
@@ -519,11 +521,35 @@ public class CategoryListUI extends HBox implements SearchTarget {
             if (newScene == null) {
                 Platform.runLater(() -> {
                     if (getScene() == null) {
-                        releaseTransientState();
+                        releaseTransientStateIfAllowed();
                     }
                 });
+            } else {
+                transientStateReleasePending = false;
             }
         });
+    }
+
+    public void setRetainTransientStateOnDetach(boolean retainTransientStateOnDetach) {
+        this.retainTransientStateOnDetach = retainTransientStateOnDetach;
+        if (retainTransientStateOnDetach) {
+            return;
+        }
+        if (getScene() == null && transientStateReleasePending) {
+            transientStateReleasePending = false;
+            releaseTransientState();
+        } else if (getScene() != null) {
+            transientStateReleasePending = false;
+        }
+    }
+
+    private void releaseTransientStateIfAllowed() {
+        if (retainTransientStateOnDetach) {
+            transientStateReleasePending = true;
+            return;
+        }
+        transientStateReleasePending = false;
+        releaseTransientState();
     }
 
     private void releaseTransientState() {
@@ -548,6 +574,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     public void dispose() {
+        retainTransientStateOnDetach = false;
+        transientStateReleasePending = false;
         releaseTransientState();
     }
 

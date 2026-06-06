@@ -446,7 +446,22 @@
 }
 
 .verification-progress-root {
+    -fx-background-color: transparent;
+}
+
+.verification-progress-shell {
+    -fx-padding: 18;
+    -fx-alignment: center;
+}
+
+.verification-progress-card-shell {
     -fx-background-color: linear-gradient(to bottom right, #ffffff, #f6f7f9);
+    -fx-border-color: rgba(15, 23, 42, 0.10);
+    -fx-border-width: 1;
+    -fx-background-radius: 24;
+    -fx-border-radius: 24;
+    -fx-padding: 18;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.14), 24, 0.16, 0, 8);
 }
 
 .verification-progress-summary,
@@ -457,7 +472,7 @@
 }
 
 .verification-log-card {
-    -fx-min-height: 280;
+    -fx-min-height: 0;
 }
 
 .verification-log-container {
@@ -480,6 +495,11 @@
 
 .verification-card-title {
     -fx-padding: 0 0 2 0;
+}
+
+.verification-card-title-row {
+    -fx-alignment: center-left;
+    -fx-spacing: 8;
 }
 
 .verification-card-title .text,
@@ -506,12 +526,23 @@
 }
 
 .verification-pause-widget {
-    -fx-background-color: -uiptv-surface;
-    -fx-border-color: -uiptv-border-subtle;
+    -fx-background-color: #eef6ff;
+    -fx-border-color: #b7d5ff;
     -fx-border-width: 1;
     -fx-background-radius: 999;
     -fx-border-radius: 999;
     -fx-padding: 5 10 5 8;
+}
+
+.verification-pause-widget .label {
+    -fx-text-fill: #0d47a1;
+    -fx-font-weight: bold;
+}
+
+.verification-default-pill {
+    -fx-background-color: #0f7a38;
+    -fx-text-fill: #ffffff;
+    -fx-padding: 3 9 3 9;
 }
 
 .default-text {
@@ -3621,6 +3652,7 @@
     -fx-background-radius: 15;
     -fx-border-radius: 15;
     -fx-padding: 10 12 10 12;
+    -fx-alignment: top-left;
     -fx-cursor: hand;
 }
 
@@ -3659,6 +3691,8 @@
 
 .reload-problem-account-content {
     -fx-background-color: transparent;
+    -fx-padding: 0 0 0 12;
+    -fx-alignment: top-left;
 }
 
 .reload-problem-account-name {

@@ -94,9 +94,11 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     }
 
     @Test
-    void activeBrowserSearchAlsoFiltersAccountList() throws Exception {
-        List<String> visibleAccounts = runOnFxThread(() -> {
+    void activeBrowserSearchOnlyFiltersRightSideBrowser() throws Exception {
+        BrowserSearchClearSnapshot snapshot = runOnFxThread(() -> {
             AccountListUI ui = new AccountListUI(true, null, null);
+            RecordingCategoryListUI activeBrowser = new RecordingCategoryListUI();
+            setActiveCategoryListUI(ui, activeBrowser);
             masterAccountItems(ui).setAll(
                     accountItem("Sports Account", "1", false, 0),
                     accountItem("Movies Account", "2", false, 1),
@@ -106,13 +108,18 @@ class AccountListUILayoutTest extends DbBackedUiTest {
             switchHeaderSearchMode(ui, "ACTIVE_BROWSER", false);
 
             ui.table.getTextField().setText("movies");
+            invokeApplyAccountOrdering(ui);
 
-            return accountGrid(ui).getItems().stream()
-                    .map(AccountListUI.AccountItem::getAccountName)
-                    .toList();
+            return new BrowserSearchClearSnapshot(
+                    accountGrid(ui).getItems().stream()
+                            .map(AccountListUI.AccountItem::getAccountName)
+                            .toList(),
+                    List.copyOf(activeBrowser.queries)
+            );
         });
 
-        assertEquals(List.of("Movies Account"), visibleAccounts);
+        assertEquals(List.of("Sports Account", "Movies Account", "News Account"), snapshot.visibleAccounts());
+        assertEquals("movies", snapshot.browserQueries().getLast());
     }
 
     @Test

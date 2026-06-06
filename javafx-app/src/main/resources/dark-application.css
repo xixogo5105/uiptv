@@ -493,7 +493,22 @@
 }
 
 .verification-progress-root {
-    -fx-background-color: linear-gradient(to bottom right, #1b1d28, #171924);
+    -fx-background-color: transparent;
+}
+
+.verification-progress-shell {
+    -fx-padding: 18;
+    -fx-alignment: center;
+}
+
+.verification-progress-card-shell {
+    -fx-background-color: linear-gradient(to bottom right, #242a34, #1f2430);
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-width: 1;
+    -fx-background-radius: 24;
+    -fx-border-radius: 24;
+    -fx-padding: 18;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.38), 24, 0.16, 0, 8);
 }
 
 .verification-progress-summary,
@@ -504,7 +519,7 @@
 }
 
 .verification-log-card {
-    -fx-min-height: 280;
+    -fx-min-height: 0;
 }
 
 .verification-log-container {
@@ -527,6 +542,11 @@
 
 .verification-card-title {
     -fx-padding: 0 0 2 0;
+}
+
+.verification-card-title-row {
+    -fx-alignment: center-left;
+    -fx-spacing: 8;
 }
 
 .verification-card-title .text,
@@ -553,12 +573,23 @@
 }
 
 .verification-pause-widget {
-    -fx-background-color: -uiptv-surface;
-    -fx-border-color: -uiptv-border-subtle;
+    -fx-background-color: #17304e;
+    -fx-border-color: #35608f;
     -fx-border-width: 1;
     -fx-background-radius: 999;
     -fx-border-radius: 999;
     -fx-padding: 5 10 5 8;
+}
+
+.verification-pause-widget .label {
+    -fx-text-fill: #d7e9ff;
+    -fx-font-weight: bold;
+}
+
+.verification-default-pill {
+    -fx-background-color: #2f9c5d;
+    -fx-text-fill: #ffffff;
+    -fx-padding: 3 9 3 9;
 }
 
 .default-text {
@@ -3667,6 +3698,7 @@
     -fx-background-radius: 15;
     -fx-border-radius: 15;
     -fx-padding: 10 12 10 12;
+    -fx-alignment: top-left;
     -fx-cursor: hand;
 }
 
@@ -3705,6 +3737,8 @@
 
 .reload-problem-account-content {
     -fx-background-color: transparent;
+    -fx-padding: 0 0 0 12;
+    -fx-alignment: top-left;
 }
 
 .reload-problem-account-name {

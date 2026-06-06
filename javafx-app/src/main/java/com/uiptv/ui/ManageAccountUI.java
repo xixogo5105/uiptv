@@ -394,6 +394,7 @@ public class ManageAccountUI extends VBox {
         }
 
         ProgressInline progressInline = new ProgressInline();
+        progressInline.setDefaultMacAddress(macAddress.getValue());
         InlinePanelService.open(
                 I18n.tr("autoVerifyingMacAddresses"),
                 progressInline,
@@ -482,10 +483,7 @@ public class ManageAccountUI extends VBox {
     }
 
     private void appendVerificationSectionHeader(ProgressInline progressInline, String mac, int index, int total) {
-        if (index > 0) {
-            progressInline.addProgressText("--------------------------------------------------");
-        }
-        progressInline.addProgressText(I18n.tr("manageVerifyingMacProgress", index + 1, total, mac));
+        progressInline.addVerificationHeader(mac, index, total);
     }
 
     private void pauseBetweenMacChecks(ProgressInline progressInline, AtomicBoolean stopRequested) throws InterruptedException {

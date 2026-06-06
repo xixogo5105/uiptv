@@ -1231,6 +1231,7 @@ public class ReloadCacheInline extends VBox {
                     : String.join(" | ", status.reasons);
             CheckBox cb = new CheckBox();
             cb.getStyleClass().addAll("reload-problem-account-row", problemAccountStyleClass(status));
+            cb.setAlignment(Pos.TOP_LEFT);
             cb.setGraphic(buildProblemAccountGraphic(account, reasons));
             cb.setMaxWidth(Double.MAX_VALUE);
             cb.setUserData(account);
@@ -1272,7 +1273,8 @@ public class ReloadCacheInline extends VBox {
 
         HBox row = new HBox(text);
         row.getStyleClass().add("reload-problem-account-content");
-        row.setAlignment(Pos.CENTER_LEFT);
+        row.setAlignment(Pos.TOP_LEFT);
+        row.setPadding(new Insets(0, 0, 0, 12));
         row.setMinWidth(0);
         row.setMaxWidth(Double.MAX_VALUE);
         return row;

@@ -561,6 +561,7 @@ public class AccountListUI extends HBox implements SearchTarget {
                 embeddedContainer.getChildren().setAll(currentContent);
             }
             showBody(embeddedContainer);
+            categoryListUI.setRetainTransientStateOnDetach(false);
             return;
         }
         setAccountBrowserCompact(true);
@@ -573,6 +574,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         updateNavButtons();
         embeddedContainer.getChildren().setAll(currentContent);
         showBody(embeddedContainer);
+        categoryListUI.setRetainTransientStateOnDetach(false);
     }
 
     private void disposeActiveCategoryList() {
@@ -630,6 +632,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         }
         if (!(content instanceof CategoryListUI)) {
             switchHeaderSearchMode(HeaderSearchMode.ACCOUNTS, false);
+            retainActiveCategoryBrowserForDetailView();
         }
         detailContent.getChildren().setAll(content);
         VBox.setVgrow(content, Priority.ALWAYS);
@@ -690,6 +693,18 @@ public class AccountListUI extends HBox implements SearchTarget {
         updateNavButtons();
         embeddedContainer.getChildren().setAll(navHeader, currentContent);
         showBody(embeddedContainer);
+        if (prev == activeCategoryListUI && activeCategoryListUI != null) {
+            activeCategoryListUI.setRetainTransientStateOnDetach(false);
+        }
+    }
+
+    private void retainActiveCategoryBrowserForDetailView() {
+        if (activeCategoryListUI == null) {
+            return;
+        }
+        if (currentContent == browserLayout || currentContent == activeCategoryListUI) {
+            activeCategoryListUI.setRetainTransientStateOnDetach(true);
+        }
     }
 
     private void updateNavButtons() {
@@ -1058,9 +1073,15 @@ public class AccountListUI extends HBox implements SearchTarget {
     @Override
     public void setSearchQuery(String query) {
         String value = query == null ? "" : query;
+        accountHeaderSearchText = value;
+        if (headerSearchMode != HeaderSearchMode.ACCOUNTS) {
+            return;
+        }
         if (!Objects.equals(table.getTextField().getText(), value)) {
             table.getTextField().setText(value);
+            return;
         }
+        applyAccountOrdering();
     }
 
     private void handleHeaderSearchTextChanged(String text) {
@@ -1102,7 +1123,6 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     private void applyActiveBrowserSearch() {
         SearchTarget.apply(activeCategoryListUI, browserHeaderSearchText);
-        applyAccountOrdering();
     }
 
     private void replaceBrowserHeaderSearchText(String text) {
@@ -1139,7 +1159,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         if (item == null) {
             return false;
         }
-        String searchText = table.getTextField().getText();
+        String searchText = headerSearchMode == HeaderSearchMode.ACCOUNTS ? accountHeaderSearchText : "";
         String normalizedSearch = searchText == null ? "" : searchText.trim().toLowerCase(Locale.ROOT);
         String accountNameValue = item.getAccountName() == null ? "" : item.getAccountName();
         boolean matchesSearch = normalizedSearch.isBlank()
