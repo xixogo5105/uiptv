@@ -74,6 +74,8 @@ public class ReloadCacheInline extends VBox {
     private static final String TR_RELOAD_NO_CHANNELS_LOADED = "reloadNoChannelsLoaded";
     private static final int MAX_LOG_LINES_PER_ACCOUNT = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxLinesPerAccount", 500));
     private static final int MAX_PENDING_LOG_LINES = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxPending", 2_000));
+    private static final double BULK_FAILURE_DIALOG_CONTENT_WIDTH = 520;
+    private static final double BULK_FAILURE_DIALOG_CONTENT_INSET = 14;
     private static final boolean POST_RELOAD_MEMORY_CLEANUP_ENABLED = Boolean.parseBoolean(
             System.getProperty("uiptv.reload.memoryCleanup.enabled", "true"));
     private static final int POST_RELOAD_MEMORY_CLEANUP_MIN_ACCOUNTS = Math.max(1,
@@ -138,6 +140,7 @@ public class ReloadCacheInline extends VBox {
     private final AtomicBoolean logDrainScheduled = new AtomicBoolean(false);
     private final AtomicReference<Thread> reloadThread = new AtomicReference<>();
     private final boolean showFailureHandlingCard;
+    private final boolean promptFailureHandlingBeforeAutoStart;
     private volatile boolean stopRequested = false;
     private volatile boolean disposed = false;
     private volatile GlobalFailureDecision automaticGlobalFailureDecision;
@@ -179,14 +182,21 @@ public class ReloadCacheInline extends VBox {
     }
 
     public ReloadCacheInline(List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
-        this(preselectedAccounts, onAccountsDeleted, preselectedAccounts == null || preselectedAccounts.isEmpty());
+        this(
+                preselectedAccounts,
+                onAccountsDeleted,
+                shouldShowFailureHandlingCard(preselectedAccounts),
+                shouldPromptFailureHandlingBeforeAutoStart(preselectedAccounts)
+        );
     }
 
     private ReloadCacheInline(List<Account> preselectedAccounts,
                               Runnable onAccountsDeleted,
-                              boolean showFailureHandlingCard) {
+                              boolean showFailureHandlingCard,
+                              boolean promptFailureHandlingBeforeAutoStart) {
         this.onAccountsDeleted = onAccountsDeleted;
         this.showFailureHandlingCard = showFailureHandlingCard;
+        this.promptFailureHandlingBeforeAutoStart = promptFailureHandlingBeforeAutoStart;
         initializeLayout();
         List<Account> supportedAccounts = loadSupportedAccounts();
         populateAccountCheckboxes(supportedAccounts);
@@ -209,6 +219,14 @@ public class ReloadCacheInline extends VBox {
                 Platform.runLater(this::startReloadInBackground);
             }
         }
+    }
+
+    private static boolean shouldShowFailureHandlingCard(List<Account> preselectedAccounts) {
+        return preselectedAccounts == null || preselectedAccounts.isEmpty();
+    }
+
+    private static boolean shouldPromptFailureHandlingBeforeAutoStart(List<Account> preselectedAccounts) {
+        return preselectedAccounts != null && preselectedAccounts.size() > 1;
     }
 
     private void initializeLayout() {
@@ -716,7 +734,7 @@ public class ReloadCacheInline extends VBox {
         }
 
         List<Account> selectedAccounts = selectedAccountsSnapshot();
-        GlobalFailureDecision selectedAutomaticDecision = selectedFailureDecision();
+        GlobalFailureDecision selectedAutomaticDecision = resolveFailureDecisionBeforeStart(selectedAccounts);
         if (!reloadInProgress.compareAndSet(false, true)) {
             return;
         }
@@ -725,6 +743,66 @@ public class ReloadCacheInline extends VBox {
         thread.setDaemon(true);
         reloadThread.set(thread);
         thread.start();
+    }
+
+    private GlobalFailureDecision resolveFailureDecisionBeforeStart(List<Account> selectedAccounts) {
+        if (shouldPromptAutomaticGlobalFailureDecision(selectedAccounts)) {
+            return promptAutomaticGlobalFailureDecision(selectedAccounts);
+        }
+        return selectedFailureDecision();
+    }
+
+    boolean shouldPromptAutomaticGlobalFailureDecision(List<Account> selectedAccounts) {
+        return promptFailureHandlingBeforeAutoStart
+                && selectedAccounts != null
+                && selectedAccounts.size() > 1
+                && !disposed;
+    }
+
+    private GlobalFailureDecision promptAutomaticGlobalFailureDecision(List<Account> selectedAccounts) {
+        List<AutomaticFailureDecisionOption> options = automaticFailureDecisionOptions();
+        ToggleGroup optionGroup = new ToggleGroup();
+        VBox optionBox = new VBox(8);
+        optionBox.setFillWidth(true);
+        for (AutomaticFailureDecisionOption option : options) {
+            RadioButton optionButton = new RadioButton(option.label());
+            optionButton.setToggleGroup(optionGroup);
+            optionButton.setUserData(option);
+            optionButton.setWrapText(true);
+            optionButton.setMaxWidth(Double.MAX_VALUE);
+            optionBox.getChildren().add(optionButton);
+        }
+        if (!optionGroup.getToggles().isEmpty()) {
+            optionGroup.selectToggle(optionGroup.getToggles().getFirst());
+        }
+
+        Label message = new Label(I18n.tr("reloadBulkFailureHandlingMessage"));
+        message.setWrapText(true);
+        message.setPrefWidth(BULK_FAILURE_DIALOG_CONTENT_WIDTH);
+        message.setMinHeight(Region.USE_PREF_SIZE);
+        VBox content = new VBox(12, message, optionBox);
+        content.setPadding(new Insets(8, BULK_FAILURE_DIALOG_CONTENT_INSET, 0, BULK_FAILURE_DIALOG_CONTENT_INSET));
+        content.setPrefWidth(BULK_FAILURE_DIALOG_CONTENT_WIDTH);
+        content.setMaxWidth(BULK_FAILURE_DIALOG_CONTENT_WIDTH);
+
+        ButtonType okButton = new ButtonType(I18n.tr("commonOk"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType closeButton = new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        Dialog<AutomaticFailureDecisionOption> dialog = new Dialog<>();
+        dialog.setTitle(I18n.tr("reloadBulkFailureHandlingTitle"));
+        dialog.setHeaderText(I18n.tr("reloadBulkFailureHandlingHeader",
+                I18n.formatNumber(String.valueOf(selectedAccounts.size()))));
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().setPrefWidth(BULK_FAILURE_DIALOG_CONTENT_WIDTH
+                + (BULK_FAILURE_DIALOG_CONTENT_INSET * 2));
+        dialog.getDialogPane().getButtonTypes().setAll(okButton, closeButton);
+        dialog.setResultConverter(button -> button == okButton && optionGroup.getSelectedToggle() != null
+                ? (AutomaticFailureDecisionOption) optionGroup.getSelectedToggle().getUserData()
+                : null);
+        applyDialogThemeAndOrientation(dialog);
+
+        return ThemedDialogSupport.showAndWait(dialog, ownerWindow())
+                .map(AutomaticFailureDecisionOption::decision)
+                .orElse(null);
     }
 
     private GlobalFailureDecision selectedFailureDecision() {

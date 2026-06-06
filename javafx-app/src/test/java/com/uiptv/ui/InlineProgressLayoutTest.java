@@ -26,6 +26,7 @@ import java.util.List;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static com.uiptv.testsupport.FxTestSupport.waitForFxEvents;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -53,6 +54,30 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
         ReloadCacheInline inline = runOnFxThread(() -> new ReloadCacheInline(List.of(account)));
 
         assertNull(findDescendantByStyle(inline, Region.class, "reload-failure-policy-card"));
+        assertFalse(inline.shouldPromptAutomaticGlobalFailureDecision(List.of(account)));
+    }
+
+    @Test
+    void preselectedMultiReloadPromptsBeforeRunInsteadOfShowingInlineFailureCard() throws Exception {
+        Account first = account("first", "First");
+        Account second = account("second", "Second");
+
+        ReloadCacheInline inline = runOnFxThread(() -> new ReloadCacheInline(List.of(first, second)));
+
+        assertNull(findDescendantByStyle(inline, Region.class, "reload-failure-policy-card"));
+        assertTrue(inline.shouldPromptAutomaticGlobalFailureDecision(List.of(first, second)));
+        assertFalse(inline.shouldPromptAutomaticGlobalFailureDecision(List.of(first)));
+    }
+
+    @Test
+    void manualReloadUsesInlineFailureCardAndDoesNotUsePreRunPrompt() throws Exception {
+        Account first = account("first", "First");
+        Account second = account("second", "Second");
+
+        ReloadCacheInline inline = runOnFxThread(() -> new ReloadCacheInline(List.of()));
+
+        assertTrue(findDescendantByStyle(inline, Region.class, "reload-failure-policy-card") != null);
+        assertFalse(inline.shouldPromptAutomaticGlobalFailureDecision(List.of(first, second)));
     }
 
     @Test
@@ -202,6 +227,14 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
         assertEquals(Region.USE_PREF_SIZE, snapshot.labelMaxWidth());
         assertEquals(0, snapshot.progressBarMinWidth());
         assertEquals(Double.MAX_VALUE, snapshot.progressBarMaxWidth());
+    }
+
+    private static Account account(String id, String name) {
+        Account account = new Account();
+        account.setDbId(id);
+        account.setAccountName(name);
+        account.setType(AccountType.STALKER_PORTAL);
+        return account;
     }
 
     private static ProgressRowSnapshot snapshot(Node root, String rowStyleClass) {
