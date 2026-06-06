@@ -5,16 +5,18 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
-import javafx.scene.Scene;
 import javafx.scene.control.Button;
-import javafx.scene.layout.StackPane;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
-import static com.uiptv.testsupport.FxTestSupport.waitForFxEvents;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -25,136 +27,103 @@ class AppHeaderActionsTest extends DbBackedUiTest {
         FxTestSupport.initJavaFx();
     }
 
-    @Test
-    void themeButtonRunsThemeHandler() throws Exception {
-        AtomicInteger themeCount = new AtomicInteger();
-        AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, themeCount::incrementAndGet, null));
-
-        runOnFxThread(() -> {
-            buttonByAccessibleText(actions, "Toggle theme").fire();
-            return null;
-        });
-
-        assertEquals(1, themeCount.get());
+    @AfterEach
+    void resetNavigationController() {
+        AppNavigationController.reset();
     }
 
     @Test
-    void plainTextModeButtonTogglesExistingThumbnailConfigurationFlag() throws Exception {
+    void directNavigationButtonsFollowRequestedOrderAndUseController() throws Exception {
+        AtomicReference<AppNavigationController.Target> selectedTarget = new AtomicReference<>();
+        EnumMap<AppNavigationController.Target, Runnable> actionsMap = new EnumMap<>(AppNavigationController.Target.class);
+        actionsMap.put(AppNavigationController.Target.BOOKMARKS, () -> selectedTarget.set(AppNavigationController.Target.BOOKMARKS));
+        actionsMap.put(AppNavigationController.Target.ACCOUNTS, () -> selectedTarget.set(AppNavigationController.Target.ACCOUNTS));
+        actionsMap.put(AppNavigationController.Target.WATCHING_NOW, () -> selectedTarget.set(AppNavigationController.Target.WATCHING_NOW));
+        AppNavigationController.configure(actionsMap, AppNavigationController.Target.BOOKMARKS);
+
+        AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, null, null));
+
+        assertEquals(I18n.tr("autoFavorite"), runOnFxThread(() -> buttonAt(actions, 0).getAccessibleText()));
+        assertEquals(I18n.tr("autoAccount"), runOnFxThread(() -> buttonAt(actions, 1).getAccessibleText()));
+        assertEquals(I18n.tr("autoWatchingNow"), runOnFxThread(() -> buttonAt(actions, 2).getAccessibleText()));
+        assertEquals(I18n.tr("autoSettings"), runOnFxThread(() -> buttonAt(actions, 3).getAccessibleText()));
+
+        runOnFxThread(() -> {
+            buttonAt(actions, 1).fire();
+            return null;
+        });
+
+        assertEquals(AppNavigationController.Target.ACCOUNTS, selectedTarget.get());
+    }
+
+    @Test
+    void gearButtonReflectsParentalPauseState() throws Exception {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        configuration.setPauseFiltering(false);
+        ConfigurationService.getInstance().save(configuration);
+
+        AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, null, null));
+        Button gearButton = runOnFxThread(() -> buttonAt(actions, 3));
+
+        assertTrue(runOnFxThread(() -> gearButton.getStyleClass().contains("bookmarks-quick-action-button-lock-ok")));
+        assertFalse(runOnFxThread(() -> gearButton.getStyleClass().contains("bookmarks-quick-action-button-lock-paused")));
+
+        configuration = ConfigurationService.getInstance().read();
+        configuration.setPauseFiltering(true);
+        ConfigurationService.getInstance().save(configuration);
+        runOnFxThread(() -> {
+            actions.refreshState();
+            return null;
+        });
+
+        assertFalse(runOnFxThread(() -> gearButton.getStyleClass().contains("bookmarks-quick-action-button-lock-ok")));
+        assertTrue(runOnFxThread(() -> gearButton.getStyleClass().contains("bookmarks-quick-action-button-lock-paused")));
+    }
+
+    @Test
+    void gearMenuUsesRequestedOptionOrder() throws Exception {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        configuration.setEnableThumbnails(true);
+        configuration.setPauseFiltering(false);
+        ConfigurationService.getInstance().save(configuration);
+
+        List<String> labels = runOnFxThread(() -> {
+            AppHeaderActions actions = new AppHeaderActions(null, null, null);
+            ContextMenu menu = actions.createGearMenu();
+            return menu.getItems().stream().map(MenuItem::getText).toList();
+        });
+
+        assertEquals(List.of(
+                I18n.tr("autoSettings"),
+                I18n.tr("autoImportBulkAccounts"),
+                I18n.tr("autoLogs"),
+                "Pause parental lock restrictions",
+                I18n.tr("autoEnablePlainTextMode"),
+                I18n.tr("autoHelp"),
+                I18n.tr("autoAbout")
+        ), labels);
+    }
+
+    @Test
+    void plainTextModeMenuItemTogglesExistingThumbnailConfigurationFlag() throws Exception {
         Configuration configuration = ConfigurationService.getInstance().read();
         configuration.setEnableThumbnails(true);
         ConfigurationService.getInstance().save(configuration);
 
-        AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, null, null));
-        Button plainTextButton = runOnFxThread(() -> buttonByStyle(actions, "plain-text-mode-header-button"));
-
-        assertFalse(runOnFxThread(() -> plainTextButton.getStyleClass().contains("bookmarks-quick-action-button-active")));
+        MenuItem plainTextItem = runOnFxThread(() -> {
+            AppHeaderActions actions = new AppHeaderActions(null, null, null);
+            return actions.createGearMenu().getItems().get(4);
+        });
 
         runOnFxThread(() -> {
-            plainTextButton.fire();
+            plainTextItem.fire();
             return null;
         });
 
         assertFalse(ConfigurationService.getInstance().read().isEnableThumbnails());
-        assertTrue(runOnFxThread(() -> plainTextButton.getStyleClass().contains("bookmarks-quick-action-button-active")));
-
-        runOnFxThread(() -> {
-            plainTextButton.fire();
-            return null;
-        });
-
-        assertTrue(ConfigurationService.getInstance().read().isEnableThumbnails());
-        assertFalse(runOnFxThread(() -> plainTextButton.getStyleClass().contains("bookmarks-quick-action-button-active")));
     }
 
-    @Test
-    void wideNavigationButtonReflectsAvailabilityAndCollapsedState() throws Exception {
-        AtomicInteger toggleCount = new AtomicInteger();
-        Runnable toggleHandler = toggleCount::incrementAndGet;
-        AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, null, null));
-        Button wideButton = runOnFxThread(() -> (Button) actions.getChildren().get(0));
-
-        runOnFxThread(() -> {
-            WidePlayerNavigationControl.configure(true, false, toggleHandler);
-            actions.refreshState();
-            wideButton.fire();
-            WidePlayerNavigationControl.configure(true, true, toggleHandler);
-            actions.refreshState();
-            return null;
-        });
-
-        assertEquals(1, toggleCount.get());
-        assertTrue(runOnFxThread(wideButton::isVisible));
-        assertTrue(runOnFxThread(wideButton::isManaged));
-        assertTrue(runOnFxThread(() -> wideButton.getStyleClass().contains("bookmarks-quick-action-button-active")));
-
-        runOnFxThread(() -> {
-            WidePlayerNavigationControl.reset(toggleHandler);
-            actions.refreshState();
-            return null;
-        });
-
-        assertFalse(runOnFxThread(wideButton::isVisible));
-        assertFalse(runOnFxThread(wideButton::isManaged));
-    }
-
-    @Test
-    void aboutActionIsLastAndHelpActionIsRemovedFromHeader() throws Exception {
-        AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, null, null));
-
-        assertTrue(runOnFxThread(() -> actions.getChildren().stream()
-                .filter(Button.class::isInstance)
-                .map(Button.class::cast)
-                .noneMatch(button -> I18n.tr("autoHelp").equals(button.getAccessibleText()))));
-        assertEquals(I18n.tr("autoAbout"), runOnFxThread(() -> {
-            Button lastButton = (Button) actions.getChildren().get(actions.getChildren().size() - 1);
-            return lastButton.getAccessibleText();
-        }));
-    }
-
-    @Test
-    void sceneLifecycleRegistersListenersAndRefreshesPlainTextStateFromConfigurationChange() throws Exception {
-        Configuration configuration = ConfigurationService.getInstance().read();
-        configuration.setEnableThumbnails(true);
-        ConfigurationService.getInstance().save(configuration);
-
-        AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, null, null));
-        Button plainTextButton = runOnFxThread(() -> buttonByStyle(actions, "plain-text-mode-header-button"));
-        StackPane root = runOnFxThread(() -> {
-            StackPane pane = new StackPane(actions);
-            new Scene(pane, 420, 80);
-            return pane;
-        });
-        waitForFxEvents();
-
-        Configuration updated = ConfigurationService.getInstance().read();
-        updated.setEnableThumbnails(false);
-        ConfigurationService.getInstance().save(updated);
-        waitForFxEvents();
-
-        assertTrue(runOnFxThread(() -> plainTextButton.getStyleClass().contains("bookmarks-quick-action-button-active")));
-
-        runOnFxThread(() -> {
-            root.getChildren().clear();
-            return null;
-        });
-        waitForFxEvents();
-    }
-
-    private static Button buttonByAccessibleText(AppHeaderActions actions, String accessibleText) {
-        return actions.getChildren().stream()
-                .filter(Button.class::isInstance)
-                .map(Button.class::cast)
-                .filter(button -> accessibleText.equals(button.getAccessibleText()))
-                .findFirst()
-                .orElseThrow();
-    }
-
-    private static Button buttonByStyle(AppHeaderActions actions, String styleClass) {
-        return actions.getChildren().stream()
-                .filter(Button.class::isInstance)
-                .map(Button.class::cast)
-                .filter(button -> button.getStyleClass().contains(styleClass))
-                .findFirst()
-                .orElseThrow();
+    private static Button buttonAt(AppHeaderActions actions, int index) {
+        return (Button) actions.getChildren().get(index);
     }
 }

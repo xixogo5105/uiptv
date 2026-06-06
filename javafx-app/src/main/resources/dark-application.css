@@ -794,27 +794,28 @@
 
 .uiptv-app-tabs {
     -fx-background-color: -uiptv-app-bg;
-    -fx-tab-min-width: 62;
-    -fx-tab-max-width: 62;
-    -fx-tab-min-height: 48;
-    -fx-tab-max-height: 48;
+    -fx-tab-min-width: 0;
+    -fx-tab-max-width: 0;
+    -fx-tab-min-height: 0;
+    -fx-tab-max-height: 0;
 }
 
-.uiptv-app-tabs:left > .tab-header-area {
-    -fx-background-color: -uiptv-nav-bg;
-    -fx-min-width: 64;
-    -fx-pref-width: 64;
-    -fx-max-width: 64;
-    -fx-padding: 6 7 6 7;
+.uiptv-app-tabs > .tab-header-area {
+    -fx-background-color: transparent;
+    -fx-min-height: 0;
+    -fx-pref-height: 0;
+    -fx-max-height: 0;
+    -fx-padding: 0;
+    -fx-opacity: 0;
 }
 
-.uiptv-app-tabs:left > .tab-header-area > .tab-header-background {
-    -fx-background-color: -uiptv-nav-bg;
-    -fx-border-color: transparent -uiptv-border-subtle transparent transparent;
-    -fx-border-width: 0 1 0 0;
+.uiptv-app-tabs > .tab-header-area > .tab-header-background {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
 }
 
-.uiptv-app-tabs:left > .tab-header-area > .headers-region > .tab {
+.uiptv-app-tabs > .tab-header-area > .headers-region > .tab {
     -fx-background-color: transparent;
     -fx-background-insets: 0;
     -fx-background-radius: 0;
@@ -825,16 +826,16 @@
     -fx-cursor: hand;
 }
 
-.uiptv-app-tabs:left > .tab-header-area > .headers-region > .tab .tab-container,
-.uiptv-app-tabs:left > .tab-header-area > .headers-region > .tab .tab-label {
+.uiptv-app-tabs > .tab-header-area > .headers-region > .tab .tab-container,
+.uiptv-app-tabs > .tab-header-area > .headers-region > .tab .tab-label {
     -fx-cursor: hand;
 }
 
-.uiptv-app-tabs:left > .tab-header-area > .headers-region > .tab:hover {
+.uiptv-app-tabs > .tab-header-area > .headers-region > .tab:hover {
     -fx-background-color: transparent;
 }
 
-.uiptv-app-tabs:left > .tab-header-area > .headers-region > .tab:selected {
+.uiptv-app-tabs > .tab-header-area > .headers-region > .tab:selected {
     -fx-background-color: transparent;
 }
 
@@ -855,7 +856,7 @@
 
 .uiptv-nav-item {
     -fx-background-color: transparent;
-    -fx-background-radius: 8;
+    -fx-background-radius: 10;
     -fx-padding: 0;
     -fx-cursor: hand;
 }
@@ -1573,7 +1574,8 @@
 }
 
 .account-type-pill-bar.uiptv-pill-bar,
-.category-mode-pill-bar.uiptv-pill-bar {
+.category-mode-pill-bar.uiptv-pill-bar,
+.bookmark-category-pill-bar.uiptv-pill-bar {
     -fx-background-color: #252930;
     -fx-background-radius: 16;
     -fx-border-color: #343941;
@@ -1584,13 +1586,15 @@
 }
 
 .account-type-pill-bar .uiptv-pill-bar-content,
-.category-mode-pill-bar .uiptv-pill-bar-content {
+.category-mode-pill-bar .uiptv-pill-bar-content,
+.bookmark-category-pill-bar .uiptv-pill-bar-content {
     -fx-hgap: 5;
     -fx-vgap: 5;
 }
 
 .account-type-pill-bar .uiptv-pill,
-.category-mode-pill-bar .uiptv-pill {
+.category-mode-pill-bar .uiptv-pill,
+.bookmark-category-pill-bar .uiptv-pill {
     -fx-background-radius: 12;
     -fx-border-radius: 12;
     -fx-padding: 5 13 5 13;
@@ -1608,12 +1612,14 @@
 }
 
 .account-type-pill-bar .uiptv-pill:hover,
-.category-mode-pill-bar .uiptv-pill:hover {
+.category-mode-pill-bar .uiptv-pill:hover,
+.bookmark-category-pill-bar .uiptv-pill:hover {
     -fx-background-color: rgba(255, 255, 255, 0.08);
 }
 
 .account-type-pill-bar .uiptv-pill:selected,
-.category-mode-pill-bar .uiptv-pill:selected {
+.category-mode-pill-bar .uiptv-pill:selected,
+.bookmark-category-pill-bar .uiptv-pill:selected {
     -fx-background-color: #181b1f;
     -fx-text-fill: -uiptv-text-primary;
     -fx-font-weight: bold;

@@ -7,6 +7,7 @@ import com.uiptv.ui.*;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.SystemUtils;
+import com.uiptv.widget.AppNavigationController;
 import com.uiptv.widget.AppNotificationCenter;
 import com.uiptv.widget.AppNavigationPane;
 import com.uiptv.widget.AppPageHeader;
@@ -21,6 +22,7 @@ import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import java.util.EnumMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -74,6 +76,15 @@ public abstract class BaseMainApplicationUI {
         Tab configurationTab = tabPane.createTab(I18n.tr("autoSettings"), AppNavigationPane.ICON_SETTINGS, createDeferredPlaceholder());
 
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            AppNavigationController.setCurrentTarget(targetForTab(
+                    newTab,
+                    configurationTab,
+                    manageAccountTab,
+                    parseMultipleAccountTab,
+                    logDisplayTab,
+                    watchingNowTab,
+                    bookmarkChannelListTab
+            ));
             LogDisplayUI.setLoggingEnabled(newTab == logDisplayTab);
             if (newTab == configurationTab) {
                 ConfigurationUI configurationUI = configurationRef.get();
@@ -90,6 +101,7 @@ public abstract class BaseMainApplicationUI {
         });
 
         tabPane.getTabs().addAll(configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab);
+        configureAppNavigation(tabPane, configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab);
         tabPane.getSelectionModel().select(bookmarkChannelListTab);
 
         HBox mainContent = buildMainContent(tabPane, accountListUI);
@@ -122,6 +134,57 @@ public abstract class BaseMainApplicationUI {
                 watchingNowRef
         ));
         return scene;
+    }
+
+    private void configureAppNavigation(TabPane tabPane,
+                                        Tab configurationTab,
+                                        Tab manageAccountTab,
+                                        Tab parseMultipleAccountTab,
+                                        Tab logDisplayTab,
+                                        Tab watchingNowTab,
+                                        Tab bookmarkChannelListTab) {
+        EnumMap<AppNavigationController.Target, Runnable> actions = new EnumMap<>(AppNavigationController.Target.class);
+        actions.put(AppNavigationController.Target.SETTINGS, () -> selectTab(tabPane, configurationTab));
+        actions.put(AppNavigationController.Target.ACCOUNTS, () -> selectTab(tabPane, manageAccountTab));
+        actions.put(AppNavigationController.Target.IMPORT, () -> selectTab(tabPane, parseMultipleAccountTab));
+        actions.put(AppNavigationController.Target.LOGS, () -> selectTab(tabPane, logDisplayTab));
+        actions.put(AppNavigationController.Target.WATCHING_NOW, () -> selectTab(tabPane, watchingNowTab));
+        actions.put(AppNavigationController.Target.BOOKMARKS, () -> selectTab(tabPane, bookmarkChannelListTab));
+        AppNavigationController.configure(actions, AppNavigationController.Target.BOOKMARKS);
+    }
+
+    private void selectTab(TabPane tabPane, Tab tab) {
+        if (tabPane != null && tab != null) {
+            tabPane.getSelectionModel().select(tab);
+        }
+    }
+
+    private AppNavigationController.Target targetForTab(Tab selectedTab,
+                                                        Tab configurationTab,
+                                                        Tab manageAccountTab,
+                                                        Tab parseMultipleAccountTab,
+                                                        Tab logDisplayTab,
+                                                        Tab watchingNowTab,
+                                                        Tab bookmarkChannelListTab) {
+        if (selectedTab == configurationTab) {
+            return AppNavigationController.Target.SETTINGS;
+        }
+        if (selectedTab == manageAccountTab) {
+            return AppNavigationController.Target.ACCOUNTS;
+        }
+        if (selectedTab == parseMultipleAccountTab) {
+            return AppNavigationController.Target.IMPORT;
+        }
+        if (selectedTab == logDisplayTab) {
+            return AppNavigationController.Target.LOGS;
+        }
+        if (selectedTab == watchingNowTab) {
+            return AppNavigationController.Target.WATCHING_NOW;
+        }
+        if (selectedTab == bookmarkChannelListTab) {
+            return AppNavigationController.Target.BOOKMARKS;
+        }
+        return AppNavigationController.currentTarget();
     }
 
     private void toggleTheme() {

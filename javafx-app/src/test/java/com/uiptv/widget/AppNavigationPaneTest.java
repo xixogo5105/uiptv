@@ -1,15 +1,10 @@
 package com.uiptv.widget;
 
 import javafx.geometry.Side;
-import javafx.scene.Cursor;
 import javafx.scene.Node;
-import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.Tooltip;
-import javafx.scene.input.MouseButton;
-import javafx.scene.input.MouseEvent;
-import javafx.scene.input.PickResult;
 import javafx.scene.layout.StackPane;
 import javafx.scene.shape.SVGPath;
 import javafx.util.Duration;
@@ -32,12 +27,12 @@ class AppNavigationPaneTest {
     }
 
     @Test
-    void constructorConfiguresNavigationRailDefaults() throws Exception {
+    void constructorConfiguresHiddenNavigationHostDefaults() throws Exception {
         AppNavigationPane pane = runOnFxThread(AppNavigationPane::new);
         waitForFxEvents();
 
         assertTrue(runOnFxThread(() -> pane.getStyleClass().contains("uiptv-app-tabs")));
-        assertEquals(Side.LEFT, runOnFxThread(pane::getSide));
+        assertEquals(Side.TOP, runOnFxThread(pane::getSide));
         assertFalse(runOnFxThread(pane::isRotateGraphic));
         assertEquals(javafx.scene.control.TabPane.TabClosingPolicy.UNAVAILABLE,
                 runOnFxThread(pane::getTabClosingPolicy));
@@ -81,31 +76,6 @@ class AppNavigationPaneTest {
         assertEquals(Duration.seconds(6), runOnFxThread(tooltip::getShowDuration));
     }
 
-    @Test
-    void sceneCursorChangesOnlyWhenPointerIsOverNavigationRail() throws Exception {
-        AppNavigationPane pane = runOnFxThread(() -> {
-            AppNavigationPane navPane = new AppNavigationPane();
-            navPane.getTabs().add(navPane.createTab("Settings", AppNavigationPane.ICON_SETTINGS, new Label("Settings")));
-            new Scene(navPane, 320, 240);
-            navPane.resize(320, 240);
-            navPane.layout();
-            return navPane;
-        });
-        waitForFxEvents();
-
-        runOnFxThread(() -> {
-            javafx.event.Event.fireEvent(pane, mouseEvent(MouseEvent.MOUSE_MOVED, pane, 16, 20));
-            return null;
-        });
-        assertEquals(Cursor.HAND, runOnFxThread(() -> pane.getScene().getCursor()));
-
-        runOnFxThread(() -> {
-            javafx.event.Event.fireEvent(pane, mouseEvent(MouseEvent.MOUSE_MOVED, pane, 120, 20));
-            return null;
-        });
-        assertEquals(null, runOnFxThread(() -> pane.getScene().getCursor()));
-    }
-
     private static <T extends Node> T findDescendant(Node root, Class<T> type) {
         if (type.isInstance(root)) {
             return type.cast(root);
@@ -136,29 +106,4 @@ class AppNavigationPaneTest {
         return null;
     }
 
-    private static MouseEvent mouseEvent(javafx.event.EventType<MouseEvent> eventType,
-                                         Node target,
-                                         double sceneX,
-                                         double sceneY) {
-        return new MouseEvent(
-                eventType,
-                sceneX,
-                sceneY,
-                sceneX,
-                sceneY,
-                MouseButton.NONE,
-                0,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false,
-                new PickResult(target, sceneX, sceneY)
-        );
-    }
 }
