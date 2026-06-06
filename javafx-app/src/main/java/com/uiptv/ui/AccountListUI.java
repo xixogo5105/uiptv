@@ -16,6 +16,7 @@ import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.InlinePanelService;
+import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
 import com.uiptv.widget.SearchableFilterableTableView;
@@ -61,9 +62,6 @@ public class AccountListUI extends HBox implements SearchTarget {
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 42;
-    private static final double FILTER_DROPDOWN_MIN_WIDTH = 88;
-    private static final double FILTER_DROPDOWN_PREF_WIDTH = 118;
-    private static final double FILTER_DROPDOWN_MAX_WIDTH = 132;
     private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
             Comparator.comparing(AccountItem::getAccountName, String.CASE_INSENSITIVE_ORDER)
@@ -83,7 +81,8 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final ResponsiveCardGrid<AccountItem> accountGrid = new ResponsiveCardGrid<>(this::createAccountCard);
     private final ScrollPane accountScrollPane = new ScrollPane();
     private final HBox browserLayout = new HBox(12);
-    private final ComboBox<AccountTypeFilter> accountTypeComboBox = new ComboBox<>();
+    private final PillBar<AccountTypeFilter> accountTypePillBar =
+            new PillBar<>(AccountTypeFilter::label, AccountTypeFilter::key);
     private final Deque<Node> viewStack = new ArrayDeque<>();
     private final VBox embeddedContainer = new VBox();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
@@ -101,7 +100,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private AppPageHeader pageHeader;
     private MenuButton accountSortButton;
-    private HBox accountToolbar;
+    private VBox accountToolbar;
     private CategoryListUI activeCategoryListUI;
     private final AtomicLong refreshGeneration = new AtomicLong();
     private boolean refreshPending = true;
@@ -322,7 +321,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         table.getTextField().setMinWidth(120);
         table.getTextField().setMaxWidth(Double.MAX_VALUE);
 
-        configureAccountTypeDropdown();
+        configureAccountTypePillBar();
         pageHeader = createPageHeader();
         accountToolbar = createAccountToolbar();
         configurePageContainers();
@@ -356,21 +355,16 @@ public class AccountListUI extends HBox implements SearchTarget {
         registerSceneCleanupListener();
     }
 
-    private void configureAccountTypeDropdown() {
+    private void configureAccountTypePillBar() {
         List<AccountTypeFilter> filters = new ArrayList<>();
         filters.add(new AccountTypeFilter("all", I18n.tr("commonAll"), null));
         for (AccountType type : AccountType.values()) {
             filters.add(new AccountTypeFilter(type.name(), type.getDisplay(), type));
         }
-        accountTypeComboBox.getStyleClass().add("list-filter-combo");
-        accountTypeComboBox.setMinWidth(FILTER_DROPDOWN_MIN_WIDTH);
-        accountTypeComboBox.setPrefWidth(FILTER_DROPDOWN_PREF_WIDTH);
-        accountTypeComboBox.setMaxWidth(FILTER_DROPDOWN_MAX_WIDTH);
-        accountTypeComboBox.setCellFactory(_ -> createAccountTypeFilterCell());
-        accountTypeComboBox.setButtonCell(createAccountTypeFilterCell());
-        accountTypeComboBox.getItems().setAll(filters);
-        accountTypeComboBox.getSelectionModel().selectFirst();
-        accountTypeComboBox.valueProperty().addListener((_, _, _) -> applyAccountOrdering());
+        accountTypePillBar.setItems(filters);
+        accountTypePillBar.selectedItemProperty().addListener((_, _, _) -> applyAccountOrdering());
+        accountTypePillBar.setNarrowReservedRowCount(2);
+        accountTypePillBar.setMaxWidth(Double.MAX_VALUE);
     }
 
     private void configureAccountGrid() {
@@ -430,28 +424,24 @@ public class AccountListUI extends HBox implements SearchTarget {
         );
     }
 
-    private HBox createAccountToolbar() {
-        HBox toolbar = new HBox(8);
+    private VBox createAccountToolbar() {
+        accountTypePillBar.setMaxWidth(Double.MAX_VALUE);
+        VBox toolbar = new VBox(8, accountTypePillBar, createAccountToolbarActions());
         toolbar.getStyleClass().add("account-toolbar");
-        toolbar.getStyleClass().add("list-toolbar-actions");
-        toolbar.setAlignment(Pos.CENTER_RIGHT);
-        toolbar.setFillHeight(false);
+        toolbar.setFillWidth(true);
         toolbar.setMaxWidth(Double.MAX_VALUE);
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox.setHgrow(accountTypeComboBox, Priority.NEVER);
-        toolbar.getChildren().setAll(spacer, accountTypeComboBox, createAccountSortButton(), createAddAccountToolbarButton());
         return toolbar;
     }
 
-    private ListCell<AccountTypeFilter> createAccountTypeFilterCell() {
-        return new ListCell<>() {
-            @Override
-            protected void updateItem(AccountTypeFilter filter, boolean empty) {
-                super.updateItem(filter, empty);
-                setText(empty || filter == null ? null : filter.label());
-            }
-        };
+    private HBox createAccountToolbarActions() {
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox actions = new HBox(8, spacer, createAccountSortButton(), createAddAccountToolbarButton());
+        actions.getStyleClass().add("list-toolbar-actions");
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.setFillHeight(false);
+        actions.setMaxWidth(Double.MAX_VALUE);
+        return actions;
     }
 
     private void configurePageContainers() {
@@ -1192,7 +1182,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         String accountNameValue = item.getAccountName() == null ? "" : item.getAccountName();
         boolean matchesSearch = normalizedSearch.isBlank()
                 || accountNameValue.toLowerCase(Locale.ROOT).contains(normalizedSearch);
-        AccountTypeFilter selectedType = accountTypeComboBox.getValue();
+        AccountTypeFilter selectedType = accountTypePillBar.getSelectedItem();
         boolean matchesType = selectedType == null
                 || selectedType.type() == null
                 || selectedType.type().name().equals(item.getAccountType());

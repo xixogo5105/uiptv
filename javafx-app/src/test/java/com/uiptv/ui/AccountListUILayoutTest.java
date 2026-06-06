@@ -14,6 +14,7 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Labeled;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
@@ -57,16 +58,15 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     }
 
     @Test
-    void embeddedAccountToolbarUsesDropdownAndQuietAddButton() throws Exception {
+    void embeddedAccountToolbarUsesPillBarAndQuietAddButton() throws Exception {
         ToolbarSnapshot snapshot = runOnFxThread(() -> {
             AccountListUI ui = new AccountListUI(true, null, null);
             return new ToolbarSnapshot(
                     controlAccessibleTexts(ui),
                     containsStyleClass(ui, "account-footer"),
-                    containsStyleClass(ui, "list-filter-combo"),
-                    directChildHasStyle(ui, "list-toolbar-actions", "list-filter-combo"),
+                    containsStyleClass(ui, "uiptv-pill-bar"),
+                    directChildHasStyle(ui, "account-toolbar", "uiptv-pill-bar"),
                     toolbarHasLeadingSpacer(ui),
-                    regionMaxWidthByStyle(ui, "list-filter-combo"),
                     containsStyleClass(ui, "list-toolbar-actions"),
                     containsStyleClass(ui, "list-toolbar-sort-menu"),
                     containsStyleClass(ui, "list-toolbar-action-button"),
@@ -77,10 +77,9 @@ class AccountListUILayoutTest extends DbBackedUiTest {
 
         assertTrue(snapshot.accessibleTexts().contains(I18n.tr("autoSort") + ": " + I18n.tr("autoSortDefault")));
         assertTrue(snapshot.accessibleTexts().contains(I18n.tr("autoNewAccount")));
-        assertTrue(snapshot.hasFilterDropdown());
-        assertTrue(snapshot.filterDropdownSharesToolbarRow());
+        assertTrue(snapshot.hasFilterPillBar());
+        assertTrue(snapshot.filterPillBarIsInToolbar());
         assertTrue(snapshot.toolbarHasLeadingSpacer());
-        assertTrue(snapshot.filterDropdownMaxWidth() <= 132.0);
         assertTrue(snapshot.hasToolbarActions());
         assertTrue(snapshot.hasSortDropdown());
         assertTrue(snapshot.hasQuietActionButton());
@@ -90,7 +89,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     }
 
     @Test
-    void accountToolbarKeepsSpacingBetweenFilterDropdownAndActionsAfterCss() throws Exception {
+    void accountToolbarKeepsSpacingBetweenFilterPillBarAndActionsAfterCss() throws Exception {
         double spacing = runOnFxThread(() -> {
             AccountListUI ui = new AccountListUI(true, null, null);
             Scene scene = new Scene(ui, 520, 720);
@@ -100,10 +99,70 @@ class AccountListUILayoutTest extends DbBackedUiTest {
             ui.applyCss();
 
             Node toolbar = findByStyle(ui, "account-toolbar");
-            return toolbar instanceof HBox hBox ? hBox.getSpacing() : -1.0;
+            return toolbar instanceof VBox vBox ? vBox.getSpacing() : -1.0;
         });
 
         assertEquals(8.0, spacing, 0.01);
+    }
+
+    @Test
+    void accountPillBarKeepsWrappedDrawerTabsInsideBackground() throws Exception {
+        List<Double> heights = runOnFxThread(() -> {
+            AccountListUI ui = new AccountListUI(true, null, null);
+            Scene scene = new Scene(ui, 520, 720);
+            scene.getStylesheets().add(Objects.requireNonNull(
+                    AccountListUILayoutTest.class.getResource("/application.css")
+            ).toExternalForm());
+            ui.applyCss();
+
+            Region pillBar = (Region) findByStyle(ui, "uiptv-pill-bar");
+            ui.resize(1800, 720);
+            ui.layout();
+            ui.layout();
+            double wideHeight = pillBar.getHeight();
+
+            ui.resize(520, 720);
+            ui.layout();
+            ui.layout();
+            double normalLayoutHeight = pillBar.getHeight();
+
+            invokeSetAccountBrowserCompact(ui, true);
+            ui.applyCss();
+            ui.resize(520, 720);
+            ui.layout();
+            ui.layout();
+            double compactHeight = pillBar.getHeight();
+
+            ui.setMediaDrawerMode(true);
+            ui.applyCss();
+            ui.resize(520, 720);
+            ui.layout();
+            ui.layout();
+            double drawerLayoutHeight = pillBar.getHeight();
+
+            firePillByText(pillBar, "M3U8 URL");
+            ui.applyCss();
+            ui.layout();
+            ui.layout();
+            double afterSelectionHeight = pillBar.getHeight();
+            Region content = (Region) findByStyle(pillBar, "uiptv-pill-bar-content");
+
+            return List.of(
+                    wideHeight,
+                    normalLayoutHeight,
+                    compactHeight,
+                    drawerLayoutHeight,
+                    afterSelectionHeight,
+                    content.getBoundsInParent().getMaxY()
+            );
+        });
+
+        assertEquals(40, heights.get(0), 0.01);
+        assertEquals(88, heights.get(1), 0.01);
+        assertEquals(88, heights.get(2), 0.01);
+        assertEquals(88, heights.get(3), 0.01);
+        assertEquals(88, heights.get(4), 0.01);
+        assertTrue(heights.get(5) <= heights.get(4) + 0.5);
     }
 
     @Test
@@ -359,11 +418,6 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         return first instanceof Region && first.getStyleClass().isEmpty();
     }
 
-    private static double regionMaxWidthByStyle(Node root, String styleClass) {
-        Node node = findByStyle(root, styleClass);
-        return node instanceof Region region ? region.getMaxWidth() : Double.NaN;
-    }
-
     private static Node findByStyle(Node node, String styleClass) {
         if (node.getStyleClass().contains(styleClass)) {
             return node;
@@ -377,6 +431,21 @@ class AccountListUILayoutTest extends DbBackedUiTest {
             }
         }
         return null;
+    }
+
+    private static boolean firePillByText(Node node, String text) {
+        if (node instanceof ToggleButton toggleButton && Objects.equals(toggleButton.getText(), text)) {
+            toggleButton.fire();
+            return true;
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                if (firePillByText(child, text)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static AccountListUI.AccountItem accountItem(int index) {
@@ -397,10 +466,9 @@ class AccountListUILayoutTest extends DbBackedUiTest {
 
     private record ToolbarSnapshot(List<String> accessibleTexts,
                                    boolean hasFooter,
-                                   boolean hasFilterDropdown,
-                                   boolean filterDropdownSharesToolbarRow,
+                                   boolean hasFilterPillBar,
+                                   boolean filterPillBarIsInToolbar,
                                    boolean toolbarHasLeadingSpacer,
-                                   double filterDropdownMaxWidth,
                                    boolean hasToolbarActions,
                                    boolean hasSortDropdown,
                                    boolean hasQuietActionButton,

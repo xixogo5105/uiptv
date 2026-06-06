@@ -1002,11 +1002,6 @@
     -fx-padding: 7 0 0 0;
 }
 
-.account-list-panel-drawer .uiptv-pill-bar {
-    -fx-min-height: 78;
-    -fx-pref-height: 78;
-}
-
 .account-list-scroll,
 .account-list-scroll > .viewport,
 .account-channel-card-scroll,
@@ -1549,17 +1544,6 @@
     -fx-padding: 0;
 }
 
-.list-filter-combo {
-    -fx-min-height: 42;
-    -fx-pref-height: 42;
-    -fx-background-radius: 14;
-    -fx-border-radius: 14;
-}
-
-.list-filter-combo .list-cell {
-    -fx-font-weight: 600;
-}
-
 .list-toolbar-actions {
     -fx-padding: 0;
     -fx-spacing: 8;
@@ -1645,7 +1629,6 @@
     -fx-border-radius: 16;
     -fx-border-width: 1;
     -fx-padding: 5;
-    -fx-min-height: 40;
 }
 
 .uiptv-pill-bar-content {
@@ -1663,19 +1646,28 @@
     -fx-padding: 5 13 5 13;
     -fx-font-size: 0.94em;
     -fx-text-fill: -uiptv-text-secondary;
-    -fx-font-weight: normal;
+    -fx-font-weight: 600;
     -fx-cursor: hand;
     -fx-effect: none;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
 }
 
 .uiptv-pill:hover {
     -fx-background-color: rgba(255, 255, 255, 0.08);
 }
 
+.uiptv-pill:focused {
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+}
+
 .uiptv-pill:selected {
     -fx-background-color: #181b1f;
     -fx-text-fill: -uiptv-text-primary;
-    -fx-font-weight: bold;
+    -fx-font-weight: 600;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 10, 0.18, 0, 2);
 }
 
@@ -1688,7 +1680,6 @@
 }
 
 .account-list-panel-compact .uiptv-pill-bar {
-    -fx-min-height: 76;
     -fx-padding: 5;
 }
 

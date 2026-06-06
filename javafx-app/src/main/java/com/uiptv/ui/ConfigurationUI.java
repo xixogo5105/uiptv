@@ -253,6 +253,7 @@ public class ConfigurationUI extends VBox {
         contentContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         settingsSearchTextField.setPromptText(I18n.tr("commonSearch"));
         settingsSearchTextField.textProperty().addListener((_, _, _) -> refreshSettingsCards());
+        settingsPillBar.setNarrowReservedRowCount(3);
         settingsPillBar.setMaxWidth(Double.MAX_VALUE);
         settingsCardPane.getStyleClass().add("settings-section-grid");
         settingsCardPane.setHgap(SETTINGS_CARD_HGAP);

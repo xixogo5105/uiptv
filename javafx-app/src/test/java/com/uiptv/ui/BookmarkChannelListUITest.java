@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.BookmarkCategory;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
@@ -8,7 +9,9 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.ObservableList;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Labeled;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.Region;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -17,6 +20,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,17 +35,16 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     }
 
     @Test
-    void favoriteToolbarUsesDropdownAndQuietManageTabsButton() throws Exception {
+    void favoriteToolbarUsesPillBarAndQuietManageTabsButton() throws Exception {
         ToolbarSnapshot snapshot = runOnFxThread(() -> {
             BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
             return new ToolbarSnapshot(
                     controlAccessibleTexts(ui),
                     containsStyleClass(ui, "bookmark-footer"),
                     containsStyleClass(ui, "bookmark-list-panel"),
-                    containsStyleClass(ui, "list-filter-combo"),
-                    directChildHasStyle(ui, "list-toolbar-actions", "list-filter-combo"),
+                    containsStyleClass(ui, "uiptv-pill-bar"),
+                    directChildHasStyle(ui, "bookmark-category-row", "uiptv-pill-bar"),
                     toolbarHasLeadingSpacer(ui),
-                    regionMaxWidthByStyle(ui, "list-filter-combo"),
                     containsStyleClass(ui, "list-toolbar-actions"),
                     containsStyleClass(ui, "list-toolbar-sort-menu"),
                     containsStyleClass(ui, "list-toolbar-action-button"),
@@ -53,16 +56,95 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
         assertTrue(snapshot.accessibleTexts().contains(I18n.tr("autoSort") + ": " + I18n.tr("autoSortDefault")));
         assertTrue(snapshot.accessibleTexts().contains(I18n.tr("searchableTableManageTabs")));
         assertTrue(snapshot.hasListPanel());
-        assertTrue(snapshot.hasFilterDropdown());
-        assertTrue(snapshot.filterDropdownSharesToolbarRow());
+        assertTrue(snapshot.hasFilterPillBar());
+        assertTrue(snapshot.filterPillBarIsInCategoryRow());
         assertTrue(snapshot.toolbarHasLeadingSpacer());
-        assertTrue(snapshot.filterDropdownMaxWidth() <= 132.0);
         assertTrue(snapshot.hasToolbarActions());
         assertTrue(snapshot.hasSortDropdown());
         assertTrue(snapshot.hasQuietActionButton());
         assertEquals("Default", snapshot.sortDropdownText());
         assertTrue(snapshot.sortDropdownHasGraphic());
         assertFalse(snapshot.hasFooter());
+    }
+
+    @Test
+    void favoritePillBarReservesDynamicRowsFromFiveItemNarrowAllocation() throws Exception {
+        List<Double> heights = runOnFxThread(() -> {
+            BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
+            populateCategoryPills(ui, List.of(
+                    new BookmarkCategory(null, "All"),
+                    new BookmarkCategory("cricket", "Cricket"),
+                    new BookmarkCategory("movies", "Movies"),
+                    new BookmarkCategory("drama", "Drama"),
+                    new BookmarkCategory("4k", "4K"),
+                    new BookmarkCategory("news", "News"),
+                    new BookmarkCategory("samad", "A Samad"),
+                    new BookmarkCategory("kids", "Kids"),
+                    new BookmarkCategory("sports", "Sports"),
+                    new BookmarkCategory("music", "Music"),
+                    new BookmarkCategory("documentary", "Documentary")
+            ));
+            Scene scene = new Scene(ui, 1920, 1080);
+            scene.getStylesheets().add(Objects.requireNonNull(
+                    BookmarkChannelListUITest.class.getResource("/application.css")
+            ).toExternalForm());
+            ui.applyCss();
+
+            Region pillBar = (Region) findByStyle(ui, "uiptv-pill-bar");
+            ui.resize(1800, 720);
+            ui.layout();
+            ui.layout();
+            double wideLayoutHeight = pillBar.getHeight();
+
+            ui.resize(520, 720);
+            ui.layout();
+            ui.layout();
+            double narrowLayoutHeight = pillBar.getHeight();
+
+            return List.of(wideLayoutHeight, narrowLayoutHeight);
+        });
+
+        assertEquals(40, heights.get(0), 0.01);
+        assertEquals(136, heights.get(1), 0.01);
+    }
+
+    @Test
+    void favoritePillBarKeepsSevenCategoryWrapInsideBackground() throws Exception {
+        List<Double> heights = runOnFxThread(() -> {
+            BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
+            populateCategoryPills(ui, List.of(
+                    new BookmarkCategory(null, "All"),
+                    new BookmarkCategory("cricket", "Cricket"),
+                    new BookmarkCategory("movies", "Movies"),
+                    new BookmarkCategory("drama", "Drama"),
+                    new BookmarkCategory("4k", "4K"),
+                    new BookmarkCategory("news", "News"),
+                    new BookmarkCategory("samad", "A Samad")
+            ));
+            Scene scene = new Scene(ui, 520, 720);
+            scene.getStylesheets().add(Objects.requireNonNull(
+                    BookmarkChannelListUITest.class.getResource("/application.css")
+            ).toExternalForm());
+            ui.applyCss();
+
+            Region pillBar = (Region) findByStyle(ui, "uiptv-pill-bar");
+            ui.resize(520, 720);
+            ui.layout();
+            ui.layout();
+            double initialHeight = pillBar.getHeight();
+
+            firePillByText(pillBar, "News");
+            ui.applyCss();
+            ui.layout();
+            ui.layout();
+            Region content = (Region) findByStyle(pillBar, "uiptv-pill-bar-content");
+            return List.of(initialHeight, pillBar.getHeight(), pillBar.getPrefHeight(), content.getBoundsInParent().getMaxY());
+        });
+
+        assertEquals(88, heights.get(0), 0.01);
+        assertEquals(88, heights.get(1), 0.01);
+        assertEquals(88, heights.get(2), 0.01);
+        assertTrue(heights.get(3) <= heights.get(1) + 0.5);
     }
 
     @Test
@@ -143,6 +225,12 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
         Method method = BookmarkChannelListUI.class.getDeclaredMethod("filterView");
         method.setAccessible(true);
         method.invoke(ui);
+    }
+
+    private static void populateCategoryPills(BookmarkChannelListUI ui, List<BookmarkCategory> categories) throws Exception {
+        Method method = BookmarkChannelListUI.class.getDeclaredMethod("populateCategoryPills", List.class);
+        method.setAccessible(true);
+        method.invoke(ui, categories);
     }
 
     private static void setBookmarkSortMode(BookmarkChannelListUI ui, String sortModeName) throws Exception {
@@ -283,11 +371,6 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
         return first instanceof Region && first.getStyleClass().isEmpty();
     }
 
-    private static double regionMaxWidthByStyle(Node root, String styleClass) {
-        Node node = findByStyle(root, styleClass);
-        return node instanceof Region region ? region.getMaxWidth() : Double.NaN;
-    }
-
     private static Node findByStyle(Node node, String styleClass) {
         if (node.getStyleClass().contains(styleClass)) {
             return node;
@@ -303,13 +386,27 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
         return null;
     }
 
+    private static boolean firePillByText(Node node, String text) {
+        if (node instanceof ToggleButton toggleButton && Objects.equals(toggleButton.getText(), text)) {
+            toggleButton.fire();
+            return true;
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                if (firePillByText(child, text)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private record ToolbarSnapshot(List<String> accessibleTexts,
                                    boolean hasFooter,
                                    boolean hasListPanel,
-                                   boolean hasFilterDropdown,
-                                   boolean filterDropdownSharesToolbarRow,
+                                   boolean hasFilterPillBar,
+                                   boolean filterPillBarIsInCategoryRow,
                                    boolean toolbarHasLeadingSpacer,
-                                   double filterDropdownMaxWidth,
                                    boolean hasToolbarActions,
                                    boolean hasSortDropdown,
                                    boolean hasQuietActionButton,

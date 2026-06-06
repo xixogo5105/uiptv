@@ -10,6 +10,7 @@ import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.BookmarkCard;
 import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.LoadingStateView;
+import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
 import com.uiptv.widget.UiRenderQuality;
@@ -46,9 +47,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 46;
-    private static final double FILTER_DROPDOWN_MIN_WIDTH = 88;
-    private static final double FILTER_DROPDOWN_PREF_WIDTH = 118;
-    private static final double FILTER_DROPDOWN_MAX_WIDTH = 132;
     private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
     private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
     private static final Comparator<BookmarkItem> BOOKMARK_NAME_COMPARATOR =
@@ -60,7 +58,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private final ResponsiveCardGrid<BookmarkItem> bookmarkGrid = new ResponsiveCardGrid<>(this::createBookmarkCard);
     private final StackPane bookmarkGridFrame = new StackPane();
     private final LoadingStateView bookmarkLoadingOverlay = new LoadingStateView(I18n.tr("autoLoadingBookmarks"));
-    private final ComboBox<BookmarkCategory> categoryComboBox = new ComboBox<>();
+    private final PillBar<BookmarkCategory> categoryPillBar =
+            new PillBar<>(BookmarkCategory::getName, BookmarkCategory::getId);
     private final VBox listPanel = new VBox(8);
     private final ObservableList<BookmarkItem> filteredItems = FXCollections.observableArrayList();
     private final List<BookmarkItem> allBookmarkItems = new ArrayList<>();
@@ -226,7 +225,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         List<String> selectedBookmarkIds = bookmarkGrid.getSelectedItems().stream()
                 .map(BookmarkItem::getBookmarkId)
                 .toList();
-        populateCategoryDropdown(categories);
+        populateCategoryPills(categories);
         if (!sameBookmarkItems(loadedItems)) {
             allBookmarkItems.clear();
             allBookmarkItems.addAll(loadedItems);
@@ -342,7 +341,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         setMinSize(0, 0);
         setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         setupBookmarkGrid();
-        configureCategoryComboBox();
+        setupCategoryPillListener();
         setupSearchTextFieldListener();
 
         VBox page = new VBox(12);
@@ -396,19 +395,27 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         listPanel.getChildren().setAll(createCategoryRow(), pageScroll);
     }
 
-    private HBox createCategoryRow() {
-        HBox row = new HBox(8);
-        row.setAlignment(Pos.CENTER_RIGHT);
-        row.setFillHeight(false);
+    private VBox createCategoryRow() {
+        VBox row = new VBox(8);
+        row.setFillWidth(true);
         row.setMaxWidth(Double.MAX_VALUE);
         row.getStyleClass().add("bookmark-category-row");
-        row.getStyleClass().add("list-toolbar-actions");
 
+        categoryPillBar.setNarrowItemsPerRow(5);
+        categoryPillBar.setMaxWidth(Double.MAX_VALUE);
+        row.getChildren().setAll(categoryPillBar, createBookmarkToolbarActions());
+        return row;
+    }
+
+    private HBox createBookmarkToolbarActions() {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox.setHgrow(categoryComboBox, Priority.NEVER);
-        row.getChildren().setAll(spacer, categoryComboBox, createBookmarkSortButton(), createManageTabsToolbarButton());
-        return row;
+        HBox actions = new HBox(8, spacer, createBookmarkSortButton(), createManageTabsToolbarButton());
+        actions.getStyleClass().add("list-toolbar-actions");
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.setFillHeight(false);
+        actions.setMaxWidth(Double.MAX_VALUE);
+        return actions;
     }
 
     private void setupBookmarkGrid() {
@@ -676,14 +683,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 : GRID_PLAIN_TEXT_VERTICAL_GAP);
     }
 
-    private void configureCategoryComboBox() {
-        categoryComboBox.getStyleClass().add("list-filter-combo");
-        categoryComboBox.setMinWidth(FILTER_DROPDOWN_MIN_WIDTH);
-        categoryComboBox.setPrefWidth(FILTER_DROPDOWN_PREF_WIDTH);
-        categoryComboBox.setMaxWidth(FILTER_DROPDOWN_MAX_WIDTH);
-        categoryComboBox.setCellFactory(_ -> createBookmarkCategoryCell());
-        categoryComboBox.setButtonCell(createBookmarkCategoryCell());
-        categoryComboBox.valueProperty().addListener((_, _, _) -> filterView());
+    private void setupCategoryPillListener() {
+        categoryPillBar.selectedItemProperty().addListener((_, _, _) -> filterView());
     }
 
     private void setupSearchTextFieldListener() {
@@ -702,32 +703,11 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         List<BookmarkCategory> categories = new ArrayList<>();
         categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
         categories.addAll(BookmarkService.getInstance().getAllCategories());
-        populateCategoryDropdown(categories);
+        populateCategoryPills(categories);
     }
 
-    private void populateCategoryDropdown(List<BookmarkCategory> categories) {
-        String selectedId = selectedCategoryId();
-        List<BookmarkCategory> safeCategories = categories == null ? List.of() : List.copyOf(categories);
-        categoryComboBox.getItems().setAll(safeCategories);
-        BookmarkCategory restored = safeCategories.stream()
-                .filter(category -> Objects.equals(selectedId, category.getId()))
-                .findFirst()
-                .orElse(safeCategories.isEmpty() ? null : safeCategories.getFirst());
-        if (restored == null) {
-            categoryComboBox.getSelectionModel().clearSelection();
-        } else {
-            categoryComboBox.getSelectionModel().select(restored);
-        }
-    }
-
-    private ListCell<BookmarkCategory> createBookmarkCategoryCell() {
-        return new ListCell<>() {
-            @Override
-            protected void updateItem(BookmarkCategory category, boolean empty) {
-                super.updateItem(category, empty);
-                setText(empty || category == null ? null : category.getName());
-            }
-        };
+    private void populateCategoryPills(List<BookmarkCategory> categories) {
+        categoryPillBar.setItems(categories);
     }
 
     private void filterView() {
@@ -884,7 +864,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private String selectedCategoryId() {
-        BookmarkCategory category = categoryComboBox.getValue();
+        BookmarkCategory category = categoryPillBar.getSelectedItem();
         return category != null ? category.getId() : null;
     }
 

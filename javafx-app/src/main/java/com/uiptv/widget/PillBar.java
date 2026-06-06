@@ -1,6 +1,5 @@
 package com.uiptv.widget;
 
-import javafx.application.Platform;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Orientation;
@@ -23,8 +22,11 @@ import java.util.Objects;
 import java.util.function.Function;
 
 public class PillBar<T> extends StackPane {
-    private static final double DEFAULT_MIN_HEIGHT = 40;
     private static final double SCROLLBAR_WIDTH_GUTTER = 18;
+    private static final double SINGLE_ROW_HEADROOM = 16;
+    private static final double NARROW_SIDE_PANE_WIDTH_THRESHOLD = 620;
+    private static final double MIN_SINGLE_ROW_HEIGHT = 40;
+    private static final double MIN_WRAPPED_ROW_INCREMENT = 48;
 
     private final FlowPane content = new FlowPane();
     private final ToggleGroup toggleGroup = new ToggleGroup();
@@ -33,6 +35,12 @@ public class PillBar<T> extends StackPane {
     private final Function<T, Node> graphicFactory;
     private final ObjectProperty<T> selectedItem = new SimpleObjectProperty<>();
     private boolean rebuilding;
+    private int reservedRowCount;
+    private int narrowReservedRowCount;
+    private int narrowItemsPerRow;
+    private int appliedRowCount;
+    private boolean appliedNarrowMode;
+    private double appliedFixedHeight = Double.NaN;
 
     public PillBar(Function<T, String> labelFactory, Function<T, ?> keyFactory) {
         this(labelFactory, keyFactory, null);
@@ -48,8 +56,7 @@ public class PillBar<T> extends StackPane {
         setFocusTraversable(false);
         setMinWidth(0);
         setMaxWidth(Double.MAX_VALUE);
-        setMinHeight(DEFAULT_MIN_HEIGHT);
-        setMaxHeight(Region.USE_PREF_SIZE);
+        applyFixedHeight(MIN_SINGLE_ROW_HEIGHT);
 
         Rectangle clip = new Rectangle();
         clip.setX(-6);
@@ -64,12 +71,17 @@ public class PillBar<T> extends StackPane {
         content.setVgap(5);
         content.setMinWidth(0);
         content.setMaxWidth(Double.MAX_VALUE);
+        content.setMaxHeight(Double.MAX_VALUE);
         content.setPrefWrapLength(4096);
         getChildren().add(content);
         StackPane.setAlignment(content, Pos.CENTER_LEFT);
         widthProperty().addListener((_, _, width) -> {
-            syncWrappedHeight(width.doubleValue());
-            requestAncestorLayout();
+            updateContentWrapLength(width.doubleValue());
+            if (syncReservedHeight(width.doubleValue())) {
+                requestAncestorLayout();
+            } else {
+                requestLayout();
+            }
         });
 
         toggleGroup.selectedToggleProperty().addListener((_, oldValue, newValue) -> {
@@ -81,6 +93,9 @@ public class PillBar<T> extends StackPane {
                 return;
             }
             selectedItem.set(newValue == null ? null : itemFromToggle(newValue));
+            if (syncReservedHeight(getWidth())) {
+                requestAncestorLayout();
+            }
         });
     }
 
@@ -96,7 +111,79 @@ public class PillBar<T> extends StackPane {
         Toggle toggle = findToggleByKey(keyOf(item));
         if (toggle != null) {
             toggleGroup.selectToggle(toggle);
+            if (syncReservedHeight(getWidth())) {
+                requestAncestorLayout();
+            }
         }
+    }
+
+    public void setReservedRowCount(int rowCount) {
+        if (rowCount < 1) {
+            throw new IllegalArgumentException("Reserved row count must be at least 1");
+        }
+        if (reservedRowCount == rowCount) {
+            return;
+        }
+        reservedRowCount = rowCount;
+        resetAppliedRowCount();
+        syncReservedHeight(getWidth());
+        requestAncestorLayout();
+    }
+
+    public void clearReservedRowCount() {
+        if (reservedRowCount == 0) {
+            return;
+        }
+        reservedRowCount = 0;
+        resetAppliedRowCount();
+        syncReservedHeight(getWidth());
+        requestAncestorLayout();
+    }
+
+    public void setNarrowReservedRowCount(int rowCount) {
+        if (rowCount < 1) {
+            throw new IllegalArgumentException("Narrow reserved row count must be at least 1");
+        }
+        if (narrowReservedRowCount == rowCount) {
+            return;
+        }
+        narrowReservedRowCount = rowCount;
+        resetAppliedRowCount();
+        syncReservedHeight(getWidth());
+        requestAncestorLayout();
+    }
+
+    public void clearNarrowReservedRowCount() {
+        if (narrowReservedRowCount == 0) {
+            return;
+        }
+        narrowReservedRowCount = 0;
+        resetAppliedRowCount();
+        syncReservedHeight(getWidth());
+        requestAncestorLayout();
+    }
+
+    public void setNarrowItemsPerRow(int itemsPerRow) {
+        if (itemsPerRow < 1) {
+            throw new IllegalArgumentException("Narrow items per row must be at least 1");
+        }
+        if (narrowItemsPerRow == itemsPerRow) {
+            return;
+        }
+        narrowItemsPerRow = itemsPerRow;
+        resetAppliedRowCount();
+        syncReservedHeight(getWidth());
+        requestAncestorLayout();
+    }
+
+    public void clearNarrowItemsPerRow() {
+        if (narrowItemsPerRow == 0) {
+            return;
+        }
+        narrowItemsPerRow = 0;
+        resetAppliedRowCount();
+        syncReservedHeight(getWidth());
+        requestAncestorLayout();
     }
 
     public void setItems(List<T> items) {
@@ -122,8 +209,9 @@ public class PillBar<T> extends StackPane {
         }
         toggleGroup.selectToggle(restored);
         selectedItem.set(restored == null ? null : itemFromToggle(restored));
-        syncWrappedHeight(getWidth());
-        Platform.runLater(() -> syncWrappedHeight(getWidth()));
+        updateContentWrapLength(getWidth());
+        resetAppliedRowCount();
+        syncReservedHeight(getWidth());
         requestAncestorLayout();
     }
 
@@ -134,39 +222,132 @@ public class PillBar<T> extends StackPane {
 
     @Override
     protected double computeMinHeight(double width) {
-        return computeWrappedHeight(width);
+        return heightForRows(rowCountForWidth(width));
     }
 
     @Override
     protected double computePrefHeight(double width) {
-        return computeWrappedHeight(width);
+        return heightForRows(rowCountForWidth(width));
     }
 
     @Override
     protected void layoutChildren() {
-        syncWrappedHeight(getWidth());
+        updateContentWrapLength(getWidth());
         super.layoutChildren();
-    }
-
-    private double computeWrappedHeight(double width) {
-        double insets = snappedTopInset() + snappedBottomInset();
-        double contentWidth = effectiveContentWidth(width);
-        return Math.max(DEFAULT_MIN_HEIGHT, content.prefHeight(contentWidth) + insets);
     }
 
     private void updateContentWrapLength(double width) {
         content.setPrefWrapLength(effectiveContentWidth(width));
     }
 
-    private void syncWrappedHeight(double width) {
-        updateContentWrapLength(width);
-        double height = computeWrappedHeight(width);
-        if (Math.abs(getPrefHeight() - height) > 0.5) {
-            setPrefHeight(height);
+    private boolean syncReservedHeight(double width) {
+        boolean narrowMode = isNarrowMode(width);
+        int rowCount = rowCountForWidth(width);
+        if (appliedRowCount == 0 || appliedNarrowMode != narrowMode) {
+            appliedRowCount = rowCount;
+            appliedNarrowMode = narrowMode;
+        } else if (narrowMode) {
+            appliedRowCount = Math.max(appliedRowCount, rowCount);
+        } else {
+            appliedRowCount = rowCount;
         }
-        if (Math.abs(getMinHeight() - height) > 0.5) {
-            setMinHeight(height);
+        return applyFixedHeight(heightForRows(appliedRowCount));
+    }
+
+    private boolean applyFixedHeight(double height) {
+        if (Math.abs(appliedFixedHeight - height) <= 0.5) {
+            return false;
         }
+        appliedFixedHeight = height;
+        setMinHeight(height);
+        setPrefHeight(height);
+        setMaxHeight(height);
+        return true;
+    }
+
+    private int rowCountForWidth(double width) {
+        if (reservedRowCount > 0) {
+            return reservedRowCount;
+        }
+        if (content.getChildren().isEmpty()) {
+            return 1;
+        }
+        boolean narrowMode = isNarrowMode(width);
+        double contentWidth = effectiveContentWidth(width);
+        if (narrowMode && narrowReservedRowCount > 0) {
+            return Math.max(narrowReservedRowCount, measuredRowCount(contentWidth));
+        }
+        if (narrowMode && narrowItemsPerRow > 0) {
+            return Math.max(narrowRowCount(), measuredRowCount(contentWidth));
+        }
+        if (singleLineContentWidth() + SINGLE_ROW_HEADROOM <= contentWidth) {
+            return 1;
+        }
+        return Math.max(1, measuredRowCount(contentWidth));
+    }
+
+    private boolean isNarrowMode(double width) {
+        if (narrowReservedRowCount <= 0 && narrowItemsPerRow <= 0) {
+            return false;
+        }
+        double measuredWidth = width > 0 ? width : getWidth();
+        return measuredWidth <= 0 || measuredWidth < NARROW_SIDE_PANE_WIDTH_THRESHOLD;
+    }
+
+    private int measuredRowCount(double contentWidth) {
+        if (content.getChildren().isEmpty()) {
+            return 1;
+        }
+        double availableWidth = Math.max(1, contentWidth);
+        double lineWidth = 0;
+        int rows = 1;
+        for (Node child : content.getChildren()) {
+            double childWidth = boundedPrefWidth(child);
+            double nextWidth = lineWidth <= 0 ? childWidth : lineWidth + content.getHgap() + childWidth;
+            if (lineWidth > 0 && nextWidth > availableWidth) {
+                rows++;
+                lineWidth = childWidth;
+            } else {
+                lineWidth = nextWidth;
+            }
+        }
+        return rows;
+    }
+
+    private double singleLineContentWidth() {
+        double width = 0;
+        for (Node child : content.getChildren()) {
+            if (width > 0) {
+                width += content.getHgap();
+            }
+            width += boundedPrefWidth(child);
+        }
+        return width;
+    }
+
+    private int narrowRowCount() {
+        return (int) Math.ceil((double) content.getChildren().size() / narrowItemsPerRow);
+    }
+
+    private double heightForRows(int rowCount) {
+        int safeRowCount = Math.max(1, rowCount);
+        return MIN_SINGLE_ROW_HEIGHT + Math.max(0, safeRowCount - 1) * MIN_WRAPPED_ROW_INCREMENT;
+    }
+
+    private void resetAppliedRowCount() {
+        appliedRowCount = 0;
+        appliedNarrowMode = false;
+    }
+
+    private double boundedPrefWidth(Node node) {
+        double width = Math.max(0, node.prefWidth(-1));
+        if (node instanceof Region region) {
+            double maxWidth = region.getMaxWidth();
+            if (maxWidth > 0 && maxWidth < Double.MAX_VALUE) {
+                width = Math.min(width, maxWidth);
+            }
+        }
+        return width;
     }
 
     private double effectiveContentWidth(double width) {

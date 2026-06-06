@@ -63,7 +63,11 @@ public class AppHeaderActions extends HBox {
     private final ChangeListener<AppNavigationController.Target> navigationTargetListener =
             (_, _, _) -> Platform.runLater(this::updateNavigationButtons);
     private final ConfigurationChangeListener configurationChangeListener =
-            _ -> Platform.runLater(this::refreshState);
+            _ -> Platform.runLater(() -> {
+                if (getScene() != null) {
+                    refreshState();
+                }
+            });
     private final Runnable widePlayerNavigationListener =
             () -> Platform.runLater(this::updateWidePlayerNavigationButton);
     private boolean configurationListenerRegistered;
@@ -135,7 +139,7 @@ public class AppHeaderActions extends HBox {
     }
 
     private void updateGearButton() {
-        Configuration configuration = ConfigurationService.getInstance().read();
+        Configuration configuration = readConfigurationSafely();
         boolean paused = configuration != null && configuration.isPauseFiltering();
         gearButton.setTooltipText(I18n.tr("autoSettings"));
         gearButton.getStyleClass().remove("bookmarks-quick-action-button-lock-ok");
@@ -185,6 +189,14 @@ public class AppHeaderActions extends HBox {
         return paused
                 ? "Resume parental lock restrictions"
                 : "Pause parental lock restrictions";
+    }
+
+    private Configuration readConfigurationSafely() {
+        try {
+            return ConfigurationService.getInstance().read();
+        } catch (RuntimeException _) {
+            return null;
+        }
     }
 
     private String parentalLockIcon() {
