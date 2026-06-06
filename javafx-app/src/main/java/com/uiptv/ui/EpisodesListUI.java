@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.I18n;
@@ -16,7 +17,7 @@ import org.json.JSONObject;
 import java.util.function.Consumer;
 
 public class EpisodesListUI extends HBox {
-    private final Account account;
+    private final AccountMediaContext mediaContext;
     private final String categoryTitle;
     private final String seriesId;
     private final String seriesCategoryId;
@@ -37,12 +38,23 @@ public class EpisodesListUI extends HBox {
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
     public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this(account, categoryTitle, seriesId, seriesCategoryId);
+        this(AccountMediaContext.from(account, Account.AccountAction.series), categoryTitle, seriesId, seriesCategoryId);
         setItems(channelList);
     }
 
     public EpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this.account = account;
+        this(AccountMediaContext.from(account, Account.AccountAction.series), categoryTitle, seriesId, seriesCategoryId);
+    }
+
+    public EpisodesListUI(EpisodeList channelList, AccountMediaContext mediaContext, String categoryTitle, String seriesId, String seriesCategoryId) {
+        this(mediaContext, categoryTitle, seriesId, seriesCategoryId);
+        setItems(channelList);
+    }
+
+    public EpisodesListUI(AccountMediaContext mediaContext, String categoryTitle, String seriesId, String seriesCategoryId) {
+        this.mediaContext = mediaContext == null
+                ? new AccountMediaContext(null, Account.AccountAction.series)
+                : mediaContext.withAction(Account.AccountAction.series);
         this.categoryTitle = categoryTitle;
         this.seriesId = seriesId;
         this.seriesCategoryId = seriesCategoryId;
@@ -190,9 +202,9 @@ public class EpisodesListUI extends HBox {
 
     private BaseEpisodesListUI buildDelegate() {
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
-            return new ThumbnailEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId);
+            return new ThumbnailEpisodesListUI(mediaContext, categoryTitle, seriesId, seriesCategoryId);
         }
-        return new PlainEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId);
+        return new PlainEpisodesListUI(mediaContext, categoryTitle, seriesId, seriesCategoryId);
     }
 
     private void configureDelegate(BaseEpisodesListUI target) {

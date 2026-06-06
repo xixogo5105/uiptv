@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.shared.EpisodeList;
@@ -106,13 +107,21 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private boolean mediaDrawerDetailMode = false;
 
     public ThumbnailEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        super(account, categoryTitle, seriesId, seriesCategoryId);
+        this(channelList, AccountMediaContext.from(account, Account.AccountAction.series), categoryTitle, seriesId, seriesCategoryId);
+    }
+
+    public ThumbnailEpisodesListUI(EpisodeList channelList, AccountMediaContext mediaContext, String categoryTitle, String seriesId, String seriesCategoryId) {
+        super(mediaContext, categoryTitle, seriesId, seriesCategoryId);
         finishInit();
         setItems(channelList);
     }
 
     public ThumbnailEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        super(account, categoryTitle, seriesId, seriesCategoryId);
+        this(AccountMediaContext.from(account, Account.AccountAction.series), categoryTitle, seriesId, seriesCategoryId);
+    }
+
+    public ThumbnailEpisodesListUI(AccountMediaContext mediaContext, String categoryTitle, String seriesId, String seriesCategoryId) {
+        super(mediaContext, categoryTitle, seriesId, seriesCategoryId);
         finishInit();
     }
 

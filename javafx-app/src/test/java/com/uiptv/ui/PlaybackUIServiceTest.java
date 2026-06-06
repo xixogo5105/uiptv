@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,24 @@ class PlaybackUIServiceTest {
         assertEquals("series-12", readStringField(request, "seriesCategoryId"));
         assertFalse(readBooleanField(request, "allowDrmBrowserFallback"));
         assertEquals("Error playing episode: ", readStringField(request, "errorPrefix"));
+    }
+
+    @Test
+    void playbackRequestKeepsSnapshotModeWhenSourceAccountChanges() {
+        Account account = sampleAccount();
+        PlaybackUIService.PlaybackRequest request = new PlaybackUIService.PlaybackRequest(
+                AccountMediaContext.from(account, Account.AccountAction.vod),
+                sampleChannel(),
+                "embedded");
+
+        account.setAccountName("changed-account");
+        account.setAction(Account.AccountAction.series);
+
+        Account playbackAccount = request.accountForPlayback();
+
+        assertEquals("test-account", playbackAccount.getAccountName());
+        assertEquals(Account.AccountAction.vod, playbackAccount.getAction());
+        assertEquals(Account.AccountAction.series, account.getAction());
     }
 
     @Test

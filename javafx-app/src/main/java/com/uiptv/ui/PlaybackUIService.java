@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
@@ -52,15 +53,16 @@ public final class PlaybackUIService {
     }
 
     public static void play(Node source, PlaybackRequest request) {
-        if (source == null || request == null || request.account == null || request.channel == null) {
+        Account playbackAccount = request == null ? null : request.accountForPlayback();
+        if (source == null || request == null || playbackAccount == null || request.channel == null) {
             return;
         }
 
         Configuration configuration = ConfigurationService.getInstance().read();
-        PlaybackModeContext context = buildPlaybackModeContext(configuration, request);
+        PlaybackModeContext context = buildPlaybackModeContext(configuration, request, playbackAccount);
 
-        if (handleBrowserPlayback(context, request)) return;
-        if (handleDrmBrowserFallback(context, request)) return;
+        if (handleBrowserPlayback(context, request, playbackAccount)) return;
+        if (handleDrmBrowserFallback(context, request, playbackAccount)) return;
 
         Scene scene = source.getScene();
         if (scene != null) {
@@ -69,8 +71,8 @@ public final class PlaybackUIService {
 
         new Thread(() -> {
             try {
-                PlayerResponse response = resolvePlayerResponse(request);
-                response.setFromChannel(request.channel, request.account);
+                PlayerResponse response = resolvePlayerResponse(request, playbackAccount);
+                response.setFromChannel(request.channel, playbackAccount);
                 runLater(() -> launchResolvedPlayback(context, request, response));
             } catch (Exception e) {
                 runLater(() -> showErrorAlert(request.errorPrefix + e.getMessage()));
@@ -83,17 +85,22 @@ public final class PlaybackUIService {
     }
 
     public static void playDirectUrl(String playerPath, String url, String errorPrefix) {
-        playDirectUrl(playerPath, url, errorPrefix, null, null);
+        playDirectUrl(playerPath, url, errorPrefix, (AccountMediaContext) null, null);
     }
 
     public static void playDirectUrl(String playerPath, String url, String errorPrefix, Account account, Channel channel) {
+        playDirectUrl(playerPath, url, errorPrefix, AccountMediaContext.from(account), channel);
+    }
+
+    public static void playDirectUrl(String playerPath, String url, String errorPrefix, AccountMediaContext mediaContext, Channel channel) {
         if (isBlank(url)) {
             showErrorAlert(isBlank(errorPrefix) ? PLAYLIST_RESOLUTION_FAILURE : errorPrefix + "unable to resolve playlist URL.");
             return;
         }
+        Account playbackAccount = mediaContext == null ? null : mediaContext.toAccount();
         PlayerResponse response = new PlayerResponse(url);
         if (channel != null) {
-            response.setFromChannel(channel, account);
+            response.setFromChannel(channel, playbackAccount);
         }
         if (isEmbeddedPlayerPath(playerPath)) {
             playEmbedded(response, true);
@@ -104,7 +111,7 @@ public final class PlaybackUIService {
                 showErrorAlert(isBlank(errorPrefix) ? PLAYLIST_RESOLUTION_FAILURE : errorPrefix + "unable to start local web player.");
                 return;
             }
-            String browserUrl = buildBrowserDirectPlaybackUrl(url, account, channel);
+            String browserUrl = buildBrowserDirectPlaybackUrl(url, playbackAccount, channel);
             UiServerUrlUtil.openInBrowser(browserUrl);
             return;
         }
@@ -115,24 +122,24 @@ public final class PlaybackUIService {
         com.uiptv.util.Platform.executeCommand(playerPath, url);
     }
 
-    private static PlaybackModeContext buildPlaybackModeContext(Configuration configuration, PlaybackRequest request) {
+    private static PlaybackModeContext buildPlaybackModeContext(Configuration configuration, PlaybackRequest request, Account playbackAccount) {
         boolean useEmbeddedPlayerConfig = configuration != null && configuration.isEmbeddedPlayer();
         boolean browserIsDefaultConfig = configuration != null
                 && WEB_BROWSER_PLAYER_PATH.equalsIgnoreCase(String.valueOf(configuration.getDefaultPlayerPath()).trim());
         boolean playerPathIsEmbedded = isEmbeddedPlayerPath(request.playerPath);
         boolean playerPathIsBrowser = WEB_BROWSER_PLAYER_PATH.equalsIgnoreCase(String.valueOf(request.playerPath).trim());
-        String mode = request.account.getAction() == null ? "itv" : request.account.getAction().name();
+        String mode = playbackAccount.getAction() == null ? "itv" : playbackAccount.getAction().name();
         return new PlaybackModeContext(useEmbeddedPlayerConfig, browserIsDefaultConfig, playerPathIsEmbedded, playerPathIsBrowser, mode);
     }
 
-    private static boolean handleBrowserPlayback(PlaybackModeContext context, PlaybackRequest request) {
+    private static boolean handleBrowserPlayback(PlaybackModeContext context, PlaybackRequest request, Account playbackAccount) {
         if (!context.playerPathIsBrowser()) {
             return false;
         }
-        return openBrowserPlayback(context.mode(), I18n.tr("autoUnableToStartLocalWebServerForBrowserPlayback"), request);
+        return openBrowserPlayback(context.mode(), I18n.tr("autoUnableToStartLocalWebServerForBrowserPlayback"), request, playbackAccount);
     }
 
-    private static boolean handleDrmBrowserFallback(PlaybackModeContext context, PlaybackRequest request) {
+    private static boolean handleDrmBrowserFallback(PlaybackModeContext context, PlaybackRequest request, Account playbackAccount) {
         if (!request.allowDrmBrowserFallback || !PlayerService.getInstance().isDrmProtected(request.channel)) {
             return false;
         }
@@ -143,20 +150,20 @@ public final class PlaybackUIService {
                 return true;
             }
         }
-        return openBrowserPlayback(context.mode(), I18n.tr("autoUnableToStartLocalWebServerForDRMPlayback"), request);
+        return openBrowserPlayback(context.mode(), I18n.tr("autoUnableToStartLocalWebServerForDRMPlayback"), request, playbackAccount);
     }
 
-    private static boolean openBrowserPlayback(String mode, String startupFailureMessage, PlaybackRequest request) {
+    private static boolean openBrowserPlayback(String mode, String startupFailureMessage, PlaybackRequest request, Account playbackAccount) {
         if (!UiServerUrlUtil.ensureServerForWebPlayback()) {
             showErrorAlert(startupFailureMessage);
             return true;
         }
-        if (request == null) {
+        if (request == null || playbackAccount == null) {
             return false;
         }
         String browserUrl = PlayerService.getInstance()
                 .buildDrmBrowserPlaybackUrl(
-                        request.account,
+                        playbackAccount,
                         request.channel,
                         request.categoryId,
                         mode,
@@ -167,12 +174,12 @@ public final class PlaybackUIService {
         return true;
     }
 
-    private static PlayerResponse resolvePlayerResponse(PlaybackRequest request) throws IOException {
+    private static PlayerResponse resolvePlayerResponse(PlaybackRequest request, Account playbackAccount) throws IOException {
         String channelId = isBlank(request.channelId) ? request.channel.getChannelId() : request.channelId;
         if (isBlank(request.seriesId)) {
-            return PlayerService.getInstance().get(request.account, request.channel, channelId);
+            return PlayerService.getInstance().get(playbackAccount, request.channel, channelId);
         }
-        return PlayerService.getInstance().get(request.account, request.channel, channelId, request.seriesId, request.seriesCategoryId);
+        return PlayerService.getInstance().get(playbackAccount, request.channel, channelId, request.seriesId, request.seriesCategoryId);
     }
 
     private static void launchResolvedPlayback(PlaybackModeContext context, PlaybackRequest request, PlayerResponse response) {
@@ -334,7 +341,7 @@ public final class PlaybackUIService {
     }
 
     public static final class PlaybackRequest {
-        private final Account account;
+        private final AccountMediaContext mediaContext;
         private final Channel channel;
         private final String playerPath;
         private String categoryId = "";
@@ -345,9 +352,17 @@ public final class PlaybackUIService {
         private String errorPrefix = "Playback failed: ";
 
         public PlaybackRequest(Account account, Channel channel, String playerPath) {
-            this.account = account;
+            this(AccountMediaContext.from(account), channel, playerPath);
+        }
+
+        public PlaybackRequest(AccountMediaContext mediaContext, Channel channel, String playerPath) {
+            this.mediaContext = mediaContext;
             this.channel = channel;
             this.playerPath = playerPath;
+        }
+
+        Account accountForPlayback() {
+            return mediaContext == null ? null : mediaContext.toAccount();
         }
 
         public PlaybackRequest categoryId(String categoryId) {

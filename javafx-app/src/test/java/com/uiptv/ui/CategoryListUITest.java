@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Category;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
@@ -44,6 +45,25 @@ class CategoryListUITest extends DbBackedUiTest {
         });
 
         assertEquals(3, cardCount);
+    }
+
+    @Test
+    void mediaListConstructorsDoNotMutateSourceAccountAction() throws Exception {
+        runOnFxThread(() -> {
+            Account account = new Account();
+            account.setAccountName("Account");
+            account.setAction(Account.AccountAction.itv);
+
+            CategoryListUI categories = new CategoryListUI(AccountMediaContext.from(account, Account.AccountAction.vod), true);
+            ChannelListUI channels = new ChannelListUI(account, "Series", "series", Account.AccountAction.series);
+            try {
+                assertEquals(Account.AccountAction.itv, account.getAction());
+            } finally {
+                categories.dispose();
+                channels.dispose();
+            }
+            return null;
+        });
     }
 
     private static Category category(String id, String title) {

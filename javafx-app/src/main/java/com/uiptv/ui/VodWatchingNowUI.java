@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
 import com.uiptv.model.VodWatchState;
 import com.uiptv.service.AccountChangeListener;
@@ -170,10 +171,6 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
     private List<VodPanelData> buildRows() {
         List<VodPanelData> rows = new ArrayList<>();
         for (WatchingNowVodResolver.VodRow row : vodResolver.resolveAll()) {
-            Account account = row.getAccount();
-            if (account != null) {
-                account.setAction(vod);
-            }
             VodPanelData panel = buildPanel(row);
             if (panel != null) {
                 rows.add(panel);
@@ -188,7 +185,10 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         if (row == null || row.getAccount() == null || row.getState() == null || isBlank(row.getState().getVodId())) {
             return null;
         }
-        Account account = row.getAccount();
+        Account account = vodAccount(row.getAccount());
+        if (account == null) {
+            return null;
+        }
         VodWatchState state = row.getState();
         WatchingNowVodResolver.VodMetadata meta = row.getMetadata();
         String logo = normalizeImageUrl(meta.getLogo(), account);
@@ -893,10 +893,19 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         if (data == null || data.playbackChannel == null) {
             return;
         }
-        PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(data.account, data.playbackChannel, playerPath)
+        PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(vodMediaContext(data.account), data.playbackChannel, playerPath)
                 .categoryId(data.state.getCategoryId())
                 .channelId(data.state.getVodId())
                 .errorPrefix(I18n.tr("autoErrorPlayingChannelPrefix")));
+    }
+
+    private Account vodAccount(Account source) {
+        AccountMediaContext context = vodMediaContext(source);
+        return context == null ? null : context.toAccount();
+    }
+
+    private AccountMediaContext vodMediaContext(Account source) {
+        return AccountMediaContext.from(source, vod);
     }
 
     private void removeVod(VodPanelData data) {

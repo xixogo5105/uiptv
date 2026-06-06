@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.widget.LoadingStateView;
@@ -51,13 +52,21 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     private List<String> seasonOptions = List.of();
 
     public PlainEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        super(account, categoryTitle, seriesId, seriesCategoryId);
+        this(channelList, AccountMediaContext.from(account, Account.AccountAction.series), categoryTitle, seriesId, seriesCategoryId);
+    }
+
+    public PlainEpisodesListUI(EpisodeList channelList, AccountMediaContext mediaContext, String categoryTitle, String seriesId, String seriesCategoryId) {
+        super(mediaContext, categoryTitle, seriesId, seriesCategoryId);
         finishInit();
         setItems(channelList);
     }
 
     public PlainEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        super(account, categoryTitle, seriesId, seriesCategoryId);
+        this(AccountMediaContext.from(account, Account.AccountAction.series), categoryTitle, seriesId, seriesCategoryId);
+    }
+
+    public PlainEpisodesListUI(AccountMediaContext mediaContext, String categoryTitle, String seriesId, String seriesCategoryId) {
+        super(mediaContext, categoryTitle, seriesId, seriesCategoryId);
         finishInit();
     }
 

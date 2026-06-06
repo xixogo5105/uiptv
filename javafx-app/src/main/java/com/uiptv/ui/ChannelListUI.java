@@ -62,6 +62,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private static final String IMAGE_CACHE_KEY_CHANNEL = "channel";
     private static final String DRM_BADGE_STYLE_CLASS = "drm-badge";
 
+    private final AccountMediaContext mediaContext;
     private final Account account;
     private final Account.AccountAction listAction;
     private final String categoryTitle;
@@ -120,13 +121,17 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private PauseTransition loadingProgressHideTimer;
 
     public ChannelListUI(Account account, String categoryTitle, String categoryId, Account.AccountAction listAction) {
+        this(AccountMediaContext.from(account, listAction), categoryTitle, categoryId, listAction);
+    }
+
+    public ChannelListUI(AccountMediaContext mediaContext, String categoryTitle, String categoryId, Account.AccountAction listAction) {
         this.categoryId = categoryId;
         this.channelList = new ArrayList<>();
-        this.account = account;
         this.listAction = listAction == null ? Account.AccountAction.itv : listAction;
-        if (this.account != null) {
-            this.account.setAction(this.listAction);
-        }
+        this.mediaContext = mediaContext == null
+                ? new AccountMediaContext(null, this.listAction)
+                : mediaContext.withAction(this.listAction);
+        this.account = this.mediaContext.toAccount();
         this.categoryTitle = categoryTitle;
         preloadAllCategoryContextAsync();
         initWidgets();
@@ -1632,7 +1637,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private EpisodesListUI buildEpisodesListUi(ChannelItem item) {
-        EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
+        EpisodesListUI ui = new EpisodesListUI(mediaContext, item.getChannelName(), item.getChannelId(), categoryId);
         ui.applyWatchingNowDetailStyling();
         return ui;
     }
@@ -1734,7 +1739,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             if (this.getChildren().size() > 1) {
                 this.getChildren().remove(1);
             }
-            EpisodesListUI ui = new EpisodesListUI(account, item.getChannelName(), item.getChannelId(), categoryId);
+            EpisodesListUI ui = new EpisodesListUI(mediaContext, item.getChannelName(), item.getChannelId(), categoryId);
             ui.applyWatchingNowDetailStyling();
             HBox.setHgrow(ui, Priority.ALWAYS);
             if (embeddedMode || inlineEpisodeNavigationEnabled) {
@@ -2019,7 +2024,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             return;
         }
         Channel channelForPlayback = resolveChannelForPlayback(item);
-        PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(account, channelForPlayback, playerPath)
+        PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(mediaContext, channelForPlayback, playerPath)
                 .categoryId(categoryId)
                 .channelId(item.getChannelId())
                 .errorPrefix(I18n.tr("autoErrorPlayingChannelPrefix")));

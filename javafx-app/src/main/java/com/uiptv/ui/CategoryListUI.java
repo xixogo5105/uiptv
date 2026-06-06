@@ -1,6 +1,8 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
+import com.uiptv.model.AccountView;
 import com.uiptv.model.Category;
 import com.uiptv.model.CategoryType;
 import com.uiptv.service.CategoryCacheRemovalService;
@@ -57,7 +59,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private static final String LOG_CATEGORY_ID = " categoryId=";
     private static final String LOG_TITLE = " title=";
     private static final String LOG_CHANNELS = " channels: ";
-    private final Account account;
+    private final AccountMediaContext mediaContext;
+    private final AccountView account;
     private final boolean embeddedMode;
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
     private final VBox leftPane = new VBox(5);
@@ -97,21 +100,48 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private String searchText = "";
 
     public CategoryListUI(Account account, boolean embeddedMode) {
-        this.account = account;
+        this(AccountMediaContext.from(account), embeddedMode);
+    }
+
+    public CategoryListUI(AccountMediaContext mediaContext, boolean embeddedMode) {
+        this.mediaContext = mediaContext == null
+                ? new AccountMediaContext(null, Account.AccountAction.itv)
+                : mediaContext;
+        this.account = this.mediaContext.account();
         this.embeddedMode = embeddedMode;
-        this.activeMode = account.getAction() != null ? account.getAction() : Account.AccountAction.itv;
+        this.activeMode = this.mediaContext.action();
         initWidgets();
         refreshCategoryColumnTitle();
         table.setPlaceholder(new Label(I18n.tr("autoLoadingCategories")));
     }
 
+    private AccountMediaContext contextForMode(Account.AccountAction mode) {
+        return mediaContext.withAction(mode == null ? Account.AccountAction.itv : mode);
+    }
+
+    private Account accountForMode(Account.AccountAction mode) {
+        return contextForMode(mode).toAccount();
+    }
+
+    private String accountName() {
+        return account == null || account.accountName() == null ? "" : account.accountName();
+    }
+
+    private com.uiptv.util.AccountType accountType() {
+        return account == null ? null : account.type();
+    }
+
+    private String accountDbId() {
+        return account == null || account.dbId() == null ? "" : account.dbId();
+    }
+
     public void setItems(List<Category> list) {
         categoryDataLoaded = true;
-        List<Category> processedList = new CategoryResolver().resolveCategories(account, list);
+        List<Category> processedList = new CategoryResolver().resolveCategories(accountForMode(activeMode), list);
         long censoredCount = processedList.stream().filter(category -> category != null && category.getCensored() == 1).count();
         com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                PARENTAL_LOCK_LOG_PREFIX + LOG_ACCOUNT_START + account.getAccountName()
-                        + LOG_TYPE + account.getType()
+                PARENTAL_LOCK_LOG_PREFIX + LOG_ACCOUNT_START + accountName()
+                        + LOG_TYPE + accountType()
                         + LOG_ACTION + activeMode
                         + " categoriesLoaded=" + processedList.size()
                         + " censoredCategories=" + censoredCount);
@@ -680,7 +710,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private void setupModePillBar() {
-        boolean supportsVodSeries = VOD_AND_SERIES_SUPPORTED.contains(account.getType());
+        boolean supportsVodSeries = VOD_AND_SERIES_SUPPORTED.contains(accountType());
         modePillBar.getStyleClass().add("category-mode-pill-bar");
         List<String> modes = new ArrayList<>();
         modes.add(MODE_ACCOUNTS);
@@ -732,7 +762,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
         cancelCurrentLoadingRequest();
         disposeChannelListState(modeStates.get(activeMode));
         activeMode = mode;
-        account.setAction(mode);
         refreshCategoryColumnTitle();
         selectActiveModePill();
 
@@ -757,8 +786,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
         new Thread(() -> {
             try {
-                account.setAction(mode);
-                List<Category> categories = CategoryService.getInstance().get(account, true,
+                Account modeAccount = accountForMode(mode);
+                List<Category> categories = CategoryService.getInstance().get(modeAccount, true,
                         message -> logCategoryFetch(mode, message));
                 Platform.runLater(() -> {
                     modeStates.computeIfAbsent(mode, k -> new ModeState()).categories = new ArrayList<>(categories);
@@ -784,7 +813,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private void refreshCategoryColumnTitle() {
-        String accountName = account != null && account.getAccountName() != null ? account.getAccountName().trim() : "";
+        String accountName = accountName().trim();
         String baseTitle = I18n.tr("autoCategories");
         String title = accountName.isEmpty() ? baseTitle : baseTitle + " - " + accountName;
         if (mediaDrawerMode) {
@@ -880,13 +909,13 @@ public class CategoryListUI extends HBox implements SearchTarget {
         }
 
         Account.AccountAction mode = activeMode;
-        account.setAction(mode);
+        Account modeAccount = accountForMode(mode);
         List<String> categoryDbIds = selected.stream().map(CategoryItem::getId).toList();
         try {
             cancelCurrentLoadingRequest();
-            CategoryCacheRemovalService.getInstance().removeCachedCategories(account, categoryDbIds);
+            CategoryCacheRemovalService.getInstance().removeCachedCategories(modeAccount, categoryDbIds);
             discardRemovedCategoryState(mode, selected);
-            List<Category> categories = CategoryService.getInstance().getCached(account);
+            List<Category> categories = CategoryService.getInstance().getCached(modeAccount);
             modeStates.computeIfAbsent(mode, _ -> new ModeState()).categories = new ArrayList<>(categories);
             setItems(categories);
             selectedCategoryItems.clear();
@@ -983,7 +1012,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
             return;
         }
         final Account.AccountAction mode = activeMode;
-        account.setAction(mode);
         final ModeState state = modeStates.computeIfAbsent(mode, k -> new ModeState());
         if (state.selectedCategory != null
                 && state.channelListUI != null
@@ -1032,7 +1060,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         if (item == null) {
             return;
         }
-        account.setAction(mode);
+        Account modeAccount = accountForMode(mode);
         final ModeState state = modeStates.computeIfAbsent(mode, k -> new ModeState());
         final String selectedCategoryKey = selectedCategoryKey(item);
         final ChannelListUI[] channelListUIHolder = new ChannelListUI[1];
@@ -1059,7 +1087,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
             try {
                 channelListUI.startLoadingProgressIfNeeded();
-                loadChannelsIntoUi(item, noCachingNeeded, isCancelled, selectedCategoryKey, channelListUI, allItems);
+                loadChannelsIntoUi(item, noCachingNeeded, isCancelled, selectedCategoryKey, channelListUI, allItems, mode, modeAccount);
             } finally {
                 if (!isLoadingCancelled(isCancelled)) {
                     channelListUI.setLoadingComplete();
@@ -1078,7 +1106,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         if (item == null) {
             return "";
         }
-        String key = account.getType() == STALKER_PORTAL || account.getType() == XTREME_API
+        String key = accountType() == STALKER_PORTAL || accountType() == XTREME_API
                 ? item.getCategoryId()
                 : item.getCategoryTitle();
         return key != null ? key : "";
@@ -1088,7 +1116,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
                                            ChannelListUI[] channelListUIHolder, List<CategoryItem> allItems,
                                            CountDownLatch latch, Account.AccountAction mode) {
         String title = item.getCategoryTitle() != null ? item.getCategoryTitle() : "";
-        ChannelListUI ui = new ChannelListUI(account, title, selectedCategoryKey, mode);
+        ChannelListUI ui = new ChannelListUI(contextForMode(mode), title, selectedCategoryKey, mode);
         ui.setMediaDrawerMode(mediaDrawerMode);
         if (embeddedMode) {
             ui.setEmbeddedMode(true);
@@ -1112,30 +1140,32 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private void loadChannelsIntoUi(CategoryItem item, boolean noCachingNeeded, BooleanSupplier isCancelled,
-                                    String selectedCategoryKey, ChannelListUI channelListUI, List<CategoryItem> allItems) throws IOException {
+                                    String selectedCategoryKey, ChannelListUI channelListUI, List<CategoryItem> allItems,
+                                    Account.AccountAction mode, Account modeAccount) throws IOException {
         boolean cachingNeeded = !noCachingNeeded;
         if (cachingNeeded && isAllCategory(item)) {
-            loadAllCategoryChannels(item, isCancelled, channelListUI, allItems);
+            loadAllCategoryChannels(item, isCancelled, channelListUI, allItems, mode, modeAccount);
             return;
         }
         if (isLoadingCancelled(isCancelled)) {
             return;
         }
-        ChannelService.getInstance().get(selectedCategoryKey, account, item.getId(),
-                message -> logChannelFetch(item, message),
+        ChannelService.getInstance().get(selectedCategoryKey, modeAccount, item.getId(),
+                message -> logChannelFetch(item, mode, message),
                 channelListUI::addItems, isCancelled::getAsBoolean,
                 progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
     }
 
     private void loadAllCategoryChannels(CategoryItem item, BooleanSupplier isCancelled,
-                                         ChannelListUI channelListUI, List<CategoryItem> allItems) throws IOException {
-        int existingChannelCount = ChannelService.getInstance().getChannelCountForAccount(account.getDbId());
+                                         ChannelListUI channelListUI, List<CategoryItem> allItems,
+                                         Account.AccountAction mode, Account modeAccount) throws IOException {
+        int existingChannelCount = ChannelService.getInstance().getChannelCountForAccount(accountDbId());
         if (existingChannelCount == 0) {
             return;
         }
         if (allItems.size() == 1 && isAllCategory(allItems.getFirst())) {
-            ChannelService.getInstance().get(selectedCategoryKey(item), account, item.getId(),
-                    message -> logChannelFetch(item, message),
+            ChannelService.getInstance().get(selectedCategoryKey(item), modeAccount, item.getId(),
+                    message -> logChannelFetch(item, mode, message),
                     channelListUI::addItems, isCancelled::getAsBoolean,
                     progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
             return;
@@ -1145,8 +1175,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
                 return;
             }
             if (categoryItem != null && !isAllCategory(categoryItem)) {
-                ChannelService.getInstance().get(selectedCategoryKey(categoryItem), account, categoryItem.getId(),
-                        message -> logChannelFetch(categoryItem, message),
+                ChannelService.getInstance().get(selectedCategoryKey(categoryItem), modeAccount, categoryItem.getId(),
+                        message -> logChannelFetch(categoryItem, mode, message),
                         channelListUI::addItems, isCancelled::getAsBoolean,
                         progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
             }
@@ -1154,14 +1184,14 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private boolean ensureCategoryAccess(CategoryItem item) {
-        if (account.getType() != STALKER_PORTAL || !item.isCensored()) {
+        if (accountType() != STALKER_PORTAL || !item.isCensored()) {
             return true;
         }
         boolean passwordConfigured = com.uiptv.service.FilterLockService.getInstance().hasPasswordConfigured();
         boolean sessionUnlocked = com.uiptv.service.FilterLockService.getInstance().isUnlocked();
         com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
                 PARENTAL_LOCK_LOG_PREFIX + "categoryAccessCheck"
-                        + LOG_ACCOUNT + account.getAccountName()
+                        + LOG_ACCOUNT + accountName()
                         + LOG_CATEGORY_ID + item.getCategoryId()
                         + LOG_TITLE + item.getCategoryTitle()
                         + " censored=true"
@@ -1170,14 +1200,14 @@ public class CategoryListUI extends HBox implements SearchTarget {
         if (!FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockCensoredCategoryReason")) {
             com.uiptv.util.AppLog.addWarningLog(CategoryListUI.class,
                     PARENTAL_LOCK_LOG_PREFIX + "categoryAccessDenied"
-                            + LOG_ACCOUNT + account.getAccountName()
+                            + LOG_ACCOUNT + accountName()
                             + LOG_CATEGORY_ID + item.getCategoryId()
                             + LOG_TITLE + item.getCategoryTitle());
             return false;
         }
         com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
                 PARENTAL_LOCK_LOG_PREFIX + "categoryAccessGranted"
-                        + LOG_ACCOUNT + account.getAccountName()
+                        + LOG_ACCOUNT + accountName()
                         + LOG_CATEGORY_ID + item.getCategoryId()
                         + LOG_TITLE + item.getCategoryTitle());
         return true;
@@ -1185,17 +1215,17 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
     private void logCategoryFetch(Account.AccountAction mode, String message) {
         com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                PARENTAL_LOCK_LOG_PREFIX + LOG_ACCOUNT_START + account.getAccountName()
-                        + LOG_TYPE + account.getType()
+                PARENTAL_LOCK_LOG_PREFIX + LOG_ACCOUNT_START + accountName()
+                        + LOG_TYPE + accountType()
                         + LOG_ACTION + mode
                         + " categories: " + message);
     }
 
-    private void logChannelFetch(CategoryItem item, String message) {
+    private void logChannelFetch(CategoryItem item, Account.AccountAction mode, String message) {
         com.uiptv.util.AppLog.addInfoLog(CategoryListUI.class,
-                PARENTAL_LOCK_LOG_PREFIX + LOG_ACCOUNT_START + account.getAccountName()
-                        + LOG_TYPE + account.getType()
-                        + LOG_ACTION + account.getAction()
+                PARENTAL_LOCK_LOG_PREFIX + LOG_ACCOUNT_START + accountName()
+                        + LOG_TYPE + accountType()
+                        + LOG_ACTION + mode
                         + LOG_CATEGORY_ID + item.getCategoryId()
                         + LOG_CHANNELS + message);
     }

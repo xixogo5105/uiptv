@@ -2,6 +2,8 @@ package com.uiptv.ui;
 
 import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
+import com.uiptv.model.AccountView;
 import com.uiptv.model.Category;
 import com.uiptv.service.AccountChangeListener;
 import com.uiptv.service.AccountResolver;
@@ -237,7 +239,7 @@ public class AccountListUI extends HBox implements SearchTarget {
                     return;
                 }
                 AccountResolver.AccountRow row = safeRows.get(index);
-                AccountMetrics metrics = cachedAccountMetrics(accountCopyForMetrics(row.getDbId()));
+                AccountMetrics metrics = cachedAccountMetrics(accountViewForMetrics(row.getDbId()));
                 updatedItems.add(new AccountItem(
                         new SimpleStringProperty(row.getAccountName()),
                         new SimpleStringProperty(row.getDbId()),
@@ -260,7 +262,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         metricsThread.start();
     }
 
-    private Account accountCopyForMetrics(String accountId) {
+    private AccountView accountViewForMetrics(String accountId) {
         Account source;
         try {
             source = accountService.getById(accountId);
@@ -270,45 +272,37 @@ public class AccountListUI extends HBox implements SearchTarget {
         if (source == null) {
             return null;
         }
-        Account copy = new Account();
-        copy.setDbId(source.getDbId());
-        copy.setAccountName(source.getAccountName());
-        copy.setType(source.getType());
-        copy.setAction(source.getAction());
-        return copy;
+        return AccountView.from(source);
     }
 
-    private AccountMetrics cachedAccountMetrics(Account account) {
-        if (account == null || account.getDbId() == null || account.getDbId().isBlank()) {
+    private AccountMetrics cachedAccountMetrics(AccountView account) {
+        if (account == null || account.dbId() == null || account.dbId().isBlank()) {
             return new AccountMetrics(0, 0);
         }
-        Account.AccountAction originalAction = account.getAction();
         try {
             int categoryCount = cachedCategoryCount(account);
-            int channelCount = ChannelService.getInstance().getChannelCountForAccount(account.getDbId());
+            int channelCount = ChannelService.getInstance().getChannelCountForAccount(account.dbId());
             return new AccountMetrics(categoryCount, Math.max(0, channelCount));
         } catch (Exception _) {
             return new AccountMetrics(0, 0);
-        } finally {
-            account.setAction(originalAction == null ? itv : originalAction);
         }
     }
 
-    private int cachedCategoryCount(Account account) {
+    private int cachedCategoryCount(AccountView account) {
         int count = cachedCategoryCount(account, Account.AccountAction.itv);
-        if (account != null && VOD_AND_SERIES_SUPPORTED.contains(account.getType())) {
+        if (account != null && VOD_AND_SERIES_SUPPORTED.contains(account.type())) {
             count += cachedCategoryCount(account, Account.AccountAction.vod);
             count += cachedCategoryCount(account, Account.AccountAction.series);
         }
         return Math.max(0, count);
     }
 
-    private int cachedCategoryCount(Account account, Account.AccountAction action) {
+    private int cachedCategoryCount(AccountView account, Account.AccountAction action) {
         if (account == null || action == null) {
             return 0;
         }
-        account.setAction(action);
-        return CategoryService.getInstance().getCached(account).size();
+        Account modeAccount = new AccountMediaContext(account, action).toAccount();
+        return CategoryService.getInstance().getCached(modeAccount).size();
     }
 
     private void initWidgets() {
@@ -1427,10 +1421,10 @@ public class AccountListUI extends HBox implements SearchTarget {
             showErrorAlert(I18n.tr("autoUnableToFindAccount"));
             return;
         }
-        account.setAction(accountAction);
+        AccountMediaContext mediaContext = AccountMediaContext.from(account, accountAction);
 
         // Immediately show the CategoryListUI in loading state
-        CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode);
+        CategoryListUI categoryListUI = new CategoryListUI(mediaContext, embeddedMode);
         categoryListUI.setAccountsNavigationHandler(embeddedMode ? this::showAccountListView : () -> showBody(listView));
         categoryListUI.setCloseHandler(embeddedMode ? this::showAccountListView : null);
         categoryListUI.setHeaderSearchTextHandler(this::replaceBrowserHeaderSearchText);
@@ -1444,11 +1438,12 @@ public class AccountListUI extends HBox implements SearchTarget {
 
         new Thread(() -> {
             try {
-                final List<Category> list = CategoryService.getInstance().get(account, true,
+                Account modeAccount = mediaContext.toAccount();
+                final List<Category> list = CategoryService.getInstance().get(modeAccount, true,
                         message -> com.uiptv.util.AppLog.addInfoLog(AccountListUI.class,
-                                "[ParentalLock] account=" + account.getAccountName()
-                                        + " type=" + account.getType()
-                                        + " action=" + account.getAction()
+                                "[ParentalLock] account=" + mediaContext.accountName()
+                                        + " type=" + mediaContext.type()
+                                        + " action=" + accountAction
                                         + " categories: " + message));
 
                 Platform.runLater(() -> categoryListUI.setItems(list));

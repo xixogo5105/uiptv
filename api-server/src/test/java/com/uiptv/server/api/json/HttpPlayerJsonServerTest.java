@@ -187,14 +187,18 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
             );
             handler.handle(exchange);
 
+            ArgumentCaptor<Account> accountCaptor = ArgumentCaptor.forClass(Account.class);
             ArgumentCaptor<Channel> channelCaptor = ArgumentCaptor.forClass(Channel.class);
             Mockito.verify(playerService).get(
-                    Mockito.eq(account),
+                    accountCaptor.capture(),
                     channelCaptor.capture(),
                     Mockito.nullable(String.class),
                     Mockito.nullable(String.class),
                     Mockito.nullable(String.class)
             );
+            assertEquals(Account.AccountAction.itv, account.getAction());
+            assertEquals(Account.AccountAction.vod, accountCaptor.getValue().getAction());
+            assertEquals("acc-1525", accountCaptor.getValue().getDbId());
             assertEquals("ffmpeg http://provider/live/play/token/9412", channelCaptor.getValue().getCmd());
             assertEquals(200, exchange.getResponseCode());
             assertTrue(exchange.getResponseBodyText().contains("\"url\":\"http://provider/live/play/token/9412\""));

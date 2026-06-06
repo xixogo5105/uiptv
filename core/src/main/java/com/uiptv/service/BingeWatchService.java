@@ -1,6 +1,7 @@
 package com.uiptv.service;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
@@ -152,7 +153,7 @@ public class BingeWatchService {
         if (account == null) {
             return null;
         }
-        account.setAction(Account.AccountAction.series);
+        account = AccountMediaContext.from(account, Account.AccountAction.series).toAccount();
 
         Channel channel = Channel.fromJson(episode.channelJson());
         if (channel == null) {

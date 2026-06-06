@@ -18,22 +18,22 @@ public class PlayerRequestResolver {
     public PlayerResponse resolveBookmarkPlayback(String bookmarkId, String mode, String seriesParentId) throws IOException {
         Bookmark bookmark = BookmarkService.getInstance().getBookmark(bookmarkId);
         Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
-        applyMode(account, mode);
-        if (bookmark.getAccountAction() != null) {
-            account.setAction(bookmark.getAccountAction());
-        }
+        Account.AccountAction action = bookmark.getAccountAction() == null
+                ? resolveMode(mode, account == null ? null : account.getAction())
+                : bookmark.getAccountAction();
+        Account playbackAccount = accountWithMode(account, action);
         Channel channel = resolveBookmarkChannel(bookmark);
-        String scopedCategoryId = resolveSeriesCategoryId(account, bookmark.getCategoryId());
-        return PlayerService.getInstance().get(account, channel, bookmark.getChannelId(), seriesParentId, scopedCategoryId);
+        String scopedCategoryId = resolveSeriesCategoryId(playbackAccount, bookmark.getCategoryId());
+        return PlayerService.getInstance().get(playbackAccount, channel, bookmark.getChannelId(), seriesParentId, scopedCategoryId);
     }
 
     public PlayerResponse resolveDirectPlayback(Account account, String categoryId, String channelId,
                                                 String mode, String seriesParentId, String seriesId,
                                                 Channel requestChannel) throws IOException {
-        applyMode(account, mode);
-        Channel channel = mergeRequestChannel(resolveRequestedChannel(account, categoryId, channelId, mode), requestChannel);
-        String scopedCategoryId = resolveSeriesCategoryId(account, categoryId);
-        return PlayerService.getInstance().get(account, channel, seriesId, seriesParentId, scopedCategoryId);
+        Account playbackAccount = accountWithMode(account, resolveMode(mode, account == null ? null : account.getAction()));
+        Channel channel = mergeRequestChannel(resolveRequestedChannel(playbackAccount, categoryId, channelId, mode), requestChannel);
+        String scopedCategoryId = resolveSeriesCategoryId(playbackAccount, categoryId);
+        return PlayerService.getInstance().get(playbackAccount, channel, seriesId, seriesParentId, scopedCategoryId);
     }
 
     Channel resolveBookmarkChannel(Bookmark bookmark) {
@@ -143,14 +143,19 @@ public class PlayerRequestResolver {
         return ChannelDb.get().getChannelById(channelId, categoryId);
     }
 
-    private void applyMode(Account account, String mode) {
-        if (account == null || isBlank(mode)) {
-            return;
+    private Account accountWithMode(Account account, Account.AccountAction action) {
+        AccountMediaContext context = AccountMediaContext.from(account, action);
+        return context == null ? null : context.toAccount();
+    }
+
+    private Account.AccountAction resolveMode(String mode, Account.AccountAction fallback) {
+        if (isBlank(mode)) {
+            return fallback == null ? Account.AccountAction.itv : fallback;
         }
         try {
-            account.setAction(Account.AccountAction.valueOf(mode.toLowerCase()));
+            return Account.AccountAction.valueOf(mode.toLowerCase());
         } catch (Exception _) {
-            account.setAction(Account.AccountAction.itv);
+            return Account.AccountAction.itv;
         }
     }
 

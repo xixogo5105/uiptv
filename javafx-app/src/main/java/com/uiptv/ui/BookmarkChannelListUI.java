@@ -929,11 +929,11 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             showErrorAlert(I18n.tr("autoErrorPreparingBookmark", e.getMessage()));
             return;
         }
-        if (playbackContext == null || playbackContext.account == null || playbackContext.channel == null) {
+        if (playbackContext == null || playbackContext.mediaContext == null || playbackContext.channel == null) {
             showErrorAlert(I18n.tr("autoUnableToLoadAccountChannelForThisBookmark"));
             return;
         }
-        PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(playbackContext.account, playbackContext.channel, playerPath)
+        PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(playbackContext.mediaContext, playbackContext.channel, playerPath)
                 .categoryId(playbackContext.sourceCategoryDbId)
                 .channelId(item.getChannelId())
                 .errorPrefix(I18n.tr("autoErrorPlayingBookmarkPrefix")));
@@ -944,10 +944,14 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         if (account == null) {
             return null;
         }
-        if (isNotBlank(item.getServerPortalUrl())) {
-            account.setServerPortalUrl(item.getServerPortalUrl());
+        AccountMediaContext mediaContext = AccountMediaContext.from(account, item.getAccountAction());
+        if (mediaContext == null) {
+            return null;
         }
-        account.setAction(item.getAccountAction());
+        if (isNotBlank(item.getServerPortalUrl())) {
+            mediaContext = mediaContext.withServerPortalUrl(item.getServerPortalUrl());
+        }
+        Account lookupAccount = mediaContext.toAccount();
         Bookmark bookmark = BookmarkService.getInstance().getBookmark(item.getBookmarkId());
 
         Channel channel = null;
@@ -980,13 +984,13 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             channel.setManifestType(item.getManifestType());
         }
 
-        Channel latestCachedChannel = findLatestCachedChannel(account, item);
+        Channel latestCachedChannel = findLatestCachedChannel(lookupAccount, item);
         if (latestCachedChannel != null) {
             mergeLatestChannel(channel, latestCachedChannel);
         }
 
-        String sourceCategoryDbId = resolveSourceCategoryDbId(account, item, bookmark);
-        return new PlaybackContext(account, channel, sourceCategoryDbId);
+        String sourceCategoryDbId = resolveSourceCategoryDbId(lookupAccount, item, bookmark);
+        return new PlaybackContext(mediaContext, channel, sourceCategoryDbId);
     }
 
     private Channel findLatestCachedChannel(Account account, BookmarkItem item) {
@@ -1061,12 +1065,12 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private static final class PlaybackContext {
-        private final Account account;
+        private final AccountMediaContext mediaContext;
         private final Channel channel;
         private final String sourceCategoryDbId;
 
-        private PlaybackContext(Account account, Channel channel, String sourceCategoryDbId) {
-            this.account = account;
+        private PlaybackContext(AccountMediaContext mediaContext, Channel channel, String sourceCategoryDbId) {
+            this.mediaContext = mediaContext;
             this.channel = channel;
             this.sourceCategoryDbId = sourceCategoryDbId;
         }

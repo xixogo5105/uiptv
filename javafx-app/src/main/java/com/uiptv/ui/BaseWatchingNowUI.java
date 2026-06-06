@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.*;
@@ -214,14 +215,26 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (account == null || isBlank(account.getDbId())) {
             return rows;
         }
-        account.setAction(Account.AccountAction.series);
-        for (WatchingNowSeriesResolver.SeriesRow row : seriesResolver.resolveForAccount(account)) {
+        Account seriesAccount = seriesAccount(account);
+        if (seriesAccount == null) {
+            return rows;
+        }
+        for (WatchingNowSeriesResolver.SeriesRow row : seriesResolver.resolveForAccount(seriesAccount)) {
             SeriesPanelData panel = buildPanel(row);
             if (panel != null) {
                 rows.add(panel);
             }
         }
         return rows;
+    }
+
+    private Account seriesAccount(Account source) {
+        AccountMediaContext context = seriesContext(source);
+        return context == null ? null : context.toAccount();
+    }
+
+    private AccountMediaContext seriesContext(Account source) {
+        return AccountMediaContext.from(source, Account.AccountAction.series);
     }
 
     private SeriesPanelData buildPanel(WatchingNowSeriesResolver.SeriesRow row) {
@@ -1310,11 +1323,15 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (!UiServerUrlUtil.ensureServerForWebPlayback(startupFailureMessage)) {
             return;
         }
-        data.account.setAction(Account.AccountAction.series);
+        AccountMediaContext seriesContext = seriesContext(data.account);
+        Account seriesAccount = seriesContext == null ? null : seriesContext.toAccount();
+        if (seriesAccount == null) {
+            return;
+        }
         SeriesWatchState watchState = SeriesWatchStateService.getInstance()
-                .getSeriesLastWatched(data.account.getDbId(), data.state.getCategoryId(), data.state.getSeriesId());
+                .getSeriesLastWatched(seriesAccount.getDbId(), data.state.getCategoryId(), data.state.getSeriesId());
         String token = BingeWatchService.getInstance().createSession(
-                data.account,
+                seriesAccount,
                 data.state.getSeriesId(),
                 data.state.getCategoryId(),
                 normalizedSeason,
@@ -1338,7 +1355,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                 playerPath,
                 BingeWatchService.getInstance().buildPlaylistUrl(token),
                 "Binge watch playback failed: ",
-                data.account,
+                seriesContext,
                 bingeWatchChannel
         );
     }
@@ -1802,9 +1819,12 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             return;
         }
         new Thread(() -> {
-            item.account.setAction(Account.AccountAction.series);
+            Account seriesAccount = seriesAccount(item.account);
+            if (seriesAccount == null) {
+                return;
+            }
             SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
-                    item.account,
+                    seriesAccount,
                     item.state.getCategoryId(),
                     item.state.getSeriesId(),
                     item.channel.getChannelId(),
@@ -1834,9 +1854,13 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         // Optimistically update UI
         updateWatchingStatusUI(data, item);
 
-        item.account.setAction(Account.AccountAction.series);
+        AccountMediaContext seriesContext = seriesContext(item.account);
+        Account seriesAccount = seriesContext == null ? null : seriesContext.toAccount();
+        if (seriesAccount == null) {
+            return;
+        }
         SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
-                item.account,
+                seriesAccount,
                 item.state.getCategoryId(),
                 item.state.getSeriesId(),
                 item.channel.getChannelId(),
@@ -1845,7 +1869,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                 item.episodeNum
         );
         // refreshWatchedStateInstant(item); // No longer needed as we update UI directly
-        PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(item.account, item.channel, playerPath)
+        PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(seriesContext, item.channel, playerPath)
                 .series(item.state.getSeriesId(), item.state.getCategoryId())
                 .categoryId(item.state.getCategoryId())
                 .channelId(item.channel.getChannelId())
@@ -2297,8 +2321,11 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (account == null || isBlank(account.getDbId())) {
             return updated;
         }
-        account.setAction(Account.AccountAction.series);
-        for (WatchingNowSeriesResolver.SeriesRow row : seriesResolver.resolveForAccount(account)) {
+        Account seriesAccount = seriesAccount(account);
+        if (seriesAccount == null) {
+            return updated;
+        }
+        for (WatchingNowSeriesResolver.SeriesRow row : seriesResolver.resolveForAccount(seriesAccount)) {
             if (!isBlank(seriesId) && !safe(row.getState().getSeriesId()).equals(safe(seriesId))) {
                 continue;
             }
