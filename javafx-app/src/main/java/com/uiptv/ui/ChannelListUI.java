@@ -95,10 +95,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
     );
     private boolean bookmarkListenerRegistered = false;
     private boolean vodWatchStateListenerRegistered = false;
+    private boolean seriesWatchStateListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
     private boolean thumbnailsEnabled = ThumbnailAwareUI.areThumbnailsEnabled();
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
     private final VodWatchStateChangeListener vodWatchStateChangeListener = (accountId, vodId) -> refreshBookmarkStatesAsync();
+    private final SeriesWatchStateChangeListener seriesWatchStateChangeListener = this::onSeriesWatchStateChanged;
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
     private AtomicBoolean currentRequestCancelled;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
@@ -756,6 +758,9 @@ public class ChannelListUI extends HBox implements SearchTarget {
         HBox.setHgrow(title, Priority.ALWAYS);
 
         card.getChildren().add(title);
+        if (item != null && item.getChannel() != null && PlayerService.getInstance().isDrmProtected(item.getChannel())) {
+            card.getChildren().add(createDrawerBadge(I18n.tr("autoDrm")));
+        }
         return card;
     }
 
@@ -1186,6 +1191,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
             VodWatchStateService.getInstance().addChangeListener(vodWatchStateChangeListener);
             vodWatchStateListenerRegistered = true;
         }
+        if (listAction == series && !seriesWatchStateListenerRegistered) {
+            SeriesWatchStateService.getInstance().addChangeListener(seriesWatchStateChangeListener);
+            seriesWatchStateListenerRegistered = true;
+        }
     }
 
     private void registerThumbnailModeListener() {
@@ -1259,14 +1268,17 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void unregisterBookmarkListener() {
-        if (!bookmarkListenerRegistered) {
-            return;
+        if (bookmarkListenerRegistered) {
+            BookmarkService.getInstance().removeChangeListener(bookmarkChangeListener);
+            bookmarkListenerRegistered = false;
         }
-        BookmarkService.getInstance().removeChangeListener(bookmarkChangeListener);
-        bookmarkListenerRegistered = false;
         if (vodWatchStateListenerRegistered) {
             VodWatchStateService.getInstance().removeChangeListener(vodWatchStateChangeListener);
             vodWatchStateListenerRegistered = false;
+        }
+        if (seriesWatchStateListenerRegistered) {
+            SeriesWatchStateService.getInstance().removeChangeListener(seriesWatchStateChangeListener);
+            seriesWatchStateListenerRegistered = false;
         }
     }
 
@@ -1313,6 +1325,45 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 .filter(Objects::nonNull)
                 .map(state -> normalizeExact(state.getCategoryId()) + "|" + normalizeExact(state.getVodId()))
                 .collect(Collectors.toSet());
+    }
+
+    private void onSeriesWatchStateChanged(String accountId, String seriesId) {
+        if (disposed.get() || listAction != series || account == null) {
+            return;
+        }
+        if (!isBlank(accountId) && !Objects.equals(account.getDbId(), accountId)) {
+            return;
+        }
+        refreshSeriesWatchStatesAsync(seriesId);
+    }
+
+    private void refreshSeriesWatchStatesAsync(String changedSeriesId) {
+        if (disposed.get() || channelItems == null || channelItems.isEmpty()) {
+            return;
+        }
+        new Thread(() -> {
+            if (disposed.get()) {
+                return;
+            }
+            Map<String, SeriesWatchState> seriesWatchStates = loadSeriesWatchStates();
+            String normalizedChangedSeriesId = normalizeSeriesWatchKey(changedSeriesId);
+            runLater(() -> {
+                if (disposed.get()) {
+                    return;
+                }
+                for (ChannelItem item : channelItems) {
+                    Channel channel = item == null ? null : item.getChannel();
+                    if (channel == null) {
+                        continue;
+                    }
+                    String normalizedItemSeriesId = normalizeSeriesWatchKey(channel.getChannelId());
+                    if (isBlank(normalizedChangedSeriesId) || Objects.equals(normalizedItemSeriesId, normalizedChangedSeriesId)) {
+                        channel.setWatched(seriesWatchStates.containsKey(normalizedItemSeriesId));
+                    }
+                }
+                refreshChannelViews();
+            });
+        }, "series-watch-state-refresh").start();
     }
 
     private Map<String, SeriesWatchState> loadSeriesWatchStates() {

@@ -62,6 +62,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 42;
+    private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
             Comparator.comparing(AccountItem::getAccountName, String.CASE_INSENSITIVE_ORDER)
                     .thenComparing(AccountItem::getAccountName);
@@ -472,6 +473,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     private Button createAddAccountToolbarButton() {
         Button button = new Button(I18n.tr("autoNewAccount"));
         button.getStyleClass().add("list-toolbar-action-button");
+        button.setFocusTraversable(false);
         button.setAccessibleText(I18n.tr("autoNewAccount"));
         button.setTooltip(new Tooltip(I18n.tr("autoNewAccount")));
         button.setOnAction(_ -> openNewAccountInline());
@@ -483,6 +485,9 @@ public class AccountListUI extends HBox implements SearchTarget {
     private MenuButton createAccountSortButton() {
         MenuButton button = new MenuButton();
         button.getStyleClass().add("list-toolbar-sort-menu");
+        button.setGraphic(createSortDropdownIcon());
+        button.setContentDisplay(ContentDisplay.LEFT);
+        button.setFocusTraversable(false);
         ToggleGroup group = new ToggleGroup();
         button.getItems().setAll(
                 createSortMenuItem(I18n.tr("autoSortDefault"), AccountSortMode.DEFAULT, accountSortMode, group, this::setAccountSortMode),
@@ -1232,11 +1237,18 @@ public class AccountListUI extends HBox implements SearchTarget {
         if (accountSortButton == null) {
             return;
         }
-        accountSortButton.setText(accountSortTooltip());
+        accountSortButton.setText(sortCompactLabel(accountSortMode));
         accountSortButton.setAccessibleText(accountSortTooltip());
         accountSortButton.setTooltip(new Tooltip(accountSortTooltip()));
         syncAccountSortMenuItems();
         updateStyleClass(accountSortButton, "list-toolbar-sort-menu-active", accountSortMode != AccountSortMode.DEFAULT);
+    }
+
+    private static Node createSortDropdownIcon() {
+        SVGPath icon = new SVGPath();
+        icon.setContent(ICON_SORT);
+        icon.getStyleClass().add("list-toolbar-sort-icon");
+        return icon;
     }
 
     private String accountSortTooltip() {
@@ -1248,6 +1260,14 @@ public class AccountListUI extends HBox implements SearchTarget {
             case DEFAULT -> I18n.tr("autoSortDefault");
             case ASCENDING -> I18n.tr("autoSortNameAscending");
             case DESCENDING -> I18n.tr("autoSortNameDescending");
+        };
+    }
+
+    private String sortCompactLabel(AccountSortMode sortMode) {
+        return switch (sortMode == null ? AccountSortMode.DEFAULT : sortMode) {
+            case DEFAULT -> "Default";
+            case ASCENDING -> "A-Z";
+            case DESCENDING -> "Z-A";
         };
     }
 

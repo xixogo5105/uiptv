@@ -6,6 +6,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.css.PseudoClass;
+import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
@@ -38,6 +39,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private static final double DEFAULT_MAX_CARD_WIDTH = 320;
     private static final double DEFAULT_HORIZONTAL_GAP = 14;
     private static final double DEFAULT_VERTICAL_GAP = 12;
+    private static final double SCROLL_VISIBILITY_TOLERANCE = 4.0;
+    private static final double SCROLL_VALUE_TOLERANCE = 0.001;
 
     private final Function<T, Region> cardFactory;
     private final FlowPane cardPane = new FlowPane();
@@ -70,7 +73,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         this.cardFactory = Objects.requireNonNull(cardFactory, "cardFactory");
         getStyleClass().add("uiptv-responsive-card-grid");
         UiRenderQuality.optimizeLayout(this);
-        setFocusTraversable(false);
+        setFocusTraversable(true);
         setMinSize(0, 0);
         setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
@@ -309,16 +312,17 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         card.setCursor(Cursor.HAND);
         UiRenderQuality.optimizeLayout(card);
-        card.setFocusTraversable(true);
+        card.setFocusTraversable(false);
         card.setMinHeight(cardMinHeight);
         card.setMaxWidth(maxCardWidth);
 
         card.addEventHandler(MouseEvent.MOUSE_PRESSED, event -> {
             mouseSelectionInProgress = true;
-            card.requestFocus();
             if (event.getButton() == MouseButton.SECONDARY) {
+                requestGridFocusPreservingScroll();
                 normalizeContextSelection(item);
             } else if (event.getButton() == MouseButton.PRIMARY && !isInteractiveChildEvent(card, event)) {
+                requestGridFocusPreservingScroll();
                 updateSelectionForClick(item, event);
                 mousePressedSelectionItem = item;
             }
@@ -348,7 +352,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (!selectionHandledOnPress) {
             updateSelectionForClick(item, event);
         }
-        card.requestFocus();
+        requestGridFocusPreservingScroll();
         boolean shouldActivate = itemActivatedHandler != null
                 && event.getClickCount() == 2
                 && !isSelectionModifierDown(event);
@@ -592,8 +596,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         Region card = cardsByItem.get(item);
         if (card != null) {
-            card.requestFocus();
-            scrollIntoPageView(card);
+            requestGridFocusPreservingScroll();
         }
     }
 
@@ -675,12 +678,59 @@ public class ResponsiveCardGrid<T> extends StackPane {
             boolean previousSuppressFocusSelection = suppressFocusSelection;
             suppressFocusSelection = suppressFocusSelection || preserveSelection;
             try {
-                card.requestFocus();
+                requestGridFocusPreservingScroll(() -> scrollIntoPageView(card));
             } finally {
                 suppressFocusSelection = previousSuppressFocusSelection;
             }
-            scrollIntoPageView(card);
         }
+    }
+
+    private void requestGridFocus() {
+        if (isDisplayable()) {
+            requestFocus();
+        }
+    }
+
+    private void requestGridFocusPreservingScroll() {
+        requestGridFocusPreservingScroll(null);
+    }
+
+    private void requestGridFocusPreservingScroll(Runnable afterRestore) {
+        if (!isDisplayable()) {
+            return;
+        }
+        ScrollPane scrollPane = findAncestorScrollPane();
+        if (scrollPane == null) {
+            requestGridFocus();
+            if (afterRestore != null) {
+                Platform.runLater(afterRestore);
+            }
+            return;
+        }
+        double originalHValue = scrollPane.getHvalue();
+        double originalVValue = scrollPane.getVvalue();
+        requestFocus();
+        Platform.runLater(() -> {
+            restoreScrollPosition(scrollPane, originalHValue, originalVValue);
+            if (afterRestore != null) {
+                afterRestore.run();
+            }
+            Platform.runLater(() -> {
+                if (afterRestore == null) {
+                    restoreScrollPosition(scrollPane, originalHValue, originalVValue);
+                } else {
+                    afterRestore.run();
+                }
+            });
+        });
+    }
+
+    private void restoreScrollPosition(ScrollPane scrollPane, double hValue, double vValue) {
+        if (scrollPane == null || scrollPane.getScene() == null) {
+            return;
+        }
+        scrollPane.setHvalue(hValue);
+        scrollPane.setVvalue(vValue);
     }
 
     private void focusSelection(T item) {
@@ -710,15 +760,18 @@ public class ResponsiveCardGrid<T> extends StackPane {
             return;
         }
         double viewportHeight = pageScrollPane.getViewportBounds().getHeight();
-        double contentHeight = pageScrollPane.getContent().getBoundsInLocal().getHeight();
+        double contentHeight = pageScrollPane.getContent().getLayoutBounds().getHeight();
         if (viewportHeight <= 0 || contentHeight <= viewportHeight) {
             return;
         }
-        double cardTop = card.localToScene(card.getBoundsInLocal()).getMinY();
-        double cardBottom = card.localToScene(card.getBoundsInLocal()).getMaxY();
-        double viewportTop = pageScrollPane.localToScene(pageScrollPane.getBoundsInLocal()).getMinY();
-        double viewportBottom = viewportTop + viewportHeight;
-        if (cardTop >= viewportTop && cardBottom <= viewportBottom) {
+        Bounds cardBounds = card.localToScene(card.getBoundsInLocal());
+        Bounds viewportBounds = pageScrollPane.localToScene(pageScrollPane.getViewportBounds());
+        double cardTop = cardBounds.getMinY();
+        double cardBottom = cardBounds.getMaxY();
+        double viewportTop = viewportBounds.getMinY();
+        double viewportBottom = viewportBounds.getMaxY();
+        if (cardTop >= viewportTop - SCROLL_VISIBILITY_TOLERANCE
+                && cardBottom <= viewportBottom + SCROLL_VISIBILITY_TOLERANCE) {
             return;
         }
         double scrollableHeight = contentHeight - viewportHeight;
@@ -729,7 +782,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
         } else if (cardBottom > viewportBottom) {
             nextPixels += cardBottom - viewportBottom + verticalGap;
         }
-        pageScrollPane.setVvalue(Math.max(0, Math.min(1, nextPixels / scrollableHeight)));
+        double nextValue = Math.max(0, Math.min(1, nextPixels / scrollableHeight));
+        if (Math.abs(nextValue - pageScrollPane.getVvalue()) >= SCROLL_VALUE_TOLERANCE) {
+            pageScrollPane.setVvalue(nextValue);
+        }
     }
 
     private ScrollPane findAncestorScrollPane() {

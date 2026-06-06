@@ -302,12 +302,24 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         playerClip.heightProperty().bind(playerContainer.heightProperty());
         playerContainer.setClip(playerClip);
 
-        playerContainer.widthProperty().addListener((obs, oldVal, newVal) -> updateVideoSize());
-        playerContainer.heightProperty().addListener((obs, oldVal, newVal) -> updateVideoSize());
-
         StackPane overlayWrapper = new StackPane(controlsContainer);
         overlayWrapper.setAlignment(Pos.BOTTOM_CENTER);
         overlayWrapper.setPadding(new Insets(0, 10, 10, 10));
+        overlayWrapper.setManaged(false);
+        overlayWrapper.setMinSize(0, 0);
+        overlayWrapper.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        Runnable layoutControlOverlay = () -> overlayWrapper.resizeRelocate(0, 0,
+                playerContainer.getWidth(),
+                playerContainer.getHeight());
+        playerContainer.widthProperty().addListener((obs, oldVal, newVal) -> {
+            updateVideoSize();
+            layoutControlOverlay.run();
+        });
+        playerContainer.heightProperty().addListener((obs, oldVal, newVal) -> {
+            updateVideoSize();
+            layoutControlOverlay.run();
+        });
 
         loadingSpinner = new ProgressIndicator();
         loadingSpinner.setMaxSize(60, 60);
@@ -375,6 +387,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             playerContainer.getChildren().add(videoView);
         }
         playerContainer.getChildren().addAll(overlayWrapper, loadingSpinner, errorLabel, hiddenBarMessage);
+        Platform.runLater(layoutControlOverlay);
     }
 
     private void setupEventHandlers() {

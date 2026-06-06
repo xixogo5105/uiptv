@@ -1010,7 +1010,7 @@
 }
 
 .account-toolbar {
-    -fx-spacing: 0;
+    -fx-spacing: 8;
     -fx-padding: 0 0 6 0;
 }
 
@@ -1551,9 +1551,14 @@
     -fx-border-width: 1;
     -fx-background-radius: 14;
     -fx-border-radius: 14;
+    -fx-min-height: 42;
+    -fx-pref-height: 42;
+    -fx-max-height: 42;
     -fx-padding: 7 12 7 12;
     -fx-text-fill: -uiptv-text-primary;
     -fx-cursor: hand;
+    -fx-alignment: center;
+    -fx-effect: none;
 }
 
 .list-toolbar-sort-menu:hover,
@@ -1562,6 +1567,7 @@
 .list-toolbar-action-button:focused {
     -fx-background-color: rgba(255, 255, 255, 0.08);
     -fx-border-color: rgba(147, 197, 253, 0.30);
+    -fx-effect: none;
 }
 
 .list-toolbar-sort-menu-active {
@@ -1572,6 +1578,33 @@
 .list-toolbar-sort-menu > .label,
 .list-toolbar-action-button {
     -fx-text-fill: -uiptv-text-primary;
+}
+
+.list-toolbar-sort-menu {
+    -fx-graphic-text-gap: 7;
+}
+
+.list-toolbar-action-button {
+    -fx-padding: 9 14 9 14;
+}
+
+.list-toolbar-sort-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.list-toolbar-sort-menu .label,
+.list-toolbar-sort-menu .text {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-fill: -uiptv-text-primary;
+    -fx-opacity: 1;
+    -fx-font-size: 0.9em;
+    -fx-font-weight: 600;
+}
+
+.list-toolbar-sort-menu:hover .list-toolbar-sort-icon,
+.list-toolbar-sort-menu:focused .list-toolbar-sort-icon,
+.list-toolbar-sort-menu-active .list-toolbar-sort-icon {
+    -fx-fill: #93c5fd;
 }
 
 .list-toolbar-sort-menu .arrow {
@@ -2502,14 +2535,15 @@
 .bookmark-card:hover {
     -fx-background-color: -uiptv-surface-hover;
     -fx-border-color: #4a515d;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.42), 16, 0.20, 0, 5);
-    -fx-translate-y: -1;
+    -fx-effect: none;
+    -fx-translate-y: 0;
 }
 
 .uiptv-responsive-card:focused,
 .bookmark-card:focused {
     -fx-border-color: -uiptv-selected-card-border;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.42), 16, 0.18, 0, 4);
+    -fx-effect: none;
+    -fx-translate-y: 0;
 }
 
 .uiptv-responsive-card:selected,
@@ -2518,7 +2552,8 @@
 .bookmark-card.selected {
     -fx-background-color: -uiptv-selected-card-bg;
     -fx-border-color: -uiptv-selected-card-border;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.46), 18, 0.18, 0, 6);
+    -fx-effect: none;
+    -fx-translate-y: 0;
 }
 
 .uiptv-responsive-card:selected .bookmark-channel-title,

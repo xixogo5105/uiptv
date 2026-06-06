@@ -7,6 +7,7 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.input.ContextMenuEvent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
@@ -232,22 +233,49 @@ class ResponsiveCardGridTest {
     }
 
     @Test
-    void focusingAlreadySelectedCardPreservesMultiSelection() throws Exception {
+    void clickingCardAfterPlayerFocusFocusesGridWithoutMovingScroll() throws Exception {
         ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
-            ResponsiveCardGrid<String> cardGrid = newGrid();
-            new Scene(new StackPane(cardGrid), 420, 240);
-            cardGrid.selectItems(List.of("one", "three"));
+            ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> {
+                Label label = new Label(item);
+                label.setMinHeight(44);
+                label.setPrefHeight(44);
+                return label;
+            });
+            cardGrid.setItems(FXCollections.observableArrayList("one", "two", "three", "four", "five", "six"));
+            cardGrid.setSingleColumn(true);
+            cardGrid.setGaps(0, 4);
+
+            ScrollPane scrollPane = new ScrollPane(cardGrid);
+            scrollPane.setFitToWidth(true);
+            scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            scrollPane.setPrefWidth(280);
+            Button playerFocusTarget = new Button("player");
+            playerFocusTarget.setFocusTraversable(true);
+            HBox root = new HBox(scrollPane, playerFocusTarget);
+            new Scene(root, 420, 180);
+            root.resize(420, 180);
+            root.applyCss();
+            root.layout();
+            scrollPane.setVvalue(0);
+            playerFocusTarget.requestFocus();
             return cardGrid;
         });
 
-        Region thirdCard = runOnFxThread(() -> cardAt(grid, 2));
+        Region secondCard = runOnFxThread(() -> cardAt(grid, 1));
+        ScrollPane scrollPane = runOnFxThread(() -> ancestorScrollPane(grid));
+        double beforeClickScroll = runOnFxThread(scrollPane::getVvalue);
+
         runOnFxThread(() -> {
-            thirdCard.requestFocus();
+            Event.fireEvent(secondCard, mousePressed(secondCard, MouseButton.PRIMARY));
+            Event.fireEvent(secondCard, mouseClick(secondCard, 1, false, false));
             return null;
         });
 
-        assertEquals(List.of("one", "three"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
-        assertEquals("three", runOnFxThread(grid::getFocusedItem));
+        assertEquals(List.of("two"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+        assertEquals("two", runOnFxThread(grid::getFocusedItem));
+        assertFalse(runOnFxThread(secondCard::isFocusTraversable));
+        assertFalse(runOnFxThread(secondCard::isFocused));
+        assertEquals(beforeClickScroll, runOnFxThread(scrollPane::getVvalue), 0.0001);
     }
 
     @Test
@@ -448,6 +476,54 @@ class ResponsiveCardGridTest {
         assertEquals(List.of(), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
     }
 
+    @Test
+    void scrollIntoViewDoesNotMoveWhenCardIsAlreadyVisible() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> {
+                Label label = new Label(item);
+                label.setMinHeight(44);
+                label.setPrefHeight(44);
+                return label;
+            });
+            ObservableList<String> manyItems = FXCollections.observableArrayList();
+            for (int index = 1; index <= 30; index++) {
+                manyItems.add("item-" + index);
+            }
+            cardGrid.setItems(manyItems);
+            cardGrid.setSingleColumn(true);
+            cardGrid.setGaps(0, 4);
+
+            ScrollPane scrollPane = new ScrollPane(cardGrid);
+            scrollPane.setFitToWidth(true);
+            scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            StackPane root = new StackPane(scrollPane);
+            new Scene(root, 300, 180);
+            root.resize(300, 180);
+            root.applyCss();
+            root.layout();
+            scrollPane.setVvalue(0);
+            root.layout();
+            return cardGrid;
+        });
+
+        Region firstCard = runOnFxThread(() -> cardAt(grid, 0));
+        ScrollPane scrollPane = runOnFxThread(() -> ancestorScrollPane(grid));
+        assertEquals(0.0, runOnFxThread(scrollPane::getVvalue), 0.0001);
+
+        runOnFxThread(() -> {
+            invokeScrollIntoPageView(grid, firstCard);
+            return null;
+        });
+        assertEquals(0.0, runOnFxThread(scrollPane::getVvalue), 0.0001);
+
+        Region lastCard = runOnFxThread(() -> cardAt(grid, 29));
+        runOnFxThread(() -> {
+            invokeScrollIntoPageView(grid, lastCard);
+            return null;
+        });
+        assertTrue(runOnFxThread(scrollPane::getVvalue) > 0.0);
+    }
+
     private static ResponsiveCardGrid<String> newGrid() {
         ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(Label::new);
         grid.setItems(FXCollections.observableArrayList("one", "two", "three"));
@@ -566,6 +642,23 @@ class ResponsiveCardGridTest {
             }
         }
         return null;
+    }
+
+    private static ScrollPane ancestorScrollPane(Node node) {
+        Node current = node.getParent();
+        while (current != null) {
+            if (current instanceof ScrollPane scrollPane) {
+                return scrollPane;
+            }
+            current = current.getParent();
+        }
+        return null;
+    }
+
+    private static void invokeScrollIntoPageView(ResponsiveCardGrid<?> grid, Region card) throws Exception {
+        Method method = ResponsiveCardGrid.class.getDeclaredMethod("scrollIntoPageView", Region.class);
+        method.setAccessible(true);
+        method.invoke(grid, card);
     }
 
     private static boolean invokeMoveItem(ResponsiveCardGrid<?> grid, int sourceIndex, int targetIndex) throws Exception {

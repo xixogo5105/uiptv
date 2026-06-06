@@ -6,18 +6,24 @@ import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.layout.Region;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ChannelListUIContextMenuTest extends DbBackedUiTest {
     @BeforeAll
@@ -45,6 +51,38 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         assertEquals(I18n.tr("autoBookmark"), menuOrder.get(6));
     }
 
+    @Test
+    void plainTextChannelCardKeepsDrmBadgeVisible() throws Exception {
+        BadgeSnapshot badge = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            ChannelListUI.ChannelItem item = channelItem();
+            item.getChannel().setDrmType("clearkey");
+            Region card = createPlainTextChannelCard(ui, item);
+            Label label = findLabelByStyle(card, "drm-badge");
+            return label == null ? null : new BadgeSnapshot(label.getText(), label.isVisible(), label.isManaged());
+        });
+
+        assertNotNull(badge);
+        assertEquals(I18n.tr("autoDrm"), badge.text());
+        assertTrue(badge.visible());
+        assertTrue(badge.managed());
+    }
+
+    @Test
+    void seriesChannelListRegistersWatchStateListenerForImmediateProgressUpdates() throws Exception {
+        ListenerSnapshot snapshot = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Series", "series", Account.AccountAction.series);
+            invokeNoArg(ui, "registerBookmarkListener");
+            boolean registered = booleanField(ui, "seriesWatchStateListenerRegistered");
+            invokeNoArg(ui, "unregisterBookmarkListener");
+            boolean unregistered = !booleanField(ui, "seriesWatchStateListenerRegistered");
+            return new ListenerSnapshot(registered, unregistered);
+        });
+
+        assertTrue(snapshot.registered());
+        assertTrue(snapshot.unregistered());
+    }
+
     private static ContextMenu createChannelContextMenu(ChannelListUI ui, ChannelListUI.ChannelItem item) throws Exception {
         Method method = ChannelListUI.class.getDeclaredMethod(
                 "createChannelContextMenu",
@@ -54,6 +92,24 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         );
         method.setAccessible(true);
         return (ContextMenu) method.invoke(ui, item, List.of(item), new Label("owner"));
+    }
+
+    private static Region createPlainTextChannelCard(ChannelListUI ui, ChannelListUI.ChannelItem item) throws Exception {
+        Method method = ChannelListUI.class.getDeclaredMethod("createPlainTextChannelCard", ChannelListUI.ChannelItem.class);
+        method.setAccessible(true);
+        return (Region) method.invoke(ui, item);
+    }
+
+    private static void invokeNoArg(Object target, String methodName) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName);
+        method.setAccessible(true);
+        method.invoke(target);
+    }
+
+    private static boolean booleanField(Object target, String fieldName) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.getBoolean(target);
     }
 
     private static ChannelListUI.ChannelItem channelItem() {
@@ -71,10 +127,31 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         );
     }
 
+    private static Label findLabelByStyle(Node node, String styleClass) {
+        if (node instanceof Label label && label.getStyleClass().contains(styleClass)) {
+            return label;
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                Label match = findLabelByStyle(child, styleClass);
+                if (match != null) {
+                    return match;
+                }
+            }
+        }
+        return null;
+    }
+
     private static String menuItemText(MenuItem item) {
         if (item instanceof SeparatorMenuItem) {
             return "<separator>";
         }
         return item.getText();
+    }
+
+    private record BadgeSnapshot(String text, boolean visible, boolean managed) {
+    }
+
+    private record ListenerSnapshot(boolean registered, boolean unregistered) {
     }
 }

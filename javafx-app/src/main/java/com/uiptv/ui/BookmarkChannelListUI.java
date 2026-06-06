@@ -26,6 +26,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.layout.*;
+import javafx.scene.shape.SVGPath;
 
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -47,6 +48,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 46;
     private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
+    private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
     private static final Comparator<BookmarkItem> BOOKMARK_NAME_COMPARATOR =
             Comparator.comparing(BookmarkItem::getChannelName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
                     .thenComparing(BookmarkItem::getChannelName, Comparator.nullsLast(Comparator.naturalOrder()))
@@ -78,6 +80,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private volatile boolean loadedOnce = false;
     private volatile boolean reloadRequestedWhileReloading = false;
     private boolean changeListenerRegistered = false;
+    private boolean accountChangeListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
     private BookmarkSortMode bookmarkSortMode = BookmarkSortMode.DEFAULT;
     private MenuButton bookmarkSortButton;
@@ -95,6 +98,12 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         if (revision != lastKnownBookmarkRevision) {
             forceReload();
         }
+    });
+    private final AccountChangeListener accountChangeListener = revision -> runLater(() -> {
+        if (!accountChangeListenerRegistered) {
+            return;
+        }
+        requestExternalReload();
     });
 
     public BookmarkChannelListUI(HostServices hostServices, Runnable themeToggleHandler) {
@@ -258,11 +267,11 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private void registerBookmarkChangeListener() {
-        if (changeListenerRegistered) {
-            return;
+        if (!changeListenerRegistered) {
+            BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
+            changeListenerRegistered = true;
         }
-        BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
-        changeListenerRegistered = true;
+        registerAccountChangeListenerIfNeeded();
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterBookmarkChangeListener();
@@ -271,16 +280,36 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                     BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
                     changeListenerRegistered = true;
                 }
+                registerAccountChangeListenerIfNeeded();
             }
         });
     }
 
-    private void unregisterBookmarkChangeListener() {
-        if (!changeListenerRegistered) {
+    private void registerAccountChangeListenerIfNeeded() {
+        if (accountChangeListenerRegistered) {
             return;
         }
-        BookmarkService.getInstance().removeChangeListener(bookmarkChangeListener);
-        changeListenerRegistered = false;
+        AccountService.getInstance().addChangeListener(accountChangeListener);
+        accountChangeListenerRegistered = true;
+    }
+
+    private void unregisterBookmarkChangeListener() {
+        if (changeListenerRegistered) {
+            BookmarkService.getInstance().removeChangeListener(bookmarkChangeListener);
+            changeListenerRegistered = false;
+        }
+        if (accountChangeListenerRegistered) {
+            AccountService.getInstance().removeChangeListener(accountChangeListener);
+            accountChangeListenerRegistered = false;
+        }
+    }
+
+    private void requestExternalReload() {
+        if (reloadInProgress) {
+            reloadRequestedWhileReloading = true;
+            return;
+        }
+        forceReload();
     }
 
     private void releaseTransientState() {
@@ -403,6 +432,9 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private MenuButton createBookmarkSortButton() {
         MenuButton button = new MenuButton();
         button.getStyleClass().add("list-toolbar-sort-menu");
+        button.setGraphic(createSortDropdownIcon());
+        button.setContentDisplay(ContentDisplay.LEFT);
+        button.setFocusTraversable(false);
         ToggleGroup group = new ToggleGroup();
         button.getItems().setAll(
                 createBookmarkSortMenuItem(I18n.tr("autoSortDefault"), BookmarkSortMode.DEFAULT, group),
@@ -417,6 +449,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private Button createManageTabsToolbarButton() {
         Button button = new Button(I18n.tr("searchableTableManageTabs"));
         button.getStyleClass().add("list-toolbar-action-button");
+        button.setFocusTraversable(false);
         button.setAccessibleText(I18n.tr("searchableTableManageTabs"));
         button.setTooltip(new Tooltip(I18n.tr("searchableTableManageTabs")));
         button.setOnAction(_ -> openCategoryManagementInline());
@@ -443,11 +476,18 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         if (bookmarkSortButton == null) {
             return;
         }
-        bookmarkSortButton.setText(bookmarkSortTooltip());
+        bookmarkSortButton.setText(bookmarkSortCompactLabel(bookmarkSortMode));
         bookmarkSortButton.setAccessibleText(bookmarkSortTooltip());
         bookmarkSortButton.setTooltip(new Tooltip(bookmarkSortTooltip()));
         syncBookmarkSortMenuItems();
         updateStyleClass(bookmarkSortButton, "list-toolbar-sort-menu-active", bookmarkSortMode != BookmarkSortMode.DEFAULT);
+    }
+
+    private static Node createSortDropdownIcon() {
+        SVGPath icon = new SVGPath();
+        icon.setContent(ICON_SORT);
+        icon.getStyleClass().add("list-toolbar-sort-icon");
+        return icon;
     }
 
     private void syncBookmarkSortMenuItems() {
@@ -477,6 +517,14 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             case DEFAULT -> I18n.tr("autoSortDefault");
             case ASCENDING -> I18n.tr("autoSortNameAscending");
             case DESCENDING -> I18n.tr("autoSortNameDescending");
+        };
+    }
+
+    private String bookmarkSortCompactLabel(BookmarkSortMode sortMode) {
+        return switch (sortMode == null ? BookmarkSortMode.DEFAULT : sortMode) {
+            case DEFAULT -> "Default";
+            case ASCENDING -> "A-Z";
+            case DESCENDING -> "Z-A";
         };
     }
 
@@ -526,7 +574,17 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         title.setMinWidth(0);
         title.setMaxWidth(Double.MAX_VALUE);
 
-        card.getChildren().add(title);
+        HBox titleRow = new HBox(6);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.setMinWidth(0);
+        titleRow.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(title, Priority.ALWAYS);
+        titleRow.getChildren().add(title);
+        if (isDrmProtected(item)) {
+            titleRow.getChildren().add(createPlainTextDrmBadge());
+        }
+
+        card.getChildren().add(titleRow);
         String accountName = bookmarkAccountName(item);
         if (!accountName.isBlank()) {
             Label account = new Label(accountName);
@@ -537,6 +595,14 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             card.getChildren().add(account);
         }
         return card;
+    }
+
+    private Label createPlainTextDrmBadge() {
+        Label badge = new Label(I18n.tr("autoDrm"));
+        badge.getStyleClass().add("drm-badge");
+        badge.setMinWidth(Region.USE_PREF_SIZE);
+        badge.setMaxWidth(Region.USE_PREF_SIZE);
+        return badge;
     }
 
     private String bookmarkAccountName(BookmarkItem item) {

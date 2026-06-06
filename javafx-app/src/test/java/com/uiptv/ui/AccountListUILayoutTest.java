@@ -12,16 +12,19 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Labeled;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.IntStream;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
@@ -62,7 +65,9 @@ class AccountListUILayoutTest extends DbBackedUiTest {
                     containsStyleClass(ui, "account-footer"),
                     containsStyleClass(ui, "list-toolbar-actions"),
                     containsStyleClass(ui, "list-toolbar-sort-menu"),
-                    containsStyleClass(ui, "list-toolbar-action-button")
+                    containsStyleClass(ui, "list-toolbar-action-button"),
+                    labeledTextByStyle(ui, "list-toolbar-sort-menu"),
+                    labeledHasGraphicByStyle(ui, "list-toolbar-sort-menu")
             );
         });
 
@@ -71,7 +76,26 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         assertTrue(snapshot.hasToolbarActions());
         assertTrue(snapshot.hasSortDropdown());
         assertTrue(snapshot.hasQuietActionButton());
+        assertEquals("Default", snapshot.sortDropdownText());
+        assertTrue(snapshot.sortDropdownHasGraphic());
         assertFalse(snapshot.hasFooter());
+    }
+
+    @Test
+    void accountToolbarKeepsSpacingBetweenPillBarAndActionsAfterCss() throws Exception {
+        double spacing = runOnFxThread(() -> {
+            AccountListUI ui = new AccountListUI(true, null, null);
+            Scene scene = new Scene(ui, 520, 720);
+            scene.getStylesheets().add(Objects.requireNonNull(
+                    AccountListUILayoutTest.class.getResource("/application.css")
+            ).toExternalForm());
+            ui.applyCss();
+
+            Node toolbar = findByStyle(ui, "account-toolbar");
+            return toolbar instanceof VBox vBox ? vBox.getSpacing() : -1.0;
+        });
+
+        assertEquals(8.0, spacing, 0.01);
     }
 
     @Test
@@ -299,6 +323,31 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         return false;
     }
 
+    private static String labeledTextByStyle(Node root, String styleClass) {
+        Node node = findByStyle(root, styleClass);
+        return node instanceof Labeled labeled ? labeled.getText() : "";
+    }
+
+    private static boolean labeledHasGraphicByStyle(Node root, String styleClass) {
+        Node node = findByStyle(root, styleClass);
+        return node instanceof Labeled labeled && labeled.getGraphic() != null;
+    }
+
+    private static Node findByStyle(Node node, String styleClass) {
+        if (node.getStyleClass().contains(styleClass)) {
+            return node;
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                Node match = findByStyle(child, styleClass);
+                if (match != null) {
+                    return match;
+                }
+            }
+        }
+        return null;
+    }
+
     private static AccountListUI.AccountItem accountItem(int index) {
         return accountItem("Account " + index, String.valueOf(index), false, index);
     }
@@ -319,7 +368,9 @@ class AccountListUILayoutTest extends DbBackedUiTest {
                                    boolean hasFooter,
                                    boolean hasToolbarActions,
                                    boolean hasSortDropdown,
-                                   boolean hasQuietActionButton) {
+                                   boolean hasQuietActionButton,
+                                   String sortDropdownText,
+                                   boolean sortDropdownHasGraphic) {
     }
 
     private record AccountRowSnapshot(
