@@ -4,6 +4,7 @@ import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
+import com.uiptv.util.I18n;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.layout.StackPane;
@@ -70,7 +71,7 @@ class AppHeaderActionsTest extends DbBackedUiTest {
         AtomicInteger toggleCount = new AtomicInteger();
         Runnable toggleHandler = toggleCount::incrementAndGet;
         AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, null, null));
-        Button wideButton = runOnFxThread(() -> (Button) actions.getChildren().get(1));
+        Button wideButton = runOnFxThread(() -> (Button) actions.getChildren().get(0));
 
         runOnFxThread(() -> {
             WidePlayerNavigationControl.configure(true, false, toggleHandler);
@@ -94,6 +95,20 @@ class AppHeaderActionsTest extends DbBackedUiTest {
 
         assertFalse(runOnFxThread(wideButton::isVisible));
         assertFalse(runOnFxThread(wideButton::isManaged));
+    }
+
+    @Test
+    void aboutActionIsLastAndHelpActionIsRemovedFromHeader() throws Exception {
+        AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, null, null));
+
+        assertTrue(runOnFxThread(() -> actions.getChildren().stream()
+                .filter(Button.class::isInstance)
+                .map(Button.class::cast)
+                .noneMatch(button -> I18n.tr("autoHelp").equals(button.getAccessibleText()))));
+        assertEquals(I18n.tr("autoAbout"), runOnFxThread(() -> {
+            Button lastButton = (Button) actions.getChildren().get(actions.getChildren().size() - 1);
+            return lastButton.getAccessibleText();
+        }));
     }
 
     @Test

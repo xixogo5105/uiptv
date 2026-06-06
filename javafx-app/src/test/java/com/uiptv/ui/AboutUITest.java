@@ -7,6 +7,7 @@ import javafx.application.HostServices;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Pane;
@@ -70,6 +71,29 @@ class AboutUITest {
         assertTrue(closeButton.styleClasses().contains("uiptv-inline-secondary-button"));
     }
 
+    @Test
+    void aboutIncludesHelpGuideLink() throws Exception {
+        HostServices hostServices = Mockito.mock(HostServices.class);
+
+        Hyperlink helpLink = runOnFxThread(() -> {
+            StackPane host = InlinePanelService.createHost(new Label("home"));
+            InlinePanelService.install(host);
+
+            AboutUI.show(hostServices);
+
+            return findHyperlinkByText(host, I18n.tr("autoHelp"));
+        });
+
+        assertNotNull(helpLink);
+
+        runOnFxThread(() -> {
+            helpLink.fire();
+            return null;
+        });
+
+        Mockito.verify(hostServices).showDocument("https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md");
+    }
+
     private static ButtonSnapshot snapshot(Button button) {
         if (button == null) {
             return null;
@@ -89,6 +113,13 @@ class AboutUITest {
             return button;
         }
         return findDescendant(root, child -> findButtonByStyle(child, styleClass));
+    }
+
+    private static Hyperlink findHyperlinkByText(Node root, String text) {
+        if (root instanceof Hyperlink hyperlink && text.equals(hyperlink.getText())) {
+            return hyperlink;
+        }
+        return findHyperlinkDescendant(root, child -> findHyperlinkByText(child, text));
     }
 
     private static Button findDescendant(Node root, Finder finder) {
@@ -118,9 +149,41 @@ class AboutUITest {
         return null;
     }
 
+    private static Hyperlink findHyperlinkDescendant(Node root, HyperlinkFinder finder) {
+        if (root instanceof Pane pane) {
+            for (Node child : pane.getChildren()) {
+                Hyperlink found = finder.find(child);
+                if (found != null) {
+                    return found;
+                }
+            }
+        } else if (root instanceof ScrollPane scrollPane) {
+            Node content = scrollPane.getContent();
+            if (content != null) {
+                Hyperlink found = finder.find(content);
+                if (found != null) {
+                    return found;
+                }
+            }
+        } else if (root instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                Hyperlink found = finder.find(child);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
     @FunctionalInterface
     private interface Finder {
         Button find(Node child);
+    }
+
+    @FunctionalInterface
+    private interface HyperlinkFinder {
+        Hyperlink find(Node child);
     }
 
     private record ButtonSnapshot(List<String> styleClasses, boolean defaultButton) {

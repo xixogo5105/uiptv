@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class AboutUI {
     private static final String FALLBACK_PROJECT_URL = "https://github.com/xixogo5105/uiptv";
+    private static final String GUIDE_URL = "https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md";
     private static final double CONTENT_MAX_WIDTH = 720;
 
     private AboutUI(HostServices hostServices) {
@@ -83,6 +84,10 @@ public class AboutUI {
         link.setOnAction(e -> hostServices.showDocument(FALLBACK_PROJECT_URL));
         link.getStyleClass().add("about-link");
 
+        Hyperlink helpLink = new Hyperlink(I18n.tr("autoHelp"));
+        helpLink.setOnAction(e -> hostServices.showDocument(GUIDE_URL));
+        helpLink.getStyleClass().add("about-link");
+
         Region badgeSpacer = new Region();
         HBox.setHgrow(badgeSpacer, Priority.ALWAYS);
         HBox badgeRow = new HBox(8, desktopBadge, badgeSpacer, versionChip);
@@ -94,7 +99,7 @@ public class AboutUI {
         creditsRow.setPrefWrapLength(500);
         creditsRow.getStyleClass().add("about-inline-row");
 
-        FlowPane footerRow = new FlowPane(10, 4, poweredByLabel, link);
+        FlowPane footerRow = new FlowPane(10, 4, poweredByLabel, link, helpLink);
         footerRow.setAlignment(Pos.CENTER_LEFT);
         footerRow.setRowValignment(javafx.geometry.VPos.CENTER);
         footerRow.setPrefWrapLength(500);
