@@ -12,7 +12,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.scene.Node;
 import javafx.scene.Parent;
-import javafx.scene.control.Button;
+import javafx.scene.control.Labeled;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
@@ -54,14 +54,23 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     }
 
     @Test
-    void embeddedAccountHeaderUsesSectionIconsInsteadOfFooterButton() throws Exception {
-        HeaderSnapshot snapshot = runOnFxThread(() -> {
+    void embeddedAccountToolbarUsesDropdownAndQuietAddButton() throws Exception {
+        ToolbarSnapshot snapshot = runOnFxThread(() -> {
             AccountListUI ui = new AccountListUI(true, null, null);
-            return new HeaderSnapshot(buttonAccessibleTexts(ui), containsStyleClass(ui, "account-footer"));
+            return new ToolbarSnapshot(
+                    controlAccessibleTexts(ui),
+                    containsStyleClass(ui, "account-footer"),
+                    containsStyleClass(ui, "list-toolbar-actions"),
+                    containsStyleClass(ui, "list-toolbar-sort-menu"),
+                    containsStyleClass(ui, "list-toolbar-action-button")
+            );
         });
 
         assertTrue(snapshot.accessibleTexts().contains(I18n.tr("autoSort") + ": " + I18n.tr("autoSortDefault")));
         assertTrue(snapshot.accessibleTexts().contains(I18n.tr("autoNewAccount")));
+        assertTrue(snapshot.hasToolbarActions());
+        assertTrue(snapshot.hasSortDropdown());
+        assertTrue(snapshot.hasQuietActionButton());
         assertFalse(snapshot.hasFooter());
     }
 
@@ -259,19 +268,19 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         return Enum.valueOf(enumClass, searchModeName);
     }
 
-    private static List<String> buttonAccessibleTexts(Node root) {
+    private static List<String> controlAccessibleTexts(Node root) {
         List<String> values = new ArrayList<>();
-        collectButtonAccessibleTexts(root, values);
+        collectControlAccessibleTexts(root, values);
         return values;
     }
 
-    private static void collectButtonAccessibleTexts(Node node, List<String> values) {
-        if (node instanceof Button button && button.getAccessibleText() != null) {
-            values.add(button.getAccessibleText());
+    private static void collectControlAccessibleTexts(Node node, List<String> values) {
+        if (node instanceof Labeled labeled && labeled.getAccessibleText() != null) {
+            values.add(labeled.getAccessibleText());
         }
         if (node instanceof Parent parent) {
             for (Node child : parent.getChildrenUnmodifiable()) {
-                collectButtonAccessibleTexts(child, values);
+                collectControlAccessibleTexts(child, values);
             }
         }
     }
@@ -306,7 +315,11 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         );
     }
 
-    private record HeaderSnapshot(List<String> accessibleTexts, boolean hasFooter) {
+    private record ToolbarSnapshot(List<String> accessibleTexts,
+                                   boolean hasFooter,
+                                   boolean hasToolbarActions,
+                                   boolean hasSortDropdown,
+                                   boolean hasQuietActionButton) {
     }
 
     private record AccountRowSnapshot(

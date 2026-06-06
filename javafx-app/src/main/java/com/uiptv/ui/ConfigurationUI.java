@@ -936,9 +936,6 @@ public class ConfigurationUI extends VBox {
     }
 
     private void configureThemeModeSelector() {
-        if (!themeModePillBar.getStyleClass().contains("settings-theme-mode-pill-bar")) {
-            themeModePillBar.getStyleClass().add("settings-theme-mode-pill-bar");
-        }
         themeModePillBar.setItems(List.of(createThemeModeOption(false), createThemeModeOption(true)));
         themeModePillBar.selectedItemProperty().addListener((_, _, selected) -> {
             if (syncingThemeModeSelector) {

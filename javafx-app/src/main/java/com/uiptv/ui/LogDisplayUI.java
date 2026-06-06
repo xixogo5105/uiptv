@@ -1,8 +1,10 @@
 package com.uiptv.ui;
 
+import com.uiptv.model.Configuration;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.util.UiI18n;
-import com.uiptv.util.I18n;
 import com.uiptv.util.AppLog;
+import com.uiptv.util.I18n;
 import com.uiptv.util.WebActivityLog;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
@@ -10,13 +12,17 @@ import javafx.application.Platform;
 import javafx.application.HostServices;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
@@ -73,10 +79,11 @@ public class LogDisplayUI extends VBox {
         logArea.getStyleClass().add("log-text-area");
 
         for (Button button : List.of(copyLogButton, clearLogButton, webLogButton, detachButton, attachButton)) {
-            button.getStyleClass().add("log-action-button");
+            configureLogActionButton(button);
         }
         webLogButton.getStyleClass().add("log-primary-action-button");
         detachButton.getStyleClass().add("log-primary-action-button");
+        attachButton.getStyleClass().add("log-primary-action-button");
 
         clearLogButton.setOnAction(event -> logArea.clear());
 
@@ -128,15 +135,24 @@ public class LogDisplayUI extends VBox {
 
     private void renderAttachedView() {
         contentBox.getChildren().clear();
+        detachFromParent(logArea);
         HBox controlBox = createControlRow(copyLogButton, clearLogButton, webLogButton, detachButton);
         AppPageHeader header = createHeader();
-        VBox logCard = new VBox(logArea);
+        Label title = new Label(I18n.tr("autoUiptvLogs"));
+        title.getStyleClass().add("log-card-title");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox cardHeader = new HBox(12, title, spacer, controlBox);
+        cardHeader.getStyleClass().add("log-card-header");
+        cardHeader.setAlignment(Pos.CENTER_LEFT);
+
+        VBox logCard = new VBox(12, cardHeader, logArea);
         logCard.getStyleClass().add("log-card");
         logCard.setFillWidth(true);
         logCard.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         logCard.setMinHeight(0);
         VBox.setVgrow(logArea, Priority.ALWAYS);
-        contentBox.getChildren().setAll(header, controlBox, logCard);
+        contentBox.getChildren().setAll(header, logCard);
         VBox.setVgrow(logCard, Priority.ALWAYS);
         setDetached(false);
     }
@@ -146,11 +162,12 @@ public class LogDisplayUI extends VBox {
         Label info = new Label(I18n.tr("autoLogsDetachedInASeparateWindow"));
         info.getStyleClass().add("log-detached-title");
         info.setWrapText(true);
-        VBox placeholder = new VBox(10, info);
+        VBox placeholder = new VBox(12, info, createControlRow(attachButton));
         placeholder.getStyleClass().add("log-detached-card");
         placeholder.setMaxWidth(Double.MAX_VALUE);
+        placeholder.setAlignment(Pos.CENTER_LEFT);
         AppPageHeader header = createHeader();
-        contentBox.getChildren().setAll(header, createControlRow(attachButton), placeholder);
+        contentBox.getChildren().setAll(header, placeholder);
     }
 
     private AppPageHeader createHeader() {
@@ -161,11 +178,20 @@ public class LogDisplayUI extends VBox {
     }
 
     private HBox createControlRow(Button... buttons) {
+        for (Button button : buttons) {
+            detachFromParent(button);
+        }
         HBox row = new HBox(8, buttons);
         row.getStyleClass().add("log-control-row");
         row.setAlignment(Pos.CENTER_RIGHT);
         row.setFillHeight(false);
         return row;
+    }
+
+    private static void configureLogActionButton(Button button) {
+        button.getStyleClass().add("log-action-button");
+        button.setFocusTraversable(false);
+        button.setTooltip(new Tooltip(button.getText()));
     }
 
     private void detachWindow() {
@@ -175,19 +201,35 @@ public class LogDisplayUI extends VBox {
         setDetached(true);
         setForceLoggingEnabled(true);
         renderDetachedPlaceholder();
+        detachFromParent(logArea);
 
-        VBox popupRoot = new VBox(5);
-        popupRoot.setPadding(new Insets(8));
+        VBox popupRoot = new VBox(14);
+        popupRoot.getStyleClass().addAll("log-page", "log-window-root");
+        popupRoot.setPadding(new Insets(16));
         Button popupAttachButton = new Button(I18n.tr("autoAttach"));
+        configureLogActionButton(popupAttachButton);
+        popupAttachButton.getStyleClass().add("log-primary-action-button");
         popupAttachButton.setOnAction(event -> attachWindow());
-        HBox controlBox = new HBox(10, copyLogButton, clearLogButton, webLogButton, popupAttachButton);
-        popupRoot.getChildren().addAll(logArea, controlBox);
+        HBox controlBox = createControlRow(copyLogButton, clearLogButton, webLogButton, popupAttachButton);
+        Label title = new Label(I18n.tr("autoUiptvLogs"));
+        title.getStyleClass().add("log-card-title");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox cardHeader = new HBox(12, title, spacer, controlBox);
+        cardHeader.getStyleClass().add("log-card-header");
+        cardHeader.setAlignment(Pos.CENTER_LEFT);
+        VBox logCard = new VBox(12, cardHeader, logArea);
+        logCard.getStyleClass().add("log-card");
+        logCard.setFillWidth(true);
+        logCard.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        popupRoot.getChildren().add(logCard);
+        VBox.setVgrow(logCard, Priority.ALWAYS);
         VBox.setVgrow(logArea, Priority.ALWAYS);
 
         setDetachedStage(new Stage());
         detachedStage.setTitle(I18n.tr("autoUiptvLogs"));
         Scene detachedScene = new Scene(popupRoot, 800, 600);
-        UiI18n.applySceneOrientation(detachedScene);
+        applyCurrentTheme(detachedScene);
         detachedStage.setScene(detachedScene);
         detachedStage.setOnCloseRequest(event -> attachWindow());
         detachedStage.show();
@@ -205,17 +247,20 @@ public class LogDisplayUI extends VBox {
         webLogArea.setWrapText(true);
         webLogArea.setPromptText(I18n.tr("autoNoWebRequestsLoggedYet"));
         webLogArea.getStyleClass().add("terminal");
+        webLogArea.getStyleClass().add("log-text-area");
 
         Label location = new Label(I18n.tr("autoWebLogsTemporaryLocation", WebActivityLog.getLogFilePath()));
         location.setWrapText(true);
+        location.getStyleClass().add("log-web-location");
 
         Button copyButton = new Button(I18n.tr("autoCopy"));
         Button clearButton = new Button(I18n.tr("autoClear"));
         Button refreshButton = new Button(I18n.tr("autoRefresh"));
         Button closeButton = new Button(I18n.tr("commonClose"));
         for (Button button : List.of(copyButton, clearButton, refreshButton, closeButton)) {
-            button.getStyleClass().add("log-action-button");
+            configureLogActionButton(button);
         }
+        refreshButton.getStyleClass().add("log-primary-action-button");
         copyButton.setOnAction(event -> copyWebLogToClipboard());
         clearButton.setOnAction(event -> {
             WebActivityLog.clear();
@@ -223,9 +268,17 @@ public class LogDisplayUI extends VBox {
         });
         refreshButton.setOnAction(event -> refreshWebLogArea());
 
-        HBox controls = new HBox(10, copyButton, clearButton, refreshButton, closeButton);
-        VBox popupRoot = new VBox(8, location, webLogArea, controls);
-        popupRoot.setPadding(new Insets(8));
+        HBox controls = new HBox(8, copyButton, clearButton, refreshButton, closeButton);
+        controls.getStyleClass().add("log-control-row");
+        controls.setAlignment(Pos.CENTER_RIGHT);
+        VBox card = new VBox(12, location, webLogArea, controls);
+        card.getStyleClass().add("log-card");
+        card.setFillWidth(true);
+        card.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        VBox popupRoot = new VBox(card);
+        popupRoot.getStyleClass().addAll("log-page", "log-window-root");
+        popupRoot.setPadding(new Insets(16));
+        VBox.setVgrow(card, Priority.ALWAYS);
         VBox.setVgrow(webLogArea, Priority.ALWAYS);
 
         Consumer<String> webLogListener = LogDisplayUI::appendToWebLogArea;
@@ -235,7 +288,7 @@ public class LogDisplayUI extends VBox {
         webLogStage = new Stage();
         webLogStage.setTitle(I18n.tr("autoWebRequestLogs"));
         Scene scene = new Scene(popupRoot, 900, 600);
-        UiI18n.applySceneOrientation(scene);
+        applyCurrentTheme(scene);
         webLogStage.setScene(scene);
         webLogStage.setOnHidden(event -> {
             WebActivityLog.unregisterListener(webLogListener);
@@ -278,6 +331,33 @@ public class LogDisplayUI extends VBox {
         ClipboardContent content = new ClipboardContent();
         content.putString(webLogArea.getText());
         clipboard.setContent(content);
+    }
+
+    private static void detachFromParent(Node node) {
+        if (node != null && node.getParent() instanceof Pane pane) {
+            pane.getChildren().remove(node);
+        }
+    }
+
+    private static void applyCurrentTheme(Scene scene) {
+        try {
+            ConfigurationService service = ConfigurationService.getInstance();
+            Configuration configuration = service.read();
+            RootApplication.applyTheme(
+                    scene,
+                    RootApplication.class,
+                    configuration != null && configuration.isDarkTheme(),
+                    service.getUiZoomPercent()
+            );
+            return;
+        } catch (RuntimeException _) {
+            // Detached log windows are also used by tests without an initialized database.
+        }
+        String currentTheme = RootApplication.getCurrentTheme();
+        if (currentTheme != null && !currentTheme.isBlank()) {
+            scene.getStylesheets().setAll(currentTheme);
+        }
+        UiI18n.applySceneOrientation(scene);
     }
 
     private void attachWindow() {

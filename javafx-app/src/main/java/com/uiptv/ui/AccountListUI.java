@@ -15,7 +15,6 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
-import com.uiptv.widget.IconActionButton;
 import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
@@ -63,8 +62,6 @@ public class AccountListUI extends HBox implements SearchTarget {
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 42;
-    private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
-    private static final String ICON_ADD_ACCOUNT = "M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z";
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
             Comparator.comparing(AccountItem::getAccountName, String.CASE_INSENSITIVE_ORDER)
                     .thenComparing(AccountItem::getAccountName);
@@ -101,7 +98,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final AccountChangeListener accountChangeListener = revision -> Platform.runLater(this::refreshIfAttached);
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private AppPageHeader pageHeader;
-    private IconActionButton accountSortButton;
+    private MenuButton accountSortButton;
     private VBox accountToolbar;
     private CategoryListUI activeCategoryListUI;
     private final AtomicLong refreshGeneration = new AtomicLong();
@@ -358,7 +355,6 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void configureAccountTypePillBar() {
-        accountTypePillBar.getStyleClass().add("account-type-pill-bar");
         List<AccountTypeFilter> filters = new ArrayList<>();
         filters.add(new AccountTypeFilter("all", I18n.tr("commonAll"), null));
         for (AccountType type : AccountType.values()) {
@@ -417,8 +413,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private AppPageHeader createPageHeader() {
-        HBox headerActions = new HBox(6, createAccountSortButton(), createAddAccountHeaderButton(),
-                new AppHeaderActions(hostServices, themeToggleHandler, null));
+        HBox headerActions = new HBox(6, new AppHeaderActions(hostServices, themeToggleHandler, null));
         headerActions.setAlignment(Pos.CENTER_RIGHT);
         return new AppPageHeader(
                 I18n.tr("autoAccount"),
@@ -429,11 +424,22 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     private VBox createAccountToolbar() {
         accountTypePillBar.setMaxWidth(Double.MAX_VALUE);
-        VBox toolbar = new VBox(accountTypePillBar);
+        VBox toolbar = new VBox(8, accountTypePillBar, createAccountToolbarActions());
         toolbar.getStyleClass().add("account-toolbar");
         toolbar.setFillWidth(true);
         toolbar.setMaxWidth(Double.MAX_VALUE);
         return toolbar;
+    }
+
+    private HBox createAccountToolbarActions() {
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox actions = new HBox(8, spacer, createAccountSortButton(), createAddAccountToolbarButton());
+        actions.getStyleClass().add("list-toolbar-actions");
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.setFillHeight(false);
+        actions.setMaxWidth(Double.MAX_VALUE);
+        return actions;
     }
 
     private void configurePageContainers() {
@@ -463,31 +469,29 @@ public class AccountListUI extends HBox implements SearchTarget {
         VBox.setVgrow(content, Priority.ALWAYS);
     }
 
-    private IconActionButton createAddAccountHeaderButton() {
-        IconActionButton button = new IconActionButton(I18n.tr("autoNewAccount"), ICON_ADD_ACCOUNT, this::openNewAccountInline);
+    private Button createAddAccountToolbarButton() {
+        Button button = new Button(I18n.tr("autoNewAccount"));
+        button.getStyleClass().add("list-toolbar-action-button");
+        button.setAccessibleText(I18n.tr("autoNewAccount"));
+        button.setTooltip(new Tooltip(I18n.tr("autoNewAccount")));
+        button.setOnAction(_ -> openNewAccountInline());
         button.setManaged(embeddedMode);
         button.setVisible(embeddedMode);
         return button;
     }
 
-    private IconActionButton createAccountSortButton() {
-        IconActionButton button = new IconActionButton(accountSortTooltip(), ICON_SORT, () -> {});
-        button.setOnAction(_ -> showAccountSortMenu(button));
+    private MenuButton createAccountSortButton() {
+        MenuButton button = new MenuButton();
+        button.getStyleClass().add("list-toolbar-sort-menu");
+        ToggleGroup group = new ToggleGroup();
+        button.getItems().setAll(
+                createSortMenuItem(I18n.tr("autoSortDefault"), AccountSortMode.DEFAULT, accountSortMode, group, this::setAccountSortMode),
+                createSortMenuItem(I18n.tr("autoSortNameAscending"), AccountSortMode.ASCENDING, accountSortMode, group, this::setAccountSortMode),
+                createSortMenuItem(I18n.tr("autoSortNameDescending"), AccountSortMode.DESCENDING, accountSortMode, group, this::setAccountSortMode)
+        );
         accountSortButton = button;
         updateAccountSortButton();
         return button;
-    }
-
-    private void showAccountSortMenu(Node owner) {
-        ContextMenu menu = createSortMenu(
-                AccountSortMode.DEFAULT,
-                accountSortMode,
-                this::setAccountSortMode,
-                AccountSortMode.ASCENDING,
-                AccountSortMode.DESCENDING
-        );
-        UiI18n.preparePopupControl(menu, owner);
-        menu.show(owner, Side.BOTTOM, 0, 0);
     }
 
     private void openNewAccountInline() {
@@ -1007,21 +1011,33 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void registerThumbnailModeListener() {
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null) {
+                unregisterThumbnailModeListener();
+            } else {
+                registerThumbnailModeListenerIfNeeded();
+                applyPlainTextMode(ThumbnailAwareUI.areThumbnailsEnabled());
+            }
+        });
+        if (getScene() != null) {
+            registerThumbnailModeListenerIfNeeded();
+        }
+    }
+
+    private void registerThumbnailModeListenerIfNeeded() {
         if (thumbnailListenerRegistered) {
             return;
         }
         ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
         thumbnailListenerRegistered = true;
-        sceneProperty().addListener((_, _, newScene) -> {
-            if (newScene == null) {
-                ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
-                thumbnailListenerRegistered = false;
-            } else if (!thumbnailListenerRegistered) {
-                ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
-                thumbnailListenerRegistered = true;
-                applyPlainTextMode(ThumbnailAwareUI.areThumbnailsEnabled());
-            }
-        });
+    }
+
+    private void unregisterThumbnailModeListener() {
+        if (!thumbnailListenerRegistered) {
+            return;
+        }
+        ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
+        thumbnailListenerRegistered = false;
     }
 
     private void onThumbnailModeChanged(boolean enabled) {
@@ -1216,8 +1232,11 @@ public class AccountListUI extends HBox implements SearchTarget {
         if (accountSortButton == null) {
             return;
         }
-        accountSortButton.setTooltipText(accountSortTooltip());
-        updateStyleClass(accountSortButton, "bookmarks-quick-action-button-active", accountSortMode != AccountSortMode.DEFAULT);
+        accountSortButton.setText(accountSortTooltip());
+        accountSortButton.setAccessibleText(accountSortTooltip());
+        accountSortButton.setTooltip(new Tooltip(accountSortTooltip()));
+        syncAccountSortMenuItems();
+        updateStyleClass(accountSortButton, "list-toolbar-sort-menu-active", accountSortMode != AccountSortMode.DEFAULT);
     }
 
     private String accountSortTooltip() {
@@ -1232,22 +1251,22 @@ public class AccountListUI extends HBox implements SearchTarget {
         };
     }
 
-    private <T> ContextMenu createSortMenu(T defaultMode, T selectedMode, java.util.function.Consumer<T> sortModeConsumer,
-                                           T ascendingMode, T descendingMode) {
-        ToggleGroup group = new ToggleGroup();
-        RadioMenuItem defaultItem = createSortMenuItem(I18n.tr("autoSortDefault"), defaultMode, selectedMode, group, sortModeConsumer);
-        RadioMenuItem ascendingItem = createSortMenuItem(I18n.tr("autoSortNameAscending"), ascendingMode, selectedMode, group, sortModeConsumer);
-        RadioMenuItem descendingItem = createSortMenuItem(I18n.tr("autoSortNameDescending"), descendingMode, selectedMode, group, sortModeConsumer);
-        return new ContextMenu(defaultItem, ascendingItem, descendingItem);
-    }
-
     private <T> RadioMenuItem createSortMenuItem(String label, T mode, T selectedMode, ToggleGroup group,
                                                  java.util.function.Consumer<T> sortModeConsumer) {
         RadioMenuItem item = new RadioMenuItem(label);
+        item.setUserData(mode);
         item.setToggleGroup(group);
         item.setSelected(Objects.equals(mode, selectedMode));
         item.setOnAction(_ -> sortModeConsumer.accept(mode));
         return item;
+    }
+
+    private void syncAccountSortMenuItems() {
+        for (MenuItem item : accountSortButton.getItems()) {
+            if (item instanceof RadioMenuItem radioMenuItem) {
+                radioMenuItem.setSelected(Objects.equals(item.getUserData(), accountSortMode));
+            }
+        }
     }
 
     private void addAccountClickHandler() {

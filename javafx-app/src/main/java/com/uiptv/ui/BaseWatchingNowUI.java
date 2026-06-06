@@ -916,7 +916,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         titleRow.setMaxWidth(Double.MAX_VALUE);
 
         PillBar<String> seasonPillBar = new PillBar<>(I18n::formatTabNumberLabel, season -> season);
-        seasonPillBar.getStyleClass().add("watching-now-season-pill-bar");
         data.seasonPillBar = seasonPillBar;
 
         VBox episodeCards = new VBox(thumbnailsEnabled() ? 10 : 6);

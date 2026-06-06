@@ -8,7 +8,6 @@ import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.BookmarkCard;
-import com.uiptv.widget.IconActionButton;
 import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
@@ -48,8 +47,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 46;
     private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
-    private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
-    private static final String ICON_MANAGE_TABS = "M3 5H11V11H3V5ZM13 5H21V11H13V5ZM3 13H11V19H3V13ZM13 13H21V19H13V13Z";
     private static final Comparator<BookmarkItem> BOOKMARK_NAME_COMPARATOR =
             Comparator.comparing(BookmarkItem::getChannelName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
                     .thenComparing(BookmarkItem::getChannelName, Comparator.nullsLast(Comparator.naturalOrder()))
@@ -83,7 +80,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private boolean changeListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
     private BookmarkSortMode bookmarkSortMode = BookmarkSortMode.DEFAULT;
-    private IconActionButton bookmarkSortButton;
+    private MenuButton bookmarkSortButton;
     private volatile boolean suppressAutoReloadOnBookmarkChange = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> runLater(() -> {
         if (!changeListenerRegistered || suppressAutoReloadOnBookmarkChange) {
@@ -347,8 +344,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         TextField searchField = searchTextField;
         searchField.setPromptText(I18n.tr("commonSearch"));
 
-        HBox headerActions = new HBox(6, createBookmarkSortButton(), createManageTabsHeaderButton(),
-                new AppHeaderActions(hostServices, themeToggleHandler, null));
+        HBox headerActions = new HBox(6, new AppHeaderActions(hostServices, themeToggleHandler, null));
         headerActions.setAlignment(Pos.CENTER_RIGHT);
 
         AppPageHeader header = new AppPageHeader(I18n.tr("autoFavorite"), searchField, headerActions);
@@ -368,8 +364,19 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
         categoryPillBar.setMaxWidth(Double.MAX_VALUE);
         categoryPillBar.setMaxHeight(Region.USE_PREF_SIZE);
-        row.getChildren().setAll(categoryPillBar);
+        row.getChildren().setAll(categoryPillBar, createBookmarkToolbarActions());
         return row;
+    }
+
+    private HBox createBookmarkToolbarActions() {
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox actions = new HBox(8, spacer, createBookmarkSortButton(), createManageTabsToolbarButton());
+        actions.getStyleClass().add("list-toolbar-actions");
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.setFillHeight(false);
+        actions.setMaxWidth(Double.MAX_VALUE);
+        return actions;
     }
 
     private void setupBookmarkGrid() {
@@ -393,36 +400,33 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         bookmarkGridFrame.getChildren().setAll(bookmarkGrid, bookmarkLoadingOverlay);
     }
 
-    private IconActionButton createBookmarkSortButton() {
-        IconActionButton button = new IconActionButton(bookmarkSortTooltip(), ICON_SORT, () -> {});
-        button.setOnAction(_ -> showBookmarkSortMenu(button));
+    private MenuButton createBookmarkSortButton() {
+        MenuButton button = new MenuButton();
+        button.getStyleClass().add("list-toolbar-sort-menu");
+        ToggleGroup group = new ToggleGroup();
+        button.getItems().setAll(
+                createBookmarkSortMenuItem(I18n.tr("autoSortDefault"), BookmarkSortMode.DEFAULT, group),
+                createBookmarkSortMenuItem(I18n.tr("autoSortNameAscending"), BookmarkSortMode.ASCENDING, group),
+                createBookmarkSortMenuItem(I18n.tr("autoSortNameDescending"), BookmarkSortMode.DESCENDING, group)
+        );
         bookmarkSortButton = button;
         updateBookmarkSortButton();
         return button;
     }
 
-    private IconActionButton createManageTabsHeaderButton() {
-        return new IconActionButton(I18n.tr("searchableTableManageTabs"), ICON_MANAGE_TABS, this::openCategoryManagementInline);
+    private Button createManageTabsToolbarButton() {
+        Button button = new Button(I18n.tr("searchableTableManageTabs"));
+        button.getStyleClass().add("list-toolbar-action-button");
+        button.setAccessibleText(I18n.tr("searchableTableManageTabs"));
+        button.setTooltip(new Tooltip(I18n.tr("searchableTableManageTabs")));
+        button.setOnAction(_ -> openCategoryManagementInline());
+        return button;
     }
 
-    private void showBookmarkSortMenu(Node owner) {
-        ContextMenu menu = new ContextMenu(
-                createBookmarkSortMenuItem(I18n.tr("autoSortDefault"), BookmarkSortMode.DEFAULT),
-                createBookmarkSortMenuItem(I18n.tr("autoSortNameAscending"), BookmarkSortMode.ASCENDING),
-                createBookmarkSortMenuItem(I18n.tr("autoSortNameDescending"), BookmarkSortMode.DESCENDING)
-        );
-        ToggleGroup group = new ToggleGroup();
-        for (MenuItem item : menu.getItems()) {
-            if (item instanceof RadioMenuItem radioMenuItem) {
-                radioMenuItem.setToggleGroup(group);
-            }
-        }
-        UiI18n.preparePopupControl(menu, owner);
-        menu.show(owner, Side.BOTTOM, 0, 0);
-    }
-
-    private RadioMenuItem createBookmarkSortMenuItem(String label, BookmarkSortMode sortMode) {
+    private RadioMenuItem createBookmarkSortMenuItem(String label, BookmarkSortMode sortMode, ToggleGroup group) {
         RadioMenuItem item = new RadioMenuItem(label);
+        item.setUserData(sortMode);
+        item.setToggleGroup(group);
         item.setSelected(bookmarkSortMode == sortMode);
         item.setOnAction(_ -> setBookmarkSortMode(sortMode));
         return item;
@@ -439,10 +443,28 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         if (bookmarkSortButton == null) {
             return;
         }
-        bookmarkSortButton.setTooltipText(bookmarkSortTooltip());
-        bookmarkSortButton.getStyleClass().remove("bookmarks-quick-action-button-active");
-        if (bookmarkSortMode != BookmarkSortMode.DEFAULT) {
-            bookmarkSortButton.getStyleClass().add("bookmarks-quick-action-button-active");
+        bookmarkSortButton.setText(bookmarkSortTooltip());
+        bookmarkSortButton.setAccessibleText(bookmarkSortTooltip());
+        bookmarkSortButton.setTooltip(new Tooltip(bookmarkSortTooltip()));
+        syncBookmarkSortMenuItems();
+        updateStyleClass(bookmarkSortButton, "list-toolbar-sort-menu-active", bookmarkSortMode != BookmarkSortMode.DEFAULT);
+    }
+
+    private void syncBookmarkSortMenuItems() {
+        for (MenuItem item : bookmarkSortButton.getItems()) {
+            if (item instanceof RadioMenuItem radioMenuItem) {
+                radioMenuItem.setSelected(Objects.equals(item.getUserData(), bookmarkSortMode));
+            }
+        }
+    }
+
+    private static void updateStyleClass(Node node, String styleClass, boolean enabled) {
+        if (enabled) {
+            if (!node.getStyleClass().contains(styleClass)) {
+                node.getStyleClass().add(styleClass);
+            }
+        } else {
+            node.getStyleClass().remove(styleClass);
         }
     }
 
@@ -534,21 +556,33 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private void registerThumbnailModeListener() {
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null) {
+                unregisterThumbnailModeListener();
+            } else {
+                registerThumbnailModeListenerIfNeeded();
+                applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
+            }
+        });
+        if (getScene() != null) {
+            registerThumbnailModeListenerIfNeeded();
+        }
+    }
+
+    private void registerThumbnailModeListenerIfNeeded() {
         if (thumbnailListenerRegistered) {
             return;
         }
         ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
         thumbnailListenerRegistered = true;
-        sceneProperty().addListener((_, _, newScene) -> {
-            if (newScene == null) {
-                ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
-                thumbnailListenerRegistered = false;
-            } else if (!thumbnailListenerRegistered) {
-                ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
-                thumbnailListenerRegistered = true;
-                applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
-            }
-        });
+    }
+
+    private void unregisterThumbnailModeListener() {
+        if (!thumbnailListenerRegistered) {
+            return;
+        }
+        ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
+        thumbnailListenerRegistered = false;
     }
 
     private void onThumbnailModeChanged(boolean enabled) {

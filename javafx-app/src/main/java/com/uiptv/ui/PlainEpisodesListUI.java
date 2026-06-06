@@ -81,7 +81,6 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
     @Override
     protected void initWidgets() {
-        seasonPillBar.getStyleClass().add("watching-now-season-pill-bar");
         seasonPillBar.setMaxWidth(Double.MAX_VALUE);
         seasonPillBar.selectedItemProperty().addListener((_, _, _) -> {
             applyEpisodeRows();
@@ -137,7 +136,6 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     }
 
     public void applyWatchingNowDetailStyling() {
-        seasonPillBar.getStyleClass().add("watching-now-season-pill-bar");
         if (bodyContainer != null) {
             bodyContainer.setPadding(new Insets(0, 1, 0, 1));
             bodyContainer.setSpacing(1);

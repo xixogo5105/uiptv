@@ -711,7 +711,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
     private void setupModePillBar() {
         boolean supportsVodSeries = VOD_AND_SERIES_SUPPORTED.contains(accountType());
-        modePillBar.getStyleClass().add("category-mode-pill-bar");
         List<String> modes = new ArrayList<>();
         modes.add(MODE_ACCOUNTS);
         modes.add(MODE_ITV);

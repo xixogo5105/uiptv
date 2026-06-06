@@ -149,21 +149,33 @@ public class EpisodesListUI extends HBox {
     }
 
     private void registerThumbnailModeListener() {
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null) {
+                unregisterThumbnailModeListener();
+            } else {
+                registerThumbnailModeListenerIfNeeded();
+                refreshThumbnailMode();
+            }
+        });
+        if (getScene() != null) {
+            registerThumbnailModeListenerIfNeeded();
+        }
+    }
+
+    private void registerThumbnailModeListenerIfNeeded() {
         if (thumbnailListenerRegistered) {
             return;
         }
         ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
         thumbnailListenerRegistered = true;
-        sceneProperty().addListener((_, _, newScene) -> {
-            if (newScene == null) {
-                ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
-                thumbnailListenerRegistered = false;
-            } else if (!thumbnailListenerRegistered) {
-                ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
-                thumbnailListenerRegistered = true;
-                refreshThumbnailMode();
-            }
-        });
+    }
+
+    private void unregisterThumbnailModeListener() {
+        if (!thumbnailListenerRegistered) {
+            return;
+        }
+        ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
+        thumbnailListenerRegistered = false;
     }
 
     private void refreshThumbnailMode() {

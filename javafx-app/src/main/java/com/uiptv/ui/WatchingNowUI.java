@@ -76,7 +76,6 @@ public class WatchingNowUI extends VBox {
                 item -> SERIES_TAB.equals(item) ? I18n.tr("autoSeries") : I18n.tr("autoVod"),
                 item -> item
         );
-        modePillBar.getStyleClass().add("watching-now-mode-pill-bar");
         modePillBar.setItems(List.of(SERIES_TAB, VOD_TAB));
         modePillBar.selectedItemProperty().addListener((_, _, selected) -> showSelectedMode(selected));
 
@@ -184,22 +183,34 @@ public class WatchingNowUI extends VBox {
     }
 
     private void registerThumbnailModeListener() {
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null) {
+                unregisterThumbnailModeListener();
+                disposeDelegates();
+            } else {
+                registerThumbnailModeListenerIfNeeded();
+                syncThumbnailModeWithConfiguration();
+            }
+        });
+        if (getScene() != null) {
+            registerThumbnailModeListenerIfNeeded();
+        }
+    }
+
+    private void registerThumbnailModeListenerIfNeeded() {
         if (thumbnailListenerRegistered) {
             return;
         }
         ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
         thumbnailListenerRegistered = true;
-        sceneProperty().addListener((_, _, newScene) -> {
-            if (newScene == null) {
-                ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
-                thumbnailListenerRegistered = false;
-                disposeDelegates();
-            } else if (!thumbnailListenerRegistered) {
-                ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
-                thumbnailListenerRegistered = true;
-                syncThumbnailModeWithConfiguration();
-            }
-        });
+    }
+
+    private void unregisterThumbnailModeListener() {
+        if (!thumbnailListenerRegistered) {
+            return;
+        }
+        ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
+        thumbnailListenerRegistered = false;
     }
 
     private void syncThumbnailModeWithConfiguration() {

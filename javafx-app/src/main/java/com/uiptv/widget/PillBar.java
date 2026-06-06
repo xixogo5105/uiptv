@@ -23,7 +23,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 public class PillBar<T> extends StackPane {
-    private static final double DEFAULT_MIN_HEIGHT = 30;
+    private static final double DEFAULT_MIN_HEIGHT = 40;
     private static final double SCROLLBAR_WIDTH_GUTTER = 18;
 
     private final FlowPane content = new FlowPane();
@@ -60,8 +60,8 @@ public class PillBar<T> extends StackPane {
 
         content.getStyleClass().add("uiptv-pill-bar-content");
         content.setAlignment(Pos.CENTER_LEFT);
-        content.setHgap(4);
-        content.setVgap(4);
+        content.setHgap(5);
+        content.setVgap(5);
         content.setMinWidth(0);
         content.setMaxWidth(Double.MAX_VALUE);
         content.setPrefWrapLength(4096);

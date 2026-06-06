@@ -128,7 +128,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     @Override
     protected void initWidgets() {
         initHeader();
-        seasonPillBar.getStyleClass().add("watching-now-season-pill-bar");
         seasonPillBar.setMaxWidth(Double.MAX_VALUE);
         seasonPillBar.selectedItemProperty().addListener((_, _, _) -> {
             applySeasonFilter();
@@ -431,7 +430,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         seriesPosterNode.setFitWidth(260);
         seriesPosterNode.setFitHeight(390);
         cardsContainer.setPadding(new Insets(2, 0, 8, 0));
-        seasonPillBar.getStyleClass().add("watching-now-season-pill-bar");
         applyWatchingNowLayoutSizing(watchingNowDetailLayout.getWidth());
         watchingNowDetailLayout.widthProperty().addListener((_, _, width) ->
                 applyWatchingNowLayoutSizing(width.doubleValue()));

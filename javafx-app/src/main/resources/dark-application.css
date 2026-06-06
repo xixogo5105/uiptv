@@ -992,7 +992,7 @@
     -fx-padding: 7 0 0 0;
 }
 
-.account-list-panel-drawer .account-type-pill-bar.uiptv-pill-bar {
+.account-list-panel-drawer .uiptv-pill-bar {
     -fx-min-height: 78;
     -fx-pref-height: 78;
 }
@@ -1148,15 +1148,6 @@
     -fx-padding: 9;
     -fx-background-radius: 16;
     -fx-border-radius: 16;
-}
-
-.account-category-list-pane-drawer .category-mode-pill-bar.uiptv-pill-bar {
-    -fx-padding: 5;
-    -fx-min-height: 40;
-}
-
-.account-category-list-pane-drawer .category-mode-pill-bar .uiptv-pill {
-    -fx-padding: 5 11 5 11;
 }
 
 .account-category-list-pane-drawer .account-category-heading {
@@ -1369,14 +1360,43 @@
     -fx-border-color: rgba(148, 163, 184, 0.20);
 }
 
+.log-window-root {
+    -fx-background-color: linear-gradient(to bottom, #171a22, #11141b);
+}
+
+.log-card-header {
+    -fx-spacing: 12;
+    -fx-alignment: center-left;
+}
+
+.log-card-title {
+    -fx-font-size: 1.08em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.log-web-location {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
 .log-control-row {
     -fx-spacing: 8;
 }
 
 .log-action-button {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-text-fill: -uiptv-text-primary;
     -fx-background-radius: 16;
     -fx-border-radius: 16;
     -fx-padding: 8 13 8 13;
+    -fx-cursor: hand;
+}
+
+.log-action-button:hover,
+.log-action-button:focused {
+    -fx-background-color: rgba(96, 165, 250, 0.14);
+    -fx-border-color: rgba(96, 165, 250, 0.30);
 }
 
 .log-primary-action-button {
@@ -1440,23 +1460,24 @@
 }
 
 .bookmarks-quick-action-button-active {
-    -fx-background-color: -uiptv-action-bg;
-    -fx-border-color: -uiptv-action-bg;
+    -fx-background-color: rgba(96, 165, 250, 0.16);
+    -fx-border-color: rgba(147, 197, 253, 0.30);
+    -fx-effect: none;
 }
 
 .bookmarks-quick-action-button-active .bookmarks-quick-action-icon {
-    -fx-fill: -uiptv-action-fg;
+    -fx-fill: #93c5fd;
 }
 
 .bookmarks-quick-action-button-active:hover,
 .bookmarks-quick-action-button-active:focused {
-    -fx-background-color: -uiptv-action-hover-bg;
-    -fx-border-color: -uiptv-action-hover-bg;
+    -fx-background-color: rgba(96, 165, 250, 0.22);
+    -fx-border-color: rgba(147, 197, 253, 0.42);
 }
 
 .bookmarks-quick-action-button-active:hover .bookmarks-quick-action-icon,
 .bookmarks-quick-action-button-active:focused .bookmarks-quick-action-icon {
-    -fx-fill: -uiptv-action-fg;
+    -fx-fill: #bfdbfe;
 }
 
 .bookmarks-quick-action-button:pressed {
@@ -1497,9 +1518,9 @@
 .bookmarks-quick-action-button-active .plain-text-mode-quick-icon,
 .bookmarks-quick-action-button-active:hover .plain-text-mode-quick-icon,
 .bookmarks-quick-action-button-active:focused .plain-text-mode-quick-icon {
-    -fx-background-color: -uiptv-action-fg;
-    -fx-border-color: -uiptv-action-fg;
-    -fx-text-fill: -uiptv-action-bg;
+    -fx-background-color: rgba(96, 165, 250, 0.18);
+    -fx-border-color: #93c5fd;
+    -fx-text-fill: #bfdbfe;
 }
 
 .bookmarks-quick-action-button-lock-ok .bookmarks-quick-action-icon,
@@ -1518,47 +1539,86 @@
     -fx-padding: 0;
 }
 
+.list-toolbar-actions {
+    -fx-padding: 0;
+    -fx-spacing: 8;
+}
+
+.list-toolbar-sort-menu,
+.list-toolbar-action-button {
+    -fx-background-color: rgba(255, 255, 255, 0.045);
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 7 12 7 12;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-cursor: hand;
+}
+
+.list-toolbar-sort-menu:hover,
+.list-toolbar-sort-menu:focused,
+.list-toolbar-action-button:hover,
+.list-toolbar-action-button:focused {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: rgba(147, 197, 253, 0.30);
+}
+
+.list-toolbar-sort-menu-active {
+    -fx-background-color: rgba(96, 165, 250, 0.13);
+    -fx-border-color: rgba(147, 197, 253, 0.30);
+}
+
+.list-toolbar-sort-menu > .label,
+.list-toolbar-action-button {
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.list-toolbar-sort-menu .arrow {
+    -fx-background-color: -uiptv-text-secondary;
+}
+
 .bookmark-footer {
     -fx-padding: 8 0 0 0;
     -fx-border-color: rgba(255, 255, 255, 0.08) transparent transparent transparent;
     -fx-border-width: 1 0 0 0;
 }
 
-.uiptv-pill-bar,
-.bookmark-category-pill-bar {
+.uiptv-pill-bar {
     -fx-background-color: #252930;
-    -fx-background-radius: 14;
+    -fx-background-radius: 16;
     -fx-border-color: #343941;
-    -fx-border-radius: 14;
+    -fx-border-radius: 16;
     -fx-border-width: 1;
-    -fx-padding: 2;
-    -fx-min-height: 30;
+    -fx-padding: 5;
+    -fx-min-height: 40;
 }
 
 .uiptv-pill-bar-content {
     -fx-background-color: transparent;
     -fx-border-color: transparent;
+    -fx-hgap: 5;
+    -fx-vgap: 5;
 }
 
-.uiptv-pill,
-.bookmark-category-pill {
+.uiptv-pill {
     -fx-background-color: transparent;
     -fx-border-color: transparent;
-    -fx-background-radius: 11;
-    -fx-border-radius: 11;
-    -fx-padding: 3 12 3 12;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 5 13 5 13;
+    -fx-font-size: 0.94em;
     -fx-text-fill: -uiptv-text-secondary;
     -fx-font-weight: normal;
     -fx-cursor: hand;
+    -fx-effect: none;
 }
 
-.uiptv-pill:hover,
-.bookmark-category-pill:hover {
-    -fx-background-color: rgba(255, 255, 255, 0.07);
+.uiptv-pill:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
 }
 
-.uiptv-pill:selected,
-.bookmark-category-pill:selected {
+.uiptv-pill:selected {
     -fx-background-color: #181b1f;
     -fx-text-fill: -uiptv-text-primary;
     -fx-font-weight: bold;
@@ -1573,73 +1633,18 @@
     -fx-fill: -uiptv-text-primary;
 }
 
-.account-type-pill-bar.uiptv-pill-bar,
-.category-mode-pill-bar.uiptv-pill-bar,
-.bookmark-category-pill-bar.uiptv-pill-bar {
-    -fx-background-color: #252930;
-    -fx-background-radius: 16;
-    -fx-border-color: #343941;
-    -fx-border-radius: 16;
-    -fx-border-width: 1;
-    -fx-padding: 5;
-    -fx-min-height: 40;
-}
-
-.account-type-pill-bar .uiptv-pill-bar-content,
-.category-mode-pill-bar .uiptv-pill-bar-content,
-.bookmark-category-pill-bar .uiptv-pill-bar-content {
-    -fx-hgap: 5;
-    -fx-vgap: 5;
-}
-
-.account-type-pill-bar .uiptv-pill,
-.category-mode-pill-bar .uiptv-pill,
-.bookmark-category-pill-bar .uiptv-pill {
-    -fx-background-radius: 12;
-    -fx-border-radius: 12;
-    -fx-padding: 5 13 5 13;
-    -fx-font-size: 0.94em;
-    -fx-effect: none;
-}
-
-.account-list-panel-compact .account-type-pill-bar.uiptv-pill-bar {
+.account-list-panel-compact .uiptv-pill-bar {
     -fx-min-height: 76;
     -fx-padding: 5;
 }
 
-.account-list-panel-compact .account-type-pill-bar .uiptv-pill {
+.account-list-panel-compact .uiptv-pill {
     -fx-padding: 5 9 5 9;
-}
-
-.account-type-pill-bar .uiptv-pill:hover,
-.category-mode-pill-bar .uiptv-pill:hover,
-.bookmark-category-pill-bar .uiptv-pill:hover {
-    -fx-background-color: rgba(255, 255, 255, 0.08);
-}
-
-.account-type-pill-bar .uiptv-pill:selected,
-.category-mode-pill-bar .uiptv-pill:selected,
-.bookmark-category-pill-bar .uiptv-pill:selected {
-    -fx-background-color: #181b1f;
-    -fx-text-fill: -uiptv-text-primary;
-    -fx-font-weight: bold;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 10, 0.18, 0, 2);
 }
 
 .watching-now-page {
     -fx-background-color: -uiptv-app-bg;
     -fx-padding: 24 10 20 10;
-}
-
-.watching-now-mode-pill-bar {
-    -fx-min-height: 36;
-    -fx-padding: 3;
-    -fx-background-radius: 16;
-    -fx-border-radius: 16;
-}
-
-.watching-now-mode-pill-bar .uiptv-pill {
-    -fx-padding: 5 18 5 18;
 }
 
 .watching-now-content-pane,
@@ -1751,15 +1756,6 @@
     -fx-font-size: 1.12em;
     -fx-font-weight: bold;
     -fx-text-fill: -uiptv-text-primary;
-}
-
-.watching-now-season-pill-bar {
-    -fx-background-color: #252930;
-    -fx-border-color: #343941;
-}
-
-.watching-now-season-pill-bar .uiptv-pill {
-    -fx-padding: 4 13 4 13;
 }
 
 .watching-now-series-card,
@@ -2248,28 +2244,6 @@
     -fx-alignment: center;
     -fx-font-weight: bold;
     -fx-padding: 8 14 8 14;
-}
-
-.settings-theme-mode-pill-bar {
-    -fx-min-height: 41;
-    -fx-pref-height: 41;
-    -fx-max-height: 41;
-    -fx-background-radius: 20;
-    -fx-border-radius: 20;
-    -fx-padding: 4;
-}
-
-.settings-theme-mode-pill-bar .uiptv-pill-bar-content {
-    -fx-hgap: 3;
-    -fx-vgap: 0;
-}
-
-.settings-theme-mode-pill-bar .uiptv-pill {
-    -fx-min-width: 78;
-    -fx-background-radius: 14;
-    -fx-border-radius: 14;
-    -fx-padding: 5 13 5 13;
-    -fx-graphic-text-gap: 4;
 }
 
 .uiptv-switch-toggle {

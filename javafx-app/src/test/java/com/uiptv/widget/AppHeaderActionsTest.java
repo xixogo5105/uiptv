@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.EnumMap;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
@@ -28,8 +29,9 @@ class AppHeaderActionsTest extends DbBackedUiTest {
     }
 
     @AfterEach
-    void resetNavigationController() {
+    void resetSharedControllers() {
         AppNavigationController.reset();
+        WidePlayerNavigationControl.configure(false, false, null);
     }
 
     @Test
@@ -43,17 +45,45 @@ class AppHeaderActionsTest extends DbBackedUiTest {
 
         AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, null, null));
 
-        assertEquals(I18n.tr("autoFavorite"), runOnFxThread(() -> buttonAt(actions, 0).getAccessibleText()));
-        assertEquals(I18n.tr("autoAccount"), runOnFxThread(() -> buttonAt(actions, 1).getAccessibleText()));
-        assertEquals(I18n.tr("autoWatchingNow"), runOnFxThread(() -> buttonAt(actions, 2).getAccessibleText()));
-        assertEquals(I18n.tr("autoSettings"), runOnFxThread(() -> buttonAt(actions, 3).getAccessibleText()));
+        assertEquals(I18n.tr("autoFavorite"), runOnFxThread(() -> visibleButtonAt(actions, 0).getAccessibleText()));
+        assertEquals(I18n.tr("autoAccount"), runOnFxThread(() -> visibleButtonAt(actions, 1).getAccessibleText()));
+        assertEquals(I18n.tr("autoWatchingNow"), runOnFxThread(() -> visibleButtonAt(actions, 2).getAccessibleText()));
+        assertEquals(I18n.tr("autoSettings"), runOnFxThread(() -> visibleButtonAt(actions, 3).getAccessibleText()));
 
         runOnFxThread(() -> {
-            buttonAt(actions, 1).fire();
+            visibleButtonAt(actions, 1).fire();
             return null;
         });
 
         assertEquals(AppNavigationController.Target.ACCOUNTS, selectedTarget.get());
+    }
+
+    @Test
+    void widePlayerNavigationButtonIsFirstWhenAvailableAndTogglesLayoutFocus() throws Exception {
+        AtomicInteger toggles = new AtomicInteger();
+        WidePlayerNavigationControl.configure(true, false, toggles::incrementAndGet);
+
+        AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, null, null));
+
+        assertEquals(I18n.tr("autoHidePlaybackNavigation"), runOnFxThread(() -> visibleButtonAt(actions, 0).getAccessibleText()));
+        assertEquals(I18n.tr("autoFavorite"), runOnFxThread(() -> visibleButtonAt(actions, 1).getAccessibleText()));
+
+        runOnFxThread(() -> {
+            visibleButtonAt(actions, 0).fire();
+            return null;
+        });
+
+        assertEquals(1, toggles.get());
+
+        WidePlayerNavigationControl.configure(true, true, toggles::incrementAndGet);
+        runOnFxThread(() -> {
+            actions.refreshState();
+            return null;
+        });
+
+        Button widePlayerButton = runOnFxThread(() -> visibleButtonAt(actions, 0));
+        assertEquals(I18n.tr("autoShowPlaybackNavigation"), runOnFxThread(widePlayerButton::getAccessibleText));
+        assertTrue(runOnFxThread(() -> widePlayerButton.getStyleClass().contains("bookmarks-quick-action-button-active")));
     }
 
     @Test
@@ -63,7 +93,7 @@ class AppHeaderActionsTest extends DbBackedUiTest {
         ConfigurationService.getInstance().save(configuration);
 
         AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, null, null));
-        Button gearButton = runOnFxThread(() -> buttonAt(actions, 3));
+        Button gearButton = runOnFxThread(() -> visibleButtonAt(actions, 3));
 
         assertTrue(runOnFxThread(() -> gearButton.getStyleClass().contains("bookmarks-quick-action-button-lock-ok")));
         assertFalse(runOnFxThread(() -> gearButton.getStyleClass().contains("bookmarks-quick-action-button-lock-paused")));
@@ -123,7 +153,10 @@ class AppHeaderActionsTest extends DbBackedUiTest {
         assertFalse(ConfigurationService.getInstance().read().isEnableThumbnails());
     }
 
-    private static Button buttonAt(AppHeaderActions actions, int index) {
-        return (Button) actions.getChildren().get(index);
+    private static Button visibleButtonAt(AppHeaderActions actions, int index) {
+        return (Button) actions.getChildren().stream()
+                .filter(node -> node.isVisible() && node.isManaged())
+                .toList()
+                .get(index);
     }
 }

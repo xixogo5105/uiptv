@@ -114,7 +114,6 @@ public class ParseMultipleAccountUI extends VBox {
         multipleSPAccounts.setMaxHeight(Double.MAX_VALUE);
         multipleSPAccounts.setPromptText(resolveBulkHintPrompt());
 
-        parseModePillBar.getStyleClass().add("watching-now-mode-pill-bar");
         parseModePillBar.setItems(List.of(TextParserService.MODE_STALKER, TextParserService.MODE_XTREME, TextParserService.MODE_M3U));
         parseModePillBar.setSelectedItem(TextParserService.MODE_STALKER);
 
