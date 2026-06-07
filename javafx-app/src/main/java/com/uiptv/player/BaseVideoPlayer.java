@@ -12,6 +12,7 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.ui.RootApplication;
 import com.uiptv.ui.util.StyleClassDecorator;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
@@ -1215,7 +1216,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 originalIndex = originalParent.getChildren().indexOf(playerContainer);
                 originalParent.getChildren().remove(playerContainer);
             }
-            fullscreenStage = new Stage(StageStyle.UNDECORATED);
+            fullscreenStage = createFullscreenStage();
             Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
             fullscreenRoot = new StackPane(playerContainer);
             if (!fullscreenRoot.getStyleClass().contains("root")) {
@@ -1239,7 +1240,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             fullscreenStage.setFullScreen(true);
             fullscreenStage.setFullScreenExitHint("");
             fullscreenStage.setOnCloseRequest(e -> exitFullscreen());
-            fullscreenStage.show();
+            showVideoOverlayStage(fullscreenStage, true);
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenExitIcon);
             isFullscreen = true;
@@ -1319,7 +1320,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             installPipSceneInputRecovery(scene);
             positionPipStage();
             setupPipResizing(pipRoot);
-            pipStage.show();
+            showVideoOverlayStage(pipStage, false);
             applyPipUiState();
         });
     }
@@ -1378,10 +1379,45 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
     }
 
-    private Stage createPipStage() {
+    private Stage createFullscreenStage() {
         Stage stage = new Stage(StageStyle.UNDECORATED);
-        stage.setAlwaysOnTop(true);
+        configureVideoOverlayStage(stage);
         return stage;
+    }
+
+    protected Stage createPipStage() {
+        Stage stage = new Stage(StageStyle.UNDECORATED);
+        configureVideoOverlayStage(stage);
+        return stage;
+    }
+
+    protected void configureVideoOverlayStage(Stage stage) {
+        if (stage == null) {
+            return;
+        }
+        Stage primaryStage = RootApplication.getPrimaryStage();
+        if (primaryStage != null && primaryStage != stage && !stage.isShowing()) {
+            stage.initOwner(primaryStage);
+        }
+        stage.setAlwaysOnTop(true);
+    }
+
+    private void showVideoOverlayStage(Stage stage, boolean requestFocus) {
+        if (stage == null) {
+            return;
+        }
+        stage.show();
+        stage.setAlwaysOnTop(true);
+        stage.toFront();
+        if (requestFocus) {
+            stage.requestFocus();
+        }
+        Platform.runLater(() -> {
+            if (stage.isShowing()) {
+                stage.setAlwaysOnTop(true);
+                stage.toFront();
+            }
+        });
     }
 
     private StackPane createPipRoot() {

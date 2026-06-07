@@ -18,6 +18,7 @@ import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PillBarTest {
     @BeforeAll
@@ -278,6 +279,34 @@ class PillBarTest {
         assertEquals("Stalker Portal", snapshot.firstMenuItemText());
     }
 
+    @Test
+    void compactDropdownFillsAllocatedRowWidth() throws Exception {
+        CompactWidthSnapshot snapshot = runOnFxThread(() -> {
+            PillBar<String> pillBar = new PillBar<>(value -> value, value -> value);
+            pillBar.setItems(List.of("All", "Video Players", "Parental Lock", "Appearance", "Server"));
+            VBox root = new VBox(pillBar);
+            root.setFillWidth(true);
+            Scene scene = new Scene(root, 360, 90);
+            scene.getStylesheets().add(Objects.requireNonNull(
+                    PillBarTest.class.getResource("/application.css")
+            ).toExternalForm());
+            root.applyCss();
+            root.layout();
+            root.layout();
+            MenuButton dropdown = compactDropdown(pillBar);
+            return new CompactWidthSnapshot(
+                    pillBar.getWidth(),
+                    dropdown.getWidth(),
+                    dropdown.isManaged()
+            );
+        });
+
+        assertEquals(true, snapshot.dropdownManaged());
+        assertEquals(360, snapshot.pillBarWidth(), 0.01);
+        assertTrue(snapshot.dropdownWidth() > PillBar.COMPACT_DROPDOWN_PREF_WIDTH);
+        assertTrue(snapshot.dropdownWidth() <= snapshot.pillBarWidth());
+    }
+
     private static ToggleButton pillAt(PillBar<?> pillBar, int index) {
         FlowPane content = (FlowPane) pillBar.getChildren().get(0);
         return (ToggleButton) content.getChildren().get(index);
@@ -326,5 +355,10 @@ class PillBarTest {
 
     private record CompactLabelSnapshot(String dropdownText,
                                         String firstMenuItemText) {
+    }
+
+    private record CompactWidthSnapshot(double pillBarWidth,
+                                        double dropdownWidth,
+                                        boolean dropdownManaged) {
     }
 }

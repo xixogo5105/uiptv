@@ -47,6 +47,7 @@ public class RootApplication extends Application {
     private static final double TOP_PLAYER_EXPERIMENT_MIN_STAGE_WIDTH = 480;
     private static final String PRODUCT_TITLE = "UIPTV";
     private static final Duration TITLE_STATUS_REFRESH_INTERVAL = Duration.seconds(30);
+    private static final double[] PRIMARY_STAGE_ICON_SIZES = {16, 24, 32, 48, 64, 128, 256};
     private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
     private static final ConfigurationApplicationService configurationApplicationService = ConfigurationApplicationService.getInstance();
     private static Stage primaryStage;
@@ -221,15 +222,31 @@ public class RootApplication extends Application {
         if (stage == null) {
             return;
         }
-        try (InputStream stream = getClass().getResourceAsStream("/icon.png")) {
-            if (stream != null) {
-                stage.getIcons().add(new Image(stream));
+        try {
+            if (addPackagedIconVariants(stage)) {
                 return;
             }
         } catch (IOException e) {
             AppLog.addWarningLog(RootApplication.class, "Failed to load packaged app icon: " + e.getMessage());
         }
         stage.getIcons().add(new Image("file:resource/icon.ico"));
+    }
+
+    private boolean addPackagedIconVariants(Stage stage) throws IOException {
+        boolean loaded = false;
+        for (double size : PRIMARY_STAGE_ICON_SIZES) {
+            try (InputStream stream = getClass().getResourceAsStream("/icon.png")) {
+                if (stream == null) {
+                    return false;
+                }
+                Image icon = new Image(stream, size, size, true, size > 48);
+                if (!icon.isError()) {
+                    stage.getIcons().add(icon);
+                    loaded = true;
+                }
+            }
+        }
+        return loaded;
     }
 
     private void applyMaximizedBounds(Stage stage) {

@@ -1,6 +1,12 @@
 package com.uiptv.ui.main;
 
+import com.uiptv.model.Configuration;
+import com.uiptv.service.ConfigurationService;
+import com.uiptv.util.I18n;
 import javafx.scene.Scene;
+import javafx.scene.control.CheckMenuItem;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
@@ -9,11 +15,14 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.List;
 
 import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
@@ -179,6 +188,38 @@ class MainApplicationUILayoutTest {
     }
 
     @Test
+    void topMenuStartsWithStayOnTopAndTogglesPrimaryStageAlwaysOnTop() throws Exception {
+        runOnFxThread(() -> {
+            Stage stage = Mockito.mock(Stage.class);
+            Mockito.when(stage.isAlwaysOnTop()).thenReturn(false);
+            ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+            Mockito.when(configurationService.read()).thenReturn(new Configuration());
+            MainApplicationUI ui = new MainApplicationUI(stage, null, configurationService, _ -> {
+            }, 1368, 720, false);
+
+            MenuBar menuBar = createMenuBar(ui);
+            List<String> labels = menuBar.getMenus().getFirst().getItems().stream()
+                    .map(MenuItem::getText)
+                    .toList();
+            assertEquals(List.of(
+                    I18n.tr("autoStayOnTop"),
+                    I18n.tr("autoAbout"),
+                    I18n.tr("autoCheckForUpdates2")
+            ), labels);
+
+            CheckMenuItem stayOnTopItem = (CheckMenuItem) menuBar.getMenus().getFirst().getItems().getFirst();
+            assertFalse(stayOnTopItem.isSelected());
+
+            stayOnTopItem.setSelected(true);
+            Mockito.verify(stage).setAlwaysOnTop(true);
+
+            stayOnTopItem.setSelected(false);
+            Mockito.verify(stage).setAlwaysOnTop(false);
+            return null;
+        });
+    }
+
+    @Test
     void stackedEmbeddedLayoutKeepsPositivePlayerRowHeight() throws Exception {
         assertTrue(runOnFxThread(() -> {
             MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, true);
@@ -224,6 +265,12 @@ class MainApplicationUILayoutTest {
         Method method = MainApplicationUI.class.getDeclaredMethod("shouldUseAccountMediaDrawerMode");
         method.setAccessible(true);
         return (boolean) method.invoke(ui);
+    }
+
+    private static MenuBar createMenuBar(MainApplicationUI ui) throws Exception {
+        Method method = BaseMainApplicationUI.class.getDeclaredMethod("createMenuBar");
+        method.setAccessible(true);
+        return (MenuBar) method.invoke(ui);
     }
 
     private static void setField(MainApplicationUI ui, String fieldName, Object value) throws Exception {

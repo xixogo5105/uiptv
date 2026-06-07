@@ -2,8 +2,10 @@ package com.uiptv.player;
 
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.ui.RootApplication;
 import com.uiptv.util.HttpUtil;
 import javafx.application.Platform;
+import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -177,6 +179,26 @@ class BaseVideoPlayerHlsResolutionTest {
         assertTrue(adjacent);
     }
 
+    @Test
+    void videoOverlayStagesAreOwnedByPrimaryStageAndAlwaysOnTop() throws Exception {
+        runOnFxThread(() -> {
+            TestPlayer player = new TestPlayer();
+            Stage overlayStage = Mockito.mock(Stage.class);
+            Stage primaryStage = Mockito.mock(Stage.class);
+            Mockito.when(overlayStage.isShowing()).thenReturn(false);
+
+            try (MockedStatic<RootApplication> rootApplication = Mockito.mockStatic(RootApplication.class)) {
+                rootApplication.when(RootApplication::getPrimaryStage).thenReturn(primaryStage);
+
+                player.configureOverlayStage(overlayStage);
+            }
+
+            Mockito.verify(overlayStage).initOwner(primaryStage);
+            Mockito.verify(overlayStage).setAlwaysOnTop(true);
+            return null;
+        });
+    }
+
     private static <T> T runOnFxThread(FxCallable<T> task) throws Exception {
         if (Platform.isFxApplicationThread()) {
             return task.call();
@@ -277,6 +299,10 @@ class BaseVideoPlayerHlsResolutionTest {
             }
             return buttonRow.getChildren().indexOf(btnLayoutMode) + 1
                     == buttonRow.getChildren().indexOf(btnAspectRatio);
+        }
+
+        void configureOverlayStage(Stage stage) {
+            configureVideoOverlayStage(stage);
         }
     }
 }

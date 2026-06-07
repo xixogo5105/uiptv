@@ -280,13 +280,23 @@ public abstract class BaseMainApplicationUI {
         menuBar.setUseSystemMenuBar(useNativeSystemMenuBar);
 
         Menu helpMenu = new Menu(I18n.tr("autoHelp"));
+        CheckMenuItem stayOnTopItem = new CheckMenuItem(I18n.tr("autoStayOnTop"));
+        if (primaryStage != null) {
+            stayOnTopItem.setSelected(primaryStage.isAlwaysOnTop());
+        }
+        stayOnTopItem.selectedProperty().addListener((_, _, selected) -> {
+            if (primaryStage != null) {
+                primaryStage.setAlwaysOnTop(selected);
+            }
+        });
+
         MenuItem aboutItem = new MenuItem(I18n.tr("autoAbout"));
         aboutItem.setOnAction(e -> AboutUI.show(hostServices));
 
         MenuItem updateItem = new MenuItem(I18n.tr("autoCheckForUpdates2"));
         updateItem.setOnAction(e -> UpdateChecker.checkForUpdates(hostServices));
 
-        helpMenu.getItems().addAll(aboutItem, updateItem);
+        helpMenu.getItems().addAll(stayOnTopItem, aboutItem, updateItem);
         menuBar.getMenus().add(helpMenu);
         return menuBar;
     }

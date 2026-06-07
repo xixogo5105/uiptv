@@ -286,6 +286,15 @@ public class PillBar<T> extends StackPane {
     @Override
     protected void layoutChildren() {
         updateContentWrapLength(getWidth());
+        if (compactMode && compactDropdown.isManaged()) {
+            compactDropdown.resizeRelocate(
+                    snappedLeftInset(),
+                    snappedTopInset(),
+                    Math.max(0, getWidth() - snappedLeftInset() - snappedRightInset()),
+                    Math.max(0, getHeight() - snappedTopInset() - snappedBottomInset())
+            );
+            return;
+        }
         super.layoutChildren();
     }
 
@@ -325,7 +334,7 @@ public class PillBar<T> extends StackPane {
         compactDropdown.setVisible(useCompactDropdown);
         compactDropdown.setManaged(useCompactDropdown);
         setMinWidth(useCompactDropdown ? COMPACT_DROPDOWN_MIN_WIDTH : 0);
-        setPrefWidth(useCompactDropdown ? COMPACT_DROPDOWN_PREF_WIDTH : Region.USE_COMPUTED_SIZE);
+        setPrefWidth(Region.USE_COMPUTED_SIZE);
         updateStyleClass(this, COMPACT_STYLE_CLASS, useCompactDropdown);
     }
 
