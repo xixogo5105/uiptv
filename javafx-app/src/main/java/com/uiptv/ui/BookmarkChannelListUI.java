@@ -437,8 +437,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             inlineRow.getChildren().setAll(pillBar, actions);
             row.getChildren().setAll(inlineRow);
         } else {
-            pillBar.setMaxWidth(PillBar.COMPACT_DROPDOWN_PREF_WIDTH);
-            HBox.setHgrow(pillBar, Priority.NEVER);
+            pillBar.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(pillBar, Priority.ALWAYS);
             inlineRow.getChildren().clear();
             row.getChildren().setAll(pillBar, actions);
         }

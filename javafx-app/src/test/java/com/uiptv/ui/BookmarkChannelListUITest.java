@@ -5,6 +5,7 @@ import com.uiptv.model.BookmarkCategory;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.PillBar;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.ObservableList;
 import javafx.scene.Node;
@@ -110,7 +111,7 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
 
     @Test
     void favoriteToolbarStacksFilterAndActionsWhenInlineWidthIsConstrained() throws Exception {
-        List<Boolean> layout = runOnFxThread(() -> {
+        StackedToolbarSnapshot layout = runOnFxThread(() -> {
             BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
             populateCategoryPills(ui, List.of(
                     new BookmarkCategory(null, "All"),
@@ -132,16 +133,19 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
 
             Node toolbar = findByStyle(ui, "bookmark-category-row");
             Parent parent = (Parent) toolbar;
-            return List.of(
+            Region pillBar = (Region) findByStyle(ui, "uiptv-pill-bar");
+            return new StackedToolbarSnapshot(
                     parent.getChildrenUnmodifiable().size() == 2,
                     parent.getChildrenUnmodifiable().get(0).getStyleClass().contains("uiptv-pill-bar"),
-                    parent.getChildrenUnmodifiable().get(1).getStyleClass().contains("list-toolbar-actions")
+                    parent.getChildrenUnmodifiable().get(1).getStyleClass().contains("list-toolbar-actions"),
+                    pillBar.getWidth()
             );
         });
 
-        assertTrue(layout.get(0));
-        assertTrue(layout.get(1));
-        assertTrue(layout.get(2));
+        assertTrue(layout.stacked());
+        assertTrue(layout.pillBarFirst());
+        assertTrue(layout.actionsSecond());
+        assertTrue(layout.pillBarWidth() > PillBar.COMPACT_DROPDOWN_PREF_WIDTH);
     }
 
     @Test
@@ -453,5 +457,11 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     }
 
     private record ListenerSnapshot(boolean registered, boolean unregistered) {
+    }
+
+    private record StackedToolbarSnapshot(boolean stacked,
+                                          boolean pillBarFirst,
+                                          boolean actionsSecond,
+                                          double pillBarWidth) {
     }
 }

@@ -28,7 +28,10 @@ import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.image.Image;
+import javafx.scene.image.PixelWriter;
+import javafx.scene.image.WritableImage;
 import javafx.scene.layout.StackPane;
+import javafx.scene.paint.Color;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -47,7 +50,10 @@ public class RootApplication extends Application {
     private static final double TOP_PLAYER_EXPERIMENT_MIN_STAGE_WIDTH = 480;
     private static final String PRODUCT_TITLE = "UIPTV";
     private static final Duration TITLE_STATUS_REFRESH_INTERVAL = Duration.seconds(30);
-    private static final double[] PRIMARY_STAGE_ICON_SIZES = {16, 24, 32, 48, 64, 128, 256};
+    private static final int[] TITLEBAR_MARK_ICON_SIZES = {16, 24, 32};
+    private static final double[] PRIMARY_STAGE_ICON_SIZES = {48, 64, 128, 256};
+    private static final Color TITLEBAR_MARK_BACKGROUND = Color.rgb(91, 204, 214);
+    private static final Color TITLEBAR_MARK_FOREGROUND = Color.WHITE;
     private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
     private static final ConfigurationApplicationService configurationApplicationService = ConfigurationApplicationService.getInstance();
     private static Stage primaryStage;
@@ -233,11 +239,12 @@ public class RootApplication extends Application {
     }
 
     private boolean addPackagedIconVariants(Stage stage) throws IOException {
-        boolean loaded = false;
+        addTitlebarMarkIcons(stage);
+        boolean loaded = !stage.getIcons().isEmpty();
         for (double size : PRIMARY_STAGE_ICON_SIZES) {
             try (InputStream stream = getClass().getResourceAsStream("/icon.png")) {
                 if (stream == null) {
-                    return false;
+                    return loaded;
                 }
                 Image icon = new Image(stream, size, size, true, size > 48);
                 if (!icon.isError()) {
@@ -247,6 +254,53 @@ public class RootApplication extends Application {
             }
         }
         return loaded;
+    }
+
+    private void addTitlebarMarkIcons(Stage stage) {
+        for (int size : TITLEBAR_MARK_ICON_SIZES) {
+            stage.getIcons().add(createTitlebarMarkIcon(size));
+        }
+    }
+
+    private Image createTitlebarMarkIcon(int size) {
+        WritableImage image = new WritableImage(size, size);
+        PixelWriter writer = image.getPixelWriter();
+        double inset = Math.max(1, size * 0.06);
+        double max = size - inset - 1;
+        double radius = size * 0.24;
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                if (insideRoundedRect(x, y, inset, inset, max, max, radius)) {
+                    writer.setColor(x, y, TITLEBAR_MARK_BACKGROUND);
+                }
+            }
+        }
+
+        int stroke = Math.max(2, Math.round(size * 0.13f));
+        int left = Math.round(size * 0.31f);
+        int right = Math.round(size * 0.62f);
+        int top = Math.round(size * 0.27f);
+        int bottom = Math.round(size * 0.72f);
+        fillRect(writer, left, top, stroke, bottom - top, TITLEBAR_MARK_FOREGROUND, size);
+        fillRect(writer, right, top, stroke, bottom - top, TITLEBAR_MARK_FOREGROUND, size);
+        fillRect(writer, left, bottom - stroke, right - left + stroke, stroke, TITLEBAR_MARK_FOREGROUND, size);
+        return image;
+    }
+
+    private boolean insideRoundedRect(int x, int y, double left, double top, double right, double bottom, double radius) {
+        double nearestX = Math.max(left + radius, Math.min(x, right - radius));
+        double nearestY = Math.max(top + radius, Math.min(y, bottom - radius));
+        double dx = x - nearestX;
+        double dy = y - nearestY;
+        return x >= left && x <= right && y >= top && y <= bottom && dx * dx + dy * dy <= radius * radius;
+    }
+
+    private void fillRect(PixelWriter writer, int x, int y, int width, int height, Color color, int imageSize) {
+        for (int yy = Math.max(0, y); yy < Math.min(imageSize, y + height); yy++) {
+            for (int xx = Math.max(0, x); xx < Math.min(imageSize, x + width); xx++) {
+                writer.setColor(xx, yy, color);
+            }
+        }
     }
 
     private void applyMaximizedBounds(Stage stage) {

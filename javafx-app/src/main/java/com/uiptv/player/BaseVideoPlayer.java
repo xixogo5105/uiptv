@@ -155,6 +155,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected boolean isLiveLikeContent = true;
     protected String activeBingeWatchToken = "";
     protected String activeBingeWatchEpisodeId = "";
+    private boolean primaryStageAlwaysOnTopBeforeVideoOverlay;
+    private boolean primaryStageAlwaysOnTopSuppressedForVideoOverlay;
     private SeriesWatchStateChangeListener bingeWatchStateChangeListener;
     private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);
     private final ConfigurationChangeListener layoutModeConfigurationChangeListener =
@@ -998,6 +1000,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 }
                 pipStage = null;
             }
+            restorePrimaryStageAlwaysOnTopAfterVideoOverlay();
 
             // Cancel idle timers
             if (idleTimer != null) {
@@ -1216,7 +1219,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 originalIndex = originalParent.getChildren().indexOf(playerContainer);
                 originalParent.getChildren().remove(playerContainer);
             }
-            fullscreenStage = createFullscreenStage();
+            suppressPrimaryStageAlwaysOnTopForVideoOverlay();
+            fullscreenStage = new Stage(StageStyle.UNDECORATED);
             Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
             fullscreenRoot = new StackPane(playerContainer);
             if (!fullscreenRoot.getStyleClass().contains("root")) {
@@ -1240,7 +1244,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             fullscreenStage.setFullScreen(true);
             fullscreenStage.setFullScreenExitHint("");
             fullscreenStage.setOnCloseRequest(e -> exitFullscreen());
-            showVideoOverlayStage(fullscreenStage, true);
+            fullscreenStage.show();
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenExitIcon);
             isFullscreen = true;
@@ -1289,6 +1293,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 restartIdleTimerForActivePlayer();
             }
             restoreVisibleCursor();
+            restorePrimaryStageAlwaysOnTopAfterVideoOverlay();
         });
     }
 
@@ -1302,6 +1307,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (pipStage != null) return;
         Platform.runLater(() -> {
             Scene originalScene = playerContainer.getScene();
+            suppressPrimaryStageAlwaysOnTopForVideoOverlay();
             detachPlayerContainer();
             Node videoView = getVideoView();
             playerContainer.getChildren().remove(videoView);
@@ -1320,7 +1326,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             installPipSceneInputRecovery(scene);
             positionPipStage();
             setupPipResizing(pipRoot);
-            showVideoOverlayStage(pipStage, false);
+            pipStage.show();
             applyPipUiState();
         });
     }
@@ -1361,6 +1367,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             playerContainer.requestLayout();
             playerContainer.requestFocus();
             btnPip.setGraphic(pipIcon);
+            restorePrimaryStageAlwaysOnTopAfterVideoOverlay();
         });
     }
 
@@ -1379,45 +1386,34 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
     }
 
-    private Stage createFullscreenStage() {
-        Stage stage = new Stage(StageStyle.UNDECORATED);
-        configureVideoOverlayStage(stage);
-        return stage;
-    }
-
     protected Stage createPipStage() {
         Stage stage = new Stage(StageStyle.UNDECORATED);
-        configureVideoOverlayStage(stage);
+        stage.setAlwaysOnTop(true);
         return stage;
     }
 
-    protected void configureVideoOverlayStage(Stage stage) {
-        if (stage == null) {
+    protected void suppressPrimaryStageAlwaysOnTopForVideoOverlay() {
+        Stage primaryStage = RootApplication.getPrimaryStage();
+        if (primaryStage == null || primaryStageAlwaysOnTopSuppressedForVideoOverlay) {
+            return;
+        }
+        primaryStageAlwaysOnTopBeforeVideoOverlay = primaryStage.isAlwaysOnTop();
+        primaryStageAlwaysOnTopSuppressedForVideoOverlay = primaryStageAlwaysOnTopBeforeVideoOverlay;
+        if (primaryStageAlwaysOnTopSuppressedForVideoOverlay) {
+            primaryStage.setAlwaysOnTop(false);
+        }
+    }
+
+    protected void restorePrimaryStageAlwaysOnTopAfterVideoOverlay() {
+        if (!primaryStageAlwaysOnTopSuppressedForVideoOverlay) {
             return;
         }
         Stage primaryStage = RootApplication.getPrimaryStage();
-        if (primaryStage != null && primaryStage != stage && !stage.isShowing()) {
-            stage.initOwner(primaryStage);
+        if (primaryStage != null) {
+            primaryStage.setAlwaysOnTop(primaryStageAlwaysOnTopBeforeVideoOverlay);
         }
-        stage.setAlwaysOnTop(true);
-    }
-
-    private void showVideoOverlayStage(Stage stage, boolean requestFocus) {
-        if (stage == null) {
-            return;
-        }
-        stage.show();
-        stage.setAlwaysOnTop(true);
-        stage.toFront();
-        if (requestFocus) {
-            stage.requestFocus();
-        }
-        Platform.runLater(() -> {
-            if (stage.isShowing()) {
-                stage.setAlwaysOnTop(true);
-                stage.toFront();
-            }
-        });
+        primaryStageAlwaysOnTopBeforeVideoOverlay = false;
+        primaryStageAlwaysOnTopSuppressedForVideoOverlay = false;
     }
 
     private StackPane createPipRoot() {
