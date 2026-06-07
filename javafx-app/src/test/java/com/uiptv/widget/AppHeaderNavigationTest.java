@@ -55,6 +55,25 @@ class AppHeaderNavigationTest {
         });
 
         assertEquals(AppNavigationController.Target.ACCOUNTS, selectedTarget.get());
+        assertEquals(AppNavigationController.Target.ACCOUNTS, AppNavigationController.currentTarget());
+    }
+
+    @Test
+    void navigationClickUpdatesControllerTargetEvenWhenActionDoesNotChangeTab() throws Exception {
+        AtomicReference<AppNavigationController.Target> selectedTarget = new AtomicReference<>();
+        EnumMap<AppNavigationController.Target, Runnable> actionsMap = new EnumMap<>(AppNavigationController.Target.class);
+        actionsMap.put(AppNavigationController.Target.ACCOUNTS, () -> selectedTarget.set(AppNavigationController.Target.ACCOUNTS));
+        AppNavigationController.configure(actionsMap, AppNavigationController.Target.BOOKMARKS);
+
+        AppHeaderNavigation navigation = runOnFxThread(() -> new AppHeaderNavigation(new Label("UIPTV")));
+
+        runOnFxThread(() -> {
+            navigationButtons(navigation).get(1).fire();
+            return null;
+        });
+
+        assertEquals(AppNavigationController.Target.ACCOUNTS, selectedTarget.get());
+        assertEquals(AppNavigationController.Target.ACCOUNTS, AppNavigationController.currentTarget());
     }
 
     @Test

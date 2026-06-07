@@ -1287,11 +1287,16 @@
     -fx-focus-traversable: true;
 }
 
-.app-header-nav-button:hover,
-.app-header-nav-button:focused {
+.app-header-nav-button:hover {
     -fx-background-color: -uiptv-header-action-hover-bg;
     -fx-border-color: -uiptv-header-action-hover-border;
     -fx-text-fill: -uiptv-header-action-hover-fg;
+}
+
+.app-header-nav-button:focused {
+    -fx-background-color: transparent;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-text-fill: -uiptv-text-secondary;
 }
 
 .app-header-nav-button-active {
@@ -1314,9 +1319,12 @@
     -fx-fill: -uiptv-text-secondary;
 }
 
-.app-header-nav-button:hover .app-header-nav-icon,
-.app-header-nav-button:focused .app-header-nav-icon {
+.app-header-nav-button:hover .app-header-nav-icon {
     -fx-fill: -uiptv-header-action-hover-fg;
+}
+
+.app-header-nav-button:focused .app-header-nav-icon {
+    -fx-fill: -uiptv-text-secondary;
 }
 
 .app-header-nav-button-active .app-header-nav-icon {

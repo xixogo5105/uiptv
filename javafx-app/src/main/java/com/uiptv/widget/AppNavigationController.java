@@ -32,10 +32,14 @@ public final class AppNavigationController {
     }
 
     public static void navigate(Target target) {
+        if (target == null) {
+            return;
+        }
         Runnable action = ACTIONS.get(target);
         if (action != null) {
             action.run();
         }
+        setCurrentTarget(target);
     }
 
     public static void setCurrentTarget(Target target) {
