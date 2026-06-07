@@ -39,6 +39,44 @@ class MainApplicationUILayoutTest {
     }
 
     @Test
+    void wideEmbeddedLayoutReservesFixedNavigationColumn() throws Exception {
+        runOnFxThread(() -> {
+            MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1920, 720, true);
+            TabPane tabPane = new TabPane();
+            StackPane navigationShell = new StackPane(tabPane);
+            HBox embeddedPlayer = new HBox();
+            VBox playerAdjacentControls = new VBox();
+            GridPane responsiveContent = new GridPane();
+            HBox mainContent = new HBox(responsiveContent);
+            responsiveContent.getChildren().setAll(navigationShell, embeddedPlayer, playerAdjacentControls);
+            new Scene(mainContent, 1920, 600);
+            mainContent.resize(1920, 600);
+            responsiveContent.resize(1920, 600);
+            setField(ui, "activeTabPane", tabPane);
+            setField(ui, "navigationShell", navigationShell);
+            setField(ui, "embeddedPlayer", embeddedPlayer);
+            setField(ui, "playerAdjacentControls", playerAdjacentControls);
+            setField(ui, "responsiveContent", responsiveContent);
+            setField(ui, "mainContent", mainContent);
+
+            Method method = MainApplicationUI.class.getDeclaredMethod("applyWideEmbeddedLayout");
+            method.setAccessible(true);
+            method.invoke(ui);
+
+            assertEquals(2, responsiveContent.getColumnConstraints().size());
+            ColumnConstraints navigationColumn = responsiveContent.getColumnConstraints().getFirst();
+            double expectedWidth = 518.4;
+            assertEquals(0, GridPane.getColumnIndex(navigationShell));
+            assertEquals(1, GridPane.getColumnIndex(embeddedPlayer));
+            assertEquals(expectedWidth, navigationColumn.getMinWidth(), 0.001);
+            assertEquals(expectedWidth, navigationColumn.getPrefWidth(), 0.001);
+            assertEquals(expectedWidth, navigationColumn.getMaxWidth(), 0.001);
+            assertEquals(Priority.NEVER, navigationColumn.getHgrow());
+            return null;
+        });
+    }
+
+    @Test
     void playerAdjacentTopControlsLayoutActivatesOnlyWhenThereIsRoomBesidePlayer() throws Exception {
         assertFalse(shouldUsePlayerAdjacentTopControlsLayout(480));
         assertFalse(shouldUsePlayerAdjacentTopControlsLayout(827));

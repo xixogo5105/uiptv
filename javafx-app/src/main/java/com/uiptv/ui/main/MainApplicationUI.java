@@ -230,8 +230,8 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private void applyWideEmbeddedLayout() {
         applySideBySideEmbeddedArrangement();
         setPlayerAdjacentControlsVisible(false);
-        configureSideBySideResponsiveGrid(Priority.NEVER, Priority.ALWAYS);
         double wideAppAreaWidth = retainedWideAppAreaWidth();
+        configureWideResponsiveGrid(wideAppAreaWidth);
         activeTabPane.setMinWidth(wideAppAreaWidth);
         activeTabPane.setPrefWidth(wideAppAreaWidth);
         activeTabPane.setMaxWidth(wideAppAreaWidth);
@@ -458,6 +458,28 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         contentRow.setFillHeight(true);
         grid.getColumnConstraints().setAll(navigationColumn, playerColumn);
         grid.getRowConstraints().setAll(contentRow);
+    }
+
+    private void configureWideResponsiveGrid(double navigationWidth) {
+        if (responsiveContent == null) {
+            return;
+        }
+        ColumnConstraints navigationColumn = new ColumnConstraints();
+        navigationColumn.setMinWidth(navigationWidth);
+        navigationColumn.setPrefWidth(navigationWidth);
+        navigationColumn.setMaxWidth(navigationWidth);
+        navigationColumn.setHgrow(Priority.NEVER);
+        navigationColumn.setFillWidth(true);
+        ColumnConstraints playerColumn = new ColumnConstraints();
+        playerColumn.setMinWidth(0);
+        playerColumn.setHgrow(Priority.ALWAYS);
+        playerColumn.setFillWidth(true);
+        RowConstraints contentRow = new RowConstraints();
+        contentRow.setMinHeight(0);
+        contentRow.setVgrow(Priority.ALWAYS);
+        contentRow.setFillHeight(true);
+        responsiveContent.getColumnConstraints().setAll(navigationColumn, playerColumn);
+        responsiveContent.getRowConstraints().setAll(contentRow);
     }
 
     private void configureNavigationOnlyResponsiveGrid() {
