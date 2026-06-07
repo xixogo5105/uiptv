@@ -428,6 +428,13 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (data == null || isBlank(query)) {
             return true;
         }
+        return seriesSearchText(data).contains(query);
+    }
+
+    private String seriesSearchText(SeriesPanelData data) {
+        if (data.searchTextCache != null) {
+            return data.searchTextCache;
+        }
         StringBuilder searchable = new StringBuilder();
         appendSearchText(searchable,
                 data.seriesTitle,
@@ -453,7 +460,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                         episode.episodeNum);
             }
         }
-        return searchable.toString().toLowerCase(Locale.ROOT).contains(query);
+        data.searchTextCache = searchable.toString().toLowerCase(Locale.ROOT);
+        return data.searchTextCache;
     }
 
     private void appendSearchText(StringBuilder builder, String... values) {
@@ -1250,6 +1258,13 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (episode == null || isBlank(query)) {
             return true;
         }
+        return episodeSearchText(episode).contains(query);
+    }
+
+    private String episodeSearchText(WatchingEpisode episode) {
+        if (episode.searchTextCache != null) {
+            return episode.searchTextCache;
+        }
         StringBuilder searchable = new StringBuilder();
         appendSearchText(searchable,
                 buildEpisodeDisplayTitle(episode.season, episode.episodeNum, episode.title),
@@ -1265,7 +1280,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                     episode.channel.getChannelId(),
                     episode.channel.getCmd());
         }
-        return searchable.toString().toLowerCase(Locale.ROOT).contains(query);
+        episode.searchTextCache = searchable.toString().toLowerCase(Locale.ROOT);
+        return episode.searchTextCache;
     }
 
     private VBox buildEpisodeCards(SeriesPanelData data, javafx.collections.ObservableList<WatchingEpisode> items) {
@@ -1961,6 +1977,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         mergeMissing(data.seasonInfo, imdb, "tmdb");
         mergeMissing(data.seasonInfo, imdb, "imdbUrl");
         enrichEpisodesFromMeta(data.episodes, imdb.optJSONArray("episodesMeta"));
+        data.searchTextCache = null;
         imdbCacheByPanelKey.put(panelCacheKey(data.account, data.state),
                 new ImdbCacheEntry(new JSONObject(data.seasonInfo.toString())));
     }
@@ -2131,6 +2148,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                             episode.plot
                     );
                     episode.releaseDate = firstNonBlank(episode.releaseDate, meta.optString(KEY_RELEASE_DATE, ""));
+                    episode.searchTextCache = null;
                     if (!isBlank(episode.imageUrl)) {
                         episode.channel.setLogo(episode.imageUrl);
                     }
@@ -2403,6 +2421,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         target.episodes.addAll(source.episodes);
         target.episodeList = source.episodeList;
         replaceJson(target.seasonInfo, source.seasonInfo);
+        target.searchTextCache = null;
         target.imdbLoaded = target.imdbLoaded || source.imdbLoaded;
         target.imdbLoading = target.imdbLoading || source.imdbLoading;
         target.thumbnailMetadataAttempted = target.thumbnailMetadataAttempted || source.thumbnailMetadataAttempted;
@@ -2922,6 +2941,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         private boolean imdbLoaded;
         private boolean imdbLoading;
         private boolean thumbnailMetadataAttempted;
+        private String searchTextCache;
         private Label titleNode;
         private Label ratingNode;
         private Label genreNode;
@@ -2985,6 +3005,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             episodeLoadingVisible = false;
             bingeWatchButton = null;
             selectedEpisodeCard = null;
+            searchTextCache = null;
             episodeList = new EpisodeList();
             episodes.clear();
         }
@@ -3001,6 +3022,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         private String plot;
         private String releaseDate;
         private String rating;
+        private String searchTextCache;
         private boolean watched;
 
         @SuppressWarnings("java:S107")

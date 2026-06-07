@@ -401,6 +401,8 @@ public class ConfigurationUI extends VBox {
 
         pageHeaderActions = new AppHeaderActions(hostServices, this::toggleThemeFromHeader, this::refreshConfigurationForm);
         AppPageHeader pageHeader = new AppPageHeader(I18n.tr("autoSettings"), settingsSearchTextField, pageHeaderActions);
+        pageHeader.setHeaderTitleVisible(false);
+        pageHeader.setNavigationSelectionEnabled(false);
         settingsSections.clear();
         settingsSections.addAll(List.of(
                 new SettingsSection("players", I18n.tr("configVideoPlayers"), null, playersGroup, videoPlayersHelpLink, "players video playback embedded vlc wide view redirects"),

@@ -171,10 +171,13 @@ public class LogDisplayUI extends VBox {
     }
 
     private AppPageHeader createHeader() {
-        return new AppPageHeader(
+        AppPageHeader header = new AppPageHeader(
                 I18n.tr("autoLogs"),
                 new AppHeaderActions(hostServices, themeToggleHandler, null)
         );
+        header.setHeaderTitleVisible(false);
+        header.setNavigationSelectionEnabled(false);
+        return header;
     }
 
     private HBox createControlRow(Button... buttons) {

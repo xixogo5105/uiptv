@@ -257,11 +257,14 @@ public abstract class BaseMainApplicationUI {
     }
 
     protected HBox createEmbeddedPlayerContainer() {
-        javafx.scene.Node playerNode = MediaPlayerFactory.getPlayerContainer();
+        return createEmbeddedPlayerContainer(MediaPlayerFactory.getPlayerContainer());
+    }
+
+    protected HBox createEmbeddedPlayerContainer(javafx.scene.Node playerNode) {
         StackPane playerShell = createEmbeddedPlayerShell(playerNode);
         HBox embeddedPlayer = new HBox(playerShell);
-        embeddedPlayer.visibleProperty().bind(playerNode.visibleProperty());
-        embeddedPlayer.managedProperty().bind(playerNode.managedProperty());
+        embeddedPlayer.setVisible(false);
+        embeddedPlayer.setManaged(false);
         embeddedPlayer.setAlignment(Pos.CENTER);
         embeddedPlayer.setFillHeight(true);
         HBox.setHgrow(playerShell, Priority.ALWAYS);

@@ -131,6 +131,8 @@ public class ParseMultipleAccountUI extends VBox {
                 I18n.tr("autoImportBulkAccounts"),
                 new AppHeaderActions(hostServices, themeToggleHandler, null)
         );
+        pageHeader.setHeaderTitleVisible(false);
+        pageHeader.setNavigationSelectionEnabled(false);
 
         VBox modeCard = createModeCard(groupAccountsRow, convertM3uToXtremeRow, verificationRow);
         VBox editorCard = createEditorCard();

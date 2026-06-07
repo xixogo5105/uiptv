@@ -5,14 +5,16 @@ import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.UiRenderQuality;
-import javafx.application.Platform;
+import javafx.animation.PauseTransition;
 import javafx.application.HostServices;
+import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -20,15 +22,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class WatchingNowUI extends VBox {
     private static final String SERIES_TAB = "series";
     private static final String VOD_TAB = "vod";
+    private static final Duration SEARCH_DEBOUNCE_DELAY = Duration.millis(180);
 
     private PillBar<String> modePillBar;
     private StackPane contentPane;
     private BaseWatchingNowUI seriesDelegate;
     private VodWatchingNowUI vodDelegate;
     private final TextField searchTextField = new TextField();
+    private final PauseTransition searchDebounce = new PauseTransition(SEARCH_DEBOUNCE_DELAY);
     private final HostServices hostServices;
     private final Runnable themeToggleHandler;
     private boolean thumbnailListenerRegistered = false;
+    private String pendingSearchQuery = "";
     private final AtomicBoolean activationRefreshScheduled = new AtomicBoolean(false);
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
@@ -40,7 +45,9 @@ public class WatchingNowUI extends VBox {
         this.hostServices = hostServices;
         this.themeToggleHandler = themeToggleHandler;
         searchTextField.setPromptText(I18n.tr("commonSearch"));
-        searchTextField.textProperty().addListener((_, _, query) -> applySearchQuery(query));
+        searchDebounce.setOnFinished(_ -> applyPendingSearchQuery());
+        searchTextField.textProperty().addListener((_, _, query) -> scheduleSearchQuery(query));
+        searchTextField.setOnAction(_ -> applyPendingSearchQuery());
         buildContent();
         registerThumbnailModeListener();
         registerActivationRefreshTriggers();
@@ -99,7 +106,6 @@ public class WatchingNowUI extends VBox {
                 new AppHeaderActions(hostServices, themeToggleHandler, null)
         );
         header.getStyleClass().add("watching-now-header");
-        applySearchQuery(searchTextField.getText());
 
         if (!getStyleClass().contains("watching-now-page")) {
             getStyleClass().add("watching-now-page");
@@ -113,9 +119,37 @@ public class WatchingNowUI extends VBox {
         showSelectedMode(SERIES_TAB);
     }
 
-    private void applySearchQuery(String query) {
-        SearchTarget.apply(seriesDelegate, query);
-        SearchTarget.apply(vodDelegate, query);
+    private void scheduleSearchQuery(String query) {
+        pendingSearchQuery = normalizeSearchInput(query);
+        searchDebounce.stop();
+        if (pendingSearchQuery.trim().isEmpty()) {
+            applyPendingSearchQuery();
+            return;
+        }
+        searchDebounce.playFromStart();
+    }
+
+    private void applyPendingSearchQuery() {
+        applySearchQueryToSelectedMode(pendingSearchQuery);
+    }
+
+    private void applySearchQueryToSelectedMode(String query) {
+        String activeQuery = normalizeSearchInput(query);
+        if (isVodSelected()) {
+            SearchTarget.apply(vodDelegate, activeQuery);
+            return;
+        }
+        SearchTarget.apply(seriesDelegate, activeQuery);
+    }
+
+    private String currentSearchQuery() {
+        String currentText = searchTextField == null ? "" : searchTextField.getText();
+        pendingSearchQuery = normalizeSearchInput(currentText);
+        return pendingSearchQuery;
+    }
+
+    private String normalizeSearchInput(String query) {
+        return query == null ? "" : query;
     }
 
     private void detachFromParent(Node node) {
@@ -163,6 +197,7 @@ public class WatchingNowUI extends VBox {
             child.setVisible(showVod == childIsVod);
             child.setManaged(showVod == childIsVod);
         }
+        applySearchQueryToSelectedMode(currentSearchQuery());
         if (showVod) {
             vodDelegate.refreshIfNeeded();
         } else {
@@ -288,6 +323,7 @@ public class WatchingNowUI extends VBox {
     }
 
     private void disposeDelegates() {
+        searchDebounce.stop();
         if (seriesDelegate != null) {
             seriesDelegate.dispose();
             seriesDelegate = null;

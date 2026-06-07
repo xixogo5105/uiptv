@@ -12,7 +12,6 @@ import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
 import javafx.application.HostServices;
 import javafx.application.Platform;
-import javafx.beans.value.ChangeListener;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Node;
@@ -44,24 +43,7 @@ public class AppHeaderActions extends HBox {
             ICON_HIDE_NAVIGATION,
             WidePlayerNavigationControl::toggle
     );
-    private final IconActionButton bookmarkButton = createNavigationButton(
-            I18n.tr("autoFavorite"),
-            AppNavigationPane.ICON_FAVORITE,
-            AppNavigationController.Target.BOOKMARKS
-    );
-    private final IconActionButton accountButton = createNavigationButton(
-            I18n.tr("autoAccount"),
-            AppNavigationPane.ICON_ACCOUNT,
-            AppNavigationController.Target.ACCOUNTS
-    );
-    private final IconActionButton watchingNowButton = createNavigationButton(
-            I18n.tr("autoWatchingNow"),
-            AppNavigationPane.ICON_WATCHING,
-            AppNavigationController.Target.WATCHING_NOW
-    );
     private final IconActionButton gearButton = new IconActionButton(I18n.tr("autoSettings"), ICON_GEAR, this::showGearMenu);
-    private final ChangeListener<AppNavigationController.Target> navigationTargetListener =
-            (_, _, _) -> Platform.runLater(this::updateNavigationButtons);
     private final ConfigurationChangeListener configurationChangeListener =
             _ -> Platform.runLater(() -> {
                 if (getScene() != null) {
@@ -71,7 +53,6 @@ public class AppHeaderActions extends HBox {
     private final Runnable widePlayerNavigationListener =
             () -> Platform.runLater(this::updateWidePlayerNavigationButton);
     private boolean configurationListenerRegistered;
-    private boolean navigationListenerRegistered;
     private boolean widePlayerNavigationListenerRegistered;
 
     public AppHeaderActions(HostServices hostServices, Runnable themeToggleHandler, Runnable parentalPauseChangedHandler) {
@@ -84,17 +65,15 @@ public class AppHeaderActions extends HBox {
         setMinWidth(Region.USE_PREF_SIZE);
         setMaxWidth(Region.USE_PREF_SIZE);
         setPickOnBounds(false);
-        getChildren().addAll(widePlayerNavigationButton, bookmarkButton, accountButton, watchingNowButton, gearButton);
+        getChildren().addAll(widePlayerNavigationButton, gearButton);
         refreshState();
         sceneProperty().addListener((_, oldScene, newScene) -> {
             if (oldScene == null && newScene != null) {
                 registerConfigurationChangeListener();
-                registerNavigationListener();
                 registerWidePlayerNavigationListener();
                 refreshState();
             } else if (oldScene != null && newScene == null) {
                 unregisterConfigurationChangeListener();
-                unregisterNavigationListener();
                 unregisterWidePlayerNavigationListener();
             }
         });
@@ -102,21 +81,7 @@ public class AppHeaderActions extends HBox {
 
     public void refreshState() {
         updateWidePlayerNavigationButton();
-        updateNavigationButtons();
         updateGearButton();
-    }
-
-    private IconActionButton createNavigationButton(String tooltip, String iconPath, AppNavigationController.Target target) {
-        IconActionButton button = new IconActionButton(tooltip, iconPath, () -> AppNavigationController.navigate(target));
-        button.setAccessibleText(tooltip);
-        return button;
-    }
-
-    private void updateNavigationButtons() {
-        AppNavigationController.Target currentTarget = AppNavigationController.currentTarget();
-        updateNavigationButton(bookmarkButton, currentTarget == AppNavigationController.Target.BOOKMARKS);
-        updateNavigationButton(accountButton, currentTarget == AppNavigationController.Target.ACCOUNTS);
-        updateNavigationButton(watchingNowButton, currentTarget == AppNavigationController.Target.WATCHING_NOW);
     }
 
     private void updateNavigationButton(IconActionButton button, boolean active) {
@@ -296,22 +261,6 @@ public class AppHeaderActions extends HBox {
         }
         ConfigurationService.getInstance().removeChangeListener(configurationChangeListener);
         configurationListenerRegistered = false;
-    }
-
-    private void registerNavigationListener() {
-        if (navigationListenerRegistered) {
-            return;
-        }
-        AppNavigationController.currentTargetProperty().addListener(navigationTargetListener);
-        navigationListenerRegistered = true;
-    }
-
-    private void unregisterNavigationListener() {
-        if (!navigationListenerRegistered) {
-            return;
-        }
-        AppNavigationController.currentTargetProperty().removeListener(navigationTargetListener);
-        navigationListenerRegistered = false;
     }
 
     private void registerWidePlayerNavigationListener() {

@@ -6,7 +6,6 @@ import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DatabaseSyncService;
-import com.uiptv.service.FilterLockService;
 import com.uiptv.service.remotesync.RemoteSyncSessionService;
 import com.uiptv.ui.main.BaseMainApplicationUI;
 import com.uiptv.ui.main.MainApplicationUI;
@@ -17,12 +16,14 @@ import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
+import com.uiptv.widget.AppNavigationController;
 import com.uiptv.widget.AppFonts;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
@@ -33,6 +34,7 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.sql.SQLException;
 import java.util.Arrays;
 
@@ -42,19 +44,17 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 public class RootApplication extends Application {
     public static final int GUIDED_MAX_WIDTH_PIXELS = 1368;
     public static final int GUIDED_MAX_HEIGHT_PIXELS = 1920;
-    private static final String STATUS_ICON_ON = "✅";
-    private static final String STATUS_ICON_OFF = "❌";
+    private static final String PRODUCT_TITLE = "UIPTV";
     private static final Duration TITLE_STATUS_REFRESH_INTERVAL = Duration.seconds(30);
     private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
     private static final ConfigurationApplicationService configurationApplicationService = ConfigurationApplicationService.getInstance();
     private static Stage primaryStage;
     private static String currentTheme;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
-    private final FilterLockService filterLockService = FilterLockService.getInstance();
     private final ConfigurationChangeListener titleConfigurationChangeListener =
             _ -> scheduleTitleUpdate();
-    private final FilterLockService.LockStateChangeListener titleLockStateChangeListener =
-            this::scheduleTitleUpdate;
+    private final ChangeListener<AppNavigationController.Target> titleNavigationTargetChangeListener =
+            (_, _, _) -> scheduleTitleUpdate();
     private Timeline titleStatusTimeline;
 
     public static void main(String[] args) {
@@ -199,7 +199,7 @@ public class RootApplication extends Application {
         registerTitleStatusUpdater();
         updatePrimaryStageTitle();
         applyMaximizedBounds(primaryStage);
-        primaryStage.getIcons().add(new Image("file:resource/icon.ico"));
+        configurePrimaryStageIcon(primaryStage);
         Scene loadingScene = createLoadingScene();
         primaryStage.setScene(loadingScene);
         primaryStage.show();
@@ -213,6 +213,21 @@ public class RootApplication extends Application {
             primaryStage.setScene(scene);
             applyMaximizedBounds(primaryStage);
         });
+    }
+
+    private void configurePrimaryStageIcon(Stage stage) {
+        if (stage == null) {
+            return;
+        }
+        try (InputStream stream = getClass().getResourceAsStream("/icon.png")) {
+            if (stream != null) {
+                stage.getIcons().add(new Image(stream));
+                return;
+            }
+        } catch (IOException e) {
+            AppLog.addWarningLog(RootApplication.class, "Failed to load packaged app icon: " + e.getMessage());
+        }
+        stage.getIcons().add(new Image("file:resource/icon.ico"));
     }
 
     private void applyMaximizedBounds(Stage stage) {
@@ -270,7 +285,7 @@ public class RootApplication extends Application {
 
     private void registerTitleStatusUpdater() {
         configurationService.addChangeListener(titleConfigurationChangeListener);
-        filterLockService.addLockStateChangeListener(titleLockStateChangeListener);
+        AppNavigationController.currentTargetProperty().addListener(titleNavigationTargetChangeListener);
         titleStatusTimeline = new Timeline(new KeyFrame(TITLE_STATUS_REFRESH_INTERVAL, _ -> updatePrimaryStageTitle()));
         titleStatusTimeline.setCycleCount(Animation.INDEFINITE);
         titleStatusTimeline.play();
@@ -278,7 +293,7 @@ public class RootApplication extends Application {
 
     private void unregisterTitleStatusUpdater() {
         configurationService.removeChangeListener(titleConfigurationChangeListener);
-        filterLockService.removeLockStateChangeListener(titleLockStateChangeListener);
+        AppNavigationController.currentTargetProperty().removeListener(titleNavigationTargetChangeListener);
         if (titleStatusTimeline != null) {
             titleStatusTimeline.stop();
             titleStatusTimeline = null;
@@ -304,16 +319,25 @@ public class RootApplication extends Application {
     }
 
     private String buildApplicationTitle() {
-        Configuration configuration = configurationService.read();
-        boolean parentalLockOn = filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked();
-        boolean censoringOn = configuration == null || !configuration.isPauseFiltering();
-        return I18n.tr("appTitle")
-                + " | Parental " + statusIcon(parentalLockOn)
-                + " | Censor " + statusIcon(censoringOn);
+        String pageTitle = titleForNavigationTarget(AppNavigationController.currentTarget());
+        if (pageTitle == null || pageTitle.isBlank()) {
+            return PRODUCT_TITLE;
+        }
+        return pageTitle + " - " + PRODUCT_TITLE;
     }
 
-    private String statusIcon(boolean enabled) {
-        return enabled ? STATUS_ICON_ON : STATUS_ICON_OFF;
+    private String titleForNavigationTarget(AppNavigationController.Target target) {
+        if (target == null) {
+            return "";
+        }
+        return switch (target) {
+            case BOOKMARKS -> "Favourite";
+            case ACCOUNTS -> I18n.tr("autoAccount");
+            case WATCHING_NOW -> I18n.tr("autoWatchingNow");
+            case SETTINGS -> I18n.tr("autoSettings");
+            case IMPORT -> I18n.tr("autoImportBulkAccounts");
+            case LOGS -> I18n.tr("autoLogs");
+        };
     }
 
     private void configureFontStyles(Scene scene) {
@@ -327,7 +351,7 @@ public class RootApplication extends Application {
     }
 
     private Scene createLoadingScene() {
-        Label loadingLabel = new Label(I18n.tr("appTitle"));
+        Label loadingLabel = new Label(PRODUCT_TITLE);
         StackPane loadingRoot = new StackPane(loadingLabel);
         Scene loadingScene = new Scene(loadingRoot, GUIDED_MAX_WIDTH_PIXELS, GUIDED_MAX_HEIGHT_PIXELS);
         UiI18n.applySceneOrientation(loadingScene);

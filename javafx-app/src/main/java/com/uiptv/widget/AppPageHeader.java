@@ -1,29 +1,37 @@
 package com.uiptv.widget;
 
+import javafx.event.EventHandler;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.TextField;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.util.List;
 
 public class AppPageHeader extends VBox {
-    private static final double COMPACT_ENTER_WIDTH = 940;
-    private static final double WIDE_ENTER_WIDTH = 1040;
-    private static final double WIDE_SEARCH_WIDTH = 560;
+    private static final String LEGACY_SEARCH_CLEAR_INSTALLED_KEY =
+            AppPageHeader.class.getName() + ".legacySearchClearInstalled";
+    private static final double COMPACT_ENTER_WIDTH = 920;
+    private static final double WIDE_ENTER_WIDTH = 1020;
+    private static final double WIDE_SEARCH_MIN_WIDTH = 140;
+    private static final double WIDE_SEARCH_WIDTH = 420;
 
     private final Label titleLabel = new Label();
+    private final AppHeaderNavigation headerNavigation = new AppHeaderNavigation(titleLabel);
     private final TextField searchField;
     private final HBox actions = new HBox(6);
-    private final StackPane wideHeaderRow = new StackPane();
+    private final HBox wideHeaderRow = new HBox(12);
+    private final Region wideSpacer = new Region();
     private final HBox compactTitleRow = new HBox(10);
     private final HBox compactControlsRow = new HBox(8);
     private boolean compactLayout;
+    private boolean headerTitleVisible;
 
     public AppPageHeader(String title, TextField searchField, List<? extends Node> actionNodes) {
         this(title, searchField, createActionContainer(actionNodes));
@@ -38,6 +46,7 @@ public class AppPageHeader extends VBox {
         getStyleClass().add("uiptv-page-header");
         UiRenderQuality.optimizeLayout(this);
         UiRenderQuality.optimizeLayout(actions);
+        UiRenderQuality.optimizeLayout(headerNavigation);
         UiRenderQuality.optimizeLayout(wideHeaderRow);
         UiRenderQuality.optimizeLayout(compactTitleRow);
         UiRenderQuality.optimizeLayout(compactControlsRow);
@@ -50,14 +59,18 @@ public class AppPageHeader extends VBox {
 
         titleLabel.setText(title == null ? "" : title);
         titleLabel.getStyleClass().add("uiptv-page-title");
+        titleLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
+        titleLabel.setMinWidth(0);
         titleLabel.setMaxWidth(Double.MAX_VALUE);
         titleLabel.setPickOnBounds(false);
+        updateHeaderTitleVisibility();
 
         if (this.searchField != null) {
             this.searchField.getStyleClass().add("uiptv-page-search-field");
-            this.searchField.setMinWidth(180);
+            this.searchField.setMinWidth(WIDE_SEARCH_MIN_WIDTH);
             this.searchField.setPrefWidth(WIDE_SEARCH_WIDTH);
             this.searchField.setMaxWidth(WIDE_SEARCH_WIDTH);
+            installLegacySearchClearBehavior(this.searchField);
         }
 
         actions.getStyleClass().add("uiptv-page-actions");
@@ -86,6 +99,16 @@ public class AppPageHeader extends VBox {
 
     public void setTitle(String title) {
         titleLabel.setText(title == null ? "" : title);
+        updateHeaderTitleVisibility();
+    }
+
+    public void setHeaderTitleVisible(boolean visible) {
+        headerTitleVisible = visible;
+        updateHeaderTitleVisibility();
+    }
+
+    public void setNavigationSelectionEnabled(boolean enabled) {
+        headerNavigation.setSelectionEnabled(enabled);
     }
 
     private void applyLayoutForWidth(double width) {
@@ -110,10 +133,11 @@ public class AppPageHeader extends VBox {
         compactControlsRow.getChildren().clear();
         getChildren().clear();
         compactLayout = compact;
+        headerNavigation.setCompact(compact);
 
         if (compact) {
-            HBox.setHgrow(titleLabel, Priority.ALWAYS);
-            compactTitleRow.getChildren().setAll(titleLabel);
+            HBox.setHgrow(headerNavigation, Priority.ALWAYS);
+            compactTitleRow.getChildren().setAll(headerNavigation);
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
             compactControlsRow.getChildren().setAll(spacer, actions);
@@ -127,17 +151,24 @@ public class AppPageHeader extends VBox {
             return;
         }
 
-        StackPane.setAlignment(titleLabel, Pos.CENTER_LEFT);
-        StackPane.setAlignment(actions, Pos.CENTER_RIGHT);
+        HBox.setHgrow(headerNavigation, Priority.NEVER);
+        HBox.setHgrow(wideSpacer, Priority.ALWAYS);
         if (searchField == null) {
-            wideHeaderRow.getChildren().setAll(titleLabel, actions);
+            wideHeaderRow.getChildren().setAll(headerNavigation, wideSpacer, actions);
         } else {
-            searchField.setMinWidth(180);
+            searchField.setMinWidth(WIDE_SEARCH_MIN_WIDTH);
             searchField.setMaxWidth(WIDE_SEARCH_WIDTH);
-            StackPane.setAlignment(searchField, Pos.CENTER);
-            wideHeaderRow.getChildren().setAll(titleLabel, searchField, actions);
+            HBox.setHgrow(searchField, Priority.SOMETIMES);
+            wideHeaderRow.getChildren().setAll(headerNavigation, searchField, wideSpacer, actions);
         }
         getChildren().setAll(wideHeaderRow);
+    }
+
+    private void updateHeaderTitleVisibility() {
+        boolean visible = headerTitleVisible && !titleLabel.getText().isBlank();
+        titleLabel.setVisible(visible);
+        titleLabel.setManaged(visible);
+        headerNavigation.setTitleVisible(visible);
     }
 
     private static HBox createActionContainer(List<? extends Node> actionNodes) {
@@ -148,5 +179,21 @@ public class AppPageHeader extends VBox {
             actionContainer.getChildren().setAll(actionNodes);
         }
         return actionContainer;
+    }
+
+    private static void installLegacySearchClearBehavior(TextField field) {
+        if (field == null || Boolean.TRUE.equals(field.getProperties().get(LEGACY_SEARCH_CLEAR_INSTALLED_KEY))) {
+            return;
+        }
+        EventHandler<? super MouseEvent> existingHandler = field.getOnMousePressed();
+        field.getProperties().put(LEGACY_SEARCH_CLEAR_INSTALLED_KEY, Boolean.TRUE);
+        field.setOnMousePressed(event -> {
+            if (existingHandler != null) {
+                existingHandler.handle(event);
+            }
+            if (!event.isConsumed()) {
+                field.clear();
+            }
+        });
     }
 }
