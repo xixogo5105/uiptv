@@ -5,7 +5,6 @@ import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.AccountListUI;
-import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.IconActionButton;
 import com.uiptv.widget.WidePlayerNavigationControl;
@@ -17,7 +16,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.VPos;
 import javafx.scene.Node;
-import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.ColumnConstraints;
@@ -29,7 +27,6 @@ import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
-import java.util.Locale;
 import java.util.function.Consumer;
 
 public class MainApplicationUI extends BaseMainApplicationUI {
@@ -38,17 +35,11 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private static final double WIDE_APP_AREA_SMALL_SCREEN_MIN_WIDTH = 360;
     private static final double WIDE_APP_AREA_SMALL_SCREEN_THRESHOLD = 1300;
     private static final double WIDE_APP_AREA_MAX_WIDTH = 540;
-    private static final double COMPACT_SIDE_PLAYER_WIDTH = 480;
-    private static final double COMPACT_SIDE_NAVIGATION_MIN_WIDTH = 800;
-    private static final double STACKED_EMBEDDED_LAYOUT_WIDTH_THRESHOLD =
-            COMPACT_SIDE_PLAYER_WIDTH + COMPACT_SIDE_NAVIGATION_MIN_WIDTH;
     private static final double STACKED_EMBEDDED_PLAYER_MAX_WIDTH = 480;
     private static final double STACKED_EMBEDDED_PLAYER_ASPECT_RATIO = 9.0 / 16.0;
     private static final double STACKED_EMBEDDED_PLAYER_VERTICAL_CHROME = 32;
     private static final double STACKED_EMBEDDED_PLAYER_MIN_HEIGHT = 210;
     private static final double STACKED_EMBEDDED_PLAYER_MAX_HEIGHT = 305;
-    private static final double STALE_LAYOUT_WIDTH_JUMP_THRESHOLD = COMPACT_SIDE_PLAYER_WIDTH;
-    private static final String EMBEDDED_LAYOUT_DEBUG_PREFIX = "[TEMP EmbeddedLayout] ";
     private static final String ICON_SHOW_NAVIGATION = "M3 5H21V19H3V5ZM5 7V17H10V7H5ZM12.7 8.7L16.1 12 12.7 15.3 11.3 13.9 13.2 12 11.3 10.1Z";
     private final boolean embeddedEnabled;
     private final Runnable wideNavigationToggleHandler = this::toggleWidePlayerNavigation;
@@ -68,7 +59,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private boolean embeddedLayoutListenerRegistered;
     private boolean deferredEmbeddedLayoutRefreshPending;
     private double retainedWideAppAreaWidth = -1;
-    private String lastEmbeddedLayoutLogSignature = "";
 
     public MainApplicationUI(
             Stage primaryStage,
@@ -94,16 +84,8 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         activeAccountListUI = accountListUI;
         embeddedPlayerNode = MediaPlayerFactory.getPlayerContainer();
         embeddedPlayer = createEmbeddedPlayerContainer(embeddedPlayerNode);
-        embeddedPlayerNode.visibleProperty().addListener((_, oldVisible, newVisible) -> {
-            logEmbeddedPlayerNodeEvent("player-node visible " + oldVisible + " -> " + newVisible);
-            applyEmbeddedPlayerLayoutFromConfiguration();
-        });
-        embeddedPlayerNode.managedProperty().addListener((_, oldManaged, newManaged) -> {
-            logEmbeddedPlayerNodeEvent("player-node managed " + oldManaged + " -> " + newManaged);
-            applyEmbeddedPlayerLayoutFromConfiguration();
-        });
-        embeddedPlayerNode.parentProperty().addListener((_, oldParent, newParent) ->
-                logEmbeddedPlayerNodeEvent("player-node parent " + nodeName(oldParent) + " -> " + nodeName(newParent)));
+        embeddedPlayerNode.visibleProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
+        embeddedPlayerNode.managedProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
         navigationShell = createNavigationShell(tabPane);
         collapsedNavigationHandleShell = createCollapsedNavigationHandleShell();
         responsiveContent = createResponsiveContent();
@@ -189,46 +171,29 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         }
         Configuration configuration = configurationService.read();
         boolean embeddedConfigured = configuration != null && configuration.isEmbeddedPlayer();
-        boolean stackedPlayerLayout = embeddedConfigured && shouldUseStackedEmbeddedLayout();
         boolean playerNodeActive = isEmbeddedPlayerNodeActive();
-        boolean showEmbeddedPlayer = embeddedConfigured && (playerNodeActive || stackedPlayerLayout);
+        boolean showEmbeddedPlayer = embeddedConfigured && playerNodeActive;
         setEmbeddedPlayerContainerVisible(showEmbeddedPlayer);
         boolean widePlayerPreferred = showEmbeddedPlayer && configuration.isWideView();
-        String selectedLayout;
         if (!showEmbeddedPlayer) {
-            selectedLayout = "compact-hidden";
             navigationCollapsed = false;
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(false);
-            applyCompactEmbeddedLayout();
-        } else if (stackedPlayerLayout) {
-            selectedLayout = "stacked-top-player";
-            activeAccountListUI.setMediaDrawerMode(false);
-            applyStackedEmbeddedLayout();
+            applyNavigationOnlyEmbeddedLayout();
         } else if (navigationCollapsed) {
-            selectedLayout = "focused-player";
             activeAccountListUI.setMediaDrawerMode(false);
             applyFocusedEmbeddedLayout();
         } else if (widePlayerPreferred) {
-            selectedLayout = "wide-side-player";
             activeAccountListUI.setMediaDrawerMode(true);
             applyWideEmbeddedLayout();
         } else {
-            selectedLayout = "compact-side-player";
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(false);
-            applyCompactEmbeddedLayout();
+            applyStackedEmbeddedLayout();
         }
-        logEmbeddedLayoutState(
-                selectedLayout,
-                embeddedConfigured,
-                stackedPlayerLayout,
-                playerNodeActive,
-                widePlayerPreferred
-        );
         WidePlayerNavigationControl.configure(
-                showEmbeddedPlayer && !stackedPlayerLayout,
-                !stackedPlayerLayout && navigationCollapsed,
+                showEmbeddedPlayer,
+                navigationCollapsed,
                 wideNavigationToggleHandler
         );
         if (mainContent != null) {
@@ -236,18 +201,16 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         }
     }
 
-    private void applyCompactEmbeddedLayout() {
-        applySideBySideEmbeddedArrangement();
-        double navigationWidth = compactSideNavigationWidth();
-        configureCompactSideBySideResponsiveGrid(navigationWidth);
+    private void applyNavigationOnlyEmbeddedLayout() {
+        applyNavigationOnlyEmbeddedArrangement();
         activeTabPane.setMinWidth(0);
-        activeTabPane.setPrefWidth(Math.min(guidedMaxWidthPixels, navigationWidth));
+        activeTabPane.setPrefWidth(guidedMaxWidthPixels);
         activeTabPane.setMaxWidth(Double.MAX_VALUE);
         activeTabPane.setMaxHeight(Double.MAX_VALUE);
         activeTabPane.setMinHeight(0);
 
         navigationShell.setMinWidth(0);
-        navigationShell.setPrefWidth(navigationWidth);
+        navigationShell.setPrefWidth(Region.USE_COMPUTED_SIZE);
         navigationShell.setMaxWidth(Double.MAX_VALUE);
         navigationShell.setVisible(true);
         navigationShell.setManaged(true);
@@ -262,7 +225,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         GridPane.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
         GridPane.setVgrow(collapsedNavigationHandleShell, Priority.NEVER);
 
-        applyCompactEmbeddedPlayerSize(embeddedPlayer);
         HBox.setHgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
@@ -364,7 +326,25 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         configureStackedResponsiveGrid();
         GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
-        GridPane.setHalignment(embeddedPlayer, HPos.CENTER);
+        GridPane.setHalignment(embeddedPlayer, HPos.LEFT);
+        GridPane.setValignment(embeddedPlayer, VPos.TOP);
+    }
+
+    private void applyNavigationOnlyEmbeddedArrangement() {
+        if (responsiveContent == null || navigationShell == null || collapsedNavigationHandleShell == null
+                || embeddedPlayer == null) {
+            return;
+        }
+        configureNavigationOnlyResponsiveGrid();
+        placeInGrid(navigationShell, 0, 0);
+        placeInGrid(collapsedNavigationHandleShell, 0, 0);
+        placeInGrid(embeddedPlayer, 0, 0);
+        GridPane.setHgrow(navigationShell, Priority.ALWAYS);
+        GridPane.setVgrow(navigationShell, Priority.ALWAYS);
+        GridPane.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
+        GridPane.setVgrow(collapsedNavigationHandleShell, Priority.NEVER);
+        GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setValignment(embeddedPlayer, VPos.TOP);
     }
 
@@ -380,7 +360,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         if (alreadySideBySide) {
             return;
         }
-        logEmbeddedPlayerNodeEvent("arrangement grid side-by-side");
         configureSideBySideResponsiveGrid();
         placeInGrid(navigationShell, 0, 0);
         placeInGrid(collapsedNavigationHandleShell, 0, 0);
@@ -403,14 +382,13 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         if (alreadyStacked) {
             return;
         }
-        logEmbeddedPlayerNodeEvent("arrangement grid stacked-top");
         configureStackedResponsiveGrid();
         placeInGrid(embeddedPlayer, 0, 0);
         placeInGrid(navigationShell, 0, 1);
         placeInGrid(collapsedNavigationHandleShell, 0, 1);
         GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
-        GridPane.setHalignment(embeddedPlayer, HPos.CENTER);
+        GridPane.setHalignment(embeddedPlayer, HPos.LEFT);
         GridPane.setValignment(embeddedPlayer, VPos.TOP);
         GridPane.setHgrow(navigationShell, Priority.ALWAYS);
         GridPane.setVgrow(navigationShell, Priority.ALWAYS);
@@ -461,29 +439,19 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         grid.getRowConstraints().setAll(contentRow);
     }
 
-    private void configureCompactSideBySideResponsiveGrid(double navigationWidth) {
+    private void configureNavigationOnlyResponsiveGrid() {
         if (responsiveContent == null) {
             return;
         }
-        double playerWidth = embeddedPlayer != null && embeddedPlayer.isManaged()
-                ? COMPACT_SIDE_PLAYER_WIDTH
-                : 0;
-        ColumnConstraints navigationColumn = new ColumnConstraints();
-        navigationColumn.setMinWidth(0);
-        navigationColumn.setPrefWidth(Math.max(0, navigationWidth));
-        navigationColumn.setHgrow(Priority.ALWAYS);
-        navigationColumn.setFillWidth(true);
-        ColumnConstraints playerColumn = new ColumnConstraints();
-        playerColumn.setMinWidth(playerWidth);
-        playerColumn.setPrefWidth(playerWidth);
-        playerColumn.setMaxWidth(playerWidth);
-        playerColumn.setHgrow(Priority.NEVER);
-        playerColumn.setFillWidth(true);
+        ColumnConstraints contentColumn = new ColumnConstraints();
+        contentColumn.setMinWidth(0);
+        contentColumn.setHgrow(Priority.ALWAYS);
+        contentColumn.setFillWidth(true);
         RowConstraints contentRow = new RowConstraints();
         contentRow.setMinHeight(0);
         contentRow.setVgrow(Priority.ALWAYS);
         contentRow.setFillHeight(true);
-        responsiveContent.getColumnConstraints().setAll(navigationColumn, playerColumn);
+        responsiveContent.getColumnConstraints().setAll(contentColumn);
         responsiveContent.getRowConstraints().setAll(contentRow);
     }
 
@@ -560,18 +528,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         return index == null ? 0 : index;
     }
 
-    private boolean shouldUseStackedEmbeddedLayout() {
-        return availableLayoutWidth() < STACKED_EMBEDDED_LAYOUT_WIDTH_THRESHOLD;
-    }
-
-    private double compactSideNavigationWidth() {
-        double availableWidth = availableLayoutWidth();
-        if (embeddedPlayer == null || !embeddedPlayer.isManaged()) {
-            return availableWidth;
-        }
-        return Math.max(0, availableWidth - COMPACT_SIDE_PLAYER_WIDTH);
-    }
-
     private boolean isEmbeddedPlayerNodeActive() {
         return embeddedPlayerNode != null && (embeddedPlayerNode.isVisible() || embeddedPlayerNode.isManaged());
     }
@@ -580,143 +536,8 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         if (embeddedPlayer == null) {
             return;
         }
-        if (embeddedPlayer.isVisible() != visible || embeddedPlayer.isManaged() != visible) {
-            logEmbeddedPlayerNodeEvent("wrapper visible/managed -> " + visible);
-        }
         embeddedPlayer.setVisible(visible);
         embeddedPlayer.setManaged(visible);
-    }
-
-    private void logEmbeddedLayoutState(
-            String layout,
-            boolean embeddedConfigured,
-            boolean stackedPlayerLayout,
-            boolean playerNodeActive,
-            boolean widePlayerPreferred
-    ) {
-        double availableWidth = availableLayoutWidth();
-        long widthBucket = Math.round(availableWidth / 25.0) * 25;
-        String signature = layout
-                + "|bucket=" + widthBucket
-                + "|configured=" + embeddedConfigured
-                + "|stacked=" + stackedPlayerLayout
-                + "|node=" + visibleManagedState(embeddedPlayerNode)
-                + "|wrapper=" + visibleManagedState(embeddedPlayer)
-                + "|nodeParent=" + nodeName(parentOf(embeddedPlayerNode))
-                + "|wrapperParent=" + nodeName(parentOf(embeddedPlayer))
-                + "|mainChildren=" + childSummary(mainContent)
-                + "|gridChildren=" + childSummary(responsiveContent);
-        if (signature.equals(lastEmbeddedLayoutLogSignature)) {
-            return;
-        }
-        lastEmbeddedLayoutLogSignature = signature;
-        AppLog.addInfoLog(MainApplicationUI.class, EMBEDDED_LAYOUT_DEBUG_PREFIX
-                + "layout=" + layout
-                + ", availableWidth=" + formatDouble(availableWidth)
-                + ", sceneWidth=" + formatDouble(sceneWidth())
-                + ", stageWidth=" + formatDouble(stageWidth())
-                + ", mainWidth=" + sizeOf(mainContent)
-                + ", configured=" + embeddedConfigured
-                + ", stacked=" + stackedPlayerLayout
-                + ", nodeActive=" + playerNodeActive
-                + ", widePreferred=" + widePlayerPreferred
-                + ", playerNode=" + nodeState(embeddedPlayerNode)
-                + ", wrapper=" + nodeState(embeddedPlayer)
-                + ", navigation=" + nodeState(navigationShell)
-                + ", collapsedHandle=" + nodeState(collapsedNavigationHandleShell)
-                + ", responsiveGrid=" + nodeState(responsiveContent)
-                + ", mainChildren=" + childSummary(mainContent)
-                + ", gridChildren=" + childSummary(responsiveContent));
-    }
-
-    private void logEmbeddedPlayerNodeEvent(String event) {
-        AppLog.addInfoLog(MainApplicationUI.class, EMBEDDED_LAYOUT_DEBUG_PREFIX
-                + event
-                + ", availableWidth=" + formatDouble(availableLayoutWidth())
-                + ", playerNode=" + nodeState(embeddedPlayerNode)
-                + ", wrapper=" + nodeState(embeddedPlayer)
-                + ", mainChildren=" + childSummary(mainContent)
-                + ", gridChildren=" + childSummary(responsiveContent));
-    }
-
-    private double sceneWidth() {
-        if (mainContent != null && mainContent.getScene() != null) {
-            return mainContent.getScene().getWidth();
-        }
-        if (primaryStage != null && primaryStage.getScene() != null) {
-            return primaryStage.getScene().getWidth();
-        }
-        return -1;
-    }
-
-    private double stageWidth() {
-        return primaryStage == null ? -1 : primaryStage.getWidth();
-    }
-
-    private Parent parentOf(Node node) {
-        return node == null ? null : node.getParent();
-    }
-
-    private String nodeState(Node node) {
-        if (node == null) {
-            return "null";
-        }
-        return nodeName(node)
-                + "{visible=" + node.isVisible()
-                + ", managed=" + node.isManaged()
-                + ", parent=" + nodeName(node.getParent())
-                + ", size=" + sizeOf(node)
-                + ", layoutBounds=" + formatDouble(node.getLayoutBounds().getWidth())
-                + "x" + formatDouble(node.getLayoutBounds().getHeight())
-                + "}";
-    }
-
-    private String visibleManagedState(Node node) {
-        return node == null ? "null" : node.isVisible() + "/" + node.isManaged();
-    }
-
-    private String sizeOf(Node node) {
-        if (node instanceof Region region) {
-            return formatDouble(region.getWidth()) + "x" + formatDouble(region.getHeight())
-                    + " pref=" + formatDouble(region.getPrefWidth()) + "x" + formatDouble(region.getPrefHeight())
-                    + " min=" + formatDouble(region.getMinWidth()) + "x" + formatDouble(region.getMinHeight())
-                    + " max=" + formatDouble(region.getMaxWidth()) + "x" + formatDouble(region.getMaxHeight());
-        }
-        if (node == null) {
-            return "null";
-        }
-        return formatDouble(node.getBoundsInParent().getWidth()) + "x" + formatDouble(node.getBoundsInParent().getHeight());
-    }
-
-    private String childSummary(javafx.scene.Parent parent) {
-        if (parent == null) {
-            return "null";
-        }
-        return parent.getChildrenUnmodifiable().stream()
-                .map(this::nodeName)
-                .toList()
-                .toString();
-    }
-
-    private String nodeName(Node node) {
-        if (node == null) {
-            return "null";
-        }
-        String id = node.getId();
-        return node.getClass().getSimpleName() + (id == null || id.isBlank() ? "" : "#" + id);
-    }
-
-    private String formatDouble(double value) {
-        if (value == Double.MAX_VALUE) {
-            return "MAX";
-        }
-        if (value == Region.USE_COMPUTED_SIZE) {
-            return "COMPUTED";
-        }
-        if (value == Region.USE_PREF_SIZE) {
-            return "PREF";
-        }
-        return String.format(Locale.ROOT, "%.1f", value);
     }
 
     private StackPane createCollapsedNavigationHandleShell() {
@@ -765,35 +586,15 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     }
 
     private double availableLayoutWidth() {
-        double width = Double.MAX_VALUE;
-        double sceneWidth = sceneWidth();
-        width = minPositive(width, sceneWidth);
-        width = minPositive(width, stageWidth());
-        width = minPositive(width, regionWidth(mainContent));
-        width = minPositive(width, regionWidth(responsiveContent));
-        if (shouldUseExpandedSceneWidth(sceneWidth, width)) {
-            return sceneWidth;
+        double width = regionWidth(responsiveContent);
+        if (width > 0) {
+            return width;
         }
-        if (width != Double.MAX_VALUE) {
+        width = regionWidth(mainContent);
+        if (width > 0) {
             return width;
         }
         return guidedMaxWidthPixels;
-    }
-
-    private boolean shouldUseExpandedSceneWidth(double sceneWidth, double measuredWidth) {
-        if (sceneWidth < STACKED_EMBEDDED_LAYOUT_WIDTH_THRESHOLD || measuredWidth == Double.MAX_VALUE
-                || measuredWidth <= 0) {
-            return false;
-        }
-        if (primaryStage != null && primaryStage.isMaximized()) {
-            return true;
-        }
-        return measuredWidth < STACKED_EMBEDDED_LAYOUT_WIDTH_THRESHOLD
-                && sceneWidth - measuredWidth >= STALE_LAYOUT_WIDTH_JUMP_THRESHOLD;
-    }
-
-    private double minPositive(double current, double candidate) {
-        return candidate > 0 ? Math.min(current, candidate) : current;
     }
 
     private double regionWidth(Region region) {

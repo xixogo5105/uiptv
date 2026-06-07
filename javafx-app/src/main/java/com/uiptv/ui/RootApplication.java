@@ -44,6 +44,7 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 public class RootApplication extends Application {
     public static final int GUIDED_MAX_WIDTH_PIXELS = 1368;
     public static final int GUIDED_MAX_HEIGHT_PIXELS = 1920;
+    private static final double TOP_PLAYER_EXPERIMENT_MIN_STAGE_WIDTH = 480;
     private static final String PRODUCT_TITLE = "UIPTV";
     private static final Duration TITLE_STATUS_REFRESH_INTERVAL = Duration.seconds(30);
     private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
@@ -196,6 +197,7 @@ public class RootApplication extends Application {
             Platform.exit();
             System.exit(0);
         });
+        primaryStage.setMinWidth(TOP_PLAYER_EXPERIMENT_MIN_STAGE_WIDTH);
         registerTitleStatusUpdater();
         updatePrimaryStageTitle();
         applyMaximizedBounds(primaryStage);
