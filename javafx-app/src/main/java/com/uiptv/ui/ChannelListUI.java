@@ -38,7 +38,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
 import javafx.util.Callback;
 import javafx.animation.PauseTransition;
@@ -61,6 +60,8 @@ import static javafx.application.Platform.runLater;
 public class ChannelListUI extends HBox implements SearchTarget {
     private static final String IMAGE_CACHE_KEY_CHANNEL = "channel";
     private static final String DRM_BADGE_STYLE_CLASS = "drm-badge";
+    private static final String BOOKMARK_ICON_PATH = "M3 0 V14 L8 10 L13 14 V0 H3 Z";
+    private static final String BOOKMARK_ICON_STYLE_CLASS = "channel-bookmark-icon";
 
     private final AccountMediaContext mediaContext;
     private final Account account;
@@ -738,7 +739,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 thumbnailsEnabled,
                 IMAGE_CACHE_KEY_CHANNEL,
                 item != null && item.getChannel() != null && PlayerService.getInstance().isDrmProtected(item.getChannel()),
-                playButton
+                createBookmarkTitleAction(item, playButton)
         );
     }
 
@@ -760,6 +761,9 @@ public class ChannelListUI extends HBox implements SearchTarget {
         card.getChildren().add(title);
         if (item != null && item.getChannel() != null && PlayerService.getInstance().isDrmProtected(item.getChannel())) {
             card.getChildren().add(createDrawerBadge(I18n.tr("autoDrm")));
+        }
+        if (item != null && item.isBookmarked()) {
+            card.getChildren().add(createBookmarkIcon());
         }
         return card;
     }
@@ -820,14 +824,17 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void populateDrawerChannelBadges(ChannelItem item, HBox badges) {
-        if (badges == null || item == null || item.getChannel() == null) {
+        if (badges == null || item == null) {
             return;
         }
         Channel channel = item.getChannel();
-        if (PlayerService.getInstance().isDrmProtected(channel)) {
+        if (channel != null && PlayerService.getInstance().isDrmProtected(channel)) {
             badges.getChildren().add(createDrawerBadge(I18n.tr("autoDrm")));
         }
-        if (listAction == series && channel.isWatched()) {
+        if (item.isBookmarked()) {
+            badges.getChildren().add(createBookmarkIcon());
+        }
+        if (channel != null && listAction == series && channel.isWatched()) {
             badges.getChildren().add(createDrawerBadge(I18n.tr("autoInPROGRESS")));
         }
     }
@@ -838,6 +845,30 @@ public class ChannelListUI extends HBox implements SearchTarget {
         badge.setMinWidth(Region.USE_PREF_SIZE);
         badge.setMaxWidth(Region.USE_PREF_SIZE);
         return badge;
+    }
+
+    private Node createBookmarkTitleAction(ChannelItem item, Node action) {
+        if (item == null || !item.isBookmarked()) {
+            return action;
+        }
+        SVGPath bookmarkIcon = createBookmarkIcon();
+        if (action == null) {
+            return bookmarkIcon;
+        }
+        HBox actions = new HBox(7, bookmarkIcon, action);
+        actions.getStyleClass().add("channel-card-title-actions");
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.setMinWidth(Region.USE_PREF_SIZE);
+        actions.setMaxWidth(Region.USE_PREF_SIZE);
+        return actions;
+    }
+
+    private SVGPath createBookmarkIcon() {
+        SVGPath bookmarkIcon = new SVGPath();
+        bookmarkIcon.setContent(BOOKMARK_ICON_PATH);
+        bookmarkIcon.getStyleClass().add(BOOKMARK_ICON_STYLE_CLASS);
+        bookmarkIcon.setMouseTransparent(true);
+        return bookmarkIcon;
     }
 
     private HBox createWatchingNowMediaCard(ChannelItem item) {
@@ -901,6 +932,11 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private List<Label> createMediaMetadataNodes(ChannelItem item, WatchingNowVodResolver.VodMetadata vodMetadata) {
         List<Label> metadataNodes = new ArrayList<>();
+        if (item != null && item.isBookmarked()) {
+            Label bookmarkChip = WatchingNowMediaCardFactory.createChip(I18n.tr("autoBookmark"));
+            bookmarkChip.getStyleClass().add("channel-bookmark-chip");
+            metadataNodes.add(bookmarkChip);
+        }
         if (listAction == series) {
             metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoSeries")));
         }
@@ -1044,12 +1080,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
             private final Label drmBadge = new Label(I18n.tr("autoDrm"));
             private final Label progressBadge = new Label(I18n.tr("autoInPROGRESS"));
             private final Pane spacer = new Pane();
-            private final SVGPath bookmarkIcon = new SVGPath();
+            private final SVGPath bookmarkIcon = createBookmarkIcon();
             private final AsyncImageView imageView = new AsyncImageView();
 
             {
-                bookmarkIcon.setContent("M3 0 V14 L8 10 L13 14 V0 H3 Z");
-                bookmarkIcon.setFill(Color.BLACK);
                 drmBadge.getStyleClass().add(DRM_BADGE_STYLE_CLASS);
                 drmBadge.setVisible(false);
                 drmBadge.setManaged(false);
@@ -1106,11 +1140,9 @@ public class ChannelListUI extends HBox implements SearchTarget {
             private final Label drmBadge = new Label(I18n.tr("autoDrm"));
             private final Label progressBadge = new Label(I18n.tr("autoInPROGRESS"));
             private final Pane spacer = new Pane();
-            private final SVGPath bookmarkIcon = new SVGPath();
+            private final SVGPath bookmarkIcon = createBookmarkIcon();
 
             {
-                bookmarkIcon.setContent("M3 0 V14 L8 10 L13 14 V0 H3 Z");
-                bookmarkIcon.setFill(Color.BLACK);
                 drmBadge.getStyleClass().add(DRM_BADGE_STYLE_CLASS);
                 drmBadge.setVisible(false);
                 drmBadge.setManaged(false);

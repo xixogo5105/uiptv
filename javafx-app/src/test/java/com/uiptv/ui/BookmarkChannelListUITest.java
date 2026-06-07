@@ -109,6 +109,42 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     }
 
     @Test
+    void favoriteToolbarStacksFilterAndActionsWhenInlineWidthIsConstrained() throws Exception {
+        List<Boolean> layout = runOnFxThread(() -> {
+            BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
+            populateCategoryPills(ui, List.of(
+                    new BookmarkCategory(null, "All"),
+                    new BookmarkCategory("cricket", "Cricket"),
+                    new BookmarkCategory("movies", "Movies"),
+                    new BookmarkCategory("drama", "Drama"),
+                    new BookmarkCategory("4k", "4K"),
+                    new BookmarkCategory("news", "News"),
+                    new BookmarkCategory("samad", "A Samad")
+            ));
+            Scene scene = new Scene(ui, 360, 720);
+            scene.getStylesheets().add(Objects.requireNonNull(
+                    BookmarkChannelListUITest.class.getResource("/application.css")
+            ).toExternalForm());
+            ui.applyCss();
+            ui.resize(360, 720);
+            ui.layout();
+            ui.layout();
+
+            Node toolbar = findByStyle(ui, "bookmark-category-row");
+            Parent parent = (Parent) toolbar;
+            return List.of(
+                    parent.getChildrenUnmodifiable().size() == 2,
+                    parent.getChildrenUnmodifiable().get(0).getStyleClass().contains("uiptv-pill-bar"),
+                    parent.getChildrenUnmodifiable().get(1).getStyleClass().contains("list-toolbar-actions")
+            );
+        });
+
+        assertTrue(layout.get(0));
+        assertTrue(layout.get(1));
+        assertTrue(layout.get(2));
+    }
+
+    @Test
     void favoritePillBarKeepsSevenCategoryWrapInsideBackground() throws Exception {
         List<Double> heights = runOnFxThread(() -> {
             BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);

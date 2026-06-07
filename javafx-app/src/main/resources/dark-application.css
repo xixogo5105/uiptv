@@ -631,6 +631,15 @@
     -fx-background-radius: 6;
 }
 
+.channel-bookmark-icon {
+    -fx-fill: -uiptv-text-primary;
+}
+
+.channel-bookmark-chip {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+}
+
 .bookmark-account-label {
     -fx-font-size: 0.85em;
     -fx-opacity: 0.72;
@@ -731,6 +740,11 @@
 .context-menu .menu-item > .label,
 .bookmark-context-menu .menu-item > .label {
     -fx-text-fill: white;
+}
+
+.context-menu .menu-item .text,
+.bookmark-context-menu .menu-item .text {
+    -fx-fill: white;
 }
 
 .context-menu .menu-item:focused,
@@ -2723,6 +2737,13 @@
 .uiptv-responsive-card:selected .bookmark-account-suffix-text,
 .uiptv-responsive-card.selected .bookmark-account-suffix-text {
     -fx-fill: -uiptv-selected-card-muted-fg;
+}
+
+.uiptv-responsive-card:selected .channel-bookmark-icon,
+.uiptv-responsive-card.selected .channel-bookmark-icon,
+.bookmark-card:selected .channel-bookmark-icon,
+.bookmark-card.selected .channel-bookmark-icon {
+    -fx-fill: -uiptv-selected-card-fg;
 }
 
 .uiptv-responsive-card .channel-logo-view,

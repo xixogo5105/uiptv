@@ -69,6 +69,52 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     @Test
+    void channelCardShowsBookmarkMarkerWhenBookmarked() throws Exception {
+        boolean markerPresent = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            setBooleanField(ui, "thumbnailsEnabled", true);
+            Region card = createChannelCard(ui, channelItem(true));
+            return findNodeByStyle(card, "channel-bookmark-icon") != null;
+        });
+
+        assertTrue(markerPresent);
+    }
+
+    @Test
+    void plainTextChannelCardShowsBookmarkMarkerWhenBookmarked() throws Exception {
+        boolean markerPresent = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            Region card = createPlainTextChannelCard(ui, channelItem(true));
+            return findNodeByStyle(card, "channel-bookmark-icon") != null;
+        });
+
+        assertTrue(markerPresent);
+    }
+
+    @Test
+    void drawerChannelRowShowsBookmarkMarkerWhenBookmarked() throws Exception {
+        boolean markerPresent = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            Region row = createDrawerChannelRow(ui, channelItem(true));
+            return findNodeByStyle(row, "channel-bookmark-icon") != null;
+        });
+
+        assertTrue(markerPresent);
+    }
+
+    @Test
+    void mediaChannelCardShowsBookmarkChipWhenBookmarked() throws Exception {
+        boolean markerPresent = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Movies", "movies", Account.AccountAction.vod);
+            setBooleanField(ui, "thumbnailsEnabled", true);
+            Region card = createChannelCard(ui, channelItem(true));
+            return findNodeByStyle(card, "channel-bookmark-chip") != null;
+        });
+
+        assertTrue(markerPresent);
+    }
+
+    @Test
     void seriesChannelListRegistersWatchStateListenerForImmediateProgressUpdates() throws Exception {
         ListenerSnapshot snapshot = runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Series", "series", Account.AccountAction.series);
@@ -94,8 +140,20 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         return (ContextMenu) method.invoke(ui, item, List.of(item), new Label("owner"));
     }
 
+    private static Region createChannelCard(ChannelListUI ui, ChannelListUI.ChannelItem item) throws Exception {
+        Method method = ChannelListUI.class.getDeclaredMethod("createChannelCard", ChannelListUI.ChannelItem.class);
+        method.setAccessible(true);
+        return (Region) method.invoke(ui, item);
+    }
+
     private static Region createPlainTextChannelCard(ChannelListUI ui, ChannelListUI.ChannelItem item) throws Exception {
         Method method = ChannelListUI.class.getDeclaredMethod("createPlainTextChannelCard", ChannelListUI.ChannelItem.class);
+        method.setAccessible(true);
+        return (Region) method.invoke(ui, item);
+    }
+
+    private static Region createDrawerChannelRow(ChannelListUI ui, ChannelListUI.ChannelItem item) throws Exception {
+        Method method = ChannelListUI.class.getDeclaredMethod("createDrawerChannelRow", ChannelListUI.ChannelItem.class);
         method.setAccessible(true);
         return (Region) method.invoke(ui, item);
     }
@@ -112,7 +170,17 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         return field.getBoolean(target);
     }
 
+    private static void setBooleanField(Object target, String fieldName, boolean value) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.setBoolean(target, value);
+    }
+
     private static ChannelListUI.ChannelItem channelItem() {
+        return channelItem(false);
+    }
+
+    private static ChannelListUI.ChannelItem channelItem(boolean bookmarked) {
         Channel channel = new Channel();
         channel.setChannelId("ch-1");
         channel.setName("BT Sport");
@@ -121,7 +189,7 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
                 new SimpleStringProperty(channel.getName()),
                 new SimpleStringProperty(channel.getChannelId()),
                 new SimpleStringProperty(channel.getCmd()),
-                false,
+                bookmarked,
                 new SimpleStringProperty(""),
                 channel
         );
@@ -134,6 +202,21 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         if (node instanceof Parent parent) {
             for (Node child : parent.getChildrenUnmodifiable()) {
                 Label match = findLabelByStyle(child, styleClass);
+                if (match != null) {
+                    return match;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static Node findNodeByStyle(Node node, String styleClass) {
+        if (node != null && node.getStyleClass().contains(styleClass)) {
+            return node;
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                Node match = findNodeByStyle(child, styleClass);
                 if (match != null) {
                     return match;
                 }

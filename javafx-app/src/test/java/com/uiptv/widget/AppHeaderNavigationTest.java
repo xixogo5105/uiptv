@@ -3,6 +3,7 @@ package com.uiptv.widget;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import org.junit.jupiter.api.AfterEach;
@@ -100,6 +101,28 @@ class AppHeaderNavigationTest {
         assertFalse(runOnFxThread(() -> hasActiveNavigationButton(navigation)));
     }
 
+    @Test
+    void previousNavigationSelectionIsClearedAfterSceneRegistration() throws Exception {
+        AppNavigationController.configure(new EnumMap<>(AppNavigationController.Target.class), AppNavigationController.Target.BOOKMARKS);
+        AppHeaderNavigation navigation = runOnFxThread(() -> {
+            AppHeaderNavigation headerNavigation = new AppHeaderNavigation(new Label("UIPTV"));
+            new Scene(headerNavigation, 800, 72);
+            return headerNavigation;
+        });
+
+        assertEquals(1L, runOnFxThread(() -> activeStyleCount(navigationButtons(navigation).get(0))));
+
+        runOnFxThread(() -> {
+            AppNavigationController.setCurrentTarget(AppNavigationController.Target.ACCOUNTS);
+            return null;
+        });
+        FxTestSupport.waitForFxEvents();
+
+        assertEquals(List.of(0L, 1L, 0L), runOnFxThread(() -> navigationButtons(navigation).stream()
+                .map(AppHeaderNavigationTest::activeStyleCount)
+                .toList()));
+    }
+
     private static List<Button> navigationButtons(AppHeaderNavigation navigation) {
         return findDescendants(navigation, Button.class).stream()
                 .filter(button -> button.getStyleClass().contains("app-header-nav-button"))
@@ -140,5 +163,11 @@ class AppHeaderNavigationTest {
     private static boolean hasActiveNavigationButton(AppHeaderNavigation navigation) {
         return navigationButtons(navigation).stream()
                 .anyMatch(button -> button.getStyleClass().contains("app-header-nav-button-active"));
+    }
+
+    private static long activeStyleCount(Button button) {
+        return button.getStyleClass().stream()
+                .filter("app-header-nav-button-active"::equals)
+                .count();
     }
 }

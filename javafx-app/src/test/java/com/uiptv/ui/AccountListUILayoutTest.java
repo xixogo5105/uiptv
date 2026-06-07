@@ -18,11 +18,14 @@ import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -135,10 +138,37 @@ class AccountListUILayoutTest extends DbBackedUiTest {
             ui.applyCss();
 
             Node toolbar = findByStyle(ui, "account-toolbar");
-            return toolbar instanceof HBox hBox ? hBox.getSpacing() : -1.0;
+            return toolbar instanceof VBox vBox ? vBox.getSpacing() : -1.0;
         });
 
         assertEquals(8.0, spacing, 0.01);
+    }
+
+    @Test
+    void accountToolbarStacksFilterAndActionsWhenInlineWidthIsConstrained() throws Exception {
+        List<Boolean> layout = runOnFxThread(() -> {
+            AccountListUI ui = new AccountListUI(true, null, null);
+            Scene scene = new Scene(ui, 360, 720);
+            scene.getStylesheets().add(Objects.requireNonNull(
+                    AccountListUILayoutTest.class.getResource("/application.css")
+            ).toExternalForm());
+            ui.applyCss();
+            ui.resize(360, 720);
+            ui.layout();
+            ui.layout();
+
+            Node toolbar = findByStyle(ui, "account-toolbar");
+            Parent parent = (Parent) toolbar;
+            return List.of(
+                    parent.getChildrenUnmodifiable().size() == 2,
+                    parent.getChildrenUnmodifiable().get(0).getStyleClass().contains("uiptv-pill-bar"),
+                    parent.getChildrenUnmodifiable().get(1).getStyleClass().contains("list-toolbar-actions")
+            );
+        });
+
+        assertTrue(layout.get(0));
+        assertTrue(layout.get(1));
+        assertTrue(layout.get(2));
     }
 
     @Test
@@ -319,6 +349,47 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         assertEquals(42, snapshot.minHeight(), 0.01);
     }
 
+    @Test
+    void activeAccountBrowserUsesSinglePaneAtMinimumWidthAndRestoresSplitWhenWide() throws Exception {
+        AccountBrowserResponsiveSnapshot snapshot = runOnFxThread(() -> {
+            AccountListUI ui = new AccountListUI(true, null, null);
+            RecordingCategoryListUI activeBrowser = new RecordingCategoryListUI();
+            StackPane root = new StackPane(ui);
+            new Scene(root, 900, 720);
+            root.resize(900, 720);
+            ui.resize(900, 720);
+            root.layout();
+            ui.layout();
+
+            invokeShowAccountBrowser(ui, activeBrowser);
+            HBox splitLayout = browserLayout(ui);
+
+            root.resize(480, 720);
+            ui.resize(480, 720);
+            root.layout();
+            ui.layout();
+            boolean minimumUsesSinglePane = currentContent(ui) == activeBrowser
+                    && embeddedContainer(ui).getChildren().contains(activeBrowser);
+
+            root.resize(900, 720);
+            ui.resize(900, 720);
+            root.layout();
+            ui.layout();
+
+            return new AccountBrowserResponsiveSnapshot(
+                    minimumUsesSinglePane,
+                    currentContent(ui) == splitLayout,
+                    splitLayout.getChildren().contains(listView(ui)),
+                    splitLayout.getChildren().contains(activeBrowser)
+            );
+        });
+
+        assertTrue(snapshot.minimumUsesSinglePane());
+        assertTrue(snapshot.wideUsesSplitLayout());
+        assertTrue(snapshot.wideSplitContainsAccountList());
+        assertTrue(snapshot.wideSplitContainsBrowser());
+    }
+
     @SuppressWarnings("unchecked")
     private static ResponsiveCardGrid<AccountListUI.AccountItem> accountGrid(AccountListUI ui) throws Exception {
         Field field = AccountListUI.class.getDeclaredField("accountGrid");
@@ -374,6 +445,36 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         var method = AccountListUI.class.getDeclaredMethod("setAccountBrowserCompact", boolean.class);
         method.setAccessible(true);
         method.invoke(ui, compact);
+    }
+
+    private static void invokeShowAccountBrowser(AccountListUI ui, CategoryListUI categoryListUI) throws Exception {
+        Method method = AccountListUI.class.getDeclaredMethod("showAccountBrowser", CategoryListUI.class);
+        method.setAccessible(true);
+        method.invoke(ui, categoryListUI);
+    }
+
+    private static Node currentContent(AccountListUI ui) throws Exception {
+        Field field = AccountListUI.class.getDeclaredField("currentContent");
+        field.setAccessible(true);
+        return (Node) field.get(ui);
+    }
+
+    private static HBox browserLayout(AccountListUI ui) throws Exception {
+        Field field = AccountListUI.class.getDeclaredField("browserLayout");
+        field.setAccessible(true);
+        return (HBox) field.get(ui);
+    }
+
+    private static VBox embeddedContainer(AccountListUI ui) throws Exception {
+        Field field = AccountListUI.class.getDeclaredField("embeddedContainer");
+        field.setAccessible(true);
+        return (VBox) field.get(ui);
+    }
+
+    private static VBox listView(AccountListUI ui) throws Exception {
+        Field field = AccountListUI.class.getDeclaredField("listView");
+        field.setAccessible(true);
+        return (VBox) field.get(ui);
     }
 
     private static void setThumbnailsEnabled(boolean enabled) {
@@ -544,6 +645,14 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     }
 
     private record BrowserSearchClearSnapshot(List<String> visibleAccounts, List<String> browserQueries) {
+    }
+
+    private record AccountBrowserResponsiveSnapshot(
+            boolean minimumUsesSinglePane,
+            boolean wideUsesSplitLayout,
+            boolean wideSplitContainsAccountList,
+            boolean wideSplitContainsBrowser
+    ) {
     }
 
     private static final class RecordingCategoryListUI extends CategoryListUI {

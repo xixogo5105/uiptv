@@ -88,7 +88,7 @@ public class AppHeaderNavigation extends HBox {
         for (NavigationItem item : navigationItems) {
             Button button = item.button();
             button.setText(compact ? "" : item.visibleLabel());
-            button.getStyleClass().remove(STYLE_ICON_ONLY);
+            button.getStyleClass().removeAll(STYLE_ICON_ONLY);
             if (compact) {
                 button.getStyleClass().add(STYLE_ICON_ONLY);
                 button.setMinWidth(NAV_BUTTON_SIZE);
@@ -184,7 +184,7 @@ public class AppHeaderNavigation extends HBox {
         AppNavigationController.Target currentTarget = AppNavigationController.currentTarget();
         for (NavigationItem item : navigationItems) {
             Button button = item.button();
-            button.getStyleClass().remove(STYLE_ACTIVE);
+            button.getStyleClass().removeAll(STYLE_ACTIVE);
             if (selectionEnabled && item.target() == currentTarget) {
                 button.getStyleClass().add(STYLE_ACTIVE);
             }

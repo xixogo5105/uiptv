@@ -48,6 +48,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 46;
     private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
+    private static final double FILTER_TOOLBAR_GAP = 8;
     private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
     private static final Comparator<BookmarkItem> BOOKMARK_NAME_COMPARATOR =
             Comparator.comparing(BookmarkItem::getChannelName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
@@ -395,17 +396,59 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         listPanel.getChildren().setAll(createCategoryRow(), pageScroll);
     }
 
-    private HBox createCategoryRow() {
-        HBox row = new HBox(8);
+    private VBox createCategoryRow() {
+        VBox row = new VBox(FILTER_TOOLBAR_GAP);
         row.setAlignment(Pos.CENTER_LEFT);
+        row.setFillWidth(true);
+        row.setMinWidth(0);
         row.setMaxWidth(Double.MAX_VALUE);
         row.getStyleClass().add("bookmark-category-row");
 
         categoryPillBar.setNarrowItemsPerRow(5);
         categoryPillBar.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(categoryPillBar, Priority.ALWAYS);
-        row.getChildren().setAll(categoryPillBar, createBookmarkToolbarActions());
+        HBox actions = createBookmarkToolbarActions();
+        HBox inlineRow = createInlineFilterToolbarRow(categoryPillBar, actions);
+        row.getChildren().setAll(categoryPillBar, actions);
+        row.widthProperty().addListener((_, _, _) -> applyResponsiveFilterToolbarLayout(row, inlineRow, categoryPillBar, actions));
+        Platform.runLater(() -> applyResponsiveFilterToolbarLayout(row, inlineRow, categoryPillBar, actions));
         return row;
+    }
+
+    private HBox createInlineFilterToolbarRow(PillBar<?> pillBar, HBox actions) {
+        HBox row = new HBox(FILTER_TOOLBAR_GAP, pillBar, actions);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setFillHeight(false);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(pillBar, Priority.ALWAYS);
+        return row;
+    }
+
+    private void applyResponsiveFilterToolbarLayout(VBox row, HBox inlineRow, PillBar<?> pillBar, HBox actions) {
+        boolean useInline = shouldUseInlineFilterToolbar(row.getWidth(), actions);
+        boolean inlineApplied = row.getChildren().size() == 1 && row.getChildren().getFirst() == inlineRow;
+        if (useInline == inlineApplied) {
+            return;
+        }
+        if (useInline) {
+            pillBar.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(pillBar, Priority.ALWAYS);
+            row.getChildren().clear();
+            inlineRow.getChildren().setAll(pillBar, actions);
+            row.getChildren().setAll(inlineRow);
+        } else {
+            pillBar.setMaxWidth(PillBar.COMPACT_DROPDOWN_PREF_WIDTH);
+            HBox.setHgrow(pillBar, Priority.NEVER);
+            inlineRow.getChildren().clear();
+            row.getChildren().setAll(pillBar, actions);
+        }
+    }
+
+    private boolean shouldUseInlineFilterToolbar(double width, HBox actions) {
+        if (width <= 0) {
+            return false;
+        }
+        return width >= actions.prefWidth(-1) + FILTER_TOOLBAR_GAP + PillBar.COMPACT_DROPDOWN_PREF_WIDTH;
     }
 
     private HBox createBookmarkToolbarActions() {

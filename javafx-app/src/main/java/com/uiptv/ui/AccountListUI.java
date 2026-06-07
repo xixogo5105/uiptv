@@ -66,6 +66,8 @@ public class AccountListUI extends HBox implements SearchTarget {
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 42;
+    private static final double FILTER_TOOLBAR_GAP = 8;
+    private static final double ACCOUNT_BROWSER_SINGLE_PANE_WIDTH = 720;
     private static final AccountExpiry EMPTY_ACCOUNT_EXPIRY =
             new AccountExpiry("", AccountInfoUiUtil.ExpiryState.UNKNOWN);
     private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
@@ -106,7 +108,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private AppPageHeader pageHeader;
     private MenuButton accountSortButton;
-    private HBox accountToolbar;
+    private VBox accountToolbar;
     private CategoryListUI activeCategoryListUI;
     private final AtomicLong refreshGeneration = new AtomicLong();
     private boolean refreshPending = true;
@@ -384,6 +386,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         addAccountClickHandler();
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         table.getTextField().textProperty().addListener((_, _, text) -> handleHeaderSearchTextChanged(text));
+        widthProperty().addListener((_, _, _) -> updateActiveAccountBrowserLayout());
         registerSceneCleanupListener();
     }
 
@@ -456,14 +459,57 @@ public class AccountListUI extends HBox implements SearchTarget {
         );
     }
 
-    private HBox createAccountToolbar() {
+    private VBox createAccountToolbar() {
         accountTypePillBar.setMaxWidth(Double.MAX_VALUE);
-        HBox toolbar = new HBox(8, accountTypePillBar, createAccountToolbarActions());
+        HBox actions = createAccountToolbarActions();
+        HBox inlineRow = createInlineFilterToolbarRow(accountTypePillBar, actions);
+        VBox toolbar = new VBox(FILTER_TOOLBAR_GAP);
         toolbar.getStyleClass().add("account-toolbar");
         toolbar.setAlignment(Pos.CENTER_LEFT);
+        toolbar.setFillWidth(true);
+        toolbar.setMinWidth(0);
         toolbar.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(accountTypePillBar, Priority.ALWAYS);
+        toolbar.getChildren().setAll(accountTypePillBar, actions);
+        toolbar.widthProperty().addListener((_, _, _) -> applyResponsiveFilterToolbarLayout(toolbar, inlineRow, accountTypePillBar, actions));
+        Platform.runLater(() -> applyResponsiveFilterToolbarLayout(toolbar, inlineRow, accountTypePillBar, actions));
         return toolbar;
+    }
+
+    private HBox createInlineFilterToolbarRow(PillBar<?> pillBar, HBox actions) {
+        HBox row = new HBox(FILTER_TOOLBAR_GAP, pillBar, actions);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setFillHeight(false);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(pillBar, Priority.ALWAYS);
+        return row;
+    }
+
+    private void applyResponsiveFilterToolbarLayout(VBox row, HBox inlineRow, PillBar<?> pillBar, HBox actions) {
+        boolean useInline = shouldUseInlineFilterToolbar(row.getWidth(), actions);
+        boolean inlineApplied = row.getChildren().size() == 1 && row.getChildren().getFirst() == inlineRow;
+        if (useInline == inlineApplied) {
+            return;
+        }
+        if (useInline) {
+            pillBar.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(pillBar, Priority.ALWAYS);
+            row.getChildren().clear();
+            inlineRow.getChildren().setAll(pillBar, actions);
+            row.getChildren().setAll(inlineRow);
+        } else {
+            pillBar.setMaxWidth(PillBar.COMPACT_DROPDOWN_PREF_WIDTH);
+            HBox.setHgrow(pillBar, Priority.NEVER);
+            inlineRow.getChildren().clear();
+            row.getChildren().setAll(pillBar, actions);
+        }
+    }
+
+    private boolean shouldUseInlineFilterToolbar(double width, HBox actions) {
+        if (width <= 0) {
+            return false;
+        }
+        return width >= actions.prefWidth(-1) + FILTER_TOOLBAR_GAP + PillBar.COMPACT_DROPDOWN_PREF_WIDTH;
     }
 
     private HBox createAccountToolbarActions() {
@@ -590,13 +636,12 @@ public class AccountListUI extends HBox implements SearchTarget {
         activeCategoryListUI = categoryListUI;
         categoryListUI.setMediaDrawerMode(mediaDrawerMode);
         switchHeaderSearchMode(HeaderSearchMode.ACTIVE_BROWSER, newBrowser);
-        if (mediaDrawerMode) {
+        if (mediaDrawerMode || shouldUseSinglePaneAccountBrowser()) {
             setAccountBrowserCompact(false);
             setCurrentContent(categoryListUI);
             updateNavButtons();
-            if (categoryListUI.getParent() != embeddedContainer) {
-                detachFromParent(categoryListUI);
-            }
+            detachFromParent(listView);
+            detachFromParent(categoryListUI);
             if (embeddedContainer.getChildren().size() != 1 || embeddedContainer.getChildren().getFirst() != currentContent) {
                 embeddedContainer.getChildren().setAll(currentContent);
             }
@@ -615,6 +660,26 @@ public class AccountListUI extends HBox implements SearchTarget {
         embeddedContainer.getChildren().setAll(currentContent);
         showBody(embeddedContainer);
         categoryListUI.setRetainTransientStateOnDetach(false);
+    }
+
+    private void updateActiveAccountBrowserLayout() {
+        if (!embeddedMode || activeCategoryListUI == null) {
+            return;
+        }
+        if (currentContent == browserLayout || currentContent == activeCategoryListUI) {
+            showAccountBrowser(activeCategoryListUI);
+        }
+    }
+
+    private boolean shouldUseSinglePaneAccountBrowser() {
+        double width = getWidth();
+        if (width <= 0 && pageContainer.getWidth() > 0) {
+            width = pageContainer.getWidth();
+        }
+        if (width <= 0 && getScene() != null) {
+            width = getScene().getWidth();
+        }
+        return width > 0 && width < ACCOUNT_BROWSER_SINGLE_PANE_WIDTH;
     }
 
     private void disposeActiveCategoryList() {

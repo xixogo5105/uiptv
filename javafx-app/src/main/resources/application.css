@@ -594,6 +594,15 @@
     -fx-background-radius: 6;
 }
 
+.channel-bookmark-icon {
+    -fx-fill: -uiptv-text-primary;
+}
+
+.channel-bookmark-chip {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+}
+
 .bookmark-account-label {
     -fx-font-size: 0.85em;
     -fx-opacity: 0.72;
@@ -665,13 +674,13 @@
 
 .context-menu,
 .bookmark-context-menu {
-    -fx-background-color: #1b1f25;
+    -fx-background-color: #ffffff;
     -fx-background-radius: 14;
-    -fx-border-color: #343941;
+    -fx-border-color: #dfe5ee;
     -fx-border-radius: 14;
     -fx-border-width: 1;
     -fx-padding: 6;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 18, 0.16, 0, 6);
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.18), 18, 0.16, 0, 6);
 }
 
 .context-menu .menu-item,
@@ -682,7 +691,12 @@
 
 .context-menu .menu-item > .label,
 .bookmark-context-menu .menu-item > .label {
-    -fx-text-fill: white;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.context-menu .menu-item .text,
+.bookmark-context-menu .menu-item .text {
+    -fx-fill: -uiptv-text-primary;
 }
 
 .context-menu .menu-item:focused,
@@ -691,12 +705,12 @@
 .bookmark-context-menu .menu-item:focused,
 .bookmark-context-menu .menu-item:hover,
 .bookmark-context-menu .menu-item:armed {
-    -fx-background-color: #2a3038;
+    -fx-background-color: #eef4ff;
 }
 
 .context-menu .separator .line,
 .bookmark-context-menu .separator .line {
-    -fx-border-color: #343941;
+    -fx-border-color: #e5e7eb;
 }
 
 .context-menu .menu-item.danger-menu-item:focused,
@@ -2677,6 +2691,13 @@
 .uiptv-responsive-card:selected .bookmark-account-suffix-text,
 .uiptv-responsive-card.selected .bookmark-account-suffix-text {
     -fx-fill: -uiptv-selected-card-muted-fg;
+}
+
+.uiptv-responsive-card:selected .channel-bookmark-icon,
+.uiptv-responsive-card.selected .channel-bookmark-icon,
+.bookmark-card:selected .channel-bookmark-icon,
+.bookmark-card.selected .channel-bookmark-icon {
+    -fx-fill: -uiptv-selected-card-fg;
 }
 
 .uiptv-responsive-card .channel-logo-view,

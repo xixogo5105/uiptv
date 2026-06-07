@@ -220,6 +220,11 @@ public class AppPageHeader extends VBox {
         if (searchField == null) {
             return;
         }
+        boolean wasVisible = searchFieldVisible;
+        String searchText = searchField.getText();
+        if (!visible && wasVisible && searchText != null && !searchText.isEmpty()) {
+            searchField.clear();
+        }
         searchFieldVisible = visible;
         searchField.setVisible(visible);
         searchField.setManaged(visible);
@@ -228,7 +233,7 @@ public class AppPageHeader extends VBox {
             if (visible && !hasActiveStyle) {
                 searchToggleButton.getStyleClass().add("app-header-nav-button-active");
             } else if (!visible && hasActiveStyle) {
-                searchToggleButton.getStyleClass().remove("app-header-nav-button-active");
+                searchToggleButton.getStyleClass().removeAll("app-header-nav-button-active");
             }
         }
     }

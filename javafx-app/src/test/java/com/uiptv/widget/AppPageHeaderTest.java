@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
@@ -155,6 +156,36 @@ class AppPageHeaderTest {
 
         assertTrue(existingHandlerCalled.get());
         assertEquals("", runOnFxThread(search::getText));
+    }
+
+    @Test
+    void hidingSearchFieldClearsQueryBeforeRemovingFieldFromLayout() throws Exception {
+        AtomicBoolean clearObservedWhileSearchWasManaged = new AtomicBoolean(false);
+        AtomicReference<String> observedSearchText = new AtomicReference<>();
+        TextField search = runOnFxThread(TextField::new);
+        AppPageHeader header = runOnFxThread(() -> {
+            search.textProperty().addListener((_, _, value) -> {
+                observedSearchText.set(value);
+                if ((value == null || value.isEmpty()) && search.isManaged()) {
+                    clearObservedWhileSearchWasManaged.set(true);
+                }
+            });
+            return new AppPageHeader("Channels", search, List.of(new Button("Action")));
+        });
+        Button searchToggle = runOnFxThread(() -> searchToggleButton(header));
+
+        runOnFxThread(() -> {
+            searchToggle.fire();
+            search.setText("bbc");
+            searchToggle.fire();
+            return null;
+        });
+
+        assertEquals("", runOnFxThread(search::getText));
+        assertEquals("", observedSearchText.get());
+        assertTrue(clearObservedWhileSearchWasManaged.get());
+        assertTrue(runOnFxThread(() -> !search.isManaged()));
+        assertTrue(runOnFxThread(() -> !search.isVisible()));
     }
 
     @Test
