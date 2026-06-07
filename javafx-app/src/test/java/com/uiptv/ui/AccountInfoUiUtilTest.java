@@ -18,6 +18,12 @@ class AccountInfoUiUtilTest {
     }
 
     @Test
+    void formatCompactDate_usesShortDateWithoutTime() {
+        assertEquals("12 Sep 26", AccountInfoUiUtil.formatCompactDate("2026-09-12 18:45:00"));
+        assertEquals("", AccountInfoUiUtil.formatCompactDate("0000-00-00 00:00:00"));
+    }
+
+    @Test
     void resolveExpiryState_handlesThresholds() {
         assertEquals(AccountInfoUiUtil.ExpiryState.EXPIRED,
                 AccountInfoUiUtil.resolveExpiryState(Instant.now().minus(1, ChronoUnit.DAYS)));

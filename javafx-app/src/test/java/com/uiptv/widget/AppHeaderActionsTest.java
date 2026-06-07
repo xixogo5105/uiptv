@@ -13,8 +13,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -29,7 +27,6 @@ class AppHeaderActionsTest extends DbBackedUiTest {
     @AfterEach
     void resetSharedControllers() {
         AppNavigationController.reset();
-        WidePlayerNavigationControl.configure(false, false, null);
     }
 
     @Test
@@ -38,34 +35,6 @@ class AppHeaderActionsTest extends DbBackedUiTest {
 
         assertEquals(1, runOnFxThread(() -> visibleButtons(actions).size()));
         assertEquals(I18n.tr("autoSettings"), runOnFxThread(() -> visibleButtonAt(actions, 0).getAccessibleText()));
-    }
-
-    @Test
-    void widePlayerNavigationButtonIsFirstWhenAvailableAndTogglesLayoutFocus() throws Exception {
-        AtomicInteger toggles = new AtomicInteger();
-        WidePlayerNavigationControl.configure(true, false, toggles::incrementAndGet);
-
-        AppHeaderActions actions = runOnFxThread(() -> new AppHeaderActions(null, null, null));
-
-        assertEquals(I18n.tr("autoHidePlaybackNavigation"), runOnFxThread(() -> visibleButtonAt(actions, 0).getAccessibleText()));
-        assertEquals(I18n.tr("autoSettings"), runOnFxThread(() -> visibleButtonAt(actions, 1).getAccessibleText()));
-
-        runOnFxThread(() -> {
-            visibleButtonAt(actions, 0).fire();
-            return null;
-        });
-
-        assertEquals(1, toggles.get());
-
-        WidePlayerNavigationControl.configure(true, true, toggles::incrementAndGet);
-        runOnFxThread(() -> {
-            actions.refreshState();
-            return null;
-        });
-
-        Button widePlayerButton = runOnFxThread(() -> visibleButtonAt(actions, 0));
-        assertEquals(I18n.tr("autoShowPlaybackNavigation"), runOnFxThread(widePlayerButton::getAccessibleText));
-        assertTrue(runOnFxThread(() -> widePlayerButton.getStyleClass().contains("bookmarks-quick-action-button-active")));
     }
 
     @Test

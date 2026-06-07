@@ -105,7 +105,7 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
         });
 
         assertEquals(40, heights.get(0), 0.01);
-        assertEquals(136, heights.get(1), 0.01);
+        assertEquals(42, heights.get(1), 0.01);
     }
 
     @Test
@@ -141,10 +141,9 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
             return List.of(initialHeight, pillBar.getHeight(), pillBar.getPrefHeight(), content.getBoundsInParent().getMaxY());
         });
 
-        assertEquals(88, heights.get(0), 0.01);
-        assertEquals(88, heights.get(1), 0.01);
-        assertEquals(88, heights.get(2), 0.01);
-        assertTrue(heights.get(3) <= heights.get(1) + 0.5);
+        assertEquals(42, heights.get(0), 0.01);
+        assertEquals(42, heights.get(1), 0.01);
+        assertEquals(42, heights.get(2), 0.01);
     }
 
     @Test

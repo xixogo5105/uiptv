@@ -40,14 +40,27 @@ class AppPageHeaderTest {
 
         assertEquals(1, runOnFxThread(() -> header.getChildren().size()));
         HBox wideRow = runOnFxThread(() -> (HBox) header.getChildren().get(0));
-        assertTrue(runOnFxThread(() -> wideRow.getChildren().contains(search)));
+        assertTrue(runOnFxThread(() -> !wideRow.getChildren().contains(search)));
+        assertTrue(runOnFxThread(() -> !search.isVisible()));
+        assertTrue(runOnFxThread(() -> !search.isManaged()));
         assertTrue(runOnFxThread(() -> search.getStyleClass().contains("uiptv-page-search-field")));
         assertEquals(420.0, runOnFxThread(search::getMaxWidth));
         assertSame(search, runOnFxThread(header::getSearchField));
+
+        Button searchToggle = runOnFxThread(() -> searchToggleButton(header));
+        runOnFxThread(() -> {
+            searchToggle.fire();
+            header.layout();
+            return null;
+        });
+
+        assertTrue(runOnFxThread(() -> wideRow.getChildren().contains(search)));
+        assertTrue(runOnFxThread(search::isVisible));
+        assertTrue(runOnFxThread(search::isManaged));
     }
 
     @Test
-    void compactLayoutStacksTitleActionsAndSearchThenCanReturnWide() throws Exception {
+    void compactLayoutKeepsNavigationAndActionsOnOneLineAndTogglesSearch() throws Exception {
         TextField search = runOnFxThread(TextField::new);
         Button action = runOnFxThread(() -> new Button("Back"));
         AppPageHeader header = runOnFxThread(() -> new AppPageHeader("Episodes", search, List.of(action)));
@@ -58,13 +71,32 @@ class AppPageHeaderTest {
             return null;
         });
 
-        assertEquals(3, runOnFxThread(() -> header.getChildren().size()));
+        assertEquals(1, runOnFxThread(() -> header.getChildren().size()));
         assertInstanceOf(HBox.class, runOnFxThread(() -> header.getChildren().get(0)));
-        assertInstanceOf(HBox.class, runOnFxThread(() -> header.getChildren().get(1)));
-        assertSame(search, runOnFxThread(() -> header.getChildren().get(2)));
-        assertTrue(runOnFxThread(() -> containsNode(header.getChildren().get(1), action)));
+        assertTrue(runOnFxThread(() -> containsNode(header.getChildren().get(0), action)));
+        assertTrue(runOnFxThread(() -> !containsNode(header, search)));
+        assertTrue(runOnFxThread(() -> !search.isManaged()));
+
+        Button searchToggle = runOnFxThread(() -> searchToggleButton(header));
+        runOnFxThread(() -> {
+            searchToggle.fire();
+            header.layout();
+            return null;
+        });
+
+        assertEquals(2, runOnFxThread(() -> header.getChildren().size()));
+        assertSame(search, runOnFxThread(() -> header.getChildren().get(1)));
         assertEquals(0.0, runOnFxThread(search::getMinWidth));
         assertEquals(Double.MAX_VALUE, runOnFxThread(search::getMaxWidth));
+
+        runOnFxThread(() -> {
+            searchToggle.fire();
+            header.layout();
+            return null;
+        });
+
+        assertEquals(1, runOnFxThread(() -> header.getChildren().size()));
+        assertTrue(runOnFxThread(() -> !search.isManaged()));
 
         runOnFxThread(() -> {
             header.resize(1300, 80);
@@ -74,6 +106,15 @@ class AppPageHeaderTest {
 
         assertEquals(1, runOnFxThread(() -> header.getChildren().size()));
         assertInstanceOf(HBox.class, runOnFxThread(() -> header.getChildren().get(0)));
+        assertTrue(runOnFxThread(() -> !search.isManaged()));
+
+        runOnFxThread(() -> {
+            searchToggle.fire();
+            header.layout();
+            return null;
+        });
+
+        assertTrue(runOnFxThread(search::isManaged));
         assertEquals(140.0, runOnFxThread(search::getMinWidth));
         assertEquals(420.0, runOnFxThread(search::getMaxWidth));
     }
@@ -161,6 +202,21 @@ class AppPageHeaderTest {
             }
         }
         return false;
+    }
+
+    private static Button searchToggleButton(Node root) {
+        if (root instanceof Button button && button.getStyleClass().contains("app-header-search-toggle")) {
+            return button;
+        }
+        if (root instanceof javafx.scene.Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                Button found = searchToggleButton(child);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private static MouseEvent primaryMousePressedEvent() {

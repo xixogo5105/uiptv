@@ -4,7 +4,10 @@ import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
+import javafx.scene.control.ContentDisplay;
+import javafx.scene.control.MenuButton;
 import javafx.scene.control.OverrunStyle;
+import javafx.scene.control.RadioMenuItem;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
@@ -26,15 +29,24 @@ public class PillBar<T> extends StackPane {
     private static final double SINGLE_ROW_HEADROOM = 16;
     private static final double NARROW_SIDE_PANE_WIDTH_THRESHOLD = 620;
     private static final double MIN_SINGLE_ROW_HEIGHT = 40;
+    private static final double COMPACT_DROPDOWN_HEIGHT = 42;
+    private static final double COMPACT_DROPDOWN_MIN_WIDTH = 136;
+    private static final double COMPACT_DROPDOWN_PREF_WIDTH = 168;
     private static final double MIN_WRAPPED_ROW_INCREMENT = 48;
+    private static final String COMPACT_STYLE_CLASS = "uiptv-pill-bar-compact";
 
     private final FlowPane content = new FlowPane();
+    private final MenuButton compactDropdown = new MenuButton();
     private final ToggleGroup toggleGroup = new ToggleGroup();
+    private final ToggleGroup compactToggleGroup = new ToggleGroup();
     private final Function<T, String> labelFactory;
+    private final Function<T, String> compactLabelFactory;
     private final Function<T, ?> keyFactory;
     private final Function<T, Node> graphicFactory;
     private final ObjectProperty<T> selectedItem = new SimpleObjectProperty<>();
     private boolean rebuilding;
+    private boolean syncingCompactSelection;
+    private boolean compactMode;
     private int reservedRowCount;
     private int narrowReservedRowCount;
     private int narrowItemsPerRow;
@@ -47,12 +59,23 @@ public class PillBar<T> extends StackPane {
     }
 
     public PillBar(Function<T, String> labelFactory, Function<T, ?> keyFactory, Function<T, Node> graphicFactory) {
+        this(labelFactory, keyFactory, graphicFactory, labelFactory);
+    }
+
+    public PillBar(
+            Function<T, String> labelFactory,
+            Function<T, ?> keyFactory,
+            Function<T, Node> graphicFactory,
+            Function<T, String> compactLabelFactory
+    ) {
         this.labelFactory = labelFactory;
+        this.compactLabelFactory = compactLabelFactory == null ? labelFactory : compactLabelFactory;
         this.keyFactory = keyFactory;
         this.graphicFactory = graphicFactory;
         getStyleClass().add("uiptv-pill-bar");
         UiRenderQuality.optimizeLayout(this);
         UiRenderQuality.optimizeLayout(content);
+        UiRenderQuality.optimizeLayout(compactDropdown);
         setFocusTraversable(false);
         setMinWidth(0);
         setMaxWidth(Double.MAX_VALUE);
@@ -73,8 +96,20 @@ public class PillBar<T> extends StackPane {
         content.setMaxWidth(Double.MAX_VALUE);
         content.setMaxHeight(Double.MAX_VALUE);
         content.setPrefWrapLength(4096);
-        getChildren().add(content);
+
+        compactDropdown.getStyleClass().add("uiptv-pill-bar-dropdown");
+        compactDropdown.setAlignment(Pos.CENTER_LEFT);
+        compactDropdown.setContentDisplay(ContentDisplay.LEFT);
+        compactDropdown.setMinWidth(COMPACT_DROPDOWN_MIN_WIDTH);
+        compactDropdown.setPrefWidth(COMPACT_DROPDOWN_PREF_WIDTH);
+        compactDropdown.setMaxWidth(Double.MAX_VALUE);
+        compactDropdown.setTextOverrun(OverrunStyle.ELLIPSIS);
+        compactDropdown.setVisible(false);
+        compactDropdown.setManaged(false);
+
+        getChildren().addAll(content, compactDropdown);
         StackPane.setAlignment(content, Pos.CENTER_LEFT);
+        StackPane.setAlignment(compactDropdown, Pos.CENTER_LEFT);
         widthProperty().addListener((_, _, width) -> {
             updateContentWrapLength(width.doubleValue());
             if (syncReservedHeight(width.doubleValue())) {
@@ -93,9 +128,21 @@ public class PillBar<T> extends StackPane {
                 return;
             }
             selectedItem.set(newValue == null ? null : itemFromToggle(newValue));
+            syncCompactSelection(itemFromToggle(newValue));
             if (syncReservedHeight(getWidth())) {
                 requestAncestorLayout();
             }
+        });
+
+        compactToggleGroup.selectedToggleProperty().addListener((_, oldValue, newValue) -> {
+            if (rebuilding || syncingCompactSelection) {
+                return;
+            }
+            if (newValue == null && oldValue != null) {
+                oldValue.setSelected(true);
+                return;
+            }
+            setSelectedItem(itemFromToggle(newValue));
         });
     }
 
@@ -195,9 +242,12 @@ public class PillBar<T> extends StackPane {
         try {
             content.getChildren().clear();
             toggleGroup.getToggles().clear();
+            compactDropdown.getItems().clear();
+            compactToggleGroup.getToggles().clear();
             for (T item : safeItems) {
                 ToggleButton pill = createPill(item);
                 content.getChildren().add(pill);
+                compactDropdown.getItems().add(createCompactMenuItem(item));
             }
         } finally {
             rebuilding = false;
@@ -209,6 +259,7 @@ public class PillBar<T> extends StackPane {
         }
         toggleGroup.selectToggle(restored);
         selectedItem.set(restored == null ? null : itemFromToggle(restored));
+        syncCompactSelection(selectedItem.get());
         updateContentWrapLength(getWidth());
         resetAppliedRowCount();
         syncReservedHeight(getWidth());
@@ -222,12 +273,14 @@ public class PillBar<T> extends StackPane {
 
     @Override
     protected double computeMinHeight(double width) {
-        return heightForRows(rowCountForWidth(width));
+        boolean compactDropdownVisible = shouldUseCompactDropdown(width);
+        return heightForMode(compactDropdownVisible, rowCountForWidth(width));
     }
 
     @Override
     protected double computePrefHeight(double width) {
-        return heightForRows(rowCountForWidth(width));
+        boolean compactDropdownVisible = shouldUseCompactDropdown(width);
+        return heightForMode(compactDropdownVisible, rowCountForWidth(width));
     }
 
     @Override
@@ -241,17 +294,37 @@ public class PillBar<T> extends StackPane {
     }
 
     private boolean syncReservedHeight(double width) {
+        boolean useCompactDropdown = shouldUseCompactDropdown(width);
+        syncCompactMode(useCompactDropdown);
         boolean narrowMode = isNarrowMode(width);
-        int rowCount = rowCountForWidth(width);
+        int rowCount = useCompactDropdown ? 1 : rowCountForWidth(width);
         if (appliedRowCount == 0 || appliedNarrowMode != narrowMode) {
             appliedRowCount = rowCount;
             appliedNarrowMode = narrowMode;
+        } else if (useCompactDropdown) {
+            appliedRowCount = 1;
         } else if (narrowMode) {
             appliedRowCount = Math.max(appliedRowCount, rowCount);
         } else {
             appliedRowCount = rowCount;
         }
-        return applyFixedHeight(heightForRows(appliedRowCount));
+        return applyFixedHeight(heightForMode(useCompactDropdown, appliedRowCount));
+    }
+
+    private boolean shouldUseCompactDropdown(double width) {
+        return rowCountForWidth(width) > 1;
+    }
+
+    private void syncCompactMode(boolean useCompactDropdown) {
+        if (compactMode == useCompactDropdown) {
+            return;
+        }
+        compactMode = useCompactDropdown;
+        content.setVisible(!useCompactDropdown);
+        content.setManaged(!useCompactDropdown);
+        compactDropdown.setVisible(useCompactDropdown);
+        compactDropdown.setManaged(useCompactDropdown);
+        updateStyleClass(this, COMPACT_STYLE_CLASS, useCompactDropdown);
     }
 
     private boolean applyFixedHeight(double height) {
@@ -334,6 +407,10 @@ public class PillBar<T> extends StackPane {
         return MIN_SINGLE_ROW_HEIGHT + Math.max(0, safeRowCount - 1) * MIN_WRAPPED_ROW_INCREMENT;
     }
 
+    private double heightForMode(boolean useCompactDropdown, int rowCount) {
+        return useCompactDropdown ? COMPACT_DROPDOWN_HEIGHT : heightForRows(rowCount);
+    }
+
     private void resetAppliedRowCount() {
         appliedRowCount = 0;
         appliedNarrowMode = false;
@@ -383,6 +460,45 @@ public class PillBar<T> extends StackPane {
         return pill;
     }
 
+    private RadioMenuItem createCompactMenuItem(T item) {
+        RadioMenuItem menuItem = new RadioMenuItem(labelFactory.apply(item));
+        menuItem.setToggleGroup(compactToggleGroup);
+        menuItem.setUserData(item);
+        if (graphicFactory != null) {
+            menuItem.setGraphic(graphicFactory.apply(item));
+        }
+        return menuItem;
+    }
+
+    private void syncCompactSelection(T item) {
+        updateCompactDropdownButton(item);
+        syncingCompactSelection = true;
+        try {
+            compactToggleGroup.selectToggle(findToggleByKey(compactToggleGroup, keyOf(item)));
+        } finally {
+            syncingCompactSelection = false;
+        }
+    }
+
+    private void updateCompactDropdownButton(T item) {
+        if (item == null) {
+            compactDropdown.setText("");
+            compactDropdown.setGraphic(null);
+            return;
+        }
+        compactDropdown.setText(compactLabelFactory.apply(item));
+        compactDropdown.setGraphic(graphicFactory == null ? null : graphicFactory.apply(item));
+    }
+
+    private void updateStyleClass(Node node, String styleClass, boolean enabled) {
+        boolean hasStyleClass = node.getStyleClass().contains(styleClass);
+        if (enabled && !hasStyleClass) {
+            node.getStyleClass().add(styleClass);
+        } else if (!enabled && hasStyleClass) {
+            node.getStyleClass().remove(styleClass);
+        }
+    }
+
     private void handlePillKeyPressed(ToggleButton pill, KeyEvent event) {
         if (event.getCode() != KeyCode.LEFT
                 && event.getCode() != KeyCode.RIGHT
@@ -405,7 +521,11 @@ public class PillBar<T> extends StackPane {
     }
 
     private Toggle findToggleByKey(Object key) {
-        return toggleGroup.getToggles().stream()
+        return findToggleByKey(toggleGroup, key);
+    }
+
+    private Toggle findToggleByKey(ToggleGroup group, Object key) {
+        return group.getToggles().stream()
                 .filter(toggle -> Objects.equals(keyOf(itemFromToggle(toggle)), key))
                 .findFirst()
                 .orElse(null);

@@ -68,6 +68,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private static final String STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON = "player-round-control-button";
     private static final String STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON = "player-pip-overlay-button";
     private static final String STYLE_CLASS_PLAYER_LAYOUT_MODE_BUTTON = "player-layout-mode-button";
+    private static final String STYLE_CLASS_PLAYER_HIDDENBAR_CLOSE_BUTTON = "player-hiddenbar-close-button";
     public static final String PLAYER_ICON_BUTTON = "player-icon-button";
     public static final String PLAYER_TRACKS_MENU_ITEM = "player-tracks-menu-item";
     private static final String WIDE_LAYOUT_ICON = "M3 5H21V19H3V5ZM5 7V17H11V7H5ZM13 7V17H19V7H13Z";
@@ -360,6 +361,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         closeIcon.getStyleClass().add("player-hiddenbar-close-icon");
         msgCloseBtn.setGraphic(closeIcon);
         msgCloseBtn.getStyleClass().add(STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON);
+        msgCloseBtn.getStyleClass().add(STYLE_CLASS_PLAYER_HIDDENBAR_CLOSE_BUTTON);
         msgCloseBtn.setPadding(new Insets(8)); // Bigger hit area
         
         // Action
@@ -1085,7 +1087,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
         boolean nextWideView = !current.isWideView();
         applyLayoutModeButtonState(true, nextWideView);
-        Thread saveThread = new Thread(() -> saveWideViewPreference(nextWideView), "embedded-player-wide-view-save");
+        saveWideViewPreferenceAsync(nextWideView);
+    }
+
+    protected void saveWideViewPreferenceAsync(boolean wideView) {
+        Thread saveThread = new Thread(() -> saveWideViewPreference(wideView), "embedded-player-wide-view-save");
         saveThread.setDaemon(true);
         saveThread.start();
     }
@@ -1106,8 +1112,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private void updateLayoutModeButton() {
         Configuration configuration = readConfigurationSafely();
         boolean available = configuration != null && configuration.isEmbeddedPlayer();
-        boolean wideView = available && configuration.isWideView();
-        applyLayoutModeButtonState(available, wideView);
+        applyLayoutModeButtonState(available, available && configuration.isWideView());
     }
 
     private Configuration readConfigurationSafely() {
@@ -1274,9 +1279,14 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             btnStop.setManaged(true);
 
             isFullscreen = false;
-            idleTimer.stop();
-            controlsContainer.setVisible(false);
-            isPointerInsidePlayer = false;
+            isPointerInsidePlayer = true;
+            if (isControlBarHiddenByUser) {
+                controlsContainer.setVisible(false);
+                idleTimer.stop();
+            } else {
+                controlsContainer.setVisible(true);
+                restartIdleTimerForActivePlayer();
+            }
             restoreVisibleCursor();
         });
     }

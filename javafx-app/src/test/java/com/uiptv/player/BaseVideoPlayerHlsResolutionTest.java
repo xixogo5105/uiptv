@@ -9,11 +9,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -111,7 +114,8 @@ class BaseVideoPlayerHlsResolutionTest {
                         player.layoutButtonHasStyle("player-layout-mode-button"),
                         player.layoutButtonHasStyle("player-icon-button-active"),
                         player.layoutButtonFocusTraversable(),
-                        player.layoutIconContent()
+                        player.layoutIconContent(),
+                        player.layoutButtonAccessibleText()
                 );
             }
         });
@@ -121,6 +125,42 @@ class BaseVideoPlayerHlsResolutionTest {
         assertFalse(state.activeStyle());
         assertFalse(state.focusTraversable());
         assertEquals("M3 5H21V19H3V5ZM5 7V17H11V7H5ZM13 7V17H19V7H13Z", state.iconContent());
+    }
+
+    @Test
+    void layoutModeButtonTogglesWideViewPreference() throws Exception {
+        LayoutButtonState state = runOnFxThread(() -> {
+            Configuration configuration = new Configuration();
+            configuration.setEmbeddedPlayer(true);
+            List<Boolean> savedWideViews = new ArrayList<>();
+
+            ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+            try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class)) {
+                configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+                Mockito.when(configurationService.read()).thenReturn(configuration);
+
+                TestPlayer player = new TestPlayer();
+                player.onLayoutSave(wideView -> {
+                    savedWideViews.add(wideView);
+                    configuration.setWideView(wideView);
+                });
+                player.fireLayoutModeButton();
+                assertEquals(List.of(true), savedWideViews);
+                player.fireLayoutModeButton();
+                assertEquals(List.of(true, false), savedWideViews);
+                return new LayoutButtonState(
+                        player.layoutButtonVisible(),
+                        player.layoutButtonHasStyle("player-layout-mode-button"),
+                        player.layoutButtonHasStyle("player-icon-button-active"),
+                        player.layoutButtonFocusTraversable(),
+                        player.layoutIconContent(),
+                        player.layoutButtonAccessibleText()
+                );
+            }
+        });
+
+        assertTrue(state.visible());
+        assertEquals("M3 5H21V19H3V5ZM5 7V17H14V7H5ZM16 7V17H19V7H16Z", state.iconContent());
     }
 
     @Test
@@ -176,11 +216,14 @@ class BaseVideoPlayerHlsResolutionTest {
             boolean layoutStyle,
             boolean activeStyle,
             boolean focusTraversable,
-            String iconContent
+            String iconContent,
+            String accessibleText
     ) {
     }
 
     private static final class TestPlayer extends BaseVideoPlayer {
+        private Consumer<Boolean> layoutSaveHandler = _ -> {};
+
         @Override protected javafx.scene.Node getVideoView() { return null; }
         @Override protected void playMedia(String uri) { /* Test stub: playback is not exercised here. */ }
         @Override protected void stopMedia() { /* Test stub: playback is not exercised here. */ }
@@ -194,9 +237,14 @@ class BaseVideoPlayerHlsResolutionTest {
         @Override protected void resumeMedia() { /* Test stub: playback is not exercised here. */ }
         @Override protected boolean isPlaying() { return false; }
         @Override public com.uiptv.player.api.VideoPlayerInterface.PlayerType getType() { return com.uiptv.player.api.VideoPlayerInterface.PlayerType.DUMMY; }
+        @Override protected void saveWideViewPreferenceAsync(boolean wideView) { layoutSaveHandler.accept(wideView); }
 
         String resolve(String uri) {
             return resolveHlsPlaylistChain(uri);
+        }
+
+        void onLayoutSave(Consumer<Boolean> layoutSaveHandler) {
+            this.layoutSaveHandler = layoutSaveHandler == null ? _ -> {} : layoutSaveHandler;
         }
 
         boolean layoutButtonVisible() {
@@ -213,6 +261,14 @@ class BaseVideoPlayerHlsResolutionTest {
 
         String layoutIconContent() {
             return layoutModeIcon.getContent();
+        }
+
+        String layoutButtonAccessibleText() {
+            return btnLayoutMode.getAccessibleText();
+        }
+
+        void fireLayoutModeButton() {
+            btnLayoutMode.fire();
         }
 
         boolean layoutButtonIsImmediatelyBeforeAspectRatioButton() {

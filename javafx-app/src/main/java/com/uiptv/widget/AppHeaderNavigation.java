@@ -24,6 +24,7 @@ public class AppHeaderNavigation extends HBox {
     private final List<NavigationItem> navigationItems;
     private final ChangeListener<AppNavigationController.Target> navigationTargetListener =
             (_, _, _) -> Platform.runLater(this::updateNavigationButtons);
+    private Node trailingAction;
     private boolean navigationListenerRegistered;
     private boolean compact;
     private boolean selectionEnabled = true;
@@ -62,7 +63,7 @@ public class AppHeaderNavigation extends HBox {
         );
         tabs.getStyleClass().add("app-header-top-tabs");
         tabs.setAlignment(Pos.CENTER_LEFT);
-        tabs.getChildren().setAll(navigationItems.stream().map(NavigationItem::button).toList());
+        refreshTabs();
 
         HBox.setHgrow(brand, Priority.NEVER);
         HBox.setHgrow(tabs, Priority.NEVER);
@@ -99,6 +100,14 @@ public class AppHeaderNavigation extends HBox {
                 button.setMaxWidth(Region.USE_COMPUTED_SIZE);
             }
         }
+    }
+
+    public void setTrailingAction(Node trailingAction) {
+        if (this.trailingAction == trailingAction) {
+            return;
+        }
+        this.trailingAction = trailingAction;
+        refreshTabs();
     }
 
     public void setSelectionEnabled(boolean selectionEnabled) {
@@ -159,6 +168,16 @@ public class AppHeaderNavigation extends HBox {
         icon.getStyleClass().add("app-header-nav-icon");
         UiRenderQuality.optimizeTextNode(icon);
         return icon;
+    }
+
+    private void refreshTabs() {
+        List<Node> tabChildren = new java.util.ArrayList<>(navigationItems.stream()
+                .map(NavigationItem::button)
+                .toList());
+        if (trailingAction != null) {
+            tabChildren.add(trailingAction);
+        }
+        tabs.getChildren().setAll(tabChildren);
     }
 
     private void updateNavigationButtons() {

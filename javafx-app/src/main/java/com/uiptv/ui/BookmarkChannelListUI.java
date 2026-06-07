@@ -395,14 +395,15 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         listPanel.getChildren().setAll(createCategoryRow(), pageScroll);
     }
 
-    private VBox createCategoryRow() {
-        VBox row = new VBox(8);
-        row.setFillWidth(true);
+    private HBox createCategoryRow() {
+        HBox row = new HBox(8);
+        row.setAlignment(Pos.CENTER_LEFT);
         row.setMaxWidth(Double.MAX_VALUE);
         row.getStyleClass().add("bookmark-category-row");
 
         categoryPillBar.setNarrowItemsPerRow(5);
         categoryPillBar.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(categoryPillBar, Priority.ALWAYS);
         row.getChildren().setAll(categoryPillBar, createBookmarkToolbarActions());
         return row;
     }
@@ -414,6 +415,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         actions.getStyleClass().add("list-toolbar-actions");
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.setFillHeight(false);
+        actions.setMinWidth(Region.USE_PREF_SIZE);
         actions.setMaxWidth(Double.MAX_VALUE);
         return actions;
     }

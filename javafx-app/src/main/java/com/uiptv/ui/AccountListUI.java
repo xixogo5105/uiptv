@@ -2,10 +2,12 @@ package com.uiptv.ui;
 
 import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountInfo;
 import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.AccountView;
 import com.uiptv.model.Category;
 import com.uiptv.service.AccountChangeListener;
+import com.uiptv.service.AccountInfoService;
 import com.uiptv.service.AccountResolver;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.CategoryService;
@@ -38,6 +40,8 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 import lombok.Setter;
 
 import java.util.*;
@@ -62,6 +66,8 @@ public class AccountListUI extends HBox implements SearchTarget {
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 42;
+    private static final AccountExpiry EMPTY_ACCOUNT_EXPIRY =
+            new AccountExpiry("", AccountInfoUiUtil.ExpiryState.UNKNOWN);
     private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
             Comparator.comparing(AccountItem::getAccountName, String.CASE_INSENSITIVE_ORDER)
@@ -82,7 +88,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final ScrollPane accountScrollPane = new ScrollPane();
     private final HBox browserLayout = new HBox(12);
     private final PillBar<AccountTypeFilter> accountTypePillBar =
-            new PillBar<>(AccountTypeFilter::label, AccountTypeFilter::key);
+            new PillBar<>(AccountTypeFilter::label, AccountTypeFilter::key, null, AccountTypeFilter::compactLabel);
     private final Deque<Node> viewStack = new ArrayDeque<>();
     private final VBox embeddedContainer = new VBox();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
@@ -100,7 +106,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private AppPageHeader pageHeader;
     private MenuButton accountSortButton;
-    private VBox accountToolbar;
+    private HBox accountToolbar;
     private CategoryListUI activeCategoryListUI;
     private final AtomicLong refreshGeneration = new AtomicLong();
     private boolean refreshPending = true;
@@ -238,6 +244,7 @@ public class AccountListUI extends HBox implements SearchTarget {
                 }
                 AccountResolver.AccountRow row = safeRows.get(index);
                 AccountMetrics metrics = cachedAccountMetrics(accountViewForMetrics(row.getDbId()));
+                AccountExpiry expiry = cachedAccountExpiry(row.getDbId());
                 updatedItems.add(new AccountItem(
                         new SimpleStringProperty(row.getAccountName()),
                         new SimpleStringProperty(row.getDbId()),
@@ -245,7 +252,9 @@ public class AccountListUI extends HBox implements SearchTarget {
                         row.isPinToTop(),
                         index,
                         metrics.categoryCount(),
-                        metrics.channelCount()
+                        metrics.channelCount(),
+                        expiry.text(),
+                        expiry.state()
                 ));
             }
             Platform.runLater(() -> {
@@ -284,6 +293,29 @@ public class AccountListUI extends HBox implements SearchTarget {
         } catch (Exception _) {
             return new AccountMetrics(0, 0);
         }
+    }
+
+    private AccountExpiry cachedAccountExpiry(String accountId) {
+        if (accountId == null || accountId.isBlank()) {
+            return EMPTY_ACCOUNT_EXPIRY;
+        }
+        try {
+            return accountExpiry(AccountInfoService.getInstance().getByAccountId(accountId));
+        } catch (Exception _) {
+            return EMPTY_ACCOUNT_EXPIRY;
+        }
+    }
+
+    private AccountExpiry accountExpiry(AccountInfo info) {
+        String rawExpiry = info == null ? "" : Objects.toString(info.getExpireDate(), "").trim();
+        if (rawExpiry.isBlank() || rawExpiry.startsWith("0000-00-00")) {
+            return EMPTY_ACCOUNT_EXPIRY;
+        }
+        String compactDate = AccountInfoUiUtil.formatCompactDate(rawExpiry);
+        if (compactDate.isBlank()) {
+            return EMPTY_ACCOUNT_EXPIRY;
+        }
+        return new AccountExpiry(compactDate, AccountInfoUiUtil.resolveExpiryState(rawExpiry));
     }
 
     private int cachedCategoryCount(AccountView account) {
@@ -424,12 +456,13 @@ public class AccountListUI extends HBox implements SearchTarget {
         );
     }
 
-    private VBox createAccountToolbar() {
+    private HBox createAccountToolbar() {
         accountTypePillBar.setMaxWidth(Double.MAX_VALUE);
-        VBox toolbar = new VBox(8, accountTypePillBar, createAccountToolbarActions());
+        HBox toolbar = new HBox(8, accountTypePillBar, createAccountToolbarActions());
         toolbar.getStyleClass().add("account-toolbar");
-        toolbar.setFillWidth(true);
+        toolbar.setAlignment(Pos.CENTER_LEFT);
         toolbar.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(accountTypePillBar, Priority.ALWAYS);
         return toolbar;
     }
 
@@ -440,6 +473,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         actions.getStyleClass().add("list-toolbar-actions");
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.setFillHeight(false);
+        actions.setMinWidth(Region.USE_PREF_SIZE);
         actions.setMaxWidth(Double.MAX_VALUE);
         return actions;
     }
@@ -738,11 +772,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         title.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(title, Priority.ALWAYS);
 
-        Label type = new Label(accountTypeDisplay(item));
-        type.getStyleClass().add("account-card-type");
-        type.setWrapText(true);
-        type.setMinWidth(0);
-        type.setMaxWidth(Double.MAX_VALUE);
+        TextFlow type = createAccountTypeLine(item);
 
         Label metrics = new Label(accountMetricsText(item));
         metrics.getStyleClass().add("account-card-metrics");
@@ -768,6 +798,38 @@ public class AccountListUI extends HBox implements SearchTarget {
             card.getChildren().add(metrics);
         }
         return card;
+    }
+
+    private TextFlow createAccountTypeLine(AccountItem item) {
+        String typeText = accountTypeDisplay(item);
+        String expiryText = item == null ? "" : item.getExpiryText();
+        TextFlow typeLine = new TextFlow();
+        typeLine.getStyleClass().add("account-card-type");
+        typeLine.setMinWidth(0);
+        typeLine.setMaxWidth(Double.MAX_VALUE);
+
+        if (!typeText.isBlank()) {
+            typeLine.getChildren().add(createAccountTypeText(typeText));
+        }
+        if (expiryText != null && !expiryText.isBlank()) {
+            typeLine.getChildren().add(createAccountTypeText(typeText.isBlank() ? "" : " ("));
+            Text expiryDate = createAccountTypeText(expiryText);
+            expiryDate.getStyleClass().add("account-card-expiry-date");
+            expiryDate.setStyle("-fx-fill: " + AccountInfoUiUtil.colorForExpiry(item.getExpiryState()) + ";");
+            typeLine.getChildren().add(expiryDate);
+            if (!typeText.isBlank()) {
+                typeLine.getChildren().add(createAccountTypeText(")"));
+            }
+        }
+        typeLine.setVisible(!typeLine.getChildren().isEmpty());
+        typeLine.setManaged(typeLine.isVisible());
+        return typeLine;
+    }
+
+    private Text createAccountTypeText(String value) {
+        Text text = new Text(value == null ? "" : value);
+        text.getStyleClass().add("account-card-type-text");
+        return text;
     }
 
     private Region createCompactAccountCard(AccountItem item) {
@@ -1542,9 +1604,18 @@ public class AccountListUI extends HBox implements SearchTarget {
         private final int originalOrder;
         private final int categoryCount;
         private final int channelCount;
+        private final String expiryText;
+        private final AccountInfoUiUtil.ExpiryState expiryState;
 
         public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId, SimpleStringProperty accountType,
                            boolean pinToTop, int originalOrder, int categoryCount, int channelCount) {
+            this(accountName, accountId, accountType, pinToTop, originalOrder, categoryCount, channelCount, "",
+                    AccountInfoUiUtil.ExpiryState.UNKNOWN);
+        }
+
+        public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId, SimpleStringProperty accountType,
+                           boolean pinToTop, int originalOrder, int categoryCount, int channelCount,
+                           String expiryText, AccountInfoUiUtil.ExpiryState expiryState) {
             this.accountName = accountName;
             this.accountId = accountId;
             this.accountType = accountType;
@@ -1552,6 +1623,8 @@ public class AccountListUI extends HBox implements SearchTarget {
             this.originalOrder = originalOrder;
             this.categoryCount = Math.max(0, categoryCount);
             this.channelCount = Math.max(0, channelCount);
+            this.expiryText = expiryText == null ? "" : expiryText;
+            this.expiryState = expiryState == null ? AccountInfoUiUtil.ExpiryState.UNKNOWN : expiryState;
         }
 
         public String getAccountId() {
@@ -1598,6 +1671,14 @@ public class AccountListUI extends HBox implements SearchTarget {
             return channelCount;
         }
 
+        public String getExpiryText() {
+            return expiryText;
+        }
+
+        public AccountInfoUiUtil.ExpiryState getExpiryState() {
+            return expiryState;
+        }
+
     }
 
     private enum AccountSortMode {
@@ -1614,6 +1695,19 @@ public class AccountListUI extends HBox implements SearchTarget {
     private record AccountMetrics(int categoryCount, int channelCount) {
     }
 
+    private record AccountExpiry(String text, AccountInfoUiUtil.ExpiryState state) {
+    }
+
     private record AccountTypeFilter(String key, String label, AccountType type) {
+        private String compactLabel() {
+            if (type == null) {
+                return label;
+            }
+            return switch (type) {
+                case STALKER_PORTAL -> "Stalker";
+                case XTREME_API -> "Xtreme";
+                default -> label;
+            };
+        }
     }
 }

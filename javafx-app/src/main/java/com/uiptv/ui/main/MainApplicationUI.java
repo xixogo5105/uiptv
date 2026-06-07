@@ -5,9 +5,6 @@ import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.AccountListUI;
-import com.uiptv.util.I18n;
-import com.uiptv.widget.IconActionButton;
-import com.uiptv.widget.WidePlayerNavigationControl;
 import javafx.application.Platform;
 import javafx.application.HostServices;
 import javafx.beans.value.ChangeListener;
@@ -16,17 +13,23 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.VPos;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 public class MainApplicationUI extends BaseMainApplicationUI {
@@ -40,9 +43,10 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private static final double STACKED_EMBEDDED_PLAYER_VERTICAL_CHROME = 32;
     private static final double STACKED_EMBEDDED_PLAYER_MIN_HEIGHT = 210;
     private static final double STACKED_EMBEDDED_PLAYER_MAX_HEIGHT = 305;
-    private static final String ICON_SHOW_NAVIGATION = "M3 5H21V19H3V5ZM5 7V17H10V7H5ZM12.7 8.7L16.1 12 12.7 15.3 11.3 13.9 13.2 12 11.3 10.1Z";
+    private static final double PLAYER_ADJACENT_CONTROLS_MIN_WIDTH = 720;
+    private static final double PLAYER_ADJACENT_CONTROLS_RIGHT_INSET = 14;
+    private static final double ACCOUNT_BROWSER_DRAWER_WIDTH_THRESHOLD = 900;
     private final boolean embeddedEnabled;
-    private final Runnable wideNavigationToggleHandler = this::toggleWidePlayerNavigation;
     private final ConfigurationChangeListener embeddedLayoutChangeListener =
             _ -> Platform.runLater(this::applyEmbeddedPlayerLayoutFromConfiguration);
     private final ChangeListener<Number> layoutWidthChangeListener =
@@ -52,13 +56,13 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private Node embeddedPlayerNode;
     private GridPane responsiveContent;
     private StackPane navigationShell;
-    private StackPane collapsedNavigationHandleShell;
+    private VBox playerAdjacentControls;
     private TabPane activeTabPane;
     private AccountListUI activeAccountListUI;
-    private boolean navigationCollapsed;
     private boolean embeddedLayoutListenerRegistered;
     private boolean deferredEmbeddedLayoutRefreshPending;
     private double retainedWideAppAreaWidth = -1;
+    private DockedTopControls dockedTopControls;
 
     public MainApplicationUI(
             Stage primaryStage,
@@ -76,7 +80,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     @Override
     protected HBox buildMainContent(TabPane tabPane, AccountListUI accountListUI) {
         if (!embeddedEnabled) {
-            WidePlayerNavigationControl.configure(false, false, null);
             return createMainContent(tabPane, accountListUI);
         }
 
@@ -87,7 +90,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         embeddedPlayerNode.visibleProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
         embeddedPlayerNode.managedProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
         navigationShell = createNavigationShell(tabPane);
-        collapsedNavigationHandleShell = createCollapsedNavigationHandleShell();
+        playerAdjacentControls = createPlayerAdjacentControls();
         responsiveContent = createResponsiveContent();
         responsiveContent.widthProperty().addListener(layoutWidthChangeListener);
 
@@ -101,6 +104,10 @@ public class MainApplicationUI extends BaseMainApplicationUI {
             primaryStage.widthProperty().addListener(layoutWidthChangeListener);
             primaryStage.maximizedProperty().addListener((_, _, _) -> onLayoutWidthChanged());
         }
+        tabPane.getSelectionModel().selectedItemProperty().addListener((_, _, _) -> {
+            restoreDockedTopControls();
+            applyEmbeddedPlayerLayoutFromConfiguration();
+        });
 
         tabPane.setMinWidth(0);
         tabPane.setPrefWidth(guidedMaxWidthPixels);
@@ -115,7 +122,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
             }
             if (newScene == null) {
                 unregisterEmbeddedLayoutChangeListener();
-                WidePlayerNavigationControl.reset(wideNavigationToggleHandler);
                 return;
             }
             newScene.widthProperty().addListener(layoutWidthChangeListener);
@@ -143,9 +149,8 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     }
 
     private void onLayoutWidthChanged() {
-        if (!navigationCollapsed) {
-            retainedWideAppAreaWidth = -1;
-        }
+        retainedWideAppAreaWidth = -1;
+        restoreDockedTopControls();
         applyEmbeddedPlayerLayoutFromConfiguration();
         scheduleDeferredEmbeddedLayoutRefresh();
     }
@@ -157,16 +162,13 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         deferredEmbeddedLayoutRefreshPending = true;
         Platform.runLater(() -> {
             deferredEmbeddedLayoutRefreshPending = false;
-            if (!navigationCollapsed) {
-                retainedWideAppAreaWidth = -1;
-            }
+            retainedWideAppAreaWidth = -1;
             applyEmbeddedPlayerLayoutFromConfiguration();
         });
     }
 
     private void applyEmbeddedPlayerLayoutFromConfiguration() {
-        if (embeddedPlayer == null || navigationShell == null || collapsedNavigationHandleShell == null
-                || activeTabPane == null || activeAccountListUI == null) {
+        if (embeddedPlayer == null || navigationShell == null || activeTabPane == null || activeAccountListUI == null) {
             return;
         }
         Configuration configuration = configurationService.read();
@@ -176,26 +178,24 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         setEmbeddedPlayerContainerVisible(showEmbeddedPlayer);
         boolean widePlayerPreferred = showEmbeddedPlayer && configuration.isWideView();
         if (!showEmbeddedPlayer) {
-            navigationCollapsed = false;
+            restoreDockedTopControls();
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(false);
             applyNavigationOnlyEmbeddedLayout();
-        } else if (navigationCollapsed) {
-            activeAccountListUI.setMediaDrawerMode(false);
-            applyFocusedEmbeddedLayout();
         } else if (widePlayerPreferred) {
+            restoreDockedTopControls();
             activeAccountListUI.setMediaDrawerMode(true);
             applyWideEmbeddedLayout();
         } else {
             retainedWideAppAreaWidth = -1;
-            activeAccountListUI.setMediaDrawerMode(false);
-            applyStackedEmbeddedLayout();
+            activeAccountListUI.setMediaDrawerMode(shouldUseAccountMediaDrawerMode());
+            if (shouldUsePlayerAdjacentTopControlsLayout()) {
+                applyPlayerAdjacentTopControlsEmbeddedLayout();
+            } else {
+                restoreDockedTopControls();
+                applyStackedEmbeddedLayout();
+            }
         }
-        WidePlayerNavigationControl.configure(
-                showEmbeddedPlayer,
-                navigationCollapsed,
-                wideNavigationToggleHandler
-        );
         if (mainContent != null) {
             mainContent.requestLayout();
         }
@@ -203,6 +203,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
 
     private void applyNavigationOnlyEmbeddedLayout() {
         applyNavigationOnlyEmbeddedArrangement();
+        setPlayerAdjacentControlsVisible(false);
         activeTabPane.setMinWidth(0);
         activeTabPane.setPrefWidth(guidedMaxWidthPixels);
         activeTabPane.setMaxWidth(Double.MAX_VALUE);
@@ -214,16 +215,11 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         navigationShell.setMaxWidth(Double.MAX_VALUE);
         navigationShell.setVisible(true);
         navigationShell.setManaged(true);
-        collapsedNavigationHandleShell.setVisible(false);
-        collapsedNavigationHandleShell.setManaged(false);
         activeTabPane.setVisible(true);
         activeTabPane.setManaged(true);
         HBox.setHgrow(navigationShell, Priority.ALWAYS);
         GridPane.setHgrow(navigationShell, Priority.ALWAYS);
         GridPane.setVgrow(navigationShell, Priority.ALWAYS);
-        HBox.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
-        GridPane.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
-        GridPane.setVgrow(collapsedNavigationHandleShell, Priority.NEVER);
 
         HBox.setHgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
@@ -233,63 +229,25 @@ public class MainApplicationUI extends BaseMainApplicationUI {
 
     private void applyWideEmbeddedLayout() {
         applySideBySideEmbeddedArrangement();
+        setPlayerAdjacentControlsVisible(false);
         configureSideBySideResponsiveGrid(Priority.NEVER, Priority.ALWAYS);
-        double expandedAppAreaWidth = retainedWideAppAreaWidth();
-        activeTabPane.setMinWidth(expandedAppAreaWidth);
-        activeTabPane.setPrefWidth(expandedAppAreaWidth);
-        activeTabPane.setMaxWidth(expandedAppAreaWidth);
+        double wideAppAreaWidth = retainedWideAppAreaWidth();
+        activeTabPane.setMinWidth(wideAppAreaWidth);
+        activeTabPane.setPrefWidth(wideAppAreaWidth);
+        activeTabPane.setMaxWidth(wideAppAreaWidth);
         activeTabPane.setMaxHeight(Double.MAX_VALUE);
         activeTabPane.setMinHeight(0);
         activeTabPane.setVisible(true);
         activeTabPane.setManaged(true);
 
-        navigationShell.setMinWidth(expandedAppAreaWidth);
-        navigationShell.setPrefWidth(expandedAppAreaWidth);
-        navigationShell.setMaxWidth(expandedAppAreaWidth);
+        navigationShell.setMinWidth(wideAppAreaWidth);
+        navigationShell.setPrefWidth(wideAppAreaWidth);
+        navigationShell.setMaxWidth(wideAppAreaWidth);
         navigationShell.setVisible(true);
         navigationShell.setManaged(true);
         HBox.setHgrow(navigationShell, Priority.NEVER);
         GridPane.setHgrow(navigationShell, Priority.NEVER);
         GridPane.setVgrow(navigationShell, Priority.ALWAYS);
-
-        collapsedNavigationHandleShell.setVisible(false);
-        collapsedNavigationHandleShell.setManaged(false);
-        HBox.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
-        GridPane.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
-        GridPane.setVgrow(collapsedNavigationHandleShell, Priority.NEVER);
-
-        applyWideEmbeddedPlayerSize(embeddedPlayer);
-        HBox.setHgrow(embeddedPlayer, Priority.ALWAYS);
-        GridPane.setHgrow(embeddedPlayer, Priority.ALWAYS);
-        GridPane.setVgrow(embeddedPlayer, Priority.ALWAYS);
-        GridPane.setValignment(embeddedPlayer, VPos.CENTER);
-    }
-
-    private void applyFocusedEmbeddedLayout() {
-        applySideBySideEmbeddedArrangement();
-        configureSideBySideResponsiveGrid(Priority.NEVER, Priority.ALWAYS);
-        activeTabPane.setMinWidth(0);
-        activeTabPane.setPrefWidth(0);
-        activeTabPane.setMaxWidth(0);
-        activeTabPane.setMaxHeight(Double.MAX_VALUE);
-        activeTabPane.setMinHeight(0);
-        activeTabPane.setVisible(false);
-        activeTabPane.setManaged(false);
-
-        navigationShell.setMinWidth(0);
-        navigationShell.setPrefWidth(0);
-        navigationShell.setMaxWidth(0);
-        navigationShell.setVisible(false);
-        navigationShell.setManaged(false);
-        HBox.setHgrow(navigationShell, Priority.NEVER);
-        GridPane.setHgrow(navigationShell, Priority.NEVER);
-        GridPane.setVgrow(navigationShell, Priority.NEVER);
-
-        collapsedNavigationHandleShell.setVisible(true);
-        collapsedNavigationHandleShell.setManaged(true);
-        HBox.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
-        GridPane.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
-        GridPane.setVgrow(collapsedNavigationHandleShell, Priority.NEVER);
 
         applyWideEmbeddedPlayerSize(embeddedPlayer);
         HBox.setHgrow(embeddedPlayer, Priority.ALWAYS);
@@ -300,6 +258,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
 
     private void applyStackedEmbeddedLayout() {
         applyStackedEmbeddedArrangement();
+        setPlayerAdjacentControlsVisible(false);
 
         activeTabPane.setMinWidth(0);
         activeTabPane.setPrefWidth(Region.USE_COMPUTED_SIZE);
@@ -318,10 +277,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         navigationShell.setManaged(true);
         GridPane.setVgrow(navigationShell, Priority.ALWAYS);
 
-        collapsedNavigationHandleShell.setVisible(false);
-        collapsedNavigationHandleShell.setManaged(false);
-        GridPane.setVgrow(collapsedNavigationHandleShell, Priority.NEVER);
-
         applyStackedEmbeddedPlayerSize();
         configureStackedResponsiveGrid();
         GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
@@ -330,27 +285,65 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         GridPane.setValignment(embeddedPlayer, VPos.TOP);
     }
 
+    private void applyPlayerAdjacentTopControlsEmbeddedLayout() {
+        if (!dockSelectedPageTopControls()) {
+            applyStackedEmbeddedLayout();
+            return;
+        }
+        applyPlayerAdjacentTopControlsEmbeddedArrangement();
+
+        activeTabPane.setMinWidth(0);
+        activeTabPane.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        activeTabPane.setMaxWidth(Double.MAX_VALUE);
+        activeTabPane.setMaxHeight(Double.MAX_VALUE);
+        activeTabPane.setMinHeight(0);
+        activeTabPane.setVisible(true);
+        activeTabPane.setManaged(true);
+
+        navigationShell.setMinWidth(0);
+        navigationShell.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        navigationShell.setMaxWidth(Double.MAX_VALUE);
+        navigationShell.setMinHeight(0);
+        navigationShell.setMaxHeight(Double.MAX_VALUE);
+        navigationShell.setVisible(true);
+        navigationShell.setManaged(true);
+        GridPane.setHgrow(navigationShell, Priority.ALWAYS);
+        GridPane.setVgrow(navigationShell, Priority.ALWAYS);
+
+        applyStackedEmbeddedPlayerSize();
+        configurePlayerAdjacentTopControlsResponsiveGrid();
+        GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setHalignment(embeddedPlayer, HPos.LEFT);
+        GridPane.setValignment(embeddedPlayer, VPos.TOP);
+
+        setPlayerAdjacentControlsVisible(true);
+        playerAdjacentControls.setMaxHeight(stackedEmbeddedPlayerHeight());
+        GridPane.setHgrow(playerAdjacentControls, Priority.ALWAYS);
+        GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
+        GridPane.setHalignment(playerAdjacentControls, HPos.LEFT);
+        GridPane.setValignment(playerAdjacentControls, VPos.TOP);
+    }
+
     private void applyNavigationOnlyEmbeddedArrangement() {
-        if (responsiveContent == null || navigationShell == null || collapsedNavigationHandleShell == null
-                || embeddedPlayer == null) {
+        if (responsiveContent == null || navigationShell == null || embeddedPlayer == null || playerAdjacentControls == null) {
             return;
         }
         configureNavigationOnlyResponsiveGrid();
         placeInGrid(navigationShell, 0, 0);
-        placeInGrid(collapsedNavigationHandleShell, 0, 0);
         placeInGrid(embeddedPlayer, 0, 0);
+        placeInGrid(playerAdjacentControls, 0, 0);
         GridPane.setHgrow(navigationShell, Priority.ALWAYS);
         GridPane.setVgrow(navigationShell, Priority.ALWAYS);
-        GridPane.setHgrow(collapsedNavigationHandleShell, Priority.NEVER);
-        GridPane.setVgrow(collapsedNavigationHandleShell, Priority.NEVER);
         GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setHgrow(playerAdjacentControls, Priority.NEVER);
+        GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
         GridPane.setValignment(embeddedPlayer, VPos.TOP);
     }
 
     private void applySideBySideEmbeddedArrangement() {
-        if (responsiveContent == null || navigationShell == null || collapsedNavigationHandleShell == null
-                || embeddedPlayer == null) {
+        if (responsiveContent == null || navigationShell == null || embeddedPlayer == null || playerAdjacentControls == null) {
             return;
         }
         boolean alreadySideBySide = rowIndex(navigationShell) == 0
@@ -362,17 +355,16 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         }
         configureSideBySideResponsiveGrid();
         placeInGrid(navigationShell, 0, 0);
-        placeInGrid(collapsedNavigationHandleShell, 0, 0);
         placeInGrid(embeddedPlayer, 1, 0);
+        placeInGrid(playerAdjacentControls, 0, 0);
         GridPane.setVgrow(navigationShell, Priority.ALWAYS);
-        GridPane.setVgrow(collapsedNavigationHandleShell, Priority.NEVER);
         GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
         GridPane.setValignment(embeddedPlayer, VPos.TOP);
     }
 
     private void applyStackedEmbeddedArrangement() {
-        if (responsiveContent == null || navigationShell == null || embeddedPlayer == null
-                || collapsedNavigationHandleShell == null) {
+        if (responsiveContent == null || navigationShell == null || embeddedPlayer == null || playerAdjacentControls == null) {
             return;
         }
         boolean alreadyStacked = rowIndex(embeddedPlayer) == 0
@@ -385,11 +377,41 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         configureStackedResponsiveGrid();
         placeInGrid(embeddedPlayer, 0, 0);
         placeInGrid(navigationShell, 0, 1);
-        placeInGrid(collapsedNavigationHandleShell, 0, 1);
+        placeInGrid(playerAdjacentControls, 0, 0);
         GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setHalignment(embeddedPlayer, HPos.LEFT);
         GridPane.setValignment(embeddedPlayer, VPos.TOP);
+        GridPane.setHgrow(navigationShell, Priority.ALWAYS);
+        GridPane.setVgrow(navigationShell, Priority.ALWAYS);
+        GridPane.setHgrow(playerAdjacentControls, Priority.NEVER);
+        GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
+    }
+
+    private void applyPlayerAdjacentTopControlsEmbeddedArrangement() {
+        if (responsiveContent == null || navigationShell == null || embeddedPlayer == null || playerAdjacentControls == null) {
+            return;
+        }
+        boolean alreadyAdjacent = rowIndex(embeddedPlayer) == 0
+                && columnIndex(embeddedPlayer) == 0
+                && rowIndex(playerAdjacentControls) == 0
+                && columnIndex(playerAdjacentControls) == 1
+                && rowIndex(navigationShell) == 1
+                && columnIndex(navigationShell) == 0;
+        if (alreadyAdjacent) {
+            return;
+        }
+        configurePlayerAdjacentTopControlsResponsiveGrid();
+        placeInGrid(embeddedPlayer, 0, 0);
+        placeInGrid(playerAdjacentControls, 1, 0);
+        placeInGrid(navigationShell, 0, 1);
+        GridPane.setColumnSpan(navigationShell, 2);
+        GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setHalignment(embeddedPlayer, HPos.LEFT);
+        GridPane.setValignment(embeddedPlayer, VPos.TOP);
+        GridPane.setHgrow(playerAdjacentControls, Priority.ALWAYS);
+        GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
         GridPane.setHgrow(navigationShell, Priority.ALWAYS);
         GridPane.setVgrow(navigationShell, Priority.ALWAYS);
     }
@@ -399,10 +421,9 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         grid.getStyleClass().add("embedded-player-responsive-layout");
         grid.setMinSize(0, 0);
         grid.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        grid.getChildren().setAll(navigationShell, collapsedNavigationHandleShell, embeddedPlayer);
+        grid.getChildren().setAll(navigationShell, embeddedPlayer, playerAdjacentControls);
         configureSideBySideResponsiveGrid(grid, Priority.ALWAYS, Priority.NEVER);
         placeInGrid(navigationShell, 0, 0);
-        placeInGrid(collapsedNavigationHandleShell, 0, 0);
         placeInGrid(embeddedPlayer, 1, 0);
         return grid;
     }
@@ -478,6 +499,36 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         responsiveContent.getRowConstraints().setAll(playerRow, navigationRow);
     }
 
+    private void configurePlayerAdjacentTopControlsResponsiveGrid() {
+        if (responsiveContent == null) {
+            return;
+        }
+        double playerWidth = stackedEmbeddedPlayerWidth();
+        double playerHeight = stackedEmbeddedPlayerHeight();
+        ColumnConstraints playerColumn = new ColumnConstraints();
+        playerColumn.setMinWidth(playerWidth);
+        playerColumn.setPrefWidth(playerWidth);
+        playerColumn.setMaxWidth(playerWidth);
+        playerColumn.setHgrow(Priority.NEVER);
+        playerColumn.setFillWidth(true);
+        ColumnConstraints navigationColumn = new ColumnConstraints();
+        navigationColumn.setMinWidth(0);
+        navigationColumn.setHgrow(Priority.ALWAYS);
+        navigationColumn.setFillWidth(true);
+        RowConstraints controlsRow = new RowConstraints();
+        controlsRow.setMinHeight(playerHeight);
+        controlsRow.setPrefHeight(playerHeight);
+        controlsRow.setMaxHeight(playerHeight);
+        controlsRow.setVgrow(Priority.NEVER);
+        controlsRow.setFillHeight(true);
+        RowConstraints navigationRow = new RowConstraints();
+        navigationRow.setMinHeight(0);
+        navigationRow.setVgrow(Priority.ALWAYS);
+        navigationRow.setFillHeight(true);
+        responsiveContent.getColumnConstraints().setAll(playerColumn, navigationColumn);
+        responsiveContent.getRowConstraints().setAll(controlsRow, navigationRow);
+    }
+
     private void applyStackedEmbeddedPlayerSize() {
         embeddedPlayer.prefHeightProperty().unbind();
         embeddedPlayer.maxHeightProperty().unbind();
@@ -532,6 +583,14 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         return embeddedPlayerNode != null && (embeddedPlayerNode.isVisible() || embeddedPlayerNode.isManaged());
     }
 
+    private boolean shouldUsePlayerAdjacentTopControlsLayout() {
+        return availableLayoutWidth() >= STACKED_EMBEDDED_PLAYER_MAX_WIDTH + PLAYER_ADJACENT_CONTROLS_MIN_WIDTH;
+    }
+
+    private boolean shouldUseAccountMediaDrawerMode() {
+        return availableLayoutWidth() < ACCOUNT_BROWSER_DRAWER_WIDTH_THRESHOLD;
+    }
+
     private void setEmbeddedPlayerContainerVisible(boolean visible) {
         if (embeddedPlayer == null) {
             return;
@@ -540,34 +599,204 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         embeddedPlayer.setManaged(visible);
     }
 
-    private StackPane createCollapsedNavigationHandleShell() {
-        IconActionButton showButton = new IconActionButton(
-                I18n.tr("autoShowPlaybackNavigation"),
-                ICON_SHOW_NAVIGATION,
-                this::toggleWidePlayerNavigation
-        );
-        StackPane shell = new StackPane(showButton);
-        shell.getStyleClass().add("wide-player-navigation-restore-shell");
-        shell.setAlignment(Pos.TOP_CENTER);
-        shell.setPadding(new Insets(24, 4, 0, 4));
-        shell.setMinWidth(42);
-        shell.setPrefWidth(42);
-        shell.setMaxWidth(42);
-        shell.setVisible(false);
-        shell.setManaged(false);
-        return shell;
+    private VBox createPlayerAdjacentControls() {
+        VBox controls = new VBox(8);
+        controls.getStyleClass().add("player-adjacent-page-controls");
+        controls.setFillWidth(true);
+        controls.setPadding(new Insets(0, PLAYER_ADJACENT_CONTROLS_RIGHT_INSET, 0, 0));
+        controls.setMinSize(0, 0);
+        controls.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        controls.setVisible(false);
+        controls.setManaged(false);
+        return controls;
     }
 
-    private void toggleWidePlayerNavigation() {
-        if (embeddedPlayer == null || !embeddedPlayer.isManaged() || !isEmbeddedPlayerNodeActive()) {
-            WidePlayerNavigationControl.configure(false, false, wideNavigationToggleHandler);
+    private void setPlayerAdjacentControlsVisible(boolean visible) {
+        if (playerAdjacentControls == null) {
             return;
         }
-        if (!navigationCollapsed) {
-            retainedWideAppAreaWidth = retainedWideAppAreaWidth();
+        playerAdjacentControls.setVisible(visible);
+        playerAdjacentControls.setManaged(visible);
+    }
+
+    private boolean dockSelectedPageTopControls() {
+        Tab selectedTab = activeTabPane == null ? null : activeTabPane.getSelectionModel().getSelectedItem();
+        if (selectedTab == null || playerAdjacentControls == null) {
+            restoreDockedTopControls();
+            return false;
         }
-        navigationCollapsed = !navigationCollapsed;
-        applyEmbeddedPlayerLayoutFromConfiguration();
+        if (dockedTopControls != null && dockedTopControls.tab() == selectedTab) {
+            return !playerAdjacentControls.getChildren().isEmpty();
+        }
+
+        restoreDockedTopControls();
+        List<DockedNode> dockedNodes = findDockableTopControls(selectedTab.getContent());
+        if (dockedNodes.isEmpty()) {
+            setPlayerAdjacentControlsVisible(false);
+            return false;
+        }
+        for (DockedNode dockedNode : dockedNodes) {
+            dockNode(dockedNode);
+            playerAdjacentControls.getChildren().add(dockedNode.dockNode());
+        }
+        dockedTopControls = new DockedTopControls(selectedTab, dockedNodes);
+        return true;
+    }
+
+    private void restoreDockedTopControls() {
+        if (dockedTopControls == null || playerAdjacentControls == null) {
+            return;
+        }
+        for (DockedNode dockedNode : dockedTopControls.nodes()) {
+            restoreDockNode(dockedNode);
+        }
+        dockedTopControls = null;
+        playerAdjacentControls.getChildren().clear();
+        setPlayerAdjacentControlsVisible(false);
+    }
+
+    private List<DockedNode> findDockableTopControls(Node root) {
+        List<DockedNode> controls = new ArrayList<>();
+        Node header = firstNodeWithStyle(root, "uiptv-page-header");
+        Node dockedHeader = ancestorWithStyle(header, "bookmarks-header-area");
+        addDockedNode(controls, dockedHeader == null ? header : dockedHeader);
+
+        addDockedNode(controls, firstNodeWithStyle(root, "bookmark-category-row"));
+        addDockedNode(controls, firstNodeWithStyle(root, "account-toolbar"));
+
+        Node sibling = nextDockableSibling(dockedHeader == null ? header : dockedHeader);
+        addDockedNode(controls, sibling);
+        return controls;
+    }
+
+    private void addDockedNode(List<DockedNode> controls, Node node) {
+        if (node == null || containsDockedNode(controls, node)) {
+            return;
+        }
+        Parent parent = node.getParent();
+        if (!(parent instanceof Pane pane)) {
+            return;
+        }
+        int index = pane.getChildren().indexOf(node);
+        if (index < 0) {
+            return;
+        }
+        controls.add(createDockedNode(pane, index, node));
+    }
+
+    private DockedNode createDockedNode(Pane parent, int index, Node node) {
+        if (shouldInlineDockChildren(node) && node instanceof Pane sourcePane && !sourcePane.getChildren().isEmpty()) {
+            HBox dockRow = new HBox(8);
+            dockRow.getStyleClass().add("player-adjacent-inline-row");
+            dockRow.setAlignment(Pos.CENTER_LEFT);
+            dockRow.setFillHeight(false);
+            dockRow.setMinWidth(0);
+            dockRow.setMaxWidth(Double.MAX_VALUE);
+            return new DockedNode(parent, index, node, dockRow, sourcePane, new ArrayList<>(sourcePane.getChildren()));
+        }
+        return new DockedNode(parent, index, node, node, null, List.of());
+    }
+
+    private void dockNode(DockedNode dockedNode) {
+        dockedNode.parent().getChildren().remove(dockedNode.originalNode());
+        if (dockedNode.childSource() == null) {
+            return;
+        }
+        dockedNode.childSource().getChildren().clear();
+        boolean firstChild = true;
+        for (Node child : dockedNode.movedChildren()) {
+            dockedNode.dockRowChildren().add(child);
+            if (child instanceof Region region) {
+                region.setMaxWidth(Double.MAX_VALUE);
+                HBox.setHgrow(region, firstChild ? Priority.ALWAYS : Priority.NEVER);
+            }
+            firstChild = false;
+        }
+    }
+
+    private void restoreDockNode(DockedNode dockedNode) {
+        playerAdjacentControls.getChildren().remove(dockedNode.dockNode());
+        if (dockedNode.childSource() != null) {
+            dockedNode.dockRowChildren().removeAll(dockedNode.movedChildren());
+            dockedNode.childSource().getChildren().setAll(dockedNode.movedChildren());
+        }
+        if (!dockedNode.parent().getChildren().contains(dockedNode.originalNode())) {
+            int index = Math.min(dockedNode.index(), dockedNode.parent().getChildren().size());
+            dockedNode.parent().getChildren().add(index, dockedNode.originalNode());
+        }
+    }
+
+    private boolean shouldInlineDockChildren(Node node) {
+        return hasStyle(node, "bookmark-category-row") || hasStyle(node, "account-toolbar");
+    }
+
+    private boolean containsDockedNode(List<DockedNode> controls, Node node) {
+        for (DockedNode control : controls) {
+            if (control.originalNode() == node || isAncestor(control.originalNode(), node)
+                    || isAncestor(node, control.originalNode())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Node nextDockableSibling(Node node) {
+        if (node == null || !(node.getParent() instanceof Pane pane)) {
+            return null;
+        }
+        int index = pane.getChildren().indexOf(node);
+        if (index < 0 || index + 1 >= pane.getChildren().size()) {
+            return null;
+        }
+        Node sibling = pane.getChildren().get(index + 1);
+        if (hasStyle(sibling, "uiptv-pill-bar")) {
+            return sibling;
+        }
+        return null;
+    }
+
+    private Node firstNodeWithStyle(Node root, String styleClass) {
+        if (root == null) {
+            return null;
+        }
+        if (hasStyle(root, styleClass)) {
+            return root;
+        }
+        if (root instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                Node match = firstNodeWithStyle(child, styleClass);
+                if (match != null) {
+                    return match;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Node ancestorWithStyle(Node node, String styleClass) {
+        Parent parent = node == null ? null : node.getParent();
+        while (parent != null) {
+            if (hasStyle(parent, styleClass)) {
+                return parent;
+            }
+            parent = parent.getParent();
+        }
+        return null;
+    }
+
+    private boolean isAncestor(Node ancestor, Node node) {
+        Parent parent = node == null ? null : node.getParent();
+        while (parent != null) {
+            if (parent == ancestor) {
+                return true;
+            }
+            parent = parent.getParent();
+        }
+        return false;
+    }
+
+    private boolean hasStyle(Node node, String styleClass) {
+        return node != null && node.getStyleClass().contains(styleClass);
     }
 
     private double retainedWideAppAreaWidth() {
@@ -586,18 +815,50 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     }
 
     private double availableLayoutWidth() {
-        double width = regionWidth(responsiveContent);
-        if (width > 0) {
-            return width;
+        double sceneWidth = sceneWidth();
+        double mainWidth = regionWidth(mainContent);
+        double contentWidth = regionWidth(responsiveContent);
+        if (sceneWidth > 0) {
+            double measuredWidth = contentWidth > 0 ? contentWidth : mainWidth;
+            if (measuredWidth <= 0) {
+                return sceneWidth;
+            }
+            if (mainWidth > 0 && Math.abs(sceneWidth - mainWidth) > 1) {
+                return sceneWidth;
+            }
+            return Math.min(measuredWidth, sceneWidth);
         }
-        width = regionWidth(mainContent);
-        if (width > 0) {
-            return width;
+        if (contentWidth > 0) {
+            return contentWidth;
+        }
+        if (mainWidth > 0) {
+            return mainWidth;
         }
         return guidedMaxWidthPixels;
     }
 
+    private double sceneWidth() {
+        Scene scene = mainContent == null ? null : mainContent.getScene();
+        return scene == null ? -1 : scene.getWidth();
+    }
+
     private double regionWidth(Region region) {
         return region == null ? -1 : region.getWidth();
+    }
+
+    private record DockedNode(
+            Pane parent,
+            int index,
+            Node originalNode,
+            Node dockNode,
+            Pane childSource,
+            List<Node> movedChildren
+    ) {
+        private List<Node> dockRowChildren() {
+            return dockNode instanceof Pane pane ? pane.getChildren() : List.of();
+        }
+    }
+
+    private record DockedTopControls(Tab tab, List<DockedNode> nodes) {
     }
 }

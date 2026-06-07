@@ -2,6 +2,7 @@ package com.uiptv.widget;
 
 import javafx.event.Event;
 import javafx.scene.Scene;
+import javafx.scene.control.MenuButton;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
@@ -82,7 +83,7 @@ class PillBarTest {
     }
 
     @Test
-    void usesFixedSingleAndDoubleRowHeights() throws Exception {
+    void switchesWrappedRowsToCompactDropdownHeight() throws Exception {
         FixedHeightSnapshot snapshot = runOnFxThread(() -> {
             PillBar<String> pillBar = new PillBar<>(value -> value, value -> value);
             pillBar.setItems(List.of("One", "Two", "Three", "Four"));
@@ -107,12 +108,12 @@ class PillBarTest {
         });
 
         assertEquals(40, snapshot.computedSingleRowHeight(), 0.01);
-        assertEquals(88, snapshot.computedDoubleRowHeight(), 0.01);
-        assertEquals(88, snapshot.prefHeightProperty(), 0.01);
+        assertEquals(42, snapshot.computedDoubleRowHeight(), 0.01);
+        assertEquals(42, snapshot.prefHeightProperty(), 0.01);
     }
 
     @Test
-    void reservedRowCountOverridesAutomaticWrapping() throws Exception {
+    void reservedRowCountUsesCompactDropdownInsteadOfReservedRows() throws Exception {
         FixedHeightSnapshot snapshot = runOnFxThread(() -> {
             PillBar<String> pillBar = new PillBar<>(value -> value, value -> value);
             pillBar.setItems(List.of("One", "Two"));
@@ -133,12 +134,12 @@ class PillBarTest {
         });
 
         assertEquals(40, snapshot.computedSingleRowHeight(), 0.01);
-        assertEquals(88, snapshot.computedDoubleRowHeight(), 0.01);
+        assertEquals(42, snapshot.computedDoubleRowHeight(), 0.01);
         assertEquals(40, snapshot.prefHeightProperty(), 0.01);
     }
 
     @Test
-    void narrowItemsPerRowPreallocatesRowsFromItemCount() throws Exception {
+    void narrowItemsPerRowUsesCompactDropdownFromItemCount() throws Exception {
         NarrowHeightSnapshot snapshot = runOnFxThread(() -> {
             PillBar<String> pillBar = new PillBar<>(value -> value, value -> value);
             pillBar.setNarrowItemsPerRow(5);
@@ -176,13 +177,13 @@ class PillBarTest {
         });
 
         assertEquals(40, snapshot.wideHeight(), 0.01);
-        assertEquals(136, snapshot.narrowHeight(), 0.01);
-        assertEquals(136, snapshot.widthlessHeight(), 0.01);
-        assertEquals(136, snapshot.prefHeightProperty(), 0.01);
+        assertEquals(42, snapshot.narrowHeight(), 0.01);
+        assertEquals(42, snapshot.widthlessHeight(), 0.01);
+        assertEquals(42, snapshot.prefHeightProperty(), 0.01);
     }
 
     @Test
-    void narrowReservedRowsApplyOnlyInNarrowMode() throws Exception {
+    void narrowReservedRowsUseCompactDropdownOnlyInNarrowMode() throws Exception {
         NarrowHeightSnapshot snapshot = runOnFxThread(() -> {
             PillBar<String> pillBar = new PillBar<>(value -> value, value -> value);
             pillBar.setNarrowReservedRowCount(3);
@@ -210,14 +211,14 @@ class PillBarTest {
         });
 
         assertEquals(40, snapshot.wideHeight(), 0.01);
-        assertEquals(136, snapshot.narrowHeight(), 0.01);
-        assertEquals(136, snapshot.widthlessHeight(), 0.01);
-        assertEquals(136, snapshot.prefHeightProperty(), 0.01);
+        assertEquals(42, snapshot.narrowHeight(), 0.01);
+        assertEquals(42, snapshot.widthlessHeight(), 0.01);
+        assertEquals(42, snapshot.prefHeightProperty(), 0.01);
     }
 
     @Test
-    void selectionCssDoesNotShrinkNarrowReservedBackground() throws Exception {
-        FixedHeightSnapshot snapshot = runOnFxThread(() -> {
+    void selectionUpdatesCompactDropdownWithoutChangingHeight() throws Exception {
+        CompactSelectionSnapshot snapshot = runOnFxThread(() -> {
             PillBar<String> pillBar = new PillBar<>(value -> value, value -> value);
             pillBar.setNarrowItemsPerRow(5);
             pillBar.setItems(List.of("All", "Cricket", "Movies", "Drama", "4K", "News", "A Samad"));
@@ -234,22 +235,56 @@ class PillBarTest {
             root.applyCss();
             root.layout();
             root.layout();
+            MenuButton dropdown = compactDropdown(pillBar);
 
-            return new FixedHeightSnapshot(
+            return new CompactSelectionSnapshot(
                     initialHeight,
                     pillBar.getHeight(),
-                    pillBar.getPrefHeight()
+                    pillBar.getPrefHeight(),
+                    dropdown.isManaged(),
+                    dropdown.getText()
             );
         });
 
-        assertEquals(88, snapshot.computedSingleRowHeight(), 0.01);
-        assertEquals(88, snapshot.computedDoubleRowHeight(), 0.01);
-        assertEquals(88, snapshot.prefHeightProperty(), 0.01);
+        assertEquals(42, snapshot.initialHeight(), 0.01);
+        assertEquals(42, snapshot.afterSelectionHeight(), 0.01);
+        assertEquals(42, snapshot.prefHeightProperty(), 0.01);
+        assertEquals(true, snapshot.dropdownManaged());
+        assertEquals("News", snapshot.dropdownText());
+    }
+
+    @Test
+    void compactDropdownCanUseShorterSelectedLabelWithoutShorteningMenuItems() throws Exception {
+        CompactLabelSnapshot snapshot = runOnFxThread(() -> {
+            PillBar<CompactItem> pillBar = new PillBar<>(
+                    CompactItem::label,
+                    CompactItem::key,
+                    null,
+                    CompactItem::compactLabel
+            );
+            pillBar.setItems(List.of(
+                    new CompactItem("stalker", "Stalker Portal", "Stalker"),
+                    new CompactItem("xtreme", "Xtreme API", "Xtreme")
+            ));
+            new Scene(pillBar, 120, 90);
+            pillBar.applyCss();
+            pillBar.resize(120, 90);
+            pillBar.layout();
+            MenuButton dropdown = compactDropdown(pillBar);
+            return new CompactLabelSnapshot(dropdown.getText(), dropdown.getItems().getFirst().getText());
+        });
+
+        assertEquals("Stalker", snapshot.dropdownText());
+        assertEquals("Stalker Portal", snapshot.firstMenuItemText());
     }
 
     private static ToggleButton pillAt(PillBar<?> pillBar, int index) {
         FlowPane content = (FlowPane) pillBar.getChildren().get(0);
         return (ToggleButton) content.getChildren().get(index);
+    }
+
+    private static MenuButton compactDropdown(PillBar<?> pillBar) {
+        return (MenuButton) pillBar.getChildren().get(1);
     }
 
     private static KeyEvent keyPressed(KeyCode keyCode) {
@@ -268,6 +303,9 @@ class PillBarTest {
     private record Item(String key, String label) {
     }
 
+    private record CompactItem(String key, String label, String compactLabel) {
+    }
+
     private record FixedHeightSnapshot(double computedSingleRowHeight,
                                        double computedDoubleRowHeight,
                                        double prefHeightProperty) {
@@ -277,5 +315,16 @@ class PillBarTest {
                                         double narrowHeight,
                                         double widthlessHeight,
                                         double prefHeightProperty) {
+    }
+
+    private record CompactSelectionSnapshot(double initialHeight,
+                                            double afterSelectionHeight,
+                                            double prefHeightProperty,
+                                            boolean dropdownManaged,
+                                            String dropdownText) {
+    }
+
+    private record CompactLabelSnapshot(String dropdownText,
+                                        String firstMenuItemText) {
     }
 }

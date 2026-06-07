@@ -665,13 +665,13 @@
 
 .context-menu,
 .bookmark-context-menu {
-    -fx-background-color: #ffffff;
+    -fx-background-color: #1b1f25;
     -fx-background-radius: 14;
-    -fx-border-color: #e5e5e5;
+    -fx-border-color: #343941;
     -fx-border-radius: 14;
     -fx-border-width: 1;
     -fx-padding: 6;
-    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.14), 18, 0.14, 0, 6);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 18, 0.16, 0, 6);
 }
 
 .context-menu .menu-item,
@@ -682,7 +682,7 @@
 
 .context-menu .menu-item > .label,
 .bookmark-context-menu .menu-item > .label {
-    -fx-text-fill: -uiptv-text-primary;
+    -fx-text-fill: white;
 }
 
 .context-menu .menu-item:focused,
@@ -691,12 +691,12 @@
 .bookmark-context-menu .menu-item:focused,
 .bookmark-context-menu .menu-item:hover,
 .bookmark-context-menu .menu-item:armed {
-    -fx-background-color: #f5f5f5;
+    -fx-background-color: #2a3038;
 }
 
 .context-menu .separator .line,
 .bookmark-context-menu .separator .line {
-    -fx-border-color: #e5e5e5;
+    -fx-border-color: #343941;
 }
 
 .context-menu .menu-item.danger-menu-item:focused,
@@ -981,10 +981,6 @@
     -fx-padding: 6 13 6 13;
 }
 
-.wide-player-navigation-restore-shell {
-    -fx-background-color: -uiptv-app-bg;
-}
-
 .account-card-grid {
     -fx-background-color: transparent;
 }
@@ -1061,6 +1057,14 @@
     -fx-text-fill: -uiptv-text-secondary;
 }
 
+.account-card-type-text {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.account-card-expiry-date {
+    -fx-font-weight: bold;
+}
+
 .account-card-metrics {
     -fx-font-size: 0.92em;
 }
@@ -1073,9 +1077,12 @@
 .uiptv-responsive-card.selected .account-card-title,
 .uiptv-responsive-card:selected .account-card-type,
 .uiptv-responsive-card.selected .account-card-type,
+.uiptv-responsive-card:selected .account-card-type-text,
+.uiptv-responsive-card.selected .account-card-type-text,
 .uiptv-responsive-card:selected .account-card-metrics,
 .uiptv-responsive-card.selected .account-card-metrics {
     -fx-text-fill: -uiptv-selected-card-fg;
+    -fx-fill: -uiptv-selected-card-fg;
 }
 
 .account-category-list-pane,
@@ -1654,6 +1661,12 @@
     -fx-padding: 5;
 }
 
+.uiptv-pill-bar-compact {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
 .uiptv-pill-bar-content {
     -fx-background-color: transparent;
     -fx-border-color: transparent;
@@ -1685,6 +1698,45 @@
 .uiptv-pill:focused {
     -fx-background-insets: 0;
     -fx-border-insets: 0;
+}
+
+.uiptv-pill-bar-dropdown {
+    -fx-background-color: rgba(255, 255, 255, 0.78);
+    -fx-border-color: rgba(15, 23, 42, 0.12);
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-min-width: 136;
+    -fx-pref-width: 168;
+    -fx-min-height: 42;
+    -fx-pref-height: 42;
+    -fx-max-height: 42;
+    -fx-padding: 7 12 7 12;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-cursor: hand;
+    -fx-alignment: center-left;
+    -fx-effect: none;
+    -fx-graphic-text-gap: 7;
+}
+
+.uiptv-pill-bar-dropdown:hover,
+.uiptv-pill-bar-dropdown:focused {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(37, 99, 235, 0.28);
+    -fx-effect: none;
+}
+
+.uiptv-pill-bar-dropdown > .label,
+.uiptv-pill-bar-dropdown .text {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-fill: -uiptv-text-primary;
+    -fx-opacity: 1;
+    -fx-font-size: 0.9em;
+    -fx-font-weight: 600;
+}
+
+.uiptv-pill-bar-dropdown .arrow {
+    -fx-background-color: -uiptv-text-secondary;
 }
 
 .uiptv-pill:selected {
@@ -3881,6 +3933,28 @@
     -fx-cursor: hand;
 }
 
+.player-round-control-button:hover,
+.player-round-control-button:armed,
+.player-round-control-button:focused {
+    -fx-background-color: rgba(0, 0, 0, 0.6);
+    -fx-background-radius: 50em;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-radius: 50em;
+    -fx-border-insets: 0;
+    -fx-effect: none;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.player-hiddenbar-close-button,
+.player-hiddenbar-close-button:hover,
+.player-hiddenbar-close-button:armed,
+.player-hiddenbar-close-button:focused {
+    -fx-background-color: rgba(0, 0, 0, 0.6);
+}
+
 .player-pip-overlay-button {
     -fx-background-color: rgba(0, 0, 0, 0.6);
     -fx-background-radius: 50em;
@@ -3939,6 +4013,12 @@
 .player-layout-mode-button:focused {
     -fx-background-color: transparent;
     -fx-background-radius: 4;
+}
+
+.player-layout-mode-button {
+    -fx-min-width: 26;
+    -fx-pref-width: 26;
+    -fx-max-width: 26;
 }
 
 .player-layout-mode-button:hover,

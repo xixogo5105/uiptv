@@ -23,7 +23,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
-import static com.uiptv.testsupport.FxTestSupport.waitForFxEvents;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -111,34 +110,6 @@ class CoreWidgetBehaviorTest {
             return null;
         });
         assertEquals("Reloading cache", runOnFxThread(() -> labelText(loading)));
-    }
-
-    @Test
-    void widePlayerNavigationControlNotifiesListenersAndDelegatesToggle() throws Exception {
-        AtomicInteger listenerCount = new AtomicInteger();
-        AtomicInteger toggleCount = new AtomicInteger();
-        Runnable listener = listenerCount::incrementAndGet;
-        Runnable toggleHandler = toggleCount::incrementAndGet;
-
-        runOnFxThread(() -> {
-            WidePlayerNavigationControl.configure(false, false, null);
-            WidePlayerNavigationControl.addListener(listener);
-            WidePlayerNavigationControl.configure(true, false, toggleHandler);
-            WidePlayerNavigationControl.toggle();
-            WidePlayerNavigationControl.configure(true, false, toggleHandler);
-            WidePlayerNavigationControl.configure(true, true, toggleHandler);
-            WidePlayerNavigationControl.reset(() -> {
-            });
-            WidePlayerNavigationControl.reset(toggleHandler);
-            WidePlayerNavigationControl.removeListener(listener);
-            return null;
-        });
-        waitForFxEvents();
-
-        assertEquals(3, listenerCount.get());
-        assertEquals(1, toggleCount.get());
-        assertFalse(WidePlayerNavigationControl.isAvailable());
-        assertFalse(WidePlayerNavigationControl.isCollapsed());
     }
 
     @Test

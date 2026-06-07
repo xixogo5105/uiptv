@@ -18,7 +18,7 @@ import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
-import javafx.scene.layout.VBox;
+import javafx.scene.text.Text;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -55,6 +55,42 @@ class AccountListUILayoutTest extends DbBackedUiTest {
 
         assertTrue(cardWidth >= 340, "Expected full-width account cards to be wide enough for about five columns");
         assertTrue(cardWidth <= 365, "Expected full-width account cards to remain responsive rather than fixed oversized cards");
+    }
+
+    @Test
+    void accountCardShowsCompactExpiryAfterAccountTypeWithExpiryColor() throws Exception {
+        AccountExpiryCardSnapshot snapshot = runOnFxThread(() -> {
+            setThumbnailsEnabled(true);
+            AccountListUI ui = new AccountListUI(false, null, null);
+            masterAccountItems(ui).setAll(new AccountListUI.AccountItem(
+                    new SimpleStringProperty("Account With Expiry"),
+                    new SimpleStringProperty("1"),
+                    new SimpleStringProperty("STALKER_PORTAL"),
+                    false,
+                    0,
+                    12,
+                    100,
+                    "12 Sep 26",
+                    AccountInfoUiUtil.ExpiryState.WARNING
+            ));
+            invokeApplyAccountOrdering(ui);
+            ResponsiveCardGrid<AccountListUI.AccountItem> grid = accountGrid(ui);
+            grid.resize(430, 500);
+            grid.layout();
+
+            Region card = firstCard(grid);
+            Node typeLine = findByStyle(card, "account-card-type");
+            Text expiryDate = (Text) findByStyle(card, "account-card-expiry-date");
+            return new AccountExpiryCardSnapshot(
+                    joinedText(typeLine),
+                    expiryDate.getText(),
+                    expiryDate.getStyle()
+            );
+        });
+
+        assertEquals("Stalker Portal (12 Sep 26)", snapshot.typeLineText());
+        assertEquals("12 Sep 26", snapshot.expiryDateText());
+        assertTrue(snapshot.expiryDateStyle().contains(AccountInfoUiUtil.colorForExpiry(AccountInfoUiUtil.ExpiryState.WARNING)));
     }
 
     @Test
@@ -99,7 +135,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
             ui.applyCss();
 
             Node toolbar = findByStyle(ui, "account-toolbar");
-            return toolbar instanceof VBox vBox ? vBox.getSpacing() : -1.0;
+            return toolbar instanceof HBox hBox ? hBox.getSpacing() : -1.0;
         });
 
         assertEquals(8.0, spacing, 0.01);
@@ -158,11 +194,10 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         });
 
         assertEquals(40, heights.get(0), 0.01);
-        assertEquals(88, heights.get(1), 0.01);
-        assertEquals(88, heights.get(2), 0.01);
-        assertEquals(88, heights.get(3), 0.01);
-        assertEquals(88, heights.get(4), 0.01);
-        assertTrue(heights.get(5) <= heights.get(4) + 0.5);
+        assertEquals(42, heights.get(1), 0.01);
+        assertEquals(42, heights.get(2), 0.01);
+        assertEquals(42, heights.get(3), 0.01);
+        assertEquals(42, heights.get(4), 0.01);
     }
 
     @Test
@@ -390,6 +425,24 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         return false;
     }
 
+    private static String joinedText(Node node) {
+        List<String> values = new ArrayList<>();
+        collectText(node, values);
+        return String.join("", values);
+    }
+
+    private static void collectText(Node node, List<String> values) {
+        if (node instanceof Text text) {
+            values.add(text.getText());
+            return;
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                collectText(child, values);
+            }
+        }
+    }
+
     private static String labeledTextByStyle(Node root, String styleClass) {
         Node node = findByStyle(root, styleClass);
         return node instanceof Labeled labeled ? labeled.getText() : "";
@@ -485,6 +538,9 @@ class AccountListUILayoutTest extends DbBackedUiTest {
             boolean hasAccountMenu,
             double minHeight
     ) {
+    }
+
+    private record AccountExpiryCardSnapshot(String typeLineText, String expiryDateText, String expiryDateStyle) {
     }
 
     private record BrowserSearchClearSnapshot(List<String> visibleAccounts, List<String> browserQueries) {
