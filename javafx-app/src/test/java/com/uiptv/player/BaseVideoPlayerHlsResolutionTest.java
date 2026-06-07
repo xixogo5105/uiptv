@@ -5,6 +5,7 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.RootApplication;
 import com.uiptv.util.HttpUtil;
 import javafx.application.Platform;
+import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -216,6 +217,24 @@ class BaseVideoPlayerHlsResolutionTest {
 
             Mockito.verify(overlayStage).initOwner(primaryStage);
             Mockito.verify(overlayStage).setAlwaysOnTop(true);
+            return null;
+        });
+    }
+
+    @Test
+    void exitFullscreenDoesNotReattachPlayerContainerTwice() throws Exception {
+        runOnFxThread(() -> {
+            TestPlayer player = new TestPlayer();
+            StackPane originalParent = new StackPane(player.playerContainer);
+            player.originalParent = originalParent;
+            player.originalIndex = 0;
+            player.fullscreenRoot = new StackPane();
+            player.fullscreenStage = new Stage();
+
+            player.exitFullscreen();
+
+            assertEquals(1, originalParent.getChildren().size());
+            assertEquals(player.playerContainer, originalParent.getChildren().getFirst());
             return null;
         });
     }

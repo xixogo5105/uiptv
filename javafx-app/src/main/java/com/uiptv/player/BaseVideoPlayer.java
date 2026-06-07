@@ -157,6 +157,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected String activeBingeWatchEpisodeId = "";
     private boolean primaryStageAlwaysOnTopBeforeVideoOverlay;
     private boolean primaryStageAlwaysOnTopSuppressedForVideoOverlay;
+    private boolean fullscreenExitPending;
     private SeriesWatchStateChangeListener bingeWatchStateChangeListener;
     private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);
     private final ConfigurationChangeListener layoutModeConfigurationChangeListener =
@@ -1257,22 +1258,45 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     public void exitFullscreen() {
-        if (fullscreenStage == null) return;
-        Platform.runLater(() -> {
+        if (fullscreenStage == null || fullscreenExitPending) return;
+        fullscreenExitPending = true;
+        if (Platform.isFxApplicationThread()) {
+            exitFullscreenOnFxThread();
+        } else {
+            Platform.runLater(this::exitFullscreenOnFxThread);
+        }
+    }
+
+    private void exitFullscreenOnFxThread() {
+        try {
+            Stage stageToClose = fullscreenStage;
+            StackPane rootToDetach = fullscreenRoot;
+            fullscreenStage = null;
+            fullscreenRoot = null;
             playerContainer.prefWidthProperty().unbind();
             playerContainer.prefHeightProperty().unbind();
-            if (fullscreenStage != null) fullscreenStage.close();
-            fullscreenStage = null;
-            if (fullscreenRoot != null) {
-                fullscreenRoot.getChildren().remove(playerContainer);
-                fullscreenRoot = null;
+            if (stageToClose != null) {
+                uninstallSceneInputRecovery(stageToClose.getScene());
+                stageToClose.setOnCloseRequest(null);
+                stageToClose.close();
+            }
+            if (rootToDetach != null) {
+                rootToDetach.getChildren().remove(playerContainer);
             }
             if (originalParent != null) {
-                originalParent.getChildren().add(originalIndex, playerContainer);
+                if (playerContainer.getParent() != originalParent) {
+                    if (playerContainer.getParent() instanceof Pane currentParent) {
+                        currentParent.getChildren().remove(playerContainer);
+                    }
+                    int safeIndex = Math.max(0, Math.min(originalIndex, originalParent.getChildren().size()));
+                    originalParent.getChildren().add(safeIndex, playerContainer);
+                }
                 if (originalParent.getScene() != null) {
                     originalParent.getScene().setCursor(Cursor.DEFAULT);
                 }
             }
+            originalParent = null;
+            originalIndex = -1;
             playerContainer.applyCss();
             playerContainer.layout();
             playerContainer.requestLayout();
@@ -1293,8 +1317,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 restartIdleTimerForActivePlayer();
             }
             restoreVisibleCursor();
+        } finally {
             restorePrimaryStageAlwaysOnTopAfterVideoOverlay();
-        });
+            fullscreenExitPending = false;
+        }
     }
 
     // --- PiP Logic ---
