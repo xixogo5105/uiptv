@@ -1307,7 +1307,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (pipStage != null) return;
         Platform.runLater(() -> {
             Scene originalScene = playerContainer.getScene();
-            suppressPrimaryStageAlwaysOnTopForVideoOverlay();
             detachPlayerContainer();
             Node videoView = getVideoView();
             playerContainer.getChildren().remove(videoView);
@@ -1326,7 +1325,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             installPipSceneInputRecovery(scene);
             positionPipStage();
             setupPipResizing(pipRoot);
-            pipStage.show();
+            showVideoOverlayStage(pipStage, false);
             applyPipUiState();
         });
     }
@@ -1367,7 +1366,6 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             playerContainer.requestLayout();
             playerContainer.requestFocus();
             btnPip.setGraphic(pipIcon);
-            restorePrimaryStageAlwaysOnTopAfterVideoOverlay();
         });
     }
 
@@ -1388,8 +1386,19 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     protected Stage createPipStage() {
         Stage stage = new Stage(StageStyle.UNDECORATED);
-        stage.setAlwaysOnTop(true);
+        configureVideoOverlayStage(stage);
         return stage;
+    }
+
+    protected void configureVideoOverlayStage(Stage stage) {
+        if (stage == null) {
+            return;
+        }
+        Stage primaryStage = RootApplication.getPrimaryStage();
+        if (primaryStage != null && primaryStage != stage && !stage.isShowing()) {
+            stage.initOwner(primaryStage);
+        }
+        stage.setAlwaysOnTop(true);
     }
 
     protected void suppressPrimaryStageAlwaysOnTopForVideoOverlay() {
@@ -1414,6 +1423,24 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
         primaryStageAlwaysOnTopBeforeVideoOverlay = false;
         primaryStageAlwaysOnTopSuppressedForVideoOverlay = false;
+    }
+
+    private void showVideoOverlayStage(Stage stage, boolean requestFocus) {
+        if (stage == null) {
+            return;
+        }
+        stage.show();
+        stage.setAlwaysOnTop(true);
+        stage.toFront();
+        if (requestFocus) {
+            stage.requestFocus();
+        }
+        Platform.runLater(() -> {
+            if (stage.isShowing()) {
+                stage.setAlwaysOnTop(true);
+                stage.toFront();
+            }
+        });
     }
 
     private StackPane createPipRoot() {

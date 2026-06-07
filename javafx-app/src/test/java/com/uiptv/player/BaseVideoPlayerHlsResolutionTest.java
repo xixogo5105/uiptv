@@ -180,7 +180,7 @@ class BaseVideoPlayerHlsResolutionTest {
     }
 
     @Test
-    void videoOverlayTemporarilySuppressesPrimaryStageAlwaysOnTop() throws Exception {
+    void fullscreenTemporarilySuppressesPrimaryStageAlwaysOnTop() throws Exception {
         runOnFxThread(() -> {
             TestPlayer player = new TestPlayer();
             Stage primaryStage = Mockito.mock(Stage.class);
@@ -196,6 +196,26 @@ class BaseVideoPlayerHlsResolutionTest {
                 Mockito.verify(primaryStage).setAlwaysOnTop(true);
             }
 
+            return null;
+        });
+    }
+
+    @Test
+    void pipOverlayStageIsOwnedByPrimaryStageAndAlwaysOnTop() throws Exception {
+        runOnFxThread(() -> {
+            TestPlayer player = new TestPlayer();
+            Stage overlayStage = Mockito.mock(Stage.class);
+            Stage primaryStage = Mockito.mock(Stage.class);
+            Mockito.when(overlayStage.isShowing()).thenReturn(false);
+
+            try (MockedStatic<RootApplication> rootApplication = Mockito.mockStatic(RootApplication.class)) {
+                rootApplication.when(RootApplication::getPrimaryStage).thenReturn(primaryStage);
+
+                player.configureOverlayStage(overlayStage);
+            }
+
+            Mockito.verify(overlayStage).initOwner(primaryStage);
+            Mockito.verify(overlayStage).setAlwaysOnTop(true);
             return null;
         });
     }
@@ -300,6 +320,10 @@ class BaseVideoPlayerHlsResolutionTest {
             }
             return buttonRow.getChildren().indexOf(btnLayoutMode) + 1
                     == buttonRow.getChildren().indexOf(btnAspectRatio);
+        }
+
+        void configureOverlayStage(Stage stage) {
+            configureVideoOverlayStage(stage);
         }
 
     }
