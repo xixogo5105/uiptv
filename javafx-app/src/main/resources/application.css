@@ -936,7 +936,7 @@
 .manage-account-dock-header {
     -fx-border-color: rgba(17, 19, 24, 0.08);
     -fx-border-width: 0 0 1 0;
-    -fx-padding: 8 10 8 10;
+    -fx-padding: 6 8 6 8;
 }
 
 .manage-account-dock-title {
@@ -948,6 +948,14 @@
 .manage-account-dock-close {
     -fx-background-radius: 999;
     -fx-border-radius: 999;
+}
+
+.manage-account-dock-save,
+.manage-account-dock-close {
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-padding: 5 10 5 10;
+    -fx-font-size: 0.86em;
 }
 
 .account-list-panel {
@@ -1749,19 +1757,16 @@
     -fx-background-color: rgba(255, 255, 255, 0.78);
     -fx-border-color: rgba(15, 23, 42, 0.12);
     -fx-border-width: 1;
-    -fx-background-radius: 14;
-    -fx-border-radius: 14;
+    -fx-background-radius: 1.08em;
+    -fx-border-radius: 1.08em;
     -fx-min-width: 136;
     -fx-pref-width: 168;
-    -fx-min-height: 42;
-    -fx-pref-height: 42;
-    -fx-max-height: 42;
-    -fx-padding: 7 12 7 12;
+    -fx-padding: 0.46em 0.92em 0.46em 0.92em;
     -fx-text-fill: -uiptv-text-primary;
     -fx-cursor: hand;
     -fx-alignment: center-left;
     -fx-effect: none;
-    -fx-graphic-text-gap: 7;
+    -fx-graphic-text-gap: 0.54em;
 }
 
 .uiptv-pill-bar-dropdown:hover,
@@ -1797,6 +1802,20 @@
 
 .uiptv-pill:selected .uiptv-pill-icon {
     -fx-fill: -uiptv-text-primary;
+}
+
+.manage-account-type-pill-bar {
+    -fx-padding: 4;
+}
+
+.manage-account-type-pill-bar .uiptv-pill-bar-content {
+    -fx-hgap: 4;
+    -fx-vgap: 4;
+}
+
+.manage-account-type-pill-bar .uiptv-pill {
+    -fx-padding: 5 9 5 9;
+    -fx-font-size: 0.86em;
 }
 
 .account-list-panel-compact .uiptv-pill-bar {
@@ -3537,8 +3556,116 @@
     -fx-text-fill: -uiptv-text-muted;
 }
 
+.manage-account-info-card {
+    -fx-background-color: linear-gradient(to bottom right, -uiptv-surface, -uiptv-surface-muted);
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-effect: none;
+}
+
+.manage-account-info-compact {
+    -fx-min-height: 30;
+}
+
+.manage-account-info-compact-label {
+    -fx-font-size: 0.78em;
+    -fx-font-weight: 800;
+    -fx-text-fill: -uiptv-text-muted;
+}
+
+.manage-account-info-compact-value {
+    -fx-font-size: 0.88em;
+    -fx-font-weight: 900;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.manage-account-info-profile-button,
+.account-info-popup-copy-button,
+.account-info-popup-close-button {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 5 10 5 10;
+    -fx-text-fill: -uiptv-action-fg;
+    -fx-font-size: 0.82em;
+    -fx-font-weight: 900;
+}
+
+.manage-account-info-profile-button:hover,
+.manage-account-info-profile-button:focused,
+.account-info-popup-copy-button:hover,
+.account-info-popup-copy-button:focused,
+.account-info-popup-close-button:hover,
+.account-info-popup-close-button:focused {
+    -fx-background-color: -uiptv-action-hover-bg;
+    -fx-border-color: -uiptv-action-hover-bg;
+}
+
+.account-info-popup-root {
+    -fx-background-color: linear-gradient(to bottom right, -uiptv-app-bg, -uiptv-surface-muted);
+}
+
+.account-info-popup-card {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 16;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.12), 18, 0.12, 0, 6);
+}
+
+.account-info-popup-title {
+    -fx-font-size: 1.28em;
+    -fx-font-weight: 900;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.account-info-popup-subtitle {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.account-info-profile-text-area {
+    -fx-font-family: "Roboto Mono", "Roboto";
+    -fx-font-size: 0.98em;
+    -fx-control-inner-background: -uiptv-surface;
+    -fx-background-color: -uiptv-surface;
+    -fx-background-insets: 0;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-effect: none;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.account-info-profile-text-area:focused {
+    -fx-background-color: -uiptv-surface;
+    -fx-background-insets: 0;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-effect: none;
+}
+
+.account-info-profile-text-area > .scroll-pane,
+.account-info-profile-text-area > .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.account-info-profile-text-area .content {
+    -fx-background-color: -uiptv-surface;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+}
+
 .manage-account-switch-row {
-    -fx-padding: 4 0 4 0;
+    -fx-padding: 2 0 2 0;
 }
 
 .manage-account-switch-label {
@@ -3546,13 +3673,19 @@
 }
 
 .manage-account-action-row {
-    -fx-padding: 8 0 0 0;
+    -fx-padding: 4 0 0 0;
 }
 
 .manage-account-action-row .button {
-    -fx-min-height: 38;
-    -fx-pref-height: 38;
-    -fx-padding: 7 14 7 14;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-padding: 5 9 5 9;
+    -fx-font-size: 0.82em;
+}
+
+.manage-account-form .text-field,
+.manage-account-form .password-field {
+    -fx-padding: 6 10 6 10;
 }
 
 .management-list-view {

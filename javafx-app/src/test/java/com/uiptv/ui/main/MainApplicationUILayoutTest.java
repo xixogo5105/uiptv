@@ -8,6 +8,7 @@ import com.uiptv.widget.AppNavigationController;
 import com.uiptv.widget.AppNavigationPane;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
@@ -238,6 +239,27 @@ class MainApplicationUILayoutTest {
     }
 
     @Test
+    void manageAccountDockHeaderPlacesSaveBesideClose() throws Exception {
+        HeaderButtonsSnapshot snapshot = runOnFxThread(() -> {
+            Object manageAccountColumn = createManageAccountColumn();
+            VBox dock = (VBox) manageAccountColumnNode(manageAccountColumn);
+            HBox header = (HBox) dock.getChildrenUnmodifiable().getFirst();
+            List<Button> buttons = header.getChildrenUnmodifiable().stream()
+                    .filter(Button.class::isInstance)
+                    .map(Button.class::cast)
+                    .toList();
+            return new HeaderButtonsSnapshot(
+                    buttons.stream().map(Button::getText).toList(),
+                    buttons.stream().map(button -> List.copyOf(button.getStyleClass())).toList()
+            );
+        });
+
+        assertEquals(List.of(I18n.tr("commonSave"), I18n.tr("commonClose")), snapshot.texts());
+        assertTrue(snapshot.styleClasses().getFirst().contains("manage-account-dock-save"));
+        assertTrue(snapshot.styleClasses().get(1).contains("manage-account-dock-close"));
+    }
+
+    @Test
     void manageAccountDockBecomesOnlyVisibleColumnWhenWidthIsLimited() throws Exception {
         runOnFxThread(() -> {
             MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, false);
@@ -447,5 +469,8 @@ class MainApplicationUILayoutTest {
         Field field = MainApplicationUI.class.getDeclaredField(fieldName);
         field.setAccessible(true);
         field.set(ui, value);
+    }
+
+    private record HeaderButtonsSnapshot(List<String> texts, List<List<String>> styleClasses) {
     }
 }

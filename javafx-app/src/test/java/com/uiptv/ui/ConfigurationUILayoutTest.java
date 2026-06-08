@@ -50,7 +50,7 @@ class ConfigurationUILayoutTest extends DbBackedUiTest {
         waitForFxEvents();
 
         assertEquals(40, heights.get(0), 0.01);
-        assertEquals(42, heights.get(1), 0.01);
+        assertEquals(44, heights.get(1), 0.01);
     }
 
     private static Node findByStyle(Node node, String styleClass) {

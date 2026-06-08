@@ -25,11 +25,12 @@ import java.util.Objects;
 import java.util.function.Function;
 
 public class PillBar<T> extends StackPane {
+    private static final double BASE_FONT_SIZE = 13.0;
     private static final double SCROLLBAR_WIDTH_GUTTER = 18;
     private static final double SINGLE_ROW_HEADROOM = 16;
     private static final double NARROW_SIDE_PANE_WIDTH_THRESHOLD = 620;
     private static final double MIN_SINGLE_ROW_HEIGHT = 40;
-    private static final double COMPACT_DROPDOWN_HEIGHT = 42;
+    private static final double COMPACT_DROPDOWN_HEIGHT = 44;
     public static final double COMPACT_DROPDOWN_MIN_WIDTH = 136;
     public static final double COMPACT_DROPDOWN_PREF_WIDTH = 168;
     private static final double MIN_WRAPPED_ROW_INCREMENT = 48;
@@ -47,6 +48,7 @@ public class PillBar<T> extends StackPane {
     private boolean rebuilding;
     private boolean syncingCompactSelection;
     private boolean compactMode;
+    private boolean compactDropdownEnabled = true;
     private int reservedRowCount;
     private int narrowReservedRowCount;
     private int narrowItemsPerRow;
@@ -79,7 +81,7 @@ public class PillBar<T> extends StackPane {
         setFocusTraversable(false);
         setMinWidth(0);
         setMaxWidth(Double.MAX_VALUE);
-        applyFixedHeight(MIN_SINGLE_ROW_HEIGHT);
+        applyFixedHeight(scaledLength(MIN_SINGLE_ROW_HEIGHT));
 
         Rectangle clip = new Rectangle();
         clip.setX(-6);
@@ -100,12 +102,12 @@ public class PillBar<T> extends StackPane {
         compactDropdown.getStyleClass().add("uiptv-pill-bar-dropdown");
         compactDropdown.setAlignment(Pos.CENTER_LEFT);
         compactDropdown.setContentDisplay(ContentDisplay.LEFT);
-        compactDropdown.setMinWidth(COMPACT_DROPDOWN_MIN_WIDTH);
-        compactDropdown.setPrefWidth(COMPACT_DROPDOWN_PREF_WIDTH);
+        applyCompactDropdownMetrics();
         compactDropdown.setMaxWidth(Double.MAX_VALUE);
         compactDropdown.setTextOverrun(OverrunStyle.ELLIPSIS);
         compactDropdown.setVisible(false);
         compactDropdown.setManaged(false);
+        compactDropdown.fontProperty().addListener((_, _, _) -> handleCompactDropdownFontChanged());
 
         getChildren().addAll(content, compactDropdown);
         StackPane.setAlignment(content, Pos.CENTER_LEFT);
@@ -266,6 +268,16 @@ public class PillBar<T> extends StackPane {
         requestAncestorLayout();
     }
 
+    public void setCompactDropdownEnabled(boolean compactDropdownEnabled) {
+        if (this.compactDropdownEnabled == compactDropdownEnabled) {
+            return;
+        }
+        this.compactDropdownEnabled = compactDropdownEnabled;
+        resetAppliedRowCount();
+        syncReservedHeight(getWidth());
+        requestAncestorLayout();
+    }
+
     @Override
     public Orientation getContentBias() {
         return Orientation.HORIZONTAL;
@@ -321,7 +333,7 @@ public class PillBar<T> extends StackPane {
     }
 
     private boolean shouldUseCompactDropdown(double width) {
-        return rowCountForWidth(width) > 1;
+        return compactDropdownEnabled && rowCountForWidth(width) > 1;
     }
 
     private void syncCompactMode(boolean useCompactDropdown) {
@@ -333,7 +345,7 @@ public class PillBar<T> extends StackPane {
         content.setManaged(!useCompactDropdown);
         compactDropdown.setVisible(useCompactDropdown);
         compactDropdown.setManaged(useCompactDropdown);
-        setMinWidth(useCompactDropdown ? COMPACT_DROPDOWN_MIN_WIDTH : 0);
+        setMinWidth(useCompactDropdown ? scaledLength(COMPACT_DROPDOWN_MIN_WIDTH) : 0);
         setPrefWidth(Region.USE_COMPUTED_SIZE);
         updateStyleClass(this, COMPACT_STYLE_CLASS, useCompactDropdown);
     }
@@ -415,11 +427,46 @@ public class PillBar<T> extends StackPane {
 
     private double heightForRows(int rowCount) {
         int safeRowCount = Math.max(1, rowCount);
-        return MIN_SINGLE_ROW_HEIGHT + Math.max(0, safeRowCount - 1) * MIN_WRAPPED_ROW_INCREMENT;
+        return scaledLength(MIN_SINGLE_ROW_HEIGHT)
+                + Math.max(0, safeRowCount - 1) * scaledLength(MIN_WRAPPED_ROW_INCREMENT);
     }
 
     private double heightForMode(boolean useCompactDropdown, int rowCount) {
-        return useCompactDropdown ? COMPACT_DROPDOWN_HEIGHT : heightForRows(rowCount);
+        return useCompactDropdown ? scaledLength(COMPACT_DROPDOWN_HEIGHT) : heightForRows(rowCount);
+    }
+
+    private void handleCompactDropdownFontChanged() {
+        applyCompactDropdownMetrics();
+        if (compactMode) {
+            setMinWidth(scaledLength(COMPACT_DROPDOWN_MIN_WIDTH));
+        }
+        if (syncReservedHeight(getWidth())) {
+            requestAncestorLayout();
+        } else {
+            requestLayout();
+        }
+    }
+
+    private void applyCompactDropdownMetrics() {
+        double compactHeight = scaledLength(COMPACT_DROPDOWN_HEIGHT);
+        compactDropdown.setMinHeight(compactHeight);
+        compactDropdown.setPrefHeight(compactHeight);
+        compactDropdown.setMaxHeight(compactHeight);
+        compactDropdown.setMinWidth(scaledLength(COMPACT_DROPDOWN_MIN_WIDTH));
+        compactDropdown.setPrefWidth(scaledLength(COMPACT_DROPDOWN_PREF_WIDTH));
+        compactDropdown.setMaxWidth(Double.MAX_VALUE);
+    }
+
+    private double scaledLength(double baseLength) {
+        return Math.max(1, baseLength * currentFontScale());
+    }
+
+    private double currentFontScale() {
+        double fontSize = compactDropdown.getFont() == null ? BASE_FONT_SIZE : compactDropdown.getFont().getSize();
+        if (!Double.isFinite(fontSize) || fontSize <= 0) {
+            return 1.0;
+        }
+        return fontSize / BASE_FONT_SIZE;
     }
 
     private void resetAppliedRowCount() {

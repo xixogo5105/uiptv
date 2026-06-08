@@ -519,7 +519,11 @@ public abstract class BaseMainApplicationUI {
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
 
-            HBox header = new HBox(8, title, spacer, closeButton);
+            Button saveButton = manageAccountUI.getHeaderSaveButton();
+            saveButton.getStyleClass().add("manage-account-dock-save");
+            saveButton.setFocusTraversable(false);
+
+            HBox header = new HBox(8, title, spacer, saveButton, closeButton);
             header.getStyleClass().add("manage-account-dock-header");
             header.setAlignment(Pos.CENTER_LEFT);
             header.setPadding(new Insets(8, 10, 0, 10));

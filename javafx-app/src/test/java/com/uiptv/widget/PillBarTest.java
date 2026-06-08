@@ -109,8 +109,8 @@ class PillBarTest {
         });
 
         assertEquals(40, snapshot.computedSingleRowHeight(), 0.01);
-        assertEquals(42, snapshot.computedDoubleRowHeight(), 0.01);
-        assertEquals(42, snapshot.prefHeightProperty(), 0.01);
+        assertEquals(44, snapshot.computedDoubleRowHeight(), 0.01);
+        assertEquals(44, snapshot.prefHeightProperty(), 0.01);
     }
 
     @Test
@@ -135,7 +135,7 @@ class PillBarTest {
         });
 
         assertEquals(40, snapshot.computedSingleRowHeight(), 0.01);
-        assertEquals(42, snapshot.computedDoubleRowHeight(), 0.01);
+        assertEquals(44, snapshot.computedDoubleRowHeight(), 0.01);
         assertEquals(40, snapshot.prefHeightProperty(), 0.01);
     }
 
@@ -178,9 +178,9 @@ class PillBarTest {
         });
 
         assertEquals(40, snapshot.wideHeight(), 0.01);
-        assertEquals(42, snapshot.narrowHeight(), 0.01);
-        assertEquals(42, snapshot.widthlessHeight(), 0.01);
-        assertEquals(42, snapshot.prefHeightProperty(), 0.01);
+        assertEquals(44, snapshot.narrowHeight(), 0.01);
+        assertEquals(44, snapshot.widthlessHeight(), 0.01);
+        assertEquals(44, snapshot.prefHeightProperty(), 0.01);
     }
 
     @Test
@@ -212,9 +212,9 @@ class PillBarTest {
         });
 
         assertEquals(40, snapshot.wideHeight(), 0.01);
-        assertEquals(42, snapshot.narrowHeight(), 0.01);
-        assertEquals(42, snapshot.widthlessHeight(), 0.01);
-        assertEquals(42, snapshot.prefHeightProperty(), 0.01);
+        assertEquals(44, snapshot.narrowHeight(), 0.01);
+        assertEquals(44, snapshot.widthlessHeight(), 0.01);
+        assertEquals(44, snapshot.prefHeightProperty(), 0.01);
     }
 
     @Test
@@ -247,9 +247,9 @@ class PillBarTest {
             );
         });
 
-        assertEquals(42, snapshot.initialHeight(), 0.01);
-        assertEquals(42, snapshot.afterSelectionHeight(), 0.01);
-        assertEquals(42, snapshot.prefHeightProperty(), 0.01);
+        assertEquals(44, snapshot.initialHeight(), 0.01);
+        assertEquals(44, snapshot.afterSelectionHeight(), 0.01);
+        assertEquals(44, snapshot.prefHeightProperty(), 0.01);
         assertEquals(true, snapshot.dropdownManaged());
         assertEquals("News", snapshot.dropdownText());
     }
@@ -307,6 +307,43 @@ class PillBarTest {
         assertTrue(snapshot.dropdownWidth() <= snapshot.pillBarWidth());
     }
 
+    @Test
+    void compactDropdownHeightScalesWithStyledFontZoom() throws Exception {
+        CompactZoomSnapshot snapshot = runOnFxThread(() -> {
+            PillBar<String> pillBar = new PillBar<>(value -> value, value -> value);
+            pillBar.setNarrowItemsPerRow(5);
+            pillBar.setItems(List.of("All", "Cricket", "Movies", "Drama", "4K", "News", "A Samad"));
+            VBox root = new VBox(pillBar);
+            root.setFillWidth(true);
+            Scene scene = new Scene(root, 520, 220);
+            scene.getStylesheets().add(Objects.requireNonNull(
+                    PillBarTest.class.getResource("/application.css")
+            ).toExternalForm());
+
+            root.applyCss();
+            root.layout();
+            root.layout();
+            double defaultHeight = pillBar.getPrefHeight();
+
+            root.setStyle("-fx-font-size: 26;");
+            root.applyCss();
+            root.layout();
+            root.layout();
+
+            return new CompactZoomSnapshot(
+                    defaultHeight,
+                    compactDropdown(pillBar).getFont().getSize(),
+                    pillBar.getPrefHeight(),
+                    compactDropdown(pillBar).getHeight()
+            );
+        });
+
+        assertEquals(44, snapshot.defaultHeight(), 0.01);
+        assertEquals(44 * snapshot.zoomedFontSize() / 13.0, snapshot.zoomedPrefHeight(), 0.75);
+        assertTrue(snapshot.zoomedDropdownHeight() >= snapshot.zoomedPrefHeight() - 3);
+        assertTrue(snapshot.zoomedPrefHeight() > snapshot.defaultHeight() * 1.8);
+    }
+
     private static ToggleButton pillAt(PillBar<?> pillBar, int index) {
         FlowPane content = (FlowPane) pillBar.getChildren().get(0);
         return (ToggleButton) content.getChildren().get(index);
@@ -360,5 +397,11 @@ class PillBarTest {
     private record CompactWidthSnapshot(double pillBarWidth,
                                         double dropdownWidth,
                                         boolean dropdownManaged) {
+    }
+
+    private record CompactZoomSnapshot(double defaultHeight,
+                                       double zoomedFontSize,
+                                       double zoomedPrefHeight,
+                                       double zoomedDropdownHeight) {
     }
 }

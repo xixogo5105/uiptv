@@ -78,6 +78,7 @@ public class ReloadCacheInline extends VBox {
     private static final String TR_CATEGORY_TAB_LIVE_TV = "categoryTabLiveTv";
     private static final String TR_RELOAD_MODE_CATEGORY_LIST_CALL_FAILED = "reloadModeCategoryListCallFailed";
     private static final String TR_RELOAD_MODE_CATEGORY_LIST_FAILED = "reloadModeCategoryListFailed";
+    private static final Set<AccountType> M3U_ACCOUNT_TYPES = Set.of(AccountType.M3U8_LOCAL, AccountType.M3U8_URL);
     private static final String TR_RELOAD_NO_CHANNELS_LOADED = "reloadNoChannelsLoaded";
     private static final int MAX_LOG_LINES_PER_ACCOUNT = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxLinesPerAccount", 500));
     private static final int MAX_PENDING_LOG_LINES = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxPending", 2_000));
@@ -373,23 +374,20 @@ public class ReloadCacheInline extends VBox {
         ToggleButton allChip = createSelectChip(I18n.tr("commonAll"));
         ToggleButton stalkerChip = createSelectChip(I18n.tr("reloadStalkerPortalAccounts"));
         ToggleButton xtremeChip = createSelectChip(I18n.tr("reloadXtremeAccount"));
-        ToggleButton m3uLocalChip = createSelectChip(I18n.tr("reloadM3uLocalPlaylist"));
-        ToggleButton m3uRemoteChip = createSelectChip(I18n.tr("reloadM3uRemotePlaylist"));
+        ToggleButton m3uChip = createSelectChip("M3U");
 
         allChip.setOnAction(e -> {
             boolean selected = allChip.isSelected();
             setAllSelectionStates(selected);
             stalkerChip.setSelected(selected);
             xtremeChip.setSelected(selected);
-            m3uLocalChip.setSelected(selected);
-            m3uRemoteChip.setSelected(selected);
+            m3uChip.setSelected(selected);
         });
         stalkerChip.setOnAction(e -> updateCheckboxes(AccountType.STALKER_PORTAL, stalkerChip.isSelected()));
         xtremeChip.setOnAction(e -> updateCheckboxes(AccountType.XTREME_API, xtremeChip.isSelected()));
-        m3uLocalChip.setOnAction(e -> updateCheckboxes(AccountType.M3U8_LOCAL, m3uLocalChip.isSelected()));
-        m3uRemoteChip.setOnAction(e -> updateCheckboxes(AccountType.M3U8_URL, m3uRemoteChip.isSelected()));
+        m3uChip.setOnAction(e -> updateCheckboxes(M3U_ACCOUNT_TYPES, m3uChip.isSelected()));
 
-        FlowPane chips = new FlowPane(8, 8, allChip, stalkerChip, xtremeChip, m3uLocalChip, m3uRemoteChip);
+        FlowPane chips = new FlowPane(8, 8, allChip, stalkerChip, xtremeChip, m3uChip);
         chips.getStyleClass().add("reload-select-chip-row");
         chips.setAlignment(Pos.CENTER_LEFT);
         chips.setMinWidth(0);
@@ -734,9 +732,13 @@ public class ReloadCacheInline extends VBox {
     }
 
     private void updateCheckboxes(AccountType type, boolean selected) {
+        updateCheckboxes(Set.of(type), selected);
+    }
+
+    private void updateCheckboxes(Set<AccountType> types, boolean selected) {
         for (CheckBox cb : checkBoxes) {
             Account acc = (Account) cb.getUserData();
-            if (acc.getType() == type) {
+            if (types.contains(acc.getType())) {
                 cb.setSelected(selected);
             }
         }

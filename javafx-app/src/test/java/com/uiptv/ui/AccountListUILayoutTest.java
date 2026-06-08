@@ -224,10 +224,10 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         });
 
         assertEquals(40, heights.get(0), 0.01);
-        assertEquals(42, heights.get(1), 0.01);
-        assertEquals(42, heights.get(2), 0.01);
-        assertEquals(42, heights.get(3), 0.01);
-        assertEquals(42, heights.get(4), 0.01);
+        assertEquals(44, heights.get(1), 0.01);
+        assertEquals(44, heights.get(2), 0.01);
+        assertEquals(44, heights.get(3), 0.01);
+        assertEquals(44, heights.get(4), 0.01);
     }
 
     @Test

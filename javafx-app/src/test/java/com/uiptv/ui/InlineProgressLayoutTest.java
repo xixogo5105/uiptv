@@ -1,9 +1,11 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.service.AccountService;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.I18n;
 import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.SegmentedProgressBar;
 import javafx.geometry.Pos;
@@ -12,8 +14,10 @@ import javafx.scene.Parent;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -23,6 +27,7 @@ import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
@@ -104,6 +109,44 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
         assertTrue(snapshot.accountMinWidth() >= 680);
         assertEquals(58.0, snapshot.logPercent(), 0.001);
         assertTrue(snapshot.logMinWidth() >= 360);
+    }
+
+    @Test
+    void reloadCacheUsesSingleM3uChipForLocalAndRemoteAccounts() throws Exception {
+        AccountService service = AccountService.getInstance();
+        service.save(cacheAccount("Reload Local", AccountType.M3U8_LOCAL));
+        service.save(cacheAccount("Reload Remote", AccountType.M3U8_URL));
+        service.save(cacheAccount("Reload Xtreme", AccountType.XTREME_API));
+
+        ReloadM3uChipSnapshot snapshot = runOnFxThread(() -> {
+            ReloadCacheInline inline = new ReloadCacheInline(List.of());
+            FlowPane chipRow = findDescendantByStyle(inline, FlowPane.class, "reload-select-chip-row");
+            List<ToggleButton> chips = findDescendantsByType(chipRow, ToggleButton.class);
+            ToggleButton m3uChip = chips.stream()
+                    .filter(chip -> "M3U".equals(chip.getText()))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("Missing M3U chip"));
+
+            m3uChip.fire();
+
+            List<CheckBox> accountRows = findDescendantsByType(inline, CheckBox.class).stream()
+                    .filter(row -> row.getStyleClass().contains("reload-account-row"))
+                    .toList();
+            return new ReloadM3uChipSnapshot(
+                    chips.stream().map(ToggleButton::getText).toList(),
+                    isTypeSelected(accountRows, AccountType.M3U8_LOCAL),
+                    isTypeSelected(accountRows, AccountType.M3U8_URL),
+                    isTypeSelected(accountRows, AccountType.XTREME_API)
+            );
+        });
+
+        assertEquals(4, snapshot.chipLabels().size());
+        assertTrue(snapshot.chipLabels().contains("M3U"));
+        assertFalse(snapshot.chipLabels().contains(I18n.tr("reloadM3uLocalPlaylist")));
+        assertFalse(snapshot.chipLabels().contains(I18n.tr("reloadM3uRemotePlaylist")));
+        assertTrue(snapshot.localM3uSelected());
+        assertTrue(snapshot.remoteM3uSelected());
+        assertFalse(snapshot.xtremeSelected());
     }
 
     @Test
@@ -256,11 +299,31 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
     }
 
     private static Account account(String id, String name) {
+        return account(id, name, AccountType.STALKER_PORTAL);
+    }
+
+    private static Account account(String id, String name, AccountType type) {
         Account account = new Account();
         account.setDbId(id);
         account.setAccountName(name);
-        account.setType(AccountType.STALKER_PORTAL);
+        account.setType(type);
         return account;
+    }
+
+    private static Account cacheAccount(String name, AccountType type) {
+        Account account = new Account();
+        account.setAccountName(name);
+        account.setType(type);
+        account.setUrl("http://example.test/");
+        account.setM3u8Path("http://example.test/list.m3u");
+        return account;
+    }
+
+    private static boolean isTypeSelected(List<CheckBox> rows, AccountType type) {
+        List<CheckBox> matchingRows = rows.stream()
+                .filter(row -> row.getUserData() instanceof Account account && account.getType() == type)
+                .toList();
+        return !matchingRows.isEmpty() && matchingRows.stream().allMatch(CheckBox::isSelected);
     }
 
     private static ProgressRowSnapshot snapshot(Node root, String rowStyleClass) {
@@ -313,6 +376,32 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
             }
         }
         return null;
+    }
+
+    private static <T extends Node> List<T> findDescendantsByType(Node root, Class<T> type) {
+        List<T> results = new ArrayList<>();
+        collectDescendantsByType(root, type, results);
+        return results;
+    }
+
+    private static <T extends Node> void collectDescendantsByType(Node root, Class<T> type, List<T> results) {
+        if (root == null) {
+            return;
+        }
+        if (type.isInstance(root)) {
+            results.add(type.cast(root));
+        }
+        if (root instanceof Pane pane) {
+            for (Node child : pane.getChildren()) {
+                collectDescendantsByType(child, type, results);
+            }
+        } else if (root instanceof ScrollPane scrollPane) {
+            collectDescendantsByType(scrollPane.getContent(), type, results);
+        } else if (root instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                collectDescendantsByType(child, type, results);
+            }
+        }
     }
 
     private static String describeTree(Node root, int depth) {
@@ -378,6 +467,14 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
             double accountMinWidth,
             double logPercent,
             double logMinWidth
+    ) {
+    }
+
+    private record ReloadM3uChipSnapshot(
+            List<String> chipLabels,
+            boolean localM3uSelected,
+            boolean remoteM3uSelected,
+            boolean xtremeSelected
     ) {
     }
 
