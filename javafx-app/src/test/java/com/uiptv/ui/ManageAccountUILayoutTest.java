@@ -2,12 +2,15 @@ package com.uiptv.ui;
 
 import com.uiptv.util.AccountType;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.DangerousButton;
 import com.uiptv.widget.PillBar;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Hyperlink;
+import javafx.scene.paint.Color;
+import javafx.css.PseudoClass;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -126,6 +129,12 @@ class ManageAccountUILayoutTest {
     }
 
     @Test
+    void dangerousButtonsKeepDangerColorWhenFocused() throws Exception {
+        assertEquals(Color.web("#b91c1c"), focusedDangerousButtonFill("/application.css"));
+        assertEquals(Color.web("#dc2626"), focusedDangerousButtonFill("/dark-application.css"));
+    }
+
+    @Test
     void localM3uPathAndBrowseShareOneResponsiveRow() throws Exception {
         LocalPathRowSnapshot snapshot = runOnFxThread(() -> {
             ManageAccountUI ui = new ManageAccountUI();
@@ -158,6 +167,20 @@ class ManageAccountUILayoutTest {
         Field field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
         return type.cast(field.get(target));
+    }
+
+    private static Color focusedDangerousButtonFill(String stylesheetResource) throws Exception {
+        return runOnFxThread(() -> {
+            Button button = new DangerousButton("Delete");
+            StackPane root = new StackPane(button);
+            Scene scene = new Scene(root, 160, 48);
+            scene.getStylesheets().add(Objects.requireNonNull(
+                    ManageAccountUILayoutTest.class.getResource(stylesheetResource)
+            ).toExternalForm());
+            button.pseudoClassStateChanged(PseudoClass.getPseudoClass("focused"), true);
+            root.applyCss();
+            return (Color) button.getBackground().getFills().getFirst().getFill();
+        });
     }
 
     private record MacActionRowSnapshot(

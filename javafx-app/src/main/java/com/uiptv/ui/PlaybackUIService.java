@@ -78,7 +78,7 @@ public final class PlaybackUIService {
                 runLater(() -> showErrorAlert(request.errorPrefix + e.getMessage()));
             } finally {
                 if (scene != null) {
-                    runLater(() -> scene.setCursor(javafx.scene.Cursor.DEFAULT));
+                    runLater(() -> scene.setCursor(null));
                 }
             }
         }).start();

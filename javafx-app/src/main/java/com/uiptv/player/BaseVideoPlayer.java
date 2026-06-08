@@ -640,19 +640,19 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     private void restoreVisibleCursor() {
         if (playerContainer != null) {
-            playerContainer.setCursor(Cursor.DEFAULT);
+            playerContainer.setCursor(null);
             if (playerContainer.getScene() != null) {
-                playerContainer.getScene().setCursor(Cursor.DEFAULT);
+                playerContainer.getScene().setCursor(null);
             }
         }
         if (fullscreenStage != null && fullscreenStage.getScene() != null) {
-            fullscreenStage.getScene().setCursor(Cursor.DEFAULT);
+            fullscreenStage.getScene().setCursor(null);
         }
         if (originalParent != null && originalParent.getScene() != null) {
-            originalParent.getScene().setCursor(Cursor.DEFAULT);
+            originalParent.getScene().setCursor(null);
         }
         if (pipStage != null && pipStage.getScene() != null) {
-            pipStage.getScene().setCursor(Cursor.DEFAULT);
+            pipStage.getScene().setCursor(null);
         }
     }
 
@@ -1292,7 +1292,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                     originalParent.getChildren().add(safeIndex, playerContainer);
                 }
                 if (originalParent.getScene() != null) {
-                    originalParent.getScene().setCursor(Cursor.DEFAULT);
+                    originalParent.getScene().setCursor(null);
                 }
             }
             originalParent = null;
@@ -1595,7 +1595,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private ResizeState resolveResizeState(double x, double y, double width, double height) {
-        Cursor cursor = Cursor.DEFAULT;
+        Cursor cursor = null;
         int direction = 0;
         if (y < RESIZE_BORDER) {
             cursor = Cursor.N_RESIZE;
@@ -1725,7 +1725,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private void finishPipInteraction() {
         isResizing = false;
         resizeDirection = 0;
-        pipStage.getScene().setCursor(Cursor.DEFAULT);
+        pipStage.getScene().setCursor(null);
     }
 
     private void loadIcons() {

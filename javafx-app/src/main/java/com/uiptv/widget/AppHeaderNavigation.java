@@ -153,7 +153,6 @@ public class AppHeaderNavigation extends HBox {
         Button button = new Button(visibleLabel);
         button.getStyleClass().add("app-header-nav-button");
         button.setAccessibleText(accessibleLabel);
-        button.setTooltip(AppNavigationPane.createImmediateTooltip(accessibleLabel));
         button.setGraphic(createIcon(iconPath));
         button.setOnAction(_ -> AppNavigationController.navigate(target));
         button.setFocusTraversable(true);

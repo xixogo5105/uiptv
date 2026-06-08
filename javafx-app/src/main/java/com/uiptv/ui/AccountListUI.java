@@ -1533,7 +1533,7 @@ public class AccountListUI extends HBox implements SearchTarget {
             } catch (Exception e) {
                 Platform.runLater(() -> showErrorAlert(I18n.tr("autoFailedRefreshChannels", e.getMessage())));
             } finally {
-                Platform.runLater(() -> RootApplication.getPrimaryStage().getScene().setCursor(Cursor.DEFAULT));
+                Platform.runLater(() -> RootApplication.getPrimaryStage().getScene().setCursor(null));
             }
         }).start();
     }

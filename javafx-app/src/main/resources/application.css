@@ -301,7 +301,8 @@
     -fx-border-width: 1;
 }
 
-.dangerous:hover {
+.dangerous:hover,
+.dangerous:focused {
     -fx-background-color: #b91c1c;
     -fx-border-color: #b91c1c;
 }

@@ -47,6 +47,7 @@ class AppHeaderNavigationTest {
         assertEquals(I18n.tr("autoFavorite"), runOnFxThread(() -> navigationButtons(navigation).get(0).getAccessibleText()));
         assertEquals(I18n.tr("autoAccount"), runOnFxThread(() -> navigationButtons(navigation).get(1).getAccessibleText()));
         assertEquals(I18n.tr("autoWatchingNow"), runOnFxThread(() -> navigationButtons(navigation).get(2).getAccessibleText()));
+        assertTrue(runOnFxThread(() -> navigationButtons(navigation).stream().allMatch(button -> button.getTooltip() == null)));
         assertFalse(runOnFxThread(() -> hasStyleClass(navigation, "app-header-brand-mark")));
 
         runOnFxThread(() -> {

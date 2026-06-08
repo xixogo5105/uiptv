@@ -184,7 +184,6 @@ public class AppPageHeader extends VBox {
         Button button = new Button();
         button.getStyleClass().addAll("app-header-nav-button", "app-header-nav-button-icon-only", "app-header-search-toggle");
         button.setAccessibleText(I18n.tr("commonSearch"));
-        button.setTooltip(AppNavigationPane.createImmediateTooltip(I18n.tr("commonSearch")));
         button.setGraphic(createSearchIcon());
         button.setFocusTraversable(true);
         button.setMinWidth(SEARCH_BUTTON_SIZE);

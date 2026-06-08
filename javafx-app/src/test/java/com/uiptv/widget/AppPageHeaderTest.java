@@ -18,6 +18,7 @@ import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -49,6 +50,7 @@ class AppPageHeaderTest {
         assertSame(search, runOnFxThread(header::getSearchField));
 
         Button searchToggle = runOnFxThread(() -> searchToggleButton(header));
+        assertNull(runOnFxThread(searchToggle::getTooltip));
         runOnFxThread(() -> {
             searchToggle.fire();
             header.layout();

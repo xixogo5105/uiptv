@@ -1626,7 +1626,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             } catch (Exception e) {
                 runLater(() -> showErrorAlert(I18n.tr("autoErrorLoadingSeries", e.getMessage())));
             } finally {
-                runLater(() -> getScene().setCursor(Cursor.DEFAULT));
+                runLater(() -> getScene().setCursor(null));
                 currentLoadingThread.compareAndSet(Thread.currentThread(), null);
             }
         });

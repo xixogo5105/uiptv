@@ -967,7 +967,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
                 retrieveChannels(item, noCachingNeeded, isCancelled::get, mode);
             } finally {
                 if (currentLoadingThread.compareAndSet(worker, null)) {
-                    Platform.runLater(() -> RootApplication.getPrimaryStage().getScene().setCursor(Cursor.DEFAULT));
+                    Platform.runLater(() -> RootApplication.getPrimaryStage().getScene().setCursor(null));
                 }
             }
         });
