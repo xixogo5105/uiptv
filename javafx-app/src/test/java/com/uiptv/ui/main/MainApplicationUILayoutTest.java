@@ -2,11 +2,16 @@ package com.uiptv.ui.main;
 
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.ui.ManageAccountUI;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.AppNavigationController;
+import com.uiptv.widget.AppNavigationPane;
+import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.CheckMenuItem;
+import javafx.scene.control.Label;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
@@ -188,10 +193,9 @@ class MainApplicationUILayoutTest {
     }
 
     @Test
-    void topMenuStartsWithStayOnTopAndTogglesPrimaryStageAlwaysOnTop() throws Exception {
+    void topMenuContainsHelpActionsOnly() throws Exception {
         runOnFxThread(() -> {
             Stage stage = Mockito.mock(Stage.class);
-            Mockito.when(stage.isAlwaysOnTop()).thenReturn(false);
             ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
             Mockito.when(configurationService.read()).thenReturn(new Configuration());
             MainApplicationUI ui = new MainApplicationUI(stage, null, configurationService, _ -> {
@@ -202,19 +206,99 @@ class MainApplicationUILayoutTest {
                     .map(MenuItem::getText)
                     .toList();
             assertEquals(List.of(
-                    I18n.tr("autoStayOnTop"),
                     I18n.tr("autoAbout"),
                     I18n.tr("autoCheckForUpdates2")
             ), labels);
+            return null;
+        });
+    }
 
-            CheckMenuItem stayOnTopItem = (CheckMenuItem) menuBar.getMenus().getFirst().getItems().getFirst();
-            assertFalse(stayOnTopItem.isSelected());
+    @Test
+    void manageAccountDockStartsHiddenAndOpensBeforeAccountList() throws Exception {
+        runOnFxThread(() -> {
+            MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, false);
+            Object manageAccountColumn = createManageAccountColumn();
+            Node dockNode = manageAccountColumnNode(manageAccountColumn);
+            HBox mainContent = new HBox(new Label("Accounts"));
 
-            stayOnTopItem.setSelected(true);
-            Mockito.verify(stage).setAlwaysOnTop(true);
+            HBox appContent = buildAppContent(ui, manageAccountColumn, mainContent);
 
-            stayOnTopItem.setSelected(false);
-            Mockito.verify(stage).setAlwaysOnTop(false);
+            assertEquals(dockNode, appContent.getChildren().getFirst());
+            assertFalse(dockNode.isVisible());
+            assertFalse(dockNode.isManaged());
+
+            openManageAccountColumn(manageAccountColumn);
+
+            assertEquals(dockNode, appContent.getChildren().getFirst());
+            assertTrue(dockNode.isVisible());
+            assertTrue(dockNode.isManaged());
+            assertEquals(mainContent, appContent.getChildren().get(1));
+            return null;
+        });
+    }
+
+    @Test
+    void manageAccountDockBecomesOnlyVisibleColumnWhenWidthIsLimited() throws Exception {
+        runOnFxThread(() -> {
+            MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, false);
+            Object manageAccountColumn = createManageAccountColumn();
+            Node dockNode = manageAccountColumnNode(manageAccountColumn);
+            HBox mainContent = new HBox(new Label("Accounts"));
+            HBox appContent = buildAppContent(ui, manageAccountColumn, mainContent);
+            appContent.resize(700, 600);
+
+            openManageAccountColumn(manageAccountColumn);
+            updateManageAccountResponsiveColumns(ui, appContent, manageAccountColumn, mainContent);
+
+            assertEquals(dockNode, appContent.getChildren().getFirst());
+            assertTrue(dockNode.isVisible());
+            assertTrue(dockNode.isManaged());
+            assertFalse(mainContent.isVisible());
+            assertFalse(mainContent.isManaged());
+
+            closeManageAccountColumn(manageAccountColumn);
+            updateManageAccountResponsiveColumns(ui, appContent, manageAccountColumn, mainContent);
+
+            assertTrue(mainContent.isVisible());
+            assertTrue(mainContent.isManaged());
+            return null;
+        });
+    }
+
+    @Test
+    void accountsNavigationDoesNotOpenManageAccountDock() throws Exception {
+        runOnFxThread(() -> {
+            MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, false);
+            AppNavigationPane tabPane = new AppNavigationPane();
+            Tab settingsTab = new Tab("Settings");
+            Tab accountsTab = new Tab("Accounts");
+            Tab importTab = new Tab("Import");
+            Tab logsTab = new Tab("Logs");
+            Tab watchingNowTab = new Tab("Watching");
+            Tab bookmarksTab = new Tab("Bookmarks");
+            tabPane.getTabs().addAll(settingsTab, accountsTab, importTab, logsTab, watchingNowTab, bookmarksTab);
+
+            Object manageAccountColumn = createManageAccountColumn();
+            Node dockNode = manageAccountColumnNode(manageAccountColumn);
+
+            configureAppNavigation(
+                    ui,
+                    tabPane,
+                    settingsTab,
+                    accountsTab,
+                    importTab,
+                    logsTab,
+                    watchingNowTab,
+                    bookmarksTab,
+                    manageAccountColumn
+            );
+
+            AppNavigationController.navigate(AppNavigationController.Target.ACCOUNTS);
+
+            assertEquals(accountsTab, tabPane.getSelectionModel().getSelectedItem());
+            assertFalse(dockNode.isVisible());
+            assertFalse(dockNode.isManaged());
+            AppNavigationController.reset();
             return null;
         });
     }
@@ -271,6 +355,92 @@ class MainApplicationUILayoutTest {
         Method method = BaseMainApplicationUI.class.getDeclaredMethod("createMenuBar");
         method.setAccessible(true);
         return (MenuBar) method.invoke(ui);
+    }
+
+    private static HBox buildAppContent(MainApplicationUI ui, Object manageAccountColumn, HBox mainContent) throws Exception {
+        Method method = BaseMainApplicationUI.class.getDeclaredMethod(
+                "buildAppContent",
+                manageAccountColumnClass(),
+                HBox.class
+        );
+        method.setAccessible(true);
+        return (HBox) method.invoke(ui, manageAccountColumn, mainContent);
+    }
+
+    private static void updateManageAccountResponsiveColumns(MainApplicationUI ui,
+                                                             HBox appContent,
+                                                             Object manageAccountColumn,
+                                                             HBox mainContent) throws Exception {
+        Method method = BaseMainApplicationUI.class.getDeclaredMethod(
+                "updateManageAccountResponsiveColumns",
+                HBox.class,
+                manageAccountColumnClass(),
+                HBox.class
+        );
+        method.setAccessible(true);
+        method.invoke(ui, appContent, manageAccountColumn, mainContent);
+    }
+
+    private static void configureAppNavigation(MainApplicationUI ui,
+                                               TabPane tabPane,
+                                               Tab configurationTab,
+                                               Tab manageAccountTab,
+                                               Tab parseMultipleAccountTab,
+                                               Tab logDisplayTab,
+                                               Tab watchingNowTab,
+                                               Tab bookmarkChannelListTab,
+                                               Object manageAccountColumn) throws Exception {
+        Method method = BaseMainApplicationUI.class.getDeclaredMethod(
+                "configureAppNavigation",
+                TabPane.class,
+                Tab.class,
+                Tab.class,
+                Tab.class,
+                Tab.class,
+                Tab.class,
+                Tab.class,
+                manageAccountColumnClass()
+        );
+        method.setAccessible(true);
+        method.invoke(
+                ui,
+                tabPane,
+                configurationTab,
+                manageAccountTab,
+                parseMultipleAccountTab,
+                logDisplayTab,
+                watchingNowTab,
+                bookmarkChannelListTab,
+                manageAccountColumn
+        );
+    }
+
+    private static Class<?> manageAccountColumnClass() throws ClassNotFoundException {
+        return Class.forName("com.uiptv.ui.main.BaseMainApplicationUI$ManageAccountColumn");
+    }
+
+    private static Object createManageAccountColumn() throws Exception {
+        var constructor = manageAccountColumnClass().getDeclaredConstructor(ManageAccountUI.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(new ManageAccountUI());
+    }
+
+    private static Node manageAccountColumnNode(Object manageAccountColumn) throws Exception {
+        Method method = manageAccountColumnClass().getDeclaredMethod("node");
+        method.setAccessible(true);
+        return (Node) method.invoke(manageAccountColumn);
+    }
+
+    private static void openManageAccountColumn(Object manageAccountColumn) throws Exception {
+        Method method = manageAccountColumnClass().getDeclaredMethod("open");
+        method.setAccessible(true);
+        method.invoke(manageAccountColumn);
+    }
+
+    private static void closeManageAccountColumn(Object manageAccountColumn) throws Exception {
+        Method method = manageAccountColumnClass().getDeclaredMethod("close");
+        method.setAccessible(true);
+        method.invoke(manageAccountColumn);
     }
 
     private static void setField(MainApplicationUI ui, String fieldName, Object value) throws Exception {

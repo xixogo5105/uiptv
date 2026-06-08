@@ -13,6 +13,8 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
@@ -78,6 +80,30 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
 
         assertTrue(findDescendantByStyle(inline, Region.class, "reload-failure-policy-card") != null);
         assertFalse(inline.shouldPromptAutomaticGlobalFailureDecision(List.of(first, second)));
+    }
+
+    @Test
+    void reloadCacheTwoColumnLayoutKeepsAccountTypeChipsWideEnoughInPopup() throws Exception {
+        ReloadColumnsSnapshot snapshot = runOnFxThread(() -> {
+            ReloadCacheInline inline = new ReloadCacheInline(List.of());
+            GridPane mainContent = findDescendantByStyle(inline, GridPane.class, "reload-main-content");
+            if (mainContent == null || mainContent.getColumnConstraints().size() < 2) {
+                throw new AssertionError("Missing reload two-column layout");
+            }
+            ColumnConstraints accountColumn = mainContent.getColumnConstraints().getFirst();
+            ColumnConstraints logColumn = mainContent.getColumnConstraints().get(1);
+            return new ReloadColumnsSnapshot(
+                    accountColumn.getPercentWidth(),
+                    accountColumn.getMinWidth(),
+                    logColumn.getPercentWidth(),
+                    logColumn.getMinWidth()
+            );
+        });
+
+        assertEquals(42.0, snapshot.accountPercent(), 0.001);
+        assertTrue(snapshot.accountMinWidth() >= 680);
+        assertEquals(58.0, snapshot.logPercent(), 0.001);
+        assertTrue(snapshot.logMinWidth() >= 360);
     }
 
     @Test
@@ -345,6 +371,14 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
     }
 
     private record PauseWidgetSnapshot(boolean hasPauseWidget, boolean visible, boolean managed, boolean inFixedFooter) {
+    }
+
+    private record ReloadColumnsSnapshot(
+            double accountPercent,
+            double accountMinWidth,
+            double logPercent,
+            double logMinWidth
+    ) {
     }
 
     private record ProblemAccountRowSnapshot(

@@ -26,6 +26,7 @@ import javafx.application.Platform;
 import javafx.application.HostServices;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -42,7 +43,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
-import lombok.Setter;
+import javafx.stage.Stage;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -76,7 +77,6 @@ public class AccountListUI extends HBox implements SearchTarget {
                     .thenComparing(AccountItem::getAccountName);
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final AccountResolver accountResolver = new AccountResolver();
-    private final boolean embeddedMode;
     private final HostServices hostServices;
     private final Runnable themeToggleHandler;
     private final VBox pageContainer = new VBox(12);
@@ -95,13 +95,11 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final VBox embeddedContainer = new VBox();
     SearchableFilterableTableView table = new SearchableFilterableTableView();
     AccountService accountService = AccountService.getInstance();
-    @Setter
-    private ManageAccountUI manageAccountUI;
     private Node currentContent;
     private Callback<Object> onEditCallback;
     private Callback<Object> onExplicitEditCallback;
+    private Callback<Object> onNewAccountCallback;
     private Callback<Object> onDeleteCallback;
-    private boolean isPromptShowing = false;
     private final ObservableList<AccountItem> masterAccountItems = FXCollections.observableArrayList();
     private AccountSortMode accountSortMode = AccountSortMode.DEFAULT;
     private final AccountChangeListener accountChangeListener = revision -> Platform.runLater(this::refreshIfAttached);
@@ -120,8 +118,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     private String accountHeaderSearchText = "";
     private String browserHeaderSearchText = "";
 
-    public AccountListUI(boolean embeddedMode, HostServices hostServices, Runnable themeToggleHandler) {
-        this.embeddedMode = embeddedMode;
+    public AccountListUI(HostServices hostServices, Runnable themeToggleHandler) {
         this.hostServices = hostServices;
         this.themeToggleHandler = themeToggleHandler;
         initWidgets();
@@ -171,6 +168,10 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     public void addExplicitEditCallbackHandler(Callback<Object> onExplicitEditCallback) {
         this.onExplicitEditCallback = onExplicitEditCallback;
+    }
+
+    public void addNewAccountCallbackHandler(Callback<Object> onNewAccountCallback) {
+        this.onNewAccountCallback = onNewAccountCallback;
     }
 
     public void addDeleteCallbackHandler(Callback<Object> onDeleteCallback) {
@@ -365,12 +366,8 @@ public class AccountListUI extends HBox implements SearchTarget {
         listView.getChildren().setAll(accountToolbar, accountScrollPane);
         getChildren().setAll(pageContainer);
 
-        if (embeddedMode) {
-            initDetailView();
-            showAccountListView();
-        } else {
-            showBody(listView);
-        }
+        initDetailView();
+        showAccountListView();
         table.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(table, Priority.ALWAYS);
         VBox.setVgrow(accountGrid, Priority.ALWAYS);
@@ -383,7 +380,6 @@ public class AccountListUI extends HBox implements SearchTarget {
         listView.setMinHeight(0);
         detailView.setMaxHeight(Double.MAX_VALUE);
         detailView.setMinHeight(0);
-        addAccountClickHandler();
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         table.getTextField().textProperty().addListener((_, _, text) -> handleHeaderSearchTextChanged(text));
         widthProperty().addListener((_, _, _) -> updateActiveAccountBrowserLayout());
@@ -410,6 +406,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         accountGrid.setActivateOnSingleClick(false);
         accountGrid.setOnItemActivated(item -> retrieveThreadedAccountCategories(item, itv));
         accountGrid.setContextMenuFactory((item, selectedItems, owner) -> createAccountContextMenu(item, selectedItems, owner));
+        accountGrid.getSelectedItems().addListener((ListChangeListener<AccountItem>) _ -> handleAccountGridSelectionChanged());
         accountGrid.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.DELETE) {
                 handleDeleteAccounts();
@@ -559,8 +556,6 @@ public class AccountListUI extends HBox implements SearchTarget {
         button.setAccessibleText(I18n.tr("autoNewAccount"));
         button.setTooltip(new Tooltip(I18n.tr("autoNewAccount")));
         button.setOnAction(_ -> openNewAccountInline());
-        button.setManaged(embeddedMode);
-        button.setVisible(embeddedMode);
         return button;
     }
 
@@ -583,15 +578,11 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void openNewAccountInline() {
-        if (!embeddedMode) {
+        if (onNewAccountCallback != null) {
+            onNewAccountCallback.call(null);
             return;
         }
-        if (manageAccountUI == null) {
-            showErrorAlert(I18n.tr("autoManageAccountUIIsNotAvailable"));
-            return;
-        }
-        manageAccountUI.clearAll();
-        showDetailView(manageAccountUI);
+        showErrorAlert(I18n.tr("autoManageAccountUIIsNotAvailable"));
     }
 
     private void initDetailView() {
@@ -612,9 +603,6 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     public void showAccountListView() {
-        if (!embeddedMode) {
-            return;
-        }
         disposeActiveCategoryList();
         setAccountBrowserCompact(false);
         viewStack.clear();
@@ -626,7 +614,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void showAccountBrowser(CategoryListUI categoryListUI) {
-        if (!embeddedMode || categoryListUI == null) {
+        if (categoryListUI == null) {
             return;
         }
         boolean newBrowser = activeCategoryListUI != categoryListUI;
@@ -663,7 +651,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void updateActiveAccountBrowserLayout() {
-        if (!embeddedMode || activeCategoryListUI == null) {
+        if (activeCategoryListUI == null) {
             return;
         }
         if (currentContent == browserLayout || currentContent == activeCategoryListUI) {
@@ -732,9 +720,6 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void showDetailView(Node content) {
-        if (!embeddedMode) {
-            return;
-        }
         if (!(content instanceof CategoryListUI)) {
             switchHeaderSearchMode(HeaderSearchMode.ACCOUNTS, false);
             retainActiveCategoryBrowserForDetailView();
@@ -750,19 +735,6 @@ public class AccountListUI extends HBox implements SearchTarget {
         showBody(embeddedContainer);
     }
 
-    private void showDetailViewNonEmbedded(Node content) {
-        detachFromParent(listView);
-        detachFromParent(content);
-        HBox detailLayout = new HBox(12, listView, content);
-        detailLayout.getStyleClass().add("account-detail-layout");
-        detailLayout.setFillHeight(true);
-        detailLayout.setMinSize(0, 0);
-        detailLayout.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        HBox.setHgrow(listView, Priority.ALWAYS);
-        HBox.setHgrow(content, Priority.ALWAYS);
-        showBody(detailLayout);
-    }
-
     private void setCurrentContent(Node content) {
         currentContent = content;
         if (content != detailView) {
@@ -772,9 +744,6 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void showPreviousView() {
-        if (!embeddedMode) {
-            return;
-        }
         if (!detailContent.getChildren().isEmpty()) {
             Node content = detailContent.getChildren().getFirst();
             if (content instanceof CategoryListUI categoryListUI && categoryListUI.navigateBackEmbedded()) {
@@ -1069,6 +1038,17 @@ public class AccountListUI extends HBox implements SearchTarget {
         }
         menu.getItems().add(deleteItem);
         return menu;
+    }
+
+    private void handleAccountGridSelectionChanged() {
+        if (onEditCallback == null || accountGrid.getSelectedItems().size() != 1) {
+            return;
+        }
+        AccountItem item = accountGrid.getSelectedItems().getFirst();
+        Account account = item == null ? null : accountService.getById(item.getAccountId());
+        if (account != null) {
+            onEditCallback.call(account);
+        }
     }
 
     private TableCell<AccountItem, String> createAccountNameCell() {
@@ -1419,71 +1399,6 @@ public class AccountListUI extends HBox implements SearchTarget {
         }
     }
 
-    private void addAccountClickHandler() {
-        table.setOnKeyReleased(this::handleAccountKeyReleased);
-        table.setRowFactory(_ -> {
-            TableRow<AccountItem> row = new TableRow<>();
-            row.setOnMouseClicked(event -> handleAccountRowClick(row, event));
-            addRightClickContextMenu(row);
-            return row;
-        });
-    }
-
-    private void handleAccountKeyReleased(javafx.scene.input.KeyEvent event) {
-        AccountItem focusedItem = table.getFocusModel().getFocusedItem();
-        openFocusedAccountForEditing(focusedItem);
-        if (event.getCode() == KeyCode.DELETE) {
-            handleDeleteAccounts();
-            return;
-        }
-        if (event.getCode() == KeyCode.ENTER) {
-            handleEnterKey(event, focusedItem);
-        }
-    }
-
-    private void openFocusedAccountForEditing(AccountItem focusedItem) {
-        if (!embeddedMode && focusedItem != null && onEditCallback != null) {
-            onEditCallback.call(accountService.getById(focusedItem.accountId.get()));
-        }
-    }
-
-    private void handleEnterKey(javafx.scene.input.KeyEvent event, AccountItem focusedItem) {
-        if (isPromptShowing) {
-            event.consume();
-            isPromptShowing = false;
-            return;
-        }
-        retrieveThreadedAccountCategories(focusedItem, itv);
-    }
-
-    private void handleAccountRowClick(TableRow<AccountItem> row, javafx.scene.input.MouseEvent event) {
-        if (row.isEmpty() || event.getButton() != MouseButton.PRIMARY) {
-            return;
-        }
-        if (event.getClickCount() == 2) {
-            if (!embeddedMode) {
-                openManageAccount(row.getItem());
-            } else {
-                retrieveThreadedAccountCategories(row.getItem(), itv);
-            }
-        }
-    }
-
-    private void addRightClickContextMenu(TableRow<AccountItem> row) {
-        row.setOnContextMenuRequested(event -> {
-            if (row.isEmpty() || row.getItem() == null) {
-                return;
-            }
-            ContextMenu menu = createAccountContextMenu(
-                    row.getItem(),
-                    selectedAccountsForAction(row.getItem()),
-                    row
-            );
-            menu.show(row, event.getScreenX(), event.getScreenY());
-            event.consume();
-        });
-    }
-
     private void handleReloadCache(AccountItem contextItem) {
         handleReloadCache(contextItem, null);
     }
@@ -1494,7 +1409,14 @@ public class AccountListUI extends HBox implements SearchTarget {
             showErrorAlert(I18n.tr("autoNoCacheSupportedAccountSelected"));
             return;
         }
-        ReloadCacheInline.open(accounts, this::refresh);
+        ReloadCachePopup.showPopup(resolveOwnerStage(), accounts, this::refresh);
+    }
+
+    private Stage resolveOwnerStage() {
+        if (getScene() != null && getScene().getWindow() instanceof Stage stage) {
+            return stage;
+        }
+        return RootApplication.getPrimaryStage();
     }
 
     private void runSingleSelectionAction(Runnable action) {
@@ -1541,9 +1463,6 @@ public class AccountListUI extends HBox implements SearchTarget {
         } else {
             selectedItems.addAll(accountGrid.getSelectedItems());
         }
-        if (selectedItems.isEmpty()) {
-            selectedItems.addAll(table.getSelectionModel().getSelectedItems());
-        }
         boolean contextInSelection = contextItem != null
                 && selectedItems.stream().anyMatch(item -> contextItem.getAccountId().equals(item.getAccountId()));
         if (!selectedItems.isEmpty() && (contextItem == null || contextInSelection)) {
@@ -1569,7 +1488,6 @@ public class AccountListUI extends HBox implements SearchTarget {
                         .map(AccountItem::getAccountName)
                         .collect(Collectors.joining(", "))
         );
-        isPromptShowing = true;
         if (showConfirmationAlert(localizedMessage)) {
             for (AccountItem selectedItem : safeSelectedAccounts) {
                 AccountService.getInstance().delete(selectedItem.getAccountId());
@@ -1593,15 +1511,11 @@ public class AccountListUI extends HBox implements SearchTarget {
         AccountMediaContext mediaContext = AccountMediaContext.from(account, accountAction);
 
         // Immediately show the CategoryListUI in loading state
-        CategoryListUI categoryListUI = new CategoryListUI(mediaContext, embeddedMode);
-        categoryListUI.setAccountsNavigationHandler(embeddedMode ? this::showAccountListView : () -> showBody(listView));
-        categoryListUI.setCloseHandler(embeddedMode ? this::showAccountListView : null);
+        CategoryListUI categoryListUI = new CategoryListUI(mediaContext);
+        categoryListUI.setAccountsNavigationHandler(this::showAccountListView);
+        categoryListUI.setCloseHandler(this::showAccountListView);
         categoryListUI.setHeaderSearchTextHandler(this::replaceBrowserHeaderSearchText);
-        if (embeddedMode) {
-            showAccountBrowser(categoryListUI);
-        } else {
-            showDetailViewNonEmbedded(categoryListUI);
-        }
+        showAccountBrowser(categoryListUI);
 
         RootApplication.getPrimaryStage().getScene().setCursor(Cursor.WAIT);
 
@@ -1624,10 +1538,6 @@ public class AccountListUI extends HBox implements SearchTarget {
         }).start();
     }
 
-    private void openManageAccount(AccountItem item) {
-        openManageAccount(item, false);
-    }
-
     private void openManageAccount(AccountItem item, boolean explicitManageAction) {
         if (item == null) {
             return;
@@ -1637,27 +1547,12 @@ public class AccountListUI extends HBox implements SearchTarget {
             showErrorAlert(I18n.tr("autoUnableToFindAccount"));
             return;
         }
-        if (embeddedMode && manageAccountUI != null) {
-            manageAccountUI.editAccount(account);
-            showDetailView(manageAccountUI);
+        if (explicitManageAction && onExplicitEditCallback != null) {
+            onExplicitEditCallback.call(account);
             return;
         }
-        if (!embeddedMode && manageAccountUI != null) {
-            Callback<Object> callback = explicitManageAction && onExplicitEditCallback != null
-                    ? onExplicitEditCallback
-                    : onEditCallback;
-            if (callback != null) {
-                callback.call(account);
-            } else {
-                manageAccountUI.editAccount(account);
-            }
-            return;
-        }
-        Callback<Object> callback = explicitManageAction && onExplicitEditCallback != null
-                ? onExplicitEditCallback
-                : onEditCallback;
-        if (callback != null) {
-            callback.call(account);
+        if (onEditCallback != null) {
+            onEditCallback.call(account);
         }
     }
 

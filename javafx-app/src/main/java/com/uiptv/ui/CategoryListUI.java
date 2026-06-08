@@ -62,7 +62,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private static final String LOG_CHANNELS = " channels: ";
     private final AccountMediaContext mediaContext;
     private final AccountView account;
-    private final boolean embeddedMode;
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
     private final VBox leftPane = new VBox(5);
     private final VBox detailPane = new VBox(8);
@@ -100,16 +99,15 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private boolean transientStateReleasePending;
     private String searchText = "";
 
-    public CategoryListUI(Account account, boolean embeddedMode) {
-        this(AccountMediaContext.from(account), embeddedMode);
+    public CategoryListUI(Account account) {
+        this(AccountMediaContext.from(account));
     }
 
-    public CategoryListUI(AccountMediaContext mediaContext, boolean embeddedMode) {
+    public CategoryListUI(AccountMediaContext mediaContext) {
         this.mediaContext = mediaContext == null
                 ? new AccountMediaContext(null, Account.AccountAction.itv)
                 : mediaContext;
         this.account = this.mediaContext.account();
-        this.embeddedMode = embeddedMode;
         this.activeMode = this.mediaContext.action();
         initWidgets();
         refreshCategoryColumnTitle();
@@ -198,7 +196,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
         updateLeftPaneLayout();
         initDetailPane();
         getChildren().setAll(leftPane);
-        addChannelClickHandler();
         registerSceneCleanupListener();
     }
 
@@ -433,9 +430,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private void showListView(boolean abandonActiveLoad) {
-        if (!embeddedMode) {
-            return;
-        }
         if (getChildren().contains(detailPane)) {
             replaceSearchText("", true);
         }
@@ -475,7 +469,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private void showDetailView(ChannelListUI ui, String title) {
-        if (!embeddedMode || ui == null) {
+        if (ui == null) {
             return;
         }
         replaceSearchText("", true);
@@ -499,9 +493,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     public boolean navigateBackEmbedded() {
-        if (!embeddedMode) {
-            return false;
-        }
         if (!getChildren().contains(detailPane)) {
             return false;
         }
@@ -778,11 +769,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         categoryDataLoaded = false;
         showCategoryPlaceholder(I18n.tr("autoLoadingCategories"));
         table.setPlaceholder(new Label(I18n.tr("autoLoadingCategories")));
-        if (embeddedMode) {
-            showListView();
-        } else {
-            removeChannelPane();
-        }
+        showListView();
 
         new Thread(() -> {
             try {
@@ -832,69 +819,11 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
     private void maybeShowCachedChannelPane(ModeState state) {
         if (state == null || state.channelListUI == null) {
-            if (embeddedMode) {
-                showListView();
-            } else {
-                removeChannelPane();
-            }
+            showListView();
             return;
         }
-        if (embeddedMode) {
-            String title = state.selectedCategory == null ? "" : state.selectedCategory.getCategoryTitle();
-            showDetailView(state.channelListUI, title);
-        } else {
-            showChannelPane(state.channelListUI);
-        }
-    }
-
-    private void showChannelPane(ChannelListUI ui) {
-        if (ui == null) return;
-        removeChannelPane();
-        getChildren().add(ui);
-        HBox.setHgrow(ui, Priority.ALWAYS);
-    }
-
-    private void removeChannelPane() {
-        if (getChildren().size() > 1) {
-            getChildren().remove(1, getChildren().size());
-        }
-    }
-
-    private void addChannelClickHandler() {
-        table.setOnKeyReleased(event -> {
-            if (event.getCode() == KeyCode.ENTER) {
-                doRetrieveChannels(table.getFocusModel().getFocusedItem());
-            } else if (event.getCode() == KeyCode.DELETE) {
-                removeSelectedCachedCategories();
-                event.consume();
-            }
-        });
-        table.setRowFactory(_ -> {
-            TableRow<CategoryItem> row = new TableRow<>();
-            ContextMenu contextMenu = new ContextMenu();
-            MenuItem removeSelected = new MenuItem(I18n.tr("categoryRemoveSelectedFromCache"));
-            removeSelected.setOnAction(_ -> removeSelectedCachedCategories());
-            contextMenu.getItems().add(removeSelected);
-            row.setOnMouseClicked(event -> {
-                if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY
-                        && event.getClickCount() == 2) {
-                    doRetrieveChannels(row.getItem());
-
-                }
-            });
-            row.setOnContextMenuRequested(event -> {
-                if (row.isEmpty()) {
-                    return;
-                }
-                if (!row.isSelected()) {
-                    table.getSelectionModel().clearAndSelect(row.getIndex());
-                }
-                removeSelected.setDisable(selectedRemovableCategoryItems().isEmpty());
-                contextMenu.show(row, event.getScreenX(), event.getScreenY());
-                event.consume();
-            });
-            return row;
-        });
+        String title = state.selectedCategory == null ? "" : state.selectedCategory.getCategoryTitle();
+        showDetailView(state.channelListUI, title);
     }
 
     private void removeSelectedCachedCategories() {
@@ -954,7 +883,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         alert.setTitle(I18n.tr("categoryRemoveCachedTitle"));
         alert.setHeaderText(I18n.tr("categoryRemoveCachedTitle"));
         javafx.stage.Window ownerWindow = getScene() == null
-                ? ThemedDialogSupport.primaryOwnerWindow()
+                ? ThemedDialogSupport.activeOwnerWindow()
                 : getScene().getWindow();
         ThemedDialogSupport.prepare(alert, ownerWindow, "uiptv-alert-dialog");
         Optional<ButtonType> result = ThemedDialogSupport.showAndWait(alert, ownerWindow);
@@ -997,11 +926,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
             return;
         }
         disposeChannelListState(state);
-        if (embeddedMode) {
-            showListView();
-        } else {
-            removeChannelPane();
-        }
+        showListView();
     }
 
     private void doRetrieveChannels(CategoryItem item) {
@@ -1016,12 +941,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         if (state.selectedCategory != null
                 && state.channelListUI != null
                 && sameCategorySelection(state.selectedCategory, item)) {
-            if (embeddedMode) {
-                showDetailView(state.channelListUI, item.getCategoryTitle());
-            } else {
-                state.channelListUI.showChannelListView();
-                showChannelPane(state.channelListUI);
-            }
+            showDetailView(state.channelListUI, item.getCategoryTitle());
             return;
         }
         // Check if channels are already loaded for this account
@@ -1118,21 +1038,11 @@ public class CategoryListUI extends HBox implements SearchTarget {
         String title = item.getCategoryTitle() != null ? item.getCategoryTitle() : "";
         ChannelListUI ui = new ChannelListUI(contextForMode(mode), title, selectedCategoryKey, mode);
         ui.setMediaDrawerMode(mediaDrawerMode);
-        if (embeddedMode) {
-            ui.setEmbeddedMode(true);
-        } else {
-            ui.setInlineEpisodeNavigationEnabled(true);
-        }
         disposeChannelListState(state);
         channelListUIHolder[0] = ui;
         state.channelListUI = ui;
         state.selectedCategory = item;
-        if (embeddedMode) {
-            showDetailView(ui, title);
-        } else {
-            removeChannelPane();
-            getChildren().add(ui);
-        }
+        showDetailView(ui, title);
         if (isAllCategory(item)) {
             allItems.addAll(categoryItems);
         }

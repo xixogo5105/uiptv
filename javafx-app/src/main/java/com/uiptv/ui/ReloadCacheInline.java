@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.application.ConfigurationApplicationService;
+import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
 import com.uiptv.model.AccountInfo;
@@ -9,8 +10,6 @@ import com.uiptv.service.AccountInfoService;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.util.AccountType;
-import com.uiptv.widget.InlinePanelService;
-import com.uiptv.widget.InlinePanelService.InlinePanelHandle;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.SegmentedProgressBar;
 import com.uiptv.widget.ThemedDialogSupport;
@@ -19,12 +18,15 @@ import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 
 import java.net.URI;
 import java.util.ArrayDeque;
@@ -47,7 +49,12 @@ import java.util.regex.Pattern;
 import static com.uiptv.model.Account.CACHE_SUPPORTED;
 
 public class ReloadCacheInline extends VBox {
-    private static final double STACKED_LAYOUT_WIDTH = 860;
+    private static final double ACCOUNT_COLUMN_PERCENT = 42;
+    private static final double LOG_COLUMN_PERCENT = 58;
+    private static final double ACCOUNT_COLUMN_MIN_WIDTH = 680;
+    private static final double LOG_COLUMN_MIN_WIDTH = 360;
+    private static final double MAIN_CONTENT_COLUMN_GAP = 14;
+    private static final double STACKED_LAYOUT_WIDTH = ACCOUNT_COLUMN_MIN_WIDTH + LOG_COLUMN_MIN_WIDTH + MAIN_CONTENT_COLUMN_GAP;
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d+)");
     private static final Pattern DISPLAY_CENSORED_COUNT_PATTERN =
             Pattern.compile("^(.*\\bcensored\\s+(?:categories|channels):\\s*)([\\p{Nd},.]+)(.*)$",
@@ -141,11 +148,11 @@ public class ReloadCacheInline extends VBox {
     private final AtomicReference<Thread> reloadThread = new AtomicReference<>();
     private final boolean showFailureHandlingCard;
     private final boolean promptFailureHandlingBeforeAutoStart;
+    private Runnable externalCloseHandler = () -> { };
     private volatile boolean stopRequested = false;
     private volatile boolean disposed = false;
     private volatile GlobalFailureDecision automaticGlobalFailureDecision;
     private final Runnable onAccountsDeleted;
-    private InlinePanelHandle panelHandle;
     private GridPane mainContent;
     private VBox accountColumn;
     private VBox logColumn;
@@ -163,14 +170,7 @@ public class ReloadCacheInline extends VBox {
     }
 
     public static void open(List<Account> preselectedAccounts, Runnable onAccountsDeleted) {
-        ReloadCacheInline inline = new ReloadCacheInline(preselectedAccounts, onAccountsDeleted);
-        InlinePanelService.open(
-                I18n.tr("autoReloadAccountsCache"),
-                inline,
-                I18n.tr("commonClose"),
-                inline::disposeInline,
-                _ -> inline.requestClose()
-        ).ifPresent(inline::setPanelHandle);
+        ReloadCachePopup.showPopup(RootApplication.getPrimaryStage(), preselectedAccounts, onAccountsDeleted);
     }
 
     public ReloadCacheInline() {
@@ -230,7 +230,7 @@ public class ReloadCacheInline extends VBox {
     }
 
     private void initializeLayout() {
-        getStyleClass().addAll("management-popup-root", "reload-cache-popup", InlinePanelService.FILL_HEIGHT_STYLE_CLASS);
+        getStyleClass().addAll("management-popup-root", "reload-cache-popup", "uiptv-inline-fill-height");
         setSpacing(14);
         setPadding(new Insets(18));
         setFillWidth(true);
@@ -459,8 +459,8 @@ public class ReloadCacheInline extends VBox {
         mainContent.setMinSize(0, 0);
         mainContent.setMaxWidth(Double.MAX_VALUE);
         mainContent.setMaxHeight(Double.MAX_VALUE);
-        accountsColumn = createContentColumn(35);
-        logsColumn = createContentColumn(65);
+        accountsColumn = createAccountContentColumn();
+        logsColumn = createLogContentColumn();
         RowConstraints contentRow = new RowConstraints();
         contentRow.setVgrow(Priority.ALWAYS);
         contentRow.setFillHeight(true);
@@ -484,6 +484,18 @@ public class ReloadCacheInline extends VBox {
         column.setPercentWidth(widthPercent);
         column.setFillWidth(true);
         column.setHgrow(Priority.ALWAYS);
+        return column;
+    }
+
+    private ColumnConstraints createAccountContentColumn() {
+        ColumnConstraints column = createContentColumn(ACCOUNT_COLUMN_PERCENT);
+        column.setMinWidth(ACCOUNT_COLUMN_MIN_WIDTH);
+        return column;
+    }
+
+    private ColumnConstraints createLogContentColumn() {
+        ColumnConstraints column = createContentColumn(LOG_COLUMN_PERCENT);
+        column.setMinWidth(LOG_COLUMN_MIN_WIDTH);
         return column;
     }
 
@@ -533,8 +545,8 @@ public class ReloadCacheInline extends VBox {
     private void applyTwoColumnLayout() {
         accountColumn.setVisible(true);
         accountColumn.setManaged(true);
-        accountsColumn = createContentColumn(35);
-        logsColumn = createContentColumn(65);
+        accountsColumn = createAccountContentColumn();
+        logsColumn = createLogContentColumn();
         mainContent.getColumnConstraints().setAll(accountsColumn, logsColumn);
         mainContent.getRowConstraints().setAll(createContentRow());
         mainContent.setHgap(14);
@@ -651,15 +663,17 @@ public class ReloadCacheInline extends VBox {
         sb.append("\n");
     }
 
-    private void setPanelHandle(InlinePanelHandle panelHandle) {
-        this.panelHandle = panelHandle;
+    void setExternalCloseHandler(Runnable externalCloseHandler) {
+        this.externalCloseHandler = externalCloseHandler == null ? () -> { } : externalCloseHandler;
+    }
+
+    void disposeExternal() {
+        disposeInline();
     }
 
     private void requestClose() {
         disposeInline();
-        if (panelHandle != null) {
-            panelHandle.close();
-        }
+        externalCloseHandler.run();
     }
 
     private void disposeInline() {
@@ -1084,7 +1098,7 @@ public class ReloadCacheInline extends VBox {
             appendRunSummary(processedAccounts, finalStatuses, totalFetchedChannels);
             Map<String, SummaryStatus> problematicAccounts = collectProblematicAccounts(processedAccounts, summaryStatusByAccountId);
             if (!problematicAccounts.isEmpty()) {
-                showDeleteProblemAccountsInline(processedAccounts, problematicAccounts);
+                showDeleteProblemAccountsPopup(processedAccounts, problematicAccounts);
             }
         });
     }
@@ -1122,21 +1136,30 @@ public class ReloadCacheInline extends VBox {
         }
     }
 
-    private void showDeleteProblemAccountsInline(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts) {
+    private void showDeleteProblemAccountsPopup(List<Account> processedAccounts, Map<String, SummaryStatus> problematicAccounts) {
         if (disposed) {
             return;
         }
+        Stage popupStage = new Stage();
+        if (getScene() != null && getScene().getWindow() != null) {
+            popupStage.initOwner(getScene().getWindow());
+            popupStage.initModality(Modality.WINDOW_MODAL);
+        } else {
+            popupStage.initModality(Modality.APPLICATION_MODAL);
+        }
+        popupStage.setTitle(I18n.tr("autoDeleteProblematicAccounts"));
         VBox accountsBox = new VBox(5);
-        AtomicReference<InlinePanelHandle> handleRef = new AtomicReference<>();
-        Runnable closeAction = () -> {
-            InlinePanelHandle handle = handleRef.get();
-            if (handle != null) {
-                handle.close();
-            }
-        };
+        Runnable closeAction = popupStage::close;
         VBox root = buildProblemAccountsInlineRoot(processedAccounts, problematicAccounts, accountsBox, closeAction);
-        InlinePanelService.open(I18n.tr("autoDeleteProblematicAccounts"), root, I18n.tr("commonClose"), null)
-                .ifPresent(handleRef::set);
+        Scene scene = new Scene(root, 760, 560);
+        UiI18n.applySceneOrientation(scene);
+        if (getScene() != null) {
+            scene.getStylesheets().addAll(getScene().getStylesheets());
+        } else if (RootApplication.getCurrentTheme() != null) {
+            scene.getStylesheets().add(RootApplication.getCurrentTheme());
+        }
+        popupStage.setScene(scene);
+        popupStage.show();
     }
 
     private VBox buildProblemAccountsInlineRoot(List<Account> processedAccounts,
@@ -2120,7 +2143,7 @@ public class ReloadCacheInline extends VBox {
     }
 
     private javafx.stage.Window ownerWindow() {
-        return ThemedDialogSupport.primaryOwnerWindow();
+        return ThemedDialogSupport.activeOwnerWindow();
     }
 
     private GlobalFailureDecision resolveGlobalFailureDecision(ButtonType selected, GlobalFailurePrompt prompt) {

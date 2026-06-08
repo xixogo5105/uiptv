@@ -41,15 +41,13 @@ public class UIptvAlert {
             return;
         }
         Runnable cleanup = () -> ACTIVE_VOID_ALERTS.remove(alertKey);
-        if (!AppNotificationCenter.showInfo(message, cleanup)) {
-            showVoidAlertLater(() -> {
-                Alert alert = new Alert(Alert.AlertType.INFORMATION, message, closeButtonType());
-                alert.setTitle(I18n.tr("commonInfo"));
-                alert.setHeaderText(I18n.tr("commonInfo"));
-                prepareAlert(alert, null, alert.getButtonTypes().getFirst());
-                return alert;
-            }, cleanup);
-        }
+        showVoidAlertLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION, message, closeButtonType());
+            alert.setTitle(I18n.tr("commonInfo"));
+            alert.setHeaderText(I18n.tr("commonInfo"));
+            prepareAlert(alert, alertOwnerWindow(), null, alert.getButtonTypes().getFirst());
+            return alert;
+        }, cleanup);
     }
 
     public static boolean showConfirmationAlert(String contents) {
@@ -81,8 +79,9 @@ public class UIptvAlert {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message, okButton, closeButton);
         alert.setTitle(I18n.tr("commonConfirm"));
         alert.setHeaderText(I18n.tr("commonConfirm"));
-        prepareAlert(alert, okButton, closeButton);
-        java.util.Optional<ButtonType> result = ThemedDialogSupport.showAndWait(alert, alertOwnerWindow());
+        Window ownerWindow = alertOwnerWindow();
+        prepareAlert(alert, ownerWindow, okButton, closeButton);
+        java.util.Optional<ButtonType> result = ThemedDialogSupport.showAndWait(alert, ownerWindow);
         return result.isPresent() && result.get() == okButton;
     }
 
@@ -125,30 +124,28 @@ public class UIptvAlert {
             return;
         }
         Runnable cleanup = () -> ACTIVE_VOID_ALERTS.remove(alertKey);
-        if (!AppNotificationCenter.showError(message, cleanup)) {
-            showVoidAlertLater(() -> {
-                Alert alert = new Alert(Alert.AlertType.ERROR, message, closeButtonType());
-                alert.setTitle(I18n.tr("commonError"));
-                alert.setHeaderText(I18n.tr("commonError"));
-                prepareAlert(alert, null, alert.getButtonTypes().getFirst());
-                return alert;
-            }, cleanup);
-        }
+        showVoidAlertLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.ERROR, message, closeButtonType());
+            alert.setTitle(I18n.tr("commonError"));
+            alert.setHeaderText(I18n.tr("commonError"));
+            prepareAlert(alert, alertOwnerWindow(), null, alert.getButtonTypes().getFirst());
+            return alert;
+        }, cleanup);
     }
 
     private static void showVoidAlertLater(Supplier<Alert> alertSupplier, Runnable cleanup) {
         Platform.runLater(() -> Platform.runLater(() -> {
             try {
                 Alert alert = alertSupplier.get();
-                ThemedDialogSupport.showAndWait(alert, alertOwnerWindow());
+                ThemedDialogSupport.showAndWait(alert, alert.getOwner());
             } finally {
                 cleanup.run();
             }
         }));
     }
 
-    private static void prepareAlert(Alert alert, ButtonType primaryButtonType, ButtonType secondaryButtonType) {
-        ThemedDialogSupport.prepare(alert, alertOwnerWindow(), "uiptv-alert-dialog");
+    private static void prepareAlert(Alert alert, Window ownerWindow, ButtonType primaryButtonType, ButtonType secondaryButtonType) {
+        ThemedDialogSupport.prepare(alert, ownerWindow, "uiptv-alert-dialog");
         styleAlertButton(alert, primaryButtonType, "uiptv-dialog-primary-button");
         styleAlertButton(alert, secondaryButtonType, "uiptv-dialog-secondary-button");
     }
@@ -164,7 +161,7 @@ public class UIptvAlert {
     }
 
     private static Window alertOwnerWindow() {
-        return ThemedDialogSupport.primaryOwnerWindow();
+        return ThemedDialogSupport.activeOwnerWindow();
     }
 
     private static boolean isHeadlessMode() {

@@ -33,7 +33,7 @@ class AccountListUIContextMenuTest extends DbBackedUiTest {
     @Test
     void cacheCapableSavedAccountShowsReloadCacheAction() throws Exception {
         Account saved = saveAccount("Xtreme", AccountType.XTREME_API);
-        AccountListUI ui = runOnFxThread(() -> new AccountListUI(false, null, null));
+        AccountListUI ui = runOnFxThread(() -> new AccountListUI(null, null));
         AccountListUI.AccountItem item = accountItem(saved);
 
         ContextMenu menu = runOnFxThread(() -> createContextMenu(ui, item, List.of(item), new Label("owner")));
@@ -46,7 +46,7 @@ class AccountListUIContextMenuTest extends DbBackedUiTest {
     @Test
     void m3u8AccountShowsReloadCacheButHidesVodAndSeriesActions() throws Exception {
         Account saved = saveAccount("Playlist", AccountType.M3U8_LOCAL);
-        AccountListUI ui = runOnFxThread(() -> new AccountListUI(false, null, null));
+        AccountListUI ui = runOnFxThread(() -> new AccountListUI(null, null));
         AccountListUI.AccountItem item = accountItem(saved);
 
         ContextMenu menu = runOnFxThread(() -> createContextMenu(ui, item, List.of(item), new Label("owner")));
@@ -58,7 +58,7 @@ class AccountListUIContextMenuTest extends DbBackedUiTest {
 
     @Test
     void staleAccountIdHidesReloadCacheAction() throws Exception {
-        AccountListUI ui = runOnFxThread(() -> new AccountListUI(false, null, null));
+        AccountListUI ui = runOnFxThread(() -> new AccountListUI(null, null));
         AccountListUI.AccountItem missing = new AccountListUI.AccountItem(
                 new SimpleStringProperty("Missing"),
                 new SimpleStringProperty("999999"),
@@ -78,7 +78,7 @@ class AccountListUIContextMenuTest extends DbBackedUiTest {
     void multiSelectedCacheCapableAccountsResolveForReloadAction() throws Exception {
         Account first = saveAccount("Cache Multi One", AccountType.XTREME_API);
         Account second = saveAccount("Cache Multi Two", AccountType.M3U8_LOCAL);
-        AccountListUI ui = runOnFxThread(() -> new AccountListUI(false, null, null));
+        AccountListUI ui = runOnFxThread(() -> new AccountListUI(null, null));
         AccountListUI.AccountItem firstItem = accountItem(first);
         AccountListUI.AccountItem secondItem = accountItem(second);
         List<AccountListUI.AccountItem> selectedItems = List.of(firstItem, secondItem);
@@ -101,7 +101,7 @@ class AccountListUIContextMenuTest extends DbBackedUiTest {
     void accountCardMenuButtonPreservesExistingMultiSelection() throws Exception {
         Account first = saveAccount("Menu Multi One", AccountType.XTREME_API);
         Account second = saveAccount("Menu Multi Two", AccountType.M3U8_LOCAL);
-        AccountListUI ui = runOnFxThread(() -> new AccountListUI(false, null, null));
+        AccountListUI ui = runOnFxThread(() -> new AccountListUI(null, null));
         AccountListUI.AccountItem firstItem = accountItem(first);
         AccountListUI.AccountItem secondItem = accountItem(second);
 

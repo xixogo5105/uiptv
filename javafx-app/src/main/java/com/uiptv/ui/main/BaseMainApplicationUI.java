@@ -15,6 +15,8 @@ import com.uiptv.widget.InlinePanelService;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.application.HostServices;
+import javafx.geometry.Insets;
+import javafx.geometry.NodeOrientation;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -32,6 +34,10 @@ public abstract class BaseMainApplicationUI {
     private static final Duration DEFERRED_TAB_GAP = Duration.millis(400);
     private static final double COMPACT_EMBEDDED_PLAYER_WIDTH = 480;
     private static final double COMPACT_EMBEDDED_PLAYER_HEIGHT = 305;
+    private static final double MANAGE_ACCOUNT_DOCK_MIN_WIDTH = 340;
+    private static final double MANAGE_ACCOUNT_DOCK_PREF_WIDTH = 430;
+    private static final double MANAGE_ACCOUNT_DOCK_MAX_WIDTH = 560;
+    private static final double MANAGE_ACCOUNT_SINGLE_COLUMN_WIDTH_THRESHOLD = 820;
     protected final Stage primaryStage;
     protected final HostServices hostServices;
     protected final ConfigurationService configurationService;
@@ -55,7 +61,9 @@ public abstract class BaseMainApplicationUI {
     }
 
     public Scene buildScene() {
-        AccountListUI accountListUI = new AccountListUI(true, hostServices, this::toggleTheme);
+        AccountListUI accountListUI = new AccountListUI(hostServices, this::toggleTheme);
+        ManageAccountUI manageAccountUI = new ManageAccountUI();
+        ManageAccountColumn manageAccountColumn = new ManageAccountColumn(manageAccountUI);
         BookmarkChannelListUI bookmarkChannelListUI = new BookmarkChannelListUI(hostServices, this::toggleTheme);
         AtomicReference<ConfigurationUI> configurationRef = new AtomicReference<>();
         AtomicReference<WatchingNowUI> watchingNowRef = new AtomicReference<>();
@@ -101,16 +109,17 @@ public abstract class BaseMainApplicationUI {
         });
 
         tabPane.getTabs().addAll(configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab);
-        configureAppNavigation(tabPane, configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab);
+        configureAppNavigation(tabPane, configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab, manageAccountColumn);
         tabPane.getSelectionModel().select(bookmarkChannelListTab);
 
         HBox mainContent = buildMainContent(tabPane, accountListUI);
+        HBox appContent = buildAppContent(manageAccountColumn, mainContent);
 
         MenuBar menuBar = createMenuBar();
 
         VBox notificationHost = AppNotificationCenter.createHost();
         AppNotificationCenter.install(notificationHost);
-        StackPane inlineHost = InlinePanelService.createHost(mainContent);
+        StackPane inlineHost = InlinePanelService.createHost(appContent);
         InlinePanelService.install(inlineHost);
 
         VBox rootLayout = new VBox(notificationHost, menuBar, inlineHost);
@@ -121,6 +130,16 @@ public abstract class BaseMainApplicationUI {
         UiI18n.applySceneOrientation(scene);
         fontStyleConfigurer.accept(scene);
         bookmarkChannelListUI.forceReload();
+        Supplier<WatchingNowUI> watchingNowSupplier = watchingNowRef::get;
+        configureAccountListUI(
+                accountListUI,
+                manageAccountUI,
+                manageAccountTab,
+                bookmarkChannelListUI,
+                watchingNowSupplier,
+                manageAccountColumn
+        );
+        configureManageAccountUI(manageAccountUI, accountListUI, bookmarkChannelListUI, watchingNowSupplier);
 
         initializeDeferredTabs(new DeferredTabsContext(
                 configurationTab,
@@ -142,7 +161,8 @@ public abstract class BaseMainApplicationUI {
                                         Tab parseMultipleAccountTab,
                                         Tab logDisplayTab,
                                         Tab watchingNowTab,
-                                        Tab bookmarkChannelListTab) {
+                                        Tab bookmarkChannelListTab,
+                                        ManageAccountColumn manageAccountColumn) {
         EnumMap<AppNavigationController.Target, Runnable> actions = new EnumMap<>(AppNavigationController.Target.class);
         actions.put(AppNavigationController.Target.SETTINGS, () -> selectTab(tabPane, configurationTab));
         actions.put(AppNavigationController.Target.ACCOUNTS, () -> selectTab(tabPane, manageAccountTab));
@@ -156,6 +176,37 @@ public abstract class BaseMainApplicationUI {
     private void selectTab(TabPane tabPane, Tab tab) {
         if (tabPane != null && tab != null) {
             tabPane.getSelectionModel().select(tab);
+        }
+    }
+
+    private HBox buildAppContent(ManageAccountColumn manageAccountColumn, HBox mainContent) {
+        VBox manageAccountNode = manageAccountColumn.node();
+        HBox appContent = new HBox(manageAccountNode, mainContent);
+        appContent.getStyleClass().add("uiptv-app-content");
+        appContent.setNodeOrientation(NodeOrientation.LEFT_TO_RIGHT);
+        appContent.setFillHeight(true);
+        appContent.setMinSize(0, 0);
+        appContent.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        HBox.setHgrow(manageAccountNode, Priority.NEVER);
+        HBox.setHgrow(mainContent, Priority.ALWAYS);
+        Runnable updateResponsiveColumns = () -> updateManageAccountResponsiveColumns(appContent, manageAccountColumn, mainContent);
+        appContent.widthProperty().addListener((_, _, _) -> updateResponsiveColumns.run());
+        manageAccountNode.visibleProperty().addListener((_, _, _) -> updateResponsiveColumns.run());
+        Platform.runLater(updateResponsiveColumns);
+        return appContent;
+    }
+
+    private void updateManageAccountResponsiveColumns(HBox appContent, ManageAccountColumn manageAccountColumn, HBox mainContent) {
+        double availableWidth = appContent == null ? 0 : appContent.getWidth();
+        boolean singleColumn = manageAccountColumn.isOpen()
+                && availableWidth > 0
+                && availableWidth < MANAGE_ACCOUNT_SINGLE_COLUMN_WIDTH_THRESHOLD;
+        mainContent.setManaged(!singleColumn);
+        mainContent.setVisible(!singleColumn);
+        manageAccountColumn.setSingleColumn(singleColumn);
+        HBox.setHgrow(manageAccountColumn.node(), singleColumn ? Priority.ALWAYS : Priority.NEVER);
+        if (appContent != null) {
+            appContent.requestLayout();
         }
     }
 
@@ -280,29 +331,18 @@ public abstract class BaseMainApplicationUI {
         menuBar.setUseSystemMenuBar(useNativeSystemMenuBar);
 
         Menu helpMenu = new Menu(I18n.tr("autoHelp"));
-        CheckMenuItem stayOnTopItem = new CheckMenuItem(I18n.tr("autoStayOnTop"));
-        if (primaryStage != null) {
-            stayOnTopItem.setSelected(primaryStage.isAlwaysOnTop());
-        }
-        stayOnTopItem.selectedProperty().addListener((_, _, selected) -> {
-            if (primaryStage != null) {
-                primaryStage.setAlwaysOnTop(selected);
-            }
-        });
-
         MenuItem aboutItem = new MenuItem(I18n.tr("autoAbout"));
         aboutItem.setOnAction(e -> AboutUI.show(hostServices));
 
         MenuItem updateItem = new MenuItem(I18n.tr("autoCheckForUpdates2"));
         updateItem.setOnAction(e -> UpdateChecker.checkForUpdates(hostServices));
 
-        helpMenu.getItems().addAll(stayOnTopItem, aboutItem, updateItem);
+        helpMenu.getItems().addAll(aboutItem, updateItem);
         menuBar.getMenus().add(helpMenu);
         return menuBar;
     }
 
     private void initializeDeferredTabs(DeferredTabsContext context) {
-        Supplier<WatchingNowUI> watchingNowSupplier = context.watchingNowRef()::get;
         Runnable loadWatchingNow = () -> {
             WatchingNowUI watchingNowUI = new WatchingNowUI(hostServices, this::toggleTheme);
             setMinWidthForPane(watchingNowUI);
@@ -324,20 +364,6 @@ public abstract class BaseMainApplicationUI {
             setMinWidthForPane(parseMultipleAccountUI);
             configureParseMultipleAccountUI(parseMultipleAccountUI, context.accountListUI());
             context.parseMultipleAccountTab().setContent(AppNavigationPane.wrapContent(parseMultipleAccountUI));
-        };
-
-        Runnable loadManageAccount = () -> {
-            ManageAccountUI manageAccountUI = new ManageAccountUI();
-            setMinWidthForPane(manageAccountUI);
-            context.accountListUI().setManageAccountUI(manageAccountUI);
-            configureAccountListUI(
-                    context.accountListUI(),
-                    manageAccountUI,
-                    context.manageAccountTab(),
-                    context.bookmarkChannelListUI(),
-                    watchingNowSupplier
-            );
-            configureManageAccountUI(manageAccountUI, context.accountListUI(), context.bookmarkChannelListUI(), watchingNowSupplier);
         };
 
         Runnable loadConfiguration = () -> {
@@ -362,10 +388,9 @@ public abstract class BaseMainApplicationUI {
         };
 
         scheduleDeferredTabLoad(loadConfiguration,
-                () -> scheduleDeferredTabLoad(loadManageAccount,
-                        () -> scheduleDeferredTabLoad(loadParseMultiple,
-                                () -> scheduleDeferredTabLoad(loadLogDisplay,
-                                        () -> scheduleDeferredTabLoad(loadWatchingNow, null)))));
+                () -> scheduleDeferredTabLoad(loadParseMultiple,
+                        () -> scheduleDeferredTabLoad(loadLogDisplay,
+                                () -> scheduleDeferredTabLoad(loadWatchingNow, null))));
     }
 
     private void scheduleDeferredTabLoad(Runnable loader, Runnable nextStep) {
@@ -426,11 +451,25 @@ public abstract class BaseMainApplicationUI {
             ManageAccountUI manageAccountUI,
             Tab manageAccountTab,
             BookmarkChannelListUI bookmarkChannelListUI,
-            Supplier<WatchingNowUI> watchingNowSupplier
+            Supplier<WatchingNowUI> watchingNowSupplier,
+            ManageAccountColumn manageAccountColumn
     ) {
-        accountListUI.addUpdateCallbackHandler(param -> manageAccountUI.editAccount((Account) param));
+        accountListUI.addUpdateCallbackHandler(param -> {
+            if (manageAccountColumn.isOpen()) {
+                manageAccountUI.editAccount((Account) param);
+            }
+        });
         accountListUI.addExplicitEditCallbackHandler(param -> {
             manageAccountUI.editAccount((Account) param);
+            manageAccountColumn.open();
+            TabPane tabPane = manageAccountTab.getTabPane();
+            if (tabPane != null) {
+                tabPane.getSelectionModel().select(manageAccountTab);
+            }
+        });
+        accountListUI.addNewAccountCallbackHandler(_ -> {
+            manageAccountUI.clearAll();
+            manageAccountColumn.open();
             TabPane tabPane = manageAccountTab.getTabPane();
             if (tabPane != null) {
                 tabPane.getSelectionModel().select(manageAccountTab);
@@ -463,6 +502,72 @@ public abstract class BaseMainApplicationUI {
 
     private void setMinWidthForPane(Region pane) {
         pane.setMinWidth((double) guidedMaxWidthPixels / 4);
+    }
+
+    private static final class ManageAccountColumn {
+        private final VBox shell;
+
+        private ManageAccountColumn(ManageAccountUI manageAccountUI) {
+            Label title = new Label(I18n.tr("autoAccount"));
+            title.getStyleClass().add("manage-account-dock-title");
+
+            Button closeButton = new Button(I18n.tr("commonClose"));
+            closeButton.getStyleClass().add("manage-account-dock-close");
+            closeButton.setFocusTraversable(false);
+            closeButton.setOnAction(_ -> close());
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+
+            HBox header = new HBox(8, title, spacer, closeButton);
+            header.getStyleClass().add("manage-account-dock-header");
+            header.setAlignment(Pos.CENTER_LEFT);
+            header.setPadding(new Insets(8, 10, 0, 10));
+
+            manageAccountUI.setMinWidth(0);
+            manageAccountUI.setMaxWidth(Double.MAX_VALUE);
+            VBox.setVgrow(manageAccountUI, Priority.ALWAYS);
+
+            shell = new VBox(header, manageAccountUI);
+            shell.getStyleClass().add("manage-account-dock");
+            shell.setMinWidth(MANAGE_ACCOUNT_DOCK_MIN_WIDTH);
+            shell.setPrefWidth(MANAGE_ACCOUNT_DOCK_PREF_WIDTH);
+            shell.setMaxWidth(MANAGE_ACCOUNT_DOCK_MAX_WIDTH);
+            shell.setFillWidth(true);
+            shell.setVisible(false);
+            shell.setManaged(false);
+        }
+
+        private VBox node() {
+            return shell;
+        }
+
+        private boolean isOpen() {
+            return shell.isVisible();
+        }
+
+        private void open() {
+            shell.setManaged(true);
+            shell.setVisible(true);
+        }
+
+        private void close() {
+            setSingleColumn(false);
+            shell.setVisible(false);
+            shell.setManaged(false);
+        }
+
+        private void setSingleColumn(boolean singleColumn) {
+            if (singleColumn) {
+                shell.setMinWidth(0);
+                shell.setPrefWidth(Region.USE_COMPUTED_SIZE);
+                shell.setMaxWidth(Double.MAX_VALUE);
+                return;
+            }
+            shell.setMinWidth(MANAGE_ACCOUNT_DOCK_MIN_WIDTH);
+            shell.setPrefWidth(MANAGE_ACCOUNT_DOCK_PREF_WIDTH);
+            shell.setMaxWidth(MANAGE_ACCOUNT_DOCK_MAX_WIDTH);
+        }
     }
 
     private record DeferredTabsContext(

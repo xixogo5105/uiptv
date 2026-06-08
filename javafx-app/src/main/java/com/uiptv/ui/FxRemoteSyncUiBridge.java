@@ -51,8 +51,9 @@ public class FxRemoteSyncUiBridge implements RemoteSyncApprovalPrompt, RemoteSyn
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION, buildApprovalMessage(request), allowButton, rejectButton);
         alert.setTitle(I18n.tr("remoteSyncApprovalTitle"));
         alert.setHeaderText(I18n.tr("remoteSyncApprovalHeader"));
-        ThemedDialogSupport.prepare(alert, ThemedDialogSupport.primaryOwnerWindow(), "uiptv-alert-dialog");
-        Optional<ButtonType> result = ThemedDialogSupport.showAndWait(alert, ThemedDialogSupport.primaryOwnerWindow());
+        javafx.stage.Window ownerWindow = ThemedDialogSupport.activeOwnerWindow();
+        ThemedDialogSupport.prepare(alert, ownerWindow, "uiptv-alert-dialog");
+        Optional<ButtonType> result = ThemedDialogSupport.showAndWait(alert, ownerWindow);
         return result.isPresent() && result.get() == allowButton;
     }
 

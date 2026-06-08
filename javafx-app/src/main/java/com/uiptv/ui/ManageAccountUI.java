@@ -28,12 +28,12 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.io.File;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.model.Account.CACHE_SUPPORTED;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
@@ -85,7 +85,7 @@ public class ManageAccountUI extends VBox {
     private final ManageAccountInfoPane accountInfoPane = new ManageAccountInfoPane();
     private final ManageAccountXtremeCredentialsHelper xtremeCredentialsHelper =
             new ManageAccountXtremeCredentialsHelper(xtremeUsername, username, password, manageXtremeCredentialsLink, xtremeUsernameContainer);
-    private HBox macAddressContainer;
+    private FlowPane macAddressContainer;
     private VBox actionSection;
     private HBox wideActionRow;
     private FlowPane wrappedActionPane;
@@ -132,7 +132,9 @@ public class ManageAccountUI extends VBox {
         refreshChannelsButton.setMaxWidth(Region.USE_PREF_SIZE);
         m3u8Path.setMinWidth(180);
         accountType.setMinWidth(250);
-        macAddress.setPrefWidth(235); // Reduced by ~33% from 350
+        macAddress.setMinWidth(155);
+        macAddress.setPrefWidth(188);
+        macAddress.setMaxWidth(210);
 
         clearButton.setMinWidth(112);
         clearButton.setPrefWidth(126);
@@ -166,11 +168,11 @@ public class ManageAccountUI extends VBox {
         manageMacsLink.setVisible(false);
         manageMacsLink.managedProperty().bind(manageMacsLink.visibleProperty());
         manageMacsLink.getStyleClass().add("manage-mac-action-link");
-        manageMacsLink.setOnAction(event -> openManageMacsInline());
+        manageMacsLink.setOnAction(event -> openManageMacsPopup());
 
         manageXtremeCredentialsLink.setVisible(false);
         manageXtremeCredentialsLink.setManaged(false);
-        manageXtremeCredentialsLink.setOnAction(event -> openManageXtremeCredentialsInline());
+        manageXtremeCredentialsLink.setOnAction(event -> openManageXtremeCredentialsPopup());
         xtremeUsernameContainer.setAlignment(Pos.CENTER_LEFT);
 
         pinToTopCheckBox.setManaged(false);
@@ -187,10 +189,17 @@ public class ManageAccountUI extends VBox {
         pipeLabel.getStyleClass().add("manage-mac-divider");
         manageMacsLink.visibleProperty().bind(verifyMacsLink.visibleProperty());
 
-        macAddressContainer = new HBox(8, macAddress, verifyMacsLink, pipeLabel, manageMacsLink);
+        HBox macAddressActions = new HBox(4, verifyMacsLink, pipeLabel, manageMacsLink);
+        macAddressActions.getStyleClass().add("manage-mac-action-group");
+        macAddressActions.setAlignment(Pos.CENTER_LEFT);
+        macAddressActions.visibleProperty().bind(verifyMacsLink.visibleProperty());
+        macAddressActions.managedProperty().bind(macAddressActions.visibleProperty());
+
+        macAddressContainer = new FlowPane(6, 6, macAddress, macAddressActions);
         macAddressContainer.getStyleClass().add("manage-mac-action-row");
         macAddressContainer.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(macAddress, Priority.ALWAYS);
+        macAddressContainer.setMinWidth(0);
+        macAddressContainer.setMaxWidth(Double.MAX_VALUE);
 
         configureActionSection();
 
@@ -332,8 +341,8 @@ public class ManageAccountUI extends VBox {
         xtremeCredentialsHelper.configureForType(type);
     }
 
-    private void openManageXtremeCredentialsInline() {
-        xtremeCredentialsHelper.openManagementInline(() -> saveAccount(false));
+    private void openManageXtremeCredentialsPopup() {
+        xtremeCredentialsHelper.openManagementPopup(resolveOwnerStage(), () -> saveAccount(false));
     }
 
     private void ensureAccountInfoSectionVisibility(AccountType type) {
@@ -356,7 +365,7 @@ public class ManageAccountUI extends VBox {
         }
     }
 
-    private void openManageMacsInline() {
+    private void openManageMacsPopup() {
         String currentMacs = macAddressList.getText();
         List<String> macList = new ArrayList<>();
         if (isNotBlank(currentMacs)) {
@@ -366,8 +375,7 @@ public class ManageAccountUI extends VBox {
         String currentDefault = macAddress.getValue();
 
         Account baseAccount = getAccountFromForm();
-        AtomicReference<InlinePanelService.InlinePanelHandle> handleRef = new AtomicReference<>();
-        MacAddressManagementInline inline = new MacAddressManagementInline(baseAccount, macList, currentDefault, (newMacs, newDefault) -> {
+        MacAddressManagementPopup popup = new MacAddressManagementPopup(resolveOwnerStage(), baseAccount, macList, currentDefault, (newMacs, newDefault) -> {
             String newMacsStr = String.join(", ", newMacs);
             macAddressList.setText(newMacsStr);
 
@@ -377,13 +385,8 @@ public class ManageAccountUI extends VBox {
                 }
                 saveAccount(false);
             });
-        }, () -> {
-            InlinePanelService.InlinePanelHandle handle = handleRef.get();
-            if (handle != null) {
-                handle.close();
-            }
         });
-        InlinePanelService.open(I18n.tr("autoManageMACAddresses"), inline).ifPresent(handleRef::set);
+        popup.show();
     }
 
     private void verifyMacAddresses() {
@@ -393,15 +396,9 @@ public class ManageAccountUI extends VBox {
             return;
         }
 
-        ProgressInline progressInline = new ProgressInline();
-        progressInline.setDefaultMacAddress(macAddress.getValue());
-        InlinePanelService.open(
-                I18n.tr("autoVerifyingMacAddresses"),
-                progressInline,
-                I18n.tr("commonClose"),
-                null,
-                _ -> progressInline.requestClose()
-        ).ifPresent(progressInline::setPanelHandle);
+        ProgressDialog progressDialog = new ProgressDialog(resolveOwnerStage());
+        progressDialog.setDefaultMacAddress(macAddress.getValue());
+        progressDialog.show();
 
         AtomicBoolean stopRequested = new AtomicBoolean(false);
 
@@ -410,43 +407,43 @@ public class ManageAccountUI extends VBox {
             protected List<String> call() throws Exception {
                 List<String> invalidMacs = new ArrayList<>();
                 int total = macList.size();
-                progressInline.setTotal(total);
+                progressDialog.setTotal(total);
                 Account accountToVerify = service.getById(accountId);
 
                 for (int i = 0; i < total; i++) {
                     if (shouldStopVerification(stopRequested)) break;
                     String mac = macList.get(i);
-                    boolean isValid = verifySingleMac(progressInline, accountToVerify, mac, i, total);
+                    boolean isValid = verifySingleMac(progressDialog, accountToVerify, mac, i, total);
                     if (!isValid) {
                         invalidMacs.add(mac);
                     }
                     if (i < total - 1) {
-                        pauseBetweenMacChecks(progressInline, stopRequested);
+                        pauseBetweenMacChecks(progressDialog, stopRequested);
                     }
                 }
                 return invalidMacs;
             }
         };
 
-        progressInline.setOnClose(task::cancel);
-        progressInline.setOnStop(() -> stopRequested.set(true));
+        progressDialog.setOnClose(task::cancel);
+        progressDialog.setOnStop(() -> stopRequested.set(true));
 
         task.setOnSucceeded(e -> {
             List<String> invalidMacs = task.getValue();
-            handleVerificationResults(progressInline, macList, invalidMacs, stopRequested.get());
-            progressInline.markCompleted();
+            handleVerificationResults(progressDialog, macList, invalidMacs, stopRequested.get());
+            progressDialog.markCompleted();
         });
 
         task.setOnFailed(e -> {
-            progressInline.addProgressText(I18n.tr("autoVerificationFailed", task.getException().getMessage()));
+            progressDialog.addProgressText(I18n.tr("autoVerificationFailed", task.getException().getMessage()));
             showErrorAlert(I18n.tr("autoVerificationFailed", task.getException().getMessage()));
-            progressInline.markCompleted();
+            progressDialog.markCompleted();
         });
 
         task.setOnCancelled(e -> {
-            progressInline.addProgressText(I18n.tr("autoVerificationCancelled"));
+            progressDialog.addProgressText(I18n.tr("autoVerificationCancelled"));
             showMessageAlert(I18n.tr("autoVerificationCancelled"));
-            progressInline.markCompleted();
+            progressDialog.markCompleted();
         });
 
         new Thread(task).start();
@@ -466,43 +463,43 @@ public class ManageAccountUI extends VBox {
         return Thread.currentThread().isInterrupted() || stopRequested.get();
     }
 
-    private boolean verifySingleMac(ProgressInline progressInline, Account accountToVerify, String mac, int index, int total) {
-        appendVerificationSectionHeader(progressInline, mac, index, total);
+    private boolean verifySingleMac(ProgressDialog progressDialog, Account accountToVerify, String mac, int index, int total) {
+        appendVerificationSectionHeader(progressDialog, mac, index, total);
         boolean isValid = cacheService.verifyMacAddress(accountToVerify, mac);
-        progressInline.addResult(isValid);
-        progressInline.addProgressText("  " + I18n.tr(isValid ? "manageResultValid" : "manageResultInvalid"));
+        progressDialog.addResult(isValid);
+        progressDialog.addProgressText("  " + I18n.tr(isValid ? "manageResultValid" : "manageResultInvalid"));
         AccountInfo info = HandshakeService.getInstance().fetchAccountInfo(AccountCopyUtil.copyForMac(accountToVerify, mac));
         String expiry = info != null ? AccountInfoUiUtil.formatDate(info.getExpireDate()) : "";
         if (isBlank(expiry)) {
             expiry = "Unknown";
         }
         String status = info != null && info.getAccountStatus() != null ? info.getAccountStatus().toDisplay() : "unknown";
-        progressInline.addProgressText("  " + I18n.tr("manageAccountInfoExpireDate") + ": " + expiry);
-        progressInline.addProgressText("  " + I18n.tr("manageAccountInfoStatus") + ": " + status);
+        progressDialog.addProgressText("  " + I18n.tr("manageAccountInfoExpireDate") + ": " + expiry);
+        progressDialog.addProgressText("  " + I18n.tr("manageAccountInfoStatus") + ": " + status);
         return isValid;
     }
 
-    private void appendVerificationSectionHeader(ProgressInline progressInline, String mac, int index, int total) {
-        progressInline.addVerificationHeader(mac, index, total);
+    private void appendVerificationSectionHeader(ProgressDialog progressDialog, String mac, int index, int total) {
+        progressDialog.addVerificationHeader(mac, index, total);
     }
 
-    private void pauseBetweenMacChecks(ProgressInline progressInline, AtomicBoolean stopRequested) throws InterruptedException {
-        long delayMillis = progressInline.getSelectedDelayMillis();
+    private void pauseBetweenMacChecks(ProgressDialog progressDialog, AtomicBoolean stopRequested) throws InterruptedException {
+        long delayMillis = progressDialog.getSelectedDelayMillis();
         int totalSeconds = (int) (delayMillis / 1000);
         for (int seconds = totalSeconds; seconds > 0; seconds--) {
             if (shouldStopVerification(stopRequested)) {
                 break;
             }
-            progressInline.setPauseStatus(seconds, totalSeconds);
+            progressDialog.setPauseStatus(seconds, totalSeconds);
             Thread.sleep(1000);
         }
-        progressInline.setPauseStatus(0, 0);
+        progressDialog.setPauseStatus(0, 0);
     }
 
-    private void handleVerificationResults(ProgressInline progressInline, List<String> allMacs, List<String> invalidMacs, boolean wasStopped) {
+    private void handleVerificationResults(ProgressDialog progressDialog, List<String> allMacs, List<String> invalidMacs, boolean wasStopped) {
         if (invalidMacs.isEmpty()) {
             if (!wasStopped) {
-                progressInline.addProgressText(I18n.tr("autoAllMACAddressesAreValid"));
+                progressDialog.addProgressText(I18n.tr("autoAllMACAddressesAreValid"));
             }
             return;
         }
@@ -580,7 +577,7 @@ public class ManageAccountUI extends VBox {
                 showErrorAlert(I18n.tr("autoPleaseSaveTheAccountBeforeReloadingTheCache"));
                 return;
             }
-            ReloadCacheInline.open(List.of(account), this::notifyAccountsChanged);
+            ReloadCachePopup.showPopup(resolveOwnerStage(), List.of(account), this::notifyAccountsChanged);
         });
     }
 
@@ -588,6 +585,13 @@ public class ManageAccountUI extends VBox {
         if (onSaveCallback != null) {
             onSaveCallback.call(null);
         }
+    }
+
+    private Stage resolveOwnerStage() {
+        if (getScene() != null && getScene().getWindow() instanceof Stage stage) {
+            return stage;
+        }
+        return RootApplication.getPrimaryStage();
     }
 
     public void clearAll() {

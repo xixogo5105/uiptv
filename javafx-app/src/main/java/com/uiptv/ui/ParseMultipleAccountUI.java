@@ -295,7 +295,7 @@ public class ParseMultipleAccountUI extends VBox {
     }
 
     private void openVerificationPopup(List<Account> accountsToVerify) {
-        ReloadCacheInline.open(accountsToVerify, this::notifyAccountsChanged);
+        ReloadCachePopup.showPopup(RootApplication.getPrimaryStage(), accountsToVerify, this::notifyAccountsChanged);
     }
 
     private void notifyAccountsChanged() {

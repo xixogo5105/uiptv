@@ -8,7 +8,6 @@ import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.BookmarkCard;
-import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
@@ -509,7 +508,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         button.setMinWidth(Region.USE_PREF_SIZE);
         button.setAccessibleText(I18n.tr("searchableTableManageTabs"));
         button.setTooltip(new Tooltip(I18n.tr("searchableTableManageTabs")));
-        button.setOnAction(_ -> openCategoryManagementInline());
+        button.setOnAction(_ -> openCategoryManagementPopup());
         return button;
     }
 
@@ -870,9 +869,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         );
     }
 
-    private void openCategoryManagementInline() {
-        CategoryManagementInline inline = new CategoryManagementInline(this);
-        InlinePanelService.open(I18n.tr("autoManageCategories"), inline, I18n.tr("commonClose"), this::forceReload);
+    private void openCategoryManagementPopup() {
+        CategoryManagementPopup.showPopup(RootApplication.getPrimaryStage(), this, this::forceReload);
     }
 
     private void addChannelClickHandler() {

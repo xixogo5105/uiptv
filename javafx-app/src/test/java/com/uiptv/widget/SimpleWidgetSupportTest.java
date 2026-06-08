@@ -3,9 +3,13 @@ package com.uiptv.widget;
 import javafx.scene.text.Font;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.TableColumn;
 import javafx.scene.layout.VBox;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +18,6 @@ import java.lang.reflect.Method;
 
 import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
-import static com.uiptv.testsupport.FxTestSupport.waitForFxEvents;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -134,10 +137,10 @@ class SimpleWidgetSupportTest {
     }
 
     @Test
-    void messageAndErrorAlertsUseNotificationCenterWhenAvailable() throws Exception {
+    void messageAndErrorAlertsDoNotUseInlineNotificationsInHeadlessMode() throws Exception {
         String previous = System.getProperty("uiptv.headless");
         try {
-            System.setProperty("uiptv.headless", "false");
+            System.setProperty("uiptv.headless", "true");
             VBox host = runOnFxThread(AppNotificationCenter::createHost);
             runOnFxThread(() -> {
                 AppNotificationCenter.install(host);
@@ -147,9 +150,8 @@ class SimpleWidgetSupportTest {
                 UIptvAlert.showErrorAlert("commonClose");
                 return null;
             });
-            waitForFxEvents();
 
-            assertEquals(2, runOnFxThread(() -> host.getChildren().size()));
+            assertEquals(0, runOnFxThread(() -> host.getChildren().size()));
         } finally {
             if (previous == null) {
                 System.clearProperty("uiptv.headless");
@@ -157,6 +159,24 @@ class SimpleWidgetSupportTest {
                 System.setProperty("uiptv.headless", previous);
             }
         }
+    }
+
+    @Test
+    void ownedAlertDialogsUseWindowModalityAndSquarePaneStyle() throws Exception {
+        runOnFxThread(() -> {
+            Stage owner = new Stage();
+            owner.setScene(new Scene(new VBox()));
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Confirm", UIptvAlert.okButtonType(), UIptvAlert.closeButtonType());
+
+            ThemedDialogSupport.prepare(alert, owner, "uiptv-alert-dialog");
+
+            assertEquals(owner, alert.getOwner());
+            assertEquals(Modality.WINDOW_MODAL, alert.getModality());
+            assertTrue(alert.getDialogPane().getStyleClass().contains("uiptv-native-alert-dialog"));
+            assertTrue(alert.getDialogPane().getStyleClass().contains("uiptv-alert-dialog"));
+            owner.close();
+            return null;
+        });
     }
 
     @Test

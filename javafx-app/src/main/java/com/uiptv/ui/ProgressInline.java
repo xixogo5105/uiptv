@@ -44,7 +44,8 @@ public class ProgressInline extends BorderPane {
     private int completedItems;
     private VBox currentVerificationDetails;
     private TextFlow lastRenderedLine;
-    private Runnable closeAction = () -> { };
+    private Runnable cancelAction = () -> { };
+    private Runnable closePanelAction = () -> { };
     private InlinePanelHandle panelHandle;
     private boolean completed;
     private String defaultMacAddress = "";
@@ -90,6 +91,10 @@ public class ProgressInline extends BorderPane {
 
     public void setPanelHandle(InlinePanelHandle panelHandle) {
         this.panelHandle = panelHandle;
+    }
+
+    public void setExternalCloseHandler(Runnable closeHandler) {
+        this.closePanelAction = closeHandler == null ? () -> { } : closeHandler;
     }
 
     private VBox buildHeader() {
@@ -385,7 +390,7 @@ public class ProgressInline extends BorderPane {
     }
 
     public void setOnClose(Runnable action) {
-        closeAction = action == null ? () -> { } : action;
+        cancelAction = action == null ? () -> { } : action;
         cancelButton.setOnAction(event -> requestClose());
     }
 
@@ -395,7 +400,7 @@ public class ProgressInline extends BorderPane {
             return;
         }
         if (showConfirmationAlert("Are you sure you want to cancel the verification process? No changes will be saved.")) {
-            closeAction.run();
+            cancelAction.run();
             closePanel();
         }
     }
@@ -418,6 +423,8 @@ public class ProgressInline extends BorderPane {
     private void closePanel() {
         if (panelHandle != null) {
             panelHandle.close();
+            return;
         }
+        closePanelAction.run();
     }
 }

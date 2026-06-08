@@ -71,7 +71,10 @@ class AppHeaderActionsTest extends DbBackedUiTest {
         List<String> labels = runOnFxThread(() -> {
             AppHeaderActions actions = new AppHeaderActions(null, null, null);
             ContextMenu menu = actions.createGearMenu();
-            return menu.getItems().stream().map(MenuItem::getText).toList();
+            return menu.getItems().stream()
+                    .map(MenuItem::getText)
+                    .filter(text -> text != null)
+                    .toList();
         });
 
         assertEquals(List.of(
@@ -80,6 +83,8 @@ class AppHeaderActionsTest extends DbBackedUiTest {
                 I18n.tr("autoLogs"),
                 "Pause parental lock restrictions",
                 I18n.tr("autoEnablePlainTextMode"),
+                I18n.tr("configUseDarkTheme"),
+                I18n.tr("autoStayOnTop"),
                 I18n.tr("autoHelp"),
                 I18n.tr("autoAbout")
         ), labels);
@@ -93,7 +98,10 @@ class AppHeaderActionsTest extends DbBackedUiTest {
 
         MenuItem plainTextItem = runOnFxThread(() -> {
             AppHeaderActions actions = new AppHeaderActions(null, null, null);
-            return actions.createGearMenu().getItems().get(4);
+            return actions.createGearMenu().getItems().stream()
+                    .filter(item -> I18n.tr("autoEnablePlainTextMode").equals(item.getText()))
+                    .findFirst()
+                    .orElseThrow();
         });
 
         runOnFxThread(() -> {

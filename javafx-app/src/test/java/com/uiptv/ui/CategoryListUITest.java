@@ -28,7 +28,7 @@ class CategoryListUITest extends DbBackedUiTest {
             Account account = new Account();
             account.setAccountName("Account");
             account.setAction(Account.AccountAction.itv);
-            CategoryListUI ui = new CategoryListUI(account, true);
+            CategoryListUI ui = new CategoryListUI(account);
             ui.setItems(List.of(
                     category("uk", "ENGLISH UK"),
                     category("sports", "Sports")
@@ -54,7 +54,7 @@ class CategoryListUITest extends DbBackedUiTest {
             account.setAccountName("Account");
             account.setAction(Account.AccountAction.itv);
 
-            CategoryListUI categories = new CategoryListUI(AccountMediaContext.from(account, Account.AccountAction.vod), true);
+            CategoryListUI categories = new CategoryListUI(AccountMediaContext.from(account, Account.AccountAction.vod));
             ChannelListUI channels = new ChannelListUI(account, "Series", "series", Account.AccountAction.series);
             try {
                 assertEquals(Account.AccountAction.itv, account.getAction());

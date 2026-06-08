@@ -13,14 +13,13 @@ import com.uiptv.service.remotesync.RemoteSyncOptions;
 import com.uiptv.service.remotesync.RemoteSyncProgressStep;
 import com.uiptv.service.*;
 import com.uiptv.ui.util.ImageCacheManager;
+import com.uiptv.ui.util.UiI18n;
 import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.ExternalPlayerPathCard;
-import com.uiptv.widget.InlinePanelService;
-import com.uiptv.widget.InlinePanelService.InlinePanelHandle;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayerOptionCard;
 import com.uiptv.widget.SwitchToggle;
@@ -39,12 +38,14 @@ import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.shape.SVGPath;
 import javafx.stage.FileChooser;
-import javafx.stage.Window;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.io.File;
@@ -93,9 +94,9 @@ public class ConfigurationUI extends VBox {
     private static final double SETTINGS_CARD_HGAP = 14;
     private static final double SETTINGS_SWITCH_WIDTH = 52;
     private static final double SETTINGS_THEME_PILL_WIDTH = 181;
-    private static final AtomicReference<InlinePanelHandle> activePublishM3u8InlinePanel = new AtomicReference<>();
-    private static final AtomicReference<InlinePanelHandle> activeVlcOptionsInlinePanel = new AtomicReference<>();
-    private static final AtomicReference<InlinePanelHandle> activeDatabaseSyncInlinePanel = new AtomicReference<>();
+    private static final AtomicReference<Stage> activePublishM3u8PopupStage = new AtomicReference<>();
+    private static final AtomicReference<Stage> activeVlcOptionsPopupStage = new AtomicReference<>();
+    private static final AtomicReference<Stage> activeDatabaseSyncPopupStage = new AtomicReference<>();
     final ToggleGroup group = new ToggleGroup();
     final Button browserButtonPlayerPath1 = new Button("...");
     final Button browserButtonPlayerPath2 = new Button("...");
@@ -1126,13 +1127,44 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addReloadCacheButtonClickHandler() {
-        reloadCacheButton.setOnAction(event -> ReloadCacheInline.open(null, this::notifyAccountsChanged));
+        reloadCacheButton.setOnAction(event -> ReloadCachePopup.showPopup(resolveOwnerStage(), null, this::notifyAccountsChanged));
     }
 
     private void notifyAccountsChanged() {
         if (onSaveCallback != null) {
             onSaveCallback.call(null);
         }
+    }
+
+    private Stage resolveOwnerStage() {
+        if (getScene() != null && getScene().getWindow() instanceof Stage stage) {
+            return stage;
+        }
+        return RootApplication.getPrimaryStage();
+    }
+
+    private Stage createPopupStage(String title) {
+        Stage popupStage = new Stage();
+        Stage owner = resolveOwnerStage();
+        if (owner != null) {
+            popupStage.initOwner(owner);
+            popupStage.initModality(Modality.WINDOW_MODAL);
+        } else {
+            popupStage.initModality(Modality.APPLICATION_MODAL);
+        }
+        popupStage.setTitle(title);
+        return popupStage;
+    }
+
+    private Scene createPopupScene(Parent root, double width, double height) {
+        Scene scene = new Scene(root, width, height);
+        UiI18n.applySceneOrientation(scene);
+        if (getScene() != null) {
+            scene.getStylesheets().addAll(getScene().getStylesheets());
+        } else if (RootApplication.getCurrentTheme() != null) {
+            scene.getStylesheets().add(RootApplication.getCurrentTheme());
+        }
+        return scene;
     }
 
     private void updateEmbeddedPlayerTitle() {
@@ -1198,28 +1230,19 @@ public class ConfigurationUI extends VBox {
 
     private void addPublishM3u8ButtonClickHandler() {
         publishM3u8Button.setOnAction(event -> {
-            InlinePanelHandle activePanel = activePublishM3u8InlinePanel.get();
-            if (activePanel != null) {
+            Stage activeStage = activePublishM3u8PopupStage.get();
+            if (activeStage != null && activeStage.isShowing()) {
+                activeStage.toFront();
+                activeStage.requestFocus();
                 return;
             }
-            AtomicReference<InlinePanelHandle> handleRef = new AtomicReference<>();
-            M3U8PublicationInline inline = new M3U8PublicationInline(() -> {
-                InlinePanelHandle handle = handleRef.get();
-                if (handle != null) {
-                    handle.close();
-                }
-            });
-            InlinePanelService.open(I18n.tr("configPublishM3u8"), inline, I18n.tr("commonClose"), () -> {
-                InlinePanelHandle handle = handleRef.get();
-                if (handle != null) {
-                    activePublishM3u8InlinePanel.compareAndSet(handle, null);
-                } else {
-                    activePublishM3u8InlinePanel.set(null);
-                }
-            }).ifPresent(handle -> {
-                handleRef.set(handle);
-                activePublishM3u8InlinePanel.set(handle);
-            });
+            Stage popupStage = createPopupStage(I18n.tr("configPublishM3u8"));
+            M3U8PublicationPopup popup = new M3U8PublicationPopup(popupStage);
+            popupStage.setScene(createPopupScene(popup, 680, 560));
+            popupStage.setOnHidden(e -> activePublishM3u8PopupStage.compareAndSet(popupStage, null));
+            activePublishM3u8PopupStage.set(popupStage);
+            popupStage.show();
+            popupStage.toFront();
         });
     }
 
@@ -1373,7 +1396,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addVlcOptionsLinkClickHandler() {
-        vlcOptionsLink.setOnAction(event -> openVlcOptionsInline());
+        vlcOptionsLink.setOnAction(event -> openVlcOptionsPopup());
     }
 
     private void configureHelpLinks() {
@@ -1433,8 +1456,8 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addDatabaseSyncButtonHandlers() {
-        importDatabaseButton.setOnAction(event -> openDatabaseSyncInline(true));
-        exportDatabaseButton.setOnAction(event -> openDatabaseSyncInline(false));
+        importDatabaseButton.setOnAction(event -> openDatabaseSyncPopup(true));
+        exportDatabaseButton.setOnAction(event -> openDatabaseSyncPopup(false));
     }
 
     private VBox createPlayerChoicesPanel() {
@@ -1887,11 +1910,14 @@ public class ConfigurationUI extends VBox {
         }
     }
 
-    private void openVlcOptionsInline() {
-        if (activeVlcOptionsInlinePanel.get() != null) {
+    private void openVlcOptionsPopup() {
+        Stage activeStage = activeVlcOptionsPopupStage.get();
+        if (activeStage != null && activeStage.isShowing()) {
+            activeStage.toFront();
+            activeStage.requestFocus();
             return;
         }
-        AtomicReference<InlinePanelHandle> handleRef = new AtomicReference<>();
+        Stage popupStage = createPopupStage(I18n.tr("configVlcPopupTitle"));
 
         ComboBox<VlcCachingOption> networkCachingComboBox = createVlcCachingComboBox();
         ComboBox<VlcCachingOption> liveCachingComboBox = createVlcCachingComboBox();
@@ -1935,12 +1961,7 @@ public class ConfigurationUI extends VBox {
         root.setMaxWidth(Double.MAX_VALUE);
         UiRenderQuality.optimizeLayout(root);
 
-        Runnable closeAction = () -> {
-            InlinePanelHandle handle = handleRef.get();
-            if (handle != null) {
-                handle.close();
-            }
-        };
+        Runnable closeAction = popupStage::close;
 
         Button saveButton = new Button(I18n.tr("commonSave"));
         saveButton.getStyleClass().add("uiptv-inline-primary-button");
@@ -1974,22 +1995,10 @@ public class ConfigurationUI extends VBox {
         buttons.getStyleClass().add("management-popup-footer");
         root.getChildren().add(buttons);
 
-        InlinePanelService.open(
-                I18n.tr("configVlcPopupTitle"),
-                root,
-                I18n.tr("commonClose"),
-                () -> {
-                    InlinePanelHandle handle = handleRef.get();
-                    if (handle != null) {
-                        activeVlcOptionsInlinePanel.compareAndSet(handle, null);
-                    } else {
-                        activeVlcOptionsInlinePanel.set(null);
-                    }
-                }
-        ).ifPresent(handle -> {
-            handleRef.set(handle);
-            activeVlcOptionsInlinePanel.set(handle);
-        });
+        popupStage.setScene(createPopupScene(root, 620, 460));
+        popupStage.setOnHidden(e -> activeVlcOptionsPopupStage.compareAndSet(popupStage, null));
+        activeVlcOptionsPopupStage.set(popupStage);
+        popupStage.showAndWait();
     }
 
     private Node createVlcComboOptionRow(String labelKey, ComboBox<VlcCachingOption> comboBox) {
@@ -2128,7 +2137,7 @@ public class ConfigurationUI extends VBox {
             if (event.getTarget() instanceof Node node && isNodeInside(node, actionLink)) {
                 return;
             }
-            openDatabaseSyncInline(importMode);
+            openDatabaseSyncPopup(importMode);
         });
         card.setOnKeyPressed(event -> {
             if (event.getTarget() instanceof Node node && isNodeInside(node, actionLink)) {
@@ -2136,7 +2145,7 @@ public class ConfigurationUI extends VBox {
             }
             switch (event.getCode()) {
                 case ENTER, SPACE -> {
-                    openDatabaseSyncInline(importMode);
+                    openDatabaseSyncPopup(importMode);
                     event.consume();
                 }
                 default -> {
@@ -2179,11 +2188,14 @@ public class ConfigurationUI extends VBox {
         }
     }
 
-    private void openDatabaseSyncInline(boolean importMode) {
-        if (activeDatabaseSyncInlinePanel.get() != null) {
+    private void openDatabaseSyncPopup(boolean importMode) {
+        Stage activeStage = activeDatabaseSyncPopupStage.get();
+        if (activeStage != null && activeStage.isShowing()) {
+            activeStage.toFront();
+            activeStage.requestFocus();
             return;
         }
-        AtomicReference<InlinePanelHandle> handleRef = new AtomicReference<>();
+        Stage popupStage = createPopupStage(I18n.tr(importMode ? CONFIG_IMPORT_DATABASE : CONFIG_EXPORT_DATABASE));
         ToggleGroup locationModeGroup = new ToggleGroup();
         RadioButton fileModeButton = new RadioButton(I18n.tr("configDatabaseSyncModeFile"));
         RadioButton remoteModeButton = new RadioButton(I18n.tr("configDatabaseSyncModeRemote"));
@@ -2217,11 +2229,13 @@ public class ConfigurationUI extends VBox {
             if (syncRunning.get()) {
                 return;
             }
-            InlinePanelHandle handle = handleRef.get();
-            if (handle != null) {
-                handle.close();
-            }
+            popupStage.close();
         };
+        popupStage.setOnCloseRequest(event -> {
+            if (syncRunning.get()) {
+                event.consume();
+            }
+        });
 
         progressBar.setMaxWidth(Double.MAX_VALUE);
         progressBar.setVisible(false);
@@ -2246,10 +2260,9 @@ public class ConfigurationUI extends VBox {
 
         browseButton.setOnAction(event -> {
             configureDatabaseBackupFileChooser(importMode);
-            Window chooserOwner = getScene() == null ? RootApplication.getPrimaryStage() : getScene().getWindow();
             File selected = importMode
-                    ? databaseFileChooser.showOpenDialog(chooserOwner)
-                    : databaseFileChooser.showSaveDialog(chooserOwner);
+                    ? databaseFileChooser.showOpenDialog(popupStage)
+                    : databaseFileChooser.showSaveDialog(popupStage);
             if (selected != null) {
                 databasePathField.setText((importMode ? selected : ensureZipExtension(selected)).getAbsolutePath());
             }
@@ -2306,13 +2319,16 @@ public class ConfigurationUI extends VBox {
         Label descriptionLabel = new Label();
         descriptionLabel.setWrapText(true);
 
-        Runnable textUpdater = () -> updateDatabaseSyncDirectionalText(
-                directionTitleLabel,
-                descriptionLabel,
-                runButton,
-                importMode,
-                fileModeButton.isSelected()
-        );
+        Runnable textUpdater = () -> {
+            updateDatabaseSyncDirectionalText(
+                    directionTitleLabel,
+                    descriptionLabel,
+                    runButton,
+                    importMode,
+                    fileModeButton.isSelected()
+            );
+            popupStage.setTitle(directionTitleLabel.getText());
+        };
         fileModeButton.selectedProperty().addListener((obs, oldValue, newValue) -> {
             textUpdater.run();
         });
@@ -2340,23 +2356,10 @@ public class ConfigurationUI extends VBox {
         root.setPrefWidth(DATABASE_SYNC_INLINE_WIDTH);
         root.setMaxWidth(Double.MAX_VALUE);
 
-        InlinePanelService.open(
-                I18n.tr(importMode ? CONFIG_IMPORT_DATABASE : CONFIG_EXPORT_DATABASE),
-                root,
-                I18n.tr("commonClose"),
-                () -> {
-                    InlinePanelHandle handle = handleRef.get();
-                    if (handle != null) {
-                        activeDatabaseSyncInlinePanel.compareAndSet(handle, null);
-                    } else {
-                        activeDatabaseSyncInlinePanel.set(null);
-                    }
-                },
-                _ -> closeAction.run()
-        ).ifPresent(handle -> {
-            handleRef.set(handle);
-            activeDatabaseSyncInlinePanel.set(handle);
-        });
+        popupStage.setScene(createPopupScene(root, DATABASE_SYNC_INLINE_WIDTH, 560));
+        popupStage.setOnHidden(e -> activeDatabaseSyncPopupStage.compareAndSet(popupStage, null));
+        activeDatabaseSyncPopupStage.set(popupStage);
+        popupStage.showAndWait();
     }
 
     private void updateDatabaseSyncDirectionalText(Label directionTitleLabel,

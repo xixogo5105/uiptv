@@ -927,6 +927,29 @@
     -fx-spacing: 12;
 }
 
+.manage-account-dock {
+    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f7f8fb);
+    -fx-border-color: rgba(17, 19, 24, 0.10);
+    -fx-border-width: 0 1 0 0;
+}
+
+.manage-account-dock-header {
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 8 10 8 10;
+}
+
+.manage-account-dock-title {
+    -fx-font-size: 1.08em;
+    -fx-font-weight: 800;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.manage-account-dock-close {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
 .account-list-panel {
     -fx-background-color: #ffffff;
     -fx-border-color: rgba(17, 19, 24, 0.08);
@@ -2949,6 +2972,11 @@
     -fx-pref-width: 560;
 }
 
+.uiptv-native-alert-dialog {
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+
 .uiptv-modal-dialog > .content {
     -fx-background-color: transparent;
     -fx-background-insets: 0;
@@ -3476,14 +3504,25 @@
     -fx-padding: 2 0 2 0;
 }
 
+.manage-mac-action-row .combo-box-base {
+    -fx-min-height: 34;
+    -fx-pref-height: 34;
+    -fx-font-size: 0.92em;
+}
+
+.manage-mac-action-group {
+    -fx-alignment: center-left;
+}
+
 .manage-mac-action-link {
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
     -fx-background-radius: 999;
     -fx-border-radius: 999;
-    -fx-padding: 5 10 5 10;
+    -fx-padding: 4 7 4 7;
     -fx-text-fill: -uiptv-text-primary;
+    -fx-font-size: 0.86em;
     -fx-font-weight: bold;
     -fx-underline: false;
 }

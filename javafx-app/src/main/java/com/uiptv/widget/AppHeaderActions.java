@@ -15,13 +15,17 @@ import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Node;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.shape.SVGPath;
+import javafx.stage.Stage;
+import javafx.stage.Window;
 
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
@@ -35,6 +39,7 @@ public class AppHeaderActions extends HBox {
     private static final String ICON_PARENTAL_UNLOCKED = "M12 17C13.1 17 14 16.1 14 15S13.1 13 12 13 10 13.9 10 15 10.9 17 12 17ZM18 8H9V6C9 4.34 10.34 3 12 3 13.09 3 14.05 3.58 14.58 4.45L16.32 3.45C15.44 1.99 13.84 1 12 1 9.24 1 7 3.24 7 6V8H6C4.9 8 4 8.9 4 10V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V10C20 8.9 19.1 8 18 8ZM18 20H6V10H18V20Z";
 
     private final HostServices hostServices;
+    private final Runnable themeToggleHandler;
     private final Runnable parentalPauseChangedHandler;
     private final IconActionButton gearButton = new IconActionButton(I18n.tr("autoSettings"), ICON_GEAR, this::showGearMenu);
     private final ConfigurationChangeListener configurationChangeListener =
@@ -48,6 +53,7 @@ public class AppHeaderActions extends HBox {
     public AppHeaderActions(HostServices hostServices, Runnable themeToggleHandler, Runnable parentalPauseChangedHandler) {
         super(6);
         this.hostServices = hostServices;
+        this.themeToggleHandler = themeToggleHandler;
         this.parentalPauseChangedHandler = parentalPauseChangedHandler;
         getStyleClass().add("bookmarks-quick-actions");
         UiRenderQuality.optimizeLayout(this);
@@ -93,8 +99,12 @@ public class AppHeaderActions extends HBox {
                 createNavigationMenuItem(I18n.tr("autoSettings"), AppNavigationPane.ICON_SETTINGS, AppNavigationController.Target.SETTINGS),
                 createNavigationMenuItem(I18n.tr("autoImportBulkAccounts"), AppNavigationPane.ICON_IMPORT, AppNavigationController.Target.IMPORT),
                 createNavigationMenuItem(I18n.tr("autoLogs"), AppNavigationPane.ICON_LOGS, AppNavigationController.Target.LOGS),
+                new SeparatorMenuItem(),
                 createMenuItem(parentalLockMenuText(), parentalLockIcon(), this::toggleParentalPause),
                 createPlainTextModeMenuItem(),
+                createThemeMenuItem(),
+                createStayOnTopMenuItem(),
+                new SeparatorMenuItem(),
                 createMenuItem(I18n.tr("autoHelp"), ICON_HELP, () -> openExternalUrl(GUIDE_URL)),
                 createMenuItem(I18n.tr("autoAbout"), ICON_ABOUT, this::showAbout)
         );
@@ -113,6 +123,27 @@ public class AppHeaderActions extends HBox {
     private MenuItem createPlainTextModeMenuItem() {
         MenuItem item = new MenuItem(plainTextModeMenuText(), createPlainTextModeMenuIcon());
         item.setOnAction(_ -> togglePlainTextMode());
+        return item;
+    }
+
+    private MenuItem createThemeMenuItem() {
+        Configuration configuration = readConfigurationSafely();
+        CheckMenuItem item = new CheckMenuItem(I18n.tr("configUseDarkTheme"));
+        item.setSelected(configuration != null && configuration.isDarkTheme());
+        item.setOnAction(_ -> toggleThemeMode());
+        return item;
+    }
+
+    private MenuItem createStayOnTopMenuItem() {
+        CheckMenuItem item = new CheckMenuItem(I18n.tr("autoStayOnTop"));
+        Stage stage = ownerStage();
+        item.setSelected(stage != null && stage.isAlwaysOnTop());
+        item.setOnAction(_ -> {
+            Stage currentStage = ownerStage();
+            if (currentStage != null) {
+                currentStage.setAlwaysOnTop(item.isSelected());
+            }
+        });
         return item;
     }
 
@@ -199,6 +230,18 @@ public class AppHeaderActions extends HBox {
             ImageCacheManager.clearTransientFailures();
         }
         ThumbnailAwareUI.notifyThumbnailModeChanged(thumbnailsEnabled);
+    }
+
+    private void toggleThemeMode() {
+        if (themeToggleHandler != null) {
+            themeToggleHandler.run();
+        }
+        refreshState();
+    }
+
+    private Stage ownerStage() {
+        Window window = getScene() == null ? null : getScene().getWindow();
+        return window instanceof Stage stage ? stage : null;
     }
 
     private void openExternalUrl(String url) {

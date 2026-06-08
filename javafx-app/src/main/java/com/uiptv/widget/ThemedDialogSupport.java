@@ -17,10 +17,8 @@ import javafx.scene.effect.ColorAdjust;
 import javafx.scene.effect.Effect;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
-import javafx.scene.paint.Color;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 import javafx.stage.Window;
 
 import java.util.LinkedHashMap;
@@ -39,10 +37,10 @@ public final class ThemedDialogSupport {
     }
 
     public static void prepare(Dialog<?> dialog, Window ownerWindow, String styleClass) {
-        dialog.initModality(Modality.APPLICATION_MODAL);
-        dialog.initStyle(StageStyle.TRANSPARENT);
-        if (ownerWindow != null) {
-            dialog.initOwner(ownerWindow);
+        Window resolvedOwnerWindow = ownerWindow == null ? activeOwnerWindow() : ownerWindow;
+        dialog.initModality(resolvedOwnerWindow == null ? Modality.APPLICATION_MODAL : Modality.WINDOW_MODAL);
+        if (resolvedOwnerWindow != null) {
+            dialog.initOwner(resolvedOwnerWindow);
         }
         dialog.getDialogPane().getStyleClass().add("uiptv-modal-dialog");
         if (styleClass != null && !styleClass.isBlank()) {
@@ -60,15 +58,14 @@ public final class ThemedDialogSupport {
         dialog.getDialogPane().setMinWidth(Region.USE_PREF_SIZE);
         dialog.getDialogPane().setPrefWidth(DEFAULT_DIALOG_WIDTH);
         dialog.setOnShown(_ -> {
-            Scene scene = dialog.getDialogPane().getScene();
-            if (scene != null) {
-                scene.setFill(Color.TRANSPARENT);
-            }
             wrapDialogText(dialog);
-            installFocusBridge(dialog, ownerWindow);
+            installFocusBridge(dialog, resolvedOwnerWindow);
             focusDialogRepeatedly(dialog);
         });
-        dialog.setOnHidden(_ -> uninstallFocusBridge(dialog));
+        dialog.setOnHidden(_ -> {
+            uninstallFocusBridge(dialog);
+            restoreOwnerFocus(dialog.getOwner());
+        });
     }
 
     public static void styleDialogButtons(Dialog<?> dialog) {
@@ -97,6 +94,7 @@ public final class ThemedDialogSupport {
         if (!(dialog instanceof Alert alert)) {
             return;
         }
+        dialog.getDialogPane().getStyleClass().add("uiptv-native-alert-dialog");
         Alert.AlertType alertType = alert.getAlertType();
         String styleClass = alertStyleClass(alertType);
         if (styleClass == null) {
@@ -139,13 +137,15 @@ public final class ThemedDialogSupport {
     }
 
     public static <T> Optional<T> showAndWait(Dialog<T> dialog, Window ownerWindow) {
-        Runnable removeOwnerDimming = applyOwnerDimming(ownerWindow);
+        Window effectiveOwnerWindow = dialog.getOwner() == null ? ownerWindow : dialog.getOwner();
+        Runnable removeOwnerDimming = applyOwnerDimming(effectiveOwnerWindow);
         try {
             Platform.runLater(() -> focusDialogRepeatedly(dialog));
             return dialog.showAndWait();
         } finally {
             removeOwnerDimming.run();
             uninstallFocusBridge(dialog);
+            restoreOwnerFocus(effectiveOwnerWindow);
         }
     }
 
@@ -161,7 +161,7 @@ public final class ThemedDialogSupport {
                                                   List<ButtonType> buttons,
                                                   ButtonType fallbackButton,
                                                   Consumer<Map<ButtonType, Button>> buttonConfigurer) {
-        return showChoice(title, content, buttons, fallbackButton, buttonConfigurer, primaryOwnerWindow(), "uiptv-alert-dialog");
+        return showChoice(title, content, buttons, fallbackButton, buttonConfigurer, activeOwnerWindow(), "uiptv-alert-dialog");
     }
 
     public static Optional<ButtonType> showChoice(String title,
@@ -227,11 +227,24 @@ public final class ThemedDialogSupport {
         return RootApplication.getPrimaryStage();
     }
 
+    public static Window activeOwnerWindow() {
+        Window primaryWindow = primaryOwnerWindow();
+        return Window.getWindows().stream()
+                .filter(Window::isShowing)
+                .filter(Window::isFocused)
+                .findFirst()
+                .or(() -> Window.getWindows().stream()
+                        .filter(Window::isShowing)
+                        .filter(window -> window != primaryWindow)
+                        .reduce((_, latest) -> latest))
+                .orElse(primaryWindow);
+    }
+
     public static Window ownerWindowOf(javafx.scene.Node owner) {
         if (owner != null && owner.getScene() != null) {
             return owner.getScene().getWindow();
         }
-        return primaryOwnerWindow();
+        return activeOwnerWindow();
     }
 
     private static Runnable applyOwnerDimming(Window ownerWindow) {
@@ -368,6 +381,20 @@ public final class ThemedDialogSupport {
 
     private static boolean isFocusable(Node node) {
         return node != null && node.isVisible() && !node.isDisabled();
+    }
+
+    private static void restoreOwnerFocus(Window ownerWindow) {
+        if (ownerWindow == null || !ownerWindow.isShowing()) {
+            return;
+        }
+        Platform.runLater(() -> {
+            if (ownerWindow instanceof Stage stage) {
+                stage.toFront();
+                stage.requestFocus();
+                return;
+            }
+            ownerWindow.requestFocus();
+        });
     }
 
     private record FocusBridge(Window ownerWindow,

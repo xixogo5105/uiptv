@@ -43,7 +43,7 @@ class AccountListUIInlinePanelTest extends DbBackedUiTest {
 
     @Test
     void temporaryInlinePanelDetachDoesNotClearEmbeddedDetailView() throws Exception {
-        AccountListUI accountListUI = runOnFxThread(() -> new AccountListUI(true, null, null));
+        AccountListUI accountListUI = runOnFxThread(() -> new AccountListUI(null, null));
         Label manageAccountContent = runOnFxThread(() -> new Label("Manage account form"));
 
         host = runOnFxThread(() -> {
@@ -73,12 +73,12 @@ class AccountListUIInlinePanelTest extends DbBackedUiTest {
 
     @Test
     void returningFromManageAccountKeepsActiveCategoryBrowserItems() throws Exception {
-        AccountListUI accountListUI = runOnFxThread(() -> new AccountListUI(true, null, null));
+        AccountListUI accountListUI = runOnFxThread(() -> new AccountListUI(null, null));
         CategoryListUI categoryListUI = runOnFxThread(() -> {
             Account account = new Account();
             account.setAccountName("Account");
             account.setAction(Account.AccountAction.itv);
-            CategoryListUI ui = new CategoryListUI(account, true);
+            CategoryListUI ui = new CategoryListUI(account);
             ui.setItems(java.util.List.of(
                     category("news", "News"),
                     category("sports", "Sports")
@@ -113,12 +113,12 @@ class AccountListUIInlinePanelTest extends DbBackedUiTest {
 
     @Test
     void temporaryInlineConfirmationDoesNotClearActiveCategoryBrowserItems() throws Exception {
-        AccountListUI accountListUI = runOnFxThread(() -> new AccountListUI(true, null, null));
+        AccountListUI accountListUI = runOnFxThread(() -> new AccountListUI(null, null));
         CategoryListUI categoryListUI = runOnFxThread(() -> {
             Account account = new Account();
             account.setAccountName("Account");
             account.setAction(Account.AccountAction.itv);
-            CategoryListUI ui = new CategoryListUI(account, true);
+            CategoryListUI ui = new CategoryListUI(account);
             ui.setItems(java.util.List.of(
                     category("news", "News"),
                     category("sports", "Sports")

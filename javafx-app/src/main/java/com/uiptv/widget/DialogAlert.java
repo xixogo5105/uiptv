@@ -5,6 +5,7 @@ import com.uiptv.util.I18n;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.stage.Window;
 
 public class DialogAlert {
     private DialogAlert() {
@@ -31,10 +32,11 @@ public class DialogAlert {
         yesButton.setDefaultButton(false);
         Button noButton = (Button) confirmDialogue.getDialogPane().lookupButton(ButtonType.NO);
         noButton.setDefaultButton(true);
-        ThemedDialogSupport.prepare(confirmDialogue, ThemedDialogSupport.primaryOwnerWindow(), "uiptv-alert-dialog");
+        Window ownerWindow = ThemedDialogSupport.activeOwnerWindow();
+        ThemedDialogSupport.prepare(confirmDialogue, ownerWindow, "uiptv-alert-dialog");
         yesButton.getStyleClass().add("uiptv-dialog-primary-button");
         noButton.getStyleClass().add("uiptv-dialog-secondary-button");
-        return ThemedDialogSupport.showAndWait(confirmDialogue, ThemedDialogSupport.primaryOwnerWindow())
+        return ThemedDialogSupport.showAndWait(confirmDialogue, ownerWindow)
                 .orElse(ButtonType.NO);
     }
 }

@@ -2,17 +2,13 @@ package com.uiptv.ui;
 
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
-import com.uiptv.widget.InlinePanelService;
 import javafx.application.HostServices;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
-import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Pane;
-import javafx.scene.layout.StackPane;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -30,23 +26,11 @@ class AboutUITest {
         FxTestSupport.initJavaFx();
     }
 
-    @AfterEach
-    void resetInlinePanelHost() throws Exception {
-        runOnFxThread(() -> {
-            InlinePanelService.install(new StackPane());
-            return null;
-        });
-    }
-
     @Test
     void aboutUpdateActionUsesInlinePrimaryStyle() throws Exception {
         ButtonSnapshot updateButton = runOnFxThread(() -> {
-            StackPane host = InlinePanelService.createHost(new Label("home"));
-            InlinePanelService.install(host);
-
-            AboutUI.show(Mockito.mock(HostServices.class));
-
-            return snapshot(findButtonByText(host, I18n.tr("autoCheckForUpdates")));
+            Pane dialogCard = AboutUI.createDialogCard(Mockito.mock(HostServices.class), () -> { });
+            return snapshot(findButtonByText(dialogCard, I18n.tr("autoCheckForUpdates")));
         });
 
         assertNotNull(updateButton);
@@ -59,12 +43,8 @@ class AboutUITest {
     @Test
     void aboutCloseActionUsesInlineSecondaryStyle() throws Exception {
         ButtonSnapshot closeButton = runOnFxThread(() -> {
-            StackPane host = InlinePanelService.createHost(new Label("home"));
-            InlinePanelService.install(host);
-
-            AboutUI.show(Mockito.mock(HostServices.class));
-
-            return snapshot(findButtonByStyle(host, "about-close-button"));
+            Pane dialogCard = AboutUI.createDialogCard(Mockito.mock(HostServices.class), () -> { });
+            return snapshot(findButtonByStyle(dialogCard, "about-close-button"));
         });
 
         assertNotNull(closeButton);
@@ -76,12 +56,8 @@ class AboutUITest {
         HostServices hostServices = Mockito.mock(HostServices.class);
 
         Hyperlink helpLink = runOnFxThread(() -> {
-            StackPane host = InlinePanelService.createHost(new Label("home"));
-            InlinePanelService.install(host);
-
-            AboutUI.show(hostServices);
-
-            return findHyperlinkByText(host, I18n.tr("autoHelp"));
+            Pane dialogCard = AboutUI.createDialogCard(hostServices, () -> { });
+            return findHyperlinkByText(dialogCard, I18n.tr("autoHelp"));
         });
 
         assertNotNull(helpLink);

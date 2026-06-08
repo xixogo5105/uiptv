@@ -14,7 +14,6 @@ import com.uiptv.widget.ResponsiveCardGrid;
 import com.uiptv.widget.SearchableTableView;
 import javafx.application.Platform;
 import javafx.beans.Observable;
-import javafx.beans.binding.BooleanBinding;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -30,7 +29,6 @@ import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
-import javafx.scene.input.ContextMenuEvent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -105,8 +103,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
     private AtomicBoolean currentRequestCancelled;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
-    private boolean embeddedMode = false;
-    private boolean inlineEpisodeNavigationEnabled = false;
     private boolean mediaDrawerMode = false;
     private final VBox listPane = new VBox(5);
     private final VBox searchBox = new VBox(5);
@@ -140,23 +136,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
         initWidgets();
         registerSceneLifecycleListener();
         table.setPlaceholder(new Label(I18n.tr("autoLoadingChannelsFor", categoryTitle)));
-    }
-
-    public void setEmbeddedMode(boolean embeddedMode) {
-        this.embeddedMode = embeddedMode;
-        applyListContentMode();
-        applyChannelGridSizing();
-        if (embeddedMode) {
-            showListView();
-        }
-    }
-
-    public void setInlineEpisodeNavigationEnabled(boolean enabled) {
-        this.inlineEpisodeNavigationEnabled = enabled;
-        applyListContentMode();
-        if (enabled) {
-            showListView();
-        }
     }
 
     public void setMediaDrawerMode(boolean mediaDrawerMode) {
@@ -504,7 +483,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
         applyListContentMode();
         showListView();
         getChildren().setAll(listPane);
-        addChannelClickHandler();
     }
 
     private void setupChannelGrid() {
@@ -547,7 +525,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             return;
         }
         if (isMediaCatalogMode()) {
-            channelGrid.setCardWidthRange(embeddedMode ? 360 : 520, 760);
+            channelGrid.setCardWidthRange(360, 760);
             channelGrid.setGaps(18, 16);
             channelGrid.setActivateOnSingleClick(false);
             return;
@@ -581,10 +559,9 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (searchBox.getChildren().isEmpty()) {
             return;
         }
-        boolean showLocalSearch = !embeddedMode && !inlineEpisodeNavigationEnabled;
-        table.getSearchTextField().setVisible(showLocalSearch);
-        table.getSearchTextField().setManaged(showLocalSearch);
-        Node content = embeddedMode ? channelGridScroll : table;
+        table.getSearchTextField().setVisible(false);
+        table.getSearchTextField().setManaged(false);
+        Node content = channelGridScroll;
         if (content instanceof Region region) {
             region.setMinWidth(0);
             region.setMaxWidth(Double.MAX_VALUE);
@@ -627,22 +604,18 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void showListView() {
-        if (!embeddedMode && !inlineEpisodeNavigationEnabled) {
-            getChildren().setAll(listPane);
-            return;
-        }
         getChildren().setAll(listPane);
     }
 
     private void showDetailView(Node ui, String title) {
-        if ((!embeddedMode && !inlineEpisodeNavigationEnabled) || ui == null) {
+        if (ui == null) {
             return;
         }
         if (ui instanceof EpisodesListUI episodesListUI) {
             episodesListUI.setMediaDrawerMode(mediaDrawerMode);
         }
         detailTitle.setText(title == null ? "" : title);
-        boolean plainEpisodeHeader = configureDetailHeader(ui);
+        configureDetailHeader(ui);
         detailContent.getChildren().setAll(ui);
         if (ui instanceof Region region) {
             region.setMinWidth(0);
@@ -653,11 +626,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         VBox.setVgrow(ui, Priority.ALWAYS);
         detailPane.setMaxHeight(Double.MAX_VALUE);
         detailPane.setMinHeight(0);
-        if (inlineEpisodeNavigationEnabled) {
-            detailPane.getChildren().setAll(plainEpisodeHeader ? detailHeader : detailNavHeader, detailContent);
-        } else {
-            detailPane.getChildren().setAll(detailContent);
-        }
+        detailPane.getChildren().setAll(detailContent);
         getChildren().setAll(detailPane);
     }
 
@@ -1062,9 +1031,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     public boolean navigateBackEmbedded() {
-        if (!embeddedMode && !inlineEpisodeNavigationEnabled) {
-            return false;
-        }
         if (getChildren().contains(detailPane)) {
             showListView();
             return true;
@@ -1193,9 +1159,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
             if (newScene == null) {
                 unregisterBookmarkListener();
                 unregisterThumbnailModeListener();
-                if (!embeddedMode && !inlineEpisodeNavigationEnabled) {
-                    releaseTransientState();
-                }
                 return;
             }
             if (!disposed.get()) {
@@ -1628,54 +1591,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
     }
 
-    private void addChannelClickHandler() {
-        table.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.A && event.isShortcutDown()) {
-                table.getSelectionModel().selectAll();
-                event.consume();
-                return;
-            }
-            if (event.getCode() == KeyCode.ENTER) {
-                ChannelItem selected = resolveEnterTargetItem();
-                if (selected != null) {
-                    playOrShowSeries(selected);
-                    event.consume();
-                }
-            }
-        });
-        table.getSearchTextField().setOnAction(event -> {
-            ChannelItem selected = resolveEnterTargetItem();
-            if (selected != null) {
-                playOrShowSeries(selected);
-            }
-        });
-        table.setRowFactory(_ -> {
-            TableRow<ChannelItem> row = new TableRow<>();
-            row.setOnMouseClicked(event -> {
-                if (!row.isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                    playOrShowSeries(row.getItem());
-                }
-            });
-            addRightClickContextMenu(row);
-            return row;
-        });
-    }
-
-    private ChannelItem resolveEnterTargetItem() {
-        ChannelItem selected = table.getSelectionModel().getSelectedItem();
-        if (selected != null) {
-            return selected;
-        }
-        ChannelItem focused = table.getFocusModel().getFocusedItem();
-        if (focused != null) {
-            return focused;
-        }
-        if (table.getItems() != null && !table.getItems().isEmpty()) {
-            return table.getItems().getFirst();
-        }
-        return null;
-    }
-
     private void playOrShowSeries(ChannelItem item) {
         if (item == null) return;
         if (!ensureCensoredAccess(item)) {
@@ -1732,11 +1647,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 this.getChildren().remove(1);
             }
             HBox.setHgrow(ui, Priority.ALWAYS);
-            if (embeddedMode || inlineEpisodeNavigationEnabled) {
-                showDetailView(ui, item.getChannelName());
-            } else {
-                this.getChildren().add(ui);
-            }
+            showDetailView(ui, item.getChannelName());
             latch.countDown();
         });
         latch.await();
@@ -1825,114 +1736,16 @@ public class ChannelListUI extends HBox implements SearchTarget {
             EpisodesListUI ui = new EpisodesListUI(mediaContext, item.getChannelName(), item.getChannelId(), categoryId);
             ui.applyWatchingNowDetailStyling();
             HBox.setHgrow(ui, Priority.ALWAYS);
-            if (embeddedMode || inlineEpisodeNavigationEnabled) {
-                showDetailView(ui, item.getChannelName());
-            } else {
-                this.getChildren().add(ui);
-            }
+            showDetailView(ui, item.getChannelName());
             ui.setItems(episodes);
             ui.setLoadingComplete();
         });
-    }
-
-    private void addRightClickContextMenu(TableRow<ChannelItem> row) {
-        final ContextMenu rowMenu = new ContextMenu();
-        UiI18n.preparePopupControl(rowMenu, row);
-        rowMenu.setHideOnEscape(true);
-        rowMenu.setAutoHide(true);
-
-        if (listAction == vod) {
-            configureVodContextMenu(row, rowMenu);
-            return;
-        }
-
-        addPlayerItems(row, rowMenu);
-        addSeparatorIfNeeded(rowMenu);
-        Menu bookmarkMenu = new Menu(I18n.tr("autoBookmark"));
-        rowMenu.getItems().add(bookmarkMenu);
-        configureBookmarkMenu(row, rowMenu, bookmarkMenu);
-        bindRowContextMenu(row, rowMenu);
     }
 
     private void addSeparatorIfNeeded(ContextMenu menu) {
         if (menu != null && !menu.getItems().isEmpty()) {
             menu.getItems().add(new SeparatorMenuItem());
         }
-    }
-
-    private void addPlayerItems(TableRow<ChannelItem> row, ContextMenu rowMenu) {
-        for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
-            MenuItem playerItem = new MenuItem(option.label());
-            playerItem.setOnAction(event -> {
-                rowMenu.hide();
-                play(row.getItem(), option.playerPath());
-            });
-            rowMenu.getItems().add(playerItem);
-        }
-    }
-
-    private void bindRowContextMenu(TableRow<ChannelItem> row, ContextMenu rowMenu) {
-        row.contextMenuProperty().bind(
-                Bindings.when(row.emptyProperty().or(buildSeriesCommandMissingBinding(row)))
-                        .then((ContextMenu) null)
-                        .otherwise(rowMenu)
-        );
-    }
-
-    private BooleanBinding buildSeriesCommandMissingBinding(TableRow<ChannelItem> row) {
-        return Bindings.createBooleanBinding(
-                () -> listAction == series && (row.getItem() == null || isBlank(row.getItem().getCmd())),
-                row.itemProperty()
-        );
-    }
-
-    private void configureVodContextMenu(TableRow<ChannelItem> row, ContextMenu rowMenu) {
-        row.setOnContextMenuRequested(event -> {
-            populateVodContextMenu(rowMenu, row.getItem());
-            if (!rowMenu.getItems().isEmpty()) {
-                rowMenu.show(row, event.getScreenX(), event.getScreenY());
-            }
-            event.consume();
-        });
-        row.contextMenuProperty().bind(
-                Bindings.when(row.emptyProperty())
-                        .then((ContextMenu) null)
-                        .otherwise(rowMenu)
-        );
-    }
-
-    private void configureBookmarkMenu(TableRow<ChannelItem> row, ContextMenu rowMenu, Menu bookmarkMenu) {
-        row.addEventHandler(ContextMenuEvent.CONTEXT_MENU_REQUESTED, event -> normalizeContextMenuSelection(row));
-        rowMenu.setOnShowing(event -> {
-            bookmarkMenu.getItems().clear();
-            List<ChannelItem> selectedItems = resolveBookmarkSelection(row);
-            if (selectedItems.isEmpty()) {
-                return;
-            }
-            loadBookmarkMenuItemsAsync(selectedItems, bookmarkMenu);
-        });
-    }
-
-    private void normalizeContextMenuSelection(TableRow<ChannelItem> row) {
-        if (row == null || row.isEmpty()) {
-            return;
-        }
-        TableView.TableViewSelectionModel<ChannelItem> selectionModel = table.getSelectionModel();
-        if (selectionModel.isSelected(row.getIndex())) {
-            return;
-        }
-        selectionModel.clearAndSelect(row.getIndex());
-    }
-
-    private List<ChannelItem> resolveBookmarkSelection(TableRow<ChannelItem> row) {
-        if (row == null || row.isEmpty() || row.getItem() == null) {
-            return List.of();
-        }
-        List<ChannelItem> selectedItems = new ArrayList<>(table.getSelectionModel().getSelectedItems());
-        if (!selectedItems.contains(row.getItem())) {
-            return List.of(row.getItem());
-        }
-        return selectedItems.isEmpty() ? List.of(row.getItem()) : selectedItems;
     }
 
     private void loadBookmarkMenuItemsAsync(List<ChannelItem> items, Menu bookmarkMenu) {

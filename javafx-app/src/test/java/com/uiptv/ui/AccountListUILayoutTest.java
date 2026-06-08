@@ -45,7 +45,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     @Test
     void normalAccountGridUsesWiderResponsiveCardsOnFullWidthScreens() throws Exception {
         double cardWidth = runOnFxThread(() -> {
-            AccountListUI ui = new AccountListUI(false, null, null);
+            AccountListUI ui = new AccountListUI(null, null);
             ResponsiveCardGrid<AccountListUI.AccountItem> grid = accountGrid(ui);
             grid.setSingleColumn(false);
             grid.setItems(FXCollections.observableArrayList(IntStream.range(0, 10)
@@ -64,7 +64,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     void accountCardShowsCompactExpiryAfterAccountTypeWithExpiryColor() throws Exception {
         AccountExpiryCardSnapshot snapshot = runOnFxThread(() -> {
             setThumbnailsEnabled(true);
-            AccountListUI ui = new AccountListUI(false, null, null);
+            AccountListUI ui = new AccountListUI(null, null);
             masterAccountItems(ui).setAll(new AccountListUI.AccountItem(
                     new SimpleStringProperty("Account With Expiry"),
                     new SimpleStringProperty("1"),
@@ -99,7 +99,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     @Test
     void embeddedAccountToolbarUsesPillBarAndQuietAddButton() throws Exception {
         ToolbarSnapshot snapshot = runOnFxThread(() -> {
-            AccountListUI ui = new AccountListUI(true, null, null);
+            AccountListUI ui = new AccountListUI(null, null);
             return new ToolbarSnapshot(
                     controlAccessibleTexts(ui),
                     containsStyleClass(ui, "account-footer"),
@@ -130,7 +130,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     @Test
     void accountToolbarKeepsSpacingBetweenFilterPillBarAndActionsAfterCss() throws Exception {
         double spacing = runOnFxThread(() -> {
-            AccountListUI ui = new AccountListUI(true, null, null);
+            AccountListUI ui = new AccountListUI(null, null);
             Scene scene = new Scene(ui, 520, 720);
             scene.getStylesheets().add(Objects.requireNonNull(
                     AccountListUILayoutTest.class.getResource("/application.css")
@@ -147,7 +147,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     @Test
     void accountToolbarStacksFilterAndActionsWhenInlineWidthIsConstrained() throws Exception {
         List<Boolean> layout = runOnFxThread(() -> {
-            AccountListUI ui = new AccountListUI(true, null, null);
+            AccountListUI ui = new AccountListUI(null, null);
             Scene scene = new Scene(ui, 360, 720);
             scene.getStylesheets().add(Objects.requireNonNull(
                     AccountListUILayoutTest.class.getResource("/application.css")
@@ -174,7 +174,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     @Test
     void accountPillBarKeepsWrappedDrawerTabsInsideBackground() throws Exception {
         List<Double> heights = runOnFxThread(() -> {
-            AccountListUI ui = new AccountListUI(true, null, null);
+            AccountListUI ui = new AccountListUI(null, null);
             Scene scene = new Scene(ui, 520, 720);
             scene.getStylesheets().add(Objects.requireNonNull(
                     AccountListUILayoutTest.class.getResource("/application.css")
@@ -233,7 +233,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     @Test
     void accountSortModesKeepPinnedDefaultAndSortName() throws Exception {
         List<List<String>> orders = runOnFxThread(() -> {
-            AccountListUI ui = new AccountListUI(false, null, null);
+            AccountListUI ui = new AccountListUI(null, null);
             masterAccountItems(ui).setAll(
                     accountItem("Bravo", "2", false, 0),
                     accountItem("Pinned", "3", true, 1),
@@ -261,7 +261,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     @Test
     void activeBrowserSearchOnlyFiltersRightSideBrowser() throws Exception {
         BrowserSearchClearSnapshot snapshot = runOnFxThread(() -> {
-            AccountListUI ui = new AccountListUI(true, null, null);
+            AccountListUI ui = new AccountListUI(null, null);
             RecordingCategoryListUI activeBrowser = new RecordingCategoryListUI();
             setActiveCategoryListUI(ui, activeBrowser);
             masterAccountItems(ui).setAll(
@@ -290,7 +290,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     @Test
     void clearingBrowserHeaderSearchFromNestedViewRestoresAccountList() throws Exception {
         BrowserSearchClearSnapshot snapshot = runOnFxThread(() -> {
-            AccountListUI ui = new AccountListUI(true, null, null);
+            AccountListUI ui = new AccountListUI(null, null);
             RecordingCategoryListUI activeBrowser = new RecordingCategoryListUI();
             setActiveCategoryListUI(ui, activeBrowser);
             masterAccountItems(ui).setAll(
@@ -320,7 +320,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     void compactAccountBrowserUsesSingleLineRowsEvenWhenThumbnailsEnabled() throws Exception {
         AccountRowSnapshot snapshot = runOnFxThread(() -> {
             setThumbnailsEnabled(true);
-            AccountListUI ui = new AccountListUI(true, null, null);
+            AccountListUI ui = new AccountListUI(null, null);
             masterAccountItems(ui).setAll(accountItem("A very long account title", "1", false, 0));
             invokeApplyAccountOrdering(ui);
             invokeSetAccountBrowserCompact(ui, true);
@@ -352,7 +352,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     @Test
     void activeAccountBrowserUsesSinglePaneAtMinimumWidthAndRestoresSplitWhenWide() throws Exception {
         AccountBrowserResponsiveSnapshot snapshot = runOnFxThread(() -> {
-            AccountListUI ui = new AccountListUI(true, null, null);
+            AccountListUI ui = new AccountListUI(null, null);
             RecordingCategoryListUI activeBrowser = new RecordingCategoryListUI();
             StackPane root = new StackPane(ui);
             new Scene(root, 900, 720);
@@ -659,7 +659,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         private final List<String> queries = new ArrayList<>();
 
         private RecordingCategoryListUI() {
-            super(new Account(), true);
+            super(new Account());
         }
 
         @Override
