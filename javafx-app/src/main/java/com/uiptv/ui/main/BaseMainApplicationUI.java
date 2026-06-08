@@ -113,6 +113,7 @@ public abstract class BaseMainApplicationUI {
         tabPane.getSelectionModel().select(bookmarkChannelListTab);
 
         HBox mainContent = buildMainContent(tabPane, accountListUI);
+        accountListUI.setLeadingBodyContent(manageAccountColumn.node());
         HBox appContent = buildAppContent(manageAccountColumn, mainContent);
 
         MenuBar menuBar = createMenuBar();
@@ -180,18 +181,16 @@ public abstract class BaseMainApplicationUI {
     }
 
     private HBox buildAppContent(ManageAccountColumn manageAccountColumn, HBox mainContent) {
-        VBox manageAccountNode = manageAccountColumn.node();
-        HBox appContent = new HBox(manageAccountNode, mainContent);
+        HBox appContent = new HBox(mainContent);
         appContent.getStyleClass().add("uiptv-app-content");
         appContent.setNodeOrientation(NodeOrientation.LEFT_TO_RIGHT);
         appContent.setFillHeight(true);
         appContent.setMinSize(0, 0);
         appContent.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        HBox.setHgrow(manageAccountNode, Priority.NEVER);
         HBox.setHgrow(mainContent, Priority.ALWAYS);
         Runnable updateResponsiveColumns = () -> updateManageAccountResponsiveColumns(appContent, manageAccountColumn, mainContent);
         appContent.widthProperty().addListener((_, _, _) -> updateResponsiveColumns.run());
-        manageAccountNode.visibleProperty().addListener((_, _, _) -> updateResponsiveColumns.run());
+        manageAccountColumn.node().visibleProperty().addListener((_, _, _) -> updateResponsiveColumns.run());
         Platform.runLater(updateResponsiveColumns);
         return appContent;
     }
@@ -201,10 +200,7 @@ public abstract class BaseMainApplicationUI {
         boolean singleColumn = manageAccountColumn.isOpen()
                 && availableWidth > 0
                 && availableWidth < MANAGE_ACCOUNT_SINGLE_COLUMN_WIDTH_THRESHOLD;
-        mainContent.setManaged(!singleColumn);
-        mainContent.setVisible(!singleColumn);
         manageAccountColumn.setSingleColumn(singleColumn);
-        HBox.setHgrow(manageAccountColumn.node(), singleColumn ? Priority.ALWAYS : Priority.NEVER);
         if (appContent != null) {
             appContent.requestLayout();
         }

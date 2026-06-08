@@ -8,6 +8,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.TextArea;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
@@ -107,17 +108,20 @@ public class ManageAccountInfoPane extends BorderPane {
         Label compactLabel = new Label(I18n.tr("manageAccountInfoExpireDate"));
         compactLabel.getStyleClass().add("manage-account-info-compact-label");
         compactAccountInfoExpireDate.getStyleClass().add("manage-account-info-compact-value");
+        compactAccountInfoExpireDate.setMinWidth(0);
+        compactAccountInfoExpireDate.setMaxWidth(Double.MAX_VALUE);
+        compactAccountInfoExpireDate.setTextOverrun(OverrunStyle.ELLIPSIS);
         HBox compactExpiry = new HBox(6, compactAccountInfoExpiryIndicator, compactLabel, compactAccountInfoExpireDate);
         compactExpiry.setAlignment(Pos.CENTER_LEFT);
         compactExpiry.setMinWidth(0);
+        compactExpiry.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(compactAccountInfoExpireDate, Priority.ALWAYS);
         HBox.setHgrow(compactExpiry, Priority.ALWAYS);
 
-        Region compactSpacer = new Region();
-        HBox.setHgrow(compactSpacer, Priority.ALWAYS);
-
-        HBox compactContent = new HBox(8, compactExpiry, compactSpacer, accountInfoProfileViewButton);
+        HBox compactContent = new HBox(8, compactExpiry, accountInfoProfileViewButton);
         compactContent.getStyleClass().add("manage-account-info-compact");
         compactContent.setAlignment(Pos.CENTER_LEFT);
+        compactContent.setMinWidth(0);
         compactContent.setMaxWidth(Double.MAX_VALUE);
 
         setCenter(compactContent);

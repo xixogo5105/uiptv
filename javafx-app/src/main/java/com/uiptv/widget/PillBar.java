@@ -31,8 +31,8 @@ public class PillBar<T> extends StackPane {
     private static final double NARROW_SIDE_PANE_WIDTH_THRESHOLD = 620;
     private static final double MIN_SINGLE_ROW_HEIGHT = 40;
     private static final double COMPACT_DROPDOWN_HEIGHT = 44;
-    public static final double COMPACT_DROPDOWN_MIN_WIDTH = 136;
-    public static final double COMPACT_DROPDOWN_PREF_WIDTH = 168;
+    public static final double COMPACT_DROPDOWN_MIN_WIDTH = 112;
+    public static final double COMPACT_DROPDOWN_PREF_WIDTH = 148;
     private static final double MIN_WRAPPED_ROW_INCREMENT = 48;
     private static final String COMPACT_STYLE_CLASS = "uiptv-pill-bar-compact";
 

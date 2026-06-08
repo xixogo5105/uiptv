@@ -215,7 +215,7 @@ class MainApplicationUILayoutTest {
     }
 
     @Test
-    void manageAccountDockStartsHiddenAndOpensBeforeAccountList() throws Exception {
+    void manageAccountDockStaysOutOfTopLevelAppContent() throws Exception {
         runOnFxThread(() -> {
             MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, false);
             Object manageAccountColumn = createManageAccountColumn();
@@ -224,16 +224,15 @@ class MainApplicationUILayoutTest {
 
             HBox appContent = buildAppContent(ui, manageAccountColumn, mainContent);
 
-            assertEquals(dockNode, appContent.getChildren().getFirst());
+            assertEquals(mainContent, appContent.getChildren().getFirst());
+            assertFalse(appContent.getChildren().contains(dockNode));
             assertFalse(dockNode.isVisible());
             assertFalse(dockNode.isManaged());
 
             openManageAccountColumn(manageAccountColumn);
 
-            assertEquals(dockNode, appContent.getChildren().getFirst());
             assertTrue(dockNode.isVisible());
             assertTrue(dockNode.isManaged());
-            assertEquals(mainContent, appContent.getChildren().get(1));
             return null;
         });
     }
@@ -260,7 +259,7 @@ class MainApplicationUILayoutTest {
     }
 
     @Test
-    void manageAccountDockBecomesOnlyVisibleColumnWhenWidthIsLimited() throws Exception {
+    void manageAccountDockDoesNotHideMainContentWhenWidthIsLimited() throws Exception {
         runOnFxThread(() -> {
             MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, false);
             Object manageAccountColumn = createManageAccountColumn();
@@ -272,11 +271,10 @@ class MainApplicationUILayoutTest {
             openManageAccountColumn(manageAccountColumn);
             updateManageAccountResponsiveColumns(ui, appContent, manageAccountColumn, mainContent);
 
-            assertEquals(dockNode, appContent.getChildren().getFirst());
             assertTrue(dockNode.isVisible());
             assertTrue(dockNode.isManaged());
-            assertFalse(mainContent.isVisible());
-            assertFalse(mainContent.isManaged());
+            assertTrue(mainContent.isVisible());
+            assertTrue(mainContent.isManaged());
 
             closeManageAccountColumn(manageAccountColumn);
             updateManageAccountResponsiveColumns(ui, appContent, manageAccountColumn, mainContent);

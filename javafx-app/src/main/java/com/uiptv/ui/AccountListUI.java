@@ -69,9 +69,11 @@ public class AccountListUI extends HBox implements SearchTarget {
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 42;
     private static final double FILTER_TOOLBAR_GAP = 8;
     private static final double ACCOUNT_BROWSER_SINGLE_PANE_WIDTH = 720;
+    private static final double ACCOUNT_BROWSER_COLUMN_GAP = 4;
     private static final AccountExpiry EMPTY_ACCOUNT_EXPIRY =
             new AccountExpiry("", AccountInfoUiUtil.ExpiryState.UNKNOWN);
     private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
+    private static final String ICON_ADD = "M11 5H13V11H19V13H13V19H11V13H5V11H11V5Z";
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
             Comparator.comparing(AccountItem::getAccountName, String.CASE_INSENSITIVE_ORDER)
                     .thenComparing(AccountItem::getAccountName);
@@ -80,6 +82,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final HostServices hostServices;
     private final Runnable themeToggleHandler;
     private final VBox pageContainer = new VBox(12);
+    private final HBox bodyLayout = new HBox();
     private final VBox bodyContainer = new VBox();
     private final VBox listView = new VBox(5);
     private final VBox detailView = new VBox(8);
@@ -88,7 +91,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final VBox detailContent = new VBox();
     private final ResponsiveCardGrid<AccountItem> accountGrid = new ResponsiveCardGrid<>(this::createAccountCard);
     private final ScrollPane accountScrollPane = new ScrollPane();
-    private final HBox browserLayout = new HBox(12);
+    private final HBox browserLayout = new HBox(ACCOUNT_BROWSER_COLUMN_GAP);
     private final PillBar<AccountTypeFilter> accountTypePillBar =
             new PillBar<>(AccountTypeFilter::label, AccountTypeFilter::key, null, AccountTypeFilter::compactLabel);
     private final Deque<Node> viewStack = new ArrayDeque<>();
@@ -108,6 +111,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     private MenuButton accountSortButton;
     private VBox accountToolbar;
     private CategoryListUI activeCategoryListUI;
+    private Node leadingBodyContent;
     private final AtomicLong refreshGeneration = new AtomicLong();
     private boolean refreshPending = true;
     private boolean mediaDrawerMode;
@@ -506,7 +510,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         if (width <= 0) {
             return false;
         }
-        return width >= actions.prefWidth(-1) + FILTER_TOOLBAR_GAP + PillBar.COMPACT_DROPDOWN_PREF_WIDTH;
+        return width >= actions.prefWidth(-1) + FILTER_TOOLBAR_GAP + PillBar.COMPACT_DROPDOWN_MIN_WIDTH;
     }
 
     private HBox createAccountToolbarActions() {
@@ -526,6 +530,11 @@ public class AccountListUI extends HBox implements SearchTarget {
         pageContainer.setFillWidth(true);
         pageContainer.setMinSize(0, 0);
         pageContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        bodyLayout.getStyleClass().add("account-body-layout");
+        bodyLayout.setSpacing(ACCOUNT_BROWSER_COLUMN_GAP);
+        bodyLayout.setFillHeight(true);
+        bodyLayout.setMinSize(0, 0);
+        bodyLayout.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         bodyContainer.getStyleClass().add("account-body");
         bodyContainer.setFillWidth(true);
         bodyContainer.setMinSize(0, 0);
@@ -538,8 +547,39 @@ public class AccountListUI extends HBox implements SearchTarget {
         embeddedContainer.setFillWidth(true);
         embeddedContainer.setMinSize(0, 0);
         embeddedContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        VBox.setVgrow(bodyContainer, Priority.ALWAYS);
-        pageContainer.getChildren().setAll(pageHeader, bodyContainer);
+        HBox.setHgrow(bodyContainer, Priority.ALWAYS);
+        VBox.setVgrow(bodyLayout, Priority.ALWAYS);
+        updateBodyLayoutChildren();
+        pageContainer.getChildren().setAll(pageHeader, bodyLayout);
+    }
+
+    public void setLeadingBodyContent(Node content) {
+        if (leadingBodyContent == content) {
+            return;
+        }
+        detachFromParent(leadingBodyContent);
+        leadingBodyContent = content;
+        if (leadingBodyContent != null) {
+            detachFromParent(leadingBodyContent);
+            if (leadingBodyContent instanceof Region region) {
+                region.setMinHeight(0);
+                region.setMaxHeight(Double.MAX_VALUE);
+            }
+            HBox.setHgrow(leadingBodyContent, Priority.NEVER);
+        }
+        updateBodyLayoutChildren();
+    }
+
+    private void updateBodyLayoutChildren() {
+        detachFromParent(bodyContainer);
+        if (leadingBodyContent == null) {
+            bodyLayout.getChildren().setAll(bodyContainer);
+        } else {
+            detachFromParent(leadingBodyContent);
+            bodyLayout.getChildren().setAll(leadingBodyContent, bodyContainer);
+            HBox.setHgrow(leadingBodyContent, Priority.NEVER);
+        }
+        HBox.setHgrow(bodyContainer, Priority.ALWAYS);
     }
 
     private void showBody(Node content) {
@@ -549,14 +589,23 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private Button createAddAccountToolbarButton() {
-        Button button = new Button(I18n.tr("autoNewAccount"));
+        Button button = new Button(I18n.tr("autoAdd"));
         button.getStyleClass().add("list-toolbar-action-button");
+        button.setGraphic(createAddToolbarIcon());
+        button.setContentDisplay(ContentDisplay.LEFT);
         button.setFocusTraversable(false);
         button.setMinWidth(Region.USE_PREF_SIZE);
         button.setAccessibleText(I18n.tr("autoNewAccount"));
         button.setTooltip(new Tooltip(I18n.tr("autoNewAccount")));
         button.setOnAction(_ -> openNewAccountInline());
         return button;
+    }
+
+    private static Node createAddToolbarIcon() {
+        SVGPath icon = new SVGPath();
+        icon.setContent(ICON_ADD);
+        icon.getStyleClass().add("list-toolbar-add-icon");
+        return icon;
     }
 
     private MenuButton createAccountSortButton() {

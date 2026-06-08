@@ -4,6 +4,7 @@ import com.uiptv.model.AccountInfo;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.HBox;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -63,6 +64,35 @@ class ManageAccountInfoPaneTest {
     }
 
     @Test
+    void compactSummaryLetsExpiryValueUseRemainingInlineSpace() throws Exception {
+        InlineLayoutSnapshot snapshot = runOnFxThread(() -> {
+            ManageAccountInfoPane pane = new ManageAccountInfoPane();
+            AccountInfo info = new AccountInfo();
+            info.setExpireDate("2030-12-31 23:59:59");
+            info.setProfileJson("{\"profile\":{\"login\":\"demo\"}}");
+
+            pane.apply(info);
+
+            HBox compactContent = (HBox) pane.getCenter();
+            HBox compactExpiry = (HBox) compactContent.getChildren().getFirst();
+            Label expiryLabel = field(pane, "compactAccountInfoExpireDate", Label.class);
+            return new InlineLayoutSnapshot(
+                    compactContent.getChildren().size(),
+                    HBox.getHgrow(compactExpiry),
+                    expiryLabel.getMinWidth(),
+                    expiryLabel.getMaxWidth(),
+                    HBox.getHgrow(expiryLabel)
+            );
+        });
+
+        assertEquals(2, snapshot.topLevelChildCount());
+        assertEquals(Priority.ALWAYS, snapshot.expiryGroupGrow());
+        assertEquals(0.0, snapshot.expiryValueMinWidth());
+        assertEquals(Double.MAX_VALUE, snapshot.expiryValueMaxWidth());
+        assertEquals(Priority.ALWAYS, snapshot.expiryValueGrow());
+    }
+
+    @Test
     void profileDataPopupTextAreaDoesNotUseTerminalStyle() throws Exception {
         ProfileTextAreaSnapshot snapshot = runOnFxThread(() -> {
             ManageAccountInfoPane pane = new ManageAccountInfoPane();
@@ -97,6 +127,15 @@ class ManageAccountInfoPaneTest {
             boolean profileButtonStyled,
             String profileButtonText,
             String formattedText
+    ) {
+    }
+
+    private record InlineLayoutSnapshot(
+            int topLevelChildCount,
+            Priority expiryGroupGrow,
+            double expiryValueMinWidth,
+            double expiryValueMaxWidth,
+            Priority expiryValueGrow
     ) {
     }
 

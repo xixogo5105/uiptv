@@ -973,13 +973,17 @@
 }
 
 .account-browser-layout {
-    -fx-spacing: 12;
+    -fx-spacing: 4;
 }
 
 .manage-account-dock {
     -fx-background-color: linear-gradient(to bottom right, #242736, #1f2230);
-    -fx-border-color: rgba(255, 255, 255, 0.10);
-    -fx-border-width: 0 1 0 0;
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 10;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.30), 16, 0.12, 0, 5);
 }
 
 .manage-account-dock-header {
@@ -1729,6 +1733,10 @@
     -fx-fill: -uiptv-text-secondary;
 }
 
+.list-toolbar-add-icon {
+    -fx-fill: -uiptv-text-primary;
+}
+
 .list-toolbar-sort-menu .label,
 .list-toolbar-sort-menu .text {
     -fx-text-fill: -uiptv-text-primary;
@@ -1808,9 +1816,9 @@
     -fx-border-width: 1;
     -fx-background-radius: 1.08em;
     -fx-border-radius: 1.08em;
-    -fx-min-width: 136;
-    -fx-pref-width: 168;
-    -fx-padding: 0.46em 0.92em 0.46em 0.92em;
+    -fx-min-width: 112;
+    -fx-pref-width: 148;
+    -fx-padding: 0.26em 0.92em 0.26em 0.92em;
     -fx-text-fill: -uiptv-text-primary;
     -fx-cursor: hand;
     -fx-alignment: center-left;
@@ -1832,6 +1840,10 @@
     -fx-opacity: 1;
     -fx-font-size: 0.9em;
     -fx-font-weight: 600;
+}
+
+.uiptv-pill-bar-dropdown > .label {
+    -fx-padding: 0 0 1 0;
 }
 
 .uiptv-pill-bar-dropdown .arrow {

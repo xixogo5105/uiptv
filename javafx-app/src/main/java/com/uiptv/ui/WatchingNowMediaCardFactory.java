@@ -6,6 +6,8 @@ import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
+import javafx.scene.control.Labeled;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -21,6 +23,7 @@ import java.util.List;
 final class WatchingNowMediaCardFactory {
     static final String KEY_CARD_LABELS = "cardLabels";
     static final String KEY_CARD_LINKS = "cardLinks";
+    private static final double TITLE_ROW_GAP = 8;
 
     private WatchingNowMediaCardFactory() {
     }
@@ -218,23 +221,17 @@ final class WatchingNowMediaCardFactory {
             HBox.setHgrow(details, Priority.ALWAYS);
 
             Hyperlink title = createTitle();
+            Label account = createAccount();
             Region titleSpacer = new Region();
+            titleSpacer.setMinWidth(0);
             HBox.setHgrow(titleSpacer, Priority.ALWAYS);
-            HBox titleRow = actionButton == null
-                    ? new HBox(10, title)
-                    : new HBox(10, title, titleSpacer, actionButton);
+            HBox titleRow = new HBox(TITLE_ROW_GAP);
             titleRow.setAlignment(Pos.TOP_LEFT);
             titleRow.setMinWidth(0);
             titleRow.setMaxWidth(Double.MAX_VALUE);
 
-            Label account = new Label(accountText);
-            account.getStyleClass().add("watching-now-card-account");
-            account.setWrapText(true);
-            account.setMaxWidth(Double.MAX_VALUE);
-            account.setMinWidth(0);
-            account.setMinHeight(Region.USE_PREF_SIZE);
-
-            details.getChildren().addAll(titleRow, account);
+            details.getChildren().add(titleRow);
+            installAdaptiveAccountPlacement(details, titleRow, title, account, titleSpacer, actionButton);
             FlowPane metadataRow = createMetadataRow();
             if (!metadataRow.getChildren().isEmpty()) {
                 details.getChildren().add(metadataRow);
@@ -273,6 +270,85 @@ final class WatchingNowMediaCardFactory {
 
             card.getChildren().add(cardBody);
             return new CardNodes(card, details, title, account, metadataRow, posterWrap);
+        }
+
+        private void installAdaptiveAccountPlacement(VBox details,
+                                                     HBox titleRow,
+                                                     Hyperlink title,
+                                                     Label account,
+                                                     Region titleSpacer,
+                                                     Button actionButton) {
+            Runnable update = () -> updateAccountPlacement(details, titleRow, title, account, titleSpacer, actionButton);
+            titleRow.widthProperty().addListener((_, _, _) -> update.run());
+            update.run();
+        }
+
+        private void updateAccountPlacement(VBox details,
+                                            HBox titleRow,
+                                            Hyperlink title,
+                                            Label account,
+                                            Region titleSpacer,
+                                            Button actionButton) {
+            boolean accountVisible = account.isManaged();
+            boolean inlineAccount = accountVisible && accountFitsInline(titleRow, title, account, actionButton);
+
+            details.getChildren().remove(account);
+            account.setWrapText(!inlineAccount);
+            account.setMaxWidth(inlineAccount ? Region.USE_PREF_SIZE : Double.MAX_VALUE);
+
+            if (inlineAccount) {
+                if (actionButton == null) {
+                    titleRow.getChildren().setAll(title, account);
+                } else {
+                    titleRow.getChildren().setAll(title, account, titleSpacer, actionButton);
+                }
+                return;
+            }
+
+            if (actionButton == null) {
+                titleRow.getChildren().setAll(title);
+            } else {
+                titleRow.getChildren().setAll(title, titleSpacer, actionButton);
+            }
+            if (accountVisible && !details.getChildren().contains(account)) {
+                details.getChildren().add(Math.min(1, details.getChildren().size()), account);
+            }
+        }
+
+        private boolean accountFitsInline(HBox titleRow, Hyperlink title, Label account, Button actionButton) {
+            double availableWidth = titleRow.getWidth();
+            if (availableWidth <= 0) {
+                return false;
+            }
+            int childCount = actionButton == null ? 2 : 4;
+            double actionWidth = actionButton == null ? 0 : actionButton.prefWidth(-1);
+            double requiredWidth = preferredTextWidth(title)
+                    + preferredTextWidth(account)
+                    + actionWidth
+                    + ((childCount - 1) * TITLE_ROW_GAP);
+            return requiredWidth <= availableWidth;
+        }
+
+        private double preferredTextWidth(Labeled labeled) {
+            double preferredWidth = labeled.prefWidth(-1);
+            if (preferredWidth > 0) {
+                return preferredWidth;
+            }
+            String text = labeled.getText();
+            return text == null ? 0 : (text.length() * 7.0) + 16.0;
+        }
+
+        private Label createAccount() {
+            Label account = new Label(accountText);
+            account.getStyleClass().add("watching-now-card-account");
+            account.setWrapText(true);
+            account.setTextOverrun(OverrunStyle.ELLIPSIS);
+            account.setMaxWidth(Double.MAX_VALUE);
+            account.setMinWidth(0);
+            account.setMinHeight(Region.USE_PREF_SIZE);
+            account.setVisible(!accountText.isBlank());
+            account.setManaged(!accountText.isBlank());
+            return account;
         }
 
         private Hyperlink createTitle() {

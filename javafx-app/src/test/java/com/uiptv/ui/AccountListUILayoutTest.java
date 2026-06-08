@@ -110,7 +110,10 @@ class AccountListUILayoutTest extends DbBackedUiTest {
                     containsStyleClass(ui, "list-toolbar-sort-menu"),
                     containsStyleClass(ui, "list-toolbar-action-button"),
                     labeledTextByStyle(ui, "list-toolbar-sort-menu"),
-                    labeledHasGraphicByStyle(ui, "list-toolbar-sort-menu")
+                    labeledHasGraphicByStyle(ui, "list-toolbar-sort-menu"),
+                    labeledTextByStyle(ui, "list-toolbar-action-button"),
+                    labeledHasGraphicByStyle(ui, "list-toolbar-action-button"),
+                    labeledGraphicHasStyleByStyle(ui, "list-toolbar-action-button", "list-toolbar-add-icon")
             );
         });
 
@@ -124,7 +127,46 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         assertTrue(snapshot.hasQuietActionButton());
         assertEquals("Default", snapshot.sortDropdownText());
         assertTrue(snapshot.sortDropdownHasGraphic());
+        assertEquals(I18n.tr("autoAdd"), snapshot.addButtonText());
+        assertTrue(snapshot.addButtonHasGraphic());
+        assertTrue(snapshot.hasAddIcon());
         assertFalse(snapshot.hasFooter());
+    }
+
+    @Test
+    void leadingManageAccountContentLivesBelowPageHeader() throws Exception {
+        List<Boolean> layout = runOnFxThread(() -> {
+            AccountListUI ui = new AccountListUI(null, null);
+            VBox dock = new VBox();
+            dock.getStyleClass().add("manage-account-dock");
+
+            ui.setLeadingBodyContent(dock);
+
+            VBox pageContainer = pageContainer(ui);
+            HBox bodyLayout = bodyLayout(ui);
+            return List.of(
+                    pageContainer.getChildren().getFirst().getStyleClass().contains("uiptv-page-header"),
+                    pageContainer.getChildren().get(1) == bodyLayout,
+                    bodyLayout.getChildren().getFirst() == dock,
+                    bodyLayout.getChildren().get(1).getStyleClass().contains("account-body")
+            );
+        });
+
+        assertTrue(layout.get(0));
+        assertTrue(layout.get(1));
+        assertTrue(layout.get(2));
+        assertTrue(layout.get(3));
+    }
+
+    @Test
+    void accountBrowserColumnsUseCompactCardGap() throws Exception {
+        List<Double> spacing = runOnFxThread(() -> {
+            AccountListUI ui = new AccountListUI(null, null);
+            return List.of(bodyLayout(ui).getSpacing(), browserLayout(ui).getSpacing());
+        });
+
+        assertEquals(4.0, spacing.get(0), 0.01);
+        assertEquals(4.0, spacing.get(1), 0.01);
     }
 
     @Test
@@ -148,12 +190,12 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     void accountToolbarStacksFilterAndActionsWhenInlineWidthIsConstrained() throws Exception {
         List<Boolean> layout = runOnFxThread(() -> {
             AccountListUI ui = new AccountListUI(null, null);
-            Scene scene = new Scene(ui, 360, 720);
+            Scene scene = new Scene(ui, 320, 720);
             scene.getStylesheets().add(Objects.requireNonNull(
                     AccountListUILayoutTest.class.getResource("/application.css")
             ).toExternalForm());
             ui.applyCss();
-            ui.resize(360, 720);
+            ui.resize(320, 720);
             ui.layout();
             ui.layout();
 
@@ -169,6 +211,37 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         assertTrue(layout.get(0));
         assertTrue(layout.get(1));
         assertTrue(layout.get(2));
+    }
+
+    @Test
+    void accountToolbarKeepsFilterSortAndNewAccountInlineAtCompactCardWidth() throws Exception {
+        List<Boolean> layout = runOnFxThread(() -> {
+            AccountListUI ui = new AccountListUI(null, null);
+            Scene scene = new Scene(ui, 430, 720);
+            scene.getStylesheets().add(Objects.requireNonNull(
+                    AccountListUILayoutTest.class.getResource("/application.css")
+            ).toExternalForm());
+            ui.applyCss();
+            ui.resize(430, 720);
+            ui.layout();
+            ui.layout();
+
+            Node toolbar = findByStyle(ui, "account-toolbar");
+            Parent toolbarParent = (Parent) toolbar;
+            Node inlineRow = toolbarParent.getChildrenUnmodifiable().getFirst();
+            Parent inlineParent = (Parent) inlineRow;
+            return List.of(
+                    toolbarParent.getChildrenUnmodifiable().size() == 1,
+                    inlineRow instanceof HBox,
+                    inlineParent.getChildrenUnmodifiable().getFirst().getStyleClass().contains("uiptv-pill-bar"),
+                    inlineParent.getChildrenUnmodifiable().get(1).getStyleClass().contains("list-toolbar-actions")
+            );
+        });
+
+        assertTrue(layout.get(0));
+        assertTrue(layout.get(1));
+        assertTrue(layout.get(2));
+        assertTrue(layout.get(3));
     }
 
     @Test
@@ -465,6 +538,18 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         return (HBox) field.get(ui);
     }
 
+    private static HBox bodyLayout(AccountListUI ui) throws Exception {
+        Field field = AccountListUI.class.getDeclaredField("bodyLayout");
+        field.setAccessible(true);
+        return (HBox) field.get(ui);
+    }
+
+    private static VBox pageContainer(AccountListUI ui) throws Exception {
+        Field field = AccountListUI.class.getDeclaredField("pageContainer");
+        field.setAccessible(true);
+        return (VBox) field.get(ui);
+    }
+
     private static VBox embeddedContainer(AccountListUI ui) throws Exception {
         Field field = AccountListUI.class.getDeclaredField("embeddedContainer");
         field.setAccessible(true);
@@ -554,6 +639,13 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         return node instanceof Labeled labeled && labeled.getGraphic() != null;
     }
 
+    private static boolean labeledGraphicHasStyleByStyle(Node root, String styleClass, String graphicStyleClass) {
+        Node node = findByStyle(root, styleClass);
+        return node instanceof Labeled labeled
+                && labeled.getGraphic() != null
+                && labeled.getGraphic().getStyleClass().contains(graphicStyleClass);
+    }
+
     private static boolean directChildHasStyle(Node root, String parentStyleClass, String childStyleClass) {
         Node node = findByStyle(root, parentStyleClass);
         if (!(node instanceof Parent parent)) {
@@ -627,7 +719,10 @@ class AccountListUILayoutTest extends DbBackedUiTest {
                                    boolean hasSortDropdown,
                                    boolean hasQuietActionButton,
                                    String sortDropdownText,
-                                   boolean sortDropdownHasGraphic) {
+                                   boolean sortDropdownHasGraphic,
+                                   String addButtonText,
+                                   boolean addButtonHasGraphic,
+                                   boolean hasAddIcon) {
     }
 
     private record AccountRowSnapshot(
