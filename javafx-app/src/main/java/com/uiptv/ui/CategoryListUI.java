@@ -596,6 +596,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
     public void setMediaDrawerMode(boolean enabled) {
         if (mediaDrawerMode == enabled) {
+            scrollFocusedContentIntoView();
             return;
         }
         mediaDrawerMode = enabled;
@@ -610,6 +611,26 @@ public class CategoryListUI extends HBox implements SearchTarget {
                 state.channelListUI.setMediaDrawerMode(enabled);
             }
         }
+        scrollFocusedContentIntoView();
+    }
+
+    public void scrollFocusedContentIntoView() {
+        categoryCardGrid.scrollFocusedItemIntoView();
+        ModeState state = modeStates.get(activeMode);
+        if (state != null && state.channelListUI != null) {
+            state.channelListUI.scrollFocusedChannelIntoView();
+        }
+    }
+
+    public boolean handleActiveChannelNavigationKey(KeyEvent event) {
+        if (!mediaDrawerMode || event == null || !getChildren().contains(detailPane)) {
+            return false;
+        }
+        ModeState state = modeStates.get(activeMode);
+        if (state == null || state.channelListUI == null) {
+            return false;
+        }
+        return state.channelListUI.handleChannelNavigationKey(event);
     }
 
     public void setAccountsNavigationHandler(Runnable accountsNavigationHandler) {

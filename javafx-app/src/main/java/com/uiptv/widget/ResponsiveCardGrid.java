@@ -90,6 +90,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private double renderedCardWidth = -1;
     private double renderedTranslateY = -1;
     private ScrollPane virtualScrollPane;
+    private int scrollRestoreGeneration;
 
     public ResponsiveCardGrid(Function<T, Region> cardFactory) {
         this.cardFactory = Objects.requireNonNull(cardFactory, "cardFactory");
@@ -255,6 +256,23 @@ public class ResponsiveCardGrid<T> extends StackPane {
     public void requestContentFocus() {
         ensureInitialSelection();
         scheduleInitialItemFocus();
+    }
+
+    public void scrollFocusedItemIntoView() {
+        T target = getFocusedItem();
+        if (target == null) {
+            return;
+        }
+        scrollItemIntoViewAfterLayout(target, 2);
+    }
+
+    public boolean handleNavigationKey(KeyEvent event) {
+        if (event == null) {
+            return false;
+        }
+        boolean consumedBefore = event.isConsumed();
+        handleNavigationKeyPressed(event);
+        return !consumedBefore && event.isConsumed();
     }
 
     public void clearSelection() {
@@ -960,8 +978,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
             event.consume();
             return;
         }
+        KeyCode keyCode = event.getCode();
         int currentIndex = currentKeyboardIndex();
-        int targetIndex = switch (event.getCode()) {
+        int targetIndex = switch (keyCode) {
             case LEFT -> Math.max(0, currentIndex - 1);
             case RIGHT -> Math.min(items.size() - 1, currentIndex + 1);
             case UP -> Math.max(0, currentIndex - columnCount);
@@ -970,6 +989,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
             case END -> items.size() - 1;
             default -> currentIndex;
         };
+        if (targetIndex == currentIndex && isNavigationKey(keyCode)) {
+            event.consume();
+            return;
+        }
         if (targetIndex != currentIndex) {
             T target = items.get(targetIndex);
             if (event.isShiftDown() && anchorItem != null && items.contains(anchorItem)) {
@@ -987,6 +1010,15 @@ public class ResponsiveCardGrid<T> extends StackPane {
             }
             event.consume();
         }
+    }
+
+    private boolean isNavigationKey(KeyCode keyCode) {
+        return keyCode == KeyCode.LEFT
+                || keyCode == KeyCode.RIGHT
+                || keyCode == KeyCode.UP
+                || keyCode == KeyCode.DOWN
+                || keyCode == KeyCode.HOME
+                || keyCode == KeyCode.END;
     }
 
     private int currentKeyboardIndex() {
@@ -1160,7 +1192,11 @@ public class ResponsiveCardGrid<T> extends StackPane {
             boolean previousSuppressFocusSelection = suppressFocusSelection;
             suppressFocusSelection = suppressFocusSelection || preserveSelection;
             try {
-                requestGridFocusPreservingScroll(() -> scrollIntoPageView(card));
+                if (isCardVisibleInPageView(card)) {
+                    requestGridFocusPreservingScroll();
+                } else {
+                    requestGridFocusPreservingScroll(() -> scrollIntoPageView(card));
+                }
             } finally {
                 suppressFocusSelection = previousSuppressFocusSelection;
             }
@@ -1193,20 +1229,43 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         double originalHValue = scrollPane.getHvalue();
         double originalVValue = scrollPane.getVvalue();
+        int restoreGeneration = nextScrollRestoreGeneration();
         requestFocus();
         Platform.runLater(() -> {
-            restoreScrollPosition(scrollPane, originalHValue, originalVValue);
+            restoreScrollPosition(scrollPane, originalHValue, originalVValue, restoreGeneration);
             if (afterRestore != null) {
                 afterRestore.run();
+                return;
             }
-            Platform.runLater(() -> {
-                if (afterRestore == null) {
-                    restoreScrollPosition(scrollPane, originalHValue, originalVValue);
-                } else {
-                    afterRestore.run();
-                }
-            });
+            restoreScrollPositionAfterPulses(scrollPane, originalHValue, originalVValue, restoreGeneration, 3);
         });
+    }
+
+    private int nextScrollRestoreGeneration() {
+        return ++scrollRestoreGeneration;
+    }
+
+    private void restoreScrollPositionAfterPulses(
+            ScrollPane scrollPane,
+            double hValue,
+            double vValue,
+            int restoreGeneration,
+            int remainingPasses
+    ) {
+        if (remainingPasses <= 0 || restoreGeneration != scrollRestoreGeneration) {
+            return;
+        }
+        Platform.runLater(() -> {
+            restoreScrollPosition(scrollPane, hValue, vValue, restoreGeneration);
+            restoreScrollPositionAfterPulses(scrollPane, hValue, vValue, restoreGeneration, remainingPasses - 1);
+        });
+    }
+
+    private void restoreScrollPosition(ScrollPane scrollPane, double hValue, double vValue, int restoreGeneration) {
+        if (restoreGeneration != scrollRestoreGeneration) {
+            return;
+        }
+        restoreScrollPosition(scrollPane, hValue, vValue);
     }
 
     private void restoreScrollPosition(ScrollPane scrollPane, double hValue, double vValue) {
@@ -1248,27 +1307,95 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (viewportHeight <= 0 || contentHeight <= viewportHeight) {
             return;
         }
-        Bounds cardBounds = card.localToScene(card.getBoundsInLocal());
-        Bounds viewportBounds = pageScrollPane.localToScene(pageScrollPane.getViewportBounds());
-        double cardTop = cardBounds.getMinY();
-        double cardBottom = cardBounds.getMaxY();
-        double viewportTop = viewportBounds.getMinY();
-        double viewportBottom = viewportBounds.getMaxY();
-        if (cardTop >= viewportTop - SCROLL_VISIBILITY_TOLERANCE
-                && cardBottom <= viewportBottom + SCROLL_VISIBILITY_TOLERANCE) {
+        Bounds cardBounds = cardBoundsInScrollContent(card, pageScrollPane);
+        if (cardBounds == null) {
             return;
         }
         double scrollableHeight = contentHeight - viewportHeight;
         double currentPixels = pageScrollPane.getVvalue() * scrollableHeight;
+        double cardTop = cardBounds.getMinY();
+        double cardBottom = cardBounds.getMaxY();
+        double viewportTop = currentPixels;
+        double viewportBottom = currentPixels + viewportHeight;
+        if (isVerticallyVisible(cardTop, cardBottom, viewportTop, viewportBottom)) {
+            return;
+        }
         double nextPixels = currentPixels;
         if (cardTop < viewportTop) {
-            nextPixels -= viewportTop - cardTop + verticalGap;
+            nextPixels = Math.max(0, cardTop - verticalGap);
         } else if (cardBottom > viewportBottom) {
-            nextPixels += cardBottom - viewportBottom + verticalGap;
+            nextPixels = Math.min(scrollableHeight, cardBottom - viewportHeight + verticalGap);
         }
         double nextValue = Math.max(0, Math.min(1, nextPixels / scrollableHeight));
         if (Math.abs(nextValue - pageScrollPane.getVvalue()) >= SCROLL_VALUE_TOLERANCE) {
             pageScrollPane.setVvalue(nextValue);
+        }
+    }
+
+    private boolean isCardVisibleInPageView(Region card) {
+        ScrollPane pageScrollPane = findAncestorScrollPane();
+        if (card == null || pageScrollPane == null || pageScrollPane.getContent() == null) {
+            return false;
+        }
+        double viewportHeight = pageScrollPane.getViewportBounds().getHeight();
+        double contentHeight = pageScrollPane.getContent().getLayoutBounds().getHeight();
+        if (viewportHeight <= 0 || contentHeight <= viewportHeight) {
+            return true;
+        }
+        Bounds cardBounds = cardBoundsInScrollContent(card, pageScrollPane);
+        if (cardBounds == null) {
+            return false;
+        }
+        double scrollableHeight = contentHeight - viewportHeight;
+        double viewportTop = pageScrollPane.getVvalue() * scrollableHeight;
+        double viewportBottom = viewportTop + viewportHeight;
+        return isVerticallyVisible(cardBounds.getMinY(), cardBounds.getMaxY(), viewportTop, viewportBottom);
+    }
+
+    private boolean isVerticallyVisible(double cardTop, double cardBottom, double viewportTop, double viewportBottom) {
+        return cardTop >= viewportTop - SCROLL_VISIBILITY_TOLERANCE
+                && cardBottom <= viewportBottom + SCROLL_VISIBILITY_TOLERANCE;
+    }
+
+    private Bounds cardBoundsInScrollContent(Region card, ScrollPane scrollPane) {
+        if (card == null || scrollPane == null || scrollPane.getContent() == null) {
+            return null;
+        }
+        return localBoundsInAncestor(card, scrollPane.getContent(), card.getBoundsInLocal());
+    }
+
+    private Bounds localBoundsInAncestor(Node node, Node ancestor, Bounds bounds) {
+        Bounds currentBounds = bounds;
+        Node current = node;
+        while (current != null && current != ancestor) {
+            currentBounds = current.localToParent(currentBounds);
+            current = current.getParent();
+        }
+        return current == ancestor ? currentBounds : null;
+    }
+
+    private void scrollItemIntoViewAfterLayout(T item, int remainingPasses) {
+        Platform.runLater(() -> {
+            nextScrollRestoreGeneration();
+            scrollItemIntoView(item);
+            if (remainingPasses > 0) {
+                scrollItemIntoViewAfterLayout(item, remainingPasses - 1);
+            }
+        });
+    }
+
+    private void scrollItemIntoView(T item) {
+        if (item == null || !items.contains(item) || !isDisplayable()) {
+            return;
+        }
+        if (virtualizedActive) {
+            int itemIndex = items.indexOf(item);
+            scrollItemIndexIntoEstimatedView(itemIndex);
+            updateVirtualWindow();
+        }
+        Region card = cardsByItem.get(item);
+        if (card != null) {
+            scrollIntoPageView(card);
         }
     }
 

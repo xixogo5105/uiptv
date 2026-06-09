@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
+import static com.uiptv.testsupport.FxTestSupport.waitForFxEvents;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -60,6 +61,122 @@ class ResponsiveCardGridTest {
         });
 
         assertEquals(List.of("two"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+    }
+
+    @Test
+    void boundaryArrowKeysAreConsumedSoParentScrollDoesNotMove() throws Exception {
+        AtomicReference<Boolean> leakedToParent = new AtomicReference<>(false);
+        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> cardGrid = newGrid();
+            StackPane parent = new StackPane(cardGrid);
+            parent.addEventHandler(KeyEvent.KEY_PRESSED, _ -> leakedToParent.set(true));
+            new Scene(parent, 300, 180);
+            parent.resize(300, 180);
+            parent.applyCss();
+            parent.layout();
+            return cardGrid;
+        });
+
+        runOnFxThread(() -> {
+            grid.selectItems(List.of("three"));
+            Event.fireEvent(grid, keyPressed(KeyCode.DOWN));
+            return null;
+        });
+
+        assertFalse(leakedToParent.get());
+        assertEquals(List.of("three"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+    }
+
+    @Test
+    void arrowNavigationToVisibleCardDoesNotScrollParent() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> {
+                Label label = new Label(item);
+                label.setMinHeight(44);
+                label.setPrefHeight(44);
+                return label;
+            });
+            ObservableList<String> manyItems = FXCollections.observableArrayList();
+            for (int index = 1; index <= 20; index++) {
+                manyItems.add("item-" + index);
+            }
+            cardGrid.setItems(manyItems);
+            cardGrid.setSingleColumn(true);
+            cardGrid.setCardMinHeight(44);
+            cardGrid.setGaps(0, 4);
+
+            ScrollPane scrollPane = new ScrollPane(cardGrid);
+            scrollPane.setFitToWidth(true);
+            scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            StackPane root = new StackPane(scrollPane);
+            new Scene(root, 300, 220);
+            root.resize(300, 220);
+            root.applyCss();
+            root.layout();
+            scrollPane.setVvalue(0);
+            return cardGrid;
+        });
+
+        runOnFxThread(() -> {
+            grid.selectItems(List.of("item-1"));
+            Event.fireEvent(grid, keyPressed(KeyCode.DOWN));
+            return null;
+        });
+        waitForFxEvents();
+        waitForFxEvents();
+
+        assertEquals(List.of("item-2"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+        assertEquals(0.0, runOnFxThread(() -> ancestorScrollPane(grid).getVvalue()), 0.0001);
+    }
+
+    @Test
+    void repeatedArrowNavigationAcrossVisibleCardsDoesNotDriftParentScroll() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> {
+                Label label = new Label(item);
+                label.setMinHeight(44);
+                label.setPrefHeight(44);
+                return label;
+            });
+            ObservableList<String> manyItems = FXCollections.observableArrayList();
+            for (int index = 1; index <= 30; index++) {
+                manyItems.add("item-" + index);
+            }
+            cardGrid.setItems(manyItems);
+            cardGrid.setSingleColumn(true);
+            cardGrid.setCardMinHeight(44);
+            cardGrid.setGaps(0, 4);
+
+            ScrollPane scrollPane = new ScrollPane(cardGrid);
+            scrollPane.setFitToWidth(true);
+            scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            StackPane root = new StackPane(scrollPane);
+            new Scene(root, 300, 800);
+            root.resize(300, 800);
+            root.applyCss();
+            root.layout();
+            scrollPane.setVvalue(0);
+            root.layout();
+            cardGrid.selectItems(List.of("item-10"));
+            return cardGrid;
+        });
+
+        ScrollPane scrollPane = runOnFxThread(() -> ancestorScrollPane(grid));
+        double beforeNavigationScroll = runOnFxThread(scrollPane::getVvalue);
+
+        runOnFxThread(() -> {
+            Event.fireEvent(grid, keyPressed(KeyCode.DOWN));
+            Event.fireEvent(grid, keyPressed(KeyCode.DOWN));
+            Event.fireEvent(grid, keyPressed(KeyCode.DOWN));
+            return null;
+        });
+        waitForFxEvents();
+        waitForFxEvents();
+        waitForFxEvents();
+        waitForFxEvents();
+
+        assertEquals(List.of("item-13"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+        assertEquals(beforeNavigationScroll, runOnFxThread(scrollPane::getVvalue), 0.0001);
     }
 
     @Test
@@ -391,6 +508,49 @@ class ResponsiveCardGridTest {
 
         assertEquals(List.of("two"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
         assertEquals(3, runOnFxThread(() -> cardPane(grid).getChildren().size()));
+    }
+
+    @Test
+    void scrollFocusedItemIntoViewKeepsSelectionVisibleAfterRefresh() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> {
+                Label label = new Label(item);
+                label.setMinHeight(44);
+                label.setPrefHeight(44);
+                return label;
+            });
+            ObservableList<String> manyItems = FXCollections.observableArrayList();
+            for (int index = 1; index <= 30; index++) {
+                manyItems.add("item-" + index);
+            }
+            cardGrid.setItems(manyItems);
+            cardGrid.setSingleColumn(true);
+            cardGrid.setGaps(0, 4);
+
+            ScrollPane scrollPane = new ScrollPane(cardGrid);
+            scrollPane.setFitToWidth(true);
+            scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            StackPane root = new StackPane(scrollPane);
+            new Scene(root, 300, 180);
+            root.resize(300, 180);
+            root.applyCss();
+            root.layout();
+
+            cardGrid.selectItems(List.of("item-25"));
+            cardGrid.refresh();
+            scrollPane.setVvalue(0);
+            root.layout();
+            cardGrid.scrollFocusedItemIntoView();
+            return cardGrid;
+        });
+
+        waitForFxEvents();
+        waitForFxEvents();
+        waitForFxEvents();
+        waitForFxEvents();
+
+        assertTrue(runOnFxThread(() -> ancestorScrollPane(grid).getVvalue()) > 0.0);
+        assertEquals(List.of("item-25"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
     }
 
     @Test

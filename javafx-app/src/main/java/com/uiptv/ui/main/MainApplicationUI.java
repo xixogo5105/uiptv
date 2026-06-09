@@ -15,6 +15,9 @@ import javafx.geometry.VPos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.TextInputControl;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.ColumnConstraints;
@@ -99,6 +102,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         mainContent.setFillHeight(true);
         mainContent.setMinSize(0, 0);
         mainContent.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        mainContent.addEventFilter(KeyEvent.KEY_PRESSED, this::handleEmbeddedChannelNavigationKeyPressed);
         mainContent.widthProperty().addListener(layoutWidthChangeListener);
         HBox.setHgrow(responsiveContent, Priority.ALWAYS);
         if (primaryStage != null) {
@@ -120,12 +124,14 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         mainContent.sceneProperty().addListener((_, oldScene, newScene) -> {
             if (oldScene != null) {
                 oldScene.widthProperty().removeListener(layoutWidthChangeListener);
+                oldScene.removeEventFilter(KeyEvent.KEY_PRESSED, this::handleEmbeddedChannelNavigationKeyPressed);
             }
             if (newScene == null) {
                 unregisterEmbeddedLayoutChangeListener();
                 return;
             }
             newScene.widthProperty().addListener(layoutWidthChangeListener);
+            newScene.addEventFilter(KeyEvent.KEY_PRESSED, this::handleEmbeddedChannelNavigationKeyPressed);
             registerEmbeddedLayoutChangeListener();
             onLayoutWidthChanged();
         });
@@ -197,6 +203,33 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         if (mainContent != null) {
             mainContent.requestLayout();
         }
+        activeAccountListUI.scrollFocusedContentIntoView();
+    }
+
+    private void handleEmbeddedChannelNavigationKeyPressed(KeyEvent event) {
+        if (event == null
+                || event.isConsumed()
+                || activeAccountListUI == null
+                || !isEmbeddedPlayerNodeActive()
+                || !isChannelNavigationKey(event.getCode())) {
+            return;
+        }
+        Node focusOwner = mainContent == null || mainContent.getScene() == null
+                ? null
+                : mainContent.getScene().getFocusOwner();
+        if (focusOwner instanceof TextInputControl) {
+            return;
+        }
+        activeAccountListUI.handleActiveChannelNavigationKey(event);
+    }
+
+    private boolean isChannelNavigationKey(KeyCode keyCode) {
+        return keyCode == KeyCode.LEFT
+                || keyCode == KeyCode.RIGHT
+                || keyCode == KeyCode.UP
+                || keyCode == KeyCode.DOWN
+                || keyCode == KeyCode.HOME
+                || keyCode == KeyCode.END;
     }
 
     @Override

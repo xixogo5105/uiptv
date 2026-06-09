@@ -37,6 +37,7 @@ import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
@@ -192,6 +193,7 @@ public class AccountListUI extends HBox implements SearchTarget {
             if (enabled && activeCategoryListUI != null && currentContent == listView) {
                 showAccountBrowser(activeCategoryListUI);
             }
+            scrollFocusedContentIntoView();
             return;
         }
         boolean wasSingleLine = useSingleLineAccountRows();
@@ -203,16 +205,33 @@ public class AccountListUI extends HBox implements SearchTarget {
             activeCategoryListUI.setMediaDrawerMode(enabled);
             if (currentContent == browserLayout || currentContent == activeCategoryListUI) {
                 showAccountBrowser(activeCategoryListUI);
+                scrollFocusedContentIntoView();
                 return;
             }
             if (enabled && currentContent == listView) {
                 showAccountBrowser(activeCategoryListUI);
+                scrollFocusedContentIntoView();
                 return;
             }
         }
         if (currentContent == listView) {
             setAccountBrowserCompact(false);
         }
+        scrollFocusedContentIntoView();
+    }
+
+    public void scrollFocusedContentIntoView() {
+        accountGrid.scrollFocusedItemIntoView();
+        if (activeCategoryListUI != null) {
+            activeCategoryListUI.scrollFocusedContentIntoView();
+        }
+    }
+
+    public boolean handleActiveChannelNavigationKey(KeyEvent event) {
+        if (!mediaDrawerMode || activeCategoryListUI == null || event == null || getScene() == null || !isVisible()) {
+            return false;
+        }
+        return activeCategoryListUI.handleActiveChannelNavigationKey(event);
     }
 
     public void requestContentFocus() {

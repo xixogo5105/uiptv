@@ -2720,6 +2720,7 @@
 .account-drawer-channel-title,
 .watching-now-episode-drawer-title {
     -fx-font-size: 0.93em;
+    -fx-font-weight: 700;
 }
 
 .account-drawer-channel-meta,

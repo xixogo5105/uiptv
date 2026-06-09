@@ -28,6 +28,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -140,6 +141,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     public void setMediaDrawerMode(boolean mediaDrawerMode) {
         if (this.mediaDrawerMode == mediaDrawerMode) {
+            scrollFocusedChannelIntoView();
             return;
         }
         this.mediaDrawerMode = mediaDrawerMode;
@@ -148,6 +150,11 @@ public class ChannelListUI extends HBox implements SearchTarget {
         applyMediaDrawerModeToActiveDetail();
         applyChannelGridSizing();
         channelGrid.refresh();
+        scrollFocusedChannelIntoView();
+    }
+
+    public void scrollFocusedChannelIntoView() {
+        channelGrid.scrollFocusedItemIntoView();
     }
 
     @Override
@@ -548,7 +555,35 @@ public class ChannelListUI extends HBox implements SearchTarget {
         channelGridScroll.setFocusTraversable(false);
         channelGridScroll.setMinSize(0, 0);
         channelGridScroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        channelGridScroll.addEventFilter(KeyEvent.KEY_PRESSED, this::handleChannelScrollKeyPressed);
         VBox.setVgrow(channelGridScroll, Priority.ALWAYS);
+    }
+
+    private void handleChannelScrollKeyPressed(KeyEvent event) {
+        if (event == null || !isGridNavigationKey(event.getCode())) {
+            return;
+        }
+        handleChannelNavigationKey(event);
+    }
+
+    public boolean handleChannelNavigationKey(KeyEvent event) {
+        if (event == null || !isGridNavigationKey(event.getCode())) {
+            return false;
+        }
+        boolean handled = channelGrid.handleNavigationKey(event);
+        if (!event.isConsumed()) {
+            event.consume();
+        }
+        return handled || event.isConsumed();
+    }
+
+    private boolean isGridNavigationKey(KeyCode keyCode) {
+        return keyCode == KeyCode.LEFT
+                || keyCode == KeyCode.RIGHT
+                || keyCode == KeyCode.UP
+                || keyCode == KeyCode.DOWN
+                || keyCode == KeyCode.HOME
+                || keyCode == KeyCode.END;
     }
 
     private void applyListContentMode() {
@@ -751,6 +786,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         meta.setManaged(!isBlank(meta.getText()));
 
         VBox text = new VBox(2, title, meta);
+        text.setAlignment(Pos.CENTER_LEFT);
         text.setMinWidth(0);
         text.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(text, Priority.ALWAYS);
@@ -759,7 +795,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         badges.setAlignment(Pos.CENTER_RIGHT);
         populateDrawerChannelBadges(item, badges);
 
-        HBox row = new HBox(8, text, badges);
+        HBox row = new HBox(8);
         row.getStyleClass().addAll("account-drawer-channel-row", "watching-now-episode-card", "watching-now-episode-card-compact");
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(8, 9, 8, 9));
@@ -768,6 +804,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
         row.setMinHeight(44);
         row.setPrefHeight(Region.USE_COMPUTED_SIZE);
         row.setMaxHeight(Region.USE_PREF_SIZE);
+        if (thumbnailsEnabled) {
+            AsyncImageView thumbnail = new AsyncImageView();
+            thumbnail.loadImage(item == null ? "" : item.getLogo(), IMAGE_CACHE_KEY_CHANNEL);
+            row.getChildren().add(thumbnail);
+        }
+        row.getChildren().addAll(text, badges);
         return row;
     }
 
