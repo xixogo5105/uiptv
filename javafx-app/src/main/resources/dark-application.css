@@ -1816,9 +1816,9 @@
 }
 
 .uiptv-pill-bar {
-    -fx-background-color: #252930;
+    -fx-background-color: rgba(255, 255, 255, 0.035);
     -fx-background-radius: 16;
-    -fx-border-color: #343941;
+    -fx-border-color: rgba(255, 255, 255, 0.055);
     -fx-border-radius: 16;
     -fx-border-width: 1;
     -fx-padding: 5;
@@ -1855,7 +1855,7 @@
 }
 
 .uiptv-pill:hover {
-    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-color: rgba(255, 255, 255, 0.055);
 }
 
 .uiptv-pill:focused {
@@ -1864,8 +1864,8 @@
 }
 
 .uiptv-pill-bar-dropdown {
-    -fx-background-color: rgba(255, 255, 255, 0.045);
-    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-background-color: rgba(255, 255, 255, 0.035);
+    -fx-border-color: rgba(255, 255, 255, 0.075);
     -fx-border-width: 1;
     -fx-background-radius: 1.08em;
     -fx-border-radius: 1.08em;
@@ -1881,7 +1881,7 @@
 
 .uiptv-pill-bar-dropdown:hover,
 .uiptv-pill-bar-dropdown:focused {
-    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-color: rgba(255, 255, 255, 0.055);
     -fx-border-color: rgba(147, 197, 253, 0.30);
     -fx-effect: none;
 }
@@ -1904,10 +1904,10 @@
 }
 
 .uiptv-pill:selected {
-    -fx-background-color: #181b1f;
+    -fx-background-color: -uiptv-surface-hover;
     -fx-text-fill: -uiptv-text-primary;
     -fx-font-weight: 600;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 10, 0.18, 0, 2);
+    -fx-effect: none;
 }
 
 .uiptv-pill-icon {

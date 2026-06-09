@@ -146,24 +146,13 @@ public class ImageCacheManager {
             return CompletableFuture.completedFuture(null);
         }
         String normalizedCaller = normalizeCaller(caller);
-        String cacheKey = normalizedCaller + ":" + url;
         if (url == null || url.isBlank()) {
             return CompletableFuture.completedFuture(null);
         }
-        if (url.startsWith("data:")) {
-            Image inlineImage = IMAGE_CACHE.get(cacheKey);
-            if (inlineImage != null) {
-                return CompletableFuture.completedFuture(inlineImage);
-            }
-            Image decoded = decodeInlineImage(url);
-            if (decoded != null) {
-                IMAGE_CACHE.put(cacheKey, decoded);
-            }
-            return CompletableFuture.completedFuture(decoded);
-        }
-        if (!url.startsWith("http")) {
+        if (!url.startsWith("data:") && !url.startsWith("http")) {
             return CompletableFuture.completedFuture(null);
         }
+        String cacheKey = normalizedCaller + ":" + url;
         trimTransientCachesIfNeeded();
         long now = System.currentTimeMillis();
         Long blockedUntil = NEGATIVE_CACHE_UNTIL.get(cacheKey);
@@ -177,12 +166,6 @@ public class ImageCacheManager {
         Image cached = IMAGE_CACHE.get(cacheKey);
         if (cached != null) {
             return CompletableFuture.completedFuture(cached);
-        }
-
-        Image diskCached = loadImageFromDisk(cacheKey, normalizedCaller);
-        if (diskCached != null) {
-            IMAGE_CACHE.put(cacheKey, diskCached);
-            return CompletableFuture.completedFuture(diskCached);
         }
 
         return startImageLoad(url, cacheKey, normalizedCaller);
@@ -206,7 +189,7 @@ public class ImageCacheManager {
                     if (future.isCancelled() || Thread.currentThread().isInterrupted()) {
                         return;
                     }
-                    Image image = fetchImageWithFallback(url, cacheKey, normalizedCaller);
+                    Image image = loadImageInBackground(url, cacheKey, normalizedCaller);
                     if (!future.isCancelled()) {
                         future.complete(image);
                     }
@@ -225,6 +208,28 @@ public class ImageCacheManager {
             future.complete(null);
         }
         return future;
+    }
+
+    private static Image loadImageInBackground(String url, String cacheKey, String normalizedCaller) {
+        if (url.startsWith("data:")) {
+            Image decoded = decodeInlineImage(url);
+            if (decoded != null) {
+                IMAGE_CACHE.put(cacheKey, decoded);
+                NEGATIVE_CACHE_UNTIL.remove(cacheKey);
+            } else {
+                NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
+            }
+            return decoded;
+        }
+
+        Image diskCached = loadImageFromDisk(cacheKey, normalizedCaller);
+        if (diskCached != null) {
+            IMAGE_CACHE.put(cacheKey, diskCached);
+            NEGATIVE_CACHE_UNTIL.remove(cacheKey);
+            return diskCached;
+        }
+
+        return fetchImageWithFallback(url, cacheKey, normalizedCaller);
     }
 
     private static Image decodeInlineImage(String url) {

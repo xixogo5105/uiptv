@@ -41,6 +41,7 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
 import javafx.scene.shape.SVGPath;
 import javafx.stage.FileChooser;
@@ -2075,7 +2076,11 @@ public class ConfigurationUI extends VBox {
             if (event.getTarget() instanceof Node node && isNodeInside(node, actionLink)) {
                 return;
             }
+            if (event.getButton() != MouseButton.PRIMARY || event.getClickCount() != 2) {
+                return;
+            }
             openDatabaseSyncPopup(importMode);
+            event.consume();
         });
         card.setOnKeyPressed(event -> {
             if (event.getTarget() instanceof Node node && isNodeInside(node, actionLink)) {

@@ -5,7 +5,6 @@ import com.uiptv.model.Channel;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
-import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -164,18 +163,6 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         assertTrue(snapshot.unregistered());
     }
 
-    @Test
-    void channelCardsActivateOnSingleClickInPlainTextMode() throws Exception {
-        boolean singleClickActivation = runOnFxThread(() -> {
-            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
-            setBooleanField(ui, "thumbnailsEnabled", false);
-            invokeNoArg(ui, "applyChannelGridSizing");
-            return booleanField(channelGrid(ui), "activateOnSingleClick");
-        });
-
-        assertTrue(singleClickActivation);
-    }
-
     private static ContextMenu createChannelContextMenu(ChannelListUI ui, ChannelListUI.ChannelItem item) throws Exception {
         Method method = ChannelListUI.class.getDeclaredMethod(
                 "createChannelContextMenu",
@@ -203,13 +190,6 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         Method method = ChannelListUI.class.getDeclaredMethod("createDrawerChannelRow", ChannelListUI.ChannelItem.class);
         method.setAccessible(true);
         return (Region) method.invoke(ui, item);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static ResponsiveCardGrid<ChannelListUI.ChannelItem> channelGrid(ChannelListUI ui) throws Exception {
-        Field field = ChannelListUI.class.getDeclaredField("channelGrid");
-        field.setAccessible(true);
-        return (ResponsiveCardGrid<ChannelListUI.ChannelItem>) field.get(ui);
     }
 
     private static void invokeNoArg(Object target, String methodName) throws Exception {

@@ -4,7 +4,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
-import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.OverrunStyle;
@@ -22,7 +21,6 @@ import java.util.List;
 
 final class WatchingNowMediaCardFactory {
     static final String KEY_CARD_LABELS = "cardLabels";
-    static final String KEY_CARD_LINKS = "cardLinks";
     private static final double TITLE_ROW_GAP = 8;
 
     private WatchingNowMediaCardFactory() {
@@ -81,12 +79,12 @@ final class WatchingNowMediaCardFactory {
     static final class CardNodes {
         private final HBox card;
         private final VBox details;
-        private final Hyperlink title;
+        private final Label title;
         private final Label account;
         private final FlowPane metadataRow;
         private final StackPane posterWrap;
 
-        private CardNodes(HBox card, VBox details, Hyperlink title, Label account, FlowPane metadataRow, StackPane posterWrap) {
+        private CardNodes(HBox card, VBox details, Label title, Label account, FlowPane metadataRow, StackPane posterWrap) {
             this.card = card;
             this.details = details;
             this.title = title;
@@ -103,7 +101,7 @@ final class WatchingNowMediaCardFactory {
             return details;
         }
 
-        Hyperlink title() {
+        Label title() {
             return title;
         }
 
@@ -129,7 +127,6 @@ final class WatchingNowMediaCardFactory {
         private ImageView poster;
         private boolean posterVisible = true;
         private Button actionButton;
-        private Runnable openAction;
         private Node plotNode;
         private PlotPlacement plotPlacement = PlotPlacement.DETAILS;
         private Node footerNode;
@@ -157,11 +154,6 @@ final class WatchingNowMediaCardFactory {
 
         Builder actionButton(Button actionButton) {
             this.actionButton = actionButton;
-            return this;
-        }
-
-        Builder openAction(Runnable openAction) {
-            this.openAction = openAction;
             return this;
         }
 
@@ -220,7 +212,7 @@ final class WatchingNowMediaCardFactory {
             details.setFillWidth(true);
             HBox.setHgrow(details, Priority.ALWAYS);
 
-            Hyperlink title = createTitle();
+            Label title = createTitle();
             Label account = createAccount();
             Region titleSpacer = new Region();
             titleSpacer.setMinWidth(0);
@@ -274,7 +266,7 @@ final class WatchingNowMediaCardFactory {
 
         private void installAdaptiveAccountPlacement(VBox details,
                                                      HBox titleRow,
-                                                     Hyperlink title,
+                                                     Label title,
                                                      Label account,
                                                      Region titleSpacer,
                                                      Button actionButton) {
@@ -285,7 +277,7 @@ final class WatchingNowMediaCardFactory {
 
         private void updateAccountPlacement(VBox details,
                                             HBox titleRow,
-                                            Hyperlink title,
+                                            Label title,
                                             Label account,
                                             Region titleSpacer,
                                             Button actionButton) {
@@ -315,7 +307,7 @@ final class WatchingNowMediaCardFactory {
             }
         }
 
-        private boolean accountFitsInline(HBox titleRow, Hyperlink title, Label account, Button actionButton) {
+        private boolean accountFitsInline(HBox titleRow, Label title, Label account, Button actionButton) {
             double availableWidth = titleRow.getWidth();
             if (availableWidth <= 0) {
                 return false;
@@ -351,22 +343,15 @@ final class WatchingNowMediaCardFactory {
             return account;
         }
 
-        private Hyperlink createTitle() {
-            Hyperlink title = new Hyperlink(titleText);
+        private Label createTitle() {
+            Label title = new Label(titleText);
             title.getStyleClass().add("strong-label");
             title.getStyleClass().add("watching-now-card-title");
-            title.getStyleClass().add("watching-now-title-link");
             title.setWrapText(true);
             title.setMaxWidth(Double.MAX_VALUE);
             title.setMinWidth(0);
             title.setMinHeight(Region.USE_PREF_SIZE);
-            title.setFocusTraversable(true);
-            title.setOnAction(event -> {
-                event.consume();
-                if (openAction != null) {
-                    openAction.run();
-                }
-            });
+            title.setMouseTransparent(true);
             HBox.setHgrow(title, Priority.ALWAYS);
             return title;
         }

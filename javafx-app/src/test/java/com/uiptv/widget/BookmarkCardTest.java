@@ -3,6 +3,8 @@ package com.uiptv.widget;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Region;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import org.junit.jupiter.api.BeforeAll;
@@ -14,6 +16,7 @@ import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BookmarkCardTest {
@@ -72,13 +75,49 @@ class BookmarkCardTest {
                 .filter(label -> label.getStyleClass().contains("drm-badge"))
                 .findFirst()
                 .orElseThrow());
+        HBox trailing = runOnFxThread(() -> findDescendantByStyle(card, HBox.class, "bookmark-card-title-trailing"));
         assertTrue(runOnFxThread(drmBadge::isVisible));
+        assertTrue(runOnFxThread(drmBadge::isManaged));
+        assertEquals(Region.USE_PREF_SIZE, runOnFxThread(drmBadge::getMinWidth));
+        assertEquals(Region.USE_PREF_SIZE, runOnFxThread(drmBadge::getMaxWidth));
+        assertNotNull(trailing);
+        assertTrue(runOnFxThread(() -> trailing.getChildren().contains(drmBadge)));
+        assertTrue(runOnFxThread(() -> trailing.getChildren().contains(action)));
         assertTrue(runOnFxThread(() -> action.getStyleClass().contains("bookmark-card-title-action")));
+        assertEquals(Region.USE_PREF_SIZE, runOnFxThread(action::getMinWidth));
+        assertEquals(Region.USE_PREF_SIZE, runOnFxThread(action::getMaxWidth));
         assertFalse(runOnFxThread(() -> findLabels(card).stream()
                 .filter(label -> label.getStyleClass().contains("bookmark-channel-account"))
                 .findFirst()
                 .orElseThrow()
                 .isManaged()));
+    }
+
+    @Test
+    void drmBadgeUsesLogoOverlayWhenImagesAreEnabled() throws Exception {
+        Button action = runOnFxThread(Button::new);
+        BookmarkCard card = runOnFxThread(() -> new BookmarkCard(
+                "Channel",
+                "",
+                "",
+                true,
+                "logo",
+                true,
+                action
+        ));
+
+        AsyncImageView imageView = runOnFxThread(() -> findDescendant(card, AsyncImageView.class));
+        Label drmBadge = runOnFxThread(() -> findLabels(card).stream()
+                .filter(label -> label.getStyleClass().contains("drm-badge"))
+                .findFirst()
+                .orElseThrow());
+        HBox trailing = runOnFxThread(() -> findDescendantByStyle(card, HBox.class, "bookmark-card-title-trailing"));
+        assertNotNull(imageView);
+        assertNotNull(trailing);
+        assertTrue(runOnFxThread(() -> drmBadge.getStyleClass().contains("drm-badge-overlay")));
+        assertTrue(runOnFxThread(() -> imageView.getChildren().contains(drmBadge)));
+        assertFalse(runOnFxThread(() -> trailing.getChildren().contains(drmBadge)));
+        assertTrue(runOnFxThread(() -> trailing.getChildren().contains(action)));
     }
 
     @Test
@@ -115,6 +154,21 @@ class BookmarkCardTest {
         if (root instanceof javafx.scene.Parent parent) {
             for (Node child : parent.getChildrenUnmodifiable()) {
                 T found = findDescendant(child, type);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static <T extends Node> T findDescendantByStyle(Node root, Class<T> type, String styleClass) {
+        if (type.isInstance(root) && root.getStyleClass().contains(styleClass)) {
+            return type.cast(root);
+        }
+        if (root instanceof javafx.scene.Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                T found = findDescendantByStyle(child, type, styleClass);
                 if (found != null) {
                     return found;
                 }

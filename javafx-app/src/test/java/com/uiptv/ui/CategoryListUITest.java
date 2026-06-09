@@ -101,8 +101,8 @@ class CategoryListUITest extends DbBackedUiTest {
     }
 
     @Test
-    void categoryCardSingleClickOpensCachedChannelPane() throws Exception {
-        boolean detailPaneVisible = runOnFxThread(() -> {
+    void categoryCardSingleClickSelectsAndDoubleClickOpensCachedChannelPane() throws Exception {
+        List<Boolean> visibility = runOnFxThread(() -> {
             Account account = new Account();
             account.setAccountName("Account");
             account.setAction(Account.AccountAction.itv);
@@ -118,16 +118,18 @@ class CategoryListUITest extends DbBackedUiTest {
                 installCachedChannelState(categories, item, channels);
 
                 Node card = firstCategoryCard(categories);
-                javafx.event.Event.fireEvent(card, mouseClick(card));
+                javafx.event.Event.fireEvent(card, mouseClick(card, 1));
+                boolean visibleAfterSingleClick = categories.getChildren().contains(detailPane(categories));
 
-                return categories.getChildren().contains(detailPane(categories));
+                javafx.event.Event.fireEvent(card, mouseClick(card, 2));
+                return List.of(visibleAfterSingleClick, categories.getChildren().contains(detailPane(categories)));
             } finally {
                 categories.dispose();
                 channels.dispose();
             }
         });
 
-        assertTrue(detailPaneVisible);
+        assertEquals(List.of(false, true), visibility);
     }
 
     @Test
@@ -224,7 +226,7 @@ class CategoryListUITest extends DbBackedUiTest {
         ((Map<Account.AccountAction, Object>) modeStatesField.get(ui)).put(Account.AccountAction.itv, modeState);
     }
 
-    private static MouseEvent mouseClick(Node target) {
+    private static MouseEvent mouseClick(Node target, int clickCount) {
         return new MouseEvent(
                 MouseEvent.MOUSE_CLICKED,
                 0,
@@ -232,7 +234,7 @@ class CategoryListUITest extends DbBackedUiTest {
                 0,
                 0,
                 MouseButton.PRIMARY,
-                1,
+                clickCount,
                 false,
                 false,
                 false,

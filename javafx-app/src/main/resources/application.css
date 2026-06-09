@@ -630,6 +630,12 @@
     -fx-background-radius: 6;
 }
 
+.drm-badge.drm-badge-overlay {
+    -fx-font-size: 0.64em;
+    -fx-padding: 1 4 1 4;
+    -fx-background-radius: 5;
+}
+
 .channel-bookmark-icon {
     -fx-fill: -uiptv-text-primary;
 }
@@ -2032,19 +2038,6 @@
     -fx-font-size: 1.08em;
     -fx-font-weight: bold;
     -fx-text-fill: -uiptv-text-primary;
-}
-
-.watching-now-title-link {
-    -fx-padding: 0;
-    -fx-border-color: transparent;
-    -fx-text-fill: -uiptv-text-primary;
-    -fx-underline: false;
-}
-
-.watching-now-title-link:hover,
-.watching-now-title-link:focused {
-    -fx-text-fill: #0b57d0;
-    -fx-underline: true;
 }
 
 .watching-now-card-account {
@@ -3545,8 +3538,7 @@
     -fx-background-color: -uiptv-selected-card-bg;
 }
 
-.selected-card-text,
-.selected-card-link {
+.selected-card-text {
     -fx-text-fill: -uiptv-selected-card-fg;
 }
 

@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
@@ -67,7 +68,6 @@ class ResponsiveCardGridTest {
         AtomicReference<String> activated = new AtomicReference<>();
         runOnFxThread(() -> {
             grid.setOnItemActivated(activated::set);
-            grid.setActivateOnSingleClick(false);
             return null;
         });
 
@@ -87,13 +87,11 @@ class ResponsiveCardGridTest {
     }
 
     @Test
-    void singleClickActivationRequestActivatesMatchingItemOnOneClick() throws Exception {
+    void singleClickNeverActivatesItem() throws Exception {
         ResponsiveCardGrid<String> grid = runOnFxThread(ResponsiveCardGridTest::newGrid);
         AtomicReference<String> activated = new AtomicReference<>();
         runOnFxThread(() -> {
             grid.setOnItemActivated(activated::set);
-            grid.setActivateOnSingleClick(true);
-            grid.setSingleClickActivationPredicate("two"::equals);
             return null;
         });
 
@@ -109,7 +107,8 @@ class ResponsiveCardGridTest {
             Event.fireEvent(secondCard, mouseClick(secondCard, 1, false, false));
             return null;
         });
-        assertEquals("two", activated.get());
+        assertEquals(List.of("two"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+        assertNull(activated.get());
     }
 
     @Test
@@ -146,8 +145,6 @@ class ResponsiveCardGridTest {
         AtomicReference<String> activated = new AtomicReference<>();
         runOnFxThread(() -> {
             grid.setOnItemActivated(activated::set);
-            grid.setActivateOnSingleClick(true);
-            grid.setSingleClickActivationPredicate("three"::equals);
             return null;
         });
 
@@ -279,7 +276,6 @@ class ResponsiveCardGridTest {
             ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> new HBox(new Button(item)));
             cardGrid.setItems(FXCollections.observableArrayList("one", "two"));
             cardGrid.setOnItemActivated(activated::set);
-            cardGrid.setActivateOnSingleClick(true);
             return cardGrid;
         });
 
@@ -433,7 +429,6 @@ class ResponsiveCardGridTest {
 
         runOnFxThread(() -> {
             grid.setItems(FXCollections.observableArrayList("one", "two", "three"));
-            grid.setSingleClickActivationPredicate(null);
             grid.setReorderEnabled(true);
             return null;
         });
@@ -559,6 +554,74 @@ class ResponsiveCardGridTest {
         assertEquals(List.of("item-9999"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
         assertTrue(runOnFxThread(() -> cardPane(grid).getChildren().size()) < 250);
         assertTrue(runOnFxThread(() -> renderedLabelTexts(grid).contains("item-9999")));
+    }
+
+    @Test
+    void virtualizedWindowTracksScrollValueImmediately() throws Exception {
+        List<String> rendered = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> {
+                Label label = new Label(item);
+                label.setMinHeight(40);
+                label.setPrefHeight(40);
+                return label;
+            });
+            ObservableList<String> manyItems = FXCollections.observableArrayList();
+            for (int index = 0; index < 10_000; index++) {
+                manyItems.add("item-" + index);
+            }
+            cardGrid.setVirtualizationThreshold(1);
+            cardGrid.setVirtualRowBuffer(1);
+            cardGrid.setItems(manyItems);
+            cardGrid.setSingleColumn(true);
+            cardGrid.setGaps(0, 4);
+
+            ScrollPane scrollPane = new ScrollPane(cardGrid);
+            scrollPane.setFitToWidth(true);
+            scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            StackPane root = new StackPane(scrollPane);
+            new Scene(root, 320, 240);
+            root.resize(320, 240);
+            root.applyCss();
+            root.layout();
+
+            invokeInstallVirtualScrollPane(cardGrid);
+            scrollPane.setVvalue(1.0);
+            return renderedLabelTexts(cardGrid);
+        });
+
+        assertTrue(rendered.contains("item-9999"));
+    }
+
+    @Test
+    void virtualizedWindowReusesOverlappingCardsDuringScroll() throws Exception {
+        AtomicInteger createdCards = new AtomicInteger();
+        ResponsiveCardGrid<Integer> grid = runOnFxThread(() -> {
+            ResponsiveCardGrid<Integer> cardGrid = new ResponsiveCardGrid<>(item -> {
+                createdCards.incrementAndGet();
+                Label label = new Label(String.valueOf(item));
+                label.setMinHeight(40);
+                label.setPrefHeight(40);
+                return label;
+            });
+            ObservableList<Integer> manyItems = FXCollections.observableArrayList();
+            for (int index = 0; index < 100; index++) {
+                manyItems.add(index);
+            }
+            cardGrid.setVirtualizationThreshold(1);
+            cardGrid.setItems(manyItems);
+            return cardGrid;
+        });
+
+        VirtualWindowSnapshot snapshot = runOnFxThread(() -> {
+            invokeRenderVirtualWindow(grid, 0, 10, 0);
+            createdCards.set(0);
+            invokeRenderVirtualWindow(grid, 2, 12, 88);
+            return new VirtualWindowSnapshot(createdCards.get(), renderedLabelTexts(grid));
+        });
+
+        assertEquals(2, snapshot.createdCards());
+        assertEquals(List.of("2", "3", "4", "5", "6", "7", "8", "9", "10", "11"),
+                snapshot.renderedLabels());
     }
 
     private static ResponsiveCardGrid<String> newGrid() {
@@ -710,5 +773,23 @@ class ResponsiveCardGridTest {
         Method method = ResponsiveCardGrid.class.getDeclaredMethod("moveItem", int.class, int.class);
         method.setAccessible(true);
         return (Boolean) method.invoke(grid, sourceIndex, targetIndex);
+    }
+
+    private static void invokeRenderVirtualWindow(ResponsiveCardGrid<?> grid,
+                                                  int firstIndex,
+                                                  int lastIndex,
+                                                  double translateY) throws Exception {
+        Method method = ResponsiveCardGrid.class.getDeclaredMethod("renderVirtualWindow", int.class, int.class, double.class);
+        method.setAccessible(true);
+        method.invoke(grid, firstIndex, lastIndex, translateY);
+    }
+
+    private static void invokeInstallVirtualScrollPane(ResponsiveCardGrid<?> grid) throws Exception {
+        Method method = ResponsiveCardGrid.class.getDeclaredMethod("installVirtualScrollPane");
+        method.setAccessible(true);
+        method.invoke(grid);
+    }
+
+    private record VirtualWindowSnapshot(int createdCards, List<String> renderedLabels) {
     }
 }

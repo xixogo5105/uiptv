@@ -26,7 +26,6 @@ import javafx.scene.layout.StackPane;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 public class ResponsiveCardGrid<T> extends StackPane {
     @FunctionalInterface
@@ -57,25 +56,24 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private final ObservableList<T> selectedItems = FXCollections.observableArrayList();
     private final ObservableList<T> readonlySelectedItems = FXCollections.unmodifiableObservableList(selectedItems);
     private final ListChangeListener<T> itemChangeListener = this::handleItemsChanged;
-    private final ChangeListener<Number> virtualScrollValueListener = (_, _, _) -> scheduleVirtualWindowUpdate();
-    private final ChangeListener<Bounds> virtualViewportBoundsListener = (_, _, _) -> scheduleVirtualWindowUpdate();
+    private final ChangeListener<Number> virtualScrollValueListener = (_, _, _) -> updateVirtualWindowImmediately();
+    private final ChangeListener<Bounds> virtualViewportBoundsListener = (_, _, _) -> updateVirtualWindowImmediately();
     private ObservableList<T> items = FXCollections.observableArrayList();
     private ContextMenuFactory<T> contextMenuFactory;
     private Consumer<T> itemActivatedHandler;
     private Consumer<List<T>> itemsReorderedHandler;
-    private Predicate<T> singleClickActivationPredicate;
     private T focusedItem;
     private T anchorItem;
     private T mousePressedSelectionItem;
     private int focusedItemIndex = -1;
     private boolean reorderEnabled;
-    private boolean activateOnSingleClick;
     private boolean mouseSelectionInProgress;
     private boolean suppressFocusSelection;
     private boolean singleColumn;
     private boolean virtualizationEnabled = true;
     private boolean virtualizedActive;
     private boolean virtualWindowUpdateQueued;
+    private boolean virtualWindowUpdateInProgress;
     private int columnCount = 1;
     private int virtualizationThreshold = DEFAULT_VIRTUALIZATION_THRESHOLD;
     private int virtualRowBuffer = DEFAULT_VIRTUAL_ROW_BUFFER;
@@ -186,14 +184,6 @@ public class ResponsiveCardGrid<T> extends StackPane {
 
     public void setOnItemActivated(Consumer<T> itemActivatedHandler) {
         this.itemActivatedHandler = itemActivatedHandler;
-    }
-
-    public void setActivateOnSingleClick(boolean activateOnSingleClick) {
-        this.activateOnSingleClick = activateOnSingleClick;
-    }
-
-    public void setSingleClickActivationPredicate(Predicate<T> singleClickActivationPredicate) {
-        this.singleClickActivationPredicate = singleClickActivationPredicate;
     }
 
     public void setSingleColumn(boolean singleColumn) {
@@ -400,6 +390,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             Platform.runLater(this::scheduleVirtualScrollPaneHook);
             return;
         }
+        installVirtualScrollPane();
         Platform.runLater(this::installVirtualScrollPane);
     }
 
@@ -437,8 +428,35 @@ public class ResponsiveCardGrid<T> extends StackPane {
         virtualWindowUpdateQueued = true;
         Platform.runLater(() -> {
             virtualWindowUpdateQueued = false;
-            updateVirtualWindow();
+            updateVirtualWindowGuarded();
         });
+    }
+
+    private void updateVirtualWindowImmediately() {
+        if (!virtualizedActive) {
+            return;
+        }
+        if (!Platform.isFxApplicationThread()) {
+            scheduleVirtualWindowUpdate();
+            return;
+        }
+        updateVirtualWindowGuarded();
+    }
+
+    private void updateVirtualWindowGuarded() {
+        if (!virtualizedActive) {
+            return;
+        }
+        if (virtualWindowUpdateInProgress) {
+            scheduleVirtualWindowUpdate();
+            return;
+        }
+        virtualWindowUpdateInProgress = true;
+        try {
+            updateVirtualWindow();
+        } finally {
+            virtualWindowUpdateInProgress = false;
+        }
     }
 
     private void updateVirtualWindow() {
@@ -478,16 +496,25 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 && Math.abs(renderedTranslateY - translateY) < 0.5) {
             return;
         }
-        cardsByItem.clear();
-        cardPane.getChildren().clear();
+        Set<T> retainedItems = new HashSet<>();
+        for (int index = safeFirst; index < safeLast; index++) {
+            retainedItems.add(items.get(index));
+        }
+        cardsByItem.entrySet().removeIf(entry -> !retainedItems.contains(entry.getKey()));
+
+        List<Node> renderedCards = new ArrayList<>(safeLast - safeFirst);
         for (int index = safeFirst; index < safeLast; index++) {
             T item = items.get(index);
-            Region card = cardFactory.apply(item);
-            configureCard(item, card);
+            Region card = cardsByItem.get(item);
+            if (card == null) {
+                card = cardFactory.apply(item);
+                configureCard(item, card);
+                cardsByItem.put(item, card);
+            }
             applyComputedCardWidth(card);
-            cardsByItem.put(item, card);
-            cardPane.getChildren().add(card);
+            renderedCards.add(card);
         }
+        cardPane.getChildren().setAll(renderedCards);
         firstRenderedIndex = safeFirst;
         lastRenderedExclusive = safeLast;
         renderedCardWidth = computedCardWidth;
@@ -665,22 +692,11 @@ public class ResponsiveCardGrid<T> extends StackPane {
         requestGridFocusPreservingScroll();
         boolean shouldActivate = itemActivatedHandler != null
                 && !isSelectionModifierDown(event)
-                && shouldActivateForClick(item, event.getClickCount());
+                && event.getClickCount() == 2;
         if (shouldActivate) {
             itemActivatedHandler.accept(item);
         }
         event.consume();
-    }
-
-    private boolean shouldActivateForClick(T item, int clickCount) {
-        if (activateOnSingleClick) {
-            return clickCount == 1 && isSingleClickActivationAllowed(item);
-        }
-        return clickCount == 2;
-    }
-
-    private boolean isSingleClickActivationAllowed(T item) {
-        return singleClickActivationPredicate == null || singleClickActivationPredicate.test(item);
     }
 
     private boolean isInteractiveChildEvent(Region card, MouseEvent event) {

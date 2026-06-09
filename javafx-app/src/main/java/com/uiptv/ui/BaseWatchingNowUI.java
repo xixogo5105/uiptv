@@ -126,7 +126,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         seriesGrid.setSingleColumn(!thumbnailsEnabled());
         seriesGrid.setGaps(18, 16);
         seriesGrid.setPlaceholderText(I18n.tr(MESSAGE_NO_CURRENTLY_WATCHED_SERIES));
-        seriesGrid.setActivateOnSingleClick(false);
         seriesGrid.setOnItemActivated(this::openSeriesDetail);
         seriesGrid.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.ENTER || event.getCode() == KeyCode.SPACE) {
@@ -673,7 +672,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                 .account(accountText)
                 .poster(poster, thumbnailsEnabled())
                 .actionButton(removeButton)
-                .openAction(openDetails)
                 .metadataNodes(metadataNodes)
                 .plot(plot, WatchingNowMediaCardFactory.PlotPlacement.DETAILS)
                 .footer(openHint)
@@ -682,12 +680,11 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         HBox card = cardNodes.card();
         data.seriesListTitleNode = cardNodes.title();
 
-        List<Label> cardLabels = new ArrayList<>(List.of(cardNodes.account(), typeChip, episodeChip));
+        List<Label> cardLabels = new ArrayList<>(List.of(cardNodes.title(), cardNodes.account(), typeChip, episodeChip));
         if (plot != null) {
             cardLabels.add(plot);
         }
         card.getProperties().put(KEY_CARD_LABELS, cardLabels);
-        card.getProperties().put("cardLinks", List.of(cardNodes.title()));
         return card;
     }
 
@@ -1726,14 +1723,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                 }
             }
         }
-        Object linksObj = card.getProperties().get("cardLinks");
-        if (linksObj instanceof List<?> links) {
-            for (Object linkObj : links) {
-                if (linkObj instanceof Hyperlink link) {
-                    applyHyperlinkSelection(link, selected);
-                }
-            }
-        }
     }
 
     private void toggleStyleClass(List<String> styleClasses, String styleClass, boolean enabled) {
@@ -1751,13 +1740,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             return;
         }
         toggleStyleClass(label.getStyleClass(), "selected-card-text", selected);
-    }
-
-    private void applyHyperlinkSelection(Hyperlink link, boolean selected) {
-        if (link == null) {
-            return;
-        }
-        toggleStyleClass(link.getStyleClass(), "selected-card-link", selected);
     }
 
     private ContextMenu addEpisodeContextMenu(SeriesPanelData data, WatchingEpisode item, Pane target) {
@@ -2951,7 +2933,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         private HBox imdbLoadingNode;
         private ImageView seriesPosterNode;
         private ImageView seriesListPosterNode;
-        private Hyperlink seriesListTitleNode;
+        private Label seriesListTitleNode;
         private PillBar<String> seasonPillBar;
         private VBox episodeCardsContainer;
         private LoadingStateView episodeLoadingNode;

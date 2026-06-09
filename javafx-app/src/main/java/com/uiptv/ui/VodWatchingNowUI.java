@@ -46,7 +46,6 @@ import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
 public class VodWatchingNowUI extends VBox implements SearchTarget {
     private static final String KEY_CARD_LABELS = "cardLabels";
-    private static final String KEY_CARD_LINKS = "cardLinks";
     private static final String VOD_WATCHING_NOW_CACHE = "vod-watching-now";
     private final VBox contentBox = new VBox(10);
     private final ScrollPane scrollPane = new ScrollPane(contentBox);
@@ -103,7 +102,6 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         vodGrid.setSingleColumn(!ThumbnailAwareUI.areThumbnailsEnabled());
         vodGrid.setGaps(18, 16);
         vodGrid.setPlaceholderText(I18n.tr("autoNoWatchingNowVodFound"));
-        vodGrid.setActivateOnSingleClick(false);
         vodGrid.setOnItemActivated(this::showVodDetail);
         vodGrid.setContextMenuFactory((item, _, owner) -> createContextMenu(item, owner));
         vodGrid.setOnKeyReleased(event -> {
@@ -409,10 +407,6 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         cardMenu.setAutoHide(true);
 
         Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
-        Runnable openDetails = () -> {
-            selectedVodKey = panelKey(data);
-            showVodDetail(data);
-        };
 
         ImageView poster = ThumbnailAwareUI.areThumbnailsEnabled()
                 ? SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 136, 204, VOD_WATCHING_NOW_CACHE)
@@ -423,7 +417,6 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
                 .account(data.account.getAccountName())
                 .poster(poster, ThumbnailAwareUI.areThumbnailsEnabled())
                 .actionButton(playButton)
-                .openAction(openDetails)
                 .metadataNodes(metadataNodes)
                 .plot(data.plotNode, WatchingNowMediaCardFactory.PlotPlacement.FULL_WIDTH)
                 .build();
@@ -436,9 +429,9 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         updateImdbNodes(cardNodes.details(), data);
 
         List<Label> cardLabels = collectCardLabels(data);
+        cardLabels.add(cardNodes.title());
         cardLabels.add(cardNodes.account());
         card.getProperties().put(KEY_CARD_LABELS, cardLabels);
-        card.getProperties().put(KEY_CARD_LINKS, List.of(cardNodes.title()));
         return card;
     }
 
@@ -820,7 +813,6 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         }
         toggleStyleClass(card.getStyleClass(), "selected-card", selected);
         applyLabelSelection(card, selected);
-        applyLinkSelection(card, selected);
     }
 
     private void applyLabelSelection(HBox card, boolean selected) {
@@ -831,18 +823,6 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         for (Object labelObj : labels) {
             if (labelObj instanceof Label label) {
                 toggleStyleClass(label.getStyleClass(), "selected-card-text", selected);
-            }
-        }
-    }
-
-    private void applyLinkSelection(HBox card, boolean selected) {
-        Object linksObj = card.getProperties().get(KEY_CARD_LINKS);
-        if (!(linksObj instanceof List<?> links)) {
-            return;
-        }
-        for (Object linkObj : links) {
-            if (linkObj instanceof Hyperlink link) {
-                toggleStyleClass(link.getStyleClass(), "selected-card-link", selected);
             }
         }
     }

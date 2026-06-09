@@ -514,25 +514,21 @@ public class ChannelListUI extends HBox implements SearchTarget {
             channelGrid.setCardMinHeight(42);
             channelGrid.setCardWidthRange(240, 760);
             channelGrid.setGaps(16, 6);
-            channelGrid.setActivateOnSingleClick(true);
             return;
         }
         channelGrid.setCardMinHeight(76);
         if (mediaDrawerMode) {
             channelGrid.setCardWidthRange(260, 520);
             channelGrid.setGaps(7, 7);
-            channelGrid.setActivateOnSingleClick(true);
             return;
         }
         if (isMediaCatalogMode()) {
             channelGrid.setCardWidthRange(360, 760);
             channelGrid.setGaps(18, 16);
-            channelGrid.setActivateOnSingleClick(true);
             return;
         }
         channelGrid.setCardWidthRange(255, 345);
         channelGrid.setGaps(16, 14);
-        channelGrid.setActivateOnSingleClick(true);
     }
 
     private boolean isDirectPlaybackSeriesItem(ChannelItem item) {
@@ -886,7 +882,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 .account(account == null ? "" : account.getAccountName())
                 .poster(poster, thumbnailsEnabled)
                 .actionButton(actionButton)
-                .openAction(() -> playOrShowSeries(item))
                 .metadataNodes(metadataNodes)
                 .plot(plot, listAction == vod
                         ? WatchingNowMediaCardFactory.PlotPlacement.FULL_WIDTH

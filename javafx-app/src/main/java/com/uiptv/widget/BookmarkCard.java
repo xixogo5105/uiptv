@@ -7,6 +7,7 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
@@ -51,6 +52,7 @@ public class BookmarkCard extends HBox {
         setSpacing(10);
         setMinHeight(104);
         setMaxHeight(Region.USE_PREF_SIZE);
+        boolean showDrmBadgeOnImage = loadImage && drmProtected;
 
         subtitleLabel.getStyleClass().add("bookmark-channel-account");
         subtitleLabel.setMinWidth(0);
@@ -64,9 +66,16 @@ public class BookmarkCard extends HBox {
         drmBadge.getStyleClass().add("drm-badge");
         drmBadge.setVisible(drmProtected);
         drmBadge.setManaged(drmProtected);
+        drmBadge.setMinWidth(Region.USE_PREF_SIZE);
+        drmBadge.setMaxWidth(Region.USE_PREF_SIZE);
+        drmBadge.setMouseTransparent(true);
+        if (showDrmBadgeOnImage) {
+            drmBadge.getStyleClass().add("drm-badge-overlay");
+            StackPane.setAlignment(drmBadge, Pos.BOTTOM_RIGHT);
+        }
 
         TextFlow titleFlow = createTitleFlow(title, titleSuffix);
-        HBox titleRow = new HBox(6, titleFlow, drmBadge);
+        HBox titleRow = new HBox(6, titleFlow);
         UiRenderQuality.optimizeLayout(titleRow);
         titleRow.setAlignment(Pos.TOP_LEFT);
         titleRow.setFillHeight(false);
@@ -74,9 +83,9 @@ public class BookmarkCard extends HBox {
         titleRow.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(titleFlow, Priority.ALWAYS);
 
-        if (trailingAction != null) {
-            trailingAction.getStyleClass().add("bookmark-card-title-action");
-            titleRow.getChildren().add(trailingAction);
+        HBox titleTrailing = createTitleTrailing(drmProtected && !showDrmBadgeOnImage, trailingAction);
+        if (titleTrailing != null) {
+            titleRow.getChildren().add(titleTrailing);
         }
 
         VBox text = new VBox(4, titleRow, subtitleLabel);
@@ -92,6 +101,9 @@ public class BookmarkCard extends HBox {
         }
 
         imageView.loadImage(logoUrl, imageCacheName);
+        if (showDrmBadgeOnImage) {
+            imageView.getChildren().add(drmBadge);
+        }
         getChildren().addAll(imageView, text);
     }
 
@@ -116,5 +128,34 @@ public class BookmarkCard extends HBox {
             titleFlow.getChildren().add(suffixText);
         }
         return titleFlow;
+    }
+
+    private HBox createTitleTrailing(boolean drmProtected, Node trailingAction) {
+        if (!drmProtected && trailingAction == null) {
+            return null;
+        }
+        HBox trailing = new HBox(6);
+        trailing.getStyleClass().add("bookmark-card-title-trailing");
+        UiRenderQuality.optimizeLayout(trailing);
+        trailing.setAlignment(Pos.TOP_RIGHT);
+        trailing.setMinWidth(Region.USE_PREF_SIZE);
+        trailing.setMaxWidth(Region.USE_PREF_SIZE);
+
+        if (drmProtected) {
+            trailing.getChildren().add(drmBadge);
+        }
+        if (trailingAction != null) {
+            trailingAction.getStyleClass().add("bookmark-card-title-action");
+            pinToPreferredWidth(trailingAction);
+            trailing.getChildren().add(trailingAction);
+        }
+        return trailing;
+    }
+
+    private void pinToPreferredWidth(Node node) {
+        if (node instanceof Region region) {
+            region.setMinWidth(Region.USE_PREF_SIZE);
+            region.setMaxWidth(Region.USE_PREF_SIZE);
+        }
     }
 }
