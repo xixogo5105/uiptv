@@ -3,14 +3,15 @@ package com.uiptv.ui.main;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.AccountListUI;
+import com.uiptv.ui.BookmarkChannelListUI;
 import com.uiptv.ui.ManageAccountUI;
+import com.uiptv.ui.WatchingNowUI;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AppNavigationController;
 import com.uiptv.widget.AppNavigationPane;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
-import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
@@ -31,6 +32,7 @@ import org.mockito.Mockito;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
@@ -94,55 +96,46 @@ class MainApplicationUILayoutTest {
     }
 
     @Test
-    void compactEmbeddedLayoutUsesRuntimeSidePreference() throws Exception {
+    void compactEmbeddedLayoutStacksPlayerAboveNavigationContent() throws Exception {
         runOnFxThread(() -> {
-            boolean originalPreference = staticBooleanField("compactEmbeddedPlayerRightAligned");
-            try {
-                MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, true);
-                TabPane tabPane = new TabPane();
-                StackPane navigationShell = new StackPane(tabPane);
-                HBox embeddedPlayer = new HBox();
-                VBox playerAdjacentControls = new VBox();
-                Hyperlink sideLink = new Hyperlink();
-                GridPane responsiveContent = new GridPane();
-                HBox mainContent = new HBox(responsiveContent);
-                responsiveContent.getChildren().setAll(navigationShell, embeddedPlayer, playerAdjacentControls);
-                new Scene(mainContent, 1368, 600);
-                mainContent.resize(1368, 600);
-                responsiveContent.resize(1368, 600);
-                setField(ui, "activeTabPane", tabPane);
-                setField(ui, "navigationShell", navigationShell);
-                setField(ui, "embeddedPlayer", embeddedPlayer);
-                setField(ui, "playerAdjacentControls", playerAdjacentControls);
-                setField(ui, "compactPlayerSideLink", sideLink);
-                setField(ui, "responsiveContent", responsiveContent);
-                setField(ui, "mainContent", mainContent);
+            Configuration configuration = new Configuration();
+            configuration.setEmbeddedPlayer(true);
+            configuration.setWideView(false);
+            ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+            Mockito.when(configurationService.read()).thenReturn(configuration);
+            MainApplicationUI ui = new MainApplicationUI(null, null, configurationService, null, 1368, 720, true);
+            TabPane tabPane = new TabPane();
+            StackPane navigationShell = new StackPane(tabPane);
+            HBox embeddedPlayer = new HBox();
+            Label embeddedPlayerNode = new Label("Player");
+            VBox playerAdjacentControls = new VBox();
+            GridPane responsiveContent = new GridPane();
+            HBox mainContent = new HBox(responsiveContent);
+            responsiveContent.getChildren().setAll(navigationShell, embeddedPlayer, playerAdjacentControls);
+            new Scene(mainContent, 1368, 600);
+            mainContent.resize(1368, 600);
+            responsiveContent.resize(1368, 600);
+            setField(ui, "activeTabPane", tabPane);
+            setField(ui, "activeAccountListUI", new AccountListUI(null, null));
+            setField(ui, "navigationShell", navigationShell);
+            setField(ui, "embeddedPlayer", embeddedPlayer);
+            setField(ui, "embeddedPlayerNode", embeddedPlayerNode);
+            setField(ui, "playerAdjacentControls", playerAdjacentControls);
+            setField(ui, "responsiveContent", responsiveContent);
+            setField(ui, "mainContent", mainContent);
 
-                Method method = MainApplicationUI.class.getDeclaredMethod("applyCompactSideColumnEmbeddedLayout");
-                method.setAccessible(true);
+            Method method = MainApplicationUI.class.getDeclaredMethod("applyEmbeddedPlayerLayoutFromConfiguration");
+            method.setAccessible(true);
+            method.invoke(ui);
 
-                setStaticBooleanField("compactEmbeddedPlayerRightAligned", false);
-                method.invoke(ui);
-
-                assertEquals(0, GridPane.getColumnIndex(embeddedPlayer));
-                assertEquals(1, GridPane.getColumnIndex(navigationShell));
-                assertEquals(Priority.NEVER, responsiveContent.getColumnConstraints().getFirst().getHgrow());
-                assertEquals(Priority.ALWAYS, responsiveContent.getColumnConstraints().get(1).getHgrow());
-                assertTrue(sideLink.isVisible());
-                assertTrue(sideLink.isManaged());
-                assertEquals(I18n.tr("embeddedPlayerMoveRight"), sideLink.getText());
-
-                setStaticBooleanField("compactEmbeddedPlayerRightAligned", true);
-                method.invoke(ui);
-
-                assertEquals(0, GridPane.getColumnIndex(navigationShell));
-                assertEquals(1, GridPane.getColumnIndex(embeddedPlayer));
-                assertEquals(Priority.ALWAYS, responsiveContent.getColumnConstraints().getFirst().getHgrow());
-                assertEquals(Priority.NEVER, responsiveContent.getColumnConstraints().get(1).getHgrow());
-                assertEquals(I18n.tr("embeddedPlayerMoveLeft"), sideLink.getText());
-            } finally {
-                setStaticBooleanField("compactEmbeddedPlayerRightAligned", originalPreference);
-            }
+            assertEquals(0, GridPane.getColumnIndex(embeddedPlayer));
+            assertEquals(0, GridPane.getRowIndex(embeddedPlayer));
+            assertEquals(0, GridPane.getColumnIndex(navigationShell));
+            assertEquals(1, GridPane.getRowIndex(navigationShell));
+            assertEquals(1, responsiveContent.getColumnConstraints().size());
+            assertEquals(2, responsiveContent.getRowConstraints().size());
+            assertFalse(playerAdjacentControls.isVisible());
+            assertFalse(playerAdjacentControls.isManaged());
             return null;
         });
     }
@@ -394,6 +387,9 @@ class MainApplicationUILayoutTest {
 
             Object manageAccountColumn = createManageAccountColumn();
             Node dockNode = manageAccountColumnNode(manageAccountColumn);
+            AccountListUI accountListUI = Mockito.mock(AccountListUI.class);
+            BookmarkChannelListUI bookmarkChannelListUI = Mockito.mock(BookmarkChannelListUI.class);
+            AtomicReference<WatchingNowUI> watchingNowRef = new AtomicReference<>(Mockito.mock(WatchingNowUI.class));
 
             configureAppNavigation(
                     ui,
@@ -404,6 +400,9 @@ class MainApplicationUILayoutTest {
                     logsTab,
                     watchingNowTab,
                     bookmarksTab,
+                    accountListUI,
+                    bookmarkChannelListUI,
+                    watchingNowRef,
                     manageAccountColumn
             );
 
@@ -507,6 +506,9 @@ class MainApplicationUILayoutTest {
                                                Tab logDisplayTab,
                                                Tab watchingNowTab,
                                                Tab bookmarkChannelListTab,
+                                               AccountListUI accountListUI,
+                                               BookmarkChannelListUI bookmarkChannelListUI,
+                                               AtomicReference<WatchingNowUI> watchingNowRef,
                                                Object manageAccountColumn) throws Exception {
         Method method = BaseMainApplicationUI.class.getDeclaredMethod(
                 "configureAppNavigation",
@@ -517,6 +519,9 @@ class MainApplicationUILayoutTest {
                 Tab.class,
                 Tab.class,
                 Tab.class,
+                AccountListUI.class,
+                BookmarkChannelListUI.class,
+                AtomicReference.class,
                 manageAccountColumnClass()
         );
         method.setAccessible(true);
@@ -529,6 +534,9 @@ class MainApplicationUILayoutTest {
                 logDisplayTab,
                 watchingNowTab,
                 bookmarkChannelListTab,
+                accountListUI,
+                bookmarkChannelListUI,
+                watchingNowRef,
                 manageAccountColumn
         );
     }
@@ -565,18 +573,6 @@ class MainApplicationUILayoutTest {
         Field field = MainApplicationUI.class.getDeclaredField(fieldName);
         field.setAccessible(true);
         field.set(ui, value);
-    }
-
-    private static boolean staticBooleanField(String fieldName) throws Exception {
-        Field field = MainApplicationUI.class.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        return field.getBoolean(null);
-    }
-
-    private static void setStaticBooleanField(String fieldName, boolean value) throws Exception {
-        Field field = MainApplicationUI.class.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        field.setBoolean(null, value);
     }
 
     private static HBox accountBodyLayout(AccountListUI accountListUI) throws Exception {
