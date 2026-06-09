@@ -215,6 +215,29 @@ public class AccountListUI extends HBox implements SearchTarget {
         }
     }
 
+    public void requestContentFocus() {
+        Platform.runLater(() -> {
+            if (!isNodeDisplayable(accountGrid)) {
+                return;
+            }
+            accountGrid.requestContentFocus();
+        });
+    }
+
+    private boolean isNodeDisplayable(Node node) {
+        if (node == null || node.getScene() == null) {
+            return false;
+        }
+        Node current = node;
+        while (current != null) {
+            if (!current.isVisible()) {
+                return false;
+            }
+            current = current.getParent();
+        }
+        return true;
+    }
+
     public void refresh() {
         if (!Platform.isFxApplicationThread()) {
             Platform.runLater(this::refresh);

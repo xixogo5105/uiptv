@@ -75,6 +75,10 @@ public class WatchingNowUI extends VBox {
         }
     }
 
+    public void requestContentFocus() {
+        requestActiveContentFocus();
+    }
+
     private void buildContent() {
         seriesDelegate = buildSeriesDelegate();
         vodDelegate = new VodWatchingNowUI();

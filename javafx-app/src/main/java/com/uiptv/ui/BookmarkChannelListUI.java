@@ -118,11 +118,13 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 releaseTransientState();
             } else if (isVisible()) {
                 ensureLoaded();
+                requestContentFocus();
             }
         });
         visibleProperty().addListener((obs, oldVisible, newVisible) -> {
             if (Boolean.TRUE.equals(newVisible) && getScene() != null) {
                 ensureLoaded();
+                requestContentFocus();
             }
         });
     }
@@ -238,6 +240,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         lastKnownBookmarkRevision = revision;
         reloadInProgress = false;
         setBookmarkLoadingOverlayVisible(false);
+        requestContentFocus();
         triggerDeferredReloadIfNeeded();
     }
 
@@ -255,6 +258,30 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         allBookmarkItems.addAll(partialItems);
         filterView();
         setBookmarkLoadingOverlayVisible(reloadInProgress && !filteredItems.isEmpty());
+        requestContentFocus();
+    }
+
+    public void requestContentFocus() {
+        Platform.runLater(() -> {
+            if (!isPageDisplayable()) {
+                return;
+            }
+            bookmarkGrid.requestContentFocus();
+        });
+    }
+
+    private boolean isPageDisplayable() {
+        if (getScene() == null) {
+            return false;
+        }
+        Node node = this;
+        while (node != null) {
+            if (!node.isVisible()) {
+                return false;
+            }
+            node = node.getParent();
+        }
+        return true;
     }
 
     private void restoreGridSelection(List<String> selectedBookmarkIds) {

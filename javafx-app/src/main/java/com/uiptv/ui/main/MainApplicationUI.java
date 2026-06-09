@@ -46,6 +46,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private static final double STACKED_EMBEDDED_PLAYER_MIN_HEIGHT = 210;
     private static final double STACKED_EMBEDDED_PLAYER_MAX_HEIGHT = 305;
     private static final double COMPACT_PLAYER_SIDE_LINK_VERTICAL_SPACE = 34;
+    private static final double COMPACT_STACKED_PLAYER_WIDTH_THRESHOLD = 720;
     private static final double PLAYER_ADJACENT_CONTROLS_MIN_WIDTH = 720;
     private static final double PLAYER_ADJACENT_CONTROLS_RIGHT_INSET = 14;
     private static final double ACCOUNT_BROWSER_DRAWER_WIDTH_THRESHOLD = 900;
@@ -255,7 +256,11 @@ public class MainApplicationUI extends BaseMainApplicationUI {
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(shouldUseAccountMediaDrawerMode());
             restoreDockedTopControls();
-            applyCompactSideColumnEmbeddedLayout();
+            if (shouldUseCompactStackedPlayerLayout()) {
+                applyStackedEmbeddedLayout();
+            } else {
+                applyCompactSideColumnEmbeddedLayout();
+            }
         }
         if (mainContent != null) {
             mainContent.requestLayout();
@@ -769,6 +774,10 @@ public class MainApplicationUI extends BaseMainApplicationUI {
 
     private boolean shouldUsePlayerAdjacentTopControlsLayout() {
         return availableLayoutWidth() >= STACKED_EMBEDDED_PLAYER_MAX_WIDTH + PLAYER_ADJACENT_CONTROLS_MIN_WIDTH;
+    }
+
+    private boolean shouldUseCompactStackedPlayerLayout() {
+        return availableLayoutWidth() < COMPACT_STACKED_PLAYER_WIDTH_THRESHOLD;
     }
 
     private boolean shouldUseAccountMediaDrawerMode() {

@@ -104,6 +104,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 scheduleInitialItemFocus();
             }
         });
+        addEventFilter(KeyEvent.KEY_PRESSED, this::handleGridTabTraversalKeyPressed);
         addEventHandler(KeyEvent.KEY_PRESSED, this::handleNavigationKeyPressed);
         rebuildCards();
     }
@@ -209,6 +210,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     public void requestContentFocus() {
+        ensureInitialSelection();
         scheduleInitialItemFocus();
     }
 
@@ -338,6 +340,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (reorderEnabled) {
             configureDragHandlers(item, card);
         }
+        registerInteractiveChildFocusListeners(item, card);
     }
 
     private void handleCardClicked(T item, Region card, MouseEvent event) {
@@ -398,6 +401,121 @@ public class ResponsiveCardGrid<T> extends StackPane {
 
     private boolean isAdditiveSelectionModifierDown(KeyEvent event) {
         return event != null && (event.isShortcutDown() || event.isControlDown() || event.isMetaDown());
+    }
+
+    private void handleGridTabTraversalKeyPressed(KeyEvent event) {
+        if (event == null || event.getCode() != KeyCode.TAB || items.isEmpty() || getScene() == null) {
+            return;
+        }
+        Node focusOwner = getScene().getFocusOwner();
+        T ownerItem = itemForNode(focusOwner);
+        if (ownerItem != null && focusableDescendantWithinCard(focusOwner, cardsByItem.get(ownerItem)) != null) {
+            if (event.isShiftDown()) {
+                focusItem(ownerItem);
+                event.consume();
+                return;
+            }
+            int ownerIndex = items.indexOf(ownerItem);
+            if (ownerIndex >= 0 && ownerIndex < items.size() - 1) {
+                focusItem(items.get(ownerIndex + 1));
+                event.consume();
+            }
+            return;
+        }
+        if (focusOwner != this) {
+            return;
+        }
+        int currentIndex = currentKeyboardIndex();
+        if (event.isShiftDown()) {
+            if (currentIndex > 0 && focusInteractiveChild(items.get(currentIndex - 1), true)) {
+                event.consume();
+            }
+            return;
+        }
+        T currentItem = items.get(Math.max(0, Math.min(currentIndex, items.size() - 1)));
+        if (focusInteractiveChild(currentItem, false)) {
+            event.consume();
+        }
+    }
+
+    private void registerInteractiveChildFocusListeners(T item, Region card) {
+        for (Node child : focusableDescendants(card)) {
+            child.focusedProperty().addListener((_, _, focused) -> {
+                if (Boolean.TRUE.equals(focused) && !mouseSelectionInProgress && !suppressFocusSelection) {
+                    focusSelectionFromFocusEvent(item);
+                }
+            });
+        }
+    }
+
+    private boolean focusInteractiveChild(T item, boolean last) {
+        Region card = cardsByItem.get(item);
+        if (card == null) {
+            return false;
+        }
+        List<Node> descendants = focusableDescendants(card);
+        if (descendants.isEmpty()) {
+            return false;
+        }
+        Node target = last ? descendants.getLast() : descendants.getFirst();
+        focusSelection(item);
+        scrollIntoPageView(card);
+        target.requestFocus();
+        return true;
+    }
+
+    private Node focusableDescendantWithinCard(Node node, Region card) {
+        if (node == null || card == null) {
+            return null;
+        }
+        Node current = node;
+        while (current != null && current != card) {
+            if (isFocusableDescendant(current)) {
+                return current;
+            }
+            current = current.getParent();
+        }
+        return null;
+    }
+
+    private T itemForNode(Node node) {
+        if (node == null) {
+            return null;
+        }
+        for (Map.Entry<T, Region> entry : cardsByItem.entrySet()) {
+            if (entry.getValue() == node || isDescendantOf(node, entry.getValue())) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
+    private List<Node> focusableDescendants(Node root) {
+        List<Node> descendants = new ArrayList<>();
+        collectFocusableDescendants(root, descendants);
+        return descendants;
+    }
+
+    private void collectFocusableDescendants(Node node, List<Node> descendants) {
+        if (node == null) {
+            return;
+        }
+        if (isFocusableDescendant(node)) {
+            descendants.add(node);
+        }
+        if (node instanceof javafx.scene.Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                collectFocusableDescendants(child, descendants);
+            }
+        }
+    }
+
+    private boolean isFocusableDescendant(Node node) {
+        return node != null
+                && node != this
+                && node.isFocusTraversable()
+                && node.isVisible()
+                && !node.isDisabled();
     }
 
     private void normalizeContextSelection(T item) {

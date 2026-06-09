@@ -111,7 +111,19 @@ public abstract class BaseMainApplicationUI {
         });
 
         tabPane.getTabs().addAll(configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab);
-        configureAppNavigation(tabPane, configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab, manageAccountColumn);
+        configureAppNavigation(
+                tabPane,
+                configurationTab,
+                manageAccountTab,
+                parseMultipleAccountTab,
+                logDisplayTab,
+                watchingNowTab,
+                bookmarkChannelListTab,
+                accountListUI,
+                bookmarkChannelListUI,
+                watchingNowRef,
+                manageAccountColumn
+        );
         tabPane.getSelectionModel().select(bookmarkChannelListTab);
 
         HBox mainContent = buildMainContent(tabPane, accountListUI);
@@ -165,15 +177,34 @@ public abstract class BaseMainApplicationUI {
                                         Tab logDisplayTab,
                                         Tab watchingNowTab,
                                         Tab bookmarkChannelListTab,
+                                        AccountListUI accountListUI,
+                                        BookmarkChannelListUI bookmarkChannelListUI,
+                                        AtomicReference<WatchingNowUI> watchingNowRef,
                                         ManageAccountColumn manageAccountColumn) {
         EnumMap<AppNavigationController.Target, Runnable> actions = new EnumMap<>(AppNavigationController.Target.class);
         actions.put(AppNavigationController.Target.SETTINGS, () -> selectTab(tabPane, configurationTab));
-        actions.put(AppNavigationController.Target.ACCOUNTS, () -> selectTab(tabPane, manageAccountTab));
+        actions.put(AppNavigationController.Target.ACCOUNTS,
+                () -> selectTabAndFocus(tabPane, manageAccountTab, accountListUI::requestContentFocus));
         actions.put(AppNavigationController.Target.IMPORT, () -> selectTab(tabPane, parseMultipleAccountTab));
         actions.put(AppNavigationController.Target.LOGS, () -> selectTab(tabPane, logDisplayTab));
-        actions.put(AppNavigationController.Target.WATCHING_NOW, () -> selectTab(tabPane, watchingNowTab));
-        actions.put(AppNavigationController.Target.BOOKMARKS, () -> selectTab(tabPane, bookmarkChannelListTab));
+        actions.put(AppNavigationController.Target.WATCHING_NOW,
+                () -> selectTabAndFocus(tabPane, watchingNowTab, () -> {
+                    WatchingNowUI watchingNowUI = watchingNowRef.get();
+                    if (watchingNowUI != null) {
+                        watchingNowUI.requestContentFocus();
+                    }
+                }));
+        actions.put(AppNavigationController.Target.BOOKMARKS,
+                () -> selectTabAndFocus(tabPane, bookmarkChannelListTab, bookmarkChannelListUI::requestContentFocus));
         AppNavigationController.configure(actions, AppNavigationController.Target.BOOKMARKS);
+    }
+
+    private void selectTabAndFocus(TabPane tabPane, Tab tab, Runnable focusAction) {
+        selectTab(tabPane, tab);
+        if (focusAction == null) {
+            return;
+        }
+        Platform.runLater(() -> Platform.runLater(focusAction));
     }
 
     private void selectTab(TabPane tabPane, Tab tab) {
