@@ -20,7 +20,7 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
-import javafx.scene.layout.HBox;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.Priority;
@@ -136,15 +136,10 @@ public class LogDisplayUI extends VBox {
     private void renderAttachedView() {
         contentBox.getChildren().clear();
         detachFromParent(logArea);
-        HBox controlBox = createControlRow(copyLogButton, clearLogButton, webLogButton, detachButton);
+        FlowPane controlBox = createControlRow(copyLogButton, clearLogButton, webLogButton, detachButton);
         AppPageHeader header = createHeader();
         Label title = new Label(I18n.tr("autoUiptvLogs"));
-        title.getStyleClass().add("log-card-title");
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox cardHeader = new HBox(12, title, spacer, controlBox);
-        cardHeader.getStyleClass().add("log-card-header");
-        cardHeader.setAlignment(Pos.CENTER_LEFT);
+        VBox cardHeader = createLogCardHeader(title, controlBox);
 
         VBox logCard = new VBox(12, cardHeader, logArea);
         logCard.getStyleClass().add("log-card");
@@ -180,20 +175,41 @@ public class LogDisplayUI extends VBox {
         return header;
     }
 
-    private HBox createControlRow(Button... buttons) {
+    private static VBox createLogCardHeader(Label title, FlowPane controlBox) {
+        title.getStyleClass().add("log-card-title");
+        title.setWrapText(true);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        VBox header = new VBox(8, title, controlBox);
+        header.getStyleClass().add("log-card-header");
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setFillWidth(true);
+        header.setMinWidth(0);
+        header.setMaxWidth(Double.MAX_VALUE);
+        return header;
+    }
+
+    private static FlowPane createControlRow(Button... buttons) {
         for (Button button : buttons) {
             detachFromParent(button);
         }
-        HBox row = new HBox(8, buttons);
+        FlowPane row = new FlowPane(8, 8);
         row.getStyleClass().add("log-control-row");
-        row.setAlignment(Pos.CENTER_RIGHT);
-        row.setFillHeight(false);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        for (Button button : buttons) {
+            row.getChildren().add(button);
+        }
         return row;
     }
 
     private static void configureLogActionButton(Button button) {
         button.getStyleClass().add("log-action-button");
         button.setFocusTraversable(false);
+        button.setMinWidth(Region.USE_PREF_SIZE);
+        button.setMaxWidth(Region.USE_PREF_SIZE);
+        button.setWrapText(false);
         button.setTooltip(new Tooltip(button.getText()));
     }
 
@@ -213,14 +229,9 @@ public class LogDisplayUI extends VBox {
         configureLogActionButton(popupAttachButton);
         popupAttachButton.getStyleClass().add("log-primary-action-button");
         popupAttachButton.setOnAction(event -> attachWindow());
-        HBox controlBox = createControlRow(copyLogButton, clearLogButton, webLogButton, popupAttachButton);
+        FlowPane controlBox = createControlRow(copyLogButton, clearLogButton, webLogButton, popupAttachButton);
         Label title = new Label(I18n.tr("autoUiptvLogs"));
-        title.getStyleClass().add("log-card-title");
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox cardHeader = new HBox(12, title, spacer, controlBox);
-        cardHeader.getStyleClass().add("log-card-header");
-        cardHeader.setAlignment(Pos.CENTER_LEFT);
+        VBox cardHeader = createLogCardHeader(title, controlBox);
         VBox logCard = new VBox(12, cardHeader, logArea);
         logCard.getStyleClass().add("log-card");
         logCard.setFillWidth(true);
@@ -271,9 +282,7 @@ public class LogDisplayUI extends VBox {
         });
         refreshButton.setOnAction(event -> refreshWebLogArea());
 
-        HBox controls = new HBox(8, copyButton, clearButton, refreshButton, closeButton);
-        controls.getStyleClass().add("log-control-row");
-        controls.setAlignment(Pos.CENTER_RIGHT);
+        FlowPane controls = createControlRow(copyButton, clearButton, refreshButton, closeButton);
         VBox card = new VBox(12, location, webLogArea, controls);
         card.getStyleClass().add("log-card");
         card.setFillWidth(true);

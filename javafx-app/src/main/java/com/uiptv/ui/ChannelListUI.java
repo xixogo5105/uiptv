@@ -779,8 +779,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
             parts.add(I18n.tr("autoVod"));
         } else if (listAction == series) {
             parts.add(I18n.tr("autoSeries"));
-        } else {
-            parts.add(I18n.tr("autoChannels"));
         }
         if (!isBlank(categoryTitle)) {
             parts.add(categoryTitle);

@@ -19,10 +19,13 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.geometry.Bounds;
 import javafx.scene.Cursor;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.geometry.Pos;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -53,6 +56,8 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 public class CategoryListUI extends HBox implements SearchTarget {
     private static final String ALL_CATEGORY_SENTINEL = "all";
     private static final String PARENTAL_LOCK_LOG_PREFIX = "[ParentalLock] ";
+    private static final double CATEGORY_SCROLL_VISIBILITY_TOLERANCE = 4.0;
+    private static final double CATEGORY_SCROLL_VALUE_TOLERANCE = 0.001;
     private static final String LOG_ACCOUNT_START = "account=";
     private static final String LOG_ACCOUNT = " account=";
     private static final String LOG_TYPE = " type=";
@@ -243,6 +248,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         categoryScrollPane.setMinSize(0, 0);
         categoryScrollPane.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         VBox.setVgrow(categoryScrollPane, Priority.ALWAYS);
+        categoryScrollPane.addEventFilter(KeyEvent.KEY_PRESSED, this::handleCategoryNavigationKeyPressed);
         categoryScrollPane.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
                 doRetrieveChannels(resolveFocusedCategoryItem());
@@ -259,6 +265,104 @@ public class CategoryListUI extends HBox implements SearchTarget {
             }
         });
         showCategoryPlaceholder(I18n.tr("autoLoadingCategories"));
+    }
+
+    private void handleCategoryNavigationKeyPressed(KeyEvent event) {
+        if (event == null || categoryItems.isEmpty()) {
+            return;
+        }
+        List<CategoryItem> visibleItems = filteredCategoryItems();
+        if (visibleItems.isEmpty()) {
+            return;
+        }
+        int currentIndex = currentCategoryNavigationIndex(visibleItems);
+        int targetIndex = switch (event.getCode()) {
+            case UP, LEFT -> currentIndex < 0 ? 0 : Math.max(0, currentIndex - 1);
+            case DOWN, RIGHT -> currentIndex < 0 ? 0 : Math.min(visibleItems.size() - 1, currentIndex + 1);
+            case HOME -> 0;
+            case END -> visibleItems.size() - 1;
+            default -> -1;
+        };
+        if (targetIndex < 0) {
+            return;
+        }
+        focusCategoryItem(visibleItems.get(targetIndex));
+        event.consume();
+    }
+
+    private int currentCategoryNavigationIndex(List<CategoryItem> visibleItems) {
+        if (visibleItems == null || visibleItems.isEmpty()) {
+            return -1;
+        }
+        if (focusedCategoryItem != null) {
+            int focusedIndex = visibleItems.indexOf(focusedCategoryItem);
+            if (focusedIndex >= 0) {
+                return focusedIndex;
+            }
+        }
+        if (!selectedCategoryItems.isEmpty()) {
+            int selectedIndex = visibleItems.indexOf(selectedCategoryItems.getLast());
+            if (selectedIndex >= 0) {
+                return selectedIndex;
+            }
+        }
+        return -1;
+    }
+
+    private void focusCategoryItem(CategoryItem item) {
+        if (item == null) {
+            return;
+        }
+        selectCategoryItem(item, false);
+        Region card = findCategoryCard(item);
+        if (card == null) {
+            return;
+        }
+        card.requestFocus();
+        Platform.runLater(() -> scrollCategoryCardIntoView(card));
+    }
+
+    private Region findCategoryCard(CategoryItem item) {
+        for (Node child : categoryCardList.getChildren()) {
+            if (child instanceof Region region && Objects.equals(region.getUserData(), item)) {
+                return region;
+            }
+        }
+        return null;
+    }
+
+    private void scrollCategoryCardIntoView(Node card) {
+        if (card == null || card.getScene() == null || categoryScrollPane.getScene() == null
+                || categoryScrollPane.getContent() == null) {
+            return;
+        }
+        double viewportHeight = categoryScrollPane.getViewportBounds().getHeight();
+        double contentHeight = categoryScrollPane.getContent().getLayoutBounds().getHeight();
+        if (viewportHeight <= 0 || contentHeight <= viewportHeight) {
+            return;
+        }
+        Bounds cardBounds = card.localToScene(card.getBoundsInLocal());
+        Bounds viewportBounds = categoryScrollPane.localToScene(categoryScrollPane.getViewportBounds());
+        double cardTop = cardBounds.getMinY();
+        double cardBottom = cardBounds.getMaxY();
+        double viewportTop = viewportBounds.getMinY();
+        double viewportBottom = viewportBounds.getMaxY();
+        if (cardTop >= viewportTop - CATEGORY_SCROLL_VISIBILITY_TOLERANCE
+                && cardBottom <= viewportBottom + CATEGORY_SCROLL_VISIBILITY_TOLERANCE) {
+            return;
+        }
+        double scrollableHeight = contentHeight - viewportHeight;
+        double currentPixels = categoryScrollPane.getVvalue() * scrollableHeight;
+        double nextPixels = currentPixels;
+        if (cardTop < viewportTop) {
+            nextPixels -= viewportTop - cardTop + categoryCardList.getSpacing();
+        } else if (cardBottom > viewportBottom) {
+            nextPixels += cardBottom - viewportBottom + categoryCardList.getSpacing();
+        }
+        double nextValue = Math.max(0, Math.min(1, nextPixels / scrollableHeight));
+        if (Math.abs(nextValue - categoryScrollPane.getVvalue()) >= CATEGORY_SCROLL_VALUE_TOLERANCE) {
+            categoryScrollPane.setVvalue(nextValue);
+        }
     }
 
     private void rebuildCategoryCards() {
