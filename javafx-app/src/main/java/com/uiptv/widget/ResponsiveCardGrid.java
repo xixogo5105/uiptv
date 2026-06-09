@@ -2,6 +2,7 @@ package com.uiptv.widget;
 
 import com.uiptv.ui.util.UiI18n;
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -41,6 +42,12 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private static final double DEFAULT_VERTICAL_GAP = 12;
     private static final double SCROLL_VISIBILITY_TOLERANCE = 4.0;
     private static final double SCROLL_VALUE_TOLERANCE = 0.001;
+    private static final int DEFAULT_VIRTUALIZATION_THRESHOLD =
+            Integer.getInteger("uiptv.cardGrid.virtualizationThreshold", 500);
+    private static final int DEFAULT_VIRTUAL_ROW_BUFFER =
+            Integer.getInteger("uiptv.cardGrid.virtualRowBuffer", 6);
+    private static final double DEFAULT_VIRTUAL_VIEWPORT_HEIGHT = 900;
+    private static final double MIN_VIRTUAL_CARD_HEIGHT = 32;
 
     private final Function<T, Region> cardFactory;
     private final FlowPane cardPane = new FlowPane();
@@ -50,6 +57,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private final ObservableList<T> selectedItems = FXCollections.observableArrayList();
     private final ObservableList<T> readonlySelectedItems = FXCollections.unmodifiableObservableList(selectedItems);
     private final ListChangeListener<T> itemChangeListener = this::handleItemsChanged;
+    private final ChangeListener<Number> virtualScrollValueListener = (_, _, _) -> scheduleVirtualWindowUpdate();
+    private final ChangeListener<Bounds> virtualViewportBoundsListener = (_, _, _) -> scheduleVirtualWindowUpdate();
     private ObservableList<T> items = FXCollections.observableArrayList();
     private ContextMenuFactory<T> contextMenuFactory;
     private Consumer<T> itemActivatedHandler;
@@ -64,12 +73,25 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private boolean mouseSelectionInProgress;
     private boolean suppressFocusSelection;
     private boolean singleColumn;
+    private boolean virtualizationEnabled = true;
+    private boolean virtualizedActive;
+    private boolean virtualWindowUpdateQueued;
     private int columnCount = 1;
+    private int virtualizationThreshold = DEFAULT_VIRTUALIZATION_THRESHOLD;
+    private int virtualRowBuffer = DEFAULT_VIRTUAL_ROW_BUFFER;
+    private int firstRenderedIndex = -1;
+    private int lastRenderedExclusive = -1;
     private double minCardWidth = DEFAULT_MIN_CARD_WIDTH;
     private double maxCardWidth = DEFAULT_MAX_CARD_WIDTH;
     private double cardMinHeight = 76;
     private double horizontalGap = DEFAULT_HORIZONTAL_GAP;
     private double verticalGap = DEFAULT_VERTICAL_GAP;
+    private double computedCardWidth = DEFAULT_MIN_CARD_WIDTH;
+    private double measuredVirtualCardHeight;
+    private double virtualContentHeight;
+    private double renderedCardWidth = -1;
+    private double renderedTranslateY = -1;
+    private ScrollPane virtualScrollPane;
 
     public ResponsiveCardGrid(Function<T, Region> cardFactory) {
         this.cardFactory = Objects.requireNonNull(cardFactory, "cardFactory");
@@ -96,9 +118,13 @@ public class ResponsiveCardGrid<T> extends StackPane {
         getChildren().addAll(cardPane, placeholder);
         items.addListener(itemChangeListener);
         widthProperty().addListener((_, _, _) -> updateCardWidths());
+        parentProperty().addListener((_, _, _) -> scheduleVirtualScrollPaneHook());
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene != null) {
                 scheduleInitialItemFocus();
+                scheduleVirtualScrollPaneHook();
+            } else {
+                detachVirtualScrollPane();
             }
         });
         visibleProperty().addListener((_, _, visible) -> {
@@ -115,6 +141,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         this.items.removeListener(itemChangeListener);
         this.items = items == null ? FXCollections.observableArrayList() : items;
         this.items.addListener(itemChangeListener);
+        measuredVirtualCardHeight = 0;
         rebuildCards();
     }
 
@@ -177,6 +204,28 @@ public class ResponsiveCardGrid<T> extends StackPane {
         updateCardWidths();
     }
 
+    public void setVirtualizationEnabled(boolean virtualizationEnabled) {
+        if (this.virtualizationEnabled == virtualizationEnabled) {
+            return;
+        }
+        this.virtualizationEnabled = virtualizationEnabled;
+        rebuildCards();
+    }
+
+    public void setVirtualizationThreshold(int virtualizationThreshold) {
+        int safeThreshold = Math.max(1, virtualizationThreshold);
+        if (this.virtualizationThreshold == safeThreshold) {
+            return;
+        }
+        this.virtualizationThreshold = safeThreshold;
+        rebuildCards();
+    }
+
+    public void setVirtualRowBuffer(int virtualRowBuffer) {
+        this.virtualRowBuffer = Math.max(1, virtualRowBuffer);
+        scheduleVirtualWindowUpdate();
+    }
+
     public void setOnItemsReordered(Consumer<List<T>> itemsReorderedHandler) {
         this.itemsReorderedHandler = itemsReorderedHandler;
     }
@@ -202,9 +251,11 @@ public class ResponsiveCardGrid<T> extends StackPane {
 
     public void setCardMinHeight(double cardMinHeight) {
         this.cardMinHeight = Math.max(24, cardMinHeight);
+        measuredVirtualCardHeight = 0;
         for (Region card : cardsByItem.values()) {
             card.setMinHeight(this.cardMinHeight);
         }
+        updateCardWidths();
     }
 
     public void refresh() {
@@ -243,6 +294,23 @@ public class ResponsiveCardGrid<T> extends StackPane {
         pruneSelection();
         cardsByItem.clear();
         cardPane.getChildren().clear();
+        firstRenderedIndex = -1;
+        lastRenderedExclusive = -1;
+        renderedCardWidth = -1;
+        renderedTranslateY = -1;
+        virtualizedActive = shouldUseVirtualization();
+        if (virtualizedActive) {
+            ensureInitialSelection();
+            updatePlaceholderVisibility();
+            updateCardWidths();
+            updateVirtualContentHeight();
+            installVirtualScrollPane();
+            updateVirtualWindow();
+            updateSelectionStyles();
+            scheduleInitialItemFocus();
+            return;
+        }
+        clearVirtualContentLayout();
         for (T item : items) {
             Region card = cardFactory.apply(item);
             configureCard(item, card);
@@ -257,6 +325,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     private void handleItemsChanged(ListChangeListener.Change<? extends T> change) {
+        if (virtualizedActive || shouldUseVirtualization()) {
+            rebuildCards();
+            return;
+        }
         boolean changed = false;
         while (change.next()) {
             if (change.wasPermutated() || change.wasRemoved()) {
@@ -308,6 +380,239 @@ public class ResponsiveCardGrid<T> extends StackPane {
             cardsByItem.put(item, card);
             cardPane.getChildren().set(index, card);
         }
+    }
+
+    private boolean shouldUseVirtualization() {
+        return virtualizationEnabled && items.size() >= virtualizationThreshold;
+    }
+
+    private void clearVirtualContentLayout() {
+        detachVirtualScrollPane();
+        virtualContentHeight = 0;
+        measuredVirtualCardHeight = 0;
+        cardPane.setTranslateY(0);
+        setPrefHeight(Region.USE_COMPUTED_SIZE);
+        setMinHeight(0);
+    }
+
+    private void scheduleVirtualScrollPaneHook() {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(this::scheduleVirtualScrollPaneHook);
+            return;
+        }
+        Platform.runLater(this::installVirtualScrollPane);
+    }
+
+    private void installVirtualScrollPane() {
+        if (!virtualizedActive || getScene() == null) {
+            detachVirtualScrollPane();
+            return;
+        }
+        ScrollPane scrollPane = findAncestorScrollPane();
+        if (scrollPane == virtualScrollPane) {
+            return;
+        }
+        detachVirtualScrollPane();
+        virtualScrollPane = scrollPane;
+        if (virtualScrollPane != null) {
+            virtualScrollPane.vvalueProperty().addListener(virtualScrollValueListener);
+            virtualScrollPane.viewportBoundsProperty().addListener(virtualViewportBoundsListener);
+        }
+        scheduleVirtualWindowUpdate();
+    }
+
+    private void detachVirtualScrollPane() {
+        if (virtualScrollPane == null) {
+            return;
+        }
+        virtualScrollPane.vvalueProperty().removeListener(virtualScrollValueListener);
+        virtualScrollPane.viewportBoundsProperty().removeListener(virtualViewportBoundsListener);
+        virtualScrollPane = null;
+    }
+
+    private void scheduleVirtualWindowUpdate() {
+        if (!virtualizedActive || virtualWindowUpdateQueued) {
+            return;
+        }
+        virtualWindowUpdateQueued = true;
+        Platform.runLater(() -> {
+            virtualWindowUpdateQueued = false;
+            updateVirtualWindow();
+        });
+    }
+
+    private void updateVirtualWindow() {
+        if (!virtualizedActive) {
+            return;
+        }
+        if (!shouldUseVirtualization()) {
+            rebuildCards();
+            return;
+        }
+        updateVirtualContentHeight();
+        int totalRows = virtualRowCount();
+        if (items.isEmpty() || totalRows <= 0) {
+            renderVirtualWindow(0, 0, 0);
+            return;
+        }
+        double viewportHeight = virtualViewportHeight();
+        double scrollTop = virtualScrollTop(viewportHeight);
+        Insets padding = cardPane.getPadding();
+        double rowStride = virtualRowStride();
+        double rowAreaTop = Math.max(0, scrollTop - padding.getTop());
+        int firstVisibleRow = rowStride <= 0 ? 0 : (int) Math.floor(rowAreaTop / rowStride);
+        int visibleRows = Math.max(1, (int) Math.ceil(viewportHeight / Math.max(1, rowStride)) + 1);
+        int firstRow = Math.max(0, firstVisibleRow - virtualRowBuffer);
+        int lastRow = Math.min(totalRows, firstVisibleRow + visibleRows + virtualRowBuffer);
+        int firstIndex = Math.max(0, firstRow * Math.max(1, columnCount));
+        int lastIndex = Math.min(items.size(), lastRow * Math.max(1, columnCount));
+        renderVirtualWindow(firstIndex, lastIndex, firstRow * rowStride);
+    }
+
+    private void renderVirtualWindow(int firstIndex, int lastIndex, double translateY) {
+        int safeFirst = Math.max(0, Math.min(firstIndex, items.size()));
+        int safeLast = Math.max(safeFirst, Math.min(lastIndex, items.size()));
+        if (safeFirst == firstRenderedIndex
+                && safeLast == lastRenderedExclusive
+                && Math.abs(renderedCardWidth - computedCardWidth) < 0.5
+                && Math.abs(renderedTranslateY - translateY) < 0.5) {
+            return;
+        }
+        cardsByItem.clear();
+        cardPane.getChildren().clear();
+        for (int index = safeFirst; index < safeLast; index++) {
+            T item = items.get(index);
+            Region card = cardFactory.apply(item);
+            configureCard(item, card);
+            applyComputedCardWidth(card);
+            cardsByItem.put(item, card);
+            cardPane.getChildren().add(card);
+        }
+        firstRenderedIndex = safeFirst;
+        lastRenderedExclusive = safeLast;
+        renderedCardWidth = computedCardWidth;
+        renderedTranslateY = translateY;
+        cardPane.setTranslateY(translateY);
+        updateSelectionStyles();
+        scheduleVirtualCardHeightMeasurement();
+    }
+
+    private void scheduleVirtualCardHeightMeasurement() {
+        if (!virtualizedActive || cardsByItem.isEmpty()) {
+            return;
+        }
+        Platform.runLater(this::measureRenderedVirtualCardHeight);
+    }
+
+    private void measureRenderedVirtualCardHeight() {
+        if (!virtualizedActive || cardsByItem.isEmpty()) {
+            return;
+        }
+        double maxHeight = 0;
+        for (Region card : cardsByItem.values()) {
+            double height = card.getLayoutBounds().getHeight();
+            if (height <= 0) {
+                height = card.prefHeight(computedCardWidth);
+            }
+            maxHeight = Math.max(maxHeight, height);
+        }
+        double measured = Math.max(cardMinHeight, Math.ceil(maxHeight));
+        if (measured <= 0 || measured <= measuredVirtualCardHeight + 1) {
+            return;
+        }
+        measuredVirtualCardHeight = measured;
+        updateVirtualContentHeight();
+        firstRenderedIndex = -1;
+        scheduleVirtualWindowUpdate();
+    }
+
+    private void updateVirtualContentHeight() {
+        if (!virtualizedActive) {
+            return;
+        }
+        Insets padding = cardPane.getPadding();
+        int rows = virtualRowCount();
+        double cardHeight = virtualCardHeight();
+        double height = padding.getTop() + padding.getBottom();
+        if (rows > 0) {
+            height += (rows * cardHeight) + (Math.max(0, rows - 1) * verticalGap);
+        }
+        virtualContentHeight = Math.max(height, 0);
+        setMinHeight(virtualContentHeight);
+        setPrefHeight(virtualContentHeight);
+    }
+
+    private int virtualRowCount() {
+        int columns = Math.max(1, columnCount);
+        return items.isEmpty() ? 0 : (int) Math.ceil((double) items.size() / columns);
+    }
+
+    private double virtualCardHeight() {
+        return Math.max(MIN_VIRTUAL_CARD_HEIGHT, Math.max(cardMinHeight, measuredVirtualCardHeight));
+    }
+
+    private double virtualRowStride() {
+        return virtualCardHeight() + verticalGap;
+    }
+
+    private double virtualViewportHeight() {
+        ScrollPane scrollPane = virtualScrollPane == null ? findAncestorScrollPane() : virtualScrollPane;
+        if (scrollPane != null && scrollPane.getViewportBounds().getHeight() > 0) {
+            return scrollPane.getViewportBounds().getHeight();
+        }
+        if (getHeight() > 0) {
+            return getHeight();
+        }
+        return DEFAULT_VIRTUAL_VIEWPORT_HEIGHT;
+    }
+
+    private double virtualScrollTop(double viewportHeight) {
+        ScrollPane scrollPane = virtualScrollPane == null ? findAncestorScrollPane() : virtualScrollPane;
+        if (scrollPane == null) {
+            return 0;
+        }
+        double scrollableHeight = Math.max(0, virtualContentHeight - viewportHeight);
+        return clamp(scrollPane.getVvalue(), 0, 1) * scrollableHeight;
+    }
+
+    private void scrollItemIndexIntoEstimatedView(int itemIndex) {
+        if (!virtualizedActive || itemIndex < 0 || itemIndex >= items.size()) {
+            return;
+        }
+        updateVirtualContentHeight();
+        ScrollPane scrollPane = virtualScrollPane == null ? findAncestorScrollPane() : virtualScrollPane;
+        if (scrollPane == null) {
+            int row = itemIndex / Math.max(1, columnCount);
+            int firstRow = Math.max(0, row - virtualRowBuffer);
+            int visibleRows = Math.max(1, (int) Math.ceil(DEFAULT_VIRTUAL_VIEWPORT_HEIGHT / Math.max(1, virtualRowStride())));
+            renderVirtualWindow(
+                    firstRow * Math.max(1, columnCount),
+                    Math.min(items.size(), (firstRow + visibleRows + virtualRowBuffer) * Math.max(1, columnCount)),
+                    firstRow * virtualRowStride());
+            return;
+        }
+        double viewportHeight = virtualViewportHeight();
+        double scrollableHeight = Math.max(0, virtualContentHeight - viewportHeight);
+        if (scrollableHeight <= 0) {
+            return;
+        }
+        Insets padding = cardPane.getPadding();
+        int row = itemIndex / Math.max(1, columnCount);
+        double itemTop = padding.getTop() + (row * virtualRowStride());
+        double itemBottom = itemTop + virtualCardHeight();
+        double currentTop = clamp(scrollPane.getVvalue(), 0, 1) * scrollableHeight;
+        double currentBottom = currentTop + viewportHeight;
+        double nextTop = currentTop;
+        if (itemTop < currentTop) {
+            nextTop = Math.max(0, itemTop - verticalGap);
+        } else if (itemBottom > currentBottom) {
+            nextTop = Math.min(scrollableHeight, itemBottom - viewportHeight + verticalGap);
+        }
+        scrollPane.setVvalue(clamp(nextTop / scrollableHeight, 0, 1));
+    }
+
+    private double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private void configureCard(T item, Region card) {
@@ -760,17 +1065,23 @@ public class ResponsiveCardGrid<T> extends StackPane {
         Insets padding = cardPane.getPadding();
         available = Math.max(0, available - padding.getLeft() - padding.getRight() - 2);
         if (available <= 0) {
+            if (virtualizedActive) {
+                updateVirtualContentHeight();
+                scheduleVirtualWindowUpdate();
+            }
             return;
         }
 
+        int previousColumnCount = columnCount;
+        double previousCardWidth = computedCardWidth;
         if (singleColumn) {
             columnCount = 1;
+            computedCardWidth = available;
             cardPane.setPrefWrapLength(available);
             for (Region card : cardsByItem.values()) {
-                card.setMinWidth(available);
-                card.setPrefWidth(available);
-                card.setMaxWidth(available);
+                applyComputedCardWidth(card);
             }
+            updateVirtualLayoutAfterWidthChange(previousColumnCount, previousCardWidth);
             return;
         }
 
@@ -781,12 +1092,32 @@ public class ResponsiveCardGrid<T> extends StackPane {
             cardWidth = calculateCardWidth(available, columns);
         }
         columnCount = Math.max(1, columns);
+        computedCardWidth = cardWidth;
         cardPane.setPrefWrapLength(available);
         for (Region card : cardsByItem.values()) {
-            card.setMinWidth(cardWidth);
-            card.setPrefWidth(cardWidth);
-            card.setMaxWidth(cardWidth);
+            applyComputedCardWidth(card);
         }
+        updateVirtualLayoutAfterWidthChange(previousColumnCount, previousCardWidth);
+    }
+
+    private void applyComputedCardWidth(Region card) {
+        if (card == null) {
+            return;
+        }
+        card.setMinWidth(computedCardWidth);
+        card.setPrefWidth(computedCardWidth);
+        card.setMaxWidth(computedCardWidth);
+    }
+
+    private void updateVirtualLayoutAfterWidthChange(int previousColumnCount, double previousCardWidth) {
+        if (!virtualizedActive) {
+            return;
+        }
+        updateVirtualContentHeight();
+        if (previousColumnCount != columnCount || Math.abs(previousCardWidth - computedCardWidth) >= 0.5) {
+            firstRenderedIndex = -1;
+        }
+        scheduleVirtualWindowUpdate();
     }
 
     private void focusItem(T item) {
@@ -803,6 +1134,11 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     private void requestFocusForItem(T item, boolean preserveSelection) {
+        if (virtualizedActive) {
+            int itemIndex = items.indexOf(item);
+            scrollItemIndexIntoEstimatedView(itemIndex);
+            updateVirtualWindow();
+        }
         Region card = cardsByItem.get(item);
         if (card != null) {
             boolean previousSuppressFocusSelection = suppressFocusSelection;
@@ -812,6 +1148,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
             } finally {
                 suppressFocusSelection = previousSuppressFocusSelection;
             }
+        } else {
+            requestGridFocus();
         }
     }
 

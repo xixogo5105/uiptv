@@ -626,10 +626,11 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         return category;
     }
 
-    private static VBox categoryCardList(CategoryListUI ui) throws Exception {
-        Field field = CategoryListUI.class.getDeclaredField("categoryCardList");
+    private static FlowPane categoryCardList(CategoryListUI ui) throws Exception {
+        Field field = CategoryListUI.class.getDeclaredField("categoryCardGrid");
         field.setAccessible(true);
-        return (VBox) field.get(ui);
+        ResponsiveCardGrid<?> grid = (ResponsiveCardGrid<?>) field.get(ui);
+        return (FlowPane) grid.getChildren().getFirst();
     }
 
     private static Node currentContent(AccountListUI ui) throws Exception {

@@ -5,9 +5,11 @@ import com.uiptv.model.Category;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.widget.InlinePanelService;
+import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.AfterEach;
@@ -174,9 +176,10 @@ class AccountListUIInlinePanelTest extends DbBackedUiTest {
     }
 
     private static int categoryCardCount(CategoryListUI categoryListUI) throws Exception {
-        Field field = CategoryListUI.class.getDeclaredField("categoryCardList");
+        Field field = CategoryListUI.class.getDeclaredField("categoryCardGrid");
         field.setAccessible(true);
-        return ((VBox) field.get(categoryListUI)).getChildren().size();
+        ResponsiveCardGrid<?> grid = (ResponsiveCardGrid<?>) field.get(categoryListUI);
+        return ((FlowPane) grid.getChildren().getFirst()).getChildren().size();
     }
 
     private static Category category(String id, String title) {

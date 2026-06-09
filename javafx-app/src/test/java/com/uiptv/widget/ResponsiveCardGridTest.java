@@ -518,6 +518,49 @@ class ResponsiveCardGridTest {
         assertTrue(runOnFxThread(scrollPane::getVvalue) > 0.0);
     }
 
+    @Test
+    void largeItemSetRendersOnlyVisibleCardWindowAndNavigatesToFarItems() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> {
+                Label label = new Label(item);
+                label.setMinHeight(40);
+                label.setPrefHeight(40);
+                return label;
+            });
+            ObservableList<String> manyItems = FXCollections.observableArrayList();
+            for (int index = 0; index < 10_000; index++) {
+                manyItems.add("item-" + index);
+            }
+            cardGrid.setVirtualizationThreshold(50);
+            cardGrid.setItems(manyItems);
+            cardGrid.setSingleColumn(true);
+            cardGrid.setGaps(0, 4);
+
+            ScrollPane scrollPane = new ScrollPane(cardGrid);
+            scrollPane.setFitToWidth(true);
+            scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            StackPane root = new StackPane(scrollPane);
+            new Scene(root, 320, 240);
+            root.resize(320, 240);
+            root.applyCss();
+            root.layout();
+            return cardGrid;
+        });
+
+        assertTrue(runOnFxThread(() -> cardPane(grid).getChildren().size()) < 250);
+        assertTrue(runOnFxThread(() -> renderedLabelTexts(grid).contains("item-0")));
+
+        runOnFxThread(() -> {
+            Event.fireEvent(grid, keyPressed(KeyCode.END));
+            return null;
+        });
+
+        assertEquals("item-9999", runOnFxThread(grid::getFocusedItem));
+        assertEquals(List.of("item-9999"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())));
+        assertTrue(runOnFxThread(() -> cardPane(grid).getChildren().size()) < 250);
+        assertTrue(runOnFxThread(() -> renderedLabelTexts(grid).contains("item-9999")));
+    }
+
     private static ResponsiveCardGrid<String> newGrid() {
         ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(Label::new);
         grid.setItems(FXCollections.observableArrayList("one", "two", "three"));
@@ -530,6 +573,14 @@ class ResponsiveCardGridTest {
 
     private static Region cardAt(ResponsiveCardGrid<?> grid, int index) {
         return (Region) cardPane(grid).getChildren().get(index);
+    }
+
+    private static List<String> renderedLabelTexts(ResponsiveCardGrid<?> grid) {
+        return cardPane(grid).getChildren().stream()
+                .filter(Label.class::isInstance)
+                .map(Label.class::cast)
+                .map(Label::getText)
+                .toList();
     }
 
     private static KeyEvent keyPressed(KeyCode keyCode) {

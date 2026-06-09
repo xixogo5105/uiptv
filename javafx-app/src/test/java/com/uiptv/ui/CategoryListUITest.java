@@ -5,20 +5,22 @@ import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Category;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
+import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.scene.Node;
+import javafx.scene.control.Label;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.PickResult;
-import javafx.scene.control.Label;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,7 +49,7 @@ class CategoryListUITest extends DbBackedUiTest {
             ChannelListUI channelListUI = new ChannelListUI(account, "ENGLISH UK", "uk", Account.AccountAction.itv);
             try {
                 showDetailView(ui, channelListUI, "ENGLISH UK");
-                return categoryCardList(ui).getChildren().size();
+                return categoryCardPane(ui).getChildren().size();
             } finally {
                 channelListUI.dispose();
             }
@@ -128,6 +130,24 @@ class CategoryListUITest extends DbBackedUiTest {
         assertTrue(detailPaneVisible);
     }
 
+    @Test
+    void largeCategoryListRendersOnlyVisibleCardWindow() throws Exception {
+        int renderedCards = runOnFxThread(() -> {
+            Account account = new Account();
+            account.setAccountName("Account");
+            account.setAction(Account.AccountAction.itv);
+            CategoryListUI ui = new CategoryListUI(account);
+            List<Category> categories = new java.util.ArrayList<>();
+            for (int index = 0; index < 10_000; index++) {
+                categories.add(category("category-" + index, "Category " + index));
+            }
+            ui.setItems(categories);
+            return categoryCardPane(ui).getChildren().size();
+        });
+
+        assertTrue(renderedCards < 250);
+    }
+
     private static Category category(String id, String title) {
         Category category = new Category();
         category.setDbId(id);
@@ -160,10 +180,11 @@ class CategoryListUITest extends DbBackedUiTest {
         return (VBox) field.get(ui);
     }
 
-    private static VBox categoryCardList(CategoryListUI ui) throws Exception {
-        Field field = CategoryListUI.class.getDeclaredField("categoryCardList");
+    private static FlowPane categoryCardPane(CategoryListUI ui) throws Exception {
+        Field field = CategoryListUI.class.getDeclaredField("categoryCardGrid");
         field.setAccessible(true);
-        return (VBox) field.get(ui);
+        ResponsiveCardGrid<?> grid = (ResponsiveCardGrid<?>) field.get(ui);
+        return (FlowPane) grid.getChildren().getFirst();
     }
 
     @SuppressWarnings("unchecked")
@@ -174,7 +195,7 @@ class CategoryListUITest extends DbBackedUiTest {
     }
 
     private static Node firstCategoryCard(CategoryListUI ui) throws Exception {
-        return categoryCardList(ui).getChildren().stream()
+        return categoryCardPane(ui).getChildren().stream()
                 .filter(node -> node.getStyleClass().contains("account-category-card"))
                 .findFirst()
                 .orElseThrow();

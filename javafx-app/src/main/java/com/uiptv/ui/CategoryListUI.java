@@ -13,21 +13,21 @@ import com.uiptv.util.I18n;
 import com.uiptv.widget.CloseIconButton;
 import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.PillBar;
+import com.uiptv.widget.ResponsiveCardGrid;
 import com.uiptv.widget.SearchableTableView;
 import com.uiptv.widget.ThemedDialogSupport;
 import com.uiptv.widget.UIptvAlert;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
-import javafx.geometry.Bounds;
+import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.*;
-import javafx.geometry.Pos;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
-import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -57,8 +57,6 @@ import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 public class CategoryListUI extends HBox implements SearchTarget {
     private static final String ALL_CATEGORY_SENTINEL = "all";
     private static final String PARENTAL_LOCK_LOG_PREFIX = "[ParentalLock] ";
-    private static final double CATEGORY_SCROLL_VISIBILITY_TOLERANCE = 4.0;
-    private static final double CATEGORY_SCROLL_VALUE_TOLERANCE = 0.001;
     private static final String LOG_ACCOUNT_START = "account=";
     private static final String LOG_ACCOUNT = " account=";
     private static final String LOG_TYPE = " type=";
@@ -81,8 +79,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private final Button accountsBackButton = new Button(I18n.tr("autoBack"));
     private final PillBar<String> modePillBar = new PillBar<>(this::modePillLabel, mode -> mode);
     private final Label categoryHeading = new Label();
-    private final VBox categoryCardList = new VBox(6);
-    private final ScrollPane categoryScrollPane = new ScrollPane(categoryCardList);
+    private final ResponsiveCardGrid<CategoryItem> categoryCardGrid = new ResponsiveCardGrid<>(this::createCategoryCard);
+    private final ScrollPane categoryScrollPane = new ScrollPane(categoryCardGrid);
     private final ObservableList<CategoryItem> categoryItems = FXCollections.observableArrayList();
     private final List<CategoryItem> selectedCategoryItems = new ArrayList<>();
     private final EnumMap<Account.AccountAction, ModeState> modeStates = new EnumMap<>(Account.AccountAction.class);
@@ -236,10 +234,34 @@ public class CategoryListUI extends HBox implements SearchTarget {
         categoryHeading.getStyleClass().add("account-category-heading");
         categoryHeading.setMinWidth(0);
         categoryHeading.setMaxWidth(Double.MAX_VALUE);
-        categoryCardList.getStyleClass().add("account-category-card-list");
-        categoryCardList.setFillWidth(true);
-        categoryCardList.setMinWidth(0);
-        categoryCardList.setMaxWidth(Double.MAX_VALUE);
+        categoryCardGrid.getStyleClass().add("account-category-card-list");
+        categoryCardGrid.setSingleColumn(true);
+        categoryCardGrid.setCardMinHeight(44);
+        categoryCardGrid.setCardWidthRange(180, 960);
+        categoryCardGrid.setGaps(0, 6);
+        categoryCardGrid.setActivateOnSingleClick(true);
+        categoryCardGrid.setOnItemActivated(this::doRetrieveChannels);
+        categoryCardGrid.setContextMenuFactory((item, selectedItems, owner) -> {
+            selectedCategoryItems.clear();
+            selectedCategoryItems.addAll(selectedItems);
+            focusedCategoryItem = item;
+            ContextMenu contextMenu = createCategoryContextMenu(item);
+            MenuItem removeSelected = contextMenu.getItems().isEmpty() ? null : contextMenu.getItems().getFirst();
+            if (removeSelected != null) {
+                removeSelected.setDisable(selectedRemovableCategoryItems().isEmpty());
+            }
+            return contextMenu;
+        });
+        categoryCardGrid.getSelectedItems().addListener((ListChangeListener<CategoryItem>) _ -> syncCategorySelectionFromGrid());
+        categoryCardGrid.addEventHandler(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                doRetrieveChannels(resolveFocusedCategoryItem());
+                event.consume();
+            } else if (event.getCode() == KeyCode.DELETE) {
+                removeSelectedCachedCategories();
+                event.consume();
+            }
+        });
         categoryScrollPane.getStyleClass().addAll("account-category-scroll", "transparent-scroll-pane");
         categoryScrollPane.setFitToWidth(true);
         categoryScrollPane.setPannable(true);
@@ -249,7 +271,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
         categoryScrollPane.setMinSize(0, 0);
         categoryScrollPane.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         VBox.setVgrow(categoryScrollPane, Priority.ALWAYS);
-        categoryScrollPane.addEventFilter(KeyEvent.KEY_PRESSED, this::handleCategoryNavigationKeyPressed);
         categoryScrollPane.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
                 doRetrieveChannels(resolveFocusedCategoryItem());
@@ -258,116 +279,15 @@ public class CategoryListUI extends HBox implements SearchTarget {
                 removeSelectedCachedCategories();
                 event.consume();
             } else if (event.getCode() == KeyCode.A && event.isShortcutDown()) {
-                selectedCategoryItems.clear();
-                selectedCategoryItems.addAll(categoryItems);
-                focusedCategoryItem = categoryItems.isEmpty() ? null : categoryItems.getLast();
-                updateCategorySelectionStyles();
+                categoryCardGrid.selectItems(filteredCategoryItems());
+                syncCategorySelectionFromGrid();
                 event.consume();
             }
         });
         showCategoryPlaceholder(I18n.tr("autoLoadingCategories"));
     }
 
-    private void handleCategoryNavigationKeyPressed(KeyEvent event) {
-        if (event == null || categoryItems.isEmpty()) {
-            return;
-        }
-        List<CategoryItem> visibleItems = filteredCategoryItems();
-        if (visibleItems.isEmpty()) {
-            return;
-        }
-        int currentIndex = currentCategoryNavigationIndex(visibleItems);
-        int targetIndex = switch (event.getCode()) {
-            case UP, LEFT -> currentIndex < 0 ? 0 : Math.max(0, currentIndex - 1);
-            case DOWN, RIGHT -> currentIndex < 0 ? 0 : Math.min(visibleItems.size() - 1, currentIndex + 1);
-            case HOME -> 0;
-            case END -> visibleItems.size() - 1;
-            default -> -1;
-        };
-        if (targetIndex < 0) {
-            return;
-        }
-        focusCategoryItem(visibleItems.get(targetIndex));
-        event.consume();
-    }
-
-    private int currentCategoryNavigationIndex(List<CategoryItem> visibleItems) {
-        if (visibleItems == null || visibleItems.isEmpty()) {
-            return -1;
-        }
-        if (focusedCategoryItem != null) {
-            int focusedIndex = visibleItems.indexOf(focusedCategoryItem);
-            if (focusedIndex >= 0) {
-                return focusedIndex;
-            }
-        }
-        if (!selectedCategoryItems.isEmpty()) {
-            int selectedIndex = visibleItems.indexOf(selectedCategoryItems.getLast());
-            if (selectedIndex >= 0) {
-                return selectedIndex;
-            }
-        }
-        return -1;
-    }
-
-    private void focusCategoryItem(CategoryItem item) {
-        if (item == null) {
-            return;
-        }
-        selectCategoryItem(item, false);
-        Region card = findCategoryCard(item);
-        if (card == null) {
-            return;
-        }
-        card.requestFocus();
-        Platform.runLater(() -> scrollCategoryCardIntoView(card));
-    }
-
-    private Region findCategoryCard(CategoryItem item) {
-        for (Node child : categoryCardList.getChildren()) {
-            if (child instanceof Region region && Objects.equals(region.getUserData(), item)) {
-                return region;
-            }
-        }
-        return null;
-    }
-
-    private void scrollCategoryCardIntoView(Node card) {
-        if (card == null || card.getScene() == null || categoryScrollPane.getScene() == null
-                || categoryScrollPane.getContent() == null) {
-            return;
-        }
-        double viewportHeight = categoryScrollPane.getViewportBounds().getHeight();
-        double contentHeight = categoryScrollPane.getContent().getLayoutBounds().getHeight();
-        if (viewportHeight <= 0 || contentHeight <= viewportHeight) {
-            return;
-        }
-        Bounds cardBounds = card.localToScene(card.getBoundsInLocal());
-        Bounds viewportBounds = categoryScrollPane.localToScene(categoryScrollPane.getViewportBounds());
-        double cardTop = cardBounds.getMinY();
-        double cardBottom = cardBounds.getMaxY();
-        double viewportTop = viewportBounds.getMinY();
-        double viewportBottom = viewportBounds.getMaxY();
-        if (cardTop >= viewportTop - CATEGORY_SCROLL_VISIBILITY_TOLERANCE
-                && cardBottom <= viewportBottom + CATEGORY_SCROLL_VISIBILITY_TOLERANCE) {
-            return;
-        }
-        double scrollableHeight = contentHeight - viewportHeight;
-        double currentPixels = categoryScrollPane.getVvalue() * scrollableHeight;
-        double nextPixels = currentPixels;
-        if (cardTop < viewportTop) {
-            nextPixels -= viewportTop - cardTop + categoryCardList.getSpacing();
-        } else if (cardBottom > viewportBottom) {
-            nextPixels += cardBottom - viewportBottom + categoryCardList.getSpacing();
-        }
-        double nextValue = Math.max(0, Math.min(1, nextPixels / scrollableHeight));
-        if (Math.abs(nextValue - categoryScrollPane.getVvalue()) >= CATEGORY_SCROLL_VALUE_TOLERANCE) {
-            categoryScrollPane.setVvalue(nextValue);
-        }
-    }
-
     private void rebuildCategoryCards() {
-        categoryCardList.getChildren().clear();
         if (categoryItems.isEmpty()) {
             showCategoryPlaceholder(categoryDataLoaded
                     ? I18n.tr("autoNothingFoundFor", I18n.tr("autoCategories"))
@@ -382,9 +302,15 @@ public class CategoryListUI extends HBox implements SearchTarget {
             showCategoryPlaceholder(I18n.tr("autoNothingFoundFor", target));
             return;
         }
-        for (CategoryItem item : visibleItems) {
-            categoryCardList.getChildren().add(createCategoryCard(item));
-        }
+        List<CategoryItem> selectedBeforeRefresh = selectedCategoryItems.stream()
+                .filter(visibleItems::contains)
+                .toList();
+        CategoryItem focusedBeforeRefresh = visibleItems.contains(focusedCategoryItem) ? focusedCategoryItem : null;
+        categoryCardGrid.setPlaceholderNode(null);
+        categoryCardGrid.setItems(FXCollections.observableArrayList(visibleItems));
+        selectedCategoryItems.clear();
+        selectedCategoryItems.addAll(selectedBeforeRefresh);
+        focusedCategoryItem = focusedBeforeRefresh;
         updateCategorySelectionStyles();
     }
 
@@ -415,7 +341,9 @@ public class CategoryListUI extends HBox implements SearchTarget {
         placeholder.getStyleClass().add("account-category-placeholder");
         placeholder.setWrapText(true);
         placeholder.setMaxWidth(Double.MAX_VALUE);
-        categoryCardList.getChildren().setAll(placeholder);
+        categoryCardGrid.setPlaceholderNode(placeholder);
+        categoryCardGrid.setItems(FXCollections.observableArrayList());
+        categoryCardGrid.clearSelection();
     }
 
     private HBox createCategoryCard(CategoryItem item) {
@@ -439,43 +367,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
             lockBadge.getStyleClass().add("account-category-lock-badge");
             card.getChildren().add(lockBadge);
         }
-
-        ContextMenu contextMenu = createCategoryContextMenu(item);
-        card.setOnContextMenuRequested(event -> {
-            selectCategoryItem(item, false);
-            MenuItem removeSelected = (MenuItem) contextMenu.getItems().getFirst();
-            removeSelected.setDisable(selectedRemovableCategoryItems().isEmpty());
-            contextMenu.show(card, event.getScreenX(), event.getScreenY());
-            event.consume();
-        });
-        card.setOnMouseClicked(event -> {
-            if (event.getButton() != MouseButton.PRIMARY) {
-                return;
-            }
-            boolean toggleSelection = event.isShortcutDown() || event.isControlDown() || event.isMetaDown();
-            selectCategoryItem(item, toggleSelection);
-            if (!toggleSelection && event.getClickCount() == 1) {
-                doRetrieveChannels(item);
-            }
-            event.consume();
-        });
-        card.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.ENTER) {
-                doRetrieveChannels(item);
-                event.consume();
-            } else if (event.getCode() == KeyCode.DELETE) {
-                removeSelectedCachedCategories();
-                event.consume();
-            }
-        });
-        card.focusedProperty().addListener((_, _, focused) -> {
-            if (Boolean.TRUE.equals(focused)) {
-                focusedCategoryItem = item;
-                if (!selectedCategoryItems.contains(item)) {
-                    selectCategoryItem(item, false);
-                }
-            }
-        });
         return card;
     }
 
@@ -505,6 +396,12 @@ public class CategoryListUI extends HBox implements SearchTarget {
         updateCategorySelectionStyles();
     }
 
+    private void syncCategorySelectionFromGrid() {
+        selectedCategoryItems.clear();
+        selectedCategoryItems.addAll(categoryCardGrid.getSelectedItems());
+        focusedCategoryItem = categoryCardGrid.getFocusedItem();
+    }
+
     private CategoryItem resolveFocusedCategoryItem() {
         if (focusedCategoryItem != null && categoryItems.contains(focusedCategoryItem)) {
             return focusedCategoryItem;
@@ -517,16 +414,13 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private void updateCategorySelectionStyles() {
-        for (javafx.scene.Node child : categoryCardList.getChildren()) {
-            if (!(child instanceof Region region)) {
-                continue;
-            }
-            boolean selected = selectedCategoryItems.contains(region.getUserData());
-            if (selected && !region.getStyleClass().contains("selected-card")) {
-                region.getStyleClass().add("selected-card");
-            } else if (!selected) {
-                region.getStyleClass().remove("selected-card");
-            }
+        List<CategoryItem> selectedVisibleItems = selectedCategoryItems.stream()
+                .filter(categoryCardGrid.getItems()::contains)
+                .toList();
+        if (selectedVisibleItems.isEmpty()) {
+            categoryCardGrid.clearSelection();
+        } else {
+            categoryCardGrid.selectItems(selectedVisibleItems);
         }
     }
 
@@ -691,7 +585,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
         selectedCategoryItems.clear();
         focusedCategoryItem = null;
         categoryDataLoaded = false;
-        categoryCardList.getChildren().clear();
+        categoryCardGrid.setItems(FXCollections.observableArrayList());
+        categoryCardGrid.clearSelection();
     }
 
     public void dispose() {
