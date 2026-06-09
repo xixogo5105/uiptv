@@ -3863,9 +3863,17 @@
     -fx-border-color: -uiptv-accent;
 }
 
-.reload-account-list,
 .reload-log-list {
     -fx-spacing: 8;
+}
+
+.reload-account-list {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-spacing: 0;
 }
 
 .reload-select-chip-row {
@@ -3898,12 +3906,12 @@
 }
 
 .reload-account-row {
-    -fx-background-color: -uiptv-surface;
+    -fx-background-color: transparent;
     -fx-border-color: -uiptv-border-subtle;
-    -fx-border-width: 1;
-    -fx-background-radius: 16;
-    -fx-border-radius: 16;
-    -fx-padding: 10 12 10 12;
+    -fx-border-width: 0 0 1 0;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-padding: 7 10 7 10;
     -fx-font-weight: bold;
     -fx-text-fill: -uiptv-text-primary;
 }
@@ -3914,12 +3922,12 @@
 
 .reload-account-row:hover,
 .reload-account-row:selected {
-    -fx-border-color: -uiptv-accent;
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-border-subtle;
 }
 
 .reload-account-row:selected {
     -fx-background-color: #eef3ff;
-    -fx-border-color: -uiptv-selected-card-border;
     -fx-text-fill: -uiptv-text-primary;
 }
 

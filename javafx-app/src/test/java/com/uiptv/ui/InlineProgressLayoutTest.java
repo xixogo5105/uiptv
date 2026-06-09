@@ -11,6 +11,7 @@ import com.uiptv.widget.SegmentedProgressBar;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
@@ -87,6 +88,63 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
 
         assertTrue(findDescendantByStyle(inline, Region.class, "reload-failure-policy-card") != null);
         assertFalse(inline.shouldPromptAutomaticGlobalFailureDecision(List.of(first, second)));
+    }
+
+    @Test
+    void manualReloadHidesQueueUntilStartThenRestoresFailureActionOnCompletion() throws Exception {
+        ReloadCacheInline inline = runOnFxThread(() -> new ReloadCacheInline(List.of()));
+
+        ReloadStartVisibilitySnapshot initial = runOnFxThread(() -> reloadStartVisibilitySnapshot(inline));
+
+        assertTrue(initial.hasProgressCard());
+        assertFalse(initial.progressVisible());
+        assertFalse(initial.progressManaged());
+        assertTrue(initial.hasFailureCard());
+        assertTrue(initial.failureVisible());
+        assertTrue(initial.failureManaged());
+
+        ReloadStartVisibilitySnapshot started = runOnFxThread(() -> {
+            var method = ReloadCacheInline.class.getDeclaredMethod("showReloadStartedState");
+            method.setAccessible(true);
+            method.invoke(inline);
+            return reloadStartVisibilitySnapshot(inline);
+        });
+
+        assertTrue(started.progressVisible());
+        assertTrue(started.progressManaged());
+        assertFalse(started.failureVisible());
+        assertFalse(started.failureManaged());
+
+        ReloadStartVisibilitySnapshot completed = runOnFxThread(() -> {
+            var method = ReloadCacheInline.class.getDeclaredMethod("showReloadCompletedState");
+            method.setAccessible(true);
+            method.invoke(inline);
+            return reloadStartVisibilitySnapshot(inline);
+        });
+
+        assertTrue(completed.progressVisible());
+        assertTrue(completed.progressManaged());
+        assertTrue(completed.failureVisible());
+        assertTrue(completed.failureManaged());
+    }
+
+    @Test
+    void manualReloadOmitsAccountColumnTitleAndUsesClearStartActionLabel() throws Exception {
+        ReloadActionLayoutSnapshot snapshot = runOnFxThread(() -> {
+            ReloadCacheInline inline = new ReloadCacheInline(List.of());
+            VBox accountColumn = findDescendantByStyle(inline, VBox.class, "reload-account-column");
+            boolean hasAccountTitle = accountColumn != null && accountColumn.getChildren().stream()
+                    .filter(Label.class::isInstance)
+                    .map(Label.class::cast)
+                    .anyMatch(label -> label.getStyleClass().contains("management-popup-section-title")
+                            && I18n.tr("autoAccount").equals(label.getText()));
+            boolean hasStartReloadButton = findDescendantsByType(inline, Button.class).stream()
+                    .anyMatch(button -> I18n.tr("autoStartCacheReload").equals(button.getText()));
+            return new ReloadActionLayoutSnapshot(hasAccountTitle, hasStartReloadButton);
+        });
+
+        assertFalse(snapshot.hasAccountTitle());
+        assertTrue(snapshot.hasStartReloadButton());
     }
 
     @Test
@@ -394,6 +452,19 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
         );
     }
 
+    private static ReloadStartVisibilitySnapshot reloadStartVisibilitySnapshot(ReloadCacheInline inline) {
+        VBox progressCard = findDescendantByStyle(inline, VBox.class, "reload-progress-card");
+        VBox failureCard = findDescendantByStyle(inline, VBox.class, "reload-failure-policy-card");
+        return new ReloadStartVisibilitySnapshot(
+                progressCard != null,
+                progressCard != null && progressCard.isVisible(),
+                progressCard != null && progressCard.isManaged(),
+                failureCard != null,
+                failureCard != null && failureCard.isVisible(),
+                failureCard != null && failureCard.isManaged()
+        );
+    }
+
     private static <T extends Node> T findDescendantByStyle(Node root, Class<T> type, String styleClass) {
         if (type.isInstance(root) && root.getStyleClass().contains(styleClass)) {
             return type.cast(root);
@@ -488,6 +559,22 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
             double labelMaxWidth,
             double progressBarMinWidth,
             double progressBarMaxWidth
+    ) {
+    }
+
+    private record ReloadStartVisibilitySnapshot(
+            boolean hasProgressCard,
+            boolean progressVisible,
+            boolean progressManaged,
+            boolean hasFailureCard,
+            boolean failureVisible,
+            boolean failureManaged
+    ) {
+    }
+
+    private record ReloadActionLayoutSnapshot(
+            boolean hasAccountTitle,
+            boolean hasStartReloadButton
     ) {
     }
 

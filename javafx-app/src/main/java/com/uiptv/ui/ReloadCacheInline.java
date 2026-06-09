@@ -133,7 +133,7 @@ public class ReloadCacheInline extends VBox {
     private final SegmentedProgressBar progressBar = new SegmentedProgressBar();
     private final Label progressSummaryLabel = new Label();
     private final ComboBox<AutomaticFailureDecisionOption> failureDecisionComboBox = new ComboBox<>();
-    private final ProminentButton reloadButton = new ProminentButton(I18n.tr("autoReloadSelected"));
+    private final ProminentButton reloadButton = new ProminentButton(I18n.tr("autoStartCacheReload"));
     private final Button stopButton = new Button(I18n.tr("autoStop"));
     private final CacheService cacheService = new CacheServiceImpl();
     private final AccountService accountService = AccountService.getInstance();
@@ -161,6 +161,8 @@ public class ReloadCacheInline extends VBox {
     private GridPane mainContent;
     private VBox accountColumn;
     private VBox logColumn;
+    private VBox progressCard;
+    private VBox failureHandlingCard;
     private ColumnConstraints accountsColumn;
     private ColumnConstraints logsColumn;
     private boolean accountSelectionHidden;
@@ -207,8 +209,10 @@ public class ReloadCacheInline extends VBox {
         populateAccountCheckboxes(supportedAccounts);
         FlowPane selectControls = buildSelectControls();
         configureScrollPanes();
-        VBox progressCard = buildProgressCard();
-        VBox failureHandlingCard = buildFailureHandlingCard();
+        progressCard = buildProgressCard();
+        failureHandlingCard = buildFailureHandlingCard();
+        setProgressCardVisible(false);
+        setFailureHandlingCardVisible(this.showFailureHandlingCard);
         GridPane mainContent = buildMainContent(selectControls);
         HBox buttonBox = buildButtonBox();
         getChildren().addAll(buildHeader(), progressCard);
@@ -283,6 +287,14 @@ public class ReloadCacheInline extends VBox {
         return progressCard;
     }
 
+    private void setProgressCardVisible(boolean visible) {
+        if (progressCard == null) {
+            return;
+        }
+        progressCard.setVisible(visible);
+        progressCard.setManaged(visible);
+    }
+
     private VBox buildFailureHandlingCard() {
         Label title = new Label(I18n.tr("reloadBulkFailureHandlingTitle"));
         title.getStyleClass().add("reload-failure-policy-title");
@@ -312,6 +324,14 @@ public class ReloadCacheInline extends VBox {
         card.setMinWidth(0);
         card.setMaxWidth(Double.MAX_VALUE);
         return card;
+    }
+
+    private void setFailureHandlingCardVisible(boolean visible) {
+        if (failureHandlingCard == null) {
+            return;
+        }
+        failureHandlingCard.setVisible(visible);
+        failureHandlingCard.setManaged(visible);
     }
 
     private void configureFailureDecisionComboBox() {
@@ -432,8 +452,7 @@ public class ReloadCacheInline extends VBox {
     }
 
     private GridPane buildMainContent(FlowPane selectControls) {
-        Label accountTitle = createColumnTitle(I18n.tr("autoAccount"));
-        accountColumn = new VBox(10, accountTitle, selectControls, accountsScrollPane);
+        accountColumn = new VBox(10, selectControls, accountsScrollPane);
         accountColumn.getStyleClass().addAll("management-popup-card", "reload-column-card", "reload-account-column");
         accountColumn.setFillWidth(true);
         accountColumn.setMinSize(0, 0);
@@ -758,11 +777,21 @@ public class ReloadCacheInline extends VBox {
         if (!reloadInProgress.compareAndSet(false, true)) {
             return;
         }
+        showReloadStartedState();
         automaticGlobalFailureDecision = selectedAutomaticDecision;
         Thread thread = new Thread(() -> reloadSelectedAccounts(selectedAccounts), "uiptv-cache-reload");
         thread.setDaemon(true);
         reloadThread.set(thread);
         thread.start();
+    }
+
+    private void showReloadStartedState() {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(this::showReloadStartedState);
+            return;
+        }
+        setProgressCardVisible(true);
+        setFailureHandlingCardVisible(false);
     }
 
     private GlobalFailureDecision resolveFailureDecisionBeforeStart(List<Account> selectedAccounts) {
@@ -980,10 +1009,15 @@ public class ReloadCacheInline extends VBox {
             if (disposed) {
                 return;
             }
-            reloadButton.setVisible(true);
-            stopButton.setVisible(false);
-            failureDecisionComboBox.setDisable(false);
+            showReloadCompletedState();
         });
+    }
+
+    private void showReloadCompletedState() {
+        reloadButton.setVisible(true);
+        stopButton.setVisible(false);
+        failureDecisionComboBox.setDisable(false);
+        setFailureHandlingCardVisible(showFailureHandlingCard);
     }
 
     private AccountReloadResult reloadSingleAccount(Account account) {
@@ -1096,9 +1130,7 @@ public class ReloadCacheInline extends VBox {
             }
             drainPendingLogLines();
             com.uiptv.util.AppLog.addInfoLog(ReloadCacheInline.class, "Reload run completed.");
-            reloadButton.setVisible(true);
-            stopButton.setVisible(false);
-            failureDecisionComboBox.setDisable(false);
+            showReloadCompletedState();
             latestAccountSummaries.clear();
             latestAccountSummaries.putAll(summaryStatusByAccountId);
             appendRunSummary(processedAccounts, finalStatuses, totalFetchedChannels);
