@@ -191,12 +191,8 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         } else {
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(shouldUseAccountMediaDrawerMode());
-            if (shouldUsePlayerAdjacentTopControlsLayout()) {
-                applyPlayerAdjacentTopControlsEmbeddedLayout();
-            } else {
-                restoreDockedTopControls();
-                applyStackedEmbeddedLayout();
-            }
+            restoreDockedTopControls();
+            applyCompactSideColumnEmbeddedLayout();
         }
         if (mainContent != null) {
             mainContent.requestLayout();
@@ -297,6 +293,38 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setHalignment(embeddedPlayer, HPos.LEFT);
+        GridPane.setValignment(embeddedPlayer, VPos.TOP);
+    }
+
+    private void applyCompactSideColumnEmbeddedLayout() {
+        applySideBySideEmbeddedArrangement();
+        setPlayerAdjacentControlsVisible(false);
+
+        activeTabPane.setMinWidth(0);
+        activeTabPane.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        activeTabPane.setMaxWidth(Double.MAX_VALUE);
+        activeTabPane.setMaxHeight(Double.MAX_VALUE);
+        activeTabPane.setMinHeight(0);
+        activeTabPane.setVisible(true);
+        activeTabPane.setManaged(true);
+
+        navigationShell.setMinWidth(0);
+        navigationShell.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        navigationShell.setMaxWidth(Double.MAX_VALUE);
+        navigationShell.setMinHeight(0);
+        navigationShell.setMaxHeight(Double.MAX_VALUE);
+        navigationShell.setVisible(true);
+        navigationShell.setManaged(true);
+        HBox.setHgrow(navigationShell, Priority.ALWAYS);
+        GridPane.setHgrow(navigationShell, Priority.ALWAYS);
+        GridPane.setVgrow(navigationShell, Priority.ALWAYS);
+
+        applyStackedEmbeddedPlayerSize();
+        configureCompactSideColumnResponsiveGrid();
+        HBox.setHgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setHalignment(embeddedPlayer, HPos.RIGHT);
         GridPane.setValignment(embeddedPlayer, VPos.TOP);
     }
 
@@ -534,6 +562,29 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         navigationRow.setFillHeight(true);
         responsiveContent.getColumnConstraints().setAll(contentColumn);
         responsiveContent.getRowConstraints().setAll(playerRow, navigationRow);
+    }
+
+    private void configureCompactSideColumnResponsiveGrid() {
+        if (responsiveContent == null) {
+            return;
+        }
+        double playerWidth = stackedEmbeddedPlayerWidth();
+        ColumnConstraints navigationColumn = new ColumnConstraints();
+        navigationColumn.setMinWidth(0);
+        navigationColumn.setHgrow(Priority.ALWAYS);
+        navigationColumn.setFillWidth(true);
+        ColumnConstraints playerColumn = new ColumnConstraints();
+        playerColumn.setMinWidth(playerWidth);
+        playerColumn.setPrefWidth(playerWidth);
+        playerColumn.setMaxWidth(playerWidth);
+        playerColumn.setHgrow(Priority.NEVER);
+        playerColumn.setFillWidth(true);
+        RowConstraints contentRow = new RowConstraints();
+        contentRow.setMinHeight(0);
+        contentRow.setVgrow(Priority.ALWAYS);
+        contentRow.setFillHeight(true);
+        responsiveContent.getColumnConstraints().setAll(navigationColumn, playerColumn);
+        responsiveContent.getRowConstraints().setAll(contentRow);
     }
 
     private void configurePlayerAdjacentTopControlsResponsiveGrid() {

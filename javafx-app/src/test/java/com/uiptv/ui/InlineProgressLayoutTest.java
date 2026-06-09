@@ -12,7 +12,9 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.BorderPane;
@@ -85,6 +87,50 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
 
         assertTrue(findDescendantByStyle(inline, Region.class, "reload-failure-policy-card") != null);
         assertFalse(inline.shouldPromptAutomaticGlobalFailureDecision(List.of(first, second)));
+    }
+
+    @Test
+    void globalFailurePromptUsesVerticalRadioOptionsAndSingleActionButton() throws Exception {
+        GlobalFailurePromptSnapshot snapshot = runOnFxThread(() -> {
+            ReloadCacheInline inline = new ReloadCacheInline(List.of());
+            var method = ReloadCacheInline.class.getDeclaredMethod(
+                    "buildGlobalFailurePrompt",
+                    Account.class,
+                    String.class,
+                    boolean.class
+            );
+            method.setAccessible(true);
+            Object prompt = method.invoke(
+                    inline,
+                    account("global-failure", "yoogold.fyi"),
+                    "Live TV get_all_channels failed for Stalker Portal.",
+                    true
+            );
+            var dialogAccessor = prompt.getClass().getDeclaredMethod("dialog");
+            dialogAccessor.setAccessible(true);
+            Dialog<?> dialog = (Dialog<?>) dialogAccessor.invoke(prompt);
+            List<RadioButton> options = findDescendantsByType(dialog.getDialogPane().getContent(), RadioButton.class);
+            return new GlobalFailurePromptSnapshot(
+                    dialog.getDialogPane().getPrefWidth(),
+                    dialog.getDialogPane().getButtonTypes().size(),
+                    dialog.getDialogPane().getButtonTypes().getFirst().getText(),
+                    options.stream().map(RadioButton::getText).toList(),
+                    options.stream().allMatch(option -> option.getStyleClass().contains("reload-global-failure-option")),
+                    !options.isEmpty() && options.getFirst().isSelected()
+            );
+        });
+
+        assertTrue(snapshot.dialogWidth() >= 700);
+        assertEquals(1, snapshot.actionButtonCount());
+        assertEquals("Apply Action", snapshot.actionButtonText());
+        assertEquals(List.of(
+                I18n.tr("reloadCarryOn"),
+                I18n.tr("reloadMarkBadIgnoreDomain"),
+                I18n.tr("reloadMarkBadAndNext"),
+                I18n.tr("reloadStopAll")
+        ), snapshot.options());
+        assertTrue(snapshot.allOptionsUseCompactStyle());
+        assertTrue(snapshot.firstOptionSelected());
     }
 
     @Test
@@ -483,6 +529,16 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
             Pos contentAlignment,
             double contentLeftPadding,
             boolean hasAccountTitle
+    ) {
+    }
+
+    private record GlobalFailurePromptSnapshot(
+            double dialogWidth,
+            int actionButtonCount,
+            String actionButtonText,
+            List<String> options,
+            boolean allOptionsUseCompactStyle,
+            boolean firstOptionSelected
     ) {
     }
 }

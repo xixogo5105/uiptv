@@ -84,6 +84,9 @@ public class ReloadCacheInline extends VBox {
     private static final int MAX_PENDING_LOG_LINES = Math.max(1, Integer.getInteger("uiptv.reload.logs.maxPending", 2_000));
     private static final double BULK_FAILURE_DIALOG_CONTENT_WIDTH = 520;
     private static final double BULK_FAILURE_DIALOG_CONTENT_INSET = 14;
+    private static final double GLOBAL_FAILURE_DIALOG_CONTENT_WIDTH = 640;
+    private static final double GLOBAL_FAILURE_DIALOG_PANE_WIDTH = 720;
+    private static final double GLOBAL_FAILURE_DIALOG_CONTENT_INSET = 10;
     private static final boolean POST_RELOAD_MEMORY_CLEANUP_ENABLED = Boolean.parseBoolean(
             System.getProperty("uiptv.reload.memoryCleanup.enabled", "true"));
     private static final int POST_RELOAD_MEMORY_CLEANUP_MIN_ACCOUNTS = Math.max(1,
@@ -2098,8 +2101,8 @@ public class ReloadCacheInline extends VBox {
                 return;
             }
             GlobalFailurePrompt prompt = buildGlobalFailurePrompt(account, reason, canIgnoreDomain);
-            ButtonType selected = ThemedDialogSupport.showAndWait(prompt.alert(), ownerWindow()).orElse(prompt.markBadButton());
-            decision[0] = resolveGlobalFailureDecision(selected, prompt);
+            decision[0] = ThemedDialogSupport.showAndWait(prompt.dialog(), ownerWindow())
+                    .orElse(GlobalFailureDecision.MARK_BAD);
         });
         return completed ? decision[0] : GlobalFailureDecision.STOP_ALL;
     }
@@ -2113,25 +2116,86 @@ public class ReloadCacheInline extends VBox {
     }
 
     private GlobalFailurePrompt buildGlobalFailurePrompt(Account account, String reason, boolean canIgnoreDomain) {
-        ButtonType carryOnButton = new ButtonType(I18n.tr("reloadCarryOn"), ButtonBar.ButtonData.YES);
-        ButtonType stopAllButton = new ButtonType(I18n.tr("reloadStopAll"), ButtonBar.ButtonData.OTHER);
-        ButtonType markBadButton = new ButtonType(I18n.tr("reloadMarkBadAndNext"), ButtonBar.ButtonData.CANCEL_CLOSE);
-        ButtonType ignoreDomainButton = new ButtonType(I18n.tr("reloadMarkBadIgnoreDomain"), ButtonBar.ButtonData.NO);
-        List<ButtonType> buttons = new ArrayList<>(List.of(carryOnButton));
-        if (canIgnoreDomain) {
-            buttons.add(ignoreDomainButton);
+        ToggleGroup optionGroup = new ToggleGroup();
+        VBox optionBox = new VBox(6);
+        optionBox.getStyleClass().add("reload-global-failure-options");
+        optionBox.setFillWidth(true);
+        for (AutomaticFailureDecisionOption option : globalFailureDecisionOptions(canIgnoreDomain)) {
+            RadioButton optionButton = new RadioButton(option.label());
+            optionButton.getStyleClass().add("reload-global-failure-option");
+            optionButton.setToggleGroup(optionGroup);
+            optionButton.setUserData(option.decision());
+            optionButton.setWrapText(true);
+            optionButton.setMaxWidth(Double.MAX_VALUE);
+            optionBox.getChildren().add(optionButton);
         }
-        buttons.add(markBadButton);
-        buttons.add(stopAllButton);
+        if (!optionGroup.getToggles().isEmpty()) {
+            optionGroup.selectToggle(optionGroup.getToggles().getFirst());
+        }
 
-        Alert alert = new Alert(
-                Alert.AlertType.CONFIRMATION,
-                globalFailurePromptMessage(account, reason, canIgnoreDomain),
-                buttons.toArray(new ButtonType[0])
-        );
-        alert.setHeaderText(I18n.tr("reloadGlobalCallFailure"));
-        applyDialogThemeAndOrientation(alert);
-        return new GlobalFailurePrompt(alert, carryOnButton, stopAllButton, markBadButton, ignoreDomainButton);
+        Label message = new Label(globalFailurePromptMessage(account, reason, canIgnoreDomain));
+        message.getStyleClass().add("reload-global-failure-message");
+        message.setWrapText(true);
+        message.setMinWidth(0);
+        message.setPrefWidth(GLOBAL_FAILURE_DIALOG_CONTENT_WIDTH);
+        message.setMaxWidth(GLOBAL_FAILURE_DIALOG_CONTENT_WIDTH);
+        message.setMinHeight(Region.USE_PREF_SIZE);
+
+        VBox content = new VBox(10, message, optionBox);
+        content.getStyleClass().add("reload-global-failure-content");
+        content.setPadding(new Insets(
+                GLOBAL_FAILURE_DIALOG_CONTENT_INSET,
+                GLOBAL_FAILURE_DIALOG_CONTENT_INSET,
+                0,
+                GLOBAL_FAILURE_DIALOG_CONTENT_INSET
+        ));
+        content.setMinWidth(0);
+        content.setPrefWidth(GLOBAL_FAILURE_DIALOG_CONTENT_WIDTH);
+        content.setMaxWidth(GLOBAL_FAILURE_DIALOG_CONTENT_WIDTH);
+
+        ButtonType applyButton = new ButtonType(reloadApplySelectedActionText(), ButtonBar.ButtonData.OK_DONE);
+        Dialog<GlobalFailureDecision> dialog = new Dialog<>();
+        dialog.setTitle(I18n.tr("autoConfirmation"));
+        dialog.setHeaderText(I18n.tr("reloadGlobalCallFailure"));
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().setAll(applyButton);
+        dialog.setResultConverter(button -> button == applyButton
+                ? selectedGlobalFailureDecision(optionGroup)
+                : null);
+        applyDialogThemeAndOrientation(dialog);
+        dialog.getDialogPane().getStyleClass().add("reload-global-failure-dialog");
+        dialog.getDialogPane().setPrefWidth(GLOBAL_FAILURE_DIALOG_PANE_WIDTH);
+        Button apply = (Button) dialog.getDialogPane().lookupButton(applyButton);
+        if (apply != null) {
+            apply.setMinWidth(132);
+        }
+        return new GlobalFailurePrompt(dialog);
+    }
+
+    private String reloadApplySelectedActionText() {
+        String label = I18n.tr("reloadApplySelectedAction");
+        return "reloadApplySelectedAction".equals(label) ? "Apply Action" : label;
+    }
+
+    private List<AutomaticFailureDecisionOption> globalFailureDecisionOptions(boolean canIgnoreDomain) {
+        List<AutomaticFailureDecisionOption> options = new ArrayList<>();
+        options.add(new AutomaticFailureDecisionOption(GlobalFailureDecision.CARRY_ON, I18n.tr("reloadCarryOn")));
+        if (canIgnoreDomain) {
+            options.add(new AutomaticFailureDecisionOption(
+                    GlobalFailureDecision.MARK_BAD_AND_IGNORE_DOMAIN,
+                    I18n.tr("reloadMarkBadIgnoreDomain")
+            ));
+        }
+        options.add(new AutomaticFailureDecisionOption(GlobalFailureDecision.MARK_BAD, I18n.tr("reloadMarkBadAndNext")));
+        options.add(new AutomaticFailureDecisionOption(GlobalFailureDecision.STOP_ALL, I18n.tr("reloadStopAll")));
+        return options;
+    }
+
+    private GlobalFailureDecision selectedGlobalFailureDecision(ToggleGroup optionGroup) {
+        Toggle selected = optionGroup == null ? null : optionGroup.getSelectedToggle();
+        return selected != null && selected.getUserData() instanceof GlobalFailureDecision selectedDecision
+                ? selectedDecision
+                : GlobalFailureDecision.MARK_BAD;
     }
 
     private String globalFailurePromptMessage(Account account, String reason, boolean canIgnoreDomain) {
@@ -2148,24 +2212,7 @@ public class ReloadCacheInline extends VBox {
         return ThemedDialogSupport.activeOwnerWindow();
     }
 
-    private GlobalFailureDecision resolveGlobalFailureDecision(ButtonType selected, GlobalFailurePrompt prompt) {
-        if (selected == prompt.carryOnButton()) {
-            return GlobalFailureDecision.CARRY_ON;
-        }
-        if (selected == prompt.ignoreDomainButton()) {
-            return GlobalFailureDecision.MARK_BAD_AND_IGNORE_DOMAIN;
-        }
-        if (selected == prompt.stopAllButton()) {
-            return GlobalFailureDecision.STOP_ALL;
-        }
-        return GlobalFailureDecision.MARK_BAD;
-    }
-
-    private record GlobalFailurePrompt(Alert alert,
-                                       ButtonType carryOnButton,
-                                       ButtonType stopAllButton,
-                                       ButtonType markBadButton,
-                                       ButtonType ignoreDomainButton) {
+    private record GlobalFailurePrompt(Dialog<GlobalFailureDecision> dialog) {
     }
 
     private record AutomaticFailureDecisionOption(GlobalFailureDecision decision, String label) {

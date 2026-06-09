@@ -3128,6 +3128,40 @@
     -fx-padding: 2 16 0 0;
 }
 
+.reload-global-failure-content {
+    -fx-spacing: 10;
+}
+
+.reload-global-failure-message {
+    -fx-font-size: 1.0em;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-line-spacing: 1;
+}
+
+.reload-global-failure-options {
+    -fx-spacing: 6;
+}
+
+.reload-global-failure-option {
+    -fx-padding: 8 10 8 10;
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-background-radius: 12;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.reload-global-failure-option:hover,
+.reload-global-failure-option:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-accent;
+}
+
+.reload-global-failure-option:selected {
+    -fx-background-color: rgba(240, 242, 247, 0.08);
+    -fx-border-color: -uiptv-action-bg;
+}
+
 .uiptv-dialog-glyph {
     -fx-background-radius: 999;
     -fx-border-radius: 999;
