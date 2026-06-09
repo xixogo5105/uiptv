@@ -93,6 +93,7 @@ public class ReloadCacheInline extends VBox {
             Integer.getInteger("uiptv.reload.memoryCleanup.minAccounts", 1));
     private static final long POST_RELOAD_MEMORY_CLEANUP_DELAY_MS = Math.max(0L,
             Long.getLong("uiptv.reload.memoryCleanup.delayMs", 1_500L));
+    private static final double PROBLEM_ACCOUNTS_DIALOG_WIDTH = 860;
     private static final double PROBLEM_ACCOUNTS_CARD_MAX_WIDTH = 980;
     private static final double PROBLEM_ACCOUNTS_MIN_LIST_HEIGHT = 170;
     private static final double PROBLEM_ACCOUNTS_MAX_LIST_HEIGHT = 420;
@@ -1156,7 +1157,7 @@ public class ReloadCacheInline extends VBox {
         VBox accountsBox = new VBox(5);
         Runnable closeAction = popupStage::close;
         VBox root = buildProblemAccountsInlineRoot(processedAccounts, problematicAccounts, accountsBox, closeAction);
-        Scene scene = new Scene(root, 760, 560);
+        Scene scene = new Scene(root, PROBLEM_ACCOUNTS_DIALOG_WIDTH, 560);
         UiI18n.applySceneOrientation(scene);
         if (getScene() != null) {
             scene.getStylesheets().addAll(getScene().getStylesheets());

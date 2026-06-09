@@ -41,6 +41,7 @@ public final class ReloadCachePopup {
         popupStage.setScene(scene);
         popupStage.setOnCloseRequest(event -> popupContent.disposeExternal());
         popupStage.setOnHidden(event -> popupContent.disposeExternal());
+        popupStage.setMaximized(true);
         popupStage.showAndWait();
     }
 

@@ -4152,6 +4152,16 @@
     -fx-border-color: rgba(248, 113, 113, 0.34);
 }
 
+.reload-problem-account-row.reload-problem-account-yellow:selected {
+    -fx-background-color: rgba(250, 204, 21, 0.17);
+    -fx-border-color: rgba(250, 204, 21, 0.44);
+}
+
+.reload-problem-account-row.reload-problem-account-bad:selected {
+    -fx-background-color: rgba(248, 113, 113, 0.16);
+    -fx-border-color: rgba(248, 113, 113, 0.42);
+}
+
 .reload-problem-account-content {
     -fx-background-color: transparent;
     -fx-padding: 0 0 0 12;
@@ -4185,14 +4195,21 @@
     -fx-font-size: 0.94em;
 }
 
-.reload-problem-account-row:selected .reload-problem-account-name,
 .reload-problem-account-row:selected .reload-problem-account-reason {
-    -fx-text-fill: -uiptv-selected-card-fg;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.reload-problem-account-row.reload-problem-account-yellow:selected .reload-problem-account-name {
+    -fx-text-fill: #facc15;
+}
+
+.reload-problem-account-row.reload-problem-account-bad:selected .reload-problem-account-name {
+    -fx-text-fill: #f87171;
 }
 
 .reload-problem-account-row:selected .reload-problem-account-type {
-    -fx-background-color: rgba(255, 255, 255, 0.18);
-    -fx-text-fill: -uiptv-selected-card-fg;
+    -fx-background-color: rgba(255, 255, 255, 0.09);
+    -fx-text-fill: -uiptv-text-secondary;
 }
 
 .reload-problem-actions {
