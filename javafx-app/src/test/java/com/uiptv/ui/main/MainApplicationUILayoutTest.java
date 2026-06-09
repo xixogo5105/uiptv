@@ -10,6 +10,7 @@ import com.uiptv.widget.AppNavigationPane;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
@@ -88,6 +89,60 @@ class MainApplicationUILayoutTest {
             assertEquals(expectedWidth, navigationColumn.getPrefWidth(), 0.001);
             assertEquals(expectedWidth, navigationColumn.getMaxWidth(), 0.001);
             assertEquals(Priority.NEVER, navigationColumn.getHgrow());
+            return null;
+        });
+    }
+
+    @Test
+    void compactEmbeddedLayoutUsesRuntimeSidePreference() throws Exception {
+        runOnFxThread(() -> {
+            boolean originalPreference = staticBooleanField("compactEmbeddedPlayerRightAligned");
+            try {
+                MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, true);
+                TabPane tabPane = new TabPane();
+                StackPane navigationShell = new StackPane(tabPane);
+                HBox embeddedPlayer = new HBox();
+                VBox playerAdjacentControls = new VBox();
+                Hyperlink sideLink = new Hyperlink();
+                GridPane responsiveContent = new GridPane();
+                HBox mainContent = new HBox(responsiveContent);
+                responsiveContent.getChildren().setAll(navigationShell, embeddedPlayer, playerAdjacentControls);
+                new Scene(mainContent, 1368, 600);
+                mainContent.resize(1368, 600);
+                responsiveContent.resize(1368, 600);
+                setField(ui, "activeTabPane", tabPane);
+                setField(ui, "navigationShell", navigationShell);
+                setField(ui, "embeddedPlayer", embeddedPlayer);
+                setField(ui, "playerAdjacentControls", playerAdjacentControls);
+                setField(ui, "compactPlayerSideLink", sideLink);
+                setField(ui, "responsiveContent", responsiveContent);
+                setField(ui, "mainContent", mainContent);
+
+                Method method = MainApplicationUI.class.getDeclaredMethod("applyCompactSideColumnEmbeddedLayout");
+                method.setAccessible(true);
+
+                setStaticBooleanField("compactEmbeddedPlayerRightAligned", false);
+                method.invoke(ui);
+
+                assertEquals(0, GridPane.getColumnIndex(embeddedPlayer));
+                assertEquals(1, GridPane.getColumnIndex(navigationShell));
+                assertEquals(Priority.NEVER, responsiveContent.getColumnConstraints().getFirst().getHgrow());
+                assertEquals(Priority.ALWAYS, responsiveContent.getColumnConstraints().get(1).getHgrow());
+                assertTrue(sideLink.isVisible());
+                assertTrue(sideLink.isManaged());
+                assertEquals(I18n.tr("embeddedPlayerMoveRight"), sideLink.getText());
+
+                setStaticBooleanField("compactEmbeddedPlayerRightAligned", true);
+                method.invoke(ui);
+
+                assertEquals(0, GridPane.getColumnIndex(navigationShell));
+                assertEquals(1, GridPane.getColumnIndex(embeddedPlayer));
+                assertEquals(Priority.ALWAYS, responsiveContent.getColumnConstraints().getFirst().getHgrow());
+                assertEquals(Priority.NEVER, responsiveContent.getColumnConstraints().get(1).getHgrow());
+                assertEquals(I18n.tr("embeddedPlayerMoveLeft"), sideLink.getText());
+            } finally {
+                setStaticBooleanField("compactEmbeddedPlayerRightAligned", originalPreference);
+            }
             return null;
         });
     }
@@ -510,6 +565,18 @@ class MainApplicationUILayoutTest {
         Field field = MainApplicationUI.class.getDeclaredField(fieldName);
         field.setAccessible(true);
         field.set(ui, value);
+    }
+
+    private static boolean staticBooleanField(String fieldName) throws Exception {
+        Field field = MainApplicationUI.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.getBoolean(null);
+    }
+
+    private static void setStaticBooleanField(String fieldName, boolean value) throws Exception {
+        Field field = MainApplicationUI.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.setBoolean(null, value);
     }
 
     private static HBox accountBodyLayout(AccountListUI accountListUI) throws Exception {

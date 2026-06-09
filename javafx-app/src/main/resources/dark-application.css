@@ -695,6 +695,30 @@
     -fx-padding: 10;
 }
 
+.compact-embedded-player-frame {
+    -fx-alignment: center;
+}
+
+.compact-player-side-link {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 4 8 4 8;
+    -fx-min-height: 26;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-header-action-hover-fg;
+    -fx-underline: false;
+    -fx-cursor: hand;
+}
+
+.compact-player-side-link:hover,
+.compact-player-side-link:focused,
+.compact-player-side-link:visited {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: -uiptv-header-action-hover-fg;
+}
+
 .embedded-player-placeholder {
     -fx-alignment: center;
 }

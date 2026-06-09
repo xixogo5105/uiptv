@@ -5,6 +5,7 @@ import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.AccountListUI;
+import com.uiptv.util.I18n;
 import javafx.application.Platform;
 import javafx.application.HostServices;
 import javafx.beans.value.ChangeListener;
@@ -15,6 +16,7 @@ import javafx.geometry.VPos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.ColumnConstraints;
@@ -43,9 +45,11 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private static final double STACKED_EMBEDDED_PLAYER_VERTICAL_CHROME = 32;
     private static final double STACKED_EMBEDDED_PLAYER_MIN_HEIGHT = 210;
     private static final double STACKED_EMBEDDED_PLAYER_MAX_HEIGHT = 305;
+    private static final double COMPACT_PLAYER_SIDE_LINK_VERTICAL_SPACE = 34;
     private static final double PLAYER_ADJACENT_CONTROLS_MIN_WIDTH = 720;
     private static final double PLAYER_ADJACENT_CONTROLS_RIGHT_INSET = 14;
     private static final double ACCOUNT_BROWSER_DRAWER_WIDTH_THRESHOLD = 900;
+    private static boolean compactEmbeddedPlayerRightAligned = true;
     private final boolean embeddedEnabled;
     private final ConfigurationChangeListener embeddedLayoutChangeListener =
             _ -> Platform.runLater(this::applyEmbeddedPlayerLayoutFromConfiguration);
@@ -54,6 +58,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private HBox mainContent;
     private HBox embeddedPlayer;
     private Node embeddedPlayerNode;
+    private Hyperlink compactPlayerSideLink;
     private GridPane responsiveContent;
     private StackPane navigationShell;
     private VBox playerAdjacentControls;
@@ -88,6 +93,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         activeAccountListUI = accountListUI;
         embeddedPlayerNode = MediaPlayerFactory.getPlayerContainer();
         embeddedPlayer = createEmbeddedPlayerContainer(embeddedPlayerNode);
+        installCompactPlayerSideLink();
         embeddedPlayerNode.visibleProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
         embeddedPlayerNode.managedProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
         navigationShell = createNavigationShell(tabPane);
@@ -139,6 +145,63 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         }
         configurationService.addChangeListener(embeddedLayoutChangeListener);
         embeddedLayoutListenerRegistered = true;
+    }
+
+    private void installCompactPlayerSideLink() {
+        if (embeddedPlayer == null || compactPlayerSideLink != null || embeddedPlayer.getChildren().isEmpty()) {
+            return;
+        }
+        Node playerShell = embeddedPlayer.getChildren().getFirst();
+        compactPlayerSideLink = createCompactPlayerSideLink();
+
+        VBox playerFrame = new VBox(6, playerShell, compactPlayerSideLink);
+        playerFrame.getStyleClass().add("compact-embedded-player-frame");
+        playerFrame.setAlignment(Pos.CENTER);
+        playerFrame.setFillWidth(true);
+        playerFrame.setMinSize(0, 0);
+        playerFrame.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        VBox.setVgrow(playerShell, Priority.ALWAYS);
+        HBox.setHgrow(playerFrame, Priority.ALWAYS);
+        embeddedPlayer.getChildren().setAll(playerFrame);
+        setCompactPlayerSideLinkVisible(false);
+    }
+
+    private Hyperlink createCompactPlayerSideLink() {
+        Hyperlink link = new Hyperlink();
+        link.getStyleClass().add("compact-player-side-link");
+        link.setFocusTraversable(false);
+        link.setMaxWidth(Region.USE_PREF_SIZE);
+        link.setOnAction(_ -> {
+            compactEmbeddedPlayerRightAligned = !compactEmbeddedPlayerRightAligned;
+            link.setVisited(false);
+            refreshCompactPlayerSideLink();
+            applyEmbeddedPlayerLayoutFromConfiguration();
+        });
+        refreshCompactPlayerSideLink(link);
+        return link;
+    }
+
+    private void setCompactPlayerSideLinkVisible(boolean visible) {
+        if (compactPlayerSideLink == null) {
+            return;
+        }
+        compactPlayerSideLink.setVisible(visible);
+        compactPlayerSideLink.setManaged(visible);
+        if (visible) {
+            refreshCompactPlayerSideLink();
+        }
+    }
+
+    private void refreshCompactPlayerSideLink() {
+        refreshCompactPlayerSideLink(compactPlayerSideLink);
+    }
+
+    private void refreshCompactPlayerSideLink(Hyperlink link) {
+        if (link == null) {
+            return;
+        }
+        link.setVisited(false);
+        link.setText(I18n.tr(compactEmbeddedPlayerRightAligned ? "embeddedPlayerMoveLeft" : "embeddedPlayerMoveRight"));
     }
 
     private void unregisterEmbeddedLayoutChangeListener() {
@@ -215,6 +278,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private void applyNavigationOnlyEmbeddedLayout() {
         applyNavigationOnlyEmbeddedArrangement();
         setPlayerAdjacentControlsVisible(false);
+        setCompactPlayerSideLinkVisible(false);
         activeTabPane.setMinWidth(0);
         activeTabPane.setPrefWidth(guidedMaxWidthPixels);
         activeTabPane.setMaxWidth(Double.MAX_VALUE);
@@ -241,6 +305,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private void applyWideEmbeddedLayout() {
         applySideBySideEmbeddedArrangement();
         setPlayerAdjacentControlsVisible(false);
+        setCompactPlayerSideLinkVisible(false);
         double wideAppAreaWidth = retainedWideAppAreaWidth();
         configureWideResponsiveGrid(wideAppAreaWidth);
         activeTabPane.setMinWidth(wideAppAreaWidth);
@@ -270,6 +335,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private void applyStackedEmbeddedLayout() {
         applyStackedEmbeddedArrangement();
         setPlayerAdjacentControlsVisible(false);
+        setCompactPlayerSideLinkVisible(false);
 
         activeTabPane.setMinWidth(0);
         activeTabPane.setPrefWidth(Region.USE_COMPUTED_SIZE);
@@ -297,8 +363,9 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     }
 
     private void applyCompactSideColumnEmbeddedLayout() {
-        applySideBySideEmbeddedArrangement();
+        applyCompactSideColumnEmbeddedArrangement();
         setPlayerAdjacentControlsVisible(false);
+        setCompactPlayerSideLinkVisible(true);
 
         activeTabPane.setMinWidth(0);
         activeTabPane.setPrefWidth(Region.USE_COMPUTED_SIZE);
@@ -319,12 +386,12 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         GridPane.setHgrow(navigationShell, Priority.ALWAYS);
         GridPane.setVgrow(navigationShell, Priority.ALWAYS);
 
-        applyStackedEmbeddedPlayerSize();
+        applyCompactSideColumnEmbeddedPlayerSize();
         configureCompactSideColumnResponsiveGrid();
         HBox.setHgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
-        GridPane.setHalignment(embeddedPlayer, HPos.RIGHT);
+        GridPane.setHalignment(embeddedPlayer, compactEmbeddedPlayerRightAligned ? HPos.RIGHT : HPos.LEFT);
         GridPane.setValignment(embeddedPlayer, VPos.TOP);
     }
 
@@ -334,6 +401,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
             return;
         }
         applyPlayerAdjacentTopControlsEmbeddedArrangement();
+        setCompactPlayerSideLinkVisible(false);
 
         activeTabPane.setMinWidth(0);
         activeTabPane.setPrefWidth(Region.USE_COMPUTED_SIZE);
@@ -400,6 +468,22 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         placeInGrid(navigationShell, 0, 0);
         placeInGrid(embeddedPlayer, 1, 0);
         placeInGrid(playerAdjacentControls, 0, 0);
+        GridPane.setVgrow(navigationShell, Priority.ALWAYS);
+        GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
+        GridPane.setValignment(embeddedPlayer, VPos.TOP);
+    }
+
+    private void applyCompactSideColumnEmbeddedArrangement() {
+        if (responsiveContent == null || navigationShell == null || embeddedPlayer == null || playerAdjacentControls == null) {
+            return;
+        }
+        configureCompactSideColumnResponsiveGrid();
+        int navigationColumn = compactEmbeddedPlayerRightAligned ? 0 : 1;
+        int playerColumn = compactEmbeddedPlayerRightAligned ? 1 : 0;
+        placeInGrid(navigationShell, navigationColumn, 0);
+        placeInGrid(embeddedPlayer, playerColumn, 0);
+        placeInGrid(playerAdjacentControls, navigationColumn, 0);
         GridPane.setVgrow(navigationShell, Priority.ALWAYS);
         GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
@@ -583,7 +667,11 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         contentRow.setMinHeight(0);
         contentRow.setVgrow(Priority.ALWAYS);
         contentRow.setFillHeight(true);
-        responsiveContent.getColumnConstraints().setAll(navigationColumn, playerColumn);
+        if (compactEmbeddedPlayerRightAligned) {
+            responsiveContent.getColumnConstraints().setAll(navigationColumn, playerColumn);
+        } else {
+            responsiveContent.getColumnConstraints().setAll(playerColumn, navigationColumn);
+        }
         responsiveContent.getRowConstraints().setAll(contentRow);
     }
 
@@ -629,6 +717,14 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         embeddedPlayer.setPrefHeight(playerHeight);
         embeddedPlayer.setMaxHeight(playerHeight);
         embeddedPlayer.setAlignment(Pos.CENTER);
+    }
+
+    private void applyCompactSideColumnEmbeddedPlayerSize() {
+        applyStackedEmbeddedPlayerSize();
+        double playerHeight = stackedEmbeddedPlayerHeight() + COMPACT_PLAYER_SIDE_LINK_VERTICAL_SPACE;
+        embeddedPlayer.setMinHeight(playerHeight);
+        embeddedPlayer.setPrefHeight(playerHeight);
+        embeddedPlayer.setMaxHeight(playerHeight);
     }
 
     private double stackedEmbeddedPlayerWidth() {
