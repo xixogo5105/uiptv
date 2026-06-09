@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.model.Account;
+import com.uiptv.model.Category;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.util.I18n;
@@ -463,6 +464,57 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         assertTrue(snapshot.wideSplitContainsBrowser());
     }
 
+    @Test
+    void exclusiveLeadingContentPreservesHiddenActiveBrowserState() throws Exception {
+        HiddenBrowserSnapshot snapshot = runOnFxThread(() -> {
+            AccountListUI ui = new AccountListUI(null, null);
+            StackPane root = new StackPane(ui);
+            new Scene(root, 1200, 720);
+            root.resize(1200, 720);
+            ui.resize(1200, 720);
+            root.layout();
+            ui.layout();
+
+            Account account = new Account();
+            account.setAccountName("Account");
+            account.setAction(Account.AccountAction.itv);
+            CategoryListUI activeBrowser = new CategoryListUI(account);
+            activeBrowser.setItems(List.of(
+                    category("uk", "UK"),
+                    category("sports", "Sports")
+            ));
+            invokeShowAccountBrowser(ui, activeBrowser);
+            int initialCards = categoryCardList(activeBrowser).getChildren().size();
+
+            StackPane leadingContent = new StackPane();
+            leadingContent.setVisible(true);
+            leadingContent.setManaged(true);
+            ui.setLeadingBodyContent(leadingContent);
+            ui.setLeadingBodyContentExclusive(true);
+            root.layout();
+            ui.layout();
+
+            return new HiddenBrowserSnapshot(ui, activeBrowser, initialCards);
+        });
+
+        FxTestSupport.waitForFxEvents();
+
+        int hiddenCards = runOnFxThread(() -> categoryCardList(snapshot.activeBrowser()).getChildren().size());
+        int restoredCards = runOnFxThread(() -> {
+            snapshot.ui().setLeadingBodyContentExclusive(false);
+            snapshot.ui().layout();
+            return categoryCardList(snapshot.activeBrowser()).getChildren().size();
+        });
+
+        assertEquals(snapshot.initialCards(), hiddenCards);
+        assertEquals(snapshot.initialCards(), restoredCards);
+
+        runOnFxThread(() -> {
+            snapshot.ui().showAccountListView();
+            return null;
+        });
+    }
+
     @SuppressWarnings("unchecked")
     private static ResponsiveCardGrid<AccountListUI.AccountItem> accountGrid(AccountListUI ui) throws Exception {
         Field field = AccountListUI.class.getDeclaredField("accountGrid");
@@ -524,6 +576,20 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         Method method = AccountListUI.class.getDeclaredMethod("showAccountBrowser", CategoryListUI.class);
         method.setAccessible(true);
         method.invoke(ui, categoryListUI);
+    }
+
+    private static Category category(String id, String title) {
+        Category category = new Category();
+        category.setDbId(id);
+        category.setCategoryId(id);
+        category.setTitle(title);
+        return category;
+    }
+
+    private static VBox categoryCardList(CategoryListUI ui) throws Exception {
+        Field field = CategoryListUI.class.getDeclaredField("categoryCardList");
+        field.setAccessible(true);
+        return (VBox) field.get(ui);
     }
 
     private static Node currentContent(AccountListUI ui) throws Exception {
@@ -747,6 +813,13 @@ class AccountListUILayoutTest extends DbBackedUiTest {
             boolean wideUsesSplitLayout,
             boolean wideSplitContainsAccountList,
             boolean wideSplitContainsBrowser
+    ) {
+    }
+
+    private record HiddenBrowserSnapshot(
+            AccountListUI ui,
+            CategoryListUI activeBrowser,
+            int initialCards
     ) {
     }
 

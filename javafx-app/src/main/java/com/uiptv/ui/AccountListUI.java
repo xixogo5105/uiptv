@@ -25,6 +25,7 @@ import com.uiptv.widget.SearchableFilterableTableView;
 import javafx.application.Platform;
 import javafx.application.HostServices;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -112,11 +113,15 @@ public class AccountListUI extends HBox implements SearchTarget {
     private VBox accountToolbar;
     private CategoryListUI activeCategoryListUI;
     private Node leadingBodyContent;
+    private final ChangeListener<Boolean> leadingBodyContentVisibilityListener =
+            (_, _, _) -> updateBodyLayoutChildren();
     private final AtomicLong refreshGeneration = new AtomicLong();
     private boolean refreshPending = true;
     private boolean mediaDrawerMode;
+    private boolean leadingBodyContentExclusive;
     private boolean thumbnailListenerRegistered;
     private boolean accountBrowserCompact;
+    private boolean activeCategoryBrowserRetainedForDetailView;
     private HeaderSearchMode headerSearchMode = HeaderSearchMode.ACCOUNTS;
     private boolean updatingHeaderSearchText;
     private String accountHeaderSearchText = "";
@@ -557,10 +562,12 @@ public class AccountListUI extends HBox implements SearchTarget {
         if (leadingBodyContent == content) {
             return;
         }
-        detachFromParent(leadingBodyContent);
+        detachLeadingBodyContent();
         leadingBodyContent = content;
         if (leadingBodyContent != null) {
             detachFromParent(leadingBodyContent);
+            leadingBodyContent.visibleProperty().addListener(leadingBodyContentVisibilityListener);
+            leadingBodyContent.managedProperty().addListener(leadingBodyContentVisibilityListener);
             if (leadingBodyContent instanceof Region region) {
                 region.setMinHeight(0);
                 region.setMaxHeight(Double.MAX_VALUE);
@@ -570,16 +577,48 @@ public class AccountListUI extends HBox implements SearchTarget {
         updateBodyLayoutChildren();
     }
 
+    public void setLeadingBodyContentExclusive(boolean exclusive) {
+        if (leadingBodyContentExclusive == exclusive) {
+            return;
+        }
+        leadingBodyContentExclusive = exclusive;
+        updateBodyLayoutChildren();
+    }
+
     private void updateBodyLayoutChildren() {
+        boolean showLeadingOnly = leadingBodyContentExclusive && isLeadingBodyContentShowing();
+        if (showLeadingOnly) {
+            syncActiveCategoryBrowserRetention(true);
+        }
         detachFromParent(bodyContainer);
-        if (leadingBodyContent == null) {
+        if (leadingBodyContent == null || (leadingBodyContentExclusive && !showLeadingOnly)) {
             bodyLayout.getChildren().setAll(bodyContainer);
+        } else if (showLeadingOnly) {
+            detachFromParent(leadingBodyContent);
+            bodyLayout.getChildren().setAll(leadingBodyContent);
+            HBox.setHgrow(leadingBodyContent, Priority.ALWAYS);
         } else {
             detachFromParent(leadingBodyContent);
             bodyLayout.getChildren().setAll(leadingBodyContent, bodyContainer);
             HBox.setHgrow(leadingBodyContent, Priority.NEVER);
         }
         HBox.setHgrow(bodyContainer, Priority.ALWAYS);
+        if (!showLeadingOnly) {
+            syncActiveCategoryBrowserRetention();
+        }
+    }
+
+    private boolean isLeadingBodyContentShowing() {
+        return leadingBodyContent != null && leadingBodyContent.isVisible() && leadingBodyContent.isManaged();
+    }
+
+    private void detachLeadingBodyContent() {
+        if (leadingBodyContent == null) {
+            return;
+        }
+        leadingBodyContent.visibleProperty().removeListener(leadingBodyContentVisibilityListener);
+        leadingBodyContent.managedProperty().removeListener(leadingBodyContentVisibilityListener);
+        detachFromParent(leadingBodyContent);
     }
 
     private void showBody(Node content) {
@@ -652,6 +691,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     public void showAccountListView() {
+        activeCategoryBrowserRetainedForDetailView = false;
         disposeActiveCategoryList();
         setAccountBrowserCompact(false);
         viewStack.clear();
@@ -671,6 +711,7 @@ public class AccountListUI extends HBox implements SearchTarget {
             activeCategoryListUI.dispose();
         }
         activeCategoryListUI = categoryListUI;
+        activeCategoryBrowserRetainedForDetailView = false;
         categoryListUI.setMediaDrawerMode(mediaDrawerMode);
         switchHeaderSearchMode(HeaderSearchMode.ACTIVE_BROWSER, newBrowser);
         if (mediaDrawerMode || shouldUseSinglePaneAccountBrowser()) {
@@ -683,7 +724,7 @@ public class AccountListUI extends HBox implements SearchTarget {
                 embeddedContainer.getChildren().setAll(currentContent);
             }
             showBody(embeddedContainer);
-            categoryListUI.setRetainTransientStateOnDetach(false);
+            syncActiveCategoryBrowserRetention();
             return;
         }
         setAccountBrowserCompact(true);
@@ -696,7 +737,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         updateNavButtons();
         embeddedContainer.getChildren().setAll(currentContent);
         showBody(embeddedContainer);
-        categoryListUI.setRetainTransientStateOnDetach(false);
+        syncActiveCategoryBrowserRetention();
     }
 
     private void updateActiveAccountBrowserLayout() {
@@ -720,6 +761,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void disposeActiveCategoryList() {
+        activeCategoryBrowserRetainedForDetailView = false;
         if (activeCategoryListUI != null) {
             activeCategoryListUI.dispose();
             activeCategoryListUI = null;
@@ -817,7 +859,8 @@ public class AccountListUI extends HBox implements SearchTarget {
         embeddedContainer.getChildren().setAll(navHeader, currentContent);
         showBody(embeddedContainer);
         if (prev == activeCategoryListUI && activeCategoryListUI != null) {
-            activeCategoryListUI.setRetainTransientStateOnDetach(false);
+            activeCategoryBrowserRetainedForDetailView = false;
+            syncActiveCategoryBrowserRetention();
         }
     }
 
@@ -826,8 +869,22 @@ public class AccountListUI extends HBox implements SearchTarget {
             return;
         }
         if (currentContent == browserLayout || currentContent == activeCategoryListUI) {
-            activeCategoryListUI.setRetainTransientStateOnDetach(true);
+            activeCategoryBrowserRetainedForDetailView = true;
+            syncActiveCategoryBrowserRetention();
         }
+    }
+
+    private void syncActiveCategoryBrowserRetention() {
+        syncActiveCategoryBrowserRetention(leadingBodyContentExclusive && isLeadingBodyContentShowing());
+    }
+
+    private void syncActiveCategoryBrowserRetention(boolean bodyHiddenByExclusiveContent) {
+        if (activeCategoryListUI == null) {
+            return;
+        }
+        activeCategoryListUI.setRetainTransientStateOnDetach(
+                activeCategoryBrowserRetainedForDetailView || bodyHiddenByExclusiveContent
+        );
     }
 
     private void updateNavButtons() {

@@ -44,6 +44,8 @@ public abstract class BaseMainApplicationUI {
     protected final Consumer<Scene> fontStyleConfigurer;
     protected final int guidedMaxWidthPixels;
     protected final int guidedMaxHeightPixels;
+    private Runnable manageAccountResponsiveColumnsUpdater = () -> {
+    };
     protected BaseMainApplicationUI(
             Stage primaryStage,
             HostServices hostServices,
@@ -114,7 +116,7 @@ public abstract class BaseMainApplicationUI {
 
         HBox mainContent = buildMainContent(tabPane, accountListUI);
         accountListUI.setLeadingBodyContent(manageAccountColumn.node());
-        HBox appContent = buildAppContent(manageAccountColumn, mainContent);
+        HBox appContent = buildAppContent(manageAccountColumn, mainContent, accountListUI);
 
         MenuBar menuBar = createMenuBar();
 
@@ -180,7 +182,7 @@ public abstract class BaseMainApplicationUI {
         }
     }
 
-    private HBox buildAppContent(ManageAccountColumn manageAccountColumn, HBox mainContent) {
+    private HBox buildAppContent(ManageAccountColumn manageAccountColumn, HBox mainContent, AccountListUI accountListUI) {
         HBox appContent = new HBox(mainContent);
         appContent.getStyleClass().add("uiptv-app-content");
         appContent.setNodeOrientation(NodeOrientation.LEFT_TO_RIGHT);
@@ -188,21 +190,37 @@ public abstract class BaseMainApplicationUI {
         appContent.setMinSize(0, 0);
         appContent.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         HBox.setHgrow(mainContent, Priority.ALWAYS);
-        Runnable updateResponsiveColumns = () -> updateManageAccountResponsiveColumns(appContent, manageAccountColumn, mainContent);
+        Runnable updateResponsiveColumns = () -> updateManageAccountResponsiveColumns(appContent, manageAccountColumn, accountListUI);
+        manageAccountResponsiveColumnsUpdater = updateResponsiveColumns;
         appContent.widthProperty().addListener((_, _, _) -> updateResponsiveColumns.run());
         manageAccountColumn.node().visibleProperty().addListener((_, _, _) -> updateResponsiveColumns.run());
         Platform.runLater(updateResponsiveColumns);
         return appContent;
     }
 
-    private void updateManageAccountResponsiveColumns(HBox appContent, ManageAccountColumn manageAccountColumn, HBox mainContent) {
+    private void updateManageAccountResponsiveColumns(HBox appContent, ManageAccountColumn manageAccountColumn, AccountListUI accountListUI) {
         double availableWidth = appContent == null ? 0 : appContent.getWidth();
-        boolean singleColumn = manageAccountColumn.isOpen()
+        boolean narrowSingleColumn = manageAccountColumn.isOpen()
                 && availableWidth > 0
                 && availableWidth < MANAGE_ACCOUNT_SINGLE_COLUMN_WIDTH_THRESHOLD;
+        boolean singleColumn = manageAccountColumn.isOpen()
+                && (narrowSingleColumn || isSingleColumnNavigationMode());
+        accountListUI.setLeadingBodyContentExclusive(singleColumn);
         manageAccountColumn.setSingleColumn(singleColumn);
         if (appContent != null) {
             appContent.requestLayout();
+        }
+    }
+
+    protected boolean isSingleColumnNavigationMode() {
+        return false;
+    }
+
+    protected void requestManageAccountResponsiveColumnsUpdate() {
+        if (Platform.isFxApplicationThread()) {
+            manageAccountResponsiveColumnsUpdater.run();
+        } else {
+            Platform.runLater(manageAccountResponsiveColumnsUpdater);
         }
     }
 

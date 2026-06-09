@@ -151,7 +151,6 @@ public class ManageAccountUI extends VBox {
         deleteButton.setPrefWidth(124);
         deleteButton.setMaxWidth(Region.USE_PREF_SIZE);
         accountTypePillBar.getStyleClass().add("manage-account-type-pill-bar");
-        accountTypePillBar.setCompactDropdownEnabled(false);
         accountTypePillBar.setMaxWidth(Double.MAX_VALUE);
         name.setMaxWidth(Double.MAX_VALUE);
         url.setMaxWidth(Double.MAX_VALUE);

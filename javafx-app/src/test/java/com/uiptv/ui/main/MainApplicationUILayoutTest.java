@@ -2,6 +2,7 @@ package com.uiptv.ui.main;
 
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.ui.AccountListUI;
 import com.uiptv.ui.ManageAccountUI;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AppNavigationController;
@@ -220,9 +221,11 @@ class MainApplicationUILayoutTest {
             MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, false);
             Object manageAccountColumn = createManageAccountColumn();
             Node dockNode = manageAccountColumnNode(manageAccountColumn);
+            AccountListUI accountListUI = new AccountListUI(null, null);
+            accountListUI.setLeadingBodyContent(dockNode);
             HBox mainContent = new HBox(new Label("Accounts"));
 
-            HBox appContent = buildAppContent(ui, manageAccountColumn, mainContent);
+            HBox appContent = buildAppContent(ui, manageAccountColumn, mainContent, accountListUI);
 
             assertEquals(mainContent, appContent.getChildren().getFirst());
             assertFalse(appContent.getChildren().contains(dockNode));
@@ -259,28 +262,64 @@ class MainApplicationUILayoutTest {
     }
 
     @Test
-    void manageAccountDockDoesNotHideMainContentWhenWidthIsLimited() throws Exception {
+    void manageAccountDockReplacesAccountBodyWhenWidthIsLimited() throws Exception {
         runOnFxThread(() -> {
             MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, false);
             Object manageAccountColumn = createManageAccountColumn();
             Node dockNode = manageAccountColumnNode(manageAccountColumn);
-            HBox mainContent = new HBox(new Label("Accounts"));
-            HBox appContent = buildAppContent(ui, manageAccountColumn, mainContent);
+            AccountListUI accountListUI = new AccountListUI(null, null);
+            accountListUI.setLeadingBodyContent(dockNode);
+            HBox mainContent = new HBox(accountListUI);
+            HBox appContent = buildAppContent(ui, manageAccountColumn, mainContent, accountListUI);
             appContent.resize(700, 600);
 
             openManageAccountColumn(manageAccountColumn);
-            updateManageAccountResponsiveColumns(ui, appContent, manageAccountColumn, mainContent);
+            updateManageAccountResponsiveColumns(ui, appContent, manageAccountColumn, accountListUI);
 
             assertTrue(dockNode.isVisible());
             assertTrue(dockNode.isManaged());
             assertTrue(mainContent.isVisible());
             assertTrue(mainContent.isManaged());
+            assertEquals(List.of(dockNode), showingBodyColumns(accountListUI));
 
             closeManageAccountColumn(manageAccountColumn);
-            updateManageAccountResponsiveColumns(ui, appContent, manageAccountColumn, mainContent);
+            updateManageAccountResponsiveColumns(ui, appContent, manageAccountColumn, accountListUI);
 
             assertTrue(mainContent.isVisible());
             assertTrue(mainContent.isManaged());
+            assertFalse(dockNode.isVisible());
+            assertFalse(dockNode.isManaged());
+            assertEquals(1, showingBodyColumns(accountListUI).size());
+            assertFalse(showingBodyColumns(accountListUI).contains(dockNode));
+            return null;
+        });
+    }
+
+    @Test
+    void manageAccountDockReplacesAccountBodyInWideModeAtLargeWidth() throws Exception {
+        runOnFxThread(() -> {
+            MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1920, 720, true);
+            setField(ui, "wideEmbeddedLayoutActive", true);
+            Object manageAccountColumn = createManageAccountColumn();
+            Node dockNode = manageAccountColumnNode(manageAccountColumn);
+            AccountListUI accountListUI = new AccountListUI(null, null);
+            accountListUI.setLeadingBodyContent(dockNode);
+            HBox mainContent = new HBox(accountListUI);
+            HBox appContent = buildAppContent(ui, manageAccountColumn, mainContent, accountListUI);
+            appContent.resize(1920, 600);
+
+            openManageAccountColumn(manageAccountColumn);
+            updateManageAccountResponsiveColumns(ui, appContent, manageAccountColumn, accountListUI);
+
+            assertEquals(List.of(dockNode), showingBodyColumns(accountListUI));
+
+            closeManageAccountColumn(manageAccountColumn);
+            updateManageAccountResponsiveColumns(ui, appContent, manageAccountColumn, accountListUI);
+
+            assertFalse(dockNode.isVisible());
+            assertFalse(dockNode.isManaged());
+            assertEquals(1, showingBodyColumns(accountListUI).size());
+            assertFalse(showingBodyColumns(accountListUI).contains(dockNode));
             return null;
         });
     }
@@ -377,28 +416,32 @@ class MainApplicationUILayoutTest {
         return (MenuBar) method.invoke(ui);
     }
 
-    private static HBox buildAppContent(MainApplicationUI ui, Object manageAccountColumn, HBox mainContent) throws Exception {
+    private static HBox buildAppContent(MainApplicationUI ui,
+                                        Object manageAccountColumn,
+                                        HBox mainContent,
+                                        AccountListUI accountListUI) throws Exception {
         Method method = BaseMainApplicationUI.class.getDeclaredMethod(
                 "buildAppContent",
                 manageAccountColumnClass(),
-                HBox.class
+                HBox.class,
+                AccountListUI.class
         );
         method.setAccessible(true);
-        return (HBox) method.invoke(ui, manageAccountColumn, mainContent);
+        return (HBox) method.invoke(ui, manageAccountColumn, mainContent, accountListUI);
     }
 
     private static void updateManageAccountResponsiveColumns(MainApplicationUI ui,
                                                              HBox appContent,
                                                              Object manageAccountColumn,
-                                                             HBox mainContent) throws Exception {
+                                                             AccountListUI accountListUI) throws Exception {
         Method method = BaseMainApplicationUI.class.getDeclaredMethod(
                 "updateManageAccountResponsiveColumns",
                 HBox.class,
                 manageAccountColumnClass(),
-                HBox.class
+                AccountListUI.class
         );
         method.setAccessible(true);
-        method.invoke(ui, appContent, manageAccountColumn, mainContent);
+        method.invoke(ui, appContent, manageAccountColumn, accountListUI);
     }
 
     private static void configureAppNavigation(MainApplicationUI ui,
@@ -467,6 +510,18 @@ class MainApplicationUILayoutTest {
         Field field = MainApplicationUI.class.getDeclaredField(fieldName);
         field.setAccessible(true);
         field.set(ui, value);
+    }
+
+    private static HBox accountBodyLayout(AccountListUI accountListUI) throws Exception {
+        Field field = AccountListUI.class.getDeclaredField("bodyLayout");
+        field.setAccessible(true);
+        return (HBox) field.get(accountListUI);
+    }
+
+    private static List<Node> showingBodyColumns(AccountListUI accountListUI) throws Exception {
+        return accountBodyLayout(accountListUI).getChildren().stream()
+                .filter(node -> node.isVisible() && node.isManaged())
+                .toList();
     }
 
     private record HeaderButtonsSnapshot(List<String> texts, List<List<String>> styleClasses) {

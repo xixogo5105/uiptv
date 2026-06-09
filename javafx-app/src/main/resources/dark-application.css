@@ -2551,16 +2551,12 @@
     -fx-font-weight: bold;
 }
 
-.filter-lock-state-value.locked {
+.filter-lock-state-value.enabled {
     -fx-text-fill: #4ade80;
 }
 
-.filter-lock-state-value.unlocked {
+.filter-lock-state-value.disabled {
     -fx-text-fill: #f87171;
-}
-
-.filter-lock-state-value.not-set {
-    -fx-text-fill: -uiptv-text-secondary;
 }
 
 .filter-lock-state-switch .uiptv-switch-track {

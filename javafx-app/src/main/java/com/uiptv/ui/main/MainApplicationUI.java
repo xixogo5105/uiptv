@@ -61,6 +61,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private AccountListUI activeAccountListUI;
     private boolean embeddedLayoutListenerRegistered;
     private boolean deferredEmbeddedLayoutRefreshPending;
+    private boolean wideEmbeddedLayoutActive;
     private double retainedWideAppAreaWidth = -1;
     private DockedTopControls dockedTopControls;
 
@@ -177,6 +178,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         boolean showEmbeddedPlayer = embeddedConfigured && playerNodeActive;
         setEmbeddedPlayerContainerVisible(showEmbeddedPlayer);
         boolean widePlayerPreferred = showEmbeddedPlayer && configuration.isWideView();
+        setWideEmbeddedLayoutActive(widePlayerPreferred);
         if (!showEmbeddedPlayer) {
             restoreDockedTopControls();
             retainedWideAppAreaWidth = -1;
@@ -199,6 +201,19 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         if (mainContent != null) {
             mainContent.requestLayout();
         }
+    }
+
+    @Override
+    protected boolean isSingleColumnNavigationMode() {
+        return wideEmbeddedLayoutActive;
+    }
+
+    private void setWideEmbeddedLayoutActive(boolean active) {
+        if (wideEmbeddedLayoutActive == active) {
+            return;
+        }
+        wideEmbeddedLayoutActive = active;
+        requestManageAccountResponsiveColumnsUpdate();
     }
 
     private void applyNavigationOnlyEmbeddedLayout() {

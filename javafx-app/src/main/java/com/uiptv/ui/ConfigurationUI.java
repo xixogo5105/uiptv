@@ -110,7 +110,6 @@ public class ConfigurationUI extends VBox {
     private final PillBar<ThemeModeOption> themeModePillBar =
             new PillBar<>(ThemeModeOption::title, ThemeModeOption::id);
     private final SwitchToggle thumbnailModeSwitch = new SwitchToggle();
-    private final SwitchToggle filterPauseSwitch = new SwitchToggle();
     private final SwitchToggle filterPasswordProtectionSwitch = new SwitchToggle();
     private final SwitchToggle wideViewSwitch = new SwitchToggle();
     private final SwitchToggle resolveChainAndDeepRedirectsSwitch = new SwitchToggle();
@@ -130,7 +129,6 @@ public class ConfigurationUI extends VBox {
     private final Label filtersGroupTitleLabel = new Label();
     private final StatusIcon filtersGroupStatusIcon = new StatusIcon();
     private final Label cacheFilteringGroupTitleLabel = new Label();
-    private final StatusIcon cacheFilteringGroupStatusIcon = new StatusIcon();
     private final Button filterLockPasswordButton = new Button();
     private final SwitchToggle filterLockStateSwitch = new SwitchToggle();
     private final Label filterLockStateTitleLabel = new Label(I18n.tr("filterLockStateToggleLabel"));
@@ -193,7 +191,6 @@ public class ConfigurationUI extends VBox {
     private boolean vlcHttpForwardCookiesEnabled = true;
     private boolean syncingThemeModeSelector;
     private boolean syncingThumbnailModeSelector;
-    private boolean syncingFilterPauseModeSelector;
     private boolean syncingPasswordProtectionSelector;
     private boolean syncingFilterLockStateSwitch;
     private boolean syncingConfigurationToForm;
@@ -330,7 +327,6 @@ public class ConfigurationUI extends VBox {
         filterLockStatusLabel.setWrapText(true);
         filterLockStatusLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
         configureFilterPasswordProtectionSelector();
-        configureFilterPauseModeSelector();
         cacheExpiryDays.getStyleClass().add("settings-numeric-field");
         cacheExpiryDays.setAlignment(Pos.CENTER);
         cacheExpiryDays.setPrefColumnCount(5);
@@ -374,7 +370,7 @@ public class ConfigurationUI extends VBox {
 
         FlowPane clearButtons = createWrappingRow(10, 6, clearCacheButton, clearWatchingNowButton);
         reloadCacheButton.setMaxWidth(Region.USE_PREF_SIZE);
-        VBox cacheGroup = new VBox(10, createFilterPauseModeRow(), cacheExpiryRow, clearButtons, reloadCacheButton);
+        VBox cacheGroup = new VBox(10, cacheExpiryRow, clearButtons, reloadCacheButton);
         refreshConfigurationBlockTitles();
 
         openServerLink.setVisible(false);
@@ -409,7 +405,7 @@ public class ConfigurationUI extends VBox {
                 new SettingsSection("players", I18n.tr("configVideoPlayers"), null, playersGroup, videoPlayersHelpLink, "players video playback embedded vlc wide view redirects"),
                 new SettingsSection("filters", I18n.tr("configFilters"), filtersGroupStatusIcon, filtersGroup, filtersHelpLink, "filters parental lock categories channels censor hidden protected"),
                 new SettingsSection("appearance", I18n.tr("configDarkTheme"), null, themeOverridesGroup, themeHelpLink, "appearance theme language thumbnails zoom"),
-                new SettingsSection("cache", I18n.tr("configCacheFiltering"), cacheFilteringGroupStatusIcon, cacheGroup, cacheFilteringHelpLink, "cache filtering pause restrictions clear reload watching now"),
+                new SettingsSection("cache", I18n.tr("configCacheFiltering"), null, cacheGroup, cacheFilteringHelpLink, "cache clear reload watching now"),
                 new SettingsSection("sync", I18n.tr("configDatabaseSyncTitle"), null, databaseSyncGroup, databaseSyncHelpLink, "database sync import export backup remote"),
                 new SettingsSection("server", I18n.tr("configWebServer"), null, serverGroup, webServerHelpLink, "web server https port m3u publish startup"),
                 new SettingsSection("tmdb", I18n.tr("configTmdbMetadata"), null, tmdbConfigSection, tmdbMetadataHelpLink, "tmdb metadata api token")
@@ -850,16 +846,6 @@ public class ConfigurationUI extends VBox {
         return row;
     }
 
-    private Node createFilterPauseModeRow() {
-        return createSettingSwitchRow("configPauseFiltering", filterPauseSwitch);
-    }
-
-    private void configureFilterPauseModeSelector() {
-        filterPauseSwitch.selectedProperty().addListener((_, _, selected) ->
-                handleFilterPauseSwitchChanged(selected));
-        setFilterPauseModeSelection(persistedPauseFilteringValue);
-    }
-
     private void configureThumbnailModeSelector() {
         thumbnailModeSwitch.selectedProperty().addListener((_, _, selected) -> {
             if (syncingThumbnailModeSelector) {
@@ -874,23 +860,6 @@ public class ConfigurationUI extends VBox {
         filterPasswordProtectionSwitch.selectedProperty().addListener((_, _, selected) ->
                 handleFilterPasswordProtectionSwitchChanged(selected));
         setFilterPasswordProtectionSelection(false);
-    }
-
-    private void handleFilterPauseSwitchChanged(boolean requestedPaused) {
-        if (syncingConfigurationToForm || syncingFilterPauseModeSelector) {
-            return;
-        }
-        FilterLockService filterLockService = FilterLockService.getInstance();
-        if (filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked()) {
-            if (!FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
-                setFilterPauseModeSelection(persistedPauseFilteringValue);
-                return;
-            }
-            refreshFilterLockUi();
-            setFilterPauseModeSelection(requestedPaused);
-        }
-        saveCurrentSettings(true);
-        refreshFilterLockUi();
     }
 
     private void handleFilterPasswordProtectionSwitchChanged(boolean disableRequested) {
@@ -909,17 +878,8 @@ public class ConfigurationUI extends VBox {
         }
     }
 
-    private boolean isFilterPauseFilteringSelected() {
-        return filterPauseSwitch.isSelected();
-    }
-
-    private void setFilterPauseModeSelection(boolean paused) {
-        syncingFilterPauseModeSelector = true;
-        try {
-            filterPauseSwitch.setSelected(paused);
-        } finally {
-            syncingFilterPauseModeSelector = false;
-        }
+    private boolean isParentalLockRestrictionsPaused() {
+        return !filterLockStateSwitch.isSelected();
     }
 
     private void setFilterPasswordProtectionSelection(boolean disableRequested) {
@@ -931,10 +891,10 @@ public class ConfigurationUI extends VBox {
         }
     }
 
-    private void syncFilterLockStateSwitch(boolean locked) {
+    private void syncFilterLockStateSwitch(boolean restrictionsActive) {
         syncingFilterLockStateSwitch = true;
         try {
-            filterLockStateSwitch.setSelected(locked);
+            filterLockStateSwitch.setSelected(restrictionsActive);
         } finally {
             syncingFilterLockStateSwitch = false;
         }
@@ -1097,7 +1057,6 @@ public class ConfigurationUI extends VBox {
                 || savingConfiguration
                 || syncingThemeModeSelector
                 || syncingThumbnailModeSelector
-                || syncingFilterPauseModeSelector
                 || syncingPasswordProtectionSelector
                 || syncingFilterLockStateSwitch;
     }
@@ -1283,14 +1242,11 @@ public class ConfigurationUI extends VBox {
     }
 
     private void refreshConfigurationBlockTitles() {
-        FilterLockService filterLockService = FilterLockService.getInstance();
         Configuration configuration = service.read();
-        boolean parentalLockOn = filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked();
-        boolean censoringOn = configuration == null || !configuration.isPauseFiltering();
+        boolean restrictionsActive = configuration == null || !configuration.isPauseFiltering();
         filtersGroupTitleLabel.setText(I18n.tr("configFilters"));
         cacheFilteringGroupTitleLabel.setText(I18n.tr("configCacheFiltering"));
-        filtersGroupStatusIcon.setEnabled(parentalLockOn);
-        cacheFilteringGroupStatusIcon.setEnabled(censoringOn);
+        filtersGroupStatusIcon.setEnabled(restrictionsActive);
     }
 
     private void refreshServerStatusUI() {
@@ -1366,33 +1322,28 @@ public class ConfigurationUI extends VBox {
             FilterLockDialogs.openPasswordChangeDialog(this);
             refreshConfigurationForm();
         });
-        filterLockStateSwitch.selectedProperty().addListener((_, _, lockedRequested) ->
-                handleFilterLockStateSwitchChanged(lockedRequested));
+        filterLockStateSwitch.selectedProperty().addListener((_, _, restrictionsActiveRequested) ->
+                handleFilterLockStateSwitchChanged(restrictionsActiveRequested));
     }
 
-    private void handleFilterLockStateSwitchChanged(boolean lockedRequested) {
+    private void handleFilterLockStateSwitchChanged(boolean restrictionsActiveRequested) {
         if (syncingConfigurationToForm || syncingFilterLockStateSwitch) {
             return;
         }
         FilterLockService filterLockService = FilterLockService.getInstance();
-        if (!filterLockService.hasPasswordConfigured()) {
-            syncFilterLockStateSwitch(false);
-            return;
+        if (filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked()) {
+            if (!FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
+                syncFilterLockStateSwitch(!persistedPauseFilteringValue);
+                return;
+            }
+            refreshFilterLockUi();
+            syncFilterLockStateSwitch(restrictionsActiveRequested);
         }
-        if (lockedRequested) {
+        saveCurrentSettings(true);
+        if (restrictionsActiveRequested) {
             filterLockService.clearUnlockSession();
-            refreshFilterLockUi();
-            return;
         }
-        if (filterLockService.isUnlocked()) {
-            refreshFilterLockUi();
-            return;
-        }
-        if (FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
-            refreshFilterLockUi();
-        } else {
-            syncFilterLockStateSwitch(true);
-        }
+        refreshFilterLockUi();
     }
 
     private void addVlcOptionsLinkClickHandler() {
@@ -1583,12 +1534,12 @@ public class ConfigurationUI extends VBox {
 
         filterLockPasswordButton.setText(I18n.tr(passwordSet ? "filterLockChangePasswordAction" : "filterLockSetPasswordAction"));
         if (filterLockStateRow != null) {
-            filterLockStateRow.setManaged(passwordSet);
-            filterLockStateRow.setVisible(passwordSet);
+            filterLockStateRow.setManaged(true);
+            filterLockStateRow.setVisible(true);
         }
-        filterLockStateSwitch.setDisable(!passwordSet);
-        syncFilterLockStateSwitch(passwordSet && !unlocked);
-        updateFilterLockStateValue(passwordSet, unlocked);
+        filterLockStateSwitch.setDisable(false);
+        syncFilterLockStateSwitch(!persistedPauseFilteringValue);
+        updateFilterLockStateValue(!persistedPauseFilteringValue);
         if (filterPasswordProtectionRow != null) {
             filterPasswordProtectionRow.setManaged(passwordSet);
             filterPasswordProtectionRow.setVisible(passwordSet);
@@ -1603,7 +1554,6 @@ public class ConfigurationUI extends VBox {
             filterChannelWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CHANNELS_PROMPT));
             filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
             filterChannelWithTextContains.setText(persistedFilterChannelsValue);
-            setFilterPauseModeSelection(persistedPauseFilteringValue);
             updateFilterLockDurationRowVisibility(false);
             return;
         }
@@ -1616,7 +1566,6 @@ public class ConfigurationUI extends VBox {
             filterChannelWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CHANNELS_PROMPT));
             filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
             filterChannelWithTextContains.setText(persistedFilterChannelsValue);
-            setFilterPauseModeSelection(persistedPauseFilteringValue);
             updateFilterLockDurationRowVisibility(true);
             return;
         }
@@ -1626,26 +1575,15 @@ public class ConfigurationUI extends VBox {
         filterChannelWithTextContains.clear();
         filterCategoriesWithTextContains.setEditable(false);
         filterChannelWithTextContains.setEditable(false);
-        setFilterPauseModeSelection(persistedPauseFilteringValue);
         filterCategoriesWithTextContains.setPromptText(I18n.tr("filterLockHiddenCategoriesPrompt"));
         filterChannelWithTextContains.setPromptText(I18n.tr("filterLockHiddenChannelsPrompt"));
         updateFilterLockDurationRowVisibility(false);
     }
 
-    private void updateFilterLockStateValue(boolean passwordSet, boolean unlocked) {
-        filterLockStateValueLabel.getStyleClass().removeAll("locked", "unlocked", "not-set");
-        if (!passwordSet) {
-            filterLockStateValueLabel.setText(I18n.tr("filterLockStateNotSet"));
-            filterLockStateValueLabel.getStyleClass().add("not-set");
-            return;
-        }
-        if (unlocked) {
-            filterLockStateValueLabel.setText(I18n.tr("filterLockStateUnlocked"));
-            filterLockStateValueLabel.getStyleClass().add("unlocked");
-            return;
-        }
-        filterLockStateValueLabel.setText(I18n.tr("filterLockStateLocked"));
-        filterLockStateValueLabel.getStyleClass().add("locked");
+    private void updateFilterLockStateValue(boolean restrictionsActive) {
+        filterLockStateValueLabel.getStyleClass().removeAll("enabled", "disabled");
+        filterLockStateValueLabel.setText(I18n.tr(restrictionsActive ? "commonEnabled" : "commonDisabled"));
+        filterLockStateValueLabel.getStyleClass().add(restrictionsActive ? "enabled" : "disabled");
     }
 
     private void updateFilterLockDurationRowVisibility(boolean visible) {
@@ -1670,7 +1608,7 @@ public class ConfigurationUI extends VBox {
             persistedPauseFilteringValue = configuration.isPauseFiltering();
             filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
             filterChannelWithTextContains.setText(persistedFilterChannelsValue);
-            setFilterPauseModeSelection(persistedPauseFilteringValue);
+            syncFilterLockStateSwitch(!persistedPauseFilteringValue);
             darkThemeCheckBox.setSelected(configuration.isDarkTheme());
             syncThemeModeSelector();
             enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
@@ -1811,7 +1749,7 @@ public class ConfigurationUI extends VBox {
         boolean filterValuesChanged = (filterTextFieldsEditable
                 && (!java.util.Objects.equals(filterCategoriesWithTextContains.getText(), persistedFilterCategoriesValue)
                 || !java.util.Objects.equals(filterChannelWithTextContains.getText(), persistedFilterChannelsValue)))
-                || isFilterPauseFilteringSelected() != persistedPauseFilteringValue;
+                || isParentalLockRestrictionsPaused() != persistedPauseFilteringValue;
         if (!filterValuesChanged) {
             return true;
         }
@@ -1840,7 +1778,7 @@ public class ConfigurationUI extends VBox {
         if (FilterLockService.getInstance().hasPasswordConfigured() && !FilterLockService.getInstance().isUnlocked()) {
             return persistedPauseFilteringValue;
         }
-        return isFilterPauseFilteringSelected();
+        return isParentalLockRestrictionsPaused();
     }
 
     private String resolveDefaultPlayerPath() {

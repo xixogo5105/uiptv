@@ -151,8 +151,8 @@ public class AppHeaderActions extends HBox {
         Configuration configuration = ConfigurationService.getInstance().read();
         boolean paused = configuration != null && configuration.isPauseFiltering();
         return paused
-                ? "Resume parental lock restrictions"
-                : "Pause parental lock restrictions";
+                ? "Enable parental lock access"
+                : "Disable parental lock access";
     }
 
     private Configuration readConfigurationSafely() {
@@ -214,8 +214,8 @@ public class AppHeaderActions extends HBox {
             parentalPauseChangedHandler.run();
         }
         showMessageAlert(configuration.isPauseFiltering()
-                ? "Parental lock restrictions paused."
-                : "Parental lock restrictions resumed.");
+                ? "Parental lock access disabled."
+                : "Parental lock access enabled.");
     }
 
     private void togglePlainTextMode() {
