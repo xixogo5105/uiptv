@@ -143,8 +143,9 @@ class AppPageHeaderTest {
     }
 
     @Test
-    void searchFieldClearsOnClickAndPreservesExistingMouseHandler() throws Exception {
+    void searchFieldClearsOnlyOnFirstClickInFocusSessionAndPreservesExistingMouseHandler() throws Exception {
         AtomicBoolean existingHandlerCalled = new AtomicBoolean(false);
+        AtomicReference<String> afterFirstClick = new AtomicReference<>();
         TextField search = runOnFxThread(() -> {
             TextField field = new TextField("previous query");
             field.setOnMousePressed(_ -> existingHandlerCalled.set(true));
@@ -154,11 +155,15 @@ class AppPageHeaderTest {
 
         runOnFxThread(() -> {
             Event.fireEvent(search, primaryMousePressedEvent());
+            afterFirstClick.set(search.getText());
+            search.setText("next query");
+            Event.fireEvent(search, primaryMousePressedEvent());
             return null;
         });
 
         assertTrue(existingHandlerCalled.get());
-        assertEquals("", runOnFxThread(search::getText));
+        assertEquals("", afterFirstClick.get());
+        assertEquals("next query", runOnFxThread(search::getText));
     }
 
     @Test

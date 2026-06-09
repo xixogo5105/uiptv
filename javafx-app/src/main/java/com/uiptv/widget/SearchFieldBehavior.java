@@ -6,6 +6,8 @@ import javafx.scene.input.MouseEvent;
 final class SearchFieldBehavior {
     private static final String MOUSE_CLEAR_INSTALLED_KEY =
             SearchFieldBehavior.class.getName() + ".mouseClearInstalled";
+    private static final String CLEAR_ON_NEXT_MOUSE_PRESS_KEY =
+            SearchFieldBehavior.class.getName() + ".clearOnNextMousePress";
 
     private SearchFieldBehavior() {
     }
@@ -15,6 +17,19 @@ final class SearchFieldBehavior {
             return;
         }
         field.getProperties().put(MOUSE_CLEAR_INSTALLED_KEY, Boolean.TRUE);
-        field.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> field.clear());
+        field.getProperties().put(CLEAR_ON_NEXT_MOUSE_PRESS_KEY, Boolean.TRUE);
+        field.focusedProperty().addListener((_, _, focused) -> {
+            if (Boolean.TRUE.equals(focused)) {
+                field.getProperties().put(CLEAR_ON_NEXT_MOUSE_PRESS_KEY, Boolean.FALSE);
+            } else {
+                field.getProperties().put(CLEAR_ON_NEXT_MOUSE_PRESS_KEY, Boolean.TRUE);
+            }
+        });
+        field.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+            if (Boolean.TRUE.equals(field.getProperties().get(CLEAR_ON_NEXT_MOUSE_PRESS_KEY))) {
+                field.clear();
+                field.getProperties().put(CLEAR_ON_NEXT_MOUSE_PRESS_KEY, Boolean.FALSE);
+            }
+        });
     }
 }
