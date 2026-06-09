@@ -2,14 +2,12 @@ package com.uiptv.widget;
 
 import com.uiptv.util.I18n;
 import javafx.application.Platform;
-import javafx.event.EventHandler;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.TextField;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -19,8 +17,6 @@ import javafx.scene.shape.SVGPath;
 import java.util.List;
 
 public class AppPageHeader extends VBox {
-    private static final String LEGACY_SEARCH_CLEAR_INSTALLED_KEY =
-            AppPageHeader.class.getName() + ".legacySearchClearInstalled";
     private static final double COMPACT_ENTER_WIDTH = 920;
     private static final double WIDE_ENTER_WIDTH = 1020;
     private static final double WIDE_SEARCH_MIN_WIDTH = 140;
@@ -77,7 +73,7 @@ public class AppPageHeader extends VBox {
             this.searchField.setMinWidth(WIDE_SEARCH_MIN_WIDTH);
             this.searchField.setPrefWidth(WIDE_SEARCH_WIDTH);
             this.searchField.setMaxWidth(WIDE_SEARCH_WIDTH);
-            installLegacySearchClearBehavior(this.searchField);
+            SearchFieldBehavior.installMouseClear(this.searchField);
             setSearchFieldVisible(false);
             headerNavigation.setTrailingAction(searchToggleButton);
         }
@@ -247,19 +243,4 @@ public class AppPageHeader extends VBox {
         return actionContainer;
     }
 
-    private static void installLegacySearchClearBehavior(TextField field) {
-        if (field == null || Boolean.TRUE.equals(field.getProperties().get(LEGACY_SEARCH_CLEAR_INSTALLED_KEY))) {
-            return;
-        }
-        EventHandler<? super MouseEvent> existingHandler = field.getOnMousePressed();
-        field.getProperties().put(LEGACY_SEARCH_CLEAR_INSTALLED_KEY, Boolean.TRUE);
-        field.setOnMousePressed(event -> {
-            if (existingHandler != null) {
-                existingHandler.handle(event);
-            }
-            if (!event.isConsumed()) {
-                field.clear();
-            }
-        });
-    }
 }

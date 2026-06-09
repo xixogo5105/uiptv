@@ -275,7 +275,7 @@ public final class InlinePanelService {
         titleLabel.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
-        Button closeButton = new Button(closeCaption == null || closeCaption.isBlank()
+        Button closeButton = new CloseIconButton(closeCaption == null || closeCaption.isBlank()
                 ? I18n.tr("commonClose")
                 : closeCaption);
         closeButton.getStyleClass().add("uiptv-inline-close-button");

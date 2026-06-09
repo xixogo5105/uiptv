@@ -20,7 +20,7 @@ public class SearchableTableView<T> extends TableView<T> {
     public SearchableTableView() {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         this.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        searchTextField.setOnMousePressed(event -> searchTextField.clear());
+        SearchFieldBehavior.installMouseClear(searchTextField);
     }
 
     public TextField getSearchTextField() {

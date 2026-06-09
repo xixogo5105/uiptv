@@ -4,6 +4,7 @@ import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.event.Event;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
@@ -152,7 +153,7 @@ class AppPageHeaderTest {
         runOnFxThread(() -> new AppPageHeader("Watching", search, List.of(new Button("Action"))));
 
         runOnFxThread(() -> {
-            search.getOnMousePressed().handle(primaryMousePressedEvent());
+            Event.fireEvent(search, primaryMousePressedEvent());
             return null;
         });
 

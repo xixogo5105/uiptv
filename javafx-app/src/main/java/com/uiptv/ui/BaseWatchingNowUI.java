@@ -1641,7 +1641,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     }
 
     private boolean isProtectedFocusOwner(Node focusOwner) {
-        return focusOwner instanceof TextInputControl textInput && !textInput.getText().isBlank();
+        return focusOwner instanceof TextInputControl;
     }
 
     private void focusSeriesEpisodeCard(SeriesPanelData data, VBox card) {

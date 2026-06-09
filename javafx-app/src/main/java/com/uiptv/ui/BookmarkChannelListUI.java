@@ -54,6 +54,10 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                     .thenComparing(BookmarkItem::getChannelName, Comparator.nullsLast(Comparator.naturalOrder()))
                     .thenComparing(BookmarkItem::getAccountName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
                     .thenComparing(BookmarkItem::getAccountName, Comparator.nullsLast(Comparator.naturalOrder()));
+    private static final Comparator<BookmarkItem> BOOKMARK_ACCOUNT_NAME_COMPARATOR =
+            Comparator.comparing(BookmarkItem::getAccountName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                    .thenComparing(BookmarkItem::getAccountName, Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparing(BOOKMARK_NAME_COMPARATOR);
     private final TextField searchTextField = new TextField();
     private final ResponsiveCardGrid<BookmarkItem> bookmarkGrid = new ResponsiveCardGrid<>(this::createBookmarkCard);
     private final StackPane bookmarkGridFrame = new StackPane();
@@ -521,7 +525,9 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         button.getItems().setAll(
                 createBookmarkSortMenuItem(I18n.tr("autoSortDefault"), BookmarkSortMode.DEFAULT, group),
                 createBookmarkSortMenuItem(I18n.tr("autoSortNameAscending"), BookmarkSortMode.ASCENDING, group),
-                createBookmarkSortMenuItem(I18n.tr("autoSortNameDescending"), BookmarkSortMode.DESCENDING, group)
+                createBookmarkSortMenuItem(I18n.tr("autoSortNameDescending"), BookmarkSortMode.DESCENDING, group),
+                createBookmarkSortMenuItem(I18n.tr("autoSortAccountNameAscending"), BookmarkSortMode.ACCOUNT_ASCENDING, group),
+                createBookmarkSortMenuItem(I18n.tr("autoSortAccountNameDescending"), BookmarkSortMode.ACCOUNT_DESCENDING, group)
         );
         bookmarkSortButton = button;
         updateBookmarkSortButton();
@@ -600,14 +606,18 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             case DEFAULT -> I18n.tr("autoSortDefault");
             case ASCENDING -> I18n.tr("autoSortNameAscending");
             case DESCENDING -> I18n.tr("autoSortNameDescending");
+            case ACCOUNT_ASCENDING -> I18n.tr("autoSortAccountNameAscending");
+            case ACCOUNT_DESCENDING -> I18n.tr("autoSortAccountNameDescending");
         };
     }
 
     private String bookmarkSortCompactLabel(BookmarkSortMode sortMode) {
         return switch (sortMode == null ? BookmarkSortMode.DEFAULT : sortMode) {
-            case DEFAULT -> "Default";
-            case ASCENDING -> "A-Z";
-            case DESCENDING -> "Z-A";
+            case DEFAULT -> I18n.tr("autoSortDefaultCompact");
+            case ASCENDING -> I18n.tr("autoSortNameAscendingCompact");
+            case DESCENDING -> I18n.tr("autoSortNameDescendingCompact");
+            case ACCOUNT_ASCENDING -> I18n.tr("autoSortAccountNameAscendingCompact");
+            case ACCOUNT_DESCENDING -> I18n.tr("autoSortAccountNameDescendingCompact");
         };
     }
 
@@ -836,6 +846,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         switch (bookmarkSortMode) {
             case ASCENDING -> items.sort(BOOKMARK_NAME_COMPARATOR);
             case DESCENDING -> items.sort(BOOKMARK_NAME_COMPARATOR.reversed());
+            case ACCOUNT_ASCENDING -> items.sort(BOOKMARK_ACCOUNT_NAME_COMPARATOR);
+            case ACCOUNT_DESCENDING -> items.sort(BOOKMARK_ACCOUNT_NAME_COMPARATOR.reversed());
             case DEFAULT -> {
                 // Default order is the persisted order already represented by allBookmarkItems.
             }
@@ -1437,6 +1449,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private enum BookmarkSortMode {
         DEFAULT,
         ASCENDING,
-        DESCENDING
+        DESCENDING,
+        ACCOUNT_ASCENDING,
+        ACCOUNT_DESCENDING
     }
 }

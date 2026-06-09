@@ -10,6 +10,7 @@ import com.uiptv.util.I18n;
 import com.uiptv.widget.AppNavigationController;
 import com.uiptv.widget.AppNavigationPane;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -300,13 +301,18 @@ class MainApplicationUILayoutTest {
                     .toList();
             return new HeaderButtonsSnapshot(
                     buttons.stream().map(Button::getText).toList(),
-                    buttons.stream().map(button -> List.copyOf(button.getStyleClass())).toList()
+                    buttons.stream().map(button -> List.copyOf(button.getStyleClass())).toList(),
+                    buttons.stream().map(button -> button.getGraphic() != null).toList(),
+                    buttons.stream().map(Button::getAccessibleText).toList()
             );
         });
 
-        assertEquals(List.of(I18n.tr("commonSave"), I18n.tr("commonClose")), snapshot.texts());
+        assertEquals(List.of(I18n.tr("commonSave"), ""), snapshot.texts());
         assertTrue(snapshot.styleClasses().getFirst().contains("manage-account-dock-save"));
         assertTrue(snapshot.styleClasses().get(1).contains("manage-account-dock-close"));
+        assertFalse(snapshot.hasGraphics().getFirst());
+        assertTrue(snapshot.hasGraphics().get(1));
+        assertEquals(I18n.tr("commonClose"), snapshot.accessibleTexts().get(1));
     }
 
     @Test
@@ -335,6 +341,35 @@ class MainApplicationUILayoutTest {
 
             assertTrue(mainContent.isVisible());
             assertTrue(mainContent.isManaged());
+            assertFalse(dockNode.isVisible());
+            assertFalse(dockNode.isManaged());
+            assertEquals(1, showingBodyColumns(accountListUI).size());
+            assertFalse(showingBodyColumns(accountListUI).contains(dockNode));
+            return null;
+        });
+    }
+
+    @Test
+    void manageAccountDockCloseButtonRestoresAccountBodyInSingleColumnOnOneClick() throws Exception {
+        runOnFxThread(() -> {
+            MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, false);
+            Object manageAccountColumn = createManageAccountColumn();
+            Node dockNode = manageAccountColumnNode(manageAccountColumn);
+            Button closeButton = findButtonByStyle(dockNode, "manage-account-dock-close");
+            AccountListUI accountListUI = new AccountListUI(null, null);
+            accountListUI.setLeadingBodyContent(dockNode);
+            HBox mainContent = new HBox(accountListUI);
+            HBox appContent = buildAppContent(ui, manageAccountColumn, mainContent, accountListUI);
+            appContent.resize(700, 600);
+
+            openManageAccountColumn(manageAccountColumn);
+            updateManageAccountResponsiveColumns(ui, appContent, manageAccountColumn, accountListUI);
+
+            assertTrue(closeButton != null);
+            assertEquals(List.of(dockNode), showingBodyColumns(accountListUI));
+
+            closeButton.fire();
+
             assertFalse(dockNode.isVisible());
             assertFalse(dockNode.isManaged());
             assertEquals(1, showingBodyColumns(accountListUI).size());
@@ -557,6 +592,21 @@ class MainApplicationUILayoutTest {
         return (Node) method.invoke(manageAccountColumn);
     }
 
+    private static Button findButtonByStyle(Node root, String styleClass) {
+        if (root instanceof Button button && button.getStyleClass().contains(styleClass)) {
+            return button;
+        }
+        if (root instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                Button button = findButtonByStyle(child, styleClass);
+                if (button != null) {
+                    return button;
+                }
+            }
+        }
+        return null;
+    }
+
     private static void openManageAccountColumn(Object manageAccountColumn) throws Exception {
         Method method = manageAccountColumnClass().getDeclaredMethod("open");
         method.setAccessible(true);
@@ -587,6 +637,9 @@ class MainApplicationUILayoutTest {
                 .toList();
     }
 
-    private record HeaderButtonsSnapshot(List<String> texts, List<List<String>> styleClasses) {
+    private record HeaderButtonsSnapshot(List<String> texts,
+                                         List<List<String>> styleClasses,
+                                         List<Boolean> hasGraphics,
+                                         List<String> accessibleTexts) {
     }
 }

@@ -1020,7 +1020,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private boolean isProtectedFocusOwner(Node focusOwner) {
-        return focusOwner instanceof TextInputControl textInput && !textInput.getText().isBlank();
+        return focusOwner instanceof TextInputControl;
     }
 
     private boolean isDisplayable() {

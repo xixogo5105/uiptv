@@ -187,13 +187,13 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     }
 
     @Test
-    void favoriteSortModesKeepDefaultOrderAndSortName() throws Exception {
+    void favoriteSortModesKeepDefaultOrderAndSortNameOrAccountName() throws Exception {
         List<List<String>> orders = runOnFxThread(() -> {
             BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
             allBookmarkItems(ui).addAll(List.of(
-                    bookmarkItem("3", "Zulu", "Account C"),
-                    bookmarkItem("1", "Alpha", "Account A"),
-                    bookmarkItem("2", "Bravo", "Account B")
+                    bookmarkItem("3", "Zulu", "Account B"),
+                    bookmarkItem("1", "Alpha", "Account C"),
+                    bookmarkItem("2", "Bravo", "Account A")
             ));
 
             invokeFilterView(ui);
@@ -202,16 +202,22 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
             List<String> ascending = filteredChannelNames(ui);
             setBookmarkSortMode(ui, "DESCENDING");
             List<String> descending = filteredChannelNames(ui);
+            setBookmarkSortMode(ui, "ACCOUNT_ASCENDING");
+            List<String> accountAscending = filteredChannelNames(ui);
+            setBookmarkSortMode(ui, "ACCOUNT_DESCENDING");
+            List<String> accountDescending = filteredChannelNames(ui);
             setBookmarkSortMode(ui, "DEFAULT");
             List<String> defaultAgain = filteredChannelNames(ui);
 
-            return List.of(defaultOrder, ascending, descending, defaultAgain);
+            return List.of(defaultOrder, ascending, descending, accountAscending, accountDescending, defaultAgain);
         });
 
         assertEquals(List.of("Zulu", "Alpha", "Bravo"), orders.get(0));
         assertEquals(List.of("Alpha", "Bravo", "Zulu"), orders.get(1));
         assertEquals(List.of("Zulu", "Bravo", "Alpha"), orders.get(2));
-        assertEquals(List.of("Zulu", "Alpha", "Bravo"), orders.get(3));
+        assertEquals(List.of("Bravo", "Zulu", "Alpha"), orders.get(3));
+        assertEquals(List.of("Alpha", "Zulu", "Bravo"), orders.get(4));
+        assertEquals(List.of("Zulu", "Alpha", "Bravo"), orders.get(5));
     }
 
     @Test

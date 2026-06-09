@@ -54,11 +54,13 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private ContextMenuFactory<T> contextMenuFactory;
     private Consumer<T> itemActivatedHandler;
     private Consumer<List<T>> itemsReorderedHandler;
+    private Predicate<T> singleClickActivationPredicate;
     private T focusedItem;
     private T anchorItem;
     private T mousePressedSelectionItem;
     private int focusedItemIndex = -1;
     private boolean reorderEnabled;
+    private boolean activateOnSingleClick;
     private boolean mouseSelectionInProgress;
     private boolean suppressFocusSelection;
     private boolean singleColumn;
@@ -160,11 +162,11 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     public void setActivateOnSingleClick(boolean activateOnSingleClick) {
-        // Single-click card activation is intentionally disabled; cards activate on double click.
+        this.activateOnSingleClick = activateOnSingleClick;
     }
 
     public void setSingleClickActivationPredicate(Predicate<T> singleClickActivationPredicate) {
-        // Retained for source compatibility with older call sites.
+        this.singleClickActivationPredicate = singleClickActivationPredicate;
     }
 
     public void setSingleColumn(boolean singleColumn) {
@@ -357,12 +359,23 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         requestGridFocusPreservingScroll();
         boolean shouldActivate = itemActivatedHandler != null
-                && event.getClickCount() == 2
-                && !isSelectionModifierDown(event);
+                && !isSelectionModifierDown(event)
+                && shouldActivateForClick(item, event.getClickCount());
         if (shouldActivate) {
             itemActivatedHandler.accept(item);
         }
         event.consume();
+    }
+
+    private boolean shouldActivateForClick(T item, int clickCount) {
+        if (activateOnSingleClick) {
+            return clickCount == 1 && isSingleClickActivationAllowed(item);
+        }
+        return clickCount == 2;
+    }
+
+    private boolean isSingleClickActivationAllowed(T item) {
+        return singleClickActivationPredicate == null || singleClickActivationPredicate.test(item);
     }
 
     private boolean isInteractiveChildEvent(Region card, MouseEvent event) {
@@ -708,8 +721,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             return;
         }
         Node focusOwner = getScene().getFocusOwner();
-        if ((focusOwner instanceof TextInputControl textInput && !textInput.getText().isBlank())
-                || isDescendantOf(focusOwner, this)) {
+        if (focusOwner instanceof TextInputControl || isDescendantOf(focusOwner, this)) {
             return;
         }
         Region card = cardsByItem.get(item);

@@ -5,6 +5,7 @@ import com.uiptv.model.Channel;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -22,6 +23,7 @@ import java.util.List;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -81,6 +83,24 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     @Test
+    void channelCardHidesRepeatedSubtitle() throws Exception {
+        LabelSnapshot subtitle = runOnFxThread(() -> {
+            Account account = new Account();
+            account.setAccountName("Sports");
+            ChannelListUI ui = new ChannelListUI(account, "Sports", "sports", Account.AccountAction.itv);
+            setBooleanField(ui, "thumbnailsEnabled", true);
+            Region card = createChannelCard(ui, channelItem());
+            Label label = findLabelByStyle(card, "bookmark-channel-account");
+            return label == null ? null : new LabelSnapshot(label.getText(), label.isVisible(), label.isManaged());
+        });
+
+        assertNotNull(subtitle);
+        assertEquals("", subtitle.text());
+        assertFalse(subtitle.visible());
+        assertFalse(subtitle.managed());
+    }
+
+    @Test
     void plainTextChannelCardShowsBookmarkMarkerWhenBookmarked() throws Exception {
         boolean markerPresent = runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
@@ -89,6 +109,21 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         });
 
         assertTrue(markerPresent);
+    }
+
+    @Test
+    void drawerChannelRowDoesNotRepeatCategoryNameAsMetadata() throws Exception {
+        LabelSnapshot meta = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            Region row = createDrawerChannelRow(ui, channelItem());
+            Label label = findLabelByStyle(row, "account-drawer-channel-meta");
+            return label == null ? null : new LabelSnapshot(label.getText(), label.isVisible(), label.isManaged());
+        });
+
+        assertNotNull(meta);
+        assertEquals("", meta.text());
+        assertFalse(meta.visible());
+        assertFalse(meta.managed());
     }
 
     @Test
@@ -129,6 +164,18 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         assertTrue(snapshot.unregistered());
     }
 
+    @Test
+    void channelCardsActivateOnSingleClickInPlainTextMode() throws Exception {
+        boolean singleClickActivation = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            setBooleanField(ui, "thumbnailsEnabled", false);
+            invokeNoArg(ui, "applyChannelGridSizing");
+            return booleanField(channelGrid(ui), "activateOnSingleClick");
+        });
+
+        assertTrue(singleClickActivation);
+    }
+
     private static ContextMenu createChannelContextMenu(ChannelListUI ui, ChannelListUI.ChannelItem item) throws Exception {
         Method method = ChannelListUI.class.getDeclaredMethod(
                 "createChannelContextMenu",
@@ -156,6 +203,13 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         Method method = ChannelListUI.class.getDeclaredMethod("createDrawerChannelRow", ChannelListUI.ChannelItem.class);
         method.setAccessible(true);
         return (Region) method.invoke(ui, item);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ResponsiveCardGrid<ChannelListUI.ChannelItem> channelGrid(ChannelListUI ui) throws Exception {
+        Field field = ChannelListUI.class.getDeclaredField("channelGrid");
+        field.setAccessible(true);
+        return (ResponsiveCardGrid<ChannelListUI.ChannelItem>) field.get(ui);
     }
 
     private static void invokeNoArg(Object target, String methodName) throws Exception {
@@ -233,6 +287,9 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     private record BadgeSnapshot(String text, boolean visible, boolean managed) {
+    }
+
+    private record LabelSnapshot(String text, boolean visible, boolean managed) {
     }
 
     private record ListenerSnapshot(boolean registered, boolean unregistered) {

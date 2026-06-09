@@ -291,6 +291,41 @@
     -fx-opacity: 0.48;
 }
 
+.tooltip {
+    -fx-background-color: #f4f4f5;
+    -fx-background-radius: 8;
+    -fx-border-color: #d9d9d9;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 6 8 6 8;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-size: 0.92em;
+    -fx-font-weight: normal;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.14), 12, 0.12, 0, 3);
+}
+
+.uiptv-circular-close-button {
+    -fx-min-width: 30;
+    -fx-pref-width: 30;
+    -fx-max-width: 30;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-max-height: 30;
+    -fx-padding: 0;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-alignment: center;
+}
+
+.uiptv-circular-close-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.uiptv-circular-close-button:hover .uiptv-circular-close-icon,
+.uiptv-circular-close-button:focused .uiptv-circular-close-icon {
+    -fx-fill: -uiptv-text-primary;
+}
+
 .dangerous {
     -fx-background-color: #dc2626;
     -fx-text-fill: white;
@@ -953,10 +988,16 @@
 .manage-account-dock-close {
     -fx-background-radius: 999;
     -fx-border-radius: 999;
+    -fx-min-width: 30;
+    -fx-pref-width: 30;
+    -fx-max-width: 30;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-max-height: 30;
+    -fx-padding: 0;
 }
 
-.manage-account-dock-save,
-.manage-account-dock-close {
+.manage-account-dock-save {
     -fx-min-height: 30;
     -fx-pref-height: 30;
     -fx-padding: 5 10 5 10;
@@ -1227,6 +1268,18 @@
 }
 
 .account-category-close-button {
+    -fx-min-width: 30;
+    -fx-pref-width: 30;
+    -fx-max-width: 30;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-max-height: 30;
+    -fx-padding: 0;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.account-category-back-button {
     -fx-padding: 5 13 5 13;
     -fx-min-width: 98;
     -fx-pref-width: 98;
@@ -2923,7 +2976,6 @@
     -fx-text-fill: -uiptv-text-primary;
 }
 
-.uiptv-inline-close-button,
 .uiptv-inline-primary-button,
 .uiptv-inline-secondary-button {
     -fx-background-radius: 999;
@@ -2935,19 +2987,37 @@
     -fx-cursor: hand;
 }
 
-.uiptv-inline-close-button,
 .uiptv-inline-secondary-button {
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-text-fill: -uiptv-text-secondary;
 }
 
-.uiptv-inline-close-button:hover,
-.uiptv-inline-close-button:focused,
 .uiptv-inline-secondary-button:hover,
 .uiptv-inline-secondary-button:focused {
     -fx-background-color: -uiptv-surface-hover;
     -fx-text-fill: -uiptv-text-primary;
+    -fx-border-color: -uiptv-accent;
+}
+
+.uiptv-inline-close-button {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-min-width: 38;
+    -fx-pref-width: 38;
+    -fx-max-width: 38;
+    -fx-min-height: 38;
+    -fx-pref-height: 38;
+    -fx-max-height: 38;
+    -fx-padding: 0;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.uiptv-inline-close-button:hover,
+.uiptv-inline-close-button:focused {
+    -fx-background-color: -uiptv-surface-hover;
     -fx-border-color: -uiptv-accent;
 }
 

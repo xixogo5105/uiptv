@@ -29,7 +29,7 @@ public class SearchableTableViewWithButton<T> extends VBox { // Made generic
         this.tableView.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         searchTextField.setPromptText(I18n.tr("commonSearch"));
         searchTextField.setMaxWidth(Double.MAX_VALUE);
-        searchTextField.setOnMousePressed(event -> searchTextField.clear());
+        SearchFieldBehavior.installMouseClear(searchTextField);
 
 
         manageCategoriesButton.setMinWidth(Region.USE_PREF_SIZE);

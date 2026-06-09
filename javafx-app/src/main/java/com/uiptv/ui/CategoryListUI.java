@@ -10,6 +10,7 @@ import com.uiptv.service.CategoryResolver;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.CloseIconButton;
 import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.SearchableTableView;
@@ -74,8 +75,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private final HBox detailHeader = new HBox(8);
     private final Label detailTitle = new Label();
     private final VBox detailContent = new VBox();
-    private final Button closeButton = new Button(I18n.tr("autoClose"));
-    private final Button detailCloseButton = new Button(I18n.tr("autoClose"));
+    private final Button closeButton = new CloseIconButton(I18n.tr("autoClose"));
+    private final Button detailCloseButton = new CloseIconButton(I18n.tr("autoClose"));
     private final Button detailBackButton = new Button(I18n.tr("autoBack"));
     private final Button accountsBackButton = new Button(I18n.tr("autoBack"));
     private final PillBar<String> modePillBar = new PillBar<>(this::modePillLabel, mode -> mode);
@@ -453,7 +454,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
             }
             boolean toggleSelection = event.isShortcutDown() || event.isControlDown() || event.isMetaDown();
             selectCategoryItem(item, toggleSelection);
-            if (!toggleSelection && event.getClickCount() == 2) {
+            if (!toggleSelection && event.getClickCount() == 1) {
                 doRetrieveChannels(item);
             }
             event.consume();
@@ -611,12 +612,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private void navigateBackFromDetail() {
-        if (!detailContent.getChildren().isEmpty()) {
-            javafx.scene.Node content = detailContent.getChildren().getFirst();
-            if (content instanceof ChannelListUI channelListUI && channelListUI.navigateBackEmbedded()) {
-                return;
-            }
-        }
         showListView(true);
     }
 
@@ -740,7 +735,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private void setupPanelHeaders() {
         updateStyleClass(closeButton, "account-category-close-button", true);
         updateStyleClass(detailCloseButton, "account-category-close-button", true);
-        updateStyleClass(accountsBackButton, "account-category-close-button", true);
+        updateStyleClass(accountsBackButton, "account-category-back-button", true);
         closeButton.setMinWidth(Region.USE_PREF_SIZE);
         closeButton.setMaxWidth(Region.USE_PREF_SIZE);
         detailCloseButton.setMinWidth(Region.USE_PREF_SIZE);
@@ -788,21 +783,26 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private void closePanel() {
-        releaseTransientState();
         if (closeHandler != null) {
             closeHandler.run();
+            releaseTransientState();
             return;
         }
         if (accountsNavigationHandler != null) {
             accountsNavigationHandler.run();
+            releaseTransientState();
+            return;
         }
+        releaseTransientState();
     }
 
     private void navigateToAccounts() {
-        releaseTransientState();
         if (accountsNavigationHandler != null) {
             accountsNavigationHandler.run();
+            releaseTransientState();
+            return;
         }
+        releaseTransientState();
     }
 
     private void setupModePillBar() {

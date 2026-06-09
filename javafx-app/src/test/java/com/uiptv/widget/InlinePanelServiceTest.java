@@ -45,7 +45,13 @@ class InlinePanelServiceTest {
 
         assertTrue(handle.isPresent());
         assertEquals(1, runOnFxThread(() -> host.getChildren().size()));
-        assertTrue(runOnFxThread(() -> host.getChildren().get(0).getStyleClass().contains("uiptv-inline-panel")));
+        Node frame = runOnFxThread(() -> host.getChildren().get(0));
+        assertTrue(runOnFxThread(() -> frame.getStyleClass().contains("uiptv-inline-panel")));
+        Button closeButton = runOnFxThread(() -> findButtonByStyle(frame, "uiptv-inline-close-button"));
+        assertTrue(closeButton != null);
+        assertEquals("", runOnFxThread(closeButton::getText));
+        assertEquals("Close", runOnFxThread(closeButton::getAccessibleText));
+        assertTrue(runOnFxThread(() -> closeButton.getGraphic() != null));
 
         runOnFxThread(() -> {
             handle.get().close();
@@ -127,6 +133,21 @@ class InlinePanelServiceTest {
         if (root instanceof javafx.scene.Parent parent) {
             for (Node child : parent.getChildrenUnmodifiable()) {
                 T found = findDescendant(child, type);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static Button findButtonByStyle(Node root, String styleClass) {
+        if (root instanceof Button button && button.getStyleClass().contains(styleClass)) {
+            return button;
+        }
+        if (root instanceof javafx.scene.Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                Button found = findButtonByStyle(child, styleClass);
                 if (found != null) {
                     return found;
                 }

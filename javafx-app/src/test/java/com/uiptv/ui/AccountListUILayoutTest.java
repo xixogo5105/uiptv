@@ -14,6 +14,7 @@ import javafx.collections.ObservableList;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.FlowPane;
@@ -515,6 +516,33 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         });
     }
 
+    @Test
+    void categoryDetailCloseReturnsToAccountsAfterDrawerResizeOnOneClick() throws Exception {
+        runOnFxThread(() -> {
+            AccountListUI ui = new AccountListUI(null, null);
+            Account account = new Account();
+            account.setAccountName("Account");
+            account.setAction(Account.AccountAction.itv);
+            CategoryListUI categories = new CategoryListUI(account);
+            ChannelListUI channels = new ChannelListUI(account, "Sports", "sports", Account.AccountAction.itv);
+            try {
+                categories.setCloseHandler(ui::showAccountListView);
+                invokeShowAccountBrowser(ui, categories);
+                showCategoryDetailView(categories, channels, "Sports");
+
+                ui.setMediaDrawerMode(true);
+                categoryDetailCloseButton(categories).fire();
+
+                assertEquals(listView(ui), currentContent(ui));
+                assertEquals(List.of(listView(ui)), embeddedContainer(ui).getChildren());
+            } finally {
+                categories.dispose();
+                channels.dispose();
+            }
+            return null;
+        });
+    }
+
     @SuppressWarnings("unchecked")
     private static ResponsiveCardGrid<AccountListUI.AccountItem> accountGrid(AccountListUI ui) throws Exception {
         Field field = AccountListUI.class.getDeclaredField("accountGrid");
@@ -576,6 +604,18 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         Method method = AccountListUI.class.getDeclaredMethod("showAccountBrowser", CategoryListUI.class);
         method.setAccessible(true);
         method.invoke(ui, categoryListUI);
+    }
+
+    private static void showCategoryDetailView(CategoryListUI ui, ChannelListUI channelListUI, String title) throws Exception {
+        Method method = CategoryListUI.class.getDeclaredMethod("showDetailView", ChannelListUI.class, String.class);
+        method.setAccessible(true);
+        method.invoke(ui, channelListUI, title);
+    }
+
+    private static Button categoryDetailCloseButton(CategoryListUI ui) throws Exception {
+        Field field = CategoryListUI.class.getDeclaredField("detailCloseButton");
+        field.setAccessible(true);
+        return (Button) field.get(ui);
     }
 
     private static Category category(String id, String title) {

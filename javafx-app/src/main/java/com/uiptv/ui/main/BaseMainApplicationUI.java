@@ -11,6 +11,7 @@ import com.uiptv.widget.AppNavigationController;
 import com.uiptv.widget.AppNotificationCenter;
 import com.uiptv.widget.AppNavigationPane;
 import com.uiptv.widget.AppPageHeader;
+import com.uiptv.widget.CloseIconButton;
 import com.uiptv.widget.InlinePanelService;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -223,6 +224,7 @@ public abstract class BaseMainApplicationUI {
         HBox.setHgrow(mainContent, Priority.ALWAYS);
         Runnable updateResponsiveColumns = () -> updateManageAccountResponsiveColumns(appContent, manageAccountColumn, accountListUI);
         manageAccountResponsiveColumnsUpdater = updateResponsiveColumns;
+        manageAccountColumn.setCloseHandler(updateResponsiveColumns);
         appContent.widthProperty().addListener((_, _, _) -> updateResponsiveColumns.run());
         manageAccountColumn.node().visibleProperty().addListener((_, _, _) -> updateResponsiveColumns.run());
         Platform.runLater(updateResponsiveColumns);
@@ -551,12 +553,14 @@ public abstract class BaseMainApplicationUI {
 
     private static final class ManageAccountColumn {
         private final VBox shell;
+        private Runnable closeHandler = () -> {
+        };
 
         private ManageAccountColumn(ManageAccountUI manageAccountUI) {
             Label title = new Label(I18n.tr("autoAccount"));
             title.getStyleClass().add("manage-account-dock-title");
 
-            Button closeButton = new Button(I18n.tr("commonClose"));
+            Button closeButton = new CloseIconButton(I18n.tr("commonClose"));
             closeButton.getStyleClass().add("manage-account-dock-close");
             closeButton.setFocusTraversable(false);
             closeButton.setOnAction(_ -> close());
@@ -602,8 +606,9 @@ public abstract class BaseMainApplicationUI {
 
         private void close() {
             setSingleColumn(false);
-            shell.setVisible(false);
             shell.setManaged(false);
+            shell.setVisible(false);
+            closeHandler.run();
         }
 
         private void setSingleColumn(boolean singleColumn) {
@@ -616,6 +621,11 @@ public abstract class BaseMainApplicationUI {
             shell.setMinWidth(MANAGE_ACCOUNT_DOCK_MIN_WIDTH);
             shell.setPrefWidth(MANAGE_ACCOUNT_DOCK_PREF_WIDTH);
             shell.setMaxWidth(MANAGE_ACCOUNT_DOCK_MAX_WIDTH);
+        }
+
+        private void setCloseHandler(Runnable closeHandler) {
+            this.closeHandler = closeHandler == null ? () -> {
+            } : closeHandler;
         }
     }
 

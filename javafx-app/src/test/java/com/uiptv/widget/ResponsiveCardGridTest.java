@@ -87,7 +87,7 @@ class ResponsiveCardGridTest {
     }
 
     @Test
-    void singleClickActivationRequestStillRequiresDoubleClick() throws Exception {
+    void singleClickActivationRequestActivatesMatchingItemOnOneClick() throws Exception {
         ResponsiveCardGrid<String> grid = runOnFxThread(ResponsiveCardGridTest::newGrid);
         AtomicReference<String> activated = new AtomicReference<>();
         runOnFxThread(() -> {
@@ -107,12 +107,6 @@ class ResponsiveCardGridTest {
         Region secondCard = runOnFxThread(() -> cardAt(grid, 1));
         runOnFxThread(() -> {
             Event.fireEvent(secondCard, mouseClick(secondCard, 1, false, false));
-            return null;
-        });
-        assertNull(activated.get());
-
-        runOnFxThread(() -> {
-            Event.fireEvent(secondCard, mouseClick(secondCard, 2, false, false));
             return null;
         });
         assertEquals("two", activated.get());

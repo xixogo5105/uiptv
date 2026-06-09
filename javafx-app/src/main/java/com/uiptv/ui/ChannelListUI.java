@@ -514,25 +514,25 @@ public class ChannelListUI extends HBox implements SearchTarget {
             channelGrid.setCardMinHeight(42);
             channelGrid.setCardWidthRange(240, 760);
             channelGrid.setGaps(16, 6);
-            channelGrid.setActivateOnSingleClick(false);
+            channelGrid.setActivateOnSingleClick(true);
             return;
         }
         channelGrid.setCardMinHeight(76);
         if (mediaDrawerMode) {
             channelGrid.setCardWidthRange(260, 520);
             channelGrid.setGaps(7, 7);
-            channelGrid.setActivateOnSingleClick(false);
+            channelGrid.setActivateOnSingleClick(true);
             return;
         }
         if (isMediaCatalogMode()) {
             channelGrid.setCardWidthRange(360, 760);
             channelGrid.setGaps(18, 16);
-            channelGrid.setActivateOnSingleClick(false);
+            channelGrid.setActivateOnSingleClick(true);
             return;
         }
         channelGrid.setCardWidthRange(255, 345);
         channelGrid.setGaps(16, 14);
-        channelGrid.setActivateOnSingleClick(false);
+        channelGrid.setActivateOnSingleClick(true);
     }
 
     private boolean isDirectPlaybackSeriesItem(ChannelItem item) {
@@ -701,15 +701,17 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 menu.show(playButton, Side.BOTTOM, 0, 0);
             }
         });
-        return new BookmarkCard(
+        BookmarkCard card = new BookmarkCard(
                 item == null ? "" : item.getChannelName(),
-                account == null ? "" : account.getAccountName(),
+                "",
                 item == null ? "" : item.getLogo(),
                 thumbnailsEnabled,
                 IMAGE_CACHE_KEY_CHANNEL,
                 item != null && item.getChannel() != null && PlayerService.getInstance().isDrmProtected(item.getChannel()),
                 createBookmarkTitleAction(item, playButton)
         );
+        card.getStyleClass().add("channel-list-card");
+        return card;
     }
 
     private Region createPlainTextChannelCard(ChannelItem item) {
@@ -779,9 +781,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
             parts.add(I18n.tr("autoVod"));
         } else if (listAction == series) {
             parts.add(I18n.tr("autoSeries"));
-        }
-        if (!isBlank(categoryTitle)) {
-            parts.add(categoryTitle);
         }
         Channel channel = item == null ? null : item.getChannel();
         if (channel != null && !isBlank(channel.getRating())) {
