@@ -78,6 +78,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private final Map<String, ChannelItem> channelItemByKey = new java.util.concurrent.ConcurrentHashMap<>();
     private final AtomicReference<Map<String, String>> categoryTitleByCategoryId = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<String, String>> categoryTitleByNormalizedTitle = new AtomicReference<>(Map.of());
+    private final AtomicReference<Map<String, SeriesWatchState>> currentSeriesWatchStates = new AtomicReference<>(Map.of());
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     private final AtomicBoolean disposed = new AtomicBoolean(false);
     private final WatchingNowVodResolver vodMetadataResolver = new WatchingNowVodResolver();
@@ -192,6 +193,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         List<Bookmark> accountBookmarks = loadBookmarksForAccount();
         Set<String> savedVodKeys = loadVodWatchStateKeys();
         Map<String, SeriesWatchState> seriesWatchStates = loadSeriesWatchStates();
+        currentSeriesWatchStates.set(seriesWatchStates);
         List<ChannelItem> pendingItems = new ArrayList<>(CHANNEL_UI_BATCH_SIZE);
         List<LogoUpdate> pendingLogoUpdates = new ArrayList<>();
         for (Channel channel : newChannels) {
@@ -739,9 +741,24 @@ public class ChannelListUI extends HBox implements SearchTarget {
             return createWatchingNowMediaCard(item);
         }
 
+        Node titleAction = listAction == series ? createSeriesWatchingBadge(item) : createPlayMenuAction(item);
+        BookmarkCard card = new BookmarkCard(
+                item == null ? "" : item.getChannelName(),
+                "",
+                item == null ? "" : item.getLogo(),
+                thumbnailsEnabled,
+                IMAGE_CACHE_KEY_CHANNEL,
+                item != null && item.getChannel() != null && PlayerService.getInstance().isDrmProtected(item.getChannel()),
+                createBookmarkTitleAction(item, titleAction)
+        );
+        card.getStyleClass().add("channel-list-card");
+        return card;
+    }
+
+    private Node createPlayMenuAction(ChannelItem item) {
         Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
         playButton.getStyleClass().add("bookmark-play-menu-button");
-        boolean actionAvailable = item != null && (listAction != series || !isBlank(item.getCmd()));
+        boolean actionAvailable = item != null && !isBlank(item.getCmd());
         playButton.setVisible(actionAvailable);
         playButton.setManaged(actionAvailable);
         playButton.setOnAction(event -> {
@@ -756,17 +773,62 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 menu.show(playButton, Side.BOTTOM, 0, 0);
             }
         });
-        BookmarkCard card = new BookmarkCard(
-                item == null ? "" : item.getChannelName(),
-                "",
-                item == null ? "" : item.getLogo(),
-                thumbnailsEnabled,
-                IMAGE_CACHE_KEY_CHANNEL,
-                item != null && item.getChannel() != null && PlayerService.getInstance().isDrmProtected(item.getChannel()),
-                createBookmarkTitleAction(item, playButton)
-        );
-        card.getStyleClass().add("channel-list-card");
-        return card;
+        return playButton;
+    }
+
+    private Label createSeriesWatchingBadge(ChannelItem item) {
+        SeriesWatchState state = resolveSeriesWatchState(item);
+        if (state == null) {
+            return null;
+        }
+        Label badge = new Label("Watching " + formatSeriesWatchBadgeText(state));
+        badge.getStyleClass().add("series-watch-badge");
+        badge.setMinWidth(Region.USE_PREF_SIZE);
+        badge.setMaxWidth(Region.USE_PREF_SIZE);
+        String detail = formatSeriesWatchTooltipText(state);
+        if (!isBlank(detail)) {
+            badge.setTooltip(new Tooltip(detail));
+        }
+        return badge;
+    }
+
+    private SeriesWatchState resolveSeriesWatchState(ChannelItem item) {
+        Channel channel = item == null ? null : item.getChannel();
+        if (listAction != series || channel == null) {
+            return null;
+        }
+        return currentSeriesWatchStates.get().get(normalizeSeriesWatchKey(channel.getChannelId()));
+    }
+
+    private String formatSeriesWatchBadgeText(SeriesWatchState state) {
+        String seasonEpisode = formatSeasonEpisode(state);
+        return isBlank(seasonEpisode) ? I18n.tr("autoInPROGRESS") : seasonEpisode;
+    }
+
+    private String formatSeriesWatchTooltipText(SeriesWatchState state) {
+        if (state == null) {
+            return "";
+        }
+        String episodeName = state.getEpisodeName();
+        String seasonEpisode = formatSeasonEpisode(state);
+        if (isBlank(episodeName)) {
+            return isBlank(seasonEpisode) ? I18n.tr("autoInPROGRESS") : seasonEpisode;
+        }
+        return isBlank(seasonEpisode) ? episodeName : seasonEpisode + " · " + episodeName;
+    }
+
+    private String formatSeasonEpisode(SeriesWatchState state) {
+        if (state == null) {
+            return "";
+        }
+        String season = state.getSeason();
+        String seasonPart = isBlank(season) ? "" : ("S" + season.trim());
+        String episodePart = state.getEpisodeNum() > 0 ? ("E" + state.getEpisodeNum()) : "";
+        String value = (seasonPart + " " + episodePart).trim();
+        if (!isBlank(value)) {
+            return value;
+        }
+        return isBlank(state.getEpisodeName()) ? "" : state.getEpisodeName();
     }
 
     private Region createPlainTextChannelCard(ChannelItem item) {
@@ -1431,6 +1493,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 return;
             }
             Map<String, SeriesWatchState> seriesWatchStates = loadSeriesWatchStates();
+            currentSeriesWatchStates.set(seriesWatchStates);
             String normalizedChangedSeriesId = normalizeSeriesWatchKey(changedSeriesId);
             runLater(() -> {
                 if (disposed.get()) {

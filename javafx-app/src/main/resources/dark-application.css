@@ -667,6 +667,15 @@
     -fx-background-radius: 6;
 }
 
+.series-watch-badge {
+    -fx-background-color: #0f766e;
+    -fx-text-fill: white;
+    -fx-font-size: 0.72em;
+    -fx-font-weight: bold;
+    -fx-padding: 2 7 2 7;
+    -fx-background-radius: 999;
+}
+
 .channel-bookmark-icon {
     -fx-fill: -uiptv-text-primary;
 }
