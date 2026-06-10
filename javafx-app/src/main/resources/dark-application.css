@@ -3,36 +3,36 @@
     -fx-font-family: "Roboto";
     -fx-font-size: 13;
     -fx-font-smoothing-type: gray;
-    -fx-accent: #0078D7;
+    -fx-accent: #9a9a9a;
     -fx-focus-color: -fx-accent;
-    -fx-base: #1c1c1c; /* Near-black background */
-    -fx-control-inner-background: #2c2c2c; /* Slightly lighter controls */
-    -fx-control-inner-background-alt: #3c3c3c; /* Even lighter for alternate backgrounds */
-    -fx-text-fill: #e0e0e0; /* Light grey text for readability */
-    -uiptv-card-bg: #1c1f2b;
-    -uiptv-card-border: #323645;
-    -uiptv-app-bg: #1b1d28;
-    -uiptv-surface: #222431;
-    -uiptv-surface-muted: #242736;
-    -uiptv-surface-hover: #2d3040;
-    -uiptv-border-subtle: #343849;
-    -uiptv-text-primary: #f3f4f8;
-    -uiptv-text-secondary: #a7abb8;
-    -uiptv-text-muted: #7f8494;
-    -uiptv-nav-bg: #11131b;
-    -uiptv-nav-selected-bg: #36394b;
-    -uiptv-action-bg: #f0f2f7;
-    -uiptv-action-fg: #171923;
-    -uiptv-action-hover-bg: #e2e6ee;
+    -fx-base: #1f1f1f;
+    -fx-control-inner-background: #2b2b2b;
+    -fx-control-inner-background-alt: #333333;
+    -fx-text-fill: #e8e8e8;
+    -uiptv-card-bg: #242424;
+    -uiptv-card-border: #3a3a3a;
+    -uiptv-app-bg: #1e1e1e;
+    -uiptv-surface: #252525;
+    -uiptv-surface-muted: #2b2b2b;
+    -uiptv-surface-hover: #333333;
+    -uiptv-border-subtle: #3d3d3d;
+    -uiptv-text-primary: #f2f2f2;
+    -uiptv-text-secondary: #b8b8b8;
+    -uiptv-text-muted: #8a8a8a;
+    -uiptv-nav-bg: #1c1c1c;
+    -uiptv-nav-selected-bg: #303030;
+    -uiptv-action-bg: #e6e6e6;
+    -uiptv-action-fg: #171717;
+    -uiptv-action-hover-bg: #f2f2f2;
     -uiptv-action-pressed-bg: #ffffff;
-    -uiptv-header-action-hover-bg: rgba(96, 165, 250, 0.18);
-    -uiptv-header-action-hover-border: rgba(147, 197, 253, 0.34);
-    -uiptv-header-action-hover-fg: #93c5fd;
-    -uiptv-accent: #f0f2f7;
-    -uiptv-selected-card-bg: #dbe7ff;
-    -uiptv-selected-card-border: #9fb9e8;
-    -uiptv-selected-card-fg: #101827;
-    -uiptv-selected-card-muted-fg: rgba(16, 24, 39, 0.72);
+    -uiptv-header-action-hover-bg: rgba(255, 255, 255, 0.10);
+    -uiptv-header-action-hover-border: rgba(255, 255, 255, 0.18);
+    -uiptv-header-action-hover-fg: #f2f2f2;
+    -uiptv-accent: #9a9a9a;
+    -uiptv-selected-card-bg: #3a3a3a;
+    -uiptv-selected-card-border: #6a6a6a;
+    -uiptv-selected-card-fg: #f7f7f7;
+    -uiptv-selected-card-muted-fg: rgba(247, 247, 247, 0.72);
 }
 
 .titleWindowsBorder {
@@ -109,7 +109,7 @@
 
 .check-box > .box {
     -fx-background-color: -uiptv-surface;
-    -fx-border-color: #4a515d;
+    -fx-border-color: #4a4a4a;
     -fx-border-width: 1;
     -fx-background-radius: 5;
     -fx-border-radius: 5;
@@ -132,7 +132,7 @@
 
 .radio-button > .radio {
     -fx-background-color: -uiptv-surface;
-    -fx-border-color: #4a515d;
+    -fx-border-color: #4a4a4a;
     -fx-border-width: 1;
     -fx-background-radius: 999;
     -fx-border-radius: 999;
@@ -235,12 +235,12 @@
 .button:hover,
 .button:focused {
     -fx-background-color: -uiptv-surface-hover;
-    -fx-border-color: #4a515d;
+    -fx-border-color: #555555;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.32), 12, 0.16, 0, 2);
 }
 
 .button:pressed {
-    -fx-background-color: #20242a;
+    -fx-background-color: #202020;
     -fx-effect: none;
 }
 
@@ -249,9 +249,9 @@
 }
 
 .tooltip {
-    -fx-background-color: #2d3040;
+    -fx-background-color: #303030;
     -fx-background-radius: 8;
-    -fx-border-color: #4a515d;
+    -fx-border-color: #555555;
     -fx-border-radius: 8;
     -fx-border-width: 1;
     -fx-padding: 6 8 6 8;
@@ -538,7 +538,7 @@
 }
 
 .verification-progress-card-shell {
-    -fx-background-color: linear-gradient(to bottom right, #242a34, #1f2430);
+    -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-muted, -uiptv-surface);
     -fx-border-color: rgba(255, 255, 255, 0.10);
     -fx-border-width: 1;
     -fx-background-radius: 24;
@@ -609,8 +609,8 @@
 }
 
 .verification-pause-widget {
-    -fx-background-color: #17304e;
-    -fx-border-color: #35608f;
+    -fx-background-color: #303030;
+    -fx-border-color: #5a5a5a;
     -fx-border-width: 1;
     -fx-background-radius: 999;
     -fx-border-radius: 999;
@@ -618,7 +618,7 @@
 }
 
 .verification-pause-widget .label {
-    -fx-text-fill: #d7e9ff;
+    -fx-text-fill: #f0f0f0;
     -fx-font-weight: bold;
 }
 
@@ -634,7 +634,7 @@
 }
 
 .hyperlink {
-    -fx-text-fill: #8ec5ff;
+    -fx-text-fill: #d0d0d0;
     -fx-border-color: transparent;
 }
 
@@ -643,13 +643,13 @@
 }
 
 .hyperlink:hover {
-    -fx-text-fill: #b8dcff;
+    -fx-text-fill: #ffffff;
 }
 
 .hyperlink:visited,
 .hyperlink:armed,
 .hyperlink:focused {
-    -fx-text-fill: #8ec5ff;
+    -fx-text-fill: #e2e2e2;
 }
 
 .channel-logo-view {
@@ -659,7 +659,7 @@
 }
 
 .drm-badge {
-    -fx-background-color: #0d6efd;
+    -fx-background-color: #4a4a4a;
     -fx-text-fill: white;
     -fx-font-size: 0.769em;
     -fx-font-weight: bold;
@@ -705,12 +705,12 @@
 }
 
 .nav-back-button:hover {
-    -fx-background-color: rgba(79, 156, 255, 0.16);
+    -fx-background-color: rgba(255, 255, 255, 0.10);
     -fx-background-radius: 6;
 }
 
 .nav-back-icon {
-    -fx-fill: #c9d6e4;
+    -fx-fill: -uiptv-text-primary;
     -fx-scale-x: 1.35;
     -fx-scale-y: 1.35;
 }
@@ -758,9 +758,9 @@
 
 .context-menu,
 .bookmark-context-menu {
-    -fx-background-color: #1b1f25;
+    -fx-background-color: #1f1f1f;
     -fx-background-radius: 14;
-    -fx-border-color: #343941;
+    -fx-border-color: #3f3f3f;
     -fx-border-radius: 14;
     -fx-border-width: 1;
     -fx-padding: 6;
@@ -789,12 +789,12 @@
 .bookmark-context-menu .menu-item:focused,
 .bookmark-context-menu .menu-item:hover,
 .bookmark-context-menu .menu-item:armed {
-    -fx-background-color: #2a3038;
+    -fx-background-color: #303030;
 }
 
 .context-menu .separator .line,
 .bookmark-context-menu .separator .line {
-    -fx-border-color: #343941;
+    -fx-border-color: #3f3f3f;
 }
 
 .context-menu .menu-item.danger-menu-item:focused,
@@ -973,7 +973,7 @@
 }
 
 .bookmark-list-panel {
-    -fx-background-color: linear-gradient(to bottom right, #242736, #1f2230);
+    -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-muted, -uiptv-surface);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
     -fx-background-radius: 18;
@@ -984,7 +984,7 @@
 
 .bookmark-loading-overlay {
     -fx-padding: 8 14 8 14;
-    -fx-background-color: rgba(32, 35, 48, 0.94);
+    -fx-background-color: rgba(37, 37, 37, 0.94);
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
     -fx-background-radius: 999;
@@ -1012,7 +1012,7 @@
 }
 
 .manage-account-dock {
-    -fx-background-color: linear-gradient(to bottom right, #242736, #1f2230);
+    -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-muted, -uiptv-surface);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
     -fx-background-radius: 18;
@@ -1053,7 +1053,7 @@
 }
 
 .account-list-panel {
-    -fx-background-color: linear-gradient(to bottom right, #242736, #1f2230);
+    -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-muted, -uiptv-surface);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
     -fx-background-radius: 18;
@@ -1129,7 +1129,7 @@
 }
 
 .account-loading-progress-card {
-    -fx-background-color: linear-gradient(to bottom right, #272a39, #202331);
+    -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-hover, -uiptv-surface-muted);
     -fx-border-color: rgba(255, 255, 255, 0.09);
     -fx-border-width: 1;
     -fx-background-radius: 16;
@@ -1171,7 +1171,7 @@
 }
 
 .account-loading-progress-bar > .bar {
-    -fx-background-color: linear-gradient(to right, #38bdf8, #dbe7ff);
+    -fx-background-color: linear-gradient(to right, #bdbdbd, #f2f2f2);
     -fx-background-insets: 0;
     -fx-background-radius: 999;
     -fx-padding: 0.26em;
@@ -1226,7 +1226,7 @@
 
 .account-category-list-pane,
 .account-category-detail-pane {
-    -fx-background-color: linear-gradient(to bottom right, #242736, #1f2230);
+    -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-muted, -uiptv-surface);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
     -fx-background-radius: 18;
@@ -1389,15 +1389,15 @@
 }
 
 .app-header-nav-button-active {
-    -fx-background-color: rgba(96, 165, 250, 0.16);
-    -fx-border-color: rgba(147, 197, 253, 0.30);
-    -fx-text-fill: #93c5fd;
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-border-color: rgba(255, 255, 255, 0.20);
+    -fx-text-fill: -uiptv-header-action-hover-fg;
 }
 
 .app-header-nav-button-active:hover,
 .app-header-nav-button-active:focused {
-    -fx-background-color: rgba(96, 165, 250, 0.22);
-    -fx-border-color: rgba(147, 197, 253, 0.42);
+    -fx-background-color: rgba(255, 255, 255, 0.14);
+    -fx-border-color: rgba(255, 255, 255, 0.28);
 }
 
 .app-header-nav-button-icon-only {
@@ -1417,7 +1417,7 @@
 }
 
 .app-header-nav-button-active .app-header-nav-icon {
-    -fx-fill: #93c5fd;
+    -fx-fill: -uiptv-header-action-hover-fg;
 }
 
 .uiptv-page-actions {
@@ -1450,7 +1450,7 @@
 
 .bulk-import-page,
 .log-page {
-    -fx-background-color: linear-gradient(to bottom, #171a22, #11141b);
+    -fx-background-color: linear-gradient(to bottom, #1e1e1e, #191919);
 }
 
 .bulk-import-content,
@@ -1461,7 +1461,7 @@
 .bulk-import-card,
 .log-card,
 .log-detached-card {
-    -fx-background-color: rgba(31, 35, 45, 0.94);
+    -fx-background-color: rgba(37, 37, 37, 0.94);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
     -fx-background-radius: 22;
@@ -1471,7 +1471,7 @@
 }
 
 .bulk-import-mode-card {
-    -fx-background-color: linear-gradient(to bottom, #242936, #1d222e);
+    -fx-background-color: linear-gradient(to bottom, #2c2c2c, #242424);
 }
 
 .bulk-import-editor-card,
@@ -1550,12 +1550,12 @@
 }
 
 .log-card {
-    -fx-background-color: #080d19;
+    -fx-background-color: #181818;
     -fx-border-color: rgba(148, 163, 184, 0.20);
 }
 
 .log-window-root {
-    -fx-background-color: linear-gradient(to bottom, #171a22, #11141b);
+    -fx-background-color: linear-gradient(to bottom, #1e1e1e, #191919);
 }
 
 .log-card-header {
@@ -1589,8 +1589,8 @@
 
 .log-action-button:hover,
 .log-action-button:focused {
-    -fx-background-color: rgba(96, 165, 250, 0.14);
-    -fx-border-color: rgba(96, 165, 250, 0.30);
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-border-color: rgba(255, 255, 255, 0.20);
 }
 
 .log-primary-action-button {
@@ -1601,12 +1601,12 @@
 
 .log-primary-action-button:hover,
 .log-primary-action-button:focused {
-    -fx-background-color: #dbeafe;
-    -fx-border-color: #dbeafe;
+    -fx-background-color: #ffffff;
+    -fx-border-color: #ffffff;
 }
 
 .log-text-area {
-    -fx-control-inner-background: #080d19;
+    -fx-control-inner-background: #181818;
     -fx-text-fill: #86efac;
     -fx-highlight-fill: rgba(34, 197, 94, 0.32);
     -fx-highlight-text-fill: #ffffff;
@@ -1616,7 +1616,7 @@
 }
 
 .log-text-area .content {
-    -fx-background-color: #080d19;
+    -fx-background-color: #181818;
     -fx-background-radius: 18;
     -fx-padding: 14;
 }
@@ -1638,7 +1638,7 @@
 .bookmarks-quick-action-button:focused {
     -fx-background-color: -uiptv-header-action-hover-bg;
     -fx-border-color: -uiptv-header-action-hover-border;
-    -fx-effect: dropshadow(gaussian, rgba(96, 165, 250, 0.24), 10, 0.12, 0, 2);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.36), 10, 0.12, 0, 2);
 }
 
 .bookmarks-quick-action-button-lock-ok .bookmarks-quick-action-icon,
@@ -1654,28 +1654,28 @@
 }
 
 .bookmarks-quick-action-button-active {
-    -fx-background-color: rgba(96, 165, 250, 0.16);
-    -fx-border-color: rgba(147, 197, 253, 0.30);
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-border-color: rgba(255, 255, 255, 0.20);
     -fx-effect: none;
 }
 
 .bookmarks-quick-action-button-active .bookmarks-quick-action-icon {
-    -fx-fill: #93c5fd;
+    -fx-fill: -uiptv-header-action-hover-fg;
 }
 
 .bookmarks-quick-action-button-active:hover,
 .bookmarks-quick-action-button-active:focused {
-    -fx-background-color: rgba(96, 165, 250, 0.22);
-    -fx-border-color: rgba(147, 197, 253, 0.42);
+    -fx-background-color: rgba(255, 255, 255, 0.14);
+    -fx-border-color: rgba(255, 255, 255, 0.28);
 }
 
 .bookmarks-quick-action-button-active:hover .bookmarks-quick-action-icon,
 .bookmarks-quick-action-button-active:focused .bookmarks-quick-action-icon {
-    -fx-fill: #bfdbfe;
+    -fx-fill: -uiptv-text-primary;
 }
 
 .bookmarks-quick-action-button:pressed {
-    -fx-background-color: #20242a;
+    -fx-background-color: #202020;
     -fx-effect: none;
 }
 
@@ -1712,9 +1712,9 @@
 .bookmarks-quick-action-button-active .plain-text-mode-quick-icon,
 .bookmarks-quick-action-button-active:hover .plain-text-mode-quick-icon,
 .bookmarks-quick-action-button-active:focused .plain-text-mode-quick-icon {
-    -fx-background-color: rgba(96, 165, 250, 0.18);
-    -fx-border-color: #93c5fd;
-    -fx-text-fill: #bfdbfe;
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-text-fill: -uiptv-text-primary;
 }
 
 .bookmarks-quick-action-button-lock-ok .bookmarks-quick-action-icon,
@@ -1760,13 +1760,13 @@
 .list-toolbar-action-button:hover,
 .list-toolbar-action-button:focused {
     -fx-background-color: rgba(255, 255, 255, 0.08);
-    -fx-border-color: rgba(147, 197, 253, 0.30);
+    -fx-border-color: rgba(255, 255, 255, 0.20);
     -fx-effect: none;
 }
 
 .list-toolbar-sort-menu-active {
-    -fx-background-color: rgba(96, 165, 250, 0.13);
-    -fx-border-color: rgba(147, 197, 253, 0.30);
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-border-color: rgba(255, 255, 255, 0.20);
 }
 
 .list-toolbar-sort-menu > .label,
@@ -1802,7 +1802,7 @@
 .list-toolbar-sort-menu:hover .list-toolbar-sort-icon,
 .list-toolbar-sort-menu:focused .list-toolbar-sort-icon,
 .list-toolbar-sort-menu-active .list-toolbar-sort-icon {
-    -fx-fill: #93c5fd;
+    -fx-fill: -uiptv-header-action-hover-fg;
 }
 
 .list-toolbar-sort-menu .arrow {
@@ -1882,7 +1882,7 @@
 .uiptv-pill-bar-dropdown:hover,
 .uiptv-pill-bar-dropdown:focused {
     -fx-background-color: rgba(255, 255, 255, 0.055);
-    -fx-border-color: rgba(147, 197, 253, 0.30);
+    -fx-border-color: rgba(255, 255, 255, 0.20);
     -fx-effect: none;
 }
 
@@ -2091,7 +2091,7 @@
 
 .watching-now-title-link:hover,
 .watching-now-title-link:focused {
-    -fx-text-fill: #93c5fd;
+    -fx-text-fill: -uiptv-text-primary;
     -fx-underline: true;
 }
 
@@ -2115,7 +2115,7 @@
 }
 
 .watching-now-card-poster-wrap {
-    -fx-background-color: linear-gradient(to bottom, #2b3038, #20242b);
+    -fx-background-color: linear-gradient(to bottom, #303030, #262626);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
     -fx-background-radius: 18;
@@ -2129,28 +2129,28 @@
 }
 
 .watching-now-open-hint {
-    -fx-background-color: rgba(147, 197, 253, 0.12);
-    -fx-border-color: rgba(147, 197, 253, 0.18);
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: rgba(255, 255, 255, 0.16);
     -fx-border-width: 1;
     -fx-background-radius: 999;
     -fx-border-radius: 999;
     -fx-padding: 5 10 5 10;
-    -fx-text-fill: #bfdbfe;
+    -fx-text-fill: -uiptv-text-primary;
     -fx-font-weight: bold;
     -fx-cursor: hand;
 }
 
 .watching-now-open-hint:hover,
 .watching-now-open-hint:focused {
-    -fx-background-color: rgba(147, 197, 253, 0.18);
-    -fx-border-color: rgba(147, 197, 253, 0.32);
-    -fx-text-fill: #dbeafe;
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-border-color: rgba(255, 255, 255, 0.24);
+    -fx-text-fill: #ffffff;
 }
 
 .watching-now-open-hint > .label,
 .watching-now-open-hint:hover > .label,
 .watching-now-open-hint:focused > .label {
-    -fx-text-fill: #bfdbfe;
+    -fx-text-fill: -uiptv-text-primary;
 }
 
 .watching-now-remove-button {
@@ -2208,7 +2208,7 @@
 .watching-now-vod-card:hover,
 .watching-now-episode-card:hover {
     -fx-background-color: -uiptv-surface-hover;
-    -fx-border-color: #4a515d;
+    -fx-border-color: #555555;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.42), 16, 0.20, 0, 5);
     -fx-translate-y: -1;
 }
@@ -2271,9 +2271,9 @@
 .watching-now-series-card.selected-card .watching-now-open-hint,
 .watching-now-vod-card:selected .watching-now-open-hint,
 .watching-now-vod-card.selected-card .watching-now-open-hint {
-    -fx-background-color: rgba(16, 24, 39, 0.92);
-    -fx-border-color: rgba(16, 24, 39, 0.96);
-    -fx-text-fill: #dbeafe;
+    -fx-background-color: rgba(0, 0, 0, 0.32);
+    -fx-border-color: rgba(255, 255, 255, 0.18);
+    -fx-text-fill: -uiptv-selected-card-fg;
     -fx-effect: none;
 }
 
@@ -2281,7 +2281,7 @@
 .watching-now-series-card.selected-card .watching-now-open-hint > .label,
 .watching-now-vod-card:selected .watching-now-open-hint > .label,
 .watching-now-vod-card.selected-card .watching-now-open-hint > .label {
-    -fx-text-fill: #dbeafe;
+    -fx-text-fill: -uiptv-selected-card-fg;
 }
 
 .bookmark-manage-categories-button {
@@ -2299,7 +2299,7 @@
 .bookmark-manage-categories-button:hover,
 .bookmark-manage-categories-button:focused {
     -fx-background-color: -uiptv-surface-hover;
-    -fx-border-color: #4a515d;
+    -fx-border-color: #555555;
     -fx-text-fill: -uiptv-text-primary;
 }
 
@@ -2310,7 +2310,7 @@
 }
 
 .settings-section-card {
-    -fx-background-color: linear-gradient(to bottom right, #242736, #1f2230);
+    -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-muted, -uiptv-surface);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
     -fx-background-radius: 18;
@@ -2358,12 +2358,12 @@
 
 .settings-inline-action:hover,
 .settings-inline-action:focused {
-    -fx-text-fill: #8ec5ff;
+    -fx-text-fill: #ffffff;
     -fx-underline: true;
 }
 
 .settings-player-panel {
-    -fx-background-color: #1d202d;
+    -fx-background-color: #242424;
     -fx-background-radius: 18;
     -fx-border-color: rgba(255, 255, 255, 0.06);
     -fx-border-width: 1;
@@ -2382,7 +2382,7 @@
 }
 
 .settings-player-card {
-    -fx-background-color: #232635;
+    -fx-background-color: #2b2b2b;
     -fx-border-color: rgba(255, 255, 255, 0.075);
     -fx-border-width: 1;
     -fx-background-radius: 15;
@@ -2393,7 +2393,7 @@
 }
 
 .settings-player-card:selected {
-    -fx-background-color: #272a3a;
+    -fx-background-color: #343434;
     -fx-border-color: rgba(240, 242, 247, 0.42);
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.38), 14, 0.14, 0, 4);
 }
@@ -2435,7 +2435,7 @@
     -fx-background-color: transparent;
     -fx-border-color: transparent;
     -fx-padding: 0;
-    -fx-text-fill: #8ec5ff;
+    -fx-text-fill: #d0d0d0;
     -fx-font-weight: bold;
     -fx-underline: true;
     -fx-cursor: hand;
@@ -2443,7 +2443,7 @@
 
 .settings-player-link:hover,
 .settings-player-link:focused {
-    -fx-text-fill: #b8dcff;
+    -fx-text-fill: #ffffff;
 }
 
 .settings-player-path-field {
@@ -2462,7 +2462,7 @@
 }
 
 .settings-player-field-row {
-    -fx-background-color: #191c28;
+    -fx-background-color: #202020;
     -fx-background-radius: 14;
     -fx-border-color: rgba(255, 255, 255, 0.07);
     -fx-border-width: 1;
@@ -2483,7 +2483,7 @@
 .settings-player-browse-button:hover,
 .settings-player-browse-button:focused {
     -fx-background-color: -uiptv-surface-hover;
-    -fx-border-color: #4a515d;
+    -fx-border-color: #555555;
     -fx-opacity: 1;
 }
 
@@ -2504,7 +2504,7 @@
     -fx-background-color: transparent;
     -fx-border-color: transparent;
     -fx-padding: 0 2 0 2;
-    -fx-text-fill: #8ec5ff;
+    -fx-text-fill: #d0d0d0;
     -fx-font-weight: bold;
     -fx-underline: true;
     -fx-cursor: hand;
@@ -2512,7 +2512,7 @@
 
 .settings-server-open-link:hover,
 .settings-server-open-link:focused {
-    -fx-text-fill: #b8dcff;
+    -fx-text-fill: #ffffff;
 }
 
 .settings-server-action-row {
@@ -2555,7 +2555,7 @@
 }
 
 .uiptv-switch-track {
-    -fx-background-color: #535866;
+    -fx-background-color: #555555;
     -fx-background-radius: 999;
     -fx-padding: 3;
     -fx-min-width: 52;
@@ -2579,7 +2579,7 @@
 }
 
 .uiptv-switch-toggle:hover .uiptv-switch-track {
-    -fx-background-color: #656b7a;
+    -fx-background-color: #666666;
 }
 
 .uiptv-switch-toggle:selected .uiptv-switch-track,
@@ -2662,7 +2662,7 @@
 }
 
 .settings-backup-action-card.primary {
-    -fx-background-color: #2b3040;
+    -fx-background-color: #343434;
 }
 
 .settings-backup-action-badge {
@@ -2677,7 +2677,7 @@
 }
 
 .settings-backup-action-icon {
-    -fx-fill: #171923;
+    -fx-fill: #171717;
 }
 
 .settings-backup-action-title {
@@ -2796,7 +2796,7 @@
 .uiptv-responsive-card:hover,
 .bookmark-card:hover {
     -fx-background-color: -uiptv-surface-hover;
-    -fx-border-color: #4a515d;
+    -fx-border-color: #555555;
     -fx-effect: none;
     -fx-translate-y: 0;
 }
@@ -2878,8 +2878,8 @@
 
 .uiptv-responsive-card:selected .channel-logo-view,
 .uiptv-responsive-card.selected .channel-logo-view {
-    -fx-background-color: rgba(16, 24, 39, 0.12);
-    -fx-border-color: rgba(16, 24, 39, 0.24);
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: rgba(255, 255, 255, 0.16);
 }
 
 .bookmark-channel-title {
@@ -2937,8 +2937,8 @@
 }
 
 .uiptv-notification-card.info {
-    -fx-background-color: linear-gradient(to right, #162a45, #1b2637);
-    -fx-border-color: #315f95;
+    -fx-background-color: linear-gradient(to right, #2c2c2c, #242424);
+    -fx-border-color: #5a5a5a;
 }
 
 .uiptv-notification-card.error {
@@ -2952,8 +2952,8 @@
 }
 
 .uiptv-notification-icon-shell.info {
-    -fx-background-color: #1f3f65;
-    -fx-border-color: #4f83c2;
+    -fx-background-color: #343434;
+    -fx-border-color: #6a6a6a;
 }
 
 .uiptv-notification-icon-shell.error {
@@ -2967,7 +2967,7 @@
 }
 
 .uiptv-notification-icon-shell.info .uiptv-notification-icon {
-    -fx-text-fill: #b8dcff;
+    -fx-text-fill: #f0f0f0;
 }
 
 .uiptv-notification-icon-shell.error .uiptv-notification-icon {
@@ -3004,7 +3004,7 @@
 }
 
 .uiptv-inline-panel {
-    -fx-background-color: linear-gradient(to bottom right, #1b1d28, #171924);
+    -fx-background-color: linear-gradient(to bottom right, #1e1e1e, #191919);
 }
 
 .uiptv-inline-header {
@@ -3105,7 +3105,7 @@
 }
 
 .uiptv-modal-dialog {
-    -fx-background-color: linear-gradient(to bottom right, #252839, #1d2030);
+    -fx-background-color: linear-gradient(to bottom right, #2b2b2b, #202020);
     -fx-background-insets: 0;
     -fx-background-radius: 22;
     -fx-border-color: rgba(255, 255, 255, 0.12);
@@ -3245,12 +3245,12 @@
 }
 
 .uiptv-dialog-glyph.uiptv-confirm-dialog {
-    -fx-background-color: #1f3f65;
-    -fx-border-color: #4f83c2;
+    -fx-background-color: #343434;
+    -fx-border-color: #6a6a6a;
 }
 
 .uiptv-dialog-glyph.uiptv-confirm-dialog .uiptv-dialog-glyph-text {
-    -fx-text-fill: #b8dcff;
+    -fx-text-fill: #f0f0f0;
 }
 
 .uiptv-dialog-glyph.uiptv-error-dialog,
@@ -3314,7 +3314,7 @@
 }
 
 .uiptv-vlc-option-panel {
-    -fx-background-color: #1d202d;
+    -fx-background-color: #242424;
     -fx-background-radius: 18;
     -fx-border-color: rgba(255, 255, 255, 0.06);
     -fx-border-width: 1;
@@ -3323,7 +3323,7 @@
 }
 
 .uiptv-vlc-option-row {
-    -fx-background-color: #232635;
+    -fx-background-color: #2b2b2b;
     -fx-background-radius: 14;
     -fx-border-color: rgba(255, 255, 255, 0.075);
     -fx-border-width: 1;
@@ -3342,7 +3342,7 @@
 }
 
 .uiptv-password-dialog {
-    -fx-border-color: #343849;
+    -fx-border-color: #3d3d3d;
     -fx-effect: dropshadow(gaussian, transparent, 0, 0, 0, 0);
 }
 
@@ -3621,7 +3621,7 @@
 }
 
 .management-popup-root {
-    -fx-background-color: linear-gradient(to bottom right, #1b1d28, #171924);
+    -fx-background-color: linear-gradient(to bottom right, #1e1e1e, #191919);
 }
 
 .management-popup-header {
@@ -3915,7 +3915,7 @@
 }
 
 .reload-cache-popup {
-    -fx-background-color: linear-gradient(to bottom right, #1b1d28, #171924);
+    -fx-background-color: linear-gradient(to bottom right, #1e1e1e, #191919);
 }
 
 .reload-progress-card {
@@ -4020,13 +4020,13 @@
 }
 
 .reload-account-row:selected {
-    -fx-background-color: #dbe7ff;
-    -fx-text-fill: #101827;
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-text-fill: -uiptv-selected-card-fg;
 }
 
 .reload-account-row > .box {
     -fx-background-color: transparent;
-    -fx-border-color: #596173;
+    -fx-border-color: #5f5f5f;
     -fx-border-width: 1.5;
     -fx-background-radius: 7;
     -fx-border-radius: 7;
@@ -4034,8 +4034,8 @@
 }
 
 .reload-account-row:selected > .box {
-    -fx-background-color: #101827;
-    -fx-border-color: #101827;
+    -fx-background-color: -uiptv-selected-card-fg;
+    -fx-border-color: -uiptv-selected-card-fg;
 }
 
 .reload-account-row:selected > .box > .mark {
@@ -4095,7 +4095,7 @@
 }
 
 .reload-status-running {
-    -fx-text-fill: #5cb9ff;
+    -fx-text-fill: #d0d0d0;
 }
 
 .reload-status-done {
@@ -4122,8 +4122,8 @@
 }
 
 .reload-problem-warning {
-    -fx-background-color: rgba(56, 189, 248, 0.10);
-    -fx-border-color: rgba(56, 189, 248, 0.20);
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: rgba(255, 255, 255, 0.16);
     -fx-border-width: 1;
     -fx-background-radius: 14;
     -fx-border-radius: 14;
@@ -4177,7 +4177,7 @@
 .reload-problem-account-row:hover,
 .reload-problem-account-row:focused {
     -fx-background-color: -uiptv-surface-hover;
-    -fx-border-color: rgba(56, 189, 248, 0.30);
+    -fx-border-color: rgba(255, 255, 255, 0.20);
 }
 
 .reload-problem-account-row:selected {
@@ -4430,11 +4430,11 @@
 
 .watching-now-view-link {
     -fx-font-weight: normal;
-    -fx-text-fill: #8ec5ff;
+    -fx-text-fill: #d0d0d0;
 }
 
 .watching-now-view-link:hover {
-    -fx-text-fill: #b8dcff;
+    -fx-text-fill: #ffffff;
 }
 
 .danger-link {
@@ -4447,8 +4447,8 @@
 }
 
 .menu-bar {
-    -fx-background-color: #2b2d30;
-    -fx-border-color: #4e5258;
+    -fx-background-color: #2b2b2b;
+    -fx-border-color: #4a4a4a;
     -fx-border-width: 0 0 1 0;
 }
 
@@ -4469,8 +4469,8 @@
 }
 
 .custom-dialog-root {
-    -fx-background-color: #2b2d30;
-    -fx-border-color: #4e5258;
+    -fx-background-color: #2b2b2b;
+    -fx-border-color: #4a4a4a;
     -fx-border-width: 1;
     -fx-background-radius: 10;
     -fx-border-radius: 10;
@@ -4505,8 +4505,8 @@
 }
 
 .custom-popup-root {
-    -fx-background-color: #2b2d30;
-    -fx-border-color: #4e5258;
+    -fx-background-color: #2b2b2b;
+    -fx-border-color: #4a4a4a;
     -fx-border-width: 1;
     -fx-background-radius: 10;
     -fx-border-radius: 10;
@@ -4546,8 +4546,8 @@
 }
 
 .update-dialog-hero {
-    -fx-background-color: linear-gradient(to right, #17304e, #1c3656);
-    -fx-border-color: #35608f;
+    -fx-background-color: linear-gradient(to right, #2d2d2d, #242424);
+    -fx-border-color: #565656;
     -fx-border-width: 1;
     -fx-border-radius: 10;
     -fx-background-radius: 10;
@@ -4564,21 +4564,21 @@
     -fx-max-height: 88;
     -fx-padding: 8;
     -fx-alignment: center;
-    -fx-background-color: linear-gradient(to bottom right, rgba(41,57,78,0.96), rgba(24,42,63,0.94));
+    -fx-background-color: linear-gradient(to bottom right, rgba(58,58,58,0.96), rgba(38,38,38,0.94));
     -fx-background-radius: 22;
-    -fx-border-color: rgba(143,192,255,0.45);
+    -fx-border-color: rgba(255,255,255,0.18);
     -fx-border-width: 1;
     -fx-border-radius: 22;
-    -fx-effect: dropshadow(gaussian, rgba(2, 6, 23, 0.4), 22, 0.2, 0, 8);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.4), 22, 0.2, 0, 8);
 }
 
 .update-dialog-icon-image {
-    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.4), 16, 0.18, 0, 4);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.4), 16, 0.18, 0, 4);
 }
 
 .update-dialog-badge {
-    -fx-background-color: #27486d;
-    -fx-text-fill: #d7e9ff;
+    -fx-background-color: #3a3a3a;
+    -fx-text-fill: #ededed;
     -fx-padding: 4 10 4 10;
     -fx-background-radius: 999;
     -fx-font-size: 0.846em;
@@ -4602,8 +4602,8 @@
 }
 
 .update-dialog-notes-card {
-    -fx-background-color: #31363c;
-    -fx-border-color: #4e5258;
+    -fx-background-color: #303030;
+    -fx-border-color: #4a4a4a;
     -fx-border-width: 1;
     -fx-border-radius: 10;
     -fx-background-radius: 10;
@@ -4689,7 +4689,7 @@
 .uiptv-responsive-card.selected .default-channel-icon,
 .uiptv-responsive-card:selected .default-channel-icon-shape,
 .uiptv-responsive-card.selected .default-channel-icon-shape {
-    -fx-background-color: rgba(16, 24, 39, 0.78);
+    -fx-background-color: rgba(0, 0, 0, 0.42);
 }
 
 .player-stream-info-text {
@@ -4710,7 +4710,7 @@
 }
 
 .about-dialog-card {
-    -fx-background-color: linear-gradient(to bottom right, #242a34, #1f2430);
+    -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-muted, -uiptv-surface);
     -fx-border-color: rgba(255, 255, 255, 0.10);
     -fx-border-width: 1;
     -fx-border-radius: 24;
@@ -4720,8 +4720,8 @@
 }
 
 .about-hero {
-    -fx-background-color: linear-gradient(to right, #17304e, #1c3656);
-    -fx-border-color: #35608f;
+    -fx-background-color: linear-gradient(to right, #2d2d2d, #242424);
+    -fx-border-color: #565656;
     -fx-border-width: 1;
     -fx-border-radius: 10;
     -fx-background-radius: 10;
@@ -4729,8 +4729,8 @@
 }
 
 .about-hero-icon-shell {
-    -fx-background-color: linear-gradient(to bottom, #4da0ff, #1f73d2);
-    -fx-border-color: #8fc0ff;
+    -fx-background-color: linear-gradient(to bottom, #4a4a4a, #303030);
+    -fx-border-color: #737373;
     -fx-border-width: 1;
     -fx-border-radius: 18;
     -fx-background-radius: 18;
@@ -4742,8 +4742,8 @@
 }
 
 .about-badge {
-    -fx-background-color: #27486d;
-    -fx-text-fill: #d7e9ff;
+    -fx-background-color: #3a3a3a;
+    -fx-text-fill: #ededed;
     -fx-padding: 4 10 4 10;
     -fx-background-radius: 999;
     -fx-font-size: 0.846em;
@@ -4782,8 +4782,8 @@
 }
 
 .about-card {
-    -fx-background-color: #31363c;
-    -fx-border-color: #4e5258;
+    -fx-background-color: #303030;
+    -fx-border-color: #4a4a4a;
     -fx-border-width: 1;
     -fx-border-radius: 10;
     -fx-background-radius: 10;
@@ -4814,8 +4814,8 @@
 
 .about-update-button:disabled {
     -fx-opacity: 1;
-    -fx-background-color: #284463;
-    -fx-border-color: #3b638f;
-    -fx-text-fill: #bfdcff;
+    -fx-background-color: #343434;
+    -fx-border-color: #5a5a5a;
+    -fx-text-fill: #ededed;
     -fx-cursor: default;
 }
