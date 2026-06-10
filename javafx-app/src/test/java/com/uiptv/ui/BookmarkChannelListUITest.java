@@ -63,7 +63,7 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
         assertTrue(snapshot.hasToolbarActions());
         assertTrue(snapshot.hasSortDropdown());
         assertTrue(snapshot.hasQuietActionButton());
-        assertEquals("Default", snapshot.sortDropdownText());
+        assertEquals(I18n.tr("autoSortDefaultCompact"), snapshot.sortDropdownText());
         assertTrue(snapshot.sortDropdownHasGraphic());
         assertFalse(snapshot.hasFooter());
     }

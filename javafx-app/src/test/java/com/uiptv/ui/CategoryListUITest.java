@@ -78,8 +78,8 @@ class CategoryListUITest extends DbBackedUiTest {
     }
 
     @Test
-    void detailBackReturnsFromNestedEpisodeDetailToCategoryListInOneStep() throws Exception {
-        boolean detailPaneVisible = runOnFxThread(() -> {
+    void detailBackReturnsFromNestedEpisodeDetailToLoadedSeriesList() throws Exception {
+        List<Boolean> detailVisibility = runOnFxThread(() -> {
             Account account = new Account();
             account.setAccountName("Account");
             account.setAction(Account.AccountAction.series);
@@ -90,14 +90,17 @@ class CategoryListUITest extends DbBackedUiTest {
                 showDetailView(categories, channels, "Series");
                 showChannelDetailView(channels, new Label("Episodes"), "Series");
                 navigateBackFromDetail(categories);
-                return categories.getChildren().contains(detailPane(categories));
+                return List.of(
+                        categories.getChildren().contains(detailPane(categories)),
+                        channels.getChildren().contains(detailPane(channels))
+                );
             } finally {
                 categories.dispose();
                 channels.dispose();
             }
         });
 
-        assertFalse(detailPaneVisible);
+        assertEquals(List.of(true, false), detailVisibility);
     }
 
     @Test
@@ -178,6 +181,12 @@ class CategoryListUITest extends DbBackedUiTest {
 
     private static VBox detailPane(CategoryListUI ui) throws Exception {
         Field field = CategoryListUI.class.getDeclaredField("detailPane");
+        field.setAccessible(true);
+        return (VBox) field.get(ui);
+    }
+
+    private static VBox detailPane(ChannelListUI ui) throws Exception {
+        Field field = ChannelListUI.class.getDeclaredField("detailPane");
         field.setAccessible(true);
         return (VBox) field.get(ui);
     }
