@@ -292,9 +292,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
                                          BookmarkContext context,
                                          List<Bookmark> accountBookmarks,
                                          Set<String> savedVodKeys) {
-        boolean isBookmarked = listAction == vod
-                ? isVodSaved(channel, context, savedVodKeys)
-                : isChannelBookmarked(channel, context, accountBookmarks);
+        boolean isBookmarked = false;
+        if (listAction == vod) {
+            isBookmarked = isVodSaved(channel, context, savedVodKeys);
+        } else if (listAction != series) {
+            isBookmarked = isChannelBookmarked(channel, context, accountBookmarks);
+        }
         ChannelItem item = new ChannelItem(
                 new SimpleStringProperty(channel.getName()),
                 new SimpleStringProperty(channel.getChannelId()),
@@ -956,10 +959,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private List<Label> createMediaMetadataNodes(ChannelItem item, WatchingNowVodResolver.VodMetadata vodMetadata) {
         List<Label> metadataNodes = new ArrayList<>();
-        if (item != null && item.isBookmarked()) {
-            Label bookmarkChip = WatchingNowMediaCardFactory.createChip(I18n.tr("autoBookmark"));
-            bookmarkChip.getStyleClass().add("channel-bookmark-chip");
-            metadataNodes.add(bookmarkChip);
+        if (listAction == vod && item != null && item.isBookmarked()) {
+            Label watchingNowChip = WatchingNowMediaCardFactory.createChip(I18n.tr("autoWatchingNow"));
+            watchingNowChip.getStyleClass().add("channel-bookmark-chip");
+            metadataNodes.add(watchingNowChip);
         }
         if (listAction == series) {
             metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoSeries")));
@@ -1064,7 +1067,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
 
         if (listAction == series) {
-            populateSeriesContextMenu(menu, item, selectedItems);
+            populateSeriesContextMenu(menu, item);
             return menu;
         }
 
@@ -1072,7 +1075,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         return menu;
     }
 
-    private void populateSeriesContextMenu(ContextMenu menu, ChannelItem item, List<ChannelItem> selectedItems) {
+    private void populateSeriesContextMenu(ContextMenu menu, ChannelItem item) {
         if (isBlank(item.getCmd())) {
             MenuItem viewEpisodesItem = new MenuItem(I18n.tr("autoViewEpisodes"));
             viewEpisodesItem.setOnAction(event -> {
@@ -1083,7 +1086,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
         } else {
             addPlayerItems(menu, item);
         }
-        addBookmarkMenu(menu, item, selectedItems);
     }
 
     private void populateChannelContextMenu(ContextMenu menu, ChannelItem item, List<ChannelItem> selectedItems) {
@@ -1259,11 +1261,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void registerBookmarkListener() {
-        if (bookmarkListenerRegistered) {
-            return;
+        if (usesBookmarkService() && !bookmarkListenerRegistered) {
+            BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
+            bookmarkListenerRegistered = true;
         }
-        BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
-        bookmarkListenerRegistered = true;
         if (listAction == vod && !vodWatchStateListenerRegistered) {
             VodWatchStateService.getInstance().addChangeListener(vodWatchStateChangeListener);
             vodWatchStateListenerRegistered = true;
@@ -1272,6 +1273,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
             SeriesWatchStateService.getInstance().addChangeListener(seriesWatchStateChangeListener);
             seriesWatchStateListenerRegistered = true;
         }
+    }
+
+    private boolean usesBookmarkService() {
+        return listAction != vod && listAction != series;
     }
 
     private void registerThumbnailModeListener() {
@@ -1375,9 +1380,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 }
                 for (ChannelItem item : channelItems) {
                     BookmarkContext context = resolveBookmarkContext(item.getChannel());
-                    boolean isBookmarked = listAction == vod
-                            ? isVodSaved(item.getChannel(), context, savedVodKeys)
-                            : isChannelBookmarked(item.getChannel(), context, accountBookmarks);
+                    boolean isBookmarked = false;
+                    if (listAction == vod) {
+                        isBookmarked = isVodSaved(item.getChannel(), context, savedVodKeys);
+                    } else if (listAction != series) {
+                        isBookmarked = isChannelBookmarked(item.getChannel(), context, accountBookmarks);
+                    }
                     item.setBookmarked(isBookmarked);
                 }
                 refreshChannelViews();
@@ -1386,7 +1394,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private List<Bookmark> loadBookmarksForAccount() {
-        if (listAction == vod) {
+        if (listAction == vod || listAction == series) {
             return List.of();
         }
         return BookmarkService.getInstance().read().stream()

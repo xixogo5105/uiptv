@@ -60,6 +60,34 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     @Test
+    void seriesContextMenuDoesNotOfferBookmarkMenu() throws Exception {
+        List<String> menuOrder = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Series", "series", Account.AccountAction.series);
+            ContextMenu menu = createChannelContextMenu(ui, seriesItemWithoutCommand());
+            return menu.getItems().stream()
+                    .map(ChannelListUIContextMenuTest::menuItemText)
+                    .toList();
+        });
+
+        assertEquals(List.of(I18n.tr("autoViewEpisodes")), menuOrder);
+        assertFalse(menuOrder.contains(I18n.tr("autoBookmark")));
+    }
+
+    @Test
+    void vodContextMenuUsesWatchingNowInsteadOfBookmarkMenu() throws Exception {
+        List<String> menuOrder = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Movies", "movies", Account.AccountAction.vod);
+            ContextMenu menu = createChannelContextMenu(ui, channelItem());
+            return menu.getItems().stream()
+                    .map(ChannelListUIContextMenuTest::menuItemText)
+                    .toList();
+        });
+
+        assertTrue(menuOrder.contains(I18n.tr("autoWatchingNow")));
+        assertFalse(menuOrder.contains(I18n.tr("autoBookmark")));
+    }
+
+    @Test
     void plainTextChannelCardKeepsDrmBadgeVisible() throws Exception {
         BadgeSnapshot badge = runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
@@ -192,15 +220,31 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     @Test
-    void mediaChannelCardShowsBookmarkChipWhenBookmarked() throws Exception {
-        boolean markerPresent = runOnFxThread(() -> {
+    void vodChannelCardShowsWatchingNowChipWhenSaved() throws Exception {
+        LabelSnapshot chip = runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Movies", "movies", Account.AccountAction.vod);
+            setBooleanField(ui, "thumbnailsEnabled", true);
+            Region card = createChannelCard(ui, channelItem(true));
+            Label label = findLabelByStyle(card, "channel-bookmark-chip");
+            return label == null ? null : new LabelSnapshot(label.getText(), label.isVisible(), label.isManaged());
+        });
+
+        assertNotNull(chip);
+        assertEquals(I18n.tr("autoWatchingNow"), chip.text());
+        assertTrue(chip.visible());
+        assertTrue(chip.managed());
+    }
+
+    @Test
+    void seriesChannelCardDoesNotShowBookmarkChipForLegacyBookmarkState() throws Exception {
+        boolean markerPresent = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Series", "series", Account.AccountAction.series);
             setBooleanField(ui, "thumbnailsEnabled", true);
             Region card = createChannelCard(ui, channelItem(true));
             return findNodeByStyle(card, "channel-bookmark-chip") != null;
         });
 
-        assertTrue(markerPresent);
+        assertFalse(markerPresent);
     }
 
     @Test
@@ -216,6 +260,27 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
 
         assertTrue(snapshot.registered());
         assertTrue(snapshot.unregistered());
+    }
+
+    @Test
+    void mediaChannelListsDoNotRegisterBookmarkChangeListener() throws Exception {
+        List<Boolean> bookmarkRegistrations = runOnFxThread(() -> {
+            ChannelListUI vodUi = new ChannelListUI(new Account(), "Movies", "movies", Account.AccountAction.vod);
+            ChannelListUI seriesUi = new ChannelListUI(new Account(), "Series", "series", Account.AccountAction.series);
+            try {
+                invokeNoArg(vodUi, "registerBookmarkListener");
+                invokeNoArg(seriesUi, "registerBookmarkListener");
+                return List.of(
+                        booleanField(vodUi, "bookmarkListenerRegistered"),
+                        booleanField(seriesUi, "bookmarkListenerRegistered")
+                );
+            } finally {
+                invokeNoArg(vodUi, "unregisterBookmarkListener");
+                invokeNoArg(seriesUi, "unregisterBookmarkListener");
+            }
+        });
+
+        assertEquals(List.of(false, false), bookmarkRegistrations);
     }
 
     private static ContextMenu createChannelContextMenu(ChannelListUI ui, ChannelListUI.ChannelItem item) throws Exception {
@@ -297,10 +362,18 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     private static ChannelListUI.ChannelItem channelItem(String name, boolean bookmarked) {
+        return channelItem(name, bookmarked, "http://example.test/stream.m3u8");
+    }
+
+    private static ChannelListUI.ChannelItem seriesItemWithoutCommand() {
+        return channelItem("Friends", false, "");
+    }
+
+    private static ChannelListUI.ChannelItem channelItem(String name, boolean bookmarked, String cmd) {
         Channel channel = new Channel();
         channel.setChannelId("ch-1");
         channel.setName(name);
-        channel.setCmd("http://example.test/stream.m3u8");
+        channel.setCmd(cmd);
         return new ChannelListUI.ChannelItem(
                 new SimpleStringProperty(channel.getName()),
                 new SimpleStringProperty(channel.getChannelId()),
