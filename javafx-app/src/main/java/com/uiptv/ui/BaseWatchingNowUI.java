@@ -783,8 +783,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         VBox topBar = ResponsiveHeaderActions.stackedTopBar(
                 headerText,
                 "watching-now-detail-topbar",
-                reload,
-                back
+                back,
+                reload
         );
 
         FlowPane detailLayout = new FlowPane(14, 14);

@@ -83,6 +83,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private final ScrollPane categoryScrollPane = new ScrollPane(categoryCardGrid);
     private final ObservableList<CategoryItem> categoryItems = FXCollections.observableArrayList();
     private final List<CategoryItem> selectedCategoryItems = new ArrayList<>();
+    private final List<Node> detailHeaderActions = new ArrayList<>();
     private final EnumMap<Account.AccountAction, ModeState> modeStates = new EnumMap<>(Account.AccountAction.class);
     private static final String MODE_ACCOUNTS = "accounts";
     private static final String MODE_ITV = "itv";
@@ -213,7 +214,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         detailTitle.setMinWidth(0);
         detailTitle.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(detailTitle, Priority.ALWAYS);
-        detailHeader.getChildren().setAll(detailBackButton, detailTitle, detailCloseButton);
+        updateDetailHeaderChildren();
         detailContent.setSpacing(5);
         detailContent.setFillWidth(true);
         detailContent.setMinWidth(0);
@@ -470,9 +471,12 @@ public class CategoryListUI extends HBox implements SearchTarget {
         if (ui == null) {
             return;
         }
+        detailHeaderActions.clear();
+        ui.setDetailHeaderActionsHandler(this::setDetailHeaderActions);
         replaceSearchText("", true);
         rebuildCategoryCards();
         detailTitle.setText(title);
+        updateDetailHeaderChildren();
         detailContent.getChildren().setAll(ui);
         ui.setSearchQuery(searchText);
         ui.setMinWidth(0);
@@ -494,8 +498,16 @@ public class CategoryListUI extends HBox implements SearchTarget {
         if (!getChildren().contains(detailPane)) {
             return false;
         }
+        return navigateBackWithinDetail();
+    }
+
+    private void navigateBackFromDetail() {
+        navigateBackWithinDetail();
+    }
+
+    private boolean navigateBackWithinDetail() {
         if (!detailContent.getChildren().isEmpty()) {
-            javafx.scene.Node content = detailContent.getChildren().getFirst();
+            Node content = detailContent.getChildren().getFirst();
             if (content instanceof ChannelListUI channelListUI && channelListUI.navigateBackEmbedded()) {
                 return true;
             }
@@ -504,8 +516,23 @@ public class CategoryListUI extends HBox implements SearchTarget {
         return true;
     }
 
-    private void navigateBackFromDetail() {
-        showListView(true);
+    private void setDetailHeaderActions(List<Node> actions) {
+        detailHeaderActions.clear();
+        if (actions != null) {
+            detailHeaderActions.addAll(actions.stream()
+                    .filter(Objects::nonNull)
+                    .toList());
+        }
+        updateDetailHeaderChildren();
+    }
+
+    private void updateDetailHeaderChildren() {
+        List<Node> children = new ArrayList<>();
+        children.add(detailBackButton);
+        children.addAll(detailHeaderActions);
+        children.add(detailTitle);
+        children.add(detailCloseButton);
+        detailHeader.getChildren().setAll(children);
     }
 
     @Override

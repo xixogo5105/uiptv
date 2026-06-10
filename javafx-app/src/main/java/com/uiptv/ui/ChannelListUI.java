@@ -47,6 +47,7 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.series;
@@ -104,6 +105,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
     private AtomicBoolean currentRequestCancelled;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
+    private Consumer<List<Node>> detailHeaderActionsHandler;
     private boolean mediaDrawerMode = false;
     private final VBox listPane = new VBox(5);
     private final VBox searchBox = new VBox(5);
@@ -155,6 +157,11 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     public void scrollFocusedChannelIntoView() {
         channelGrid.scrollFocusedItemIntoView();
+    }
+
+    public void setDetailHeaderActionsHandler(Consumer<List<Node>> detailHeaderActionsHandler) {
+        this.detailHeaderActionsHandler = detailHeaderActionsHandler;
+        publishDetailHeaderActions(List.of());
     }
 
     @Override
@@ -635,6 +642,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void showListView() {
+        publishDetailHeaderActions(List.of());
         getChildren().setAll(listPane);
     }
 
@@ -646,7 +654,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
             episodesListUI.setMediaDrawerMode(mediaDrawerMode);
         }
         detailTitle.setText(title == null ? "" : title);
-        configureDetailHeader(ui);
+        List<Node> hostedActions = configureDetailHeader(ui);
+        publishDetailHeaderActions(hostedActions);
         detailContent.getChildren().setAll(ui);
         if (ui instanceof Region region) {
             region.setMinWidth(0);
@@ -671,11 +680,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
     }
 
-    private boolean configureDetailHeader(Node ui) {
+    private List<Node> configureDetailHeader(Node ui) {
         EpisodeDetailHeaderUI.clearPlainHeader(detailHeader);
         detailNavHeader.getChildren().clear();
 
         if (shouldUsePlainEpisodeHeader(ui) && ui instanceof EpisodesListUI episodesListUI) {
+            if (detailHeaderActionsHandler != null) {
+                return List.of(episodesListUI.getReloadFromServerButton());
+            }
             episodesListUI.useExternalSeriesTitle();
             EpisodeDetailHeaderUI.configurePlainHeader(
                     detailHeader,
@@ -684,20 +696,29 @@ public class ChannelListUI extends HBox implements SearchTarget {
                     episodesListUI.getBingeWatchButton(),
                     episodesListUI.getReloadFromServerButton()
             );
-            return true;
+            return List.of();
         }
         if (ui instanceof EpisodesListUI episodesListUI) {
+            if (detailHeaderActionsHandler != null) {
+                return List.of(episodesListUI.getReloadFromServerButton());
+            }
             EpisodeDetailHeaderUI.configureBackTitleHeader(
                     detailNavHeader,
                     detailBackButton,
                     episodesListUI.getReloadFromServerButton(),
                     detailTitle
             );
-            return false;
+            return List.of();
         }
 
         EpisodeDetailHeaderUI.configureBackTitleHeader(detailNavHeader, detailBackButton, detailTitle);
-        return false;
+        return List.of();
+    }
+
+    private void publishDetailHeaderActions(List<Node> actions) {
+        if (detailHeaderActionsHandler != null) {
+            detailHeaderActionsHandler.accept(actions == null ? List.of() : actions);
+        }
     }
 
     private boolean shouldUsePlainEpisodeHeader(Node ui) {
@@ -1029,7 +1050,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private ContextMenu createChannelContextMenu(ChannelItem item, List<ChannelItem> selectedItems, Node owner) {
-        if (item == null || (listAction == series && isBlank(item.getCmd()))) {
+        if (item == null) {
             return null;
         }
         ContextMenu menu = new ContextMenu();
@@ -1042,15 +1063,42 @@ public class ChannelListUI extends HBox implements SearchTarget {
             return menu;
         }
 
+        if (listAction == series) {
+            populateSeriesContextMenu(menu, item, selectedItems);
+            return menu;
+        }
+
+        populateChannelContextMenu(menu, item, selectedItems);
+        return menu;
+    }
+
+    private void populateSeriesContextMenu(ContextMenu menu, ChannelItem item, List<ChannelItem> selectedItems) {
+        if (isBlank(item.getCmd())) {
+            MenuItem viewEpisodesItem = new MenuItem(I18n.tr("autoViewEpisodes"));
+            viewEpisodesItem.setOnAction(event -> {
+                menu.hide();
+                playOrShowSeries(item);
+            });
+            menu.getItems().add(viewEpisodesItem);
+        } else {
+            addPlayerItems(menu, item);
+        }
+        addBookmarkMenu(menu, item, selectedItems);
+    }
+
+    private void populateChannelContextMenu(ContextMenu menu, ChannelItem item, List<ChannelItem> selectedItems) {
+        addPlayerItems(menu, item);
+        addBookmarkMenu(menu, item, selectedItems);
+    }
+
+    private void addBookmarkMenu(ContextMenu menu, ChannelItem item, List<ChannelItem> selectedItems) {
         List<ChannelItem> effectiveSelection = selectedItems == null || selectedItems.isEmpty()
                 ? List.of(item)
                 : selectedItems;
-        addPlayerItems(menu, item);
         addSeparatorIfNeeded(menu);
         Menu bookmarkMenu = new Menu(I18n.tr("autoBookmark"));
         menu.getItems().add(bookmarkMenu);
         menu.setOnShowing(_ -> loadBookmarkMenuItemsAsync(effectiveSelection, bookmarkMenu));
-        return menu;
     }
 
     private void addPlayerItems(ContextMenu menu, ChannelItem item) {

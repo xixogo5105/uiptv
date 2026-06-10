@@ -3,6 +3,7 @@ package com.uiptv.widget;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Tooltip;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Pane;
 import javafx.scene.shape.Circle;
 import javafx.util.Duration;
@@ -16,6 +17,7 @@ public class PlayMenuButton extends Button {
         setFocusTraversable(true);
         setAccessibleText(accessibleText);
         setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+        addEventHandler(MouseEvent.MOUSE_CLICKED, event -> event.consume());
 
         Tooltip tooltip = new Tooltip(accessibleText);
         tooltip.setShowDelay(Duration.millis(250));
