@@ -1,26 +1,27 @@
 package com.uiptv.player;
 
-import com.uiptv.util.I18n;
-import com.uiptv.util.ResolutionDisplayUtil;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
-
+import com.uiptv.util.I18n;
+import com.uiptv.util.ResolutionDisplayUtil;
+import com.uiptv.util.SystemUtils;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.util.Duration;
+import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
 import uk.co.caprica.vlcj.media.Media;
 import uk.co.caprica.vlcj.media.MediaRef;
-import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.media.TrackType;
 import uk.co.caprica.vlcj.media.VideoTrackInfo;
 import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 import uk.co.caprica.vlcj.player.base.TrackDescription;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -89,6 +90,27 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (enableForwardCookies) {
             vlcArgs.add("--http-forward-cookies");
         }
+
+
+        if (SystemUtils.IS_OS_WINDOWS) {
+            vlcArgs.add("--vout=direct3d11");
+            vlcArgs.add("--avcodec-hw=d3d11va");
+        } else if (SystemUtils.IS_OS_LINUX) {
+            vlcArgs.add("--vout=gl");
+        } else if (SystemUtils.IS_OS_MAC_OSX) {
+            vlcArgs.add("--vout=macosx");
+            vlcArgs.add("--avcodec-hw=videotoolbox");
+        } else {
+            // Fallback for unknown OS
+            vlcArgs.add("--vout=none");
+            vlcArgs.add("--avcodec-hw=any");
+        }
+        vlcArgs.add("--no-video-title-show");
+        vlcArgs.add("--quiet");
+        vlcArgs.add("--http-reconnect");
+        vlcArgs.add("--adaptive-use-access");
+
+
         return vlcArgs;
     }
 
