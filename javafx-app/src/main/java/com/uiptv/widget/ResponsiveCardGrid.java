@@ -42,7 +42,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private static final double SCROLL_VISIBILITY_TOLERANCE = 4.0;
     private static final double SCROLL_VALUE_TOLERANCE = 0.001;
     private static final int DEFAULT_VIRTUALIZATION_THRESHOLD =
-            Integer.getInteger("uiptv.cardGrid.virtualizationThreshold", 500);
+            Integer.getInteger("uiptv.cardGrid.virtualizationThreshold", 100);
     private static final int DEFAULT_VIRTUAL_ROW_BUFFER =
             Integer.getInteger("uiptv.cardGrid.virtualRowBuffer", 6);
     private static final double DEFAULT_VIRTUAL_VIEWPORT_HEIGHT = 900;
@@ -210,6 +210,27 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         this.virtualizationThreshold = safeThreshold;
         rebuildCards();
+    }
+
+    public void setLowVirtualizationThreshold() {
+        if (this.virtualizationThreshold > 50) {
+            this.virtualizationThreshold = 50;
+            rebuildCards();
+        }
+    }
+
+    public void setMediumVirtualizationThreshold() {
+        if (this.virtualizationThreshold > 100) {
+            this.virtualizationThreshold = 100;
+            rebuildCards();
+        }
+    }
+
+    public void setHighVirtualizationThreshold() {
+        if (this.virtualizationThreshold > 200) {
+            this.virtualizationThreshold = 200;
+            rebuildCards();
+        }
     }
 
     public void setVirtualRowBuffer(int virtualRowBuffer) {

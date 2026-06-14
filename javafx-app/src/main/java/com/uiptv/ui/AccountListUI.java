@@ -1709,10 +1709,10 @@ public class AccountListUI extends HBox implements SearchTarget {
         private final SimpleStringProperty accountType;
         private final boolean pinToTop;
         private final int originalOrder;
-        private final int categoryCount;
-        private final int channelCount;
-        private final String expiryText;
-        private final AccountInfoUiUtil.ExpiryState expiryState;
+        private int categoryCount;
+        private int channelCount;
+        private String expiryText;
+        private AccountInfoUiUtil.ExpiryState expiryState;
 
         public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId, SimpleStringProperty accountType,
                            boolean pinToTop, int originalOrder, int categoryCount, int channelCount) {
@@ -1774,17 +1774,33 @@ public class AccountListUI extends HBox implements SearchTarget {
             return categoryCount;
         }
 
+        public void setCategoryCount(int categoryCount) {
+            this.categoryCount = Math.max(0, categoryCount);
+          }
+
         public int getChannelCount() {
             return channelCount;
         }
+
+        public void setChannelCount(int channelCount) {
+            this.channelCount = Math.max(0, channelCount);
+          }
 
         public String getExpiryText() {
             return expiryText;
         }
 
+        public void setExpiryText(String expiryText) {
+            this.expiryText = expiryText == null ? "" : expiryText;
+          }
+
         public AccountInfoUiUtil.ExpiryState getExpiryState() {
             return expiryState;
         }
+
+        public void setExpiryState(AccountInfoUiUtil.ExpiryState expiryState) {
+            this.expiryState = expiryState == null ? AccountInfoUiUtil.ExpiryState.UNKNOWN : expiryState;
+          }
 
     }
 
