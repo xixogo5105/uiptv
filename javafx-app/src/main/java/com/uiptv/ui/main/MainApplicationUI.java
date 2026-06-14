@@ -93,6 +93,11 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         embeddedPlayer = createEmbeddedPlayerContainer(embeddedPlayerNode);
         embeddedPlayerNode.visibleProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
         embeddedPlayerNode.managedProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
+        var player = MediaPlayerFactory.getPlayer();
+        if (player != null) {
+            player.pipProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
+            player.fullscreenProperty().addListener((_, _, _) -> applyEmbeddedPlayerLayoutFromConfiguration());
+        }
         navigationShell = createNavigationShell(tabPane);
         playerAdjacentControls = createPlayerAdjacentControls();
         responsiveContent = createResponsiveContent();
@@ -646,7 +651,14 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     }
 
     private boolean isEmbeddedPlayerNodeActive() {
-        return embeddedPlayerNode != null && (embeddedPlayerNode.isVisible() || embeddedPlayerNode.isManaged());
+        if (embeddedPlayerNode == null) {
+            return false;
+        }
+        var player = MediaPlayerFactory.getPlayer();
+        if (player != null && (player.isPip() || player.isFullscreen())) {
+            return false;
+        }
+        return embeddedPlayerNode.isVisible() || embeddedPlayerNode.isManaged();
     }
 
     private boolean shouldUsePlayerAdjacentTopControlsLayout() {

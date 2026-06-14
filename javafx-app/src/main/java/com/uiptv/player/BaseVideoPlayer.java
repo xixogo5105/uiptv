@@ -50,6 +50,9 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.property.ReadOnlyBooleanProperty;
 
 import java.io.IOException;
 import java.net.URLDecoder;
@@ -89,6 +92,29 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected static final int ASPECT_RATIO_STRETCH = 2;
     protected int aspectRatioMode = ASPECT_RATIO_FIT; // 0=Fit, 1=Fill (Zoom), 2=Stretch
     protected boolean isUserSeeking = false;
+
+    protected final BooleanProperty pip = new SimpleBooleanProperty(false);
+    protected final BooleanProperty fullscreen = new SimpleBooleanProperty(false);
+
+    @Override
+    public boolean isPip() {
+        return pip.get();
+    }
+
+    @Override
+    public boolean isFullscreen() {
+        return fullscreen.get();
+    }
+
+    @Override
+    public ReadOnlyBooleanProperty pipProperty() {
+        return pip;
+    }
+
+    @Override
+    public ReadOnlyBooleanProperty fullscreenProperty() {
+        return fullscreen;
+    }
 
     // UI Components
     protected Slider timeSlider;
@@ -893,6 +919,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void stop() {
+        if (pipStage != null) {
+            exitPip();
+        }
+        exitFullscreen();
         retryCount = 0;
         isRetrying.set(false);
         idleTimer.stop();
@@ -989,6 +1019,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                     // Ignore stage teardown issues during fullscreen cleanup.
                 }
                 fullscreenStage = null;
+                fullscreen.set(false);
             }
 
             // Remove any PiP stage
@@ -1000,6 +1031,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                     // Ignore stage teardown issues during PiP cleanup.
                 }
                 pipStage = null;
+                pip.set(false);
             }
             restorePrimaryStageAlwaysOnTopAfterVideoOverlay();
 
@@ -1249,6 +1281,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenExitIcon);
             isFullscreen = true;
+            fullscreen.set(true);
             if (!isControlBarHiddenByUser) controlsContainer.setVisible(true);
             restoreVisibleCursor();
             if (isPointerInsidePlayer) {
@@ -1308,6 +1341,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             btnStop.setManaged(true);
 
             isFullscreen = false;
+            fullscreen.set(false);
             isPointerInsidePlayer = true;
             if (isControlBarHiddenByUser) {
                 controlsContainer.setVisible(false);
@@ -1338,6 +1372,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             playerContainer.getChildren().remove(videoView);
 
             pipStage = createPipStage();
+            pip.set(true);
             StackPane pipRoot = createPipRoot();
             Button restoreButton = createPipRestoreButton();
             PipControlButtons buttons = createPipControlButtons();
@@ -1362,6 +1397,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             uninstallSceneInputRecovery(pipStage.getScene());
             pipStage.close();
             pipStage = null;
+            pip.set(false);
 
             Node videoView = getVideoView();
             ((Pane) videoView.getParent()).getChildren().remove(videoView);
@@ -1558,6 +1594,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (videoView instanceof ImageView imageView) {
             imageView.fitWidthProperty().bind(pipRoot.widthProperty());
             imageView.fitHeightProperty().bind(pipRoot.heightProperty());
+            imageView.setScaleX(1.0);
+            imageView.setScaleY(1.0);
         }
     }
 

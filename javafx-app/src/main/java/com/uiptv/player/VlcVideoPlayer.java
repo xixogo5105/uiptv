@@ -530,6 +530,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void updateVideoSize() {
+        if (isPip()) {
+            return;
+        }
         if (playerContainer.getWidth() <= 0 || playerContainer.getHeight() <= 0) {
             return;
         }
