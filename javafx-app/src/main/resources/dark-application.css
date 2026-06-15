@@ -1697,35 +1697,6 @@
     -fx-fill: -uiptv-header-action-hover-fg;
 }
 
-.plain-text-mode-header-button {
-    -fx-padding: 5;
-}
-
-.plain-text-mode-quick-icon {
-    -fx-alignment: center;
-    -fx-background-color: transparent;
-    -fx-background-radius: 999;
-    -fx-border-color: -uiptv-text-secondary;
-    -fx-border-radius: 999;
-    -fx-font-size: 12;
-    -fx-font-weight: 800;
-    -fx-text-fill: -uiptv-text-secondary;
-}
-
-.bookmarks-quick-action-button:hover .plain-text-mode-quick-icon,
-.bookmarks-quick-action-button:focused .plain-text-mode-quick-icon {
-    -fx-border-color: -uiptv-header-action-hover-fg;
-    -fx-text-fill: -uiptv-header-action-hover-fg;
-}
-
-.bookmarks-quick-action-button-active .plain-text-mode-quick-icon,
-.bookmarks-quick-action-button-active:hover .plain-text-mode-quick-icon,
-.bookmarks-quick-action-button-active:focused .plain-text-mode-quick-icon {
-    -fx-background-color: rgba(255, 255, 255, 0.12);
-    -fx-border-color: -uiptv-border-subtle;
-    -fx-text-fill: -uiptv-text-primary;
-}
-
 .bookmarks-quick-action-button-lock-ok .bookmarks-quick-action-icon,
 .bookmarks-quick-action-button-lock-ok:hover .bookmarks-quick-action-icon,
 .bookmarks-quick-action-button-lock-ok:focused .bookmarks-quick-action-icon {
@@ -2602,6 +2573,14 @@
 
 .uiptv-switch-toggle:disabled {
     -fx-opacity: 0.55;
+}
+
+.plain-text-mode-menu-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.plain-text-mode-menu-icon-slash {
+    -fx-fill: #f87171;
 }
 
 .filter-lock-state-row {

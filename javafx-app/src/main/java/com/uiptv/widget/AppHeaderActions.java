@@ -17,7 +17,6 @@ import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ContextMenu;
-import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.layout.HBox;
@@ -37,6 +36,8 @@ public class AppHeaderActions extends HBox {
     private static final String ICON_HELP = "M11 18H13V16H11V18ZM12 2C6.48 2 2 6.48 2 12S6.48 22 12 22 22 17.52 22 12 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12S7.59 4 12 4 20 7.59 20 12 16.41 20 12 20ZM12 6C9.79 6 8 7.79 8 10H10C10 8.9 10.9 8 12 8S14 8.9 14 10C14 12 11 11.75 11 15H13C13 12.75 16 12.5 16 10 16 7.79 14.21 6 12 6Z";
     private static final String ICON_PARENTAL_LOCK = "M12 17C13.1 17 14 16.1 14 15S13.1 13 12 13 10 13.9 10 15 10.9 17 12 17ZM18 8H17V6C17 3.24 14.76 1 12 1S7 3.24 7 6V8H6C4.9 8 4 8.9 4 10V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V10C20 8.9 19.1 8 18 8ZM9 6C9 4.34 10.34 3 12 3S15 4.34 15 6V8H9V6ZM18 20H6V10H18V20Z";
     private static final String ICON_PARENTAL_UNLOCKED = "M12 17C13.1 17 14 16.1 14 15S13.1 13 12 13 10 13.9 10 15 10.9 17 12 17ZM18 8H9V6C9 4.34 10.34 3 12 3 13.09 3 14.05 3.58 14.58 4.45L16.32 3.45C15.44 1.99 13.84 1 12 1 9.24 1 7 3.24 7 6V8H6C4.9 8 4 8.9 4 10V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V10C20 8.9 19.1 8 18 8ZM18 20H6V10H18V20Z";
+    private static final String ICON_THUMBNAIL_CARD = "M4 5H20V19H4V5ZM6 7V13H18V7H6ZM6 15V17H12V15H6ZM14 15V17H18V15H14Z";
+    private static final String ICON_DISABLED_SLASH = "M5.64 4.22L19.78 18.36L18.36 19.78L4.22 5.64Z";
 
     private final HostServices hostServices;
     private final Runnable themeToggleHandler;
@@ -121,7 +122,9 @@ public class AppHeaderActions extends HBox {
     }
 
     private MenuItem createPlainTextModeMenuItem() {
-        MenuItem item = new MenuItem(plainTextModeMenuText(), createPlainTextModeMenuIcon());
+        Configuration configuration = readConfigurationSafely();
+        boolean thumbnailsEnabled = configuration == null || configuration.isEnableThumbnails();
+        MenuItem item = new MenuItem(plainTextModeMenuText(), createPlainTextModeMenuIcon(thumbnailsEnabled));
         item.setOnAction(_ -> togglePlainTextMode());
         return item;
     }
@@ -189,13 +192,25 @@ public class AppHeaderActions extends HBox {
         return wrapper;
     }
 
-    private Node createPlainTextModeMenuIcon() {
-        Label icon = new Label("1");
-        icon.getStyleClass().add("plain-text-mode-quick-icon");
-        icon.setMinSize(20, 20);
-        icon.setPrefSize(20, 20);
-        icon.setMaxSize(20, 20);
-        return icon;
+    private Node createPlainTextModeMenuIcon(boolean thumbnailsEnabled) {
+        SVGPath cardIcon = new SVGPath();
+        cardIcon.setContent(ICON_THUMBNAIL_CARD);
+        cardIcon.getStyleClass().add("plain-text-mode-menu-icon");
+        UiRenderQuality.optimizeTextNode(cardIcon);
+
+        StackPane wrapper = new StackPane(cardIcon);
+        wrapper.setMinSize(20, 20);
+        wrapper.setPrefSize(20, 20);
+        wrapper.setMaxSize(20, 20);
+
+        if (!thumbnailsEnabled) {
+            SVGPath slashIcon = new SVGPath();
+            slashIcon.setContent(ICON_DISABLED_SLASH);
+            slashIcon.getStyleClass().add("plain-text-mode-menu-icon-slash");
+            UiRenderQuality.optimizeTextNode(slashIcon);
+            wrapper.getChildren().add(slashIcon);
+        }
+        return wrapper;
     }
 
     private void toggleParentalPause() {
