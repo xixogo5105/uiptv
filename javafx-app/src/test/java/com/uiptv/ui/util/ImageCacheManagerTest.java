@@ -1,8 +1,10 @@
 package com.uiptv.ui.util;
 
+import com.uiptv.ui.ThumbnailAwareUI;
 import javafx.scene.image.Image;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.lang.reflect.Field;
@@ -74,7 +76,8 @@ class ImageCacheManagerTest {
         String cacheKey = "channel:" + url;
         CompletableFuture<Image> future = null;
 
-        try {
+        try (MockedStatic<ThumbnailAwareUI> thumbnails = Mockito.mockStatic(ThumbnailAwareUI.class)) {
+            thumbnails.when(ThumbnailAwareUI::areThumbnailsEnabled).thenReturn(true);
             future = ImageCacheManager.loadImageAsync(url, "Channel");
 
             assertFalse(future.isDone());
@@ -98,7 +101,8 @@ class ImageCacheManagerTest {
         LoaderBlock loaderBlock = blockImageLoader();
         CompletableFuture<Image> future = null;
 
-        try {
+        try (MockedStatic<ThumbnailAwareUI> thumbnails = Mockito.mockStatic(ThumbnailAwareUI.class)) {
+            thumbnails.when(ThumbnailAwareUI::areThumbnailsEnabled).thenReturn(true);
             future = ImageCacheManager.loadImageAsync(url, "Channel");
 
             assertFalse(future.isDone());
