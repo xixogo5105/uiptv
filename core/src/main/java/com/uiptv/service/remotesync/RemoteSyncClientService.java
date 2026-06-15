@@ -55,7 +55,7 @@ public class RemoteSyncClientService {
         Path uploadPath = prepareOutboundTransfer(payloadPath, session.sessionId(), verificationCode, transferOptions);
         try {
             notifyProgress(progressListener, RemoteSyncProgressStep.UPLOADING, null);
-            RemoteSyncExecutionResult result = httpClient.uploadSnapshot(baseUrl, session.sessionId(), uploadPath);
+            RemoteSyncExecutionResult result = uploadSnapshotWithRemoteFailureContext(baseUrl, session.sessionId(), uploadPath);
             notifyProgress(progressListener, RemoteSyncProgressStep.FINISHED, null);
             return result;
         } finally {
@@ -63,6 +63,29 @@ public class RemoteSyncClientService {
             if (!uploadPath.equals(payloadPath)) {
                 Files.deleteIfExists(uploadPath);
             }
+        }
+    }
+
+    private RemoteSyncExecutionResult uploadSnapshotWithRemoteFailureContext(String baseUrl,
+                                                                            String sessionId,
+                                                                            Path uploadPath) throws IOException {
+        try {
+            return httpClient.uploadSnapshot(baseUrl, sessionId, uploadPath);
+        } catch (IOException uploadFailure) {
+            RemoteSyncSessionState remoteState = readRemoteStateAfterUploadFailure(baseUrl, sessionId);
+            if (remoteState != null && remoteState.status() == RemoteSyncStatus.FAILED
+                    && remoteState.message() != null && !remoteState.message().isBlank()) {
+                throw new IOException(remoteState.message(), uploadFailure);
+            }
+            throw uploadFailure;
+        }
+    }
+
+    private RemoteSyncSessionState readRemoteStateAfterUploadFailure(String baseUrl, String sessionId) {
+        try {
+            return httpClient.getSessionState(baseUrl, sessionId);
+        } catch (IOException ignored) {
+            return null;
         }
     }
 

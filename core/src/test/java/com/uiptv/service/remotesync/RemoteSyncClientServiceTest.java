@@ -131,6 +131,60 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
     }
 
     @Test
+    void exportToRemote_reportsRemoteFailureMessageWhenUploadPipeBreaks() throws Exception {
+        saveLocalAccount("local-account");
+        FakeRemoteSyncHttpClient httpClient = new FakeRemoteSyncHttpClient();
+        httpClient.nextCreatedState = new RemoteSyncSessionState(
+                "failed-upload-session",
+                RemoteSyncDirection.EXPORT_TO_REMOTE,
+                RemoteSyncStatus.PENDING_APPROVAL,
+                "1234",
+                "machine-a",
+                "10.0.0.9",
+                new RemoteSyncOptions(true, false),
+                "Awaiting approval."
+        );
+        httpClient.statusResponses.add(new RemoteSyncSessionState(
+                "failed-upload-session",
+                RemoteSyncDirection.EXPORT_TO_REMOTE,
+                RemoteSyncStatus.APPROVED,
+                "1234",
+                "machine-a",
+                "10.0.0.9",
+                new RemoteSyncOptions(true, false),
+                "Approved."
+        ));
+        httpClient.statusResponses.add(new RemoteSyncSessionState(
+                "failed-upload-session",
+                RemoteSyncDirection.EXPORT_TO_REMOTE,
+                RemoteSyncStatus.FAILED,
+                "1234",
+                "machine-a",
+                "10.0.0.9",
+                new RemoteSyncOptions(true, false),
+                "Remote database sync failed."
+        ));
+        httpClient.uploadFailure = new IOException("Broken pipe");
+
+        RemoteSyncClientService service = new RemoteSyncClientService(
+                httpClient,
+                new DatabaseSnapshotService(),
+                DatabaseSyncService.getInstance()
+        );
+
+        IOException failure = assertThrows(IOException.class, () -> service.exportToRemote(
+                "127.0.0.1",
+                8888,
+                new RemoteSyncOptions(true, false),
+                (step, detail) -> {
+                }
+        ));
+
+        assertEquals("Remote database sync failed.", failure.getMessage());
+        assertEquals("Broken pipe", failure.getCause().getMessage());
+    }
+
+    @Test
     void importFromRemote_downloadsSnapshot_syncsLocally_andCompletesRemote() throws Exception {
         Path remoteSourceDb = tempDir.resolve("remote-source.db");
         initializeDatabase(remoteSourceDb);
@@ -334,6 +388,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         private RemoteSyncRequest lastRequest;
         private Path downloadSource;
         private boolean downloadAsEncryptedArchive;
+        private IOException uploadFailure;
         private boolean healthChecked;
         private String lastUploadedSessionId;
         private Path lastUploadedSnapshot;
@@ -359,6 +414,9 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
 
         @Override
         public RemoteSyncExecutionResult uploadSnapshot(String baseUrl, String sessionId, Path snapshotPath) throws IOException {
+            if (uploadFailure != null) {
+                throw uploadFailure;
+            }
             lastUploadedSessionId = sessionId;
             lastUploadedSnapshot = Files.createTempFile("remote-client-upload-", ".db");
             Files.copy(snapshotPath, lastUploadedSnapshot, java.nio.file.StandardCopyOption.REPLACE_EXISTING);

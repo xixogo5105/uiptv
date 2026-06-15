@@ -93,6 +93,11 @@ public class RemoteSyncSessionService {
             uploadedTransfer = SecureTempFileSupport.createTempFile("uiptv-remote-upload-", ".bin");
             try (InputStream inputStream = requestBody) {
                 Files.copy(inputStream, uploadedTransfer, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException ex) {
+                session.fail(REMOTE_SYNC_FAILED_MESSAGE);
+                notifier.get().showError("remoteSyncRemoteFailedMessage");
+                deleteIfExists(uploadedTransfer);
+                throw ex;
             }
         }
 
