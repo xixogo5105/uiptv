@@ -224,15 +224,34 @@ public class RemoteSyncClientService {
     }
 
     private String buildBaseUrl(String host, int port) {
-        return "http://" + normalizeHost(host) + ":" + port;
-    }
-
-    private String normalizeHost(String host) {
-        String normalized = host == null ? "" : host.trim();
-        normalized = normalized.replaceFirst("^https?://", "");
-        int slashIndex = normalized.indexOf('/');
-        return slashIndex >= 0 ? normalized.substring(0, slashIndex) : normalized;
-    }
+        if (host == null || host.isBlank()) {
+            return "http://localhost:" + port;
+           }
+        String lowerHost = host.toLowerCase();
+        String prefix;
+        int prefixLen;
+        if (lowerHost.startsWith("https://")) {
+            prefix = "https://";
+            prefixLen = 8;
+         } else if (lowerHost.startsWith("http://")) {
+            prefix = "http://";
+            prefixLen = 7;
+         } else {
+            prefix = "http://";
+            prefixLen = 0;
+         }
+        String hostPart = lowerHost.substring(prefixLen);
+         // Extract hostname only (strip port and path)
+        int pathIndex = hostPart.indexOf(47);
+        if (pathIndex >= 0) {
+            hostPart = hostPart.substring(0, pathIndex);
+          }
+        int portIndex = hostPart.indexOf(58);
+        if (portIndex >= 0) {
+            hostPart = hostPart.substring(0, portIndex);
+         }
+        return prefix + hostPart + ":" + port;
+        }
 
     private String resolveRequesterName() {
         try {

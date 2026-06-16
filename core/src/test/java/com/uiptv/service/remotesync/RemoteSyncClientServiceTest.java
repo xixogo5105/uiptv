@@ -464,4 +464,33 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
             completedMessage = message;
         }
     }
+
+    @Test
+    void buildBaseUrl_preservesHttpScheme() throws Exception {
+        RemoteSyncClientService service = new RemoteSyncClientService(
+                new FakeRemoteSyncHttpClient(),
+                new DatabaseSnapshotService(),
+                DatabaseSyncService.getInstance()
+            );
+
+            // Use reflection to access private buildBaseUrl method
+        var method = RemoteSyncClientService.class.getDeclaredMethod("buildBaseUrl", String.class, int.class);
+        method.setAccessible(true);
+
+            // Test with http:// prefix
+        String result1 = (String) method.invoke(service, "http://10.0.0.5", 8888);
+        assertEquals("http://10.0.0.5:8888", result1);
+
+            // Test with https:// prefix
+        String result2 = (String) method.invoke(service, "https://10.0.0.5", 8888);
+        assertEquals("https://10.0.0.5:8888", result2);
+
+            // Test without prefix
+        String result3 = (String) method.invoke(service, "10.0.0.5", 8888);
+        assertEquals("http://10.0.0.5:8888", result3);
+
+            // Test with port in URL
+        String result4 = (String) method.invoke(service, "http://10.0.0.5:9000", 8888);
+        assertEquals("http://10.0.0.5:8888", result4);
+    }
 }
