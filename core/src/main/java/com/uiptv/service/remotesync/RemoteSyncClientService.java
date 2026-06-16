@@ -42,21 +42,20 @@ public class RemoteSyncClientService {
                                                     RemoteSyncOptions options,
                                                     RemoteSyncProgressListener progressListener) throws IOException, SQLException {
         String baseUrl = buildBaseUrl(host, port);
-        notifyProgress(progressListener, RemoteSyncProgressStep.CONNECTING, null);
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Remote sync EXPORT: host=" + host + " port=" + port);        notifyProgress(progressListener, RemoteSyncProgressStep.CONNECTING, null);
         httpClient.checkHealth(baseUrl);
-
         String verificationCode = VerificationCodeGenerator.createFourDigitCode();
-        RemoteSyncSessionState session = httpClient.createSession(baseUrl, buildRequest(RemoteSyncDirection.EXPORT_TO_REMOTE, verificationCode, options));
-        awaitReadyState(baseUrl, session.sessionId(), RemoteSyncStatus.APPROVED, verificationCode, progressListener);
-        RemoteSyncOptions transferOptions = session.options();
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Verification code created");        RemoteSyncSessionState session = httpClient.createSession(baseUrl, buildRequest(RemoteSyncDirection.EXPORT_TO_REMOTE, verificationCode, options));
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Creating session...");        awaitReadyState(baseUrl, session.sessionId(), RemoteSyncStatus.APPROVED, verificationCode, progressListener);
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Waiting for session approval...");        RemoteSyncOptions transferOptions = session.options();
 
         notifyProgress(progressListener, RemoteSyncProgressStep.CREATING_SNAPSHOT, null);
-        Path payloadPath = createTransferPayload(SQLConnection.getDatabasePath(), transferOptions);
-        Path uploadPath = prepareOutboundTransfer(payloadPath, session.sessionId(), verificationCode, transferOptions);
-        try {
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Creating snapshot payload...");        Path payloadPath = createTransferPayload(SQLConnection.getDatabasePath(), transferOptions);
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Payload created");        Path uploadPath = prepareOutboundTransfer(payloadPath, session.sessionId(), verificationCode, transferOptions);
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Prepared outbound transfer");        try {
             notifyProgress(progressListener, RemoteSyncProgressStep.UPLOADING, null);
-            RemoteSyncExecutionResult result = uploadSnapshotWithRemoteFailureContext(baseUrl, session.sessionId(), uploadPath);
-            notifyProgress(progressListener, RemoteSyncProgressStep.FINISHED, null);
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Uploading...");            RemoteSyncExecutionResult result = uploadSnapshotWithRemoteFailureContext(baseUrl, session.sessionId(), uploadPath);
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Upload completed");            notifyProgress(progressListener, RemoteSyncProgressStep.FINISHED, null);
             return result;
         } finally {
             Files.deleteIfExists(payloadPath);
