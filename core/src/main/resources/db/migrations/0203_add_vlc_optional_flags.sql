@@ -1,4 +1,0 @@
---@add_column Configuration vlcNoVideoTitleShow TEXT DEFAULT 'true'
---@add_column Configuration vlcQuietMode TEXT DEFAULT 'true'
---@add_column Configuration vlcHttpReconnect TEXT DEFAULT 'true'
---@add_column Configuration vlcAdaptiveUseAccess TEXT DEFAULT 'true'

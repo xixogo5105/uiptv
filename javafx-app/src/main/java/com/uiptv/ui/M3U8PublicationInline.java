@@ -11,6 +11,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Hyperlink;
+import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.HBox;
@@ -96,7 +97,15 @@ public class M3U8PublicationInline extends VBox {
         VBox.setVgrow(accountCard, Priority.ALWAYS);
 
         getChildren().addAll(label, categoryModeSection, accountCard, buttons);
-    }
+        // Clear accountNodes and selections when leaving the scene
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null) {
+                accountNodes.clear();
+                currentCategorySelections.clear();
+                currentChannelSelections.clear();
+            }
+         });
+     }
 
     private void configureCategoryModeComboBox() {
         categoryModeComboBox.getItems().setAll(M3U8PublicationService.PublishedCategoryMode.values());

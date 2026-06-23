@@ -1,1 +1,0 @@
---@add_column Configuration vlcHardwareAccelerationEnabled TEXT DEFAULT 'true'

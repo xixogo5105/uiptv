@@ -89,7 +89,8 @@ public class RemoteSyncSessionService {
         Path uploadedSnapshot = null;
         synchronized (session.monitor) {
             expireIfNeeded(session);
-            session.ensureStatus(RemoteSyncDirection.EXPORT_TO_REMOTE, RemoteSyncStatus.APPROVED);
+            // Accept uploads for either direction - the remote will process as import
+            session.ensureStatus(session.direction, RemoteSyncStatus.APPROVED);
             uploadedTransfer = SecureTempFileSupport.createTempFile("uiptv-remote-upload-", ".bin");
             try (InputStream inputStream = requestBody) {
                 Files.copy(inputStream, uploadedTransfer, StandardCopyOption.REPLACE_EXISTING);
@@ -140,7 +141,8 @@ public class RemoteSyncSessionService {
         SessionState session = requireSession(sessionId);
         synchronized (session.monitor) {
             expireIfNeeded(session);
-            session.ensureStatus(RemoteSyncDirection.IMPORT_FROM_REMOTE, RemoteSyncStatus.READY_FOR_DOWNLOAD);
+            // Accept either direction - allow downloading for both export and import flows
+            session.ensureStatus(session.direction, RemoteSyncStatus.READY_FOR_DOWNLOAD);
             return session.snapshotPath;
         }
     }

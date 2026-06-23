@@ -21,6 +21,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
+import javafx.scene.Scene;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -70,7 +71,14 @@ public class MacAddressManagementInline extends VBox {
         configureButtons();
         buildContent();
         updateActionButtons();
-    }
+         // Clear macItems and selections when leaving the scene
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null) {
+                macItems.clear();
+                macListView.getItems().clear();
+            }
+         });
+     }
 
     private void configureLayout() {
         getStyleClass().addAll("management-popup-root", "mac-management-popup");

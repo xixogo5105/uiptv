@@ -136,6 +136,12 @@ public class LogDisplayUI extends VBox {
     private void renderAttachedView() {
         contentBox.getChildren().clear();
         detachFromParent(logArea);
+           // Clean up log area when scene is cleared
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null && logArea != null) {
+                logArea.clear();
+            }
+           });
         FlowPane controlBox = createControlRow(copyLogButton, clearLogButton, webLogButton, detachButton);
         AppPageHeader header = createHeader();
         Label title = new Label(I18n.tr("autoUiptvLogs"));
@@ -154,6 +160,12 @@ public class LogDisplayUI extends VBox {
 
     private void renderDetachedPlaceholder() {
         contentBox.getChildren().clear();
+            // Clean up log area when scene is cleared
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null && logArea != null) {
+                logArea.clear();
+            }
+            });
         Label info = new Label(I18n.tr("autoLogsDetachedInASeparateWindow"));
         info.getStyleClass().add("log-detached-title");
         info.setWrapText(true);

@@ -1216,6 +1216,7 @@ public class ConfigurationUI extends VBox {
             if (newScene == null) {
                 if (serverStatusTimeline != null) {
                     serverStatusTimeline.stop();
+                clearConfigurationState();
                 }
             } else if (serverStatusTimeline != null) {
                 serverStatusTimeline.play();
@@ -1234,6 +1235,7 @@ public class ConfigurationUI extends VBox {
             if (newScene == null) {
                 if (statusTitleTimeline != null) {
                     statusTitleTimeline.stop();
+                clearConfigurationState();
                 }
             } else if (statusTitleTimeline != null) {
                 statusTitleTimeline.play();
@@ -1500,6 +1502,15 @@ public class ConfigurationUI extends VBox {
             // The JavaFX runtime may already be shutting down.
         }
     }
+
+    private void clearConfigurationState() {
+        // Clear any cached UI state
+        settingsSections.clear();
+        settingsCardPane.getChildren().clear();
+        // Timelines are already stopped by sceneProperty listeners
+        statusTitleTimeline = null;
+        serverStatusTimeline = null;
+     }
 
     private void refreshConfigurationForm() {
         if (getScene() == null) {

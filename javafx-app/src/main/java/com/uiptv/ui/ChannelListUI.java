@@ -48,6 +48,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.series;
@@ -100,11 +104,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private boolean seriesWatchStateListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
     private boolean thumbnailsEnabled = ThumbnailAwareUI.areThumbnailsEnabled();
-    private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
-    private final VodWatchStateChangeListener vodWatchStateChangeListener = (accountId, vodId) -> refreshBookmarkStatesAsync();
+    private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> scheduleBookmarkRefresh();
+    private final VodWatchStateChangeListener vodWatchStateChangeListener = (accountId, vodId) -> scheduleBookmarkRefresh();
     private final SeriesWatchStateChangeListener seriesWatchStateChangeListener = this::onSeriesWatchStateChanged;
     private final AtomicReference<Thread> currentLoadingThread = new AtomicReference<>();
     private AtomicBoolean currentRequestCancelled;
+    private final ScheduledExecutorService refreshExecutor = Executors.newSingleThreadScheduledExecutor();
+    private final AtomicReference<ScheduledFuture<?>> refreshFuture = new AtomicReference<>();
+
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private Consumer<List<Node>> detailHeaderActionsHandler;
     private boolean mediaDrawerMode = false;
@@ -1305,6 +1312,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             if (newScene == null) {
                 unregisterBookmarkListener();
                 unregisterThumbnailModeListener();
+                refreshExecutor.shutdown();
                 return;
             }
             if (!disposed.get()) {
@@ -1424,6 +1432,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
             SeriesWatchStateService.getInstance().removeChangeListener(seriesWatchStateChangeListener);
             seriesWatchStateListenerRegistered = false;
         }
+    }
+
+    private void scheduleBookmarkRefresh() {
+        ScheduledFuture<?> future = refreshFuture.get();
+        if (future != null && !future.isDone()) {
+            future.cancel(false);
+        }
+        refreshFuture.set(refreshExecutor.schedule(this::refreshBookmarkStatesAsync, 500, TimeUnit.MILLISECONDS));
     }
 
     private void refreshBookmarkStatesAsync() {
