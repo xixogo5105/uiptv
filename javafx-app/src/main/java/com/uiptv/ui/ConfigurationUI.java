@@ -2,33 +2,20 @@ package com.uiptv.ui;
 
 import com.uiptv.api.Callback;
 import com.uiptv.application.ConfigurationApplicationService;
-import com.uiptv.player.api.VideoPlayerInterface;
 import com.uiptv.model.Configuration;
 import com.uiptv.player.MediaPlayerFactory;
-import com.uiptv.service.DatabaseSyncService;
-import com.uiptv.service.ConfigurationChangeListener;
+import com.uiptv.player.api.VideoPlayerInterface;
+import com.uiptv.service.*;
 import com.uiptv.service.remotesync.RemoteSyncClientService;
 import com.uiptv.service.remotesync.RemoteSyncExecutionResult;
 import com.uiptv.service.remotesync.RemoteSyncOptions;
 import com.uiptv.service.remotesync.RemoteSyncProgressStep;
-import com.uiptv.service.*;
 import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
-import com.uiptv.util.SystemUtils;
 import com.uiptv.util.ServerUrlUtil;
-import com.uiptv.widget.AppHeaderActions;
-import com.uiptv.widget.AppPageHeader;
-import com.uiptv.widget.ExternalPlayerPathCard;
-import com.uiptv.widget.PillBar;
-import com.uiptv.widget.PlayerOptionCard;
-import com.uiptv.widget.SwitchToggle;
-import com.uiptv.widget.ThemedDialogSupport;
-import com.uiptv.widget.UiRenderQuality;
-import com.uiptv.widget.UIptvAlert;
-import com.uiptv.widget.UIptvText;
-import com.uiptv.widget.UIptvTextArea;
+import com.uiptv.widget.*;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.PauseTransition;
@@ -236,7 +223,8 @@ public class ConfigurationUI extends VBox {
     private record ThemeModeOption(String id, String title, boolean dark) {
     }
 
-    private record SettingsSection(String id, String title, Node statusIcon, Node content, Hyperlink helpLink, String searchText) {
+    private record SettingsSection(String id, String title, Node statusIcon, Node content, Hyperlink helpLink,
+                                   String searchText) {
     }
 
     static void clearWatchingNowStates() {
@@ -582,7 +570,7 @@ public class ConfigurationUI extends VBox {
     }
 
     private BorderPane createCollapsibleGroupPane(Label titleLabel, Node statusIcon, Node content,
-                                                 boolean collapsedByDefault, Hyperlink helpLink) {
+                                                  boolean collapsedByDefault, Hyperlink helpLink) {
         BorderPane pane = new BorderPane(content);
         titleLabel.getStyleClass().add("strong-label");
         HBox titleRow = new HBox(4, titleLabel);
@@ -1223,7 +1211,7 @@ public class ConfigurationUI extends VBox {
             if (newScene == null) {
                 if (serverStatusTimeline != null) {
                     serverStatusTimeline.stop();
-                clearConfigurationState();
+                    clearConfigurationState();
                 }
             } else if (serverStatusTimeline != null) {
                 serverStatusTimeline.play();
@@ -1242,7 +1230,7 @@ public class ConfigurationUI extends VBox {
             if (newScene == null) {
                 if (statusTitleTimeline != null) {
                     statusTitleTimeline.stop();
-                clearConfigurationState();
+                    clearConfigurationState();
                 }
             } else if (statusTitleTimeline != null) {
                 statusTitleTimeline.play();
@@ -1517,7 +1505,7 @@ public class ConfigurationUI extends VBox {
         // Timelines are already stopped by sceneProperty listeners
         statusTitleTimeline = null;
         serverStatusTimeline = null;
-     }
+    }
 
     private void refreshConfigurationForm() {
         if (getScene() == null) {
@@ -1642,8 +1630,8 @@ public class ConfigurationUI extends VBox {
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
             tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
             Integer duration = configuration.getFilterLockUnlockDurationMinutes() != null && !configuration.getFilterLockUnlockDurationMinutes().isEmpty()
-                ? Integer.parseInt(configuration.getFilterLockUnlockDurationMinutes())
-                : 15;
+                    ? Integer.parseInt(configuration.getFilterLockUnlockDurationMinutes())
+                    : 15;
             filterLockUnlockDurationComboBox.setValue(duration);
             vlcNetworkCachingMs = service.normalizeVlcCachingMs(configuration.getVlcNetworkCachingMs());
             vlcLiveCachingMs = service.normalizeVlcCachingMs(configuration.getVlcLiveCachingMs());
@@ -1766,9 +1754,9 @@ public class ConfigurationUI extends VBox {
         FilterLockService filterLockService = FilterLockService.getInstance();
         if (!filterLockService.hasPasswordConfigured()) {
             return true;
-         }
+        }
         return filterLockService.isUnlocked();
-      }
+    }
 
     private boolean ensureFilterAccessForPendingSave() {
         FilterLockService filterLockService = FilterLockService.getInstance();
@@ -1980,8 +1968,8 @@ public class ConfigurationUI extends VBox {
             vlcQuiet = true;
             vlcHttpReconnect = true;
             vlcAdaptiveUseAccess = true;
-            vlcVoutEnabled = false;
-            vlcAvcodecHwEnabled = false;
+            vlcVoutEnabled = true;
+            vlcAvcodecHwEnabled = true;
             saveVlcOptionsConfiguration(true);
             closeAction.run();
         });
@@ -1990,7 +1978,7 @@ public class ConfigurationUI extends VBox {
         closeButton.getStyleClass().add("uiptv-inline-secondary-button");
         closeButton.setOnAction(event -> closeAction.run());
 
-        HBox buttons = new HBox(10, resetButton, saveButton, closeButton);
+        HBox buttons = new HBox(10, closeButton, resetButton, saveButton);
         buttons.setAlignment(Pos.CENTER_RIGHT);
         buttons.getStyleClass().add("management-popup-footer");
         root.getChildren().add(buttons);
@@ -2009,7 +1997,6 @@ public class ConfigurationUI extends VBox {
         row.setAlignment(Pos.CENTER_LEFT);
         row.setMinWidth(0);
         row.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(comboBox, Priority.ALWAYS);
         return row;
     }
 
@@ -2043,7 +2030,8 @@ public class ConfigurationUI extends VBox {
         comboBox.getItems().setAll(VlcCachingOption.all());
         comboBox.getStyleClass().add("uiptv-vlc-combo-box");
         comboBox.setMinWidth(0);
-        comboBox.setMaxWidth(Double.MAX_VALUE);
+        comboBox.setPrefWidth(250);
+        comboBox.setMaxWidth(280);
         comboBox.setCellFactory(cb -> new ListCell<>() {
             @Override
             protected void updateItem(VlcCachingOption item, boolean empty) {
@@ -2924,6 +2912,7 @@ public class ConfigurationUI extends VBox {
         ButtonType closeButton = new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
         ThemedDialogSupport.showChoice(title, helpText, List.of(closeButton), closeButton);
     }
+
     private record VlcCachingOption(String value, String label) {
         private static java.util.List<VlcCachingOption> all() {
             return java.util.List.of(
