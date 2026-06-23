@@ -985,8 +985,8 @@
     -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-muted, -uiptv-surface);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 10;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.30), 16, 0.12, 0, 5);
 }
@@ -1024,8 +1024,8 @@
     -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-muted, -uiptv-surface);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 10;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.30), 16, 0.12, 0, 5);
 }
@@ -1065,8 +1065,8 @@
     -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-muted, -uiptv-surface);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 10;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.30), 16, 0.12, 0, 5);
 }
@@ -1238,8 +1238,8 @@
     -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-muted, -uiptv-surface);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 10;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.30), 16, 0.12, 0, 5);
 }
@@ -1445,8 +1445,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 8 15 8 15;
     -fx-prompt-text-fill: -uiptv-text-muted;
     -fx-text-fill: -uiptv-text-primary;
@@ -1464,28 +1464,28 @@
 
 .bulk-import-content,
 .log-content {
-    -fx-background-color: transparent;
+    -fx-background-color: #1e1e1e;
 }
 
 .bulk-import-card,
 .log-card,
 .log-detached-card {
-    -fx-background-color: rgba(37, 37, 37, 0.94);
-    -fx-border-color: rgba(255, 255, 255, 0.08);
-    -fx-border-width: 1;
-    -fx-background-radius: 22;
-    -fx-border-radius: 22;
-    -fx-padding: 16;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.32), 22, 0.16, 0, 8);
+       -fx-background-color: #1e1e1e;
+       -fx-border-color: transparent;
+       -fx-border-width: 0;
+       -fx-background-radius: 0;
+       -fx-border-radius: 0;
+       -fx-padding: 0;
+       -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.08), 12, 0.06, 0, 4);
 }
 
 .bulk-import-mode-card {
-    -fx-background-color: linear-gradient(to bottom, #2c2c2c, #242424);
+       -fx-background-color: #1e1e1e;
 }
 
 .bulk-import-editor-card,
 .log-card {
-    -fx-padding: 18;
+       -fx-padding: 0;
 }
 
 .bulk-import-section-title,
@@ -1507,8 +1507,8 @@
     -fx-background-color: rgba(255, 255, 255, 0.045);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 11 12 11 14;
 }
 
@@ -1522,14 +1522,14 @@
 }
 
 .bulk-import-input {
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-border-color: rgba(255, 255, 255, 0.10);
     -fx-font-family: "Courier New", monospace;
 }
 
 .bulk-import-input .content {
-    -fx-background-radius: 18;
+    -fx-background-radius: 8;
     -fx-padding: 14;
 }
 
@@ -1553,8 +1553,8 @@
 }
 
 .bulk-import-clear-button {
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 12 18 12 18;
 }
 
@@ -1620,13 +1620,13 @@
     -fx-highlight-fill: rgba(34, 197, 94, 0.32);
     -fx-highlight-text-fill: #ffffff;
     -fx-border-color: rgba(148, 163, 184, 0.28);
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
 }
 
 .log-text-area .content {
     -fx-background-color: #181818;
-    -fx-background-radius: 18;
+    -fx-background-radius: 8;
     -fx-padding: 14;
 }
 
@@ -1939,8 +1939,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 12 14 12 14;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.26), 14, 0.12, 0, 4);
 }
@@ -2010,8 +2010,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 14;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.28), 16, 0.14, 0, 5);
 }
@@ -2098,8 +2098,8 @@
     -fx-background-color: linear-gradient(to bottom, #303030, #262626);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 8;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.36), 18, 0.16, 0, 6);
 }
@@ -2293,8 +2293,8 @@
     -fx-background-color: linear-gradient(to bottom right, -uiptv-surface-muted, -uiptv-surface);
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 13 15 14 15;
     -fx-spacing: 12;
     -fx-cursor: default;
@@ -2344,10 +2344,10 @@
 
 .settings-player-panel {
     -fx-background-color: #242424;
-    -fx-background-radius: 18;
+    -fx-background-radius: 8;
     -fx-border-color: rgba(255, 255, 255, 0.06);
     -fx-border-width: 1;
-    -fx-border-radius: 18;
+    -fx-border-radius: 8;
     -fx-padding: 10;
 }
 
@@ -2695,8 +2695,8 @@
 .uiptv-responsive-card-placeholder {
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 18 24 18 24;
 }
 
@@ -2918,8 +2918,8 @@
 
 .uiptv-notification-card {
     -fx-padding: 12 14 12 14;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-border-width: 1;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.36), 22, 0.20, 0, 8);
 }
@@ -2999,8 +2999,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 12 14 12 16;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.30), 18, 0.16, 0, 6);
 }
@@ -3093,16 +3093,16 @@
 }
 
 .uiptv-modal-dialog {
-    -fx-background-color: linear-gradient(to bottom right, #2b2b2b, #202020);
-    -fx-background-insets: 0;
-    -fx-background-radius: 22;
-    -fx-border-color: rgba(255, 255, 255, 0.12);
-    -fx-border-insets: 0;
-    -fx-border-radius: 22;
-    -fx-border-width: 1;
-    -fx-padding: 22;
-    -fx-min-width: 520;
-    -fx-pref-width: 560;
+     -fx-background-color: linear-gradient(to bottom right, #2b2b2b, #202020);
+     -fx-background-insets: 0;
+     -fx-background-radius: 0;
+     -fx-border-color: rgba(255, 255, 255, 0.12);
+     -fx-border-insets: 0;
+     -fx-border-radius: 0;
+     -fx-border-width: 1;
+     -fx-padding: 22;
+     -fx-min-width: 520;
+     -fx-pref-width: 560;
 }
 
 .uiptv-native-alert-dialog {
@@ -3303,10 +3303,10 @@
 
 .uiptv-vlc-option-panel {
     -fx-background-color: #242424;
-    -fx-background-radius: 18;
+    -fx-background-radius: 8;
     -fx-border-color: rgba(255, 255, 255, 0.06);
     -fx-border-width: 1;
-    -fx-border-radius: 18;
+    -fx-border-radius: 8;
     -fx-padding: 10;
 }
 
@@ -3351,8 +3351,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 8 15 8 15;
     -fx-prompt-text-fill: -uiptv-text-muted;
     -fx-text-fill: -uiptv-text-primary;
@@ -3636,8 +3636,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 14;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.28), 14, 0.12, 0, 4);
 }
@@ -3761,8 +3761,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 16;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.32), 18, 0.12, 0, 6);
 }
@@ -4101,7 +4101,7 @@
 }
 
 .reload-problem-accounts-popup {
-    -fx-padding: 8 0 0 0;
+    -fx-padding: 14 14 0 14;
 }
 
 .reload-problem-accounts-card {
@@ -4720,8 +4720,8 @@
     -fx-background-color: linear-gradient(to bottom, #4a4a4a, #303030);
     -fx-border-color: #737373;
     -fx-border-width: 1;
-    -fx-border-radius: 18;
-    -fx-background-radius: 18;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
     -fx-padding: 10;
     -fx-alignment: center;
 }

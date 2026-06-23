@@ -835,7 +835,7 @@
 .uiptv-app-tabs > .tab-header-area > .headers-region > .tab {
     -fx-background-color: transparent;
     -fx-background-insets: 0;
-    -fx-background-radius: 0;
+     -fx-background-radius: 0;
     -fx-padding: 0;
     -fx-alignment: center;
     -fx-focus-color: transparent;
@@ -943,8 +943,8 @@
     -fx-background-color: #ffffff;
     -fx-border-color: rgba(17, 19, 24, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 10;
     -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
 }
@@ -982,8 +982,8 @@
     -fx-background-color: #ffffff;
     -fx-border-color: rgba(17, 19, 24, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 10;
     -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
 }
@@ -1023,8 +1023,8 @@
     -fx-background-color: #ffffff;
     -fx-border-color: rgba(17, 19, 24, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 10;
     -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
 }
@@ -1196,8 +1196,8 @@
     -fx-background-color: #ffffff;
     -fx-border-color: rgba(17, 19, 24, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 10;
     -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
 }
@@ -1403,8 +1403,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 8 15 8 15;
     -fx-prompt-text-fill: -uiptv-text-muted;
     -fx-text-fill: -uiptv-text-primary;
@@ -1417,33 +1417,33 @@
 
 .bulk-import-page,
 .log-page {
-    -fx-background-color: linear-gradient(to bottom, #fbfcff, #f1f5f9);
+     -fx-background-color: #ffffff;
 }
 
 .bulk-import-content,
 .log-content {
-    -fx-background-color: transparent;
+    -fx-background-color: #ffffff;
 }
 
 .bulk-import-card,
 .log-card,
 .log-detached-card {
-    -fx-background-color: rgba(255, 255, 255, 0.92);
-    -fx-border-color: rgba(15, 23, 42, 0.08);
-    -fx-border-width: 1;
-    -fx-background-radius: 22;
-    -fx-border-radius: 22;
-    -fx-padding: 16;
-    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.08), 22, 0.14, 0, 8);
+     -fx-background-color: #ffffff;
+     -fx-border-color: transparent;
+     -fx-border-width: 0;
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
+     -fx-padding: 0;
+     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.06), 12, 0.06, 0, 4);
 }
 
 .bulk-import-mode-card {
-    -fx-background-color: linear-gradient(to bottom, #ffffff, #f8fbff);
+       -fx-background-color: #ffffff;
 }
 
 .bulk-import-editor-card,
 .log-card {
-    -fx-padding: 18;
+       -fx-padding: 0;
 }
 
 .bulk-import-section-title,
@@ -1465,8 +1465,8 @@
     -fx-background-color: rgba(15, 23, 42, 0.035);
     -fx-border-color: rgba(15, 23, 42, 0.07);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 11 12 11 14;
 }
 
@@ -1480,14 +1480,14 @@
 }
 
 .bulk-import-input {
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-border-color: rgba(15, 23, 42, 0.10);
     -fx-font-family: "Courier New", monospace;
 }
 
 .bulk-import-input .content {
-    -fx-background-radius: 18;
+    -fx-background-radius: 8;
     -fx-padding: 14;
 }
 
@@ -1511,8 +1511,8 @@
 }
 
 .bulk-import-clear-button {
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 12 18 12 18;
 }
 
@@ -1578,13 +1578,13 @@
     -fx-highlight-fill: rgba(15, 23, 42, 0.14);
     -fx-highlight-text-fill: -uiptv-text-primary;
     -fx-border-color: rgba(15, 23, 42, 0.12);
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
 }
 
 .log-text-area .content {
     -fx-background-color: #ffffff;
-    -fx-background-radius: 18;
+    -fx-background-radius: 8;
     -fx-padding: 14;
 }
 
@@ -1897,8 +1897,8 @@
     -fx-background-color: #ffffff;
     -fx-border-color: rgba(17, 19, 24, 0.07);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 12 14 12 14;
     -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.06), 14, 0.10, 0, 4);
 }
@@ -1968,8 +1968,8 @@
     -fx-background-color: #ffffff;
     -fx-border-color: rgba(17, 19, 24, 0.07);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 14;
     -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
 }
@@ -2043,8 +2043,8 @@
     -fx-background-color: linear-gradient(to bottom, #ffffff, #f5f6f7);
     -fx-border-color: rgba(17, 19, 24, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 8;
     -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.10), 18, 0.14, 0, 6);
 }
@@ -2238,8 +2238,8 @@
     -fx-background-color: #ffffff;
     -fx-border-color: rgba(17, 19, 24, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 13 15 14 15;
     -fx-spacing: 12;
     -fx-cursor: default;
@@ -2289,10 +2289,10 @@
 
 .settings-player-panel {
     -fx-background-color: #ffffff;
-    -fx-background-radius: 18;
+    -fx-background-radius: 8;
     -fx-border-color: rgba(17, 24, 39, 0.06);
     -fx-border-width: 1;
-    -fx-border-radius: 18;
+    -fx-border-radius: 8;
     -fx-padding: 10;
 }
 
@@ -2642,8 +2642,8 @@
 .uiptv-responsive-card-placeholder {
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 18 24 18 24;
 }
 
@@ -2807,8 +2807,8 @@
     -fx-background-color: transparent;
     -fx-border-color: transparent;
     -fx-border-width: 0;
-    -fx-background-radius: 0;
-    -fx-border-radius: 0;
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
 }
 
 .uiptv-responsive-card:selected .channel-logo-view,
@@ -2865,8 +2865,8 @@
 
 .uiptv-notification-card {
     -fx-padding: 12 14 12 14;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-border-width: 1;
     -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.16), 18, 0.18, 0, 6);
 }
@@ -2946,8 +2946,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 12 14 12 16;
     -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.08), 16, 0.14, 0, 5);
 }
@@ -3053,8 +3053,8 @@
 }
 
 .uiptv-native-alert-dialog {
-    -fx-background-radius: 0;
-    -fx-border-radius: 0;
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
 }
 
 .uiptv-modal-dialog > .content {
@@ -3250,10 +3250,10 @@
 
 .uiptv-vlc-option-panel {
     -fx-background-color: #ffffff;
-    -fx-background-radius: 18;
+    -fx-background-radius: 8;
     -fx-border-color: rgba(17, 24, 39, 0.06);
     -fx-border-width: 1;
-    -fx-border-radius: 18;
+    -fx-border-radius: 8;
     -fx-padding: 10;
 }
 
@@ -3298,8 +3298,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 8 15 8 15;
     -fx-prompt-text-fill: -uiptv-text-muted;
     -fx-text-fill: -uiptv-text-primary;
@@ -3582,8 +3582,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-border-color: rgba(17, 19, 24, 0.08);
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 14;
     -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.06), 14, 0.10, 0, 4);
 }
@@ -3707,8 +3707,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
-    -fx-background-radius: 18;
-    -fx-border-radius: 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
     -fx-padding: 16;
     -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.12), 18, 0.12, 0, 6);
 }
@@ -3730,8 +3730,8 @@
     -fx-background-color: -uiptv-surface;
     -fx-background-insets: 0;
     -fx-text-fill: -uiptv-text-primary;
-    -fx-background-radius: 0;
-    -fx-border-radius: 0;
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 1;
     -fx-effect: none;
@@ -3755,7 +3755,7 @@
 .account-info-profile-text-area .content {
     -fx-background-color: -uiptv-surface;
     -fx-background-insets: 0;
-    -fx-background-radius: 0;
+     -fx-background-radius: 0;
 }
 
 .manage-account-switch-row {
@@ -3936,8 +3936,8 @@
     -fx-background-color: transparent;
     -fx-border-color: -uiptv-border-subtle;
     -fx-border-width: 0 0 1 0;
-    -fx-background-radius: 0;
-    -fx-border-radius: 0;
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
     -fx-padding: 7 10 7 10;
     -fx-font-weight: bold;
     -fx-text-fill: -uiptv-text-primary;
@@ -4047,7 +4047,7 @@
 }
 
 .reload-problem-accounts-popup {
-    -fx-padding: 8 0 0 0;
+    -fx-padding: 14 14 0 14;
 }
 
 .reload-problem-accounts-card {
@@ -4391,23 +4391,21 @@
 }
 
 .dialog-pane {
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
 }
 
 .dialog-pane > .header-panel {
-}
-
-.dialog-pane > .header-panel .label {
-}
-
-.dialog-pane > .content.label {
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
 }
 
 .custom-dialog-root {
     -fx-background-color: #e6e8eb;
     -fx-border-color: #bcc2c9;
     -fx-border-width: 1;
-    -fx-background-radius: 10;
-    -fx-border-radius: 10;
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
     -fx-background-insets: 0;
     -fx-border-insets: 0;
 }
@@ -4611,7 +4609,7 @@
 /* Dedicated hooks used by custom widgets and player controls. */
 .progress-bar-segment-default {
     -fx-background-color: derive(-fx-control-inner-background, -10%);
-    -fx-background-radius: 0;
+     -fx-background-radius: 0;
 }
 
 .default-channel-icon,
@@ -4666,8 +4664,8 @@
     -fx-background-color: linear-gradient(to bottom, #2f8cff, #0d66d0);
     -fx-border-color: #7bb4ff;
     -fx-border-width: 1;
-    -fx-border-radius: 18;
-    -fx-background-radius: 18;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
     -fx-padding: 10;
     -fx-alignment: center;
 }
