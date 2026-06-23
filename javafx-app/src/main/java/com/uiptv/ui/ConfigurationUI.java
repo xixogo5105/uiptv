@@ -2030,8 +2030,8 @@ public class ConfigurationUI extends VBox {
         comboBox.getItems().setAll(VlcCachingOption.all());
         comboBox.getStyleClass().add("uiptv-vlc-combo-box");
         comboBox.setMinWidth(0);
-        comboBox.setPrefWidth(250);
-        comboBox.setMaxWidth(280);
+        comboBox.setPrefWidth(325);
+        comboBox.setMaxWidth(350);
         comboBox.setCellFactory(cb -> new ListCell<>() {
             @Override
             protected void updateItem(VlcCachingOption item, boolean empty) {
