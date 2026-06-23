@@ -116,6 +116,12 @@ public class ConfigurationDb extends BaseDb {
         c.setEnableVlcHttpForwardCookies(missingOrTrue(resultSet, "enableVlcHttpForwardCookies"));
         c.setResolveChainAndDeepRedirects(safeBoolean(resultSet, "resolveChainAndDeepRedirects"));
         c.setFilterLockUnlockDurationMinutes(duration);
+        c.setVlcNoVideoTitleShow(missingOrTrue(resultSet, "vlcNoVideoTitleShow"));
+        c.setVlcQuiet(missingOrTrue(resultSet, "vlcQuiet"));
+        c.setVlcHttpReconnect(missingOrTrue(resultSet, "vlcHttpReconnect"));
+        c.setVlcAdaptiveUseAccess(missingOrTrue(resultSet, "vlcAdaptiveUseAccess"));
+        c.setVlcVout(nullSafeString(resultSet, "vlcVout"));
+        c.setVlcAvcodecHw(nullSafeString(resultSet, "vlcAvcodecHw"));
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
     }
@@ -134,7 +140,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(28, current.getDbId());
+                statement.setString(34, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -179,6 +185,12 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(25, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
         statement.setString(26, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
         statement.setString(27, configuration.getFilterLockUnlockDurationMinutes());
+        statement.setString(28, configuration.isVlcNoVideoTitleShow() ? "1" : "0");
+        statement.setString(29, configuration.isVlcQuiet() ? "1" : "0");
+        statement.setString(30, configuration.isVlcHttpReconnect() ? "1" : "0");
+        statement.setString(31, configuration.isVlcAdaptiveUseAccess() ? "1" : "0");
+        statement.setString(32, configuration.getVlcVout());
+        statement.setString(33, configuration.getVlcAvcodecHw());
      }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {

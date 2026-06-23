@@ -16,6 +16,7 @@ import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
+import com.uiptv.util.SystemUtils;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
@@ -190,6 +191,12 @@ public class ConfigurationUI extends VBox {
     private String vlcLiveCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
     private boolean vlcHttpUserAgentEnabled = true;
     private boolean vlcHttpForwardCookiesEnabled = true;
+    private boolean vlcNoVideoTitleShow = true;
+    private boolean vlcQuiet = true;
+    private boolean vlcHttpReconnect = true;
+    private boolean vlcAdaptiveUseAccess = true;
+    private boolean vlcVoutEnabled = false;
+    private boolean vlcAvcodecHwEnabled = false;
     private boolean syncingThemeModeSelector;
     private boolean syncingThumbnailModeSelector;
     private boolean syncingPasswordProtectionSelector;
@@ -1642,6 +1649,12 @@ public class ConfigurationUI extends VBox {
             vlcLiveCachingMs = service.normalizeVlcCachingMs(configuration.getVlcLiveCachingMs());
             vlcHttpUserAgentEnabled = configuration.isEnableVlcHttpUserAgent();
             vlcHttpForwardCookiesEnabled = configuration.isEnableVlcHttpForwardCookies();
+            vlcNoVideoTitleShow = configuration.isVlcNoVideoTitleShow();
+            vlcQuiet = configuration.isVlcQuiet();
+            vlcHttpReconnect = configuration.isVlcHttpReconnect();
+            vlcAdaptiveUseAccess = configuration.isVlcAdaptiveUseAccess();
+            vlcVoutEnabled = configuration.getVlcVout() != null && !configuration.getVlcVout().isBlank();
+            vlcAvcodecHwEnabled = configuration.getVlcAvcodecHw() != null && !configuration.getVlcAvcodecHw().isBlank();
             languageComboBox.getSelectionModel().select(I18n.resolveSupportedLanguage(configuration.getLanguageLocale()));
             themeZoomComboBox.getSelectionModel().select(Integer.valueOf(service.normalizeUiZoomPercent(configuration.getUiZoomPercent())));
         } finally {
@@ -1740,6 +1753,12 @@ public class ConfigurationUI extends VBox {
         configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
         configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
         configuration.setEnableVlcHttpForwardCookies(vlcHttpForwardCookiesEnabled);
+        configuration.setVlcNoVideoTitleShow(vlcNoVideoTitleShow);
+        configuration.setVlcQuiet(vlcQuiet);
+        configuration.setVlcHttpReconnect(vlcHttpReconnect);
+        configuration.setVlcAdaptiveUseAccess(vlcAdaptiveUseAccess);
+        configuration.setVlcVout(vlcVoutEnabled ? "true" : null);
+        configuration.setVlcAvcodecHw(vlcAvcodecHwEnabled ? "true" : null);
         return configuration;
     }
 
@@ -1873,12 +1892,24 @@ public class ConfigurationUI extends VBox {
         ComboBox<VlcCachingOption> liveCachingComboBox = createVlcCachingComboBox();
         SwitchToggle userAgentSwitch = new SwitchToggle();
         SwitchToggle forwardCookiesSwitch = new SwitchToggle();
+        SwitchToggle noVideoTitleShowSwitch = new SwitchToggle();
+        SwitchToggle quietSwitch = new SwitchToggle();
+        SwitchToggle httpReconnectSwitch = new SwitchToggle();
+        SwitchToggle adaptiveUseAccessSwitch = new SwitchToggle();
+        SwitchToggle voutSwitch = new SwitchToggle();
+        SwitchToggle avcodecHwSwitch = new SwitchToggle();
 
         Runnable loadCurrentValues = () -> {
             networkCachingComboBox.getSelectionModel().select(VlcCachingOption.fromValue(vlcNetworkCachingMs));
             liveCachingComboBox.getSelectionModel().select(VlcCachingOption.fromValue(vlcLiveCachingMs));
             userAgentSwitch.setSelected(vlcHttpUserAgentEnabled);
             forwardCookiesSwitch.setSelected(vlcHttpForwardCookiesEnabled);
+            noVideoTitleShowSwitch.setSelected(vlcNoVideoTitleShow);
+            quietSwitch.setSelected(vlcQuiet);
+            httpReconnectSwitch.setSelected(vlcHttpReconnect);
+            adaptiveUseAccessSwitch.setSelected(vlcAdaptiveUseAccess);
+            voutSwitch.setSelected(vlcVoutEnabled);
+            avcodecHwSwitch.setSelected(vlcAvcodecHwEnabled);
         };
         loadCurrentValues.run();
 
@@ -1898,7 +1929,13 @@ public class ConfigurationUI extends VBox {
                 createVlcComboOptionRow("configVlcNetworkCaching", networkCachingComboBox),
                 createVlcComboOptionRow("configVlcLiveCaching", liveCachingComboBox),
                 createVlcSwitchOptionRow("configVlcEnableUserAgent", userAgentSwitch),
-                createVlcSwitchOptionRow("configVlcForwardCookies", forwardCookiesSwitch)
+                createVlcSwitchOptionRow("configVlcForwardCookies", forwardCookiesSwitch),
+                createVlcSwitchOptionRow("configVlcNoVideoTitleShow", noVideoTitleShowSwitch),
+                createVlcSwitchOptionRow("configVlcQuiet", quietSwitch),
+                createVlcSwitchOptionRow("configVlcHttpReconnect", httpReconnectSwitch),
+                createVlcSwitchOptionRow("configVlcAdaptiveUseAccess", adaptiveUseAccessSwitch),
+                createVlcSwitchOptionRow("configVlcVout", voutSwitch),
+                createVlcSwitchOptionRow("configVlcAvcodecHw", avcodecHwSwitch)
         );
         optionPanel.getStyleClass().add("uiptv-vlc-option-panel");
         optionPanel.setMinWidth(0);
@@ -1907,6 +1944,7 @@ public class ConfigurationUI extends VBox {
 
         VBox root = new VBox(14, title, description, optionPanel);
         root.getStyleClass().add("uiptv-vlc-dialog-content");
+        root.setPadding(new Insets(15));
         root.setMinWidth(0);
         root.setMaxWidth(Double.MAX_VALUE);
         UiRenderQuality.optimizeLayout(root);
@@ -1921,6 +1959,12 @@ public class ConfigurationUI extends VBox {
             vlcLiveCachingMs = selectedCachingValue(liveCachingComboBox);
             vlcHttpUserAgentEnabled = userAgentSwitch.isSelected();
             vlcHttpForwardCookiesEnabled = forwardCookiesSwitch.isSelected();
+            vlcNoVideoTitleShow = noVideoTitleShowSwitch.isSelected();
+            vlcQuiet = quietSwitch.isSelected();
+            vlcHttpReconnect = httpReconnectSwitch.isSelected();
+            vlcAdaptiveUseAccess = adaptiveUseAccessSwitch.isSelected();
+            vlcVoutEnabled = voutSwitch.isSelected();
+            vlcAvcodecHwEnabled = avcodecHwSwitch.isSelected();
             saveVlcOptionsConfiguration(true);
             closeAction.run();
         });
@@ -1932,6 +1976,12 @@ public class ConfigurationUI extends VBox {
             vlcLiveCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
             vlcHttpUserAgentEnabled = true;
             vlcHttpForwardCookiesEnabled = true;
+            vlcNoVideoTitleShow = true;
+            vlcQuiet = true;
+            vlcHttpReconnect = true;
+            vlcAdaptiveUseAccess = true;
+            vlcVoutEnabled = false;
+            vlcAvcodecHwEnabled = false;
             saveVlcOptionsConfiguration(true);
             closeAction.run();
         });
@@ -1945,7 +1995,7 @@ public class ConfigurationUI extends VBox {
         buttons.getStyleClass().add("management-popup-footer");
         root.getChildren().add(buttons);
 
-        popupStage.setScene(createPopupScene(root, 620, 460));
+        popupStage.setScene(createPopupScene(root, 940, 860));
         popupStage.setOnHidden(e -> activeVlcOptionsPopupStage.compareAndSet(popupStage, null));
         activeVlcOptionsPopupStage.set(popupStage);
         popupStage.showAndWait();
@@ -1953,6 +2003,7 @@ public class ConfigurationUI extends VBox {
 
     private Node createVlcComboOptionRow(String labelKey, ComboBox<VlcCachingOption> comboBox) {
         Label label = createVlcOptionLabel(labelKey);
+        HBox.setHgrow(label, Priority.ALWAYS);
         HBox row = new HBox(12, label, comboBox);
         row.getStyleClass().add("uiptv-vlc-option-row");
         row.setAlignment(Pos.CENTER_LEFT);
@@ -1979,9 +2030,10 @@ public class ConfigurationUI extends VBox {
         Label label = new Label(I18n.tr(labelKey));
         label.getStyleClass().add("uiptv-vlc-option-label");
         label.setWrapText(true);
-        label.setMinWidth(128);
-        label.setPrefWidth(128);
-        label.setMaxWidth(180);
+        label.setMinWidth(0);
+        label.setPrefWidth(0);
+        label.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(label, Priority.ALWAYS);
         UiRenderQuality.optimizeTextNode(label);
         return label;
     }
@@ -2129,6 +2181,12 @@ public class ConfigurationUI extends VBox {
             configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
             configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
             configuration.setEnableVlcHttpForwardCookies(vlcHttpForwardCookiesEnabled);
+            configuration.setVlcNoVideoTitleShow(vlcNoVideoTitleShow);
+            configuration.setVlcQuiet(vlcQuiet);
+            configuration.setVlcHttpReconnect(vlcHttpReconnect);
+            configuration.setVlcAdaptiveUseAccess(vlcAdaptiveUseAccess);
+            configuration.setVlcVout(vlcVoutEnabled ? "true" : null);
+            configuration.setVlcAvcodecHw(vlcAvcodecHwEnabled ? "true" : null);
             service.save(configuration);
             applyPostSaveEffects(previous, configuration);
             if (onSaveCallback != null) {

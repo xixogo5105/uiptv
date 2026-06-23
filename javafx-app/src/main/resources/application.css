@@ -3237,43 +3237,60 @@
 }
 
 .uiptv-vlc-dialog-title {
-    -fx-font-size: 1.20em;
-    -fx-font-weight: bold;
+    -fx-font-size: 1.25em;
+    -fx-font-weight: 600;
     -fx-text-fill: -uiptv-text-primary;
 }
 
 .uiptv-vlc-dialog-description {
-    -fx-font-size: 0.98em;
+    -fx-font-size: 0.95em;
     -fx-text-fill: -uiptv-text-secondary;
-    -fx-line-spacing: 1.5;
+    -fx-line-spacing: 1.4;
 }
 
 .uiptv-vlc-option-panel {
+    -fx-background-color: #f8f9fa;
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(17, 24, 39, 0.08);
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-padding: 12;
+}
+
+.uiptv-vlc-option-row {
     -fx-background-color: #ffffff;
     -fx-background-radius: 8;
     -fx-border-color: rgba(17, 24, 39, 0.06);
     -fx-border-width: 1;
     -fx-border-radius: 8;
-    -fx-padding: 10;
-}
-
-.uiptv-vlc-option-row {
-    -fx-background-color: #ffffff;
-    -fx-background-radius: 14;
-    -fx-border-color: rgba(17, 24, 39, 0.055);
-    -fx-border-width: 1;
-    -fx-border-radius: 14;
-    -fx-padding: 9 10 9 10;
+    -fx-padding: 10 12 10 12;
 }
 
 .uiptv-vlc-option-label {
-    -fx-font-weight: bold;
+    -fx-font-weight: 500;
     -fx-text-fill: -uiptv-text-primary;
+    -fx-font-size: 0.95em;
 }
 
 .uiptv-vlc-combo-box {
-    -fx-min-height: 38;
-    -fx-pref-height: 38;
+    -fx-min-height: 36;
+    -fx-pref-height: 36;
+}
+
+.uiptv-dialog-text-field {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-padding: 8 12 8 12;
+    -fx-prompt-text-fill: -uiptv-text-muted;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-size: 0.95em;
+}
+
+.uiptv-dialog-text-field:focused {
+    -fx-border-color: derive(-uiptv-accent, 20%);
 }
 
 .uiptv-password-dialog {
