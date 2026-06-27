@@ -407,6 +407,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         seriesGrid.setPlaceholderText(seriesListPlaceholderText());
         if (rows == null || rows.isEmpty()) {
             lastListFingerprint = "";
+            contentBox.getChildren().clear();
             contentBox.getChildren().add(new Label(seriesListPlaceholderText()));
             return;
         }
