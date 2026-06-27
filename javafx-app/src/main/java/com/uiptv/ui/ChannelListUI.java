@@ -58,6 +58,7 @@ import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.model.Account.AccountAction.vod;
 import static com.uiptv.util.AccountType.*;
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static javafx.application.Platform.runLater;
 
@@ -860,6 +861,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (item != null && item.isBookmarked()) {
             card.getChildren().add(createBookmarkIcon());
         }
+        // Show watching badge for series
+        if (item != null && item.getChannel() != null && listAction == series && item.getChannel().isWatched()) {
+            card.getChildren().add(createDrawerBadge(I18n.tr("autoInPROGRESS")));
+        }
         return card;
     }
 
@@ -1154,6 +1159,19 @@ public class ChannelListUI extends HBox implements SearchTarget {
             menu.getItems().add(viewEpisodesItem);
         } else {
             addPlayerItems(menu, item);
+        }
+        
+        // Add Watching Now / Remove Watching Now menu options
+        boolean hasWatchedEpisode = item.getChannel() != null && item.getChannel().isWatched();
+        if (!hasWatchedEpisode) {
+            MenuItem watchingNowItem = new MenuItem(I18n.tr("autoWatchingNow"));
+            watchingNowItem.setOnAction(e -> saveSeriesWatchingNow(item));
+            menu.getItems().add(watchingNowItem);
+        } else {
+            MenuItem removeWatchingNowItem = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
+            removeWatchingNowItem.getStyleClass().add("danger-menu-item");
+            removeWatchingNowItem.setOnAction(e -> removeSeriesWatchingNow(item));
+            menu.getItems().add(removeWatchingNowItem);
         }
     }
 
@@ -2077,6 +2095,43 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 item.setBookmarked(false);
                 refreshChannelViews();
                 refreshBookmarkStatesAsync();
+            });
+        }).start();
+    }
+
+    private void saveSeriesWatchingNow(ChannelItem item) {
+        if (item == null || item.getChannel() == null || isBlank(account.getDbId())) {
+            return;
+        }
+        Channel channel = item.getChannel();
+        new Thread(() -> {
+            SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
+                account, categoryId, channel.getChannelId(), channel.getChannelId(),
+                channel.getName(), channel.getSeason(), channel.getEpisodeNum()
+            );
+            Platform.runLater(() -> {
+                channel.setWatched(true);
+                refreshChannelViews();
+                refreshSeriesWatchStatesAsync(channel.getChannelId());
+            });
+        }).start();
+    }
+
+    private void removeSeriesWatchingNow(ChannelItem item) {
+        if (item == null || item.getChannel() == null || isBlank(account.getDbId())) {
+            return;
+        }
+        String seriesName = item.getChannelName();
+        if (!showConfirmationAlert(I18n.tr("autoRemoveFromWatchingNowConfirm", seriesName))) {
+            return;
+        }
+        Channel channel = item.getChannel();
+        new Thread(() -> {
+            SeriesWatchStateService.getInstance().clearSeriesLastWatched(account.getDbId(), categoryId, channel.getChannelId());
+            Platform.runLater(() -> {
+                channel.setWatched(false);
+                refreshChannelViews();
+                refreshSeriesWatchStatesAsync(channel.getChannelId());
             });
         }).start();
     }

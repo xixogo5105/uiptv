@@ -648,12 +648,62 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         HBox card = cardNodes.card();
         data.seriesListTitleNode = cardNodes.title();
 
+        // Add context menu for watching now actions
+        ContextMenu seriesMenu = new ContextMenu();
+        seriesMenu.getStyleClass().add("episode-context-menu");
+        card.setOnContextMenuRequested(event -> {
+            populateSeriesListContextMenu(seriesMenu, data);
+            if (!seriesMenu.getItems().isEmpty()) {
+                seriesMenu.show(card, event.getScreenX(), event.getScreenY());
+            }
+            event.consume();
+        });
+
         List<Label> cardLabels = new ArrayList<>(List.of(cardNodes.title(), cardNodes.account(), typeChip, episodeChip));
         if (plot != null) {
             cardLabels.add(plot);
         }
         card.getProperties().put(KEY_CARD_LABELS, cardLabels);
         return card;
+    }
+
+    private void populateSeriesListContextMenu(ContextMenu menu, SeriesPanelData data) {
+        menu.getItems().clear();
+        
+        // Check if this series has a watched episode (in progress)
+        boolean hasWatchedEpisode = data.episodes.stream().anyMatch(e -> e.watched);
+        
+        if (!hasWatchedEpisode) {
+            // Add "Watching Now" option - sets first episode as watched
+            MenuItem watchingNowItem = new MenuItem(I18n.tr("autoWatchingNow"));
+            watchingNowItem.getStyleClass().add(EPISODE_MENU_ITEM);
+            watchingNowItem.setOnAction(e -> {
+                WatchingEpisode firstEpisode = data.episodes.isEmpty() ? null : data.episodes.getFirst();
+                if (firstEpisode != null) {
+                    markEpisodeAsWatched(firstEpisode);
+                }
+            });
+            menu.getItems().add(watchingNowItem);
+        } else {
+            // Add "Remove Watching Now" option - clears the watched marker
+            MenuItem removeWatchingNowItem = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
+            removeWatchingNowItem.getStyleClass().add("danger-menu-item");
+            removeWatchingNowItem.getStyleClass().add(EPISODE_MENU_ITEM);
+            removeWatchingNowItem.setOnAction(e -> {
+                String seriesName = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle, I18n.tr("watchingNowThisSeries"));
+                if (!showConfirmationAlert(I18n.tr("autoRemoveFromWatchingNowConfirm", seriesName))) {
+                    return;
+                }
+                // Clear all watched markers for this series
+                for (WatchingEpisode episode : data.episodes) {
+                    if (episode.watched) {
+                        clearWatchedMarker(episode);
+                    }
+                }
+                clearWatchingStatusUI(data);
+            });
+            menu.getItems().add(removeWatchingNowItem);
+        }
     }
 
     private Label createSeriesListPlotLabel(SeriesPanelData data) {
@@ -1155,10 +1205,12 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (seasonPillBar == null || data == null) {
             return;
         }
+        // Preserve the currently selected episode before rebuilding
+        WatchingEpisode selectedEpisode = findSelectedEpisode(data);
         String selectedSeason = firstNonBlank(safe(seasonPillBar.getSelectedItem()), normalizeNumber(data.state.getSeason()));
         data.seasonCardsBySeason.clear();
         data.watchingLabels.clear();
-        data.selectedEpisodeCard = null;
+        // Don't clear selectedEpisodeCard - it will be restored in renderSeasonEpisodeCards
 
         List<String> seasons = seasonKeys(data);
         seasonPillBar.setItems(seasons);
@@ -1171,6 +1223,10 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             seasonPillBar.setSelectedItem(seasons.getFirst());
         }
         renderSeasonEpisodeCards(data, seasonPillBar.getSelectedItem());
+        // Restore selection if the episode still exists
+        if (selectedEpisode != null) {
+            restoreEpisodeSelection(data, selectedEpisode);
+        }
     }
 
     private List<String> seasonKeys(SeriesPanelData data) {
@@ -1201,13 +1257,61 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         String selectedSeason = isBlank(season) ? "1" : season;
         List<WatchingEpisode> episodes = filterSeasonEpisodes(
                 episodesBySeason(data).getOrDefault(selectedSeason, List.of()));
+        // Preserve the currently selected episode before rebuilding
+        WatchingEpisode selectedEpisode = findSelectedEpisode(data);
         data.selectedEpisodeCard = null;
         VBox cards = buildEpisodeCards(data, FXCollections.observableArrayList(episodes));
         cards.getStyleClass().add("watching-now-season-card-group");
         data.seasonCardsBySeason.put(selectedSeason, cards);
         data.episodeCardsContainer.getChildren().setAll(cards);
         syncSeriesEpisodeLoadingNode(data);
+        // Restore selection if the episode still exists in the new list
+        if (selectedEpisode != null && episodes.contains(selectedEpisode)) {
+            restoreEpisodeSelection(data, selectedEpisode);
+        }
         scheduleInitialSeriesEpisodeFocus(data);
+    }
+
+    private WatchingEpisode findSelectedEpisode(SeriesPanelData data) {
+        if (data == null) {
+            return null;
+        }
+        // Use the tracked selected episode if available
+        if (data.selectedEpisode != null) {
+            return data.selectedEpisode;
+        }
+        // Fallback: find episode with visible watching label
+        for (WatchingEpisode episode : data.episodes) {
+            if (episode.watched) {
+                return episode;
+            }
+        }
+        return null;
+    }
+
+    private void restoreEpisodeSelection(SeriesPanelData data, WatchingEpisode episode) {
+        if (data == null || episode == null) {
+            return;
+        }
+        // Find the card for this episode in the new container
+        for (Node child : data.episodeCardsContainer.getChildren()) {
+            if (child instanceof VBox card) {
+                Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
+                if (labelsObj instanceof List<?> labels) {
+                    for (Object labelObj : labels) {
+                        if (labelObj instanceof Label label && label.getStyleClass().contains(STRONG_LABEL)) {
+                            // Check if this card corresponds to the selected episode
+                            if (episode.title != null && episode.title.equals(label.getText())) {
+                                data.selectedEpisodeCard = card;
+                                data.selectedEpisode = episode;
+                                applyCardSelection(card, true);
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private List<WatchingEpisode> filterSeasonEpisodes(List<WatchingEpisode> episodes) {
@@ -1647,6 +1751,28 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         clearSeriesEpisodeCardSelections(data, current);
         applyCardSelection(current, true);
         data.selectedEpisodeCard = current;
+        // Also track the selected episode for persistence across refreshes
+        data.selectedEpisode = findEpisodeForCard(data, current);
+    }
+
+    private WatchingEpisode findEpisodeForCard(SeriesPanelData data, VBox card) {
+        if (data == null || card == null) {
+            return null;
+        }
+        Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
+        if (labelsObj instanceof List<?> labels) {
+            for (Object labelObj : labels) {
+                if (labelObj instanceof Label label && label.getStyleClass().contains(STRONG_LABEL)) {
+                    // Find the episode with this title
+                    for (WatchingEpisode episode : data.episodes) {
+                        if (episode.title != null && episode.title.equals(label.getText())) {
+                            return episode;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private void clearSeriesEpisodeCardSelections(SeriesPanelData data, VBox except) {
@@ -1783,6 +1909,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (item == null) {
             return;
         }
+        // Optimistically update UI
+        updateWatchingStatusUIForEpisode(item);
         new Thread(() -> {
             Account seriesAccount = seriesAccount(item.account);
             if (seriesAccount == null) {
@@ -1798,6 +1926,19 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                     item.episodeNum
             );
         }, "watching-now-mark-watched").start();
+    }
+
+    private void updateWatchingStatusUIForEpisode(WatchingEpisode currentEpisode) {
+        if (currentEpisode == null) {
+            return;
+        }
+        // Find the panel data that contains this episode
+        for (SeriesPanelData data : panelDataByKey.values()) {
+            if (data.episodes.contains(currentEpisode)) {
+                updateWatchingStatusUI(data, currentEpisode);
+                break;
+            }
+        }
     }
 
     private void clearWatchedMarker(WatchingEpisode item) {
@@ -1849,7 +1990,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             WatchingEpisode episode = entry.getKey();
             Label label = entry.getValue();
 
-            boolean isCurrent = episode == currentEpisode;
+            boolean isCurrent = episode.equals(currentEpisode);
             episode.watched = isCurrent;
 
             if (label != null) {
@@ -2905,6 +3046,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         private boolean episodeLoadingVisible;
         private MenuButton bingeWatchButton;
         private VBox selectedEpisodeCard;
+        private WatchingEpisode selectedEpisode;
 
         private SeriesPanelData(Account account, SeriesWatchState state, String seriesTitle, JSONObject seasonInfo, List<WatchingEpisode> episodes, EpisodeList episodeList) {
             this.account = account;
@@ -2952,6 +3094,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             episodeLoadingVisible = false;
             bingeWatchButton = null;
             selectedEpisodeCard = null;
+            selectedEpisode = null;
             episodeList = new EpisodeList();
             episodes.clear();
         }
@@ -2994,6 +3137,24 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             this.releaseDate = releaseDate;
             this.rating = rating;
             this.watched = watched;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            WatchingEpisode that = (WatchingEpisode) obj;
+            return Objects.equals(account, that.account) &&
+                   Objects.equals(state, that.state) &&
+                   Objects.equals(channel, that.channel) &&
+                   Objects.equals(season, that.season) &&
+                   Objects.equals(episodeNum, that.episodeNum) &&
+                   Objects.equals(title, that.title);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(account, state, channel, season, episodeNum, title);
         }
     }
 }
