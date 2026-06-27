@@ -281,33 +281,7 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         if (data == null || isBlank(query)) {
             return true;
         }
-        StringBuilder searchable = new StringBuilder();
-        appendSearchText(searchable,
-                data.displayTitle,
-                data.duration,
-                data.imdbUrl,
-                data.account == null ? "" : data.account.getAccountName(),
-                data.state == null ? "" : data.state.getVodId(),
-                data.state == null ? "" : data.state.getCategoryId(),
-                data.playbackChannel == null ? "" : data.playbackChannel.getName());
-        if (data.metadata != null) {
-            appendSearchText(searchable,
-                    data.metadata.plot,
-                    data.metadata.releaseDate,
-                    data.metadata.rating);
-        }
-        return searchable.toString().toLowerCase(Locale.ROOT).contains(query);
-    }
-
-    private void appendSearchText(StringBuilder builder, String... values) {
-        if (builder == null || values == null) {
-            return;
-        }
-        for (String value : values) {
-            if (!isBlank(value)) {
-                builder.append(' ').append(value);
-            }
-        }
+        return safe(data.displayTitle).equalsIgnoreCase(query);
     }
 
     private String vodListPlaceholderText() {

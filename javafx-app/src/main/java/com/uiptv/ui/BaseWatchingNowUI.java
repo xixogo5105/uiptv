@@ -427,40 +427,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (data == null || isBlank(query)) {
             return true;
         }
-        return seriesSearchText(data).contains(query);
-    }
-
-    private String seriesSearchText(SeriesPanelData data) {
-        if (data.searchTextCache != null) {
-            return data.searchTextCache;
-        }
-        StringBuilder searchable = new StringBuilder();
-        appendSearchText(searchable,
-                data.seriesTitle,
-                data.account == null ? "" : data.account.getAccountName(),
-                data.state == null ? "" : data.state.getSeriesId(),
-                data.state == null ? "" : data.state.getCategoryId());
-        if (data.seasonInfo != null) {
-            appendSearchText(searchable,
-                    data.seasonInfo.optString("name", ""),
-                    data.seasonInfo.optString("genre", ""),
-                    data.seasonInfo.optString("plot", ""),
-                    data.seasonInfo.optString(KEY_RELEASE_DATE, ""),
-                    data.seasonInfo.optString("rating", ""));
-        }
-        for (WatchingEpisode episode : data.episodes) {
-            if (episode != null) {
-                appendSearchText(searchable,
-                        episode.title,
-                        episode.plot,
-                        episode.releaseDate,
-                        episode.rating,
-                        episode.season,
-                        episode.episodeNum);
-            }
-        }
-        data.searchTextCache = searchable.toString().toLowerCase(Locale.ROOT);
-        return data.searchTextCache;
+        return safe(data.seriesTitle).equalsIgnoreCase(query);
     }
 
     private void appendSearchText(StringBuilder builder, String... values) {
@@ -1959,7 +1926,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         mergeMissing(data.seasonInfo, imdb, "tmdb");
         mergeMissing(data.seasonInfo, imdb, "imdbUrl");
         enrichEpisodesFromMeta(data.episodes, imdb.optJSONArray("episodesMeta"));
-        data.searchTextCache = null;
         imdbCacheByPanelKey.put(panelCacheKey(data.account, data.state),
                 new ImdbCacheEntry(new JSONObject(data.seasonInfo.toString())));
     }
@@ -2403,7 +2369,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         target.episodes.addAll(source.episodes);
         target.episodeList = source.episodeList;
         replaceJson(target.seasonInfo, source.seasonInfo);
-        target.searchTextCache = null;
         target.imdbLoaded = target.imdbLoaded || source.imdbLoaded;
         target.imdbLoading = target.imdbLoading || source.imdbLoading;
         target.thumbnailMetadataAttempted = target.thumbnailMetadataAttempted || source.thumbnailMetadataAttempted;
@@ -2923,7 +2888,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         private boolean imdbLoaded;
         private boolean imdbLoading;
         private boolean thumbnailMetadataAttempted;
-        private String searchTextCache;
         private Label titleNode;
         private Label ratingNode;
         private Label genreNode;
@@ -2987,7 +2951,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             episodeLoadingVisible = false;
             bingeWatchButton = null;
             selectedEpisodeCard = null;
-            searchTextCache = null;
             episodeList = new EpisodeList();
             episodes.clear();
         }

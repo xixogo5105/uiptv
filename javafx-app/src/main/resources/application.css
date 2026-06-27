@@ -920,7 +920,7 @@
 .account-page,
 .account-list-page,
 .settings-page {
-    -fx-padding: 24 10 20 10;
+    -fx-padding: 5 10 20 10;
 }
 
 .account-list-page-compact {
@@ -1304,7 +1304,7 @@
 }
 
 .uiptv-page-header {
-    -fx-spacing: 10;
+    -fx-spacing: 5;
     -fx-fill-width: true;
 }
 
@@ -1880,7 +1880,7 @@
 
 .watching-now-page {
     -fx-background-color: -uiptv-app-bg;
-    -fx-padding: 24 10 20 10;
+    -fx-padding: 5 10 20 10;
 }
 
 .watching-now-content-pane,
