@@ -69,7 +69,23 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
                     .toList();
         });
 
-        assertEquals(List.of(I18n.tr("autoViewEpisodes")), menuOrder);
+        assertEquals(List.of(I18n.tr("autoViewEpisodes"), I18n.tr("autoWatchingNow")), menuOrder);
+        assertFalse(menuOrder.contains(I18n.tr("autoBookmark")));
+    }
+
+    @Test
+    void seriesContextMenuShowsRemoveWatchingNowWhenWatched() throws Exception {
+        List<String> menuOrder = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Series", "series", Account.AccountAction.series);
+            ChannelListUI.ChannelItem item = seriesItemWithoutCommand();
+            item.getChannel().setWatched(true);
+            ContextMenu menu = createChannelContextMenu(ui, item);
+            return menu.getItems().stream()
+                    .map(ChannelListUIContextMenuTest::menuItemText)
+                    .toList();
+        });
+
+        assertEquals(List.of(I18n.tr("autoViewEpisodes"), I18n.tr("autoRemoveWatchingNow")), menuOrder);
         assertFalse(menuOrder.contains(I18n.tr("autoBookmark")));
     }
 
