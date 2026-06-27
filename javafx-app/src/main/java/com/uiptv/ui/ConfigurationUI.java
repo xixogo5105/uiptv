@@ -94,6 +94,7 @@ public class ConfigurationUI extends VBox {
     private final VBox contentContainer = new VBox();
     private final PauseTransition autoSaveDebounce = new PauseTransition(AUTO_SAVE_DEBOUNCE);
     private final TextField settingsSearchTextField = new TextField();
+    private final HBox searchRow = new HBox(8);
     private final PillBar<SettingsPanelFilter> settingsPillBar =
             new PillBar<>(SettingsPanelFilter::title, SettingsPanelFilter::id);
     private final PillBar<ThemeModeOption> themeModePillBar =
@@ -246,6 +247,12 @@ public class ConfigurationUI extends VBox {
         contentContainer.setMinSize(0, 0);
         contentContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         settingsSearchTextField.setPromptText(I18n.tr("commonSearch"));
+        SearchFieldBehavior.installMouseClear(settingsSearchTextField);
+        searchRow.getChildren().setAll(settingsSearchTextField);
+        searchRow.getStyleClass().add("search-row");
+        searchRow.setMinWidth(0);
+        searchRow.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(settingsSearchTextField, Priority.ALWAYS);
         settingsSearchTextField.textProperty().addListener((_, _, _) -> refreshSettingsCards());
         settingsPillBar.setNarrowReservedRowCount(3);
         settingsPillBar.setMaxWidth(Double.MAX_VALUE);
@@ -393,7 +400,7 @@ public class ConfigurationUI extends VBox {
         VBox databaseSyncGroup = buildDatabaseSyncGroup();
 
         pageHeaderActions = new AppHeaderActions(hostServices, this::toggleThemeFromHeader, this::refreshConfigurationForm);
-        AppPageHeader pageHeader = new AppPageHeader(I18n.tr("autoSettings"), settingsSearchTextField, pageHeaderActions);
+        AppPageHeader pageHeader = new AppPageHeader(I18n.tr("autoSettings"), pageHeaderActions);
         pageHeader.setHeaderTitleVisible(false);
         pageHeader.setNavigationSelectionEnabled(false);
         settingsSections.clear();
@@ -408,7 +415,7 @@ public class ConfigurationUI extends VBox {
         ));
         configureSettingsPillBar();
         refreshSettingsCards();
-        contentContainer.getChildren().setAll(pageHeader, settingsPillBar, settingsCardPane);
+        contentContainer.getChildren().setAll(pageHeader, settingsPillBar, searchRow, settingsCardPane);
         addBrowserButton1ClickHandler();
         addBrowserButton2ClickHandler();
         addBrowserButton3ClickHandler();

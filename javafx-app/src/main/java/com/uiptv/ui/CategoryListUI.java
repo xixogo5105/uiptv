@@ -14,9 +14,11 @@ import com.uiptv.widget.CloseIconButton;
 import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.ResponsiveCardGrid;
+import com.uiptv.widget.SearchFieldBehavior;
 import com.uiptv.widget.SearchableTableView;
 import com.uiptv.widget.ThemedDialogSupport;
 import com.uiptv.widget.UIptvAlert;
+import com.uiptv.widget.UIptvText;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -82,6 +84,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private final ResponsiveCardGrid<CategoryItem> categoryCardGrid = new ResponsiveCardGrid<>(this::createCategoryCard);
     private final ScrollPane categoryScrollPane = new ScrollPane(categoryCardGrid);
     private final ObservableList<CategoryItem> categoryItems = FXCollections.observableArrayList();
+    private final UIptvText searchTextField = new UIptvText("categorySearch", "commonSearch", 15);
+    private final HBox searchRow = new HBox(8);
     private final List<CategoryItem> selectedCategoryItems = new ArrayList<>();
     private final List<Node> detailHeaderActions = new ArrayList<>();
     private final EnumMap<Account.AccountAction, ModeState> modeStates = new EnumMap<>(Account.AccountAction.class);
@@ -191,6 +195,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         setupModePillBar();
         setupPanelHeaders();
         setupCategoryCardList();
+        setupSearchRow();
         table.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(table, Priority.ALWAYS);
         leftPane.getStyleClass().add("account-category-list-pane");
@@ -285,6 +290,19 @@ public class CategoryListUI extends HBox implements SearchTarget {
             }
         });
         showCategoryPlaceholder(I18n.tr("autoLoadingCategories"));
+    }
+
+    private void setupSearchRow() {
+        searchTextField.textProperty().addListener((_, _, newValue) -> {
+            replaceSearchText(newValue, false);
+            rebuildCategoryCards();
+        });
+        SearchFieldBehavior.installMouseClear(searchTextField);
+        searchRow.getChildren().setAll(searchTextField);
+        searchRow.getStyleClass().add("search-row");
+        searchRow.setMinWidth(0);
+        searchRow.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(searchTextField, Priority.ALWAYS);
     }
 
     private void rebuildCategoryCards() {
@@ -542,6 +560,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
             return;
         }
         replaceSearchText(value, false);
+        searchTextField.setText(value);
         ModeState state = modeStates.get(activeMode);
         if (getChildren().contains(detailPane) && state != null && state.channelListUI != null) {
             state.channelListUI.setSearchQuery(value);
@@ -708,10 +727,10 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
     private void updateLeftPaneLayout() {
         if (mediaDrawerMode) {
-            leftPane.getChildren().setAll(headerRow, modePillBar, categoryHeading, categoryScrollPane);
+            leftPane.getChildren().setAll(headerRow, modePillBar, searchRow, categoryHeading, categoryScrollPane);
             return;
         }
-        leftPane.getChildren().setAll(headerRow, categoryHeading, categoryScrollPane);
+        leftPane.getChildren().setAll(headerRow, searchRow, categoryHeading, categoryScrollPane);
     }
 
     private void updateCloseButtonVisibility() {

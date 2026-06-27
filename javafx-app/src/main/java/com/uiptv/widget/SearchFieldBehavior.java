@@ -3,7 +3,7 @@ package com.uiptv.widget;
 import javafx.scene.control.TextField;
 import javafx.scene.input.MouseEvent;
 
-final class SearchFieldBehavior {
+public final class SearchFieldBehavior {
     private static final String MOUSE_CLEAR_INSTALLED_KEY =
             SearchFieldBehavior.class.getName() + ".mouseClearInstalled";
     private static final String CLEAR_ON_NEXT_MOUSE_PRESS_KEY =
@@ -12,7 +12,7 @@ final class SearchFieldBehavior {
     private SearchFieldBehavior() {
     }
 
-    static void installMouseClear(TextField field) {
+    public static void installMouseClear(TextField field) {
         if (field == null || Boolean.TRUE.equals(field.getProperties().get(MOUSE_CLEAR_INSTALLED_KEY))) {
             return;
         }

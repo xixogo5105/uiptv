@@ -2,6 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
+import com.uiptv.widget.SearchFieldBehavior;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.UiRenderQuality;
@@ -12,6 +13,7 @@ import javafx.scene.Node;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
@@ -29,6 +31,7 @@ public class WatchingNowUI extends VBox {
     private BaseWatchingNowUI seriesDelegate;
     private VodWatchingNowUI vodDelegate;
     private final TextField searchTextField = new TextField();
+    private final HBox searchRow = new HBox(8);
     private final PauseTransition searchDebounce = new PauseTransition(SEARCH_DEBOUNCE_DELAY);
     private final HostServices hostServices;
     private final Runnable themeToggleHandler;
@@ -103,10 +106,15 @@ public class WatchingNowUI extends VBox {
         vodContent.setManaged(false);
         contentPane.getChildren().setAll(seriesContent, vodContent);
 
-        detachFromParent(searchTextField);
+        searchTextField.setPromptText(I18n.tr("commonSearch"));
+        SearchFieldBehavior.installMouseClear(searchTextField);
+        searchRow.getChildren().setAll(searchTextField);
+        searchRow.getStyleClass().add("search-row");
+        searchRow.setMinWidth(0);
+        searchRow.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(searchTextField, Priority.ALWAYS);
         AppPageHeader header = new AppPageHeader(
                 I18n.tr("autoWatchingNow"),
-                searchTextField,
                 new AppHeaderActions(hostServices, themeToggleHandler, null)
         );
         header.getStyleClass().add("watching-now-header");
@@ -117,7 +125,7 @@ public class WatchingNowUI extends VBox {
         setSpacing(10);
         setMinWidth(0);
         setMaxWidth(Double.MAX_VALUE);
-        getChildren().setAll(header, modePillBar, contentPane);
+        getChildren().setAll(header, modePillBar, searchRow, contentPane);
         VBox.setVgrow(contentPane, Priority.ALWAYS);
         modePillBar.setSelectedItem(SERIES_TAB);
         showSelectedMode(SERIES_TAB);

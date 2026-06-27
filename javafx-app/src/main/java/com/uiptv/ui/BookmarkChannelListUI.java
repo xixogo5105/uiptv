@@ -12,6 +12,7 @@ import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
+import com.uiptv.widget.SearchFieldBehavior;
 import com.uiptv.widget.UiRenderQuality;
 import javafx.application.HostServices;
 import javafx.application.Platform;
@@ -403,13 +404,10 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private VBox createHeaderArea() {
-        TextField searchField = searchTextField;
-        searchField.setPromptText(I18n.tr("commonSearch"));
-
         HBox headerActions = new HBox(6, new AppHeaderActions(hostServices, themeToggleHandler, null));
         headerActions.setAlignment(Pos.CENTER_RIGHT);
 
-        AppPageHeader header = new AppPageHeader(I18n.tr("autoFavorite"), searchField, headerActions);
+        AppPageHeader header = new AppPageHeader(I18n.tr("autoFavorite"), headerActions);
         header.getStyleClass().add("bookmarks-header-stack");
 
         VBox headerArea = new VBox(12, header);
@@ -423,7 +421,25 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         listPanel.setMinSize(0, 0);
         listPanel.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         VBox.setVgrow(listPanel, Priority.ALWAYS);
-        listPanel.getChildren().setAll(createCategoryRow(), pageScroll);
+        listPanel.getChildren().setAll(createCategoryRow(), createSearchRow(), pageScroll);
+    }
+
+    private HBox createSearchRow() {
+        searchTextField.setPromptText(I18n.tr("commonSearch"));
+        searchTextField.getStyleClass().add("uiptv-page-search-field");
+        searchTextField.setMinWidth(0);
+        searchTextField.setPrefWidth(420);
+        searchTextField.setMaxWidth(Double.MAX_VALUE);
+        SearchFieldBehavior.installMouseClear(searchTextField);
+
+        HBox searchRow = new HBox(searchTextField);
+        searchRow.setAlignment(Pos.CENTER_LEFT);
+        searchRow.setFillHeight(false);
+        searchRow.setMinWidth(0);
+        searchRow.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(searchTextField, Priority.ALWAYS);
+        searchRow.getStyleClass().add("bookmark-search-row");
+        return searchRow;
     }
 
     private VBox createCategoryRow() {

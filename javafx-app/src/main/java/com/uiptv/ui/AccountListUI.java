@@ -21,6 +21,7 @@ import com.uiptv.widget.InlinePanelService;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
+import com.uiptv.widget.SearchFieldBehavior;
 import com.uiptv.widget.SearchableFilterableTableView;
 import javafx.application.Platform;
 import javafx.application.HostServices;
@@ -414,7 +415,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         configureAccountGrid();
         configureAccountScrollPane();
         configureBrowserLayout();
-        listView.getChildren().setAll(accountToolbar, accountScrollPane);
+        listView.getChildren().setAll(accountToolbar, createSearchRow(), accountScrollPane);
         getChildren().setAll(pageContainer);
 
         initDetailView();
@@ -501,7 +502,6 @@ public class AccountListUI extends HBox implements SearchTarget {
         headerActions.setAlignment(Pos.CENTER_RIGHT);
         return new AppPageHeader(
                 I18n.tr("autoAccount"),
-                table.getTextField(),
                 headerActions
         );
     }
@@ -520,6 +520,24 @@ public class AccountListUI extends HBox implements SearchTarget {
         toolbar.widthProperty().addListener((_, _, _) -> applyResponsiveFilterToolbarLayout(toolbar, inlineRow, accountTypePillBar, actions));
         Platform.runLater(() -> applyResponsiveFilterToolbarLayout(toolbar, inlineRow, accountTypePillBar, actions));
         return toolbar;
+    }
+
+    private HBox createSearchRow() {
+        table.getTextField().setPromptText(I18n.tr("commonSearch"));
+        table.getTextField().getStyleClass().add("uiptv-page-search-field");
+        table.getTextField().setMinWidth(0);
+        table.getTextField().setPrefWidth(420);
+        table.getTextField().setMaxWidth(Double.MAX_VALUE);
+        SearchFieldBehavior.installMouseClear(table.getTextField());
+
+        HBox searchRow = new HBox(table.getTextField());
+        searchRow.setAlignment(Pos.CENTER_LEFT);
+        searchRow.setFillHeight(false);
+        searchRow.setMinWidth(0);
+        searchRow.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(table.getTextField(), Priority.ALWAYS);
+        searchRow.getStyleClass().add("account-search-row");
+        return searchRow;
     }
 
     private HBox createInlineFilterToolbarRow(PillBar<?> pillBar, HBox actions) {
