@@ -7,24 +7,13 @@ import com.uiptv.util.I18n;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Button;
-import javafx.scene.control.CheckBox;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.Hyperlink;
-import javafx.scene.Scene;
-import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
+import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class M3U8PublicationInline extends VBox {
     private static final String CUSTOMIZED_CHECKBOX_STYLE_CLASS = "published-m3u-customized-checkbox";
@@ -168,7 +157,9 @@ public class M3U8PublicationInline extends VBox {
 
         private AccountNode(M3U8PublicationService.PlaylistAccountSummary account) {
             this.account = account;
-            this.detailsSupported = !service.isBookmarksPlaylistAccountId(account.accountId());
+            this.detailsSupported = !service.isBookmarksPlaylistAccountId(account.accountId())
+                    && !service.isWatchingNowSeriesPlaylistAccountId(account.accountId())
+                    && !service.isWatchingNowVodPlaylistAccountId(account.accountId());
             this.baseSelection = savedSelections.accountIds().contains(account.accountId());
             this.checkBox = new CheckBox(account.accountName());
             this.childrenBox = new VBox(6);

@@ -10,10 +10,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static com.uiptv.util.AppLog.addInfoLog;
-import static com.uiptv.util.ServerUrlUtil.getConfiguredHttpsServerPort;
-import static com.uiptv.util.ServerUrlUtil.getConfiguredServerPort;
-import static com.uiptv.util.ServerUrlUtil.getServerBindAddresses;
-import static com.uiptv.util.ServerUrlUtil.isHttpsServerEnabled;
+import static com.uiptv.util.ServerUrlUtil.*;
 
 public class UIptvServer {
     private static final int MIN_HTTP_WORKERS = 20;
@@ -80,6 +77,8 @@ public class UIptvServer {
         routes.addPrefixPath("/proxy-stream", adapt(new HttpProxyStreamServer()));
         routes.addExactPath("/bingewatch.m3u8", adapt(new HttpBingeWatchPlaylistServer()));
         routes.addPrefixPath("/bingwatch", adapt(new HttpBingeWatchEntryServer()));
+        routes.addExactPath("/watchingNowSeriesEntry", adapt(new HttpWatchingNowSeriesM3u8EntryServer()));
+        routes.addExactPath("/watchingNowVodEntry", adapt(new HttpWatchingNowVodM3u8EntryServer()));
 
         // API JSON servers
         routes.addExactPath("/accounts", adapt(new HttpAccountJsonServer()));

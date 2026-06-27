@@ -4,20 +4,11 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
-import com.uiptv.model.Channel;
-import com.uiptv.model.Account;
-import com.uiptv.model.Bookmark;
-import com.uiptv.model.PlayerResponse;
-import com.uiptv.model.SeriesWatchState;
+import com.uiptv.model.*;
 import com.uiptv.server.HttpBingeWatchEntryServer;
 import com.uiptv.server.HttpBingeWatchPlaylistServer;
 import com.uiptv.server.TestHttpExchange;
-import com.uiptv.service.AccountService;
-import com.uiptv.service.BingeWatchService;
-import com.uiptv.service.BookmarkService;
-import com.uiptv.service.ConfigurationService;
-import com.uiptv.service.M3U8PublicationService;
-import com.uiptv.service.PlayerService;
+import com.uiptv.service.*;
 import com.uiptv.testsupport.DbBackedTest;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.HttpUtil;
@@ -498,5 +489,20 @@ class HttpM3u8ServersTest extends DbBackedTest {
         public HttpPrincipal getPrincipal() {
             return null;
         }
+    }
+
+    @Test
+    void getAvailableAccounts_includesWatchingNowVirtualAccounts() {
+        List<M3U8PublicationService.PlaylistAccountSummary> accounts = M3U8PublicationService.getInstance().getAvailableAccounts();
+        List<String> ids = accounts.stream()
+                .map(M3U8PublicationService.PlaylistAccountSummary::accountId)
+                .toList();
+        assertTrue(ids.contains(M3U8PublicationService.WATCHING_NOW_SERIES_PLAYLIST_ACCOUNT_ID));
+        assertTrue(ids.contains(M3U8PublicationService.WATCHING_NOW_VOD_PLAYLIST_ACCOUNT_ID));
+        List<String> names = accounts.stream()
+                .map(M3U8PublicationService.PlaylistAccountSummary::accountName)
+                .toList();
+        assertTrue(names.contains(M3U8PublicationService.WATCHING_NOW_SERIES_PLAYLIST_NAME));
+        assertTrue(names.contains(M3U8PublicationService.WATCHING_NOW_VOD_PLAYLIST_NAME));
     }
 }
