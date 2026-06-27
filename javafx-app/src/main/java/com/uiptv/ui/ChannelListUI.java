@@ -609,8 +609,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (searchBox.getChildren().isEmpty()) {
             return;
         }
-        table.getSearchTextField().setVisible(false);
-        table.getSearchTextField().setManaged(false);
+        table.getSearchTextField().setVisible(true);
+        table.getSearchTextField().setManaged(true);
         Node content = channelGridScroll;
         if (content instanceof Region region) {
             region.setMinWidth(0);

@@ -334,7 +334,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     }
 
     @Test
-    void activeBrowserSearchOnlyFiltersRightSideBrowser() throws Exception {
+    void activeBrowserSearchFiltersAccountsAndBrowser() throws Exception {
         BrowserSearchClearSnapshot snapshot = runOnFxThread(() -> {
             AccountListUI ui = new AccountListUI(null, null);
             RecordingCategoryListUI activeBrowser = new RecordingCategoryListUI();
@@ -358,7 +358,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
             );
         });
 
-        assertEquals(List.of("Sports Account", "Movies Account", "News Account"), snapshot.visibleAccounts());
+        assertEquals(List.of("Movies Account"), snapshot.visibleAccounts());
         assertEquals("movies", snapshot.browserQueries().getLast());
     }
 

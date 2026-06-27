@@ -1364,12 +1364,8 @@ public class AccountListUI extends HBox implements SearchTarget {
     public void setSearchQuery(String query) {
         String value = query == null ? "" : query;
         accountHeaderSearchText = value;
-        if (headerSearchMode != HeaderSearchMode.ACCOUNTS) {
-            return;
-        }
         if (!Objects.equals(table.getTextField().getText(), value)) {
             table.getTextField().setText(value);
-            return;
         }
         applyAccountOrdering();
     }
@@ -1379,13 +1375,12 @@ public class AccountListUI extends HBox implements SearchTarget {
             return;
         }
         String value = text == null ? "" : text;
-        if (headerSearchMode == HeaderSearchMode.ACTIVE_BROWSER) {
-            browserHeaderSearchText = value;
-            applyActiveBrowserSearch();
-            return;
-        }
         accountHeaderSearchText = value;
+        browserHeaderSearchText = value;
         applyAccountOrdering();
+        if (headerSearchMode == HeaderSearchMode.ACTIVE_BROWSER) {
+            applyActiveBrowserSearch();
+        }
     }
 
     private void switchHeaderSearchMode(HeaderSearchMode mode, boolean resetBrowserSearch) {
@@ -1404,10 +1399,9 @@ public class AccountListUI extends HBox implements SearchTarget {
         } finally {
             updatingHeaderSearchText = false;
         }
+        applyAccountOrdering();
         if (headerSearchMode == HeaderSearchMode.ACTIVE_BROWSER) {
             applyActiveBrowserSearch();
-        } else {
-            applyAccountOrdering();
         }
     }
 
@@ -1417,6 +1411,7 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     private void replaceBrowserHeaderSearchText(String text) {
         browserHeaderSearchText = text == null ? "" : text;
+        accountHeaderSearchText = browserHeaderSearchText;
         if (headerSearchMode != HeaderSearchMode.ACTIVE_BROWSER) {
             return;
         }
@@ -1428,6 +1423,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         } finally {
             updatingHeaderSearchText = false;
         }
+        applyAccountOrdering();
         applyActiveBrowserSearch();
     }
 
@@ -1449,7 +1445,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         if (item == null) {
             return false;
         }
-        String searchText = headerSearchMode == HeaderSearchMode.ACCOUNTS ? accountHeaderSearchText : "";
+        String searchText = accountHeaderSearchText;
         String normalizedSearch = searchText == null ? "" : searchText.trim().toLowerCase(Locale.ROOT);
         String accountNameValue = item.getAccountName() == null ? "" : item.getAccountName();
         boolean matchesSearch = normalizedSearch.isBlank()

@@ -447,9 +447,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private void showListView(boolean abandonActiveLoad) {
-        if (getChildren().contains(detailPane)) {
-            replaceSearchText("", true);
-        }
         if (abandonActiveLoad) {
             abandonActiveChannelView();
         }
@@ -496,7 +493,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
         detailTitle.setText(title);
         updateDetailHeaderChildren();
         detailContent.getChildren().setAll(ui);
-        ui.setSearchQuery(searchText);
         ui.setMinWidth(0);
         ui.setMaxWidth(Double.MAX_VALUE);
         ui.setMinHeight(0);
@@ -555,18 +551,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
     @Override
     public void setSearchQuery(String searchText) {
-        String value = searchText == null ? "" : searchText;
-        if (Objects.equals(this.searchText, value)) {
-            return;
-        }
-        replaceSearchText(value, false);
-        searchTextField.setText(value);
-        ModeState state = modeStates.get(activeMode);
-        if (getChildren().contains(detailPane) && state != null && state.channelListUI != null) {
-            state.channelListUI.setSearchQuery(value);
-            return;
-        }
-        rebuildCategoryCards();
+        // No-op: category search must only be controlled by its own search field.
+        // The account/header search must not leak into the category or channel lists.
     }
 
     private void replaceSearchText(String value, boolean updateHeader) {
