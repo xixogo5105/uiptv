@@ -281,7 +281,7 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         if (data == null || isBlank(query)) {
             return true;
         }
-        return safe(data.displayTitle).equalsIgnoreCase(query);
+        return safe(data.displayTitle).toLowerCase(Locale.ROOT).contains(query);
     }
 
     private String vodListPlaceholderText() {

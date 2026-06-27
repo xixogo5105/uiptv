@@ -427,7 +427,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (data == null || isBlank(query)) {
             return true;
         }
-        return safe(data.seriesTitle).equalsIgnoreCase(query);
+        return safe(data.seriesTitle).toLowerCase(Locale.ROOT).contains(query);
     }
 
     private void appendSearchText(StringBuilder builder, String... values) {
