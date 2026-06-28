@@ -42,27 +42,49 @@ public class RemoteSyncClientService {
                                                     RemoteSyncOptions options,
                                                     RemoteSyncProgressListener progressListener) throws IOException, SQLException {
         String baseUrl = buildBaseUrl(host, port);
-        notifyProgress(progressListener, RemoteSyncProgressStep.CONNECTING, null);
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Remote sync EXPORT: host=" + host + " port=" + port);        notifyProgress(progressListener, RemoteSyncProgressStep.CONNECTING, null);
         httpClient.checkHealth(baseUrl);
-
         String verificationCode = VerificationCodeGenerator.createFourDigitCode();
-        RemoteSyncSessionState session = httpClient.createSession(baseUrl, buildRequest(RemoteSyncDirection.EXPORT_TO_REMOTE, verificationCode, options));
-        awaitReadyState(baseUrl, session.sessionId(), RemoteSyncStatus.APPROVED, verificationCode, progressListener);
-        RemoteSyncOptions transferOptions = session.options();
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Verification code created");        RemoteSyncSessionState session = httpClient.createSession(baseUrl, buildRequest(RemoteSyncDirection.EXPORT_TO_REMOTE, verificationCode, options));
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Creating session...");        awaitReadyState(baseUrl, session.sessionId(), RemoteSyncStatus.APPROVED, verificationCode, progressListener);
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Waiting for session approval...");        RemoteSyncOptions transferOptions = session.options();
 
         notifyProgress(progressListener, RemoteSyncProgressStep.CREATING_SNAPSHOT, null);
-        Path payloadPath = createTransferPayload(SQLConnection.getDatabasePath(), transferOptions);
-        Path uploadPath = prepareOutboundTransfer(payloadPath, session.sessionId(), verificationCode, transferOptions);
-        try {
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Creating snapshot payload...");        Path payloadPath = createTransferPayload(SQLConnection.getDatabasePath(), transferOptions);
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Payload created");        Path uploadPath = prepareOutboundTransfer(payloadPath, session.sessionId(), verificationCode, transferOptions);
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Prepared outbound transfer");        try {
             notifyProgress(progressListener, RemoteSyncProgressStep.UPLOADING, null);
-            RemoteSyncExecutionResult result = httpClient.uploadSnapshot(baseUrl, session.sessionId(), uploadPath);
-            notifyProgress(progressListener, RemoteSyncProgressStep.FINISHED, null);
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Uploading...");            RemoteSyncExecutionResult result = uploadSnapshotWithRemoteFailureContext(baseUrl, session.sessionId(), uploadPath);
+        AppLog.addInfoLog(RemoteSyncClientService.class, "Upload completed");            notifyProgress(progressListener, RemoteSyncProgressStep.FINISHED, null);
             return result;
         } finally {
             Files.deleteIfExists(payloadPath);
             if (!uploadPath.equals(payloadPath)) {
                 Files.deleteIfExists(uploadPath);
             }
+        }
+    }
+
+    private RemoteSyncExecutionResult uploadSnapshotWithRemoteFailureContext(String baseUrl,
+                                                                            String sessionId,
+                                                                            Path uploadPath) throws IOException {
+        try {
+            return httpClient.uploadSnapshot(baseUrl, sessionId, uploadPath);
+        } catch (IOException uploadFailure) {
+            RemoteSyncSessionState remoteState = readRemoteStateAfterUploadFailure(baseUrl, sessionId);
+            if (remoteState != null && remoteState.status() == RemoteSyncStatus.FAILED
+                    && remoteState.message() != null && !remoteState.message().isBlank()) {
+                throw new IOException(remoteState.message(), uploadFailure);
+            }
+            throw uploadFailure;
+        }
+    }
+
+    private RemoteSyncSessionState readRemoteStateAfterUploadFailure(String baseUrl, String sessionId) {
+        try {
+            return httpClient.getSessionState(baseUrl, sessionId);
+        } catch (IOException ignored) {
+            return null;
         }
     }
 
@@ -201,15 +223,34 @@ public class RemoteSyncClientService {
     }
 
     private String buildBaseUrl(String host, int port) {
-        return "http://" + normalizeHost(host) + ":" + port;
-    }
-
-    private String normalizeHost(String host) {
-        String normalized = host == null ? "" : host.trim();
-        normalized = normalized.replaceFirst("^https?://", "");
-        int slashIndex = normalized.indexOf('/');
-        return slashIndex >= 0 ? normalized.substring(0, slashIndex) : normalized;
-    }
+        if (host == null || host.isBlank()) {
+            return "http://localhost:" + port;
+           }
+        String lowerHost = host.toLowerCase();
+        String prefix;
+        int prefixLen;
+        if (lowerHost.startsWith("https://")) {
+            prefix = "https://";
+            prefixLen = 8;
+         } else if (lowerHost.startsWith("http://")) {
+            prefix = "http://";
+            prefixLen = 7;
+         } else {
+            prefix = "http://";
+            prefixLen = 0;
+         }
+        String hostPart = lowerHost.substring(prefixLen);
+         // Extract hostname only (strip port and path)
+        int pathIndex = hostPart.indexOf(47);
+        if (pathIndex >= 0) {
+            hostPart = hostPart.substring(0, pathIndex);
+          }
+        int portIndex = hostPart.indexOf(58);
+        if (portIndex >= 0) {
+            hostPart = hostPart.substring(0, portIndex);
+         }
+        return prefix + hostPart + ":" + port;
+        }
 
     private String resolveRequesterName() {
         try {

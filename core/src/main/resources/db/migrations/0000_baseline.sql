@@ -69,7 +69,27 @@ CREATE TABLE IF NOT EXISTS Configuration
     filterLockUnlockDurationMinutes
     TEXT
     default
-       '15'
+       '15',
+    vlcNoVideoTitleShow
+    TEXT
+    default
+       '1',
+    vlcQuiet
+    TEXT
+    default
+       '1',
+    vlcHttpReconnect
+    TEXT
+    default
+       '1',
+    vlcAdaptiveUseAccess
+    TEXT
+    default
+       '1',
+    vlcVout
+    TEXT,
+    vlcAvcodecHw
+    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS Account

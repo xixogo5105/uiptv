@@ -147,4 +147,33 @@ public class ConfigurationService {
         );
     }
 
+    public boolean isVlcNoVideoTitleShow() {
+        Configuration configuration = read();
+        return configuration == null || configuration.isVlcNoVideoTitleShow();
+    }
+
+    public boolean isVlcQuiet() {
+        Configuration configuration = read();
+        return configuration == null || configuration.isVlcQuiet();
+    }
+
+    public boolean isVlcHttpReconnect() {
+        Configuration configuration = read();
+        return configuration == null || configuration.isVlcHttpReconnect();
+    }
+
+    public boolean isVlcAdaptiveUseAccess() {
+        Configuration configuration = read();
+        return configuration == null || configuration.isVlcAdaptiveUseAccess();
+    }
+
+    public String getVlcVout() {
+        Configuration configuration = read();
+        return configuration != null ? configuration.getVlcVout() : null;
+    }
+
+    public String getVlcAvcodecHw() {
+        Configuration configuration = read();
+        return configuration != null ? configuration.getVlcAvcodecHw() : null;
+    }
 }

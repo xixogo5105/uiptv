@@ -131,6 +131,60 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
     }
 
     @Test
+    void exportToRemote_reportsRemoteFailureMessageWhenUploadPipeBreaks() throws Exception {
+        saveLocalAccount("local-account");
+        FakeRemoteSyncHttpClient httpClient = new FakeRemoteSyncHttpClient();
+        httpClient.nextCreatedState = new RemoteSyncSessionState(
+                "failed-upload-session",
+                RemoteSyncDirection.EXPORT_TO_REMOTE,
+                RemoteSyncStatus.PENDING_APPROVAL,
+                "1234",
+                "machine-a",
+                "10.0.0.9",
+                new RemoteSyncOptions(true, false),
+                "Awaiting approval."
+        );
+        httpClient.statusResponses.add(new RemoteSyncSessionState(
+                "failed-upload-session",
+                RemoteSyncDirection.EXPORT_TO_REMOTE,
+                RemoteSyncStatus.APPROVED,
+                "1234",
+                "machine-a",
+                "10.0.0.9",
+                new RemoteSyncOptions(true, false),
+                "Approved."
+        ));
+        httpClient.statusResponses.add(new RemoteSyncSessionState(
+                "failed-upload-session",
+                RemoteSyncDirection.EXPORT_TO_REMOTE,
+                RemoteSyncStatus.FAILED,
+                "1234",
+                "machine-a",
+                "10.0.0.9",
+                new RemoteSyncOptions(true, false),
+                "Remote database sync failed."
+        ));
+        httpClient.uploadFailure = new IOException("Broken pipe");
+
+        RemoteSyncClientService service = new RemoteSyncClientService(
+                httpClient,
+                new DatabaseSnapshotService(),
+                DatabaseSyncService.getInstance()
+        );
+
+        IOException failure = assertThrows(IOException.class, () -> service.exportToRemote(
+                "127.0.0.1",
+                8888,
+                new RemoteSyncOptions(true, false),
+                (step, detail) -> {
+                }
+        ));
+
+        assertEquals("Remote database sync failed.", failure.getMessage());
+        assertEquals("Broken pipe", failure.getCause().getMessage());
+    }
+
+    @Test
     void importFromRemote_downloadsSnapshot_syncsLocally_andCompletesRemote() throws Exception {
         Path remoteSourceDb = tempDir.resolve("remote-source.db");
         initializeDatabase(remoteSourceDb);
@@ -334,6 +388,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         private RemoteSyncRequest lastRequest;
         private Path downloadSource;
         private boolean downloadAsEncryptedArchive;
+        private IOException uploadFailure;
         private boolean healthChecked;
         private String lastUploadedSessionId;
         private Path lastUploadedSnapshot;
@@ -359,6 +414,9 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
 
         @Override
         public RemoteSyncExecutionResult uploadSnapshot(String baseUrl, String sessionId, Path snapshotPath) throws IOException {
+            if (uploadFailure != null) {
+                throw uploadFailure;
+            }
             lastUploadedSessionId = sessionId;
             lastUploadedSnapshot = Files.createTempFile("remote-client-upload-", ".db");
             Files.copy(snapshotPath, lastUploadedSnapshot, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -405,5 +463,34 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
             completedSuccess = success;
             completedMessage = message;
         }
+    }
+
+    @Test
+    void buildBaseUrl_preservesHttpScheme() throws Exception {
+        RemoteSyncClientService service = new RemoteSyncClientService(
+                new FakeRemoteSyncHttpClient(),
+                new DatabaseSnapshotService(),
+                DatabaseSyncService.getInstance()
+            );
+
+            // Use reflection to access private buildBaseUrl method
+        var method = RemoteSyncClientService.class.getDeclaredMethod("buildBaseUrl", String.class, int.class);
+        method.setAccessible(true);
+
+            // Test with http:// prefix
+        String result1 = (String) method.invoke(service, "http://10.0.0.5", 8888);
+        assertEquals("http://10.0.0.5:8888", result1);
+
+            // Test with https:// prefix
+        String result2 = (String) method.invoke(service, "https://10.0.0.5", 8888);
+        assertEquals("https://10.0.0.5:8888", result2);
+
+            // Test without prefix
+        String result3 = (String) method.invoke(service, "10.0.0.5", 8888);
+        assertEquals("http://10.0.0.5:8888", result3);
+
+            // Test with port in URL
+        String result4 = (String) method.invoke(service, "http://10.0.0.5:9000", 8888);
+        assertEquals("http://10.0.0.5:8888", result4);
     }
 }

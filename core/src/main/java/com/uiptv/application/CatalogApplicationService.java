@@ -7,6 +7,7 @@ import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.db.VodCategoryDb;
 import com.uiptv.db.VodChannelDb;
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Category;
 import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
@@ -253,10 +254,11 @@ public class CatalogApplicationService {
 
     private Account resolveAccount(String accountId, CatalogMode mode) {
         Account account = AccountService.getInstance().getById(accountId);
-        if (account != null) {
-            account.setAction((mode == null ? CatalogMode.ITV : mode).toAccountAction());
+        if (account == null) {
+            return null;
         }
-        return account;
+        AccountMediaContext context = AccountMediaContext.from(account, (mode == null ? CatalogMode.ITV : mode).toAccountAction());
+        return context == null ? null : context.toAccount();
     }
 
     private boolean shouldServeSeriesEpisodes(Account account, String categoryId, String movieId) {

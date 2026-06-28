@@ -3,6 +3,7 @@ package com.uiptv.server.api.json;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.AccountService;
@@ -49,7 +50,7 @@ public class HttpBingeWatchSessionJsonServer implements HttpHandler {
             writeJson(ex, 404, "{\"status\":\"error\",\"message\":\"account not found\"}");
             return;
         }
-        account.setAction(Account.AccountAction.series);
+        account = AccountMediaContext.from(account, Account.AccountAction.series).toAccount();
 
         SeriesWatchState watchState = SeriesWatchStateService.getInstance()
                 .getSeriesLastWatched(accountId, categoryId, seriesId);

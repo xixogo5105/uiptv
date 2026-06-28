@@ -138,7 +138,9 @@ public class M3U8PublicationPopup extends VBox {
 
         private AccountNode(M3U8PublicationService.PlaylistAccountSummary account) {
             this.account = account;
-            this.detailsSupported = !service.isBookmarksPlaylistAccountId(account.accountId());
+            this.detailsSupported = !service.isBookmarksPlaylistAccountId(account.accountId())
+                    && !service.isWatchingNowSeriesPlaylistAccountId(account.accountId())
+                    && !service.isWatchingNowVodPlaylistAccountId(account.accountId());
             this.baseSelection = savedSelections.accountIds().contains(account.accountId());
             this.checkBox = new CheckBox(account.accountName());
             this.childrenBox = new VBox(6);

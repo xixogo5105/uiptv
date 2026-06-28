@@ -24,12 +24,14 @@ import com.uiptv.util.XtremeApiParser;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CatalogApplicationServiceTest extends DbBackedTest {
@@ -47,11 +49,16 @@ class CatalogApplicationServiceTest extends DbBackedTest {
             accountServiceStatic.when(AccountService::getInstance).thenReturn(accountService);
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
             Mockito.when(accountService.getById("1")).thenReturn(account);
-            Mockito.when(categoryService.get(account)).thenReturn(List.of(category));
+            Mockito.when(categoryService.get(Mockito.any(Account.class))).thenReturn(List.of(category));
 
             List<Category> resolved = CatalogApplicationService.getInstance().listCategories("1", CatalogMode.SERIES);
 
-            assertEquals(Account.AccountAction.series, account.getAction());
+            ArgumentCaptor<Account> serviceAccount = ArgumentCaptor.forClass(Account.class);
+            Mockito.verify(categoryService).get(serviceAccount.capture());
+            assertEquals(Account.AccountAction.itv, account.getAction());
+            assertEquals(Account.AccountAction.series, serviceAccount.getValue().getAction());
+            assertEquals(account.getAccountName(), serviceAccount.getValue().getAccountName());
+            assertNotSame(account, serviceAccount.getValue());
             assertEquals(1, resolved.size());
             assertEquals("Sports", resolved.getFirst().getTitle());
         }

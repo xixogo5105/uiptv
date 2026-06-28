@@ -78,7 +78,13 @@ public class DatabaseUtils {
                 new DataColumn("enableVlcHttpUserAgent", "TEXT"),
                 new DataColumn("enableVlcHttpForwardCookies", "TEXT"),
                 new DataColumn("resolveChainAndDeepRedirects", "TEXT"),
-                new DataColumn("filterLockUnlockDurationMinutes", "TEXT")
+                new DataColumn("filterLockUnlockDurationMinutes", "TEXT"),
+                new DataColumn("vlcNoVideoTitleShow", "TEXT"),
+                new DataColumn("vlcQuiet", "TEXT"),
+                new DataColumn("vlcHttpReconnect", "TEXT"),
+                new DataColumn("vlcAdaptiveUseAccess", "TEXT"),
+                new DataColumn("vlcVout", "TEXT"),
+                new DataColumn("vlcAvcodecHw", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),

@@ -202,6 +202,42 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
     }
 
     @Test
+    void exportSession_acceptUploadMarksSessionFailedWhenUploadCopyFails() throws Exception {
+        Path remoteDb = tempDir.resolve("remote-copy-failure.db");
+        initializeDatabase(remoteDb);
+
+        RecordingNotifier notifier = new RecordingNotifier();
+        RemoteSyncSessionService service = new RemoteSyncSessionService(
+                snapshotService,
+                DatabaseSyncService.getInstance(),
+                Clock.systemUTC(),
+                (request, decisionConsumer) -> decisionConsumer.accept(true),
+                notifier
+        );
+
+        String sessionId = withDatabase(remoteDb, () -> service.createSession(
+                new RemoteSyncRequest(
+                        RemoteSyncDirection.EXPORT_TO_REMOTE,
+                        "3333",
+                        "machine-a",
+                        new RemoteSyncOptions(true, false)
+                ),
+                "10.0.0.8"
+        ).sessionId());
+
+        IOException failure = assertThrows(
+                IOException.class,
+                () -> withDatabase(remoteDb, () -> service.acceptUpload(sessionId, new FailingInputStream()))
+        );
+
+        assertEquals("upload stream closed", failure.getMessage());
+        RemoteSyncSessionState failed = service.getSessionState(sessionId);
+        assertEquals(RemoteSyncStatus.FAILED, failed.status());
+        assertEquals("Remote database sync failed.", failed.message());
+        assertTrue(notifier.infoMessages.contains("remoteSyncRemoteFailedMessage"));
+    }
+
+    @Test
     void importSession_preparesDownloadSnapshot_andCompletionCleansUp() throws Exception {
         Path remoteDb = tempDir.resolve("remote-import.db");
         Path targetDb = tempDir.resolve("import-target.db");
@@ -462,6 +498,18 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         @Override
         public void showError(String message) {
             infoMessages.add(message);
+        }
+    }
+
+    private static final class FailingInputStream extends InputStream {
+        @Override
+        public int read() throws IOException {
+            throw new IOException("upload stream closed");
+        }
+
+        @Override
+        public int read(byte[] buffer, int offset, int length) throws IOException {
+            throw new IOException("upload stream closed");
         }
     }
 

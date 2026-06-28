@@ -154,6 +154,12 @@ public class ConfigurationUI extends VBox {
     private String vlcLiveCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
     private boolean vlcHttpUserAgentEnabled = true;
     private boolean vlcHttpForwardCookiesEnabled = true;
+     private boolean vlcNoVideoTitleShow = true;
+     private boolean vlcQuiet = true;
+     private boolean vlcHttpReconnect = true;
+     private boolean vlcAdaptiveUseAccess = true;
+     private boolean vlcVoutEnabled = false;
+     private boolean vlcAvcodecHwEnabled = false;
     @SuppressWarnings("java:S1450")
     private Timeline serverStatusTimeline;
     @SuppressWarnings("java:S1450")
@@ -956,6 +962,12 @@ public class ConfigurationUI extends VBox {
         vlcLiveCachingMs = service.normalizeVlcCachingMs(configuration.getVlcLiveCachingMs());
         vlcHttpUserAgentEnabled = configuration.isEnableVlcHttpUserAgent();
         vlcHttpForwardCookiesEnabled = configuration.isEnableVlcHttpForwardCookies();
+         vlcNoVideoTitleShow = configuration.isVlcNoVideoTitleShow();
+         vlcQuiet = configuration.isVlcQuiet();
+         vlcHttpReconnect = configuration.isVlcHttpReconnect();
+         vlcAdaptiveUseAccess = configuration.isVlcAdaptiveUseAccess();
+         vlcVoutEnabled = configuration.getVlcVout() != null && !configuration.getVlcVout().isBlank();
+         vlcAvcodecHwEnabled = configuration.getVlcAvcodecHw() != null && !configuration.getVlcAvcodecHw().isBlank();
         languageComboBox.getSelectionModel().select(I18n.resolveSupportedLanguage(configuration.getLanguageLocale()));
         themeZoomComboBox.getSelectionModel().select(Integer.valueOf(service.normalizeUiZoomPercent(configuration.getUiZoomPercent())));
     }
@@ -1026,6 +1038,12 @@ public class ConfigurationUI extends VBox {
         configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
         configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
         configuration.setEnableVlcHttpForwardCookies(vlcHttpForwardCookiesEnabled);
+         configuration.setVlcNoVideoTitleShow(vlcNoVideoTitleShow);
+         configuration.setVlcQuiet(vlcQuiet);
+         configuration.setVlcHttpReconnect(vlcHttpReconnect);
+         configuration.setVlcAdaptiveUseAccess(vlcAdaptiveUseAccess);
+         configuration.setVlcVout(vlcVoutEnabled ? "true" : null);
+         configuration.setVlcAvcodecHw(vlcAvcodecHwEnabled ? "true" : null);
         return configuration;
     }
 
@@ -1121,7 +1139,13 @@ public class ConfigurationUI extends VBox {
         return !Objects.equals(service.normalizeVlcCachingMs(previous.getVlcNetworkCachingMs()), service.normalizeVlcCachingMs(current.getVlcNetworkCachingMs()))
                 || !Objects.equals(service.normalizeVlcCachingMs(previous.getVlcLiveCachingMs()), service.normalizeVlcCachingMs(current.getVlcLiveCachingMs()))
                 || previous.isEnableVlcHttpUserAgent() != current.isEnableVlcHttpUserAgent()
-                || previous.isEnableVlcHttpForwardCookies() != current.isEnableVlcHttpForwardCookies();
+                || previous.isEnableVlcHttpForwardCookies() != current.isEnableVlcHttpForwardCookies()
+                || previous.isVlcNoVideoTitleShow() != current.isVlcNoVideoTitleShow()
+                || previous.isVlcQuiet() != current.isVlcQuiet()
+                || previous.isVlcHttpReconnect() != current.isVlcHttpReconnect()
+                || previous.isVlcAdaptiveUseAccess() != current.isVlcAdaptiveUseAccess()
+                || !Objects.equals(previous.getVlcVout(), current.getVlcVout())
+                || !Objects.equals(previous.getVlcAvcodecHw(), current.getVlcAvcodecHw());
     }
 
     private void updateVlcOptionsLinkVisibility() {
@@ -1149,12 +1173,24 @@ public class ConfigurationUI extends VBox {
         ComboBox<VlcCachingOption> liveCachingComboBox = createVlcCachingComboBox();
         CheckBox userAgentCheckBox = new CheckBox(I18n.tr("configVlcEnableUserAgent"));
         CheckBox forwardCookiesCheckBox = new CheckBox(I18n.tr("configVlcForwardCookies"));
+         CheckBox noVideoTitleShowCheckBox = new CheckBox(I18n.tr("configVlcNoVideoTitleShow"));
+         CheckBox quietCheckBox = new CheckBox(I18n.tr("configVlcQuiet"));
+         CheckBox httpReconnectCheckBox = new CheckBox(I18n.tr("configVlcHttpReconnect"));
+         CheckBox adaptiveUseAccessCheckBox = new CheckBox(I18n.tr("configVlcAdaptiveUseAccess"));
+         CheckBox voutCheckBox = new CheckBox(I18n.tr("configVlcVout"));
+         CheckBox avcodecHwCheckBox = new CheckBox(I18n.tr("configVlcAvcodecHw"));
 
         Runnable loadCurrentValues = () -> {
             networkCachingComboBox.getSelectionModel().select(VlcCachingOption.fromValue(vlcNetworkCachingMs));
             liveCachingComboBox.getSelectionModel().select(VlcCachingOption.fromValue(vlcLiveCachingMs));
             userAgentCheckBox.setSelected(vlcHttpUserAgentEnabled);
             forwardCookiesCheckBox.setSelected(vlcHttpForwardCookiesEnabled);
+             noVideoTitleShowCheckBox.setSelected(vlcNoVideoTitleShow);
+             quietCheckBox.setSelected(vlcQuiet);
+             httpReconnectCheckBox.setSelected(vlcHttpReconnect);
+             adaptiveUseAccessCheckBox.setSelected(vlcAdaptiveUseAccess);
+             voutCheckBox.setSelected(vlcVoutEnabled);
+             avcodecHwCheckBox.setSelected(vlcAvcodecHwEnabled);
         };
         loadCurrentValues.run();
 
@@ -1167,6 +1203,12 @@ public class ConfigurationUI extends VBox {
             vlcLiveCachingMs = selectedCachingValue(liveCachingComboBox);
             vlcHttpUserAgentEnabled = userAgentCheckBox.isSelected();
             vlcHttpForwardCookiesEnabled = forwardCookiesCheckBox.isSelected();
+             vlcNoVideoTitleShow = noVideoTitleShowCheckBox.isSelected();
+             vlcQuiet = quietCheckBox.isSelected();
+             vlcHttpReconnect = httpReconnectCheckBox.isSelected();
+             vlcAdaptiveUseAccess = adaptiveUseAccessCheckBox.isSelected();
+             vlcVoutEnabled = voutCheckBox.isSelected();
+             vlcAvcodecHwEnabled = avcodecHwCheckBox.isSelected();
             saveVlcOptionsConfiguration(true);
             popupStage.close();
         });
@@ -1175,6 +1217,12 @@ public class ConfigurationUI extends VBox {
             vlcLiveCachingMs = ConfigurationService.DEFAULT_VLC_CACHING_MS;
             vlcHttpUserAgentEnabled = true;
             vlcHttpForwardCookiesEnabled = true;
+             vlcNoVideoTitleShow = true;
+             vlcQuiet = true;
+             vlcHttpReconnect = true;
+             vlcAdaptiveUseAccess = true;
+             vlcVoutEnabled = false;
+             vlcAvcodecHwEnabled = false;
             saveVlcOptionsConfiguration(true);
             popupStage.close();
         });
@@ -1189,6 +1237,18 @@ public class ConfigurationUI extends VBox {
         gridPane.add(liveCachingComboBox, 1, 1);
         gridPane.add(userAgentCheckBox, 1, 2);
         gridPane.add(forwardCookiesCheckBox, 1, 3);
+         gridPane.add(new Label(I18n.tr("configVlcNoVideoTitleShow")), 0, 4);
+         gridPane.add(new Label(I18n.tr("configVlcQuiet")), 0, 5);
+         gridPane.add(new Label(I18n.tr("configVlcHttpReconnect")), 0, 6);
+         gridPane.add(new Label(I18n.tr("configVlcAdaptiveUseAccess")), 0, 7);
+         gridPane.add(new Label(I18n.tr("configVlcVout")), 0, 8);
+         gridPane.add(new Label(I18n.tr("configVlcAvcodecHw")), 0, 9);
+         gridPane.add(noVideoTitleShowCheckBox, 1, 4);
+         gridPane.add(quietCheckBox, 1, 5);
+         gridPane.add(httpReconnectCheckBox, 1, 6);
+         gridPane.add(adaptiveUseAccessCheckBox, 1, 7);
+         gridPane.add(voutCheckBox, 1, 8);
+         gridPane.add(avcodecHwCheckBox, 1, 9);
         GridPane.setHgrow(networkCachingComboBox, Priority.ALWAYS);
         GridPane.setHgrow(liveCachingComboBox, Priority.ALWAYS);
 
@@ -1248,6 +1308,12 @@ public class ConfigurationUI extends VBox {
         configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
         configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
         configuration.setEnableVlcHttpForwardCookies(vlcHttpForwardCookiesEnabled);
+         configuration.setVlcNoVideoTitleShow(vlcNoVideoTitleShow);
+         configuration.setVlcQuiet(vlcQuiet);
+         configuration.setVlcHttpReconnect(vlcHttpReconnect);
+         configuration.setVlcAdaptiveUseAccess(vlcAdaptiveUseAccess);
+         configuration.setVlcVout(vlcVoutEnabled ? "true" : null);
+         configuration.setVlcAvcodecHw(vlcAvcodecHwEnabled ? "true" : null);
         service.save(configuration);
         applyPostSaveEffects(previous, configuration);
         if (onSaveCallback != null) {

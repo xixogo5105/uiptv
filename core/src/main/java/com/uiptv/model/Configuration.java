@@ -38,6 +38,12 @@ public class Configuration extends BaseJson {
     private boolean enableVlcHttpUserAgent = true;
     private boolean enableVlcHttpForwardCookies = true;
     private boolean resolveChainAndDeepRedirects = false;
+    private boolean vlcNoVideoTitleShow = true;
+    private boolean vlcQuiet = true;
+    private boolean vlcHttpReconnect = true;
+    private boolean vlcAdaptiveUseAccess = true;
+    private String vlcVout;
+    private String vlcAvcodecHw;
 
 
     @SuppressWarnings("java:S107")

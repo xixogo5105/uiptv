@@ -84,32 +84,51 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (!liveCachingMs.isBlank()) {
             vlcArgs.add("--live-caching=" + liveCachingMs);
         }
+        // OS-specific video output and hardware acceleration
+        boolean enableVlcVout = configuration != null && configuration.getVlcVout() != null && !configuration.getVlcVout().isBlank();
+        boolean enableVlcAvcodecHw = configuration != null && configuration.getVlcAvcodecHw() != null && !configuration.getVlcAvcodecHw().isBlank();
+        if (enableVlcVout) {
+            if (SystemUtils.IS_OS_WINDOWS) {
+                vlcArgs.add("--vout=direct3d11");
+            } else if (SystemUtils.IS_OS_LINUX) {
+                vlcArgs.add("--vout=gl");
+            } else if (SystemUtils.IS_OS_MAC_OSX) {
+                vlcArgs.add("--vout=macosx");
+            } else {
+                // Fallback for unknown OS
+                vlcArgs.add("--vout=none");
+            }
+        }
+        if (enableVlcAvcodecHw) {
+            if (SystemUtils.IS_OS_WINDOWS) {
+                vlcArgs.add("--avcodec-hw=d3d11va");
+            } else if (SystemUtils.IS_OS_MAC_OSX) {
+                vlcArgs.add("--avcodec-hw=videotoolbox");
+            } else {
+                // Fallback for unknown OS
+                vlcArgs.add("--avcodec-hw=any");
+            }
+        }
+        if (configuration == null || configuration.isVlcNoVideoTitleShow()) {
+            vlcArgs.add("--no-video-title-show");
+        }
+        if (configuration == null || configuration.isVlcQuiet()) {
+            vlcArgs.add("--quiet");
+        }
+        if (configuration == null || configuration.isVlcHttpReconnect()) {
+            vlcArgs.add("--http-reconnect");
+        }
+        if (configuration == null || configuration.isVlcAdaptiveUseAccess()) {
+            vlcArgs.add("--adaptive-use-access");
+        }
+
+
         if (enableUserAgent) {
             vlcArgs.add("--http-user-agent=" + VLC_HTTP_USER_AGENT);
         }
         if (enableForwardCookies) {
             vlcArgs.add("--http-forward-cookies");
         }
-
-
-        if (SystemUtils.IS_OS_WINDOWS) {
-            vlcArgs.add("--vout=direct3d11");
-            vlcArgs.add("--avcodec-hw=d3d11va");
-        } else if (SystemUtils.IS_OS_LINUX) {
-            vlcArgs.add("--vout=gl");
-        } else if (SystemUtils.IS_OS_MAC_OSX) {
-            vlcArgs.add("--vout=macosx");
-            vlcArgs.add("--avcodec-hw=videotoolbox");
-        } else {
-            // Fallback for unknown OS
-            vlcArgs.add("--vout=none");
-            vlcArgs.add("--avcodec-hw=any");
-        }
-        vlcArgs.add("--no-video-title-show");
-        vlcArgs.add("--quiet");
-        vlcArgs.add("--http-reconnect");
-        vlcArgs.add("--adaptive-use-access");
-
 
         return vlcArgs;
     }
