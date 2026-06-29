@@ -830,7 +830,11 @@ public class ConfigurationUI extends VBox {
     }
 
     private void addDatabaseSyncButtonHandlers() {
-        importDatabaseButton.setOnAction(event -> openDatabaseSyncPopup(true));
+        importDatabaseButton.setOnAction(event -> {
+            if (ensureFilterAccessForPendingSave()) {
+                openDatabaseSyncPopup(true);
+            }
+        });
         exportDatabaseButton.setOnAction(event -> openDatabaseSyncPopup(false));
     }
 
@@ -878,10 +882,11 @@ public class ConfigurationUI extends VBox {
         boolean unlocked = filterLockService.isUnlocked();
 
         filterLockPasswordButton.setText(I18n.tr(passwordSet ? "filterLockChangePasswordAction" : "filterLockSetPasswordAction"));
-        filterUnlockButton.setManaged(passwordSet && !unlocked);
-        filterUnlockButton.setVisible(passwordSet && !unlocked);
-        filterRelockButton.setManaged(passwordSet && unlocked);
-        filterRelockButton.setVisible(passwordSet && unlocked);
+        // Simplify parental lock controls on main: hide unlock/relock buttons; single control via checkbox manages state
+        filterUnlockButton.setManaged(false);
+        filterUnlockButton.setVisible(false);
+        filterRelockButton.setManaged(false);
+        filterRelockButton.setVisible(false);
         filterDisablePasswordCheckBox.setManaged(passwordSet);
         filterDisablePasswordCheckBox.setVisible(passwordSet);
         filterDisablePasswordCheckBox.setSelected(false);
@@ -1057,20 +1062,22 @@ public class ConfigurationUI extends VBox {
 
     private boolean ensureFilterAccessForPendingSave() {
         FilterLockService filterLockService = FilterLockService.getInstance();
+        // If there is no password or the user is already unlocked, proceed as usual
         if (!filterLockService.hasPasswordConfigured() || filterLockService.isUnlocked()) {
             return true;
         }
+        // When locked, allow saving non-sensitive settings without prompting.
+        // Any edits to filter fields will be ignored on save via resolve*ValueForSave() methods.
         boolean filterValuesChanged = !java.util.Objects.equals(filterCategoriesWithTextContains.getText(), persistedFilterCategoriesValue)
                 || !java.util.Objects.equals(filterChannelWithTextContains.getText(), persistedFilterChannelsValue)
                 || filterPausedCheckBox.isSelected() != persistedPauseFilteringValue;
-        if (!filterValuesChanged) {
-            return true;
-        }
-        boolean unlocked = FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON);
-        if (unlocked) {
+        // If filter-related values didn't change, proceed; if they did change, still proceed without prompt
+        // because locked state ensures we won't persist those changes.
+        if (filterValuesChanged) {
+            // Optionally refresh lock UI to make state explicit
             refreshFilterLockUi();
         }
-        return unlocked;
+        return true;
     }
 
     private String resolveFilterCategoriesValueForSave() {
