@@ -374,9 +374,11 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         HttpTextResponse serviceWorker = get("/sw.js");
         assertEquals(200, serviceWorker.statusCode());
-        assertTrue(serviceWorker.body().contains("const CACHE_NAME = 'uiptv-cache-v27';"));
+        assertTrue(serviceWorker.body().contains("const CACHE_NAME = 'uiptv-cache-v28';"));
         assertTrue(serviceWorker.body().contains("/javascript/bookmark-watch-utils.js"));
         assertTrue(serviceWorker.body().contains("/icon-maskable-512.png"));
+        assertTrue(serviceWorker.body().contains("/images/broadcast-on.svg?v=20260705a"));
+        assertTrue(serviceWorker.body().contains("/images/broadcast-off.svg?v=20260705a"));
         assertFalse(serviceWorker.body().contains("Gateway Timeout"));
         assertTrue(serviceWorker.body().contains("networkFirstAppShell"));
         assertTrue(serviceWorker.body().contains("self.addEventListener('fetch'"));

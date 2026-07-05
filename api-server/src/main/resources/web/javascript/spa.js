@@ -2026,6 +2026,12 @@ createApp({
             });
         };
 
+        const broadcastIndicatorSrc = (broadcasting) => {
+            return broadcasting
+                ? '/images/broadcast-on.svg?v=20260705a'
+                : '/images/broadcast-off.svg?v=20260705a';
+        };
+
         const syncPlayerExpandedClass = () => {
             const root = document.getElementById('app');
             if (!root) return;
@@ -4162,6 +4168,7 @@ createApp({
             hidePlayerPanel,
             togglePlayerPanel,
             togglePlayerExpanded,
+            broadcastIndicatorSrc,
             formatPlaybackTime,
             seekPlayback,
             removeRecentlyPlayedBookmark,

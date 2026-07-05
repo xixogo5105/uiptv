@@ -63,7 +63,10 @@
 
             <div class="topbar-actions">
                 <button :class="{ broadcasting: isPlaying || playbackLoading }" @click="togglePlayerPanel" class="soft-button icon-only" type="button" v-if="hasPlayerContent" :title="playerPanelVisible ? 'Hide player' : 'Show player'">
-                    <i :class="(isPlaying || playbackLoading) ? 'bi bi-broadcast' : (playerPanelVisible ? 'bi bi-eye-slash' : 'bi bi-tv')" class="bi"></i>
+                    <img
+                            :alt="(isPlaying || playbackLoading) ? 'Broadcasting' : 'Not broadcasting'"
+                            :src="broadcastIndicatorSrc(isPlaying || playbackLoading)"
+                            class="broadcast-icon">
                 </button>
                 <button @click="clearWebCacheAndReload" class="soft-button icon-only" title="Clear cache and reload" type="button">
                     <i class="bi bi-arrow-repeat"></i>
@@ -130,7 +133,7 @@
                                         class="row-card media-card"
                                         v-for="bookmark in filteredBookmarks">
                                     <span :class="{ active: isActiveBookmark(bookmark) }" class="live-marker" v-if="isActiveBookmark(bookmark)">
-                                        <i class="bi bi-broadcast"></i>
+                                        <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                     </span>
                                     <img :src="bookmark.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img" v-if="bookmark.logo">
                                     <div :style="{ display: bookmark.logo ? 'none' : '' }" class="logo-box">
@@ -286,7 +289,7 @@
                                             class="row-card media-card"
                                             v-for="channel in filteredChannels">
                                         <span :class="{ active: isActiveChannel(channel) }" class="live-marker" v-if="isActiveChannel(channel)">
-                                            <i class="bi bi-broadcast"></i>
+                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                         </span>
                                         <img :src="channel.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img" v-if="channel.logo">
                                         <div :style="{ display: channel.logo ? 'none' : '' }" class="logo-box">
@@ -394,7 +397,7 @@
                                             class="row-card episode-card"
                                             v-for="(episode, idx) in filteredSeriesEpisodes">
                                         <span class="live-marker" v-if="isActiveChannel(episode)">
-                                            <i class="bi bi-broadcast"></i>
+                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                         </span>
                                         <img :src="episode.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img episode-thumb" v-if="episode.logo">
                                         <div :style="{ display: episode.logo ? 'none' : '' }" class="logo-box">
@@ -459,7 +462,7 @@
                                             class="row-card resume-card"
                                             v-for="row in filteredWatchingNowRows">
                                         <span class="live-marker" v-if="isActiveWatchingNowRow(row)">
-                                            <i class="bi bi-broadcast"></i>
+                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                         </span>
                                         <img :src="row.seriesPoster" @error="imageError" @load="imageLoad" alt="" class="poster-thumb" v-if="row.seriesPoster">
                                         <div :style="{ display: row.seriesPoster ? 'none' : '' }" class="poster-fallback small">
@@ -493,7 +496,7 @@
                                             class="row-card resume-card"
                                             v-for="row in filteredWatchingNowVodRows">
                                         <span class="live-marker" v-if="isActiveWatchingNowVodRow(row)">
-                                            <i class="bi bi-broadcast"></i>
+                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                         </span>
                                         <img :src="row.vodLogo" @error="imageError" @load="imageLoad" alt="" class="poster-thumb" v-if="row.vodLogo">
                                         <div :style="{ display: row.vodLogo ? 'none' : '' }" class="poster-fallback small">
@@ -590,7 +593,7 @@
                                             class="row-card episode-card"
                                             v-for="(episode, idx) in filteredSeriesEpisodes">
                                         <span class="live-marker" v-if="isActiveChannel(episode)">
-                                            <i class="bi bi-broadcast"></i>
+                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                         </span>
                                         <img :src="episode.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img episode-thumb" v-if="episode.logo">
                                         <div :style="{ display: episode.logo ? 'none' : '' }" class="logo-box">
