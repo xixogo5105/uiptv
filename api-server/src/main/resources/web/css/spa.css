@@ -608,7 +608,14 @@ a[href] {
 
 .live-marker.active,
 .soft-button.broadcasting {
-    animation: broadcast-pulse 1.2s ease-in-out infinite;
+    color: var(--accent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .live-marker.active,
+    .soft-button.broadcasting {
+        animation: broadcast-pulse 1.2s ease-in-out infinite;
+    }
 }
 
 .soft-button.broadcasting {
@@ -1152,12 +1159,10 @@ a[href] {
     0%,
     100% {
         transform: scale(1);
-        filter: drop-shadow(0 0 0 color-mix(in srgb, var(--accent) 0%, transparent));
         opacity: 0.78;
     }
     50% {
         transform: scale(1.12);
-        filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 64%, transparent));
         opacity: 1;
     }
 }
