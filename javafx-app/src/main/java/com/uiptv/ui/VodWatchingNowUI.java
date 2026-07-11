@@ -162,7 +162,6 @@ public class VodWatchingNowUI extends VBox {
         for (VodPanelData row : rows) {
             panelDataByKey.put(panelKey(row), row);
             contentBox.getChildren().add(createCard(row));
-            triggerImdbLoad(row);
         }
         VBox.setVgrow(contentBox, Priority.ALWAYS);
     }

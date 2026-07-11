@@ -322,10 +322,6 @@ public abstract class BaseWatchingNowUI extends VBox {
 
     private void showThumbnailSeriesList(List<SeriesPanelData> rows) {
         for (SeriesPanelData data : rows) {
-            if (thumbnailsEnabled() && isBlank(resolveSeriesPosterUrl(data)) && !data.imdbLoaded && !data.imdbLoading) {
-                data.imdbLoading = true;
-                lazyLoadImdb(data, null);
-            }
             contentBox.getChildren().add(createSeriesListCard(data));
         }
         selectedSeriesCard = null;

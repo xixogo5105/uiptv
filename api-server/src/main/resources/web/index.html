@@ -106,13 +106,13 @@
 
                     <div class="scroll-area">
                         <div class="content-grid bookmark-grid">
-                            <article class="row-card loading-card" v-if="listLoading">
+                            <article class="row-card loading-card" v-if="bookmarksLoading && bookmarks.length === 0">
                                 <div class="logo-box"><span class="spinner-border spinner-border-sm"></span></div>
                                 <div class="content-copy">
-                                    <div class="title-line">{{ listLoadingMessage }}</div>
+                                    <div class="title-line">{{ bookmarksLoadingMessage }}</div>
                                 </div>
                             </article>
-                            <template v-if="!listLoading">
+                            <template v-if="bookmarks.length > 0">
                                 <article
                                         :class="{
                                             active: isActiveBookmark(bookmark),
@@ -139,20 +139,20 @@
                                     <div :style="{ display: bookmark.logo ? 'none' : '' }" class="logo-box">
                                         {{ fallbackInitials(bookmark.channelName) }}
                                     </div>
-                                    <div class="content-copy">
-                                        <div class="title-line">{{ bookmark.channelName }}</div>
-                                        <div class="meta-line">{{ bookmark.accountName }}</div>
-                                    </div>
-                                    <button @click.stop="removeRecentlyPlayedBookmark(bookmark)" class="row-action-button" title="Clear from recently played" type="button" v-if="isRecentlyPlayedBookmarksSelected">
-                                        <i class="bi bi-trash3"></i>
-                                    </button>
-                                </article>
-                                <div class="empty-state" v-if="filteredBookmarks.length === 0">
-                                    <i class="bi bi-bookmark"></i>
-                                    <strong>{{ bookmarkEmptyTitle }}</strong>
-                                    <span>{{ bookmarkEmptyDetail }}</span>
-                                </div>
+                                        <div class="content-copy">
+                                            <div class="title-line">{{ bookmark.channelName }}</div>
+                                            <div class="meta-line">{{ bookmark.accountName }}</div>
+                                        </div>
+                                        <button @click.stop="removeRecentlyPlayedBookmark(bookmark)" class="row-action-button" title="Clear from recently played" type="button" v-if="isRecentlyPlayedBookmarksSelected">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </article>
                             </template>
+                            <div class="empty-state" v-if="!bookmarksLoading && filteredBookmarks.length === 0">
+                                <i class="bi bi-bookmark"></i>
+                                <strong>{{ bookmarkEmptyTitle }}</strong>
+                                <span>{{ bookmarkEmptyDetail }}</span>
+                            </div>
                         </div>
                     </div>
 

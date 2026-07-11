@@ -30,6 +30,8 @@ createApp({
         let watchingNowVodFetchPromise = null;
         const watchingNowVodLoading = ref(false);
         const selectedAccountId = ref(null);
+        const bookmarksLoading = ref(false);
+        const bookmarksLoadingMessage = ref('Loading bookmarks...');
 
         const currentContext = ref({accountId: null, categoryId: null, accountType: null});
         const currentChannel = ref(null);
@@ -1300,12 +1302,20 @@ createApp({
             return 'bi-display';
         });
 
-        const loadAccounts = async () => {
+        const loadAccounts = async ({background = false} = {}) => {
             try {
+                if (!background) {
+                    listLoading.value = true;
+                    listLoadingMessage.value = 'Loading accounts...';
+                }
                 const response = await fetch(window.location.origin + '/accounts');
                 accounts.value = await response.json();
             } catch (e) {
                 console.error('Failed to load accounts', e);
+            } finally {
+                if (!background) {
+                    listLoading.value = false;
+                }
             }
         };
 
@@ -1622,8 +1632,8 @@ createApp({
         const bookmarkWatchUtils = window.UIPTVBookmarkWatchUtils;
 
         const loadBookmarks = async () => {
-            listLoading.value = true;
-            listLoadingMessage.value = 'Loading bookmarks...';
+            bookmarksLoading.value = true;
+            bookmarksLoadingMessage.value = 'Loading bookmarks...';
             await bookmarkWatchUtils.loadBookmarksPaged({
                 origin: window.location.origin,
                 pageSize: BOOKMARK_PAGE_SIZE,
@@ -1640,7 +1650,7 @@ createApp({
                 nextTick,
                 onError: (e) => console.error('Failed to load bookmarks', e),
                 onDone: () => {
-                    listLoading.value = false;
+                    bookmarksLoading.value = false;
                 }
             });
         };
@@ -3984,6 +3994,7 @@ createApp({
             watchingNowVodLoading.value = false;
             repeatEnabled.value = false;
             listLoading.value = false;
+            bookmarksLoading.value = false;
             selectedSeriesSeason.value = '';
             seriesDetail.value = null;
             vodDetail.value = null;
@@ -4004,13 +4015,11 @@ createApp({
             }
             mountSharedHeader();
             await loadConfig();
-            await Promise.all([
-                loadAccounts(),
-                loadBookmarkCategories(),
-                loadBookmarks(),
-                loadWatchingNow(),
-                loadWatchingNowVod()
-            ]);
+            void loadBookmarkCategories();
+            void loadBookmarks();
+            void loadAccounts({background: true});
+            void loadWatchingNow({background: true});
+            void loadWatchingNowVod({background: true});
 
             const storedTheme = localStorage.getItem('uiptv_theme');
             if (storedTheme) {
@@ -4048,6 +4057,8 @@ createApp({
             currentContext,
             searchQuery,
             searchVisible,
+            bookmarks,
+            bookmarkCategories,
             searchPlaceholder,
             searchFieldVisible,
             selectedAccountTypeFilter,
@@ -4110,6 +4121,8 @@ createApp({
             bingeWatchButtonLabel,
             listLoading,
             listLoadingMessage,
+            bookmarksLoading,
+            bookmarksLoadingMessage,
             watchingNowVodLoading,
             canReorderBookmarks,
             isRecentlyPlayedBookmarksSelected,
