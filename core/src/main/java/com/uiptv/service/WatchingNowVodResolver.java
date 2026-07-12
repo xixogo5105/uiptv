@@ -20,6 +20,14 @@ public class WatchingNowVodResolver {
         return rows;
     }
 
+    public List<VodRow> resolveAllFast() {
+        List<VodRow> rows = new ArrayList<>();
+        for (Account account : AccountService.getInstance().getAll().values()) {
+            rows.addAll(resolveForAccountFast(account));
+        }
+        return rows;
+    }
+
     public List<VodRow> resolveForAccount(Account account) {
         List<VodRow> rows = new ArrayList<>();
         if (account == null || isBlank(account.getDbId())) {
@@ -27,6 +35,20 @@ public class WatchingNowVodResolver {
         }
         for (VodWatchState state : VodWatchStateService.getInstance().getAllByAccount(account.getDbId())) {
             VodRow row = buildRow(account, state);
+            if (row != null) {
+                rows.add(row);
+            }
+        }
+        return rows;
+    }
+
+    public List<VodRow> resolveForAccountFast(Account account) {
+        List<VodRow> rows = new ArrayList<>();
+        if (account == null || isBlank(account.getDbId())) {
+            return rows;
+        }
+        for (VodWatchState state : VodWatchStateService.getInstance().getAllByAccount(account.getDbId())) {
+            VodRow row = buildFastRow(account, state);
             if (row != null) {
                 rows.add(row);
             }
@@ -48,6 +70,16 @@ public class WatchingNowVodResolver {
         String duration = firstNonBlank(providerMetadata.duration, "");
         Channel playbackChannel = mergePlaybackChannel(buildFallbackChannel(state), provider);
         VodMetadata metadata = new VodMetadata(logo, plot, releaseDate, rating, duration);
+        return new VodRow(account, state, playbackChannel, title, metadata);
+    }
+
+    private VodRow buildFastRow(Account account, VodWatchState state) {
+        if (account == null || state == null || isBlank(state.getVodId())) {
+            return null;
+        }
+        Channel playbackChannel = buildFallbackChannel(state);
+        String title = firstNonBlank(state.getVodName(), state.getVodId());
+        VodMetadata metadata = new VodMetadata(safe(state.getVodLogo()), "", "", "", "");
         return new VodRow(account, state, playbackChannel, title, metadata);
     }
 

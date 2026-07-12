@@ -15,7 +15,7 @@ import static com.uiptv.util.ServerUtils.generateJsonResponse;
 public class HttpWatchingNowJsonServer implements HttpHandler {
     @Override
     public void handle(HttpExchange ex) throws IOException {
-        generateJsonResponse(ex, toJson(WatchingNowApplicationService.getInstance().listSeriesRows()));
+        generateJsonResponse(ex, toJson(WatchingNowApplicationService.getInstance().listSeriesRowsFast()));
     }
 
     private String toJson(List<WatchingNowSeriesRow> rows) {
