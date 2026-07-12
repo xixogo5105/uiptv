@@ -23,6 +23,8 @@ createApp({
         const watchingNowLoadedAt = ref(0);
         const WATCHING_NOW_CACHE_TTL_MS = 120000;
         let watchingNowFetchPromise = null;
+        const watchingNowLoading = ref(false);
+        const watchingNowLoadingMessage = ref('Loading Watching Now...');
         const watchingNowVodRows = ref([]);
         const selectedWatchingNowVodKey = ref('');
         const watchingNowVodLoadedAt = ref(0);
@@ -1695,9 +1697,9 @@ createApp({
 
             watchingNowFetchPromise = (async () => {
                 try {
-                    if (!background) {
-                        listLoading.value = true;
-                        listLoadingMessage.value = 'Loading Watching Now...';
+                    if (!background || !hasRows) {
+                        watchingNowLoading.value = true;
+                        watchingNowLoadingMessage.value = 'Loading Watching Now...';
                     }
                     const response = await fetch(`${window.location.origin}/watchingNow`);
                     watchingNowRows.value = (await response.json()).map(normalizeWatchingNowRow);
@@ -1712,8 +1714,8 @@ createApp({
                         selectedWatchingNowKey.value = '';
                     }
                 } finally {
-                    if (!background) {
-                        listLoading.value = false;
+                    if (!background || !hasRows) {
+                        watchingNowLoading.value = false;
                     }
                 }
             })();
@@ -1754,7 +1756,7 @@ createApp({
                         selectedWatchingNowVodKey.value = '';
                     }
                 } finally {
-                    if (!background) {
+                    if (!background || !hasRows) {
                         watchingNowVodLoading.value = false;
                     }
                 }
@@ -3988,6 +3990,7 @@ createApp({
             selectedWatchingNowKey.value = '';
             watchingNowDrilldown.value = false;
             watchingNowLoadedAt.value = 0;
+            watchingNowLoading.value = false;
             watchingNowVodRows.value = [];
             selectedWatchingNowVodKey.value = '';
             watchingNowVodLoadedAt.value = 0;
@@ -4072,12 +4075,16 @@ createApp({
             bookmarkEmptyTitle,
             bookmarkEmptyDetail,
             bookmarkStatusText,
+            watchingNowRows,
             filteredWatchingNowRows,
             filteredWatchingNowVodRows,
             selectedWatchingNowKey,
             watchingNowTab,
             selectedWatchingNowVodKey,
             watchingNowDrilldown,
+            watchingNowLoading,
+            watchingNowLoadingMessage,
+            watchingNowVodRows,
             bookmarkCategoryTabs,
             bookmarkPrimaryTabs,
             bookmarkOverflowTabs,

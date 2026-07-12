@@ -448,13 +448,13 @@
                                 <span>{{ watchingNowTab === 'series' ? filteredWatchingNowRows.length : filteredWatchingNowVodRows.length }} entries</span>
                             </header>
                             <div class="panel-list" v-if="watchingNowTab === 'series'">
-                                <article class="row-card loading-card" v-if="listLoading">
+                                <article class="row-card loading-card" v-if="watchingNowLoading && watchingNowRows.length === 0">
                                     <div class="logo-box"><span class="spinner-border spinner-border-sm"></span></div>
                                     <div class="content-copy">
-                                        <div class="title-line">{{ listLoadingMessage }}</div>
+                                        <div class="title-line">{{ watchingNowLoadingMessage }}</div>
                                     </div>
                                 </article>
-                                <template v-if="!listLoading">
+                                <template v-if="watchingNowRows.length > 0">
                                     <article
                                             :class="{ active: selectedWatchingNowKey === row.key || isActiveWatchingNowRow(row) }"
                                             :key="row.key"
@@ -473,22 +473,22 @@
                                             <div class="meta-line">{{ row.accountName }}</div>
                                         </div>
                                     </article>
-                                    <div class="empty-state" v-if="filteredWatchingNowRows.length === 0">
-                                        <i class="bi bi-play-circle"></i>
-                                        <strong>No currently watched series</strong>
-                                        <span>Series appear here after playback starts.</span>
-                                    </div>
                                 </template>
+                                <div class="empty-state" v-if="!watchingNowLoading && filteredWatchingNowRows.length === 0">
+                                    <i class="bi bi-play-circle"></i>
+                                    <strong>No currently watched series</strong>
+                                    <span>Series appear here after playback starts.</span>
+                                </div>
                             </div>
 
                             <div class="panel-list" v-else>
-                                <article class="row-card loading-card" v-if="watchingNowVodLoading">
+                                <article class="row-card loading-card" v-if="watchingNowVodLoading && watchingNowVodRows.length === 0">
                                     <div class="logo-box"><span class="spinner-border spinner-border-sm"></span></div>
                                     <div class="content-copy">
                                         <div class="title-line">Loading Watching Now...</div>
                                     </div>
                                 </article>
-                                <template v-if="!watchingNowVodLoading">
+                                <template v-if="watchingNowVodRows.length > 0">
                                     <article
                                             :class="{ active: selectedWatchingNowVodKey === row.key || isActiveWatchingNowVodRow(row) }"
                                             :key="row.key"
@@ -508,12 +508,12 @@
                                             <div class="meta-line clamp" v-if="getVodPlot(row)">{{ getVodPlot(row) }}</div>
                                         </div>
                                     </article>
-                                    <div class="empty-state" v-if="filteredWatchingNowVodRows.length === 0">
-                                        <i class="bi bi-film"></i>
-                                        <strong>No currently watched movies</strong>
-                                        <span>Movies appear here after playback starts.</span>
-                                    </div>
                                 </template>
+                                <div class="empty-state" v-if="!watchingNowVodLoading && filteredWatchingNowVodRows.length === 0">
+                                    <i class="bi bi-film"></i>
+                                    <strong>No currently watched movies</strong>
+                                    <span>Movies appear here after playback starts.</span>
+                                </div>
                             </div>
                         </section>
                     </div>
