@@ -2111,25 +2111,32 @@ createApp({
                 return;
             }
             const modeState = getModeState(contentMode.value);
-            if (viewState.value === 'episodes' || viewState.value === 'vodDetail') {
-                viewState.value = 'channels';
-            } else {
-                viewState.value = 'categories';
-            }
+            viewState.value = 'categories';
             modeState.viewState = viewState.value;
-            if (viewState.value === 'categories') {
-                episodes.value = [];
-                modeState.episodes = [];
-                modeState.selectedSeason = '';
-                modeState.selectedSeriesId = '';
-                modeState.selectedSeriesCategoryId = '';
-                modeState.detail = null;
-                selectedSeriesSeason.value = '';
-                seriesDetail.value = null;
-                seriesDetailLoading.value = false;
-                vodDetail.value = null;
-                vodDetailLoading.value = false;
+            episodes.value = [];
+            modeState.episodes = [];
+            modeState.selectedSeason = '';
+            modeState.selectedSeriesId = '';
+            modeState.selectedSeriesCategoryId = '';
+            modeState.detail = null;
+            selectedSeriesSeason.value = '';
+            seriesDetail.value = null;
+            seriesDetailLoading.value = false;
+            vodDetail.value = null;
+            vodDetailLoading.value = false;
+            clearSearch();
+        };
+
+        const goBackToChannels = () => {
+            if (watchingNowDrilldown.value) {
+                watchingNowDrilldown.value = false;
+                activeTab.value = 'watchingNow';
+                clearSearch();
+                return;
             }
+            const modeState = getModeState(contentMode.value);
+            viewState.value = 'channels';
+            modeState.viewState = viewState.value;
             clearSearch();
         };
 
@@ -4164,6 +4171,7 @@ createApp({
             loadSeriesEpisodes,
             goBackToAccounts,
             goBackToCategories,
+            goBackToChannels,
             selectSeriesSeason,
             getEpisodeDisplayTitle,
             getEpisodeSubtitle,

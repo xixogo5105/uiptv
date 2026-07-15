@@ -182,9 +182,13 @@
                                 <i class="bi bi-arrow-left"></i>
                                 <span>Accounts</span>
                             </button>
-                            <button @click="goBackToCategories" class="soft-button" type="button" v-if="viewState === 'channels' || viewState === 'episodes' || viewState === 'vodDetail'">
+                            <button @click="goBackToCategories" class="soft-button" type="button" v-if="viewState === 'channels'">
                                 <i class="bi bi-grid"></i>
                                 <span>Categories</span>
+                            </button>
+                            <button @click="goBackToChannels" class="soft-button" type="button" v-if="viewState === 'episodes' || viewState === 'vodDetail'">
+                                <i class="bi bi-arrow-left"></i>
+                                <span>{{ contentMode === 'series' ? 'Series' : 'Movies' }}</span>
                             </button>
                             <div aria-label="Content mode" class="segmented" role="group" v-if="supportsVodSeriesForSelectedAccount">
                                 <button :class="{ active: contentMode === 'itv' }" @click="setContentMode('itv')" type="button">Channels</button>
