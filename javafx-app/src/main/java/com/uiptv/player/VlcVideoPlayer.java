@@ -36,6 +36,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private ImageView videoImageView;
     private int videoSourceWidth;
     private int videoSourceHeight;
+    private int lastRenderedImageWidth;
+    private int lastRenderedImageHeight;
     private String lastStreamInfoLabel = "";
     private final AtomicLong audioStateRequestVersion = new AtomicLong();
 
@@ -129,6 +131,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (enableForwardCookies) {
             vlcArgs.add("--http-forward-cookies");
         }
+
         return vlcArgs;
     }
 
@@ -446,6 +449,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         videoImageView.setImage(null);
         videoSourceWidth = 0;
         videoSourceHeight = 0;
+        lastRenderedImageWidth = 0;
+        lastRenderedImageHeight = 0;
         lastStreamInfoLabel = "";
     }
 
@@ -548,9 +553,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void updateVideoSize() {
-        if (isPip()) {
-            return;
-        }
         if (playerContainer.getWidth() <= 0 || playerContainer.getHeight() <= 0) {
             return;
         }
@@ -695,6 +697,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (renderedWidth <= 0 || renderedHeight <= 0) {
             return false;
         }
+        if (renderedWidth == lastRenderedImageWidth && renderedHeight == lastRenderedImageHeight) {
+            return false;
+        }
+        lastRenderedImageWidth = renderedWidth;
+        lastRenderedImageHeight = renderedHeight;
         videoSourceWidth = renderedWidth;
         videoSourceHeight = renderedHeight;
         return true;
