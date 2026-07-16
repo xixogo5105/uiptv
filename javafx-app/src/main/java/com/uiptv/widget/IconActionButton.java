@@ -20,9 +20,11 @@ public class IconActionButton extends Button {
         tooltip.setShowDelay(Duration.millis(250));
         tooltip.setHideDelay(Duration.millis(80));
         tooltip.setShowDuration(Duration.seconds(4));
+        tooltip.setConsumeAutoHidingEvents(false);
         setTooltip(tooltip);
 
         icon.getStyleClass().add("bookmarks-quick-action-icon");
+        icon.setMouseTransparent(true);
         setIconPath(iconPath);
         setGraphic(icon);
         setOnAction(_ -> action.run());

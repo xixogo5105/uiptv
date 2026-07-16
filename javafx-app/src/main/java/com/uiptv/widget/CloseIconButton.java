@@ -14,6 +14,7 @@ public class CloseIconButton extends Button {
         SVGPath icon = new SVGPath();
         icon.setContent(CLOSE_ICON_PATH);
         icon.getStyleClass().add("uiptv-circular-close-icon");
+        icon.setMouseTransparent(true);
         UiRenderQuality.optimizeTextNode(icon);
 
         getStyleClass().add("uiptv-circular-close-button");
@@ -28,6 +29,7 @@ public class CloseIconButton extends Button {
         tooltip.setShowDelay(Duration.millis(250));
         tooltip.setHideDelay(Duration.millis(80));
         tooltip.setShowDuration(Duration.seconds(4));
+        tooltip.setConsumeAutoHidingEvents(false);
         setTooltip(tooltip);
     }
 }
