@@ -23,7 +23,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <sqlite.arch>x86_64</sqlite.arch>
         <javafx.version>26.0.1</javafx.version>
-        <undertow.version>2.4.1.Final</undertow.version>
+        <undertow.version>2.4.2.Final</undertow.version>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
         <maven.compiler.release>25</maven.compiler.release>
@@ -225,12 +225,12 @@
             <dependency>
                 <groupId>io.github.willena</groupId>
                 <artifactId>sqlite-jdbc</artifactId>
-                <version>3.51.2.0</version>
+                <version>3.53.2.0</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.httpcomponents.client5</groupId>
                 <artifactId>httpclient5</artifactId>
-                <version>5.6.1</version>
+                <version>5.6.2</version>
             </dependency>
             <dependency>
                 <groupId>uk.co.caprica</groupId>
@@ -245,12 +245,12 @@
             <dependency>
                 <groupId>org.junit.jupiter</groupId>
                 <artifactId>junit-jupiter-api</artifactId>
-                <version>6.1.0</version>
+                <version>6.1.2</version>
             </dependency>
             <dependency>
                 <groupId>org.junit.jupiter</groupId>
                 <artifactId>junit-jupiter-engine</artifactId>
-                <version>6.1.0</version>
+                <version>6.1.2</version>
             </dependency>
             <dependency>
                 <groupId>org.mockito</groupId>
@@ -301,7 +301,7 @@
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>0.8.14</version>
+                    <version>0.8.15</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -330,7 +330,7 @@
                 <plugin>
                     <groupId>org.panteleyev</groupId>
                     <artifactId>jpackage-maven-plugin</artifactId>
-                    <version>1.7.4</version>
+                    <version>1.8.0</version>
                 </plugin>
                 <plugin>
                     <artifactId>maven-antrun-plugin</artifactId>
