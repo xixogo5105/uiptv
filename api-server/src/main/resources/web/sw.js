@@ -1,4 +1,4 @@
-const CACHE_NAME = 'uiptv-cache-v27';
+const CACHE_NAME = 'uiptv-cache-v28';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -8,6 +8,8 @@ const urlsToCache = [
   '/icon-192.png',
   '/icon-512.png',
   '/icon-maskable-512.png',
+  '/images/broadcast-on.svg?v=20260705a',
+  '/images/broadcast-off.svg?v=20260705a',
   '/css/shared-player.css',
   '/css/spa.css',
   '/javascript/playback-utils.js',
@@ -28,6 +30,7 @@ const isVersionedStaticAsset = (requestUrl) => {
     return false;
   }
   return requestUrl.pathname.startsWith('/css/')
+    || requestUrl.pathname.startsWith('/images/')
     || requestUrl.pathname.startsWith('/javascript/')
     || requestUrl.pathname === '/manifest.json'
     || requestUrl.pathname === '/icon.ico'

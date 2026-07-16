@@ -608,13 +608,31 @@ a[href] {
 
 .live-marker.active,
 .soft-button.broadcasting {
-    animation: broadcast-pulse 1.2s ease-in-out infinite;
+    color: var(--accent);
 }
 
 .soft-button.broadcasting {
     color: var(--accent);
     border-color: color-mix(in srgb, var(--accent) 46%, transparent);
     background: color-mix(in srgb, var(--accent) 14%, var(--surface-high));
+}
+
+.broadcast-icon {
+    display: block;
+    width: 1rem;
+    height: 1rem;
+    object-fit: contain;
+    flex: 0 0 auto;
+}
+
+.soft-button.broadcasting .broadcast-icon {
+    width: 1.05rem;
+    height: 1.05rem;
+}
+
+.live-marker .broadcast-icon {
+    width: 0.82rem;
+    height: 0.82rem;
 }
 
 .binge-watch-button {
@@ -1145,20 +1163,6 @@ a[href] {
 @keyframes spinner-border {
     to {
         transform: rotate(360deg);
-    }
-}
-
-@keyframes broadcast-pulse {
-    0%,
-    100% {
-        transform: scale(1);
-        filter: drop-shadow(0 0 0 color-mix(in srgb, var(--accent) 0%, transparent));
-        opacity: 0.78;
-    }
-    50% {
-        transform: scale(1.12);
-        filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 64%, transparent));
-        opacity: 1;
     }
 }
 

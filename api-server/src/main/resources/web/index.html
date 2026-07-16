@@ -63,7 +63,10 @@
 
             <div class="topbar-actions">
                 <button :class="{ broadcasting: isPlaying || playbackLoading }" @click="togglePlayerPanel" class="soft-button icon-only" type="button" v-if="hasPlayerContent" :title="playerPanelVisible ? 'Hide player' : 'Show player'">
-                    <i :class="(isPlaying || playbackLoading) ? 'bi bi-broadcast' : (playerPanelVisible ? 'bi bi-eye-slash' : 'bi bi-tv')" class="bi"></i>
+                    <img
+                            :alt="(isPlaying || playbackLoading) ? 'Broadcasting' : 'Not broadcasting'"
+                            :src="broadcastIndicatorSrc(isPlaying || playbackLoading)"
+                            class="broadcast-icon">
                 </button>
                 <button @click="clearWebCacheAndReload" class="soft-button icon-only" title="Clear cache and reload" type="button">
                     <i class="bi bi-arrow-repeat"></i>
@@ -103,13 +106,13 @@
 
                     <div class="scroll-area">
                         <div class="content-grid bookmark-grid">
-                            <article class="row-card loading-card" v-if="listLoading">
+                            <article class="row-card loading-card" v-if="bookmarksLoading && bookmarks.length === 0">
                                 <div class="logo-box"><span class="spinner-border spinner-border-sm"></span></div>
                                 <div class="content-copy">
-                                    <div class="title-line">{{ listLoadingMessage }}</div>
+                                    <div class="title-line">{{ bookmarksLoadingMessage }}</div>
                                 </div>
                             </article>
-                            <template v-if="!listLoading">
+                            <template v-if="bookmarks.length > 0">
                                 <article
                                         :class="{
                                             active: isActiveBookmark(bookmark),
@@ -130,26 +133,26 @@
                                         class="row-card media-card"
                                         v-for="bookmark in filteredBookmarks">
                                     <span :class="{ active: isActiveBookmark(bookmark) }" class="live-marker" v-if="isActiveBookmark(bookmark)">
-                                        <i class="bi bi-broadcast"></i>
+                                        <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                     </span>
                                     <img :src="bookmark.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img" v-if="bookmark.logo">
                                     <div :style="{ display: bookmark.logo ? 'none' : '' }" class="logo-box">
                                         {{ fallbackInitials(bookmark.channelName) }}
                                     </div>
-                                    <div class="content-copy">
-                                        <div class="title-line">{{ bookmark.channelName }}</div>
-                                        <div class="meta-line">{{ bookmark.accountName }}</div>
-                                    </div>
-                                    <button @click.stop="removeRecentlyPlayedBookmark(bookmark)" class="row-action-button" title="Clear from recently played" type="button" v-if="isRecentlyPlayedBookmarksSelected">
-                                        <i class="bi bi-trash3"></i>
-                                    </button>
-                                </article>
-                                <div class="empty-state" v-if="filteredBookmarks.length === 0">
-                                    <i class="bi bi-bookmark"></i>
-                                    <strong>{{ bookmarkEmptyTitle }}</strong>
-                                    <span>{{ bookmarkEmptyDetail }}</span>
-                                </div>
+                                        <div class="content-copy">
+                                            <div class="title-line">{{ bookmark.channelName }}</div>
+                                            <div class="meta-line">{{ bookmark.accountName }}</div>
+                                        </div>
+                                        <button @click.stop="removeRecentlyPlayedBookmark(bookmark)" class="row-action-button" title="Clear from recently played" type="button" v-if="isRecentlyPlayedBookmarksSelected">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </article>
                             </template>
+                            <div class="empty-state" v-if="!bookmarksLoading && filteredBookmarks.length === 0">
+                                <i class="bi bi-bookmark"></i>
+                                <strong>{{ bookmarkEmptyTitle }}</strong>
+                                <span>{{ bookmarkEmptyDetail }}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -179,9 +182,13 @@
                                 <i class="bi bi-arrow-left"></i>
                                 <span>Accounts</span>
                             </button>
-                            <button @click="goBackToCategories" class="soft-button" type="button" v-if="viewState === 'channels' || viewState === 'episodes' || viewState === 'vodDetail'">
+                            <button @click="goBackToCategories" class="soft-button" type="button" v-if="viewState === 'channels'">
                                 <i class="bi bi-grid"></i>
                                 <span>Categories</span>
+                            </button>
+                            <button @click="goBackToChannels" class="soft-button" type="button" v-if="viewState === 'episodes' || viewState === 'vodDetail'">
+                                <i class="bi bi-arrow-left"></i>
+                                <span>{{ contentMode === 'series' ? 'Series' : 'Movies' }}</span>
                             </button>
                             <div aria-label="Content mode" class="segmented" role="group" v-if="supportsVodSeriesForSelectedAccount">
                                 <button :class="{ active: contentMode === 'itv' }" @click="setContentMode('itv')" type="button">Channels</button>
@@ -286,7 +293,7 @@
                                             class="row-card media-card"
                                             v-for="channel in filteredChannels">
                                         <span :class="{ active: isActiveChannel(channel) }" class="live-marker" v-if="isActiveChannel(channel)">
-                                            <i class="bi bi-broadcast"></i>
+                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                         </span>
                                         <img :src="channel.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img" v-if="channel.logo">
                                         <div :style="{ display: channel.logo ? 'none' : '' }" class="logo-box">
@@ -394,7 +401,7 @@
                                             class="row-card episode-card"
                                             v-for="(episode, idx) in filteredSeriesEpisodes">
                                         <span class="live-marker" v-if="isActiveChannel(episode)">
-                                            <i class="bi bi-broadcast"></i>
+                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                         </span>
                                         <img :src="episode.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img episode-thumb" v-if="episode.logo">
                                         <div :style="{ display: episode.logo ? 'none' : '' }" class="logo-box">
@@ -445,13 +452,13 @@
                                 <span>{{ watchingNowTab === 'series' ? filteredWatchingNowRows.length : filteredWatchingNowVodRows.length }} entries</span>
                             </header>
                             <div class="panel-list" v-if="watchingNowTab === 'series'">
-                                <article class="row-card loading-card" v-if="listLoading">
+                                <article class="row-card loading-card" v-if="watchingNowLoading && watchingNowRows.length === 0">
                                     <div class="logo-box"><span class="spinner-border spinner-border-sm"></span></div>
                                     <div class="content-copy">
-                                        <div class="title-line">{{ listLoadingMessage }}</div>
+                                        <div class="title-line">{{ watchingNowLoadingMessage }}</div>
                                     </div>
                                 </article>
-                                <template v-if="!listLoading">
+                                <template v-if="watchingNowRows.length > 0">
                                     <article
                                             :class="{ active: selectedWatchingNowKey === row.key || isActiveWatchingNowRow(row) }"
                                             :key="row.key"
@@ -459,7 +466,7 @@
                                             class="row-card resume-card"
                                             v-for="row in filteredWatchingNowRows">
                                         <span class="live-marker" v-if="isActiveWatchingNowRow(row)">
-                                            <i class="bi bi-broadcast"></i>
+                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                         </span>
                                         <img :src="row.seriesPoster" @error="imageError" @load="imageLoad" alt="" class="poster-thumb" v-if="row.seriesPoster">
                                         <div :style="{ display: row.seriesPoster ? 'none' : '' }" class="poster-fallback small">
@@ -470,22 +477,22 @@
                                             <div class="meta-line">{{ row.accountName }}</div>
                                         </div>
                                     </article>
-                                    <div class="empty-state" v-if="filteredWatchingNowRows.length === 0">
-                                        <i class="bi bi-play-circle"></i>
-                                        <strong>No currently watched series</strong>
-                                        <span>Series appear here after playback starts.</span>
-                                    </div>
                                 </template>
+                                <div class="empty-state" v-if="!watchingNowLoading && filteredWatchingNowRows.length === 0">
+                                    <i class="bi bi-play-circle"></i>
+                                    <strong>No currently watched series</strong>
+                                    <span>Series appear here after playback starts.</span>
+                                </div>
                             </div>
 
                             <div class="panel-list" v-else>
-                                <article class="row-card loading-card" v-if="watchingNowVodLoading">
+                                <article class="row-card loading-card" v-if="watchingNowVodLoading && watchingNowVodRows.length === 0">
                                     <div class="logo-box"><span class="spinner-border spinner-border-sm"></span></div>
                                     <div class="content-copy">
                                         <div class="title-line">Loading Watching Now...</div>
                                     </div>
                                 </article>
-                                <template v-if="!watchingNowVodLoading">
+                                <template v-if="watchingNowVodRows.length > 0">
                                     <article
                                             :class="{ active: selectedWatchingNowVodKey === row.key || isActiveWatchingNowVodRow(row) }"
                                             :key="row.key"
@@ -493,7 +500,7 @@
                                             class="row-card resume-card"
                                             v-for="row in filteredWatchingNowVodRows">
                                         <span class="live-marker" v-if="isActiveWatchingNowVodRow(row)">
-                                            <i class="bi bi-broadcast"></i>
+                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                         </span>
                                         <img :src="row.vodLogo" @error="imageError" @load="imageLoad" alt="" class="poster-thumb" v-if="row.vodLogo">
                                         <div :style="{ display: row.vodLogo ? 'none' : '' }" class="poster-fallback small">
@@ -505,12 +512,12 @@
                                             <div class="meta-line clamp" v-if="getVodPlot(row)">{{ getVodPlot(row) }}</div>
                                         </div>
                                     </article>
-                                    <div class="empty-state" v-if="filteredWatchingNowVodRows.length === 0">
-                                        <i class="bi bi-film"></i>
-                                        <strong>No currently watched movies</strong>
-                                        <span>Movies appear here after playback starts.</span>
-                                    </div>
                                 </template>
+                                <div class="empty-state" v-if="!watchingNowVodLoading && filteredWatchingNowVodRows.length === 0">
+                                    <i class="bi bi-film"></i>
+                                    <strong>No currently watched movies</strong>
+                                    <span>Movies appear here after playback starts.</span>
+                                </div>
                             </div>
                         </section>
                     </div>
@@ -590,7 +597,7 @@
                                             class="row-card episode-card"
                                             v-for="(episode, idx) in filteredSeriesEpisodes">
                                         <span class="live-marker" v-if="isActiveChannel(episode)">
-                                            <i class="bi bi-broadcast"></i>
+                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                         </span>
                                         <img :src="episode.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img episode-thumb" v-if="episode.logo">
                                         <div :style="{ display: episode.logo ? 'none' : '' }" class="logo-box">
