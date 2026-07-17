@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
 
       - name: Set up JDK 25
         uses: actions/setup-java@v5
@@ -32,7 +32,7 @@ jobs:
         run: xvfb-run -a mvn -B test
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Shallow clones should be disabled for better relevancy of analysis
 
@@ -63,14 +63,14 @@ jobs:
           distribution: temurin
 
       - name: Cache SonarQube packages
-        uses: actions/cache@v6
+        uses: actions/cache@v5
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
       - name: Cache Maven packages
-        uses: actions/cache@v6
+        uses: actions/cache@v5
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
@@ -95,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -132,7 +132,7 @@ jobs:
             profile: windows-x86_64
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
 
       - name: Set up JDK 25
         uses: actions/setup-java@v5
@@ -166,7 +166,7 @@ jobs:
             profile: mac-aarch64
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
 
       - name: Set up JDK 25
         uses: actions/setup-java@v5
@@ -193,7 +193,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
 
       - name: Set up JDK 25
         uses: actions/setup-java@v5
@@ -274,7 +274,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -286,7 +286,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Restore API 24 libmpv AAR
-        uses: actions/cache@v6
+        uses: actions/cache@v5
         with:
           path: mobile/androidApp/libs/libmpv-android-api24.aar
           key: libmpv-api24-aar-${{ runner.os }}-v1-${{ hashFiles('scripts/build-mobile-with-libmpv.sh', 'mobile/androidApp/build.gradle.kts') }}
@@ -318,7 +318,7 @@ jobs:
     runs-on: [self-hosted, Linux, ARM64]
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
 
       - name: Set up JDK 25
         uses: actions/setup-java@v5
@@ -356,7 +356,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
 
       - name: Download release artifacts
         uses: actions/download-artifact@v8

@@ -1,13 +1,11 @@
 package com.uiptv.widget;
 
-import com.uiptv.ui.RootApplication;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
-import javafx.geometry.NodeOrientation;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
-import javafx.stage.Modality;
+import javafx.stage.Window;
 
 public class DialogAlert {
     private DialogAlert() {
@@ -26,20 +24,19 @@ public class DialogAlert {
         }
         Alert confirmDialogue = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.YES, ButtonType.NO);
         if (title != null) {
-            confirmDialogue.setTitle(I18n.tr(title));
-            confirmDialogue.setHeaderText(null);
+            String localizedTitle = I18n.tr(title);
+            confirmDialogue.setTitle(localizedTitle);
+            confirmDialogue.setHeaderText(localizedTitle);
         }
         Button yesButton = (Button) confirmDialogue.getDialogPane().lookupButton(ButtonType.YES);
         yesButton.setDefaultButton(false);
         Button noButton = (Button) confirmDialogue.getDialogPane().lookupButton(ButtonType.NO);
         noButton.setDefaultButton(true);
-        confirmDialogue.initModality(Modality.NONE);
-        if (RootApplication.getCurrentTheme() != null) {
-            confirmDialogue.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-        confirmDialogue.getDialogPane().setNodeOrientation(
-                I18n.isCurrentLocaleRtl() ? NodeOrientation.RIGHT_TO_LEFT : NodeOrientation.LEFT_TO_RIGHT
-        );
-        return confirmDialogue.showAndWait().orElse(ButtonType.NO);
+        Window ownerWindow = ThemedDialogSupport.activeOwnerWindow();
+        ThemedDialogSupport.prepare(confirmDialogue, ownerWindow, "uiptv-alert-dialog");
+        yesButton.getStyleClass().add("uiptv-dialog-primary-button");
+        noButton.getStyleClass().add("uiptv-dialog-secondary-button");
+        return ThemedDialogSupport.showAndWait(confirmDialogue, ownerWindow)
+                .orElse(ButtonType.NO);
     }
 }

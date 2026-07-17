@@ -32,16 +32,8 @@ public class WatchingNowApplicationService {
     }
 
     public List<WatchingNowSeriesRow> listSeriesRows() {
-        return mapSeriesRows(seriesResolver.resolveAll());
-    }
-
-    public List<WatchingNowSeriesRow> listSeriesRowsFast() {
-        return mapSeriesRows(seriesResolver.resolveAllFast());
-    }
-
-    private List<WatchingNowSeriesRow> mapSeriesRows(List<WatchingNowSeriesResolver.SeriesRow> sourceRows) {
         List<WatchingNowSeriesRow> rows = new ArrayList<>();
-        for (WatchingNowSeriesResolver.SeriesRow row : sourceRows) {
+        for (WatchingNowSeriesResolver.SeriesRow row : seriesResolver.resolveAll()) {
             SeriesWatchState state = row.getState();
             Account account = row.getAccount();
             rows.add(new WatchingNowSeriesRow(
@@ -140,16 +132,8 @@ public class WatchingNowApplicationService {
     }
 
     public List<WatchingNowVodRow> listVodRows() {
-        return mapVodRows(vodResolver.resolveAll());
-    }
-
-    public List<WatchingNowVodRow> listVodRowsFast() {
-        return mapVodRows(vodResolver.resolveAllFast());
-    }
-
-    private List<WatchingNowVodRow> mapVodRows(List<WatchingNowVodResolver.VodRow> sourceRows) {
         List<WatchingNowVodRow> rows = new ArrayList<>();
-        for (WatchingNowVodResolver.VodRow row : sourceRows) {
+        for (WatchingNowVodResolver.VodRow row : vodResolver.resolveAll()) {
             rows.add(new WatchingNowVodRow(
                     safe(row.getAccount().getDbId()),
                     safe(row.getAccount().getAccountName()),

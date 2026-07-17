@@ -20,6 +20,8 @@ public final class AccountInfoUiUtil {
             new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("MMMM d, yyyy, h:mm a").toFormatter(Locale.ENGLISH);
     private static final DateTimeFormatter DISPLAY_DATE_FORMATTER =
             DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
+    private static final DateTimeFormatter COMPACT_DISPLAY_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("d MMM yy", Locale.ENGLISH);
     private AccountInfoUiUtil() {
     }
 
@@ -113,6 +115,16 @@ public final class AccountInfoUiUtil {
             return formatDisplayDateTime(dateTime);
         }
         return DISPLAY_DATE_FORMATTER.format(LocalDateTime.ofInstant(parsed.instant(), ZoneId.systemDefault()).toLocalDate());
+    }
+
+    public static String formatCompactDate(String value) {
+        ParsedDate parsed = parseDateValue(value);
+        if (isBlank(parsed.display()) || parsed.instant() == null) {
+            return "";
+        }
+        return COMPACT_DISPLAY_DATE_FORMATTER.format(
+                LocalDateTime.ofInstant(parsed.instant(), ZoneId.systemDefault()).toLocalDate()
+        );
     }
 
     public static ExpiryState resolveExpiryState(Instant instant) {

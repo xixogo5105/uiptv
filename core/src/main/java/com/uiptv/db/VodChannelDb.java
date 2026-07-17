@@ -7,7 +7,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static com.uiptv.db.DatabaseUtils.DbTable.VOD_CHANNEL_TABLE;
@@ -47,25 +46,6 @@ public class VodChannelDb extends BaseDb {
                 new String[]{channelId, accountId}
         );
         return (channels != null && !channels.isEmpty()) ? channels.get(0) : null;
-    }
-
-    public List<Channel> getChannelsByChannelIds(Account account, List<String> channelIds) {
-        if (account == null || channelIds == null || channelIds.isEmpty()) {
-            return List.of();
-        }
-        List<String> filtered = channelIds.stream()
-                .filter(id -> id != null && !id.isBlank())
-                .distinct()
-                .toList();
-        if (filtered.isEmpty()) {
-            return List.of();
-        }
-        String placeholders = String.join(",", java.util.Collections.nCopies(filtered.size(), "?"));
-        String where = " WHERE accountId=? AND channelId IN (" + placeholders + ")";
-        List<String> params = new ArrayList<>(filtered.size() + 1);
-        params.add(account.getDbId());
-        params.addAll(filtered);
-        return getAll(where, params.toArray(new String[0]));
     }
 
     public boolean isFresh(Account account, String categoryId, long maxAgeMs) {

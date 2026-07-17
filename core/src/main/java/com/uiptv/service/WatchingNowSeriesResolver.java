@@ -30,14 +30,6 @@ public class WatchingNowSeriesResolver {
         return rows;
     }
 
-    public List<SeriesRow> resolveAllFast() {
-        List<SeriesRow> rows = new ArrayList<>();
-        for (Account account : AccountService.getInstance().getAll().values()) {
-            rows.addAll(resolveForAccountFast(account));
-        }
-        return rows;
-    }
-
     public List<SeriesRow> resolveForAccount(Account account) {
         List<SeriesRow> rows = new ArrayList<>();
         if (account == null || isBlank(account.getDbId())) {
@@ -46,21 +38,6 @@ public class WatchingNowSeriesResolver {
         Map<String, SeriesWatchState> deduped = dedupeSeriesStates(account.getDbId());
         for (SeriesWatchState state : deduped.values()) {
             SeriesRow row = buildRow(account, state);
-            if (row != null) {
-                rows.add(row);
-            }
-        }
-        return rows;
-    }
-
-    public List<SeriesRow> resolveForAccountFast(Account account) {
-        List<SeriesRow> rows = new ArrayList<>();
-        if (account == null || isBlank(account.getDbId())) {
-            return rows;
-        }
-        Map<String, SeriesWatchState> deduped = dedupeSeriesStates(account.getDbId());
-        for (SeriesWatchState state : deduped.values()) {
-            SeriesRow row = buildFastRow(account, state);
             if (row != null) {
                 rows.add(row);
             }
@@ -112,52 +89,6 @@ public class WatchingNowSeriesResolver {
             categoryDbId = safe(scopedState.getCategoryId());
         }
         return new SeriesRow(account, scopedState, cacheInfo.seriesTitle, cacheInfo.seriesPoster, categoryDbId, cacheInfo.resolvedFromCache);
-    }
-
-    private SeriesRow buildFastRow(Account account, SeriesWatchState state) {
-        SnapshotScope scope = resolveSnapshotScope(state);
-        SeriesWatchState scopedState = copyStateWithScope(state, scope.categoryId, scope.parentChannelId);
-        Channel cachedSeries = findSeriesChannelById(account, scopedState);
-        SeriesWatchingNowSnapshot snapshot = SeriesWatchingNowSnapshotService.getInstance()
-                .getSnapshot(account.getDbId(), scopedState.getCategoryId(), scopedState.getSeriesId());
-        String seriesTitle = firstNonBlank(
-                scope.seriesTitle,
-                cachedSeries == null ? "" : cachedSeries.getName(),
-                snapshot == null ? "" : snapshot.getSeriesTitle(),
-                scopedState.getSeriesId(),
-                scopedState.getEpisodeName()
-        );
-        String seriesPoster = firstNonBlank(
-                scope.seriesPoster,
-                cachedSeries == null ? "" : cachedSeries.getLogo(),
-                snapshot == null ? "" : snapshot.getSeriesPoster()
-        );
-        String categoryDbId = firstNonBlank(
-                cachedSeries == null ? "" : cachedSeries.getCategoryId(),
-                snapshot == null ? "" : snapshot.getCategoryDbId(),
-                scopedState.getCategoryId()
-        );
-        return new SeriesRow(account, scopedState, seriesTitle, seriesPoster, categoryDbId,
-                cachedSeries != null || snapshot != null || !isBlank(scope.seriesTitle));
-    }
-
-    private Channel findSeriesChannelById(Account account, SeriesWatchState state) {
-        if (account == null || state == null || isBlank(account.getDbId()) || isBlank(state.getSeriesId())) {
-            return null;
-        }
-        List<Channel> matches = SeriesChannelDb.get().getChannelsBySeriesIds(account, buildSeriesIdCandidates(state.getSeriesId()));
-        if (matches.isEmpty()) {
-            return null;
-        }
-        String stateCategory = safe(state.getCategoryId());
-        if (!isBlank(stateCategory)) {
-            for (Channel match : matches) {
-                if (match != null && stateCategory.equals(safe(match.getCategoryId()))) {
-                    return match;
-                }
-            }
-        }
-        return matches.getFirst();
     }
 
     private SeriesCacheInfo resolveSeriesInfoFromCache(Account account, SeriesWatchState state) {

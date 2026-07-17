@@ -1,29 +1,37 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.ImdbMetadataService;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.LoadingStateView;
+import com.uiptv.widget.PillBar;
+import com.uiptv.widget.PlayMenuButton;
 import javafx.application.Platform;
+import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBase;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.OverrunStyle;
-import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.Node;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
@@ -52,11 +60,15 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private static final String KEY_RELEASE_DATE = "releaseDate";
     private static final String KEY_TITLE = "title";
     private static final String STYLE_CLASS_BUTTON = "button";
-    private final TabPane seasonTabPane = new TabPane();
+    private static final double SERIES_EPISODE_LOADING_INDICATOR_SIZE = 24;
+    private static final double SERIES_EPISODE_LOADING_PANEL_HEIGHT = 220;
+    private final PillBar<String> seasonPillBar = new PillBar<>(I18n::formatTabNumberLabel, season -> season);
     private final VBox cardsContainer = new VBox(8);
     private final ScrollPane cardsScroll = new ScrollPane(cardsContainer);
-    private final HBox header = new HBox(12);
+    private final StackPane cardsFrame = new StackPane();
+    private final VBox header = new VBox(12);
     private final ImageView seriesPosterNode = new ImageView();
+    private final StackPane seriesPosterWrap = new StackPane(seriesPosterNode);
     private final VBox headerDetails = new VBox(4);
     private final VBox titleRow = new VBox(4);
     private final Label titleNode = new Label();
@@ -66,7 +78,14 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private final Label plotNode = new Label();
     private final MenuButton bingeWatchButton = new MenuButton();
     private final Button reloadEpisodesButton = new Button();
-    private final HBox imdbLoadingNode = new HBox(6);
+    private final LoadingStateView imdbLoadingNode = new LoadingStateView(I18n.tr("autoLoadingIMDbDetails"), 14);
+    private final LoadingStateView episodeLoadingNode = createSeriesEpisodeLoadingNode(I18n.tr("autoLoadingIMDbDetails"));
+    private final FlowPane watchingNowDetailLayout = new FlowPane(14, 14);
+    private final VBox watchingNowEpisodesPanel = new VBox(12);
+    private final Label episodesTitleNode = new Label(I18n.tr("autoEpisodes"));
+    private final Label episodesSeriesTitleNode = new Label();
+    private final VBox watchingNowEpisodesTitleText = new VBox(2, episodesTitleNode, episodesSeriesTitleNode);
+    private final HBox watchingNowEpisodesTitleRow = new HBox(10);
     private HBox imdbBadgeNode;
     private volatile boolean imdbLoading = false;
     private volatile boolean imdbLoaded = false;
@@ -79,30 +98,38 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private boolean internalBingeWatchControlVisible = true;
     private boolean internalSeriesTitleVisible = true;
     private boolean internalReloadControlVisible = true;
+    private List<String> seasonOptions = List.of();
     private String pendingTargetSeason;
     private String pendingTargetEpisodeId;
     private String pendingTargetEpisodeNumber;
     private String pendingTargetEpisodeName;
+    private boolean episodeLoadingVisible = false;
+    private boolean mediaDrawerDetailMode = false;
 
     public ThumbnailEpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        super(account, categoryTitle, seriesId, seriesCategoryId);
+        this(channelList, AccountMediaContext.from(account, Account.AccountAction.series), categoryTitle, seriesId, seriesCategoryId);
+    }
+
+    public ThumbnailEpisodesListUI(EpisodeList channelList, AccountMediaContext mediaContext, String categoryTitle, String seriesId, String seriesCategoryId) {
+        super(mediaContext, categoryTitle, seriesId, seriesCategoryId);
         finishInit();
         setItems(channelList);
     }
 
     public ThumbnailEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        super(account, categoryTitle, seriesId, seriesCategoryId);
+        this(AccountMediaContext.from(account, Account.AccountAction.series), categoryTitle, seriesId, seriesCategoryId);
+    }
+
+    public ThumbnailEpisodesListUI(AccountMediaContext mediaContext, String categoryTitle, String seriesId, String seriesCategoryId) {
+        super(mediaContext, categoryTitle, seriesId, seriesCategoryId);
         finishInit();
     }
 
     @Override
     protected void initWidgets() {
         initHeader();
-        seasonTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        seasonTabPane.setMaxWidth(Double.MAX_VALUE);
-        seasonTabPane.setMaxHeight(Double.MAX_VALUE);
-        seasonTabPane.setMinHeight(36);
-        seasonTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+        seasonPillBar.setMaxWidth(Double.MAX_VALUE);
+        seasonPillBar.selectedItemProperty().addListener((_, _, _) -> {
             applySeasonFilter();
             updateBingeWatchButton();
         });
@@ -110,23 +137,46 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         cardsContainer.setPadding(new Insets(5));
         cardsContainer.setFillWidth(true);
         cardsContainer.setMaxWidth(Double.MAX_VALUE);
+        cardsContainer.addEventHandler(KeyEvent.KEY_PRESSED, this::handleEpisodeNavigationKeyPressed);
 
         cardsScroll.setFitToWidth(true);
         cardsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         cardsScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        cardsScroll.setMinSize(0, 0);
         cardsScroll.setMaxWidth(Double.MAX_VALUE);
         cardsScroll.setMaxHeight(Double.MAX_VALUE);
         cardsScroll.getStyleClass().add("transparent-scroll-pane");
 
-        bodyContainer = new VBox(6, header, seasonTabPane, cardsScroll);
+        cardsFrame.getStyleClass().add("episode-loading-frame");
+        cardsFrame.setMinSize(0, 0);
+        cardsFrame.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        setEpisodeLoadingOverlayVisible(false, null);
+        cardsFrame.getChildren().setAll(cardsScroll);
+
+        bodyContainer = new VBox(6, header, seasonPillBar, cardsFrame);
+        bodyContainer.setMinSize(0, 0);
         bodyContainer.setMaxWidth(Double.MAX_VALUE);
-        bodyContainer.setMaxHeight(Region.USE_COMPUTED_SIZE);
+        bodyContainer.setMaxHeight(Double.MAX_VALUE);
         bodyContainer.setPadding(new Insets(0, 4, 0, 4));
         HBox.setHgrow(bodyContainer, Priority.ALWAYS);
         header.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(header, Priority.NEVER);
         VBox.setVgrow(cardsScroll, Priority.ALWAYS);
-        VBox.setVgrow(seasonTabPane, Priority.NEVER);
+        VBox.setVgrow(cardsFrame, Priority.ALWAYS);
+        VBox.setVgrow(seasonPillBar, Priority.NEVER);
+        contentStack.heightProperty().addListener((_, _, _) -> updateWatchingNowEpisodeScrollHeight());
+        watchingNowEpisodesPanel.heightProperty().addListener((_, _, _) -> updateWatchingNowEpisodeScrollHeight());
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene != null) {
+                updateWatchingNowEpisodeScrollHeight();
+                scheduleInitialEpisodeFocus();
+            }
+        });
+        visibleProperty().addListener((_, _, visible) -> {
+            if (Boolean.TRUE.equals(visible)) {
+                scheduleInitialEpisodeFocus();
+            }
+        });
         contentStack.getChildren().add(bodyContainer);
     }
 
@@ -140,20 +190,35 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     @Override
     protected void showPlaceholder(String text) {
-        cardsContainer.getChildren().setAll(new Label(text));
+        setEpisodeLoadingOverlayVisible(false, null);
+        cardsContainer.getChildren().setAll(new LoadingStateView(text));
     }
 
     @Override
     protected void setEmptyState(String message, boolean empty) {
-        header.setManaged(!empty);
-        header.setVisible(!empty);
-        seasonTabPane.setManaged(!empty);
-        seasonTabPane.setVisible(!empty);
-        cardsScroll.setManaged(!empty);
-        cardsScroll.setVisible(!empty);
+        updateHeaderVisibility(!empty);
+        updateSeasonPillBarVisibility(!empty);
+        cardsFrame.setManaged(!empty);
+        cardsFrame.setVisible(!empty);
         emptyStateLabel.setText(message == null ? "" : message);
         emptyStateLabel.setManaged(empty);
         emptyStateLabel.setVisible(empty);
+    }
+
+    void setMediaDrawerDetailMode(boolean mediaDrawerDetailMode) {
+        if (this.mediaDrawerDetailMode == mediaDrawerDetailMode) {
+            return;
+        }
+        this.mediaDrawerDetailMode = mediaDrawerDetailMode;
+        if (watchingNowDetailStylingApplied) {
+            syncWatchingNowDetailLayoutChildren();
+            applyWatchingNowLayoutSizing(watchingNowDetailLayout.getWidth());
+        } else {
+            updateHeaderVisibility(!allEpisodeItems.isEmpty());
+        }
+        if (!allEpisodeItems.isEmpty()) {
+            applySeasonFilter();
+        }
     }
 
     @Override
@@ -183,13 +248,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         this.pendingTargetEpisodeName = episodeName;
         String requestedSeason = normalizeNumber(season);
         if (!isBlank(requestedSeason)) {
-            Tab requestedSeasonTab = seasonTabPane.getTabs().stream()
-                    .filter(t -> requestedSeason.equals(normalizeNumber(String.valueOf(t.getUserData()))))
-                    .findFirst()
-                    .orElse(null);
-            if (requestedSeasonTab != null) {
-                seasonTabPane.getSelectionModel().select(requestedSeasonTab);
-            }
+            selectSeasonPill(requestedSeason);
         }
 
         EpisodeItem match = findBestEpisodeMatch(season, episodeId, episodeNumber, episodeName);
@@ -199,13 +258,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
         String targetSeason = normalizeNumber(match.getSeason());
         if (!isBlank(targetSeason)) {
-            Tab seasonTab = seasonTabPane.getTabs().stream()
-                    .filter(t -> targetSeason.equals(normalizeNumber(String.valueOf(t.getUserData()))))
-                    .findFirst()
-                    .orElse(null);
-            if (seasonTab != null) {
-                seasonTabPane.getSelectionModel().select(seasonTab);
-            }
+            selectSeasonPill(targetSeason);
         }
 
         applySeasonFilter();
@@ -213,18 +266,40 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         if (card == null) {
             return;
         }
-        setSelectedEpisodeCard(card);
-        int index = cardsContainer.getChildren().indexOf(card);
-        int size = cardsContainer.getChildren().size();
-        if (index >= 0 && size > 1) {
-            cardsScroll.setVvalue((double) index / (double) (size));
-        } else {
-            cardsScroll.setVvalue(0.0);
+        focusEpisodeCard(card);
+    }
+
+    private void setEpisodeLoadingOverlayVisible(boolean visible, String message) {
+        episodeLoadingVisible = visible;
+        if (message != null) {
+            episodeLoadingNode.setMessage(message);
         }
+        syncEpisodeLoadingNode();
+    }
+
+    private void syncEpisodeLoadingNode() {
+        episodeLoadingNode.setVisible(episodeLoadingVisible);
+        episodeLoadingNode.setManaged(episodeLoadingVisible);
+        if (episodeLoadingVisible && !cardsContainer.getChildren().contains(episodeLoadingNode)) {
+            cardsContainer.getChildren().add(0, episodeLoadingNode);
+        } else if (!episodeLoadingVisible) {
+            cardsContainer.getChildren().remove(episodeLoadingNode);
+        }
+    }
+
+    private static LoadingStateView createSeriesEpisodeLoadingNode(String message) {
+        LoadingStateView loadingNode = new LoadingStateView(message, SERIES_EPISODE_LOADING_INDICATOR_SIZE);
+        loadingNode.getStyleClass().add("series-inline-loading-state");
+        loadingNode.setAlignment(Pos.CENTER);
+        loadingNode.setMinHeight(SERIES_EPISODE_LOADING_PANEL_HEIGHT);
+        loadingNode.setPrefHeight(SERIES_EPISODE_LOADING_PANEL_HEIGHT);
+        loadingNode.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        return loadingNode;
     }
 
     private void initHeader() {
         header.setAlignment(Pos.TOP_LEFT);
+        header.setFillWidth(true);
         header.getStyleClass().add("uiptv-outline-pane");
         header.setPadding(new Insets(5));
 
@@ -232,6 +307,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         seriesPosterNode.setFitHeight(250);
         seriesPosterNode.setPreserveRatio(true);
         seriesPosterNode.setSmooth(true);
+        seriesPosterWrap.setAlignment(Pos.CENTER);
+        seriesPosterWrap.setMaxWidth(Double.MAX_VALUE);
 
         titleNode.getStyleClass().add("strong-label");
         titleNode.setWrapText(true);
@@ -252,12 +329,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         VBox.setVgrow(plotNode, Priority.ALWAYS);
         plotNode.prefWidthProperty().bind(headerDetails.widthProperty().subtract(6));
         titleNode.prefWidthProperty().bind(headerDetails.widthProperty().subtract(6));
-        ProgressIndicator imdbProgress = new ProgressIndicator();
-        imdbProgress.setPrefSize(14, 14);
-        imdbProgress.setMinSize(14, 14);
-        imdbProgress.setMaxSize(14, 14);
-        Label imdbLoadingLabel = new Label(I18n.tr("autoLoadingIMDbDetails"));
-        imdbLoadingNode.getChildren().setAll(imdbProgress, imdbLoadingLabel);
         bingeWatchButton.setFocusTraversable(true);
         bingeWatchButton.getStyleClass().setAll(STYLE_CLASS_BUTTON);
         bingeWatchButton.getStyleClass().add("binge-watch-menu-button");
@@ -273,7 +344,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         headerDetails.getChildren().setAll(titleRow);
         HBox.setHgrow(headerDetails, Priority.ALWAYS);
 
-        header.getChildren().setAll(seriesPosterNode, headerDetails);
+        header.getChildren().setAll(seriesPosterWrap, headerDetails);
     }
 
     @Override
@@ -298,6 +369,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     @Override
     protected void onReloadControlChanged() {
         updateReloadEpisodesButton();
+        setEpisodeLoadingOverlayVisible(
+                isReloadFromServerInProgress() && !allEpisodeItems.isEmpty(),
+                I18n.tr("autoLoadingEpisodesFor", categoryTitle)
+        );
     }
 
     @Override
@@ -315,9 +390,13 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         bingeWatchButton.setVisible(internalBingeWatchControlVisible);
         reloadEpisodesButton.setManaged(internalReloadControlVisible);
         reloadEpisodesButton.setVisible(internalReloadControlVisible);
-        boolean titleRowVisible = internalSeriesTitleVisible || internalBingeWatchControlVisible || internalReloadControlVisible;
+        boolean titleRowVisible = watchingNowDetailStylingApplied
+                ? internalSeriesTitleVisible
+                : internalSeriesTitleVisible || internalBingeWatchControlVisible || internalReloadControlVisible;
         titleRow.setManaged(titleRowVisible);
         titleRow.setVisible(titleRowVisible);
+        watchingNowEpisodesTitleRow.setManaged(watchingNowDetailStylingApplied);
+        watchingNowEpisodesTitleRow.setVisible(watchingNowDetailStylingApplied);
     }
 
     public void applyWatchingNowDetailStyling() {
@@ -326,24 +405,181 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         }
         watchingNowDetailStylingApplied = true;
         header.getStyleClass().remove("uiptv-outline-pane");
-        header.getStyleClass().add("uiptv-card");
-        if (bodyContainer != null) {
-            bodyContainer.setSpacing(1);
-            bodyContainer.setPadding(new Insets(0, 1, 0, 1));
+        header.getStyleClass().remove("uiptv-card");
+        header.getStyleClass().add("watching-now-series-info-panel");
+        seriesPosterWrap.getStyleClass().add("watching-now-series-poster-wrap");
+        bingeWatchButton.getStyleClass().remove("binge-watch-menu-button");
+        if (!bingeWatchButton.getStyleClass().contains("watching-now-binge-button")) {
+            bingeWatchButton.getStyleClass().add("watching-now-binge-button");
         }
-        cardsContainer.setPadding(new Insets(5));
-        seasonTabPane.getStyleClass().add("watching-now-detail-tabs");
+        titleNode.getStyleClass().add("watching-now-series-detail-title");
+        for (Label label : List.of(ratingNode, genreNode, releaseNode, plotNode)) {
+            label.getStyleClass().add("watching-now-series-meta-line");
+        }
+        configureWatchingNowEpisodesPanel();
+        if (bodyContainer != null) {
+            bodyContainer.setSpacing(0);
+            bodyContainer.setPadding(Insets.EMPTY);
+            bodyContainer.getChildren().setAll(watchingNowDetailLayout);
+            VBox.setVgrow(watchingNowDetailLayout, Priority.ALWAYS);
+        }
+        updateWatchingNowEpisodeScrollHeight();
+        header.setMinWidth(0);
+        header.setPrefWidth(330);
+        header.setMaxWidth(380);
+        seriesPosterNode.setFitWidth(260);
+        seriesPosterNode.setFitHeight(390);
+        cardsContainer.setPadding(new Insets(2, 0, 8, 0));
+        applyWatchingNowLayoutSizing(watchingNowDetailLayout.getWidth());
+        watchingNowDetailLayout.widthProperty().addListener((_, _, width) ->
+                applyWatchingNowLayoutSizing(width.doubleValue()));
+    }
+
+    private void updateWatchingNowEpisodeScrollHeight() {
+        if (!watchingNowDetailStylingApplied) {
+            return;
+        }
+        double availableHeight = contentStack.getHeight() > 0 ? contentStack.getHeight() : getHeight();
+        if (availableHeight <= 0) {
+            return;
+        }
+
+        double panelHeight = Math.max(180, availableHeight);
+        watchingNowDetailLayout.setPrefHeight(panelHeight);
+        watchingNowDetailLayout.setMaxHeight(panelHeight);
+        watchingNowEpisodesPanel.setPrefHeight(panelHeight);
+        watchingNowEpisodesPanel.setMaxHeight(panelHeight);
+
+        double reservedHeight = managedPrefHeight(watchingNowEpisodesTitleRow)
+                + managedPrefHeight(seasonPillBar)
+                + Math.max(0, watchingNowEpisodesPanel.getChildren().size() - 1) * watchingNowEpisodesPanel.getSpacing()
+                + 30;
+        double cardsHeight = Math.max(140, panelHeight - reservedHeight);
+        cardsFrame.setPrefHeight(cardsHeight);
+        cardsFrame.setMaxHeight(cardsHeight);
+        cardsScroll.setPrefHeight(cardsHeight);
+        cardsScroll.setMaxHeight(cardsHeight);
+        cardsScroll.setPrefViewportHeight(cardsHeight);
+    }
+
+    private double managedPrefHeight(Node node) {
+        if (node == null || !node.isManaged() || !node.isVisible()) {
+            return 0;
+        }
+        if (node instanceof Region region) {
+            return Math.max(0, region.prefHeight(-1));
+        }
+        Bounds bounds = node.getLayoutBounds();
+        return bounds == null ? 0 : Math.max(0, bounds.getHeight());
+    }
+
+    private void configureWatchingNowEpisodesPanel() {
+        watchingNowDetailLayout.getStyleClass().add("watching-now-series-detail-layout");
+        watchingNowDetailLayout.setAlignment(Pos.TOP_LEFT);
+        watchingNowDetailLayout.setMinWidth(0);
+        watchingNowDetailLayout.setMaxWidth(Double.MAX_VALUE);
+        watchingNowDetailLayout.setMinHeight(0);
+        watchingNowDetailLayout.setMaxHeight(Double.MAX_VALUE);
+
+        watchingNowEpisodesPanel.getStyleClass().add("watching-now-episodes-panel");
+        watchingNowEpisodesPanel.setMinWidth(0);
+        watchingNowEpisodesPanel.setMaxWidth(Double.MAX_VALUE);
+        watchingNowEpisodesPanel.setMinHeight(0);
+        watchingNowEpisodesPanel.setMaxHeight(Double.MAX_VALUE);
+
+        episodesTitleNode.getStyleClass().add("watching-now-episodes-title");
+        episodesSeriesTitleNode.getStyleClass().add("watching-now-episodes-series-title");
+        episodesSeriesTitleNode.setWrapText(true);
+        episodesSeriesTitleNode.setMinWidth(0);
+        episodesSeriesTitleNode.setMaxWidth(Double.MAX_VALUE);
+
+        watchingNowEpisodesTitleText.setMinWidth(0);
+        watchingNowEpisodesTitleText.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(watchingNowEpisodesTitleText, Priority.ALWAYS);
+
+        watchingNowEpisodesTitleRow.setAlignment(Pos.CENTER_LEFT);
+        watchingNowEpisodesTitleRow.setMinWidth(0);
+        watchingNowEpisodesTitleRow.setMaxWidth(Double.MAX_VALUE);
+        detachFromParent(bingeWatchButton);
+        watchingNowEpisodesTitleRow.getChildren().setAll(watchingNowEpisodesTitleText, bingeWatchButton);
+
+        cardsContainer.getStyleClass().add("watching-now-episode-card-list");
+        detachFromParent(header);
+        detachFromParent(seasonPillBar);
+        detachFromParent(cardsFrame);
+        watchingNowEpisodesPanel.getChildren().setAll(watchingNowEpisodesTitleRow, seasonPillBar, cardsFrame);
+        VBox.setVgrow(cardsFrame, Priority.ALWAYS);
+        syncWatchingNowDetailLayoutChildren();
+        refreshTitleRowVisibility();
+        updateHeaderVisibility(!allEpisodeItems.isEmpty());
+    }
+
+    private void syncWatchingNowDetailLayoutChildren() {
+        if (!watchingNowDetailStylingApplied) {
+            return;
+        }
+        if (mediaDrawerDetailMode) {
+            if (watchingNowDetailLayout.getChildren().size() != 1
+                    || watchingNowDetailLayout.getChildren().getFirst() != watchingNowEpisodesPanel) {
+                detachFromParent(watchingNowEpisodesPanel);
+                watchingNowDetailLayout.getChildren().setAll(watchingNowEpisodesPanel);
+            }
+            updateHeaderVisibility(false);
+            return;
+        }
+        if (watchingNowDetailLayout.getChildren().size() != 2
+                || watchingNowDetailLayout.getChildren().getFirst() != header
+                || watchingNowDetailLayout.getChildren().get(1) != watchingNowEpisodesPanel) {
+            detachFromParent(header);
+            detachFromParent(watchingNowEpisodesPanel);
+            watchingNowDetailLayout.getChildren().setAll(header, watchingNowEpisodesPanel);
+        }
+        updateHeaderVisibility(!allEpisodeItems.isEmpty());
+    }
+
+    private void detachFromParent(Node node) {
+        if (node != null && node.getParent() instanceof Pane pane) {
+            pane.getChildren().remove(node);
+        }
+    }
+
+    private void applyWatchingNowLayoutSizing(double availableWidth) {
+        double width = Math.max(240, availableWidth <= 0 ? 720 : availableWidth);
+        if (mediaDrawerDetailMode) {
+            watchingNowEpisodesPanel.setPrefWidth(Math.max(240, width - 4));
+            watchingNowEpisodesPanel.setMaxWidth(Double.MAX_VALUE);
+            return;
+        }
+        boolean stacked = width < 840;
+        if (stacked) {
+            double panelWidth = Math.max(220, width - 4);
+            header.setPrefWidth(panelWidth);
+            header.setMaxWidth(Double.MAX_VALUE);
+            watchingNowEpisodesPanel.setPrefWidth(panelWidth);
+            return;
+        }
+        double detailsWidth = Math.min(340, Math.max(280, width * 0.32));
+        header.setPrefWidth(detailsWidth);
+        header.setMaxWidth(380);
+        watchingNowEpisodesPanel.setPrefWidth(Math.max(420, width - detailsWidth - 18));
     }
 
     private void applySeriesHeader() {
         String title = firstNonBlank(seasonInfo.optString("name", ""), categoryTitle);
         titleNode.setText(title);
+        episodesSeriesTitleNode.setText(title);
 
         headerDetails.getChildren().removeAll(ratingNode, genreNode, releaseNode, plotNode, imdbLoadingNode);
         if (imdbBadgeNode != null) {
             headerDetails.getChildren().remove(imdbBadgeNode);
         }
-        titleRow.getChildren().setAll(titleNode, bingeWatchButton, reloadEpisodesButton);
+        if (watchingNowDetailStylingApplied) {
+            titleRow.getChildren().setAll(titleNode);
+            detachFromParent(bingeWatchButton);
+            watchingNowEpisodesTitleRow.getChildren().setAll(watchingNowEpisodesTitleText, bingeWatchButton);
+        } else {
+            titleRow.getChildren().setAll(titleNode, bingeWatchButton, reloadEpisodesButton);
+        }
         refreshTitleRowVisibility();
         if (!headerDetails.getChildren().contains(titleRow)) {
             headerDetails.getChildren().add(0, titleRow);
@@ -437,30 +673,40 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             seasons = List.of("1");
         }
 
-        seasonTabPane.getTabs().clear();
-        for (String season : seasons) {
-            Tab tab = new Tab(I18n.formatTabNumberLabel(season));
-            tab.setClosable(false);
-            tab.setUserData(season);
-            seasonTabPane.getTabs().add(tab);
-        }
-
-        Tab defaultTab = seasonTabPane.getTabs().stream()
-                .filter(t -> "1".equals(String.valueOf(t.getUserData())))
+        seasonOptions = seasons;
+        seasonPillBar.setItems(seasonOptions);
+        updateSeasonPillBarVisibility(!allEpisodeItems.isEmpty());
+        String defaultSeason = seasons.stream()
+                .filter("1"::equals)
                 .findFirst()
-                .orElse(seasonTabPane.getTabs().getFirst());
+                .orElse(seasons.getFirst());
         if (!isBlank(current)) {
-            defaultTab = seasonTabPane.getTabs().stream()
-                    .filter(t -> current.equals(String.valueOf(t.getUserData())))
+            defaultSeason = seasons.stream()
+                    .filter(current::equals)
                     .findFirst()
-                    .orElse(defaultTab);
+                    .orElse(defaultSeason);
         }
-        seasonTabPane.getSelectionModel().select(defaultTab);
+        seasonPillBar.setSelectedItem(defaultSeason);
+    }
+
+    private void updateSeasonPillBarVisibility(boolean hasEpisodes) {
+        boolean visible = hasEpisodes && seasonOptions.size() > 1;
+        seasonPillBar.setManaged(visible);
+        seasonPillBar.setVisible(visible);
+    }
+
+    private void updateHeaderVisibility(boolean hasEpisodes) {
+        boolean visible = hasEpisodes && !mediaDrawerDetailMode;
+        header.setManaged(visible);
+        header.setVisible(visible);
     }
 
     private void applySeasonFilter() {
         if (allEpisodeItems.isEmpty()) {
-            setEmptyState("No episodes found.", true);
+            selectedEpisodeCard = null;
+            renderedCardsByItem.clear();
+            cardsContainer.getChildren().clear();
+            setEmptyState(I18n.tr("autoNoEpisodesFound"), true);
             updateBingeWatchButton();
             return;
         }
@@ -478,20 +724,36 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         cardsContainer.getChildren().clear();
         if (filtered.isEmpty()) {
             cardsContainer.getChildren().add(new Label(I18n.tr("autoNoEpisodesFound")));
+            syncEpisodeLoadingNode();
             updateBingeWatchButton();
             return;
         }
         for (EpisodeItem item : filtered) {
-            VBox card = createEpisodeCard(item);
+            VBox card = mediaDrawerDetailMode ? createDrawerEpisodeRow(item) : createEpisodeCard(item);
             renderedCardsByItem.put(item, card);
             cardsContainer.getChildren().add(card);
         }
+        syncEpisodeLoadingNode();
         updateBingeWatchButton();
+        scheduleInitialEpisodeFocus();
     }
 
     private String selectedSeason() {
-        Tab selected = seasonTabPane.getSelectionModel().getSelectedItem();
-        return selected != null ? String.valueOf(selected.getUserData()) : "";
+        return seasonPillBar.getSelectedItem() == null ? "" : seasonPillBar.getSelectedItem();
+    }
+
+    private void selectSeasonPill(String season) {
+        if (isBlank(season)) {
+            return;
+        }
+        String normalized = normalizeNumber(season);
+        String match = seasonOptions.stream()
+                .filter(item -> normalized.equals(normalizeNumber(item)))
+                .findFirst()
+                .orElse(null);
+        if (match != null) {
+            seasonPillBar.setSelectedItem(match);
+        }
     }
 
     @Override
@@ -503,6 +765,12 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         VBox root = new VBox(8);
         root.setPadding(new Insets(10));
         root.getStyleClass().add("uiptv-card");
+        if (watchingNowDetailStylingApplied) {
+            root.getStyleClass().add("watching-now-episode-card");
+        }
+        root.setFocusTraversable(true);
+        root.setMinWidth(0);
+        root.setMaxWidth(Double.MAX_VALUE);
 
         HBox top = new HBox(10);
         top.setAlignment(Pos.TOP_LEFT);
@@ -528,13 +796,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             badges.getChildren().add(watched);
         }
         ContextMenu rowMenu = addRightClickContextMenu(row, root);
-        Button playButton = new Button(I18n.tr("autoPlay2"));
-        playButton.getStyleClass().setAll(STYLE_CLASS_BUTTON);
+        Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
         playButton.getStyleClass().add("episode-play-button");
-        playButton.setMinWidth(Region.USE_PREF_SIZE);
-        playButton.setMaxWidth(Double.MAX_VALUE);
-        playButton.setMinHeight(Region.USE_PREF_SIZE);
-        playButton.setFocusTraversable(true);
         playButton.setOnAction(event -> {
             event.consume();
             rowMenu.hide();
@@ -559,11 +822,17 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         cardLabels.add(title);
         if (!isBlank(row.getReleaseDate())) {
             Label release = new Label(I18n.tr("autoReleasePrefix", shortDateOnly(row.getReleaseDate())));
+            if (watchingNowDetailStylingApplied) {
+                release.getStyleClass().add("watching-now-episode-meta-label");
+            }
             text.getChildren().add(release);
             cardLabels.add(release);
         }
         if (!isBlank(row.getRating())) {
             Label rating = new Label(I18n.tr("autoRatingPrefix", row.getRating()));
+            if (watchingNowDetailStylingApplied) {
+                rating.getStyleClass().add("watching-now-episode-meta-label");
+            }
             text.getChildren().add(rating);
             cardLabels.add(rating);
         }
@@ -576,18 +845,238 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             plot.setWrapText(true);
             plot.setMaxWidth(Double.MAX_VALUE);
             plot.setMinHeight(Region.USE_PREF_SIZE);
+            if (watchingNowDetailStylingApplied) {
+                plot.getStyleClass().add("watching-now-episode-plot");
+            }
             root.getChildren().add(plot);
             cardLabels.add(plot);
         }
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
-        root.setOnMouseClicked(event -> {
-            if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
-            } else if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
+        root.focusedProperty().addListener((_, _, focused) -> {
+            if (Boolean.TRUE.equals(focused)) {
                 setSelectedEpisodeCard(root);
             }
         });
+        root.setOnMouseClicked(event -> {
+            if (event.getButton() != MouseButton.PRIMARY) {
+                return;
+            }
+            if (isInteractiveChildEvent(root, event)) {
+                return;
+            }
+            setSelectedEpisodeCard(root);
+            root.requestFocus();
+            if (event.getClickCount() == 2) {
+                play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            }
+            event.consume();
+        });
         return root;
+    }
+
+    private boolean isInteractiveChildEvent(Pane card, MouseEvent event) {
+        Object target = event.getTarget();
+        while (target instanceof Node node && node != card) {
+            if (node instanceof ButtonBase) {
+                return true;
+            }
+            target = node.getParent();
+        }
+        return false;
+    }
+
+    private VBox createDrawerEpisodeRow(EpisodeItem row) {
+        VBox root = new VBox(2);
+        root.setPadding(new Insets(8, 9, 8, 9));
+        root.getStyleClass().addAll("uiptv-card", "watching-now-episode-card", "watching-now-episode-card-compact", "watching-now-episode-drawer-row");
+        root.setFocusTraversable(true);
+        root.setMinWidth(0);
+        root.setMaxWidth(Double.MAX_VALUE);
+        root.setMinHeight(44);
+        root.setPrefHeight(Region.USE_COMPUTED_SIZE);
+
+        Label title = new Label(buildEpisodeDisplayTitle(row.getSeason(), row.getEpisodeNumber(), row.getEpisodeName()));
+        title.getStyleClass().addAll("strong-label", "watching-now-episode-drawer-title");
+        title.setWrapText(true);
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
+        title.setMouseTransparent(true);
+        HBox.setHgrow(title, Priority.ALWAYS);
+
+        HBox titleRow = new HBox(6, title);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.setMinWidth(0);
+        titleRow.setMaxWidth(Double.MAX_VALUE);
+        titleRow.setMouseTransparent(true);
+
+        if (row.isWatched()) {
+            Label watched = new Label(I18n.tr("autoWatching"));
+            watched.getStyleClass().add("drm-badge");
+            watched.setMinWidth(Region.USE_PREF_SIZE);
+            watched.setMaxWidth(Region.USE_PREF_SIZE);
+            watched.setMouseTransparent(true);
+            titleRow.getChildren().add(watched);
+        }
+
+        Label meta = new Label(drawerEpisodeMeta(row));
+        meta.getStyleClass().add("watching-now-episode-drawer-meta");
+        meta.setWrapText(true);
+        meta.setMinWidth(0);
+        meta.setMaxWidth(Double.MAX_VALUE);
+        meta.setMouseTransparent(true);
+        meta.setVisible(!isBlank(meta.getText()));
+        meta.setManaged(!isBlank(meta.getText()));
+
+        List<Label> cardLabels = new ArrayList<>();
+        cardLabels.add(title);
+        cardLabels.add(meta);
+        root.getChildren().addAll(titleRow, meta);
+        root.getProperties().put(KEY_CARD_LABELS, cardLabels);
+        addRightClickContextMenu(row, root);
+        root.focusedProperty().addListener((_, _, focused) -> {
+            if (Boolean.TRUE.equals(focused)) {
+                setSelectedEpisodeCard(root);
+            }
+        });
+        root.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_CLICKED, event -> {
+            if (event.getButton() != MouseButton.PRIMARY) {
+                return;
+            }
+            setSelectedEpisodeCard(root);
+            root.requestFocus();
+            if (event.getClickCount() == 2) {
+                event.consume();
+                play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+            }
+            event.consume();
+        });
+        return root;
+    }
+
+    private void handleEpisodeNavigationKeyPressed(KeyEvent event) {
+        List<VBox> cards = episodeCards();
+        if (cards.isEmpty()) {
+            return;
+        }
+        int currentIndex = currentEpisodeCardIndex(cards);
+        int targetIndex = switch (event.getCode()) {
+            case UP -> Math.max(0, currentIndex - 1);
+            case DOWN -> Math.min(cards.size() - 1, currentIndex + 1);
+            case HOME -> 0;
+            case END -> cards.size() - 1;
+            default -> currentIndex;
+        };
+        if (targetIndex != currentIndex) {
+            focusEpisodeCard(cards.get(targetIndex));
+            event.consume();
+        }
+    }
+
+    private List<VBox> episodeCards() {
+        return cardsContainer.getChildren().stream()
+                .filter(VBox.class::isInstance)
+                .map(VBox.class::cast)
+                .filter(VBox::isFocusTraversable)
+                .toList();
+    }
+
+    private int currentEpisodeCardIndex(List<VBox> cards) {
+        int selectedIndex = selectedEpisodeCard == null ? -1 : cards.indexOf(selectedEpisodeCard);
+        if (selectedIndex >= 0) {
+            return selectedIndex;
+        }
+        Node focusOwner = getScene() == null ? null : getScene().getFocusOwner();
+        for (int index = 0; index < cards.size(); index++) {
+            if (isDescendantOf(focusOwner, cards.get(index))) {
+                return index;
+            }
+        }
+        return 0;
+    }
+
+    private void scheduleInitialEpisodeFocus() {
+        Platform.runLater(this::focusSelectedEpisodeIfAppropriate);
+    }
+
+    @Override
+    protected void requestContentFocus() {
+        scheduleInitialEpisodeFocus();
+    }
+
+    private void focusSelectedEpisodeIfAppropriate() {
+        List<VBox> cards = episodeCards();
+        if (cards.isEmpty() || !isDisplayable()) {
+            return;
+        }
+        VBox target = selectedEpisodeCard != null && cards.contains(selectedEpisodeCard)
+                ? selectedEpisodeCard
+                : cards.getFirst();
+        setSelectedEpisodeCard(target);
+        Node focusOwner = getScene().getFocusOwner();
+        if (isDescendantOf(focusOwner, cardsContainer) || isProtectedFocusOwner(focusOwner)) {
+            return;
+        }
+        focusEpisodeCard(target);
+    }
+
+    private boolean isProtectedFocusOwner(Node focusOwner) {
+        return focusOwner instanceof TextInputControl;
+    }
+
+    private boolean isDisplayable() {
+        if (getScene() == null) {
+            return false;
+        }
+        Node node = this;
+        while (node != null) {
+            if (!node.isVisible()) {
+                return false;
+            }
+            node = node.getParent();
+        }
+        return true;
+    }
+
+    private void focusEpisodeCard(VBox card) {
+        if (card == null) {
+            return;
+        }
+        setSelectedEpisodeCard(card);
+        card.requestFocus();
+        scrollEpisodeCardIntoView(card);
+    }
+
+    private void scrollEpisodeCardIntoView(VBox card) {
+        double viewportHeight = cardsScroll.getViewportBounds().getHeight();
+        double contentHeight = cardsContainer.getBoundsInLocal().getHeight();
+        double scrollableHeight = contentHeight - viewportHeight;
+        if (viewportHeight <= 0 || scrollableHeight <= 0) {
+            return;
+        }
+        Bounds bounds = card.getBoundsInParent();
+        double viewportTop = cardsScroll.getVvalue() * scrollableHeight;
+        double viewportBottom = viewportTop + viewportHeight;
+        double targetTop = bounds.getMinY();
+        double targetBottom = bounds.getMaxY();
+        if (targetTop >= viewportTop && targetBottom <= viewportBottom) {
+            return;
+        }
+        double nextTop = targetTop < viewportTop ? targetTop : targetBottom - viewportHeight;
+        cardsScroll.setVvalue(Math.max(0, Math.min(1, nextTop / scrollableHeight)));
+    }
+
+    private String drawerEpisodeMeta(EpisodeItem row) {
+        List<String> parts = new ArrayList<>();
+        if (row == null) {
+            return "";
+        }
+        if (!isBlank(row.getReleaseDate())) {
+            parts.add(I18n.tr("autoReleasePrefix", shortDateOnly(row.getReleaseDate())));
+        }
+        if (!isBlank(row.getRating())) {
+            parts.add(I18n.tr("autoRatingPrefix", row.getRating()));
+        }
+        return String.join(" · ", parts);
     }
 
     private ImageView createEpisodePoster(EpisodeItem row) {
@@ -659,11 +1148,20 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         if (current == null) {
             return;
         }
-        if (selectedEpisodeCard != null && selectedEpisodeCard != current) {
-            applyCardSelection(selectedEpisodeCard, false);
-        }
+        clearEpisodeCardSelections(current);
         applyCardSelection(current, true);
         selectedEpisodeCard = current;
+    }
+
+    private void clearEpisodeCardSelections(VBox except) {
+        for (VBox card : episodeCards()) {
+            if (card != except) {
+                applyCardSelection(card, false);
+            }
+        }
+        if (selectedEpisodeCard != null && selectedEpisodeCard != except) {
+            applyCardSelection(selectedEpisodeCard, false);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -672,7 +1170,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         if (selected) {
-            card.getStyleClass().add("selected-card");
+            if (!card.getStyleClass().contains("selected-card")) {
+                card.getStyleClass().add("selected-card");
+            }
         } else {
             card.getStyleClass().remove("selected-card");
         }
@@ -691,7 +1191,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         if (selected) {
-            label.getStyleClass().add("selected-card-text");
+            if (!label.getStyleClass().contains("selected-card-text")) {
+                label.getStyleClass().add("selected-card-text");
+            }
         } else {
             label.getStyleClass().remove("selected-card-text");
         }
@@ -703,6 +1205,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
         target.setOnContextMenuRequested(event -> {
+            focusEpisodeCard(target instanceof VBox vbox ? vbox : selectedEpisodeCard);
             populateEpisodeContextMenu(rowMenu, item);
             if (!rowMenu.getItems().isEmpty()) {
                 rowMenu.show(target, event.getScreenX(), event.getScreenY());
@@ -710,6 +1213,17 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             event.consume();
         });
         return rowMenu;
+    }
+
+    private boolean isDescendantOf(Node node, Node ancestor) {
+        Node current = node;
+        while (current != null) {
+            if (current == ancestor) {
+                return true;
+            }
+            current = current.getParent();
+        }
+        return false;
     }
 
     private void populateEpisodeContextMenu(ContextMenu rowMenu, EpisodeItem item) {
@@ -781,7 +1295,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         imdbLoading = true;
-        Platform.runLater(this::applySeriesHeader);
+        Platform.runLater(() -> {
+            applySeriesHeader();
+            setEpisodeLoadingOverlayVisible(!allEpisodeItems.isEmpty(), I18n.tr("autoLoadingIMDbDetails"));
+        });
         long generation = lifecycleGeneration.get();
         boolean submitted = WatchingNowMetadataExecutor.submit(() -> {
             try {
@@ -802,6 +1319,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         });
         if (!submitted) {
             imdbLoading = false;
+            Platform.runLater(() -> setEpisodeLoadingOverlayVisible(false, null));
         }
     }
 
@@ -831,6 +1349,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         imdbLoading = false;
         applySeriesHeader();
         applySeasonFilter();
+        setEpisodeLoadingOverlayVisible(false, null);
         navigateToPendingEpisodeTarget();
     }
 
@@ -855,11 +1374,13 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         super.releaseTransientState();
         renderedCardsByItem.clear();
         cardsContainer.getChildren().clear();
-        seasonTabPane.getTabs().clear();
+        seasonOptions = List.of();
+        seasonPillBar.setItems(seasonOptions);
         selectedEpisodeCard = null;
         imdbLoaded = false;
         imdbLoading = false;
         imdbBadgeNode = null;
+        setEpisodeLoadingOverlayVisible(false, null);
         seriesPosterNode.setImage(null);
         pendingTargetSeason = null;
         pendingTargetEpisodeId = null;

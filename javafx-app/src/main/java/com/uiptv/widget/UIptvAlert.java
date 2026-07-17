@@ -1,17 +1,23 @@
 package com.uiptv.widget;
 
-import com.uiptv.ui.RootApplication;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
-import javafx.geometry.NodeOrientation;
+import javafx.application.Platform;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
-import javafx.stage.Modality;
+import javafx.stage.Window;
 
-import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public class UIptvAlert {
+    private static final Set<String> ACTIVE_VOID_ALERTS = ConcurrentHashMap.newKeySet();
+
     private UIptvAlert() {
     }
 
@@ -29,10 +35,19 @@ public class UIptvAlert {
         if (isHeadlessMode()) {
             return;
         }
-        Alert alert = new Alert(Alert.AlertType.INFORMATION, message, closeButtonType());
-        alert.setTitle(I18n.tr("commonInfo"));
-        prepareAlert(alert);
-        alert.showAndWait();
+        String alertKey = "INFO:" + message;
+        if (!ACTIVE_VOID_ALERTS.add(alertKey)) {
+            AppLog.addInfoLog(UIptvAlert.class, "Message alert coalesced: " + message);
+            return;
+        }
+        Runnable cleanup = () -> ACTIVE_VOID_ALERTS.remove(alertKey);
+        showVoidAlertLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION, message, closeButtonType());
+            alert.setTitle(I18n.tr("commonInfo"));
+            alert.setHeaderText(I18n.tr("commonInfo"));
+            prepareAlert(alert, alertOwnerWindow(), null, alert.getButtonTypes().getFirst());
+            return alert;
+        }, cleanup);
     }
 
     public static boolean showConfirmationAlert(String contents) {
@@ -42,12 +57,31 @@ public class UIptvAlert {
             AppLog.addWarningLog(UIptvAlert.class, "Confirmation skipped in headless mode.");
             return false;
         }
+        if (!Platform.isFxApplicationThread()) {
+            AtomicBoolean confirmed = new AtomicBoolean(false);
+            CountDownLatch latch = new CountDownLatch(1);
+            Platform.runLater(() -> {
+                try {
+                    confirmed.set(showConfirmationAlertNow(message));
+                } finally {
+                    latch.countDown();
+                }
+            });
+            awaitLatch(latch);
+            return confirmed.get();
+        }
+        return showConfirmationAlertNow(message);
+    }
+
+    private static boolean showConfirmationAlertNow(String message) {
         ButtonType okButton = okButtonType();
         ButtonType closeButton = closeButtonType();
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message, okButton, closeButton);
         alert.setTitle(I18n.tr("commonConfirm"));
-        prepareAlert(alert);
-        Optional<ButtonType> result = alert.showAndWait();
+        alert.setHeaderText(I18n.tr("commonConfirm"));
+        Window ownerWindow = alertOwnerWindow();
+        prepareAlert(alert, ownerWindow, okButton, closeButton);
+        java.util.Optional<ButtonType> result = ThemedDialogSupport.showAndWait(alert, ownerWindow);
         return result.isPresent() && result.get() == okButton;
     }
 
@@ -84,24 +118,62 @@ public class UIptvAlert {
         if (isHeadlessMode()) {
             return;
         }
-        Alert alert = new Alert(Alert.AlertType.ERROR, message, closeButtonType());
-        alert.setTitle(I18n.tr("commonError"));
-        prepareAlert(alert);
-        alert.showAndWait();
+        String alertKey = "ERROR:" + message;
+        if (!ACTIVE_VOID_ALERTS.add(alertKey)) {
+            AppLog.addInfoLog(UIptvAlert.class, "Error alert coalesced: " + message);
+            return;
+        }
+        Runnable cleanup = () -> ACTIVE_VOID_ALERTS.remove(alertKey);
+        showVoidAlertLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.ERROR, message, closeButtonType());
+            alert.setTitle(I18n.tr("commonError"));
+            alert.setHeaderText(I18n.tr("commonError"));
+            prepareAlert(alert, alertOwnerWindow(), null, alert.getButtonTypes().getFirst());
+            return alert;
+        }, cleanup);
     }
 
-    private static void prepareAlert(Alert alert) {
-        alert.setHeaderText(null);
-        alert.getDialogPane().setNodeOrientation(I18n.isCurrentLocaleRtl() ? NodeOrientation.RIGHT_TO_LEFT : NodeOrientation.LEFT_TO_RIGHT);
-        alert.initModality(Modality.NONE);
-        String theme = RootApplication.getCurrentTheme();
-        if (theme != null) {
-            alert.getDialogPane().getStylesheets().add(theme);
+    private static void showVoidAlertLater(Supplier<Alert> alertSupplier, Runnable cleanup) {
+        Platform.runLater(() -> Platform.runLater(() -> {
+            try {
+                Alert alert = alertSupplier.get();
+                ThemedDialogSupport.showAndWait(alert, alert.getOwner());
+            } finally {
+                cleanup.run();
+            }
+        }));
+    }
+
+    private static void prepareAlert(Alert alert, Window ownerWindow, ButtonType primaryButtonType, ButtonType secondaryButtonType) {
+        ThemedDialogSupport.prepare(alert, ownerWindow, "uiptv-alert-dialog");
+        styleAlertButton(alert, primaryButtonType, "uiptv-dialog-primary-button");
+        styleAlertButton(alert, secondaryButtonType, "uiptv-dialog-secondary-button");
+    }
+
+    private static void styleAlertButton(Alert alert, ButtonType buttonType, String styleClass) {
+        if (buttonType == null) {
+            return;
         }
+        Button button = (Button) alert.getDialogPane().lookupButton(buttonType);
+        if (button != null && !button.getStyleClass().contains(styleClass)) {
+            button.getStyleClass().add(styleClass);
+        }
+    }
+
+    private static Window alertOwnerWindow() {
+        return ThemedDialogSupport.activeOwnerWindow();
     }
 
     private static boolean isHeadlessMode() {
         return Boolean.getBoolean("uiptv.headless");
+    }
+
+    private static void awaitLatch(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static void logError(String message, Exception ex) {

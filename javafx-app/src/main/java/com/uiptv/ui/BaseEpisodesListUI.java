@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchState;
@@ -59,6 +60,7 @@ public abstract class BaseEpisodesListUI extends HBox {
     protected static final Pattern MONTH_DATE_PATTERN = Pattern.compile("(?i)\\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{1,2},\\s+\\d{4}\\b");
     protected static final Pattern SLASH_DATE_PATTERN = Pattern.compile("\\b\\d{1,2}/\\d{1,2}/\\d{2,4}\\b");
     protected static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b\\d{4}-\\d{2}-\\d{2}\\b");
+    protected final AccountMediaContext mediaContext;
     protected final Account account;
     protected final String categoryTitle;
     protected final String seriesId;
@@ -86,8 +88,15 @@ public abstract class BaseEpisodesListUI extends HBox {
     private final SeriesWatchStateChangeListener watchStateChangeListener;
 
     protected BaseEpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
+        this(AccountMediaContext.from(account, Account.AccountAction.series), categoryTitle, seriesId, seriesCategoryId);
+    }
+
+    protected BaseEpisodesListUI(AccountMediaContext mediaContext, String categoryTitle, String seriesId, String seriesCategoryId) {
         this.channelList = new EpisodeList();
-        this.account = account;
+        this.mediaContext = mediaContext == null
+                ? new AccountMediaContext(null, Account.AccountAction.series)
+                : mediaContext.withAction(Account.AccountAction.series);
+        this.account = this.mediaContext.toAccount();
         this.categoryTitle = categoryTitle;
         this.seriesId = isBlank(seriesId) ? "" : seriesId.trim();
         this.seriesCategoryId = isBlank(seriesCategoryId) ? "" : seriesCategoryId.trim();
@@ -242,6 +251,7 @@ public abstract class BaseEpisodesListUI extends HBox {
             allEpisodeItems.setAll(items);
             onItemsLoaded();
             applyPendingNavigation();
+            requestContentFocus();
         });
     }
 
@@ -302,6 +312,10 @@ public abstract class BaseEpisodesListUI extends HBox {
         // Optional in subclasses.
     }
 
+    protected void requestContentFocus() {
+        // Optional in subclasses.
+    }
+
     protected EpisodeItem findBestEpisodeMatch(String season, String episodeId, String episodeNumber, String episodeName) {
         if (allEpisodeItems.isEmpty()) {
             return null;
@@ -346,6 +360,8 @@ public abstract class BaseEpisodesListUI extends HBox {
         setMinWidth(0);
         setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         setMaxWidth(Double.MAX_VALUE);
+        setMinHeight(0);
+        setMaxHeight(Double.MAX_VALUE);
     }
 
     private void configureEmptyStateOverlay() {
@@ -358,6 +374,8 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (!contentStack.getChildren().contains(emptyStateLabel)) {
             contentStack.getChildren().add(emptyStateLabel);
         }
+        contentStack.setMinSize(0, 0);
+        contentStack.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         HBox.setHgrow(contentStack, Priority.ALWAYS);
         if (!getChildren().contains(contentStack)) {
             getChildren().add(contentStack);
@@ -373,7 +391,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterBookmarkListener();
-                releaseTransientState();
+                releaseTransientStateIfStillDetached();
             } else if (!bookmarkListenerRegistered) {
                 BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
                 bookmarkListenerRegistered = true;
@@ -391,11 +409,19 @@ public abstract class BaseEpisodesListUI extends HBox {
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 unregisterWatchStateListener();
-                releaseTransientState();
+                releaseTransientStateIfStillDetached();
             } else if (!watchStateListenerRegistered) {
                 SeriesWatchStateService.getInstance().addChangeListener(watchStateChangeListener);
                 watchStateListenerRegistered = true;
                 refreshWatchedStatesAsync();
+            }
+        });
+    }
+
+    private void releaseTransientStateIfStillDetached() {
+        runLater(() -> {
+            if (getScene() == null) {
+                releaseTransientState();
             }
         });
     }
@@ -487,7 +513,6 @@ public abstract class BaseEpisodesListUI extends HBox {
             return;
         }
         new Thread(() -> {
-            account.setAction(Account.AccountAction.series);
             SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
                     account,
                     seriesCategoryId,
@@ -515,7 +540,6 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (item == null) {
             return;
         }
-        account.setAction(Account.AccountAction.series);
         SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
                 account,
                 seriesCategoryId,
@@ -533,7 +557,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         channel.setSeason(item.getSeason());
         channel.setEpisodeNum(item.getEpisodeNumber());
         channel.setLogo(item.getLogo());
-        PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(account, channel, playerPath)
+        PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(mediaContext, channel, playerPath)
                 .series(seriesId, seriesCategoryId)
                 .channelId(item.getEpisodeId())
                 .categoryId(seriesCategoryId)
@@ -556,7 +580,6 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (!UiServerUrlUtil.ensureServerForWebPlayback(startupFailureMessage)) {
             return;
         }
-        account.setAction(Account.AccountAction.series);
         SeriesWatchState watchState = SeriesWatchStateService.getInstance()
                 .getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
         String token = BingeWatchService.getInstance().createSession(
@@ -580,7 +603,7 @@ public abstract class BaseEpisodesListUI extends HBox {
                 playerPath,
                 BingeWatchService.getInstance().buildPlaylistUrl(token),
                 "Binge watch playback failed: ",
-                account,
+                mediaContext,
                 bingeWatchChannel
         );
     }

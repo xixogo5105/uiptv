@@ -28,8 +28,9 @@ class VlcVideoPlayerTest {
         configuration.setVlcLiveCachingMs("30000");
         configuration.setEnableVlcHttpUserAgent(false);
         configuration.setEnableVlcHttpForwardCookies(false);
-        configuration.setVlcVout("enabled");
-        configuration.setVlcAvcodecHw("enabled");
+        // Enable vout and avcodec-hw to test OS-specific arguments
+        configuration.setVlcVout("true");
+        configuration.setVlcAvcodecHw("true");
 
         List<String> args = VlcVideoPlayer.buildVlcArgs(configuration);
 
@@ -57,8 +58,9 @@ class VlcVideoPlayerTest {
         configuration.setVlcLiveCachingMs("1000");
         configuration.setEnableVlcHttpUserAgent(false);
         configuration.setEnableVlcHttpForwardCookies(false);
-        configuration.setVlcVout("enabled");
-        configuration.setVlcAvcodecHw("enabled");
+        // Enable vout and avcodec-hw to test OS-specific arguments
+        configuration.setVlcVout("true");
+        configuration.setVlcAvcodecHw("true");
 
         List<String> args = VlcVideoPlayer.buildVlcArgs(configuration);
 

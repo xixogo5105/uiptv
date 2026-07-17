@@ -17,7 +17,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -30,7 +30,7 @@ jobs:
 
       - name: Restore API 24 libmpv AAR
         id: libmpv-aar-cache
-        uses: actions/cache@v6
+        uses: actions/cache@v5
         with:
           path: mobile/androidApp/libs/libmpv-android-api24.aar
           key: libmpv-api24-aar-${{ runner.os }}-v1-${{ hashFiles('scripts/build-mobile-with-libmpv.sh', 'mobile/androidApp/build.gradle.kts') }}

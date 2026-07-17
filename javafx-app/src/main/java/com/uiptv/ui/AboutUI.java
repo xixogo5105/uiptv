@@ -4,18 +4,16 @@ import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.VersionManager;
 import javafx.application.HostServices;
-import javafx.geometry.Rectangle2D;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.OverrunStyle;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -28,6 +26,7 @@ import javafx.stage.Stage;
 
 public class AboutUI {
     private static final String FALLBACK_PROJECT_URL = "https://github.com/xixogo5105/uiptv";
+    private static final String GUIDE_URL = "https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md";
     private static final double BASE_SCENE_WIDTH = 760;
     private static final double BASE_SCENE_HEIGHT = 561;
     private static final double MIN_SCENE_WIDTH = 560;
@@ -44,7 +43,23 @@ public class AboutUI {
 
         Image image = new Image(getClass().getResourceAsStream("/icon.png"));
         stage.getIcons().add(image);
+        VBox dialogCard = createDialogCard(hostServices, stage::close);
 
+        StackPane root = new StackPane(dialogCard);
+        root.setPadding(new Insets(18));
+        root.getStyleClass().add("management-popup-root");
+
+        Scene scene = new Scene(root, resolveSceneWidth(), resolveSceneHeight());
+        UiI18n.applySceneOrientation(scene);
+        if (RootApplication.getCurrentTheme() != null) {
+            scene.getStylesheets().add(RootApplication.getCurrentTheme());
+        }
+        stage.setScene(scene);
+        stage.showAndWait();
+    }
+
+    static VBox createDialogCard(HostServices hostServices, Runnable closeAction) {
+        Image image = new Image(AboutUI.class.getResourceAsStream("/icon.png"));
         ImageView imageView = new ImageView(image);
         imageView.setFitHeight(72);
         imageView.setFitWidth(72);
@@ -92,6 +107,10 @@ public class AboutUI {
         link.setOnAction(e -> hostServices.showDocument(FALLBACK_PROJECT_URL));
         link.getStyleClass().add("about-link");
 
+        Hyperlink helpLink = new Hyperlink(I18n.tr("autoHelp"));
+        helpLink.setOnAction(e -> hostServices.showDocument(GUIDE_URL));
+        helpLink.getStyleClass().add("about-link");
+
         Region badgeSpacer = new Region();
         HBox.setHgrow(badgeSpacer, Priority.ALWAYS);
         HBox badgeRow = new HBox(8, desktopBadge, badgeSpacer, versionChip);
@@ -103,7 +122,7 @@ public class AboutUI {
         creditsRow.setPrefWrapLength(500);
         creditsRow.getStyleClass().add("about-inline-row");
 
-        FlowPane footerRow = new FlowPane(10, 4, poweredByLabel, link);
+        FlowPane footerRow = new FlowPane(10, 4, poweredByLabel, link, helpLink);
         footerRow.setAlignment(Pos.CENTER_LEFT);
         footerRow.setRowValignment(javafx.geometry.VPos.CENTER);
         footerRow.setPrefWrapLength(500);
@@ -135,43 +154,38 @@ public class AboutUI {
         HBox.setHgrow(infoBox, Priority.ALWAYS);
 
         Button updateButton = new Button(I18n.tr("autoCheckForUpdates"));
-        updateButton.setDefaultButton(true);
-        updateButton.getStyleClass().add("prominent");
+        updateButton.getStyleClass().addAll("uiptv-inline-primary-button", "about-update-button");
         updateButton.setOnAction(e -> UpdateChecker.checkForUpdates(hostServices));
 
         Button closeButton = new Button(I18n.tr("autoClose"));
         closeButton.setCancelButton(true);
-        closeButton.setOnAction(e -> stage.close());
+        closeButton.getStyleClass().addAll("uiptv-inline-secondary-button", "about-close-button");
+        closeButton.setOnAction(e -> {
+            if (closeAction != null) {
+                closeAction.run();
+            }
+        });
 
         VBox content = new VBox(14, heroBox, infoBox);
         content.setAlignment(Pos.TOP_LEFT);
         content.setFillWidth(true);
-        content.setMaxWidth(CONTENT_MAX_WIDTH);
+        content.setMinWidth(0);
+        content.setMaxWidth(Double.MAX_VALUE);
 
         HBox actions = new HBox(8, closeButton, updateButton);
         actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.setMinWidth(0);
+        actions.setMaxWidth(Double.MAX_VALUE);
         actions.getStyleClass().add("about-actions");
 
-        ScrollPane scrollPane = new ScrollPane(content);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setFitToHeight(false);
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scrollPane.getStyleClass().add("transparent-scroll-pane");
-
-        BorderPane root = new BorderPane();
-        root.setPadding(new Insets(18));
-        root.getStyleClass().add("about-root");
-        root.setCenter(scrollPane);
-        root.setBottom(actions);
-
-        Scene scene = new Scene(root, resolveSceneWidth(), resolveSceneHeight());
-        UiI18n.applySceneOrientation(scene);
-        if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-        stage.setScene(scene);
-        stage.showAndWait();
+        VBox dialogCard = new VBox(14, content, actions);
+        dialogCard.setAlignment(Pos.TOP_LEFT);
+        dialogCard.setFillWidth(true);
+        dialogCard.setMinWidth(0);
+        dialogCard.setPrefWidth(CONTENT_MAX_WIDTH);
+        dialogCard.setMaxWidth(CONTENT_MAX_WIDTH);
+        dialogCard.getStyleClass().add("about-dialog-card");
+        return dialogCard;
     }
 
     public static void show(HostServices hostServices) {
@@ -228,7 +242,7 @@ public class AboutUI {
     }
 
     private static double clamp(double value, double min, double max) {
-        return Math.clamp(value, min, max);
+        return Math.max(min, Math.min(max, value));
     }
 
     private static String resolveReleaseSummary() {

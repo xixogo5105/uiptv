@@ -2,6 +2,7 @@ package com.uiptv.service;
 
 import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeInfo;
@@ -81,21 +82,16 @@ public class SeriesEpisodeService {
         if (account == null || isBlank(seriesId)) {
             return new EpisodeList();
         }
-        Account.AccountAction previousAction = account.getAction();
-        account.setAction(Account.AccountAction.series);
-        try {
-            EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled);
-            if (hasEpisodes(fetched)) {
-                return fetched;
-            }
-            EpisodeList fallback = loadFromDbAnyAge(account, categoryId, seriesId);
-            if (hasEpisodes(fallback)) {
-                return fallback;
-            }
-            return new EpisodeList();
-        } finally {
-            account.setAction(previousAction);
+        Account seriesAccount = AccountMediaContext.from(account, Account.AccountAction.series).toAccount();
+        EpisodeList fetched = fetchEpisodesFromPortal(seriesAccount, categoryId, seriesId, isCancelled);
+        if (hasEpisodes(fetched)) {
+            return fetched;
         }
+        EpisodeList fallback = loadFromDbAnyAge(seriesAccount, categoryId, seriesId);
+        if (hasEpisodes(fallback)) {
+            return fallback;
+        }
+        return new EpisodeList();
     }
 
     @SuppressWarnings("java:S4276")

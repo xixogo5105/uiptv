@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.I18n;
@@ -16,7 +17,7 @@ import org.json.JSONObject;
 import java.util.function.Consumer;
 
 public class EpisodesListUI extends HBox {
-    private final Account account;
+    private final AccountMediaContext mediaContext;
     private final String categoryTitle;
     private final String seriesId;
     private final String seriesCategoryId;
@@ -31,17 +32,29 @@ public class EpisodesListUI extends HBox {
     private boolean externalBingeWatchControlRequested = false;
     private boolean externalSeriesTitleRequested = false;
     private boolean externalReloadControlRequested = false;
+    private boolean mediaDrawerMode = false;
     private Consumer<JSONObject> seasonInfoListener;
     private Consumer<EpisodeList> portalReloadListener;
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = enabled -> refreshThumbnailMode();
 
     public EpisodesListUI(EpisodeList channelList, Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this(account, categoryTitle, seriesId, seriesCategoryId);
+        this(AccountMediaContext.from(account, Account.AccountAction.series), categoryTitle, seriesId, seriesCategoryId);
         setItems(channelList);
     }
 
     public EpisodesListUI(Account account, String categoryTitle, String seriesId, String seriesCategoryId) {
-        this.account = account;
+        this(AccountMediaContext.from(account, Account.AccountAction.series), categoryTitle, seriesId, seriesCategoryId);
+    }
+
+    public EpisodesListUI(EpisodeList channelList, AccountMediaContext mediaContext, String categoryTitle, String seriesId, String seriesCategoryId) {
+        this(mediaContext, categoryTitle, seriesId, seriesCategoryId);
+        setItems(channelList);
+    }
+
+    public EpisodesListUI(AccountMediaContext mediaContext, String categoryTitle, String seriesId, String seriesCategoryId) {
+        this.mediaContext = mediaContext == null
+                ? new AccountMediaContext(null, Account.AccountAction.series)
+                : mediaContext.withAction(Account.AccountAction.series);
         this.categoryTitle = categoryTitle;
         this.seriesId = seriesId;
         this.seriesCategoryId = seriesCategoryId;
@@ -69,6 +82,15 @@ public class EpisodesListUI extends HBox {
     public void applyWatchingNowDetailStyling() {
         watchingNowDetailStylingApplied = true;
         applyWatchingNowDetailStyling(delegate);
+        applyMediaDrawerMode(delegate);
+    }
+
+    public void setMediaDrawerMode(boolean mediaDrawerMode) {
+        if (this.mediaDrawerMode == mediaDrawerMode) {
+            return;
+        }
+        this.mediaDrawerMode = mediaDrawerMode;
+        applyMediaDrawerMode(delegate);
     }
 
     public void navigateToLastWatched(SeriesWatchState state) {
@@ -111,6 +133,12 @@ public class EpisodesListUI extends HBox {
         }
     }
 
+    public void requestContentFocus() {
+        if (delegate != null) {
+            delegate.requestContentFocus();
+        }
+    }
+
     public void useExternalSeriesTitle() {
         externalSeriesTitleRequested = true;
         applyDelegateHeaderPreferences(delegate);
@@ -121,20 +149,33 @@ public class EpisodesListUI extends HBox {
     }
 
     private void registerThumbnailModeListener() {
+        sceneProperty().addListener((_, _, newScene) -> {
+            if (newScene == null) {
+                unregisterThumbnailModeListener();
+            } else {
+                registerThumbnailModeListenerIfNeeded();
+                refreshThumbnailMode();
+            }
+        });
+        if (getScene() != null) {
+            registerThumbnailModeListenerIfNeeded();
+        }
+    }
+
+    private void registerThumbnailModeListenerIfNeeded() {
         if (thumbnailListenerRegistered) {
             return;
         }
         ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
         thumbnailListenerRegistered = true;
-        sceneProperty().addListener((_, _, newScene) -> {
-            if (newScene == null) {
-                ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
-                thumbnailListenerRegistered = false;
-            } else if (!thumbnailListenerRegistered) {
-                ThumbnailAwareUI.addThumbnailModeListener(thumbnailModeListener);
-                thumbnailListenerRegistered = true;
-            }
-        });
+    }
+
+    private void unregisterThumbnailModeListener() {
+        if (!thumbnailListenerRegistered) {
+            return;
+        }
+        ThumbnailAwareUI.removeThumbnailModeListener(thumbnailModeListener);
+        thumbnailListenerRegistered = false;
     }
 
     private void refreshThumbnailMode() {
@@ -154,6 +195,7 @@ public class EpisodesListUI extends HBox {
         if (watchingNowDetailStylingApplied) {
             applyWatchingNowDetailStyling(delegate);
         }
+        applyMediaDrawerMode(delegate);
         if (lastEpisodeList != null) {
             delegate.setItems(lastEpisodeList);
         }
@@ -172,9 +214,9 @@ public class EpisodesListUI extends HBox {
 
     private BaseEpisodesListUI buildDelegate() {
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
-            return new ThumbnailEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId);
+            return new ThumbnailEpisodesListUI(mediaContext, categoryTitle, seriesId, seriesCategoryId);
         }
-        return new PlainEpisodesListUI(account, categoryTitle, seriesId, seriesCategoryId);
+        return new PlainEpisodesListUI(mediaContext, categoryTitle, seriesId, seriesCategoryId);
     }
 
     private void configureDelegate(BaseEpisodesListUI target) {
@@ -252,6 +294,12 @@ public class EpisodesListUI extends HBox {
             thumbnail.applyWatchingNowDetailStyling();
         } else if (target instanceof PlainEpisodesListUI plain) {
             plain.applyWatchingNowDetailStyling();
+        }
+    }
+
+    private void applyMediaDrawerMode(BaseEpisodesListUI target) {
+        if (target instanceof ThumbnailEpisodesListUI thumbnail) {
+            thumbnail.setMediaDrawerDetailMode(mediaDrawerMode);
         }
     }
 

@@ -3,13 +3,16 @@ package com.uiptv.player;
 import com.uiptv.player.api.VideoPlayerInterface;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
+import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.BingeWatchService;
+import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
 import com.uiptv.service.SeriesWatchStateService;
+import com.uiptv.ui.RootApplication;
 import com.uiptv.ui.util.StyleClassDecorator;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
@@ -47,6 +50,9 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.property.ReadOnlyBooleanProperty;
 
 import java.io.IOException;
 import java.net.URLDecoder;
@@ -65,8 +71,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private static final int MAX_HLS_RESOLUTION_DEPTH = 8;
     private static final String STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON = "player-round-control-button";
     private static final String STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON = "player-pip-overlay-button";
+    private static final String STYLE_CLASS_PLAYER_LAYOUT_MODE_BUTTON = "player-layout-mode-button";
+    private static final String STYLE_CLASS_PLAYER_HIDDENBAR_CLOSE_BUTTON = "player-hiddenbar-close-button";
     public static final String PLAYER_ICON_BUTTON = "player-icon-button";
     public static final String PLAYER_TRACKS_MENU_ITEM = "player-tracks-menu-item";
+    private static final String WIDE_LAYOUT_ICON = "M3 5H21V19H3V5ZM5 7V17H11V7H5ZM13 7V17H19V7H13Z";
+    private static final String NARROW_LAYOUT_ICON = "M3 5H21V19H3V5ZM5 7V17H14V7H5ZM16 7V17H19V7H16Z";
 
     // State
     protected boolean isMuted = true;
@@ -82,6 +92,29 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected static final int ASPECT_RATIO_STRETCH = 2;
     protected int aspectRatioMode = ASPECT_RATIO_FIT; // 0=Fit, 1=Fill (Zoom), 2=Stretch
     protected boolean isUserSeeking = false;
+
+    protected final BooleanProperty pip = new SimpleBooleanProperty(false);
+    protected final BooleanProperty fullscreen = new SimpleBooleanProperty(false);
+
+    @Override
+    public boolean isPip() {
+        return pip.get();
+    }
+
+    @Override
+    public boolean isFullscreen() {
+        return fullscreen.get();
+    }
+
+    @Override
+    public ReadOnlyBooleanProperty pipProperty() {
+        return pip;
+    }
+
+    @Override
+    public ReadOnlyBooleanProperty fullscreenProperty() {
+        return fullscreen;
+    }
 
     // UI Components
     protected Slider timeSlider;
@@ -101,6 +134,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected Button btnFullscreen;
     protected Button btnReload;
     protected Button btnPip;
+    protected Button btnLayoutMode;
     protected Button btnStop;
     protected Button btnRewind;
     protected Button btnFastForward;
@@ -122,6 +156,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected ImageView reloadIcon;
     protected ImageView pipIcon;
     protected ImageView pipExitIcon;
+    protected SVGPath layoutModeIcon;
     protected ImageView aspectRatioIcon;
     protected ImageView aspectRatioFillIcon;
     protected ImageView aspectRatioStretchIcon;
@@ -146,8 +181,13 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected boolean isLiveLikeContent = true;
     protected String activeBingeWatchToken = "";
     protected String activeBingeWatchEpisodeId = "";
+    private boolean primaryStageAlwaysOnTopBeforeVideoOverlay;
+    private boolean primaryStageAlwaysOnTopSuppressedForVideoOverlay;
+    private boolean fullscreenExitPending;
     private SeriesWatchStateChangeListener bingeWatchStateChangeListener;
     private final EventHandler<InputEvent> sceneInputRecoveryHandler = event -> handleSceneInputRecovery(event);
+    private final ConfigurationChangeListener layoutModeConfigurationChangeListener =
+            _ -> Platform.runLater(this::updateLayoutModeButton);
     private double lastMouseEventScreenX = Double.NaN;
     private double lastMouseEventScreenY = Double.NaN;
 
@@ -181,6 +221,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         buildUI();
         setupEventHandlers();
         setupFadeAndIdleLogic();
+        ConfigurationService.getInstance().addChangeListener(layoutModeConfigurationChangeListener);
         playerContainer.sceneProperty().addListener((_, oldScene, newScene) -> {
             if (oldScene != newScene) {
                 uninstallSceneInputRecovery(oldScene);
@@ -221,8 +262,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btnReload = createIconButton(reloadIcon);
         btnFullscreen = createIconButton(fullscreenIcon);
         btnPip = createIconButton(pipIcon);
+        btnLayoutMode = createIconButton(layoutModeIcon);
+        btnLayoutMode.getStyleClass().add(STYLE_CLASS_PLAYER_LAYOUT_MODE_BUTTON);
+        btnLayoutMode.setFocusTraversable(false);
         btnAspectRatio = createIconButton(aspectRatioIcon);
         btnAspectRatio.setTooltip(new Tooltip(I18n.tr("autoFit")));
+        updateLayoutModeButton();
 
         btnHideBar = createIconButton(hideBarIcon);
         btnHideBar.setTooltip(new Tooltip(I18n.tr("autoHideThisBar")));
@@ -255,7 +300,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         HBox buttonRow = new HBox(1.5);
         buttonRow.setAlignment(Pos.CENTER_LEFT);
-        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio);
+        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnLayoutMode, btnAspectRatio);
         buttonRow.getChildren().add(btnTracks);
         buttonRow.getChildren().add(btnHideBar);
 
@@ -275,7 +320,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         controlsContainer.getStyleClass().add("player-controls-container");
         controlsContainer.getChildren().addAll(nowShowingFlow, buttonRow, timeRow);
         controlsContainer.setMaxWidth(576);
-        controlsContainer.setPrefWidth(36);
+        controlsContainer.setPrefWidth(Region.USE_COMPUTED_SIZE);
         controlsContainer.setMaxHeight(Region.USE_PREF_SIZE);
         applyFixedControlBarOrientation(controlsContainer, nowShowingFlow, buttonRow, timeRow, timeLabel, volumeSlider, timeSlider);
 
@@ -288,12 +333,24 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         playerClip.heightProperty().bind(playerContainer.heightProperty());
         playerContainer.setClip(playerClip);
 
-        playerContainer.widthProperty().addListener((obs, oldVal, newVal) -> updateVideoSize());
-        playerContainer.heightProperty().addListener((obs, oldVal, newVal) -> updateVideoSize());
-
         StackPane overlayWrapper = new StackPane(controlsContainer);
         overlayWrapper.setAlignment(Pos.BOTTOM_CENTER);
         overlayWrapper.setPadding(new Insets(0, 10, 10, 10));
+        overlayWrapper.setManaged(false);
+        overlayWrapper.setMinSize(0, 0);
+        overlayWrapper.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        Runnable layoutControlOverlay = () -> overlayWrapper.resizeRelocate(0, 0,
+                playerContainer.getWidth(),
+                playerContainer.getHeight());
+        playerContainer.widthProperty().addListener((obs, oldVal, newVal) -> {
+            updateVideoSize();
+            layoutControlOverlay.run();
+        });
+        playerContainer.heightProperty().addListener((obs, oldVal, newVal) -> {
+            updateVideoSize();
+            layoutControlOverlay.run();
+        });
 
         loadingSpinner = new ProgressIndicator();
         loadingSpinner.setMaxSize(60, 60);
@@ -334,6 +391,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         closeIcon.getStyleClass().add("player-hiddenbar-close-icon");
         msgCloseBtn.setGraphic(closeIcon);
         msgCloseBtn.getStyleClass().add(STYLE_CLASS_PLAYER_ROUND_CONTROL_BUTTON);
+        msgCloseBtn.getStyleClass().add(STYLE_CLASS_PLAYER_HIDDENBAR_CLOSE_BUTTON);
         msgCloseBtn.setPadding(new Insets(8)); // Bigger hit area
         
         // Action
@@ -361,6 +419,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             playerContainer.getChildren().add(videoView);
         }
         playerContainer.getChildren().addAll(overlayWrapper, loadingSpinner, errorLabel, hiddenBarMessage);
+        Platform.runLater(layoutControlOverlay);
     }
 
     private void setupEventHandlers() {
@@ -397,6 +456,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             exitFullscreen();
             togglePip();
         });
+        btnLayoutMode.setOnAction(e -> toggleWideViewPreference());
         btnAspectRatio.setOnAction(e -> toggleAspectRatio());
         btnHideBar.setOnAction(e -> hideControlBarByUser());
         btnMute.setOnAction(e -> {
@@ -606,19 +666,19 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     private void restoreVisibleCursor() {
         if (playerContainer != null) {
-            playerContainer.setCursor(Cursor.DEFAULT);
+            playerContainer.setCursor(null);
             if (playerContainer.getScene() != null) {
-                playerContainer.getScene().setCursor(Cursor.DEFAULT);
+                playerContainer.getScene().setCursor(null);
             }
         }
         if (fullscreenStage != null && fullscreenStage.getScene() != null) {
-            fullscreenStage.getScene().setCursor(Cursor.DEFAULT);
+            fullscreenStage.getScene().setCursor(null);
         }
         if (originalParent != null && originalParent.getScene() != null) {
-            originalParent.getScene().setCursor(Cursor.DEFAULT);
+            originalParent.getScene().setCursor(null);
         }
         if (pipStage != null && pipStage.getScene() != null) {
-            pipStage.getScene().setCursor(Cursor.DEFAULT);
+            pipStage.getScene().setCursor(null);
         }
     }
 
@@ -859,6 +919,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void stop() {
+        if (pipStage != null) {
+            exitPip();
+        }
+        exitFullscreen();
         retryCount = 0;
         isRetrying.set(false);
         idleTimer.stop();
@@ -918,6 +982,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             return;
         }
         try {
+            ConfigurationService.getInstance().removeChangeListener(layoutModeConfigurationChangeListener);
             // First stop any current playback and dispose current media
             stopForReload();
         } catch (Exception _) {
@@ -954,6 +1019,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                     // Ignore stage teardown issues during fullscreen cleanup.
                 }
                 fullscreenStage = null;
+                fullscreen.set(false);
             }
 
             // Remove any PiP stage
@@ -965,7 +1031,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                     // Ignore stage teardown issues during PiP cleanup.
                 }
                 pipStage = null;
+                pip.set(false);
             }
+            restorePrimaryStageAlwaysOnTopAfterVideoOverlay();
 
             // Cancel idle timers
             if (idleTimer != null) {
@@ -1048,6 +1116,67 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         updateVideoSize();
     }
 
+    private void toggleWideViewPreference() {
+        Configuration current = readConfigurationSafely();
+        if (current == null || !current.isEmbeddedPlayer()) {
+            updateLayoutModeButton();
+            return;
+        }
+        boolean nextWideView = !current.isWideView();
+        applyLayoutModeButtonState(true, nextWideView);
+        saveWideViewPreferenceAsync(nextWideView);
+    }
+
+    protected void saveWideViewPreferenceAsync(boolean wideView) {
+        Thread saveThread = new Thread(() -> saveWideViewPreference(wideView), "embedded-player-wide-view-save");
+        saveThread.setDaemon(true);
+        saveThread.start();
+    }
+
+    private void saveWideViewPreference(boolean wideView) {
+        Configuration configuration = readConfigurationSafely();
+        if (configuration == null || !configuration.isEmbeddedPlayer() || configuration.isWideView() == wideView) {
+            return;
+        }
+        configuration.setWideView(wideView);
+        try {
+            ConfigurationService.getInstance().save(configuration);
+        } catch (RuntimeException _) {
+            Platform.runLater(this::updateLayoutModeButton);
+        }
+    }
+
+    private void updateLayoutModeButton() {
+        Configuration configuration = readConfigurationSafely();
+        boolean available = configuration != null && configuration.isEmbeddedPlayer();
+        applyLayoutModeButtonState(available, available && configuration.isWideView());
+    }
+
+    private Configuration readConfigurationSafely() {
+        try {
+            return ConfigurationService.getInstance().read();
+        } catch (RuntimeException _) {
+            return null;
+        }
+    }
+
+    private void applyLayoutModeButtonState(boolean available, boolean wideView) {
+        if (btnLayoutMode == null || layoutModeIcon == null) {
+            return;
+        }
+        btnLayoutMode.setVisible(available);
+        btnLayoutMode.setManaged(available);
+        layoutModeIcon.setContent(wideView ? WIDE_LAYOUT_ICON : NARROW_LAYOUT_ICON);
+        layoutModeIcon.setOpacity(wideView ? 1.0 : 0.72);
+        String tooltipText = I18n.tr("configWideView") + ": " + I18n.tr(wideView ? "commonEnabled" : "commonDisabled");
+        if (btnLayoutMode.getTooltip() == null) {
+            btnLayoutMode.setTooltip(new Tooltip(tooltipText));
+        } else {
+            btnLayoutMode.getTooltip().setText(tooltipText);
+        }
+        btnLayoutMode.setAccessibleText(tooltipText);
+    }
+
     private void updateAspectRatioButtonState() {
         String tooltipText = switch (aspectRatioMode) {
             case ASPECT_RATIO_FILL -> "Fill";
@@ -1123,6 +1252,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 originalIndex = originalParent.getChildren().indexOf(playerContainer);
                 originalParent.getChildren().remove(playerContainer);
             }
+            suppressPrimaryStageAlwaysOnTopForVideoOverlay();
             fullscreenStage = new Stage(StageStyle.UNDECORATED);
             Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
             fullscreenRoot = new StackPane(playerContainer);
@@ -1151,6 +1281,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             playerContainer.requestFocus();
             btnFullscreen.setGraphic(fullscreenExitIcon);
             isFullscreen = true;
+            fullscreen.set(true);
             if (!isControlBarHiddenByUser) controlsContainer.setVisible(true);
             restoreVisibleCursor();
             if (isPointerInsidePlayer) {
@@ -1160,22 +1291,45 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     public void exitFullscreen() {
-        if (fullscreenStage == null) return;
-        Platform.runLater(() -> {
+        if (fullscreenStage == null || fullscreenExitPending) return;
+        fullscreenExitPending = true;
+        if (Platform.isFxApplicationThread()) {
+            exitFullscreenOnFxThread();
+        } else {
+            Platform.runLater(this::exitFullscreenOnFxThread);
+        }
+    }
+
+    private void exitFullscreenOnFxThread() {
+        try {
+            Stage stageToClose = fullscreenStage;
+            StackPane rootToDetach = fullscreenRoot;
+            fullscreenStage = null;
+            fullscreenRoot = null;
             playerContainer.prefWidthProperty().unbind();
             playerContainer.prefHeightProperty().unbind();
-            if (fullscreenStage != null) fullscreenStage.close();
-            fullscreenStage = null;
-            if (fullscreenRoot != null) {
-                fullscreenRoot.getChildren().remove(playerContainer);
-                fullscreenRoot = null;
+            if (stageToClose != null) {
+                uninstallSceneInputRecovery(stageToClose.getScene());
+                stageToClose.setOnCloseRequest(null);
+                stageToClose.close();
+            }
+            if (rootToDetach != null) {
+                rootToDetach.getChildren().remove(playerContainer);
             }
             if (originalParent != null) {
-                originalParent.getChildren().add(originalIndex, playerContainer);
+                if (playerContainer.getParent() != originalParent) {
+                    if (playerContainer.getParent() instanceof Pane currentParent) {
+                        currentParent.getChildren().remove(playerContainer);
+                    }
+                    int safeIndex = Math.max(0, Math.min(originalIndex, originalParent.getChildren().size()));
+                    originalParent.getChildren().add(safeIndex, playerContainer);
+                }
                 if (originalParent.getScene() != null) {
-                    originalParent.getScene().setCursor(Cursor.DEFAULT);
+                    originalParent.getScene().setCursor(null);
                 }
             }
+            originalParent = null;
+            originalIndex = -1;
             playerContainer.applyCss();
             playerContainer.layout();
             playerContainer.requestLayout();
@@ -1187,11 +1341,20 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             btnStop.setManaged(true);
 
             isFullscreen = false;
-            idleTimer.stop();
-            controlsContainer.setVisible(false);
-            isPointerInsidePlayer = false;
+            fullscreen.set(false);
+            isPointerInsidePlayer = true;
+            if (isControlBarHiddenByUser) {
+                controlsContainer.setVisible(false);
+                idleTimer.stop();
+            } else {
+                controlsContainer.setVisible(true);
+                restartIdleTimerForActivePlayer();
+            }
             restoreVisibleCursor();
-        });
+        } finally {
+            restorePrimaryStageAlwaysOnTopAfterVideoOverlay();
+            fullscreenExitPending = false;
+        }
     }
 
     // --- PiP Logic ---
@@ -1209,6 +1372,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             playerContainer.getChildren().remove(videoView);
 
             pipStage = createPipStage();
+            pip.set(true);
             StackPane pipRoot = createPipRoot();
             Button restoreButton = createPipRestoreButton();
             PipControlButtons buttons = createPipControlButtons();
@@ -1222,7 +1386,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             installPipSceneInputRecovery(scene);
             positionPipStage();
             setupPipResizing(pipRoot);
-            pipStage.show();
+            showVideoOverlayStage(pipStage, false);
             applyPipUiState();
         });
     }
@@ -1233,6 +1397,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             uninstallSceneInputRecovery(pipStage.getScene());
             pipStage.close();
             pipStage = null;
+            pip.set(false);
 
             Node videoView = getVideoView();
             ((Pane) videoView.getParent()).getChildren().remove(videoView);
@@ -1281,10 +1446,63 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
     }
 
-    private Stage createPipStage() {
+    protected Stage createPipStage() {
         Stage stage = new Stage(StageStyle.UNDECORATED);
-        stage.setAlwaysOnTop(true);
+        configureVideoOverlayStage(stage);
         return stage;
+    }
+
+    protected void configureVideoOverlayStage(Stage stage) {
+        if (stage == null) {
+            return;
+        }
+        Stage primaryStage = RootApplication.getPrimaryStage();
+        if (primaryStage != null && primaryStage != stage && !stage.isShowing()) {
+            stage.initOwner(primaryStage);
+        }
+        stage.setAlwaysOnTop(true);
+    }
+
+    protected void suppressPrimaryStageAlwaysOnTopForVideoOverlay() {
+        Stage primaryStage = RootApplication.getPrimaryStage();
+        if (primaryStage == null || primaryStageAlwaysOnTopSuppressedForVideoOverlay) {
+            return;
+        }
+        primaryStageAlwaysOnTopBeforeVideoOverlay = primaryStage.isAlwaysOnTop();
+        primaryStageAlwaysOnTopSuppressedForVideoOverlay = primaryStageAlwaysOnTopBeforeVideoOverlay;
+        if (primaryStageAlwaysOnTopSuppressedForVideoOverlay) {
+            primaryStage.setAlwaysOnTop(false);
+        }
+    }
+
+    protected void restorePrimaryStageAlwaysOnTopAfterVideoOverlay() {
+        if (!primaryStageAlwaysOnTopSuppressedForVideoOverlay) {
+            return;
+        }
+        Stage primaryStage = RootApplication.getPrimaryStage();
+        if (primaryStage != null) {
+            primaryStage.setAlwaysOnTop(primaryStageAlwaysOnTopBeforeVideoOverlay);
+        }
+        primaryStageAlwaysOnTopBeforeVideoOverlay = false;
+        primaryStageAlwaysOnTopSuppressedForVideoOverlay = false;
+    }
+
+    private void showVideoOverlayStage(Stage stage, boolean requestFocus) {
+        if (stage == null) {
+            return;
+        }
+        stage.show();
+        stage.setAlwaysOnTop(true);
+        stage.toFront();
+        if (requestFocus) {
+            stage.requestFocus();
+        }
+        Platform.runLater(() -> {
+            if (stage.isShowing()) {
+                stage.setAlwaysOnTop(true);
+                stage.toFront();
+            }
+        });
     }
 
     private StackPane createPipRoot() {
@@ -1376,6 +1594,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         if (videoView instanceof ImageView imageView) {
             imageView.fitWidthProperty().bind(pipRoot.widthProperty());
             imageView.fitHeightProperty().bind(pipRoot.heightProperty());
+            imageView.setScaleX(1.0);
+            imageView.setScaleY(1.0);
         }
     }
 
@@ -1413,7 +1633,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     private ResizeState resolveResizeState(double x, double y, double width, double height) {
-        Cursor cursor = Cursor.DEFAULT;
+        Cursor cursor = null;
         int direction = 0;
         if (y < RESIZE_BORDER) {
             cursor = Cursor.N_RESIZE;
@@ -1543,7 +1763,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private void finishPipInteraction() {
         isResizing = false;
         resizeDirection = 0;
-        pipStage.getScene().setCursor(Cursor.DEFAULT);
+        pipStage.getScene().setCursor(null);
     }
 
     private void loadIcons() {
@@ -1561,6 +1781,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         muteOffIcon = createIconView("mute-off.png", true);
         pipIcon = createIconView("picture-in-picture.png", true);
         pipExitIcon = createIconView("picture-in-picture-exit.png", false);
+        layoutModeIcon = createLayoutModeIcon();
         aspectRatioIcon = createIconView("aspect-ratio.png", true);
         aspectRatioFillIcon = createIconView("aspect-ratio-fill.png", true);
         aspectRatioStretchIcon = createIconView("aspect-ratio-stretch.png", true);
@@ -1610,6 +1831,23 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btn.setPadding(new Insets(3));
         btn.getStyleClass().add(PLAYER_ICON_BUTTON);
         return btn;
+    }
+
+    private Button createIconButton(SVGPath icon) {
+        Button btn = new Button();
+        btn.setGraphic(icon);
+        btn.setPadding(new Insets(3));
+        btn.getStyleClass().add(PLAYER_ICON_BUTTON);
+        return btn;
+    }
+
+    private SVGPath createLayoutModeIcon() {
+        SVGPath icon = new SVGPath();
+        icon.setContent(NARROW_LAYOUT_ICON);
+        icon.setFill(Color.WHITE);
+        icon.setScaleX(0.9);
+        icon.setScaleY(0.9);
+        return icon;
     }
 
     private Button createTransportButton(ImageView icon, String tooltip) {

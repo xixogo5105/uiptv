@@ -9,13 +9,12 @@ final class WatchingNowActionMenu {
 
     static List<ActionDescriptor> buildEpisodeStyleActions(boolean alreadySaved, List<PlaybackUIService.PlayerOption> playerOptions) {
         List<ActionDescriptor> actions = new ArrayList<>();
-        if (!alreadySaved) {
-            actions.add(ActionDescriptor.watchingNow());
-            actions.add(ActionDescriptor.separator());
-        }
         appendPlayerActions(actions, playerOptions);
-        if (alreadySaved) {
-            actions.add(ActionDescriptor.separator());
+        if (!alreadySaved) {
+            appendSeparatorIfNeeded(actions);
+            actions.add(ActionDescriptor.watchingNow());
+        } else {
+            appendSeparatorIfNeeded(actions);
             actions.add(ActionDescriptor.removeWatchingNow());
         }
         return actions;
@@ -27,6 +26,12 @@ final class WatchingNowActionMenu {
         }
         for (PlaybackUIService.PlayerOption option : playerOptions) {
             actions.add(ActionDescriptor.player(option.label(), option.playerPath()));
+        }
+    }
+
+    private static void appendSeparatorIfNeeded(List<ActionDescriptor> actions) {
+        if (!actions.isEmpty()) {
+            actions.add(ActionDescriptor.separator());
         }
     }
 

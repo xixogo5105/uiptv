@@ -28,7 +28,7 @@ public class SearchableFilterableTableView extends TableView<AccountListUI.Accou
     public SearchableFilterableTableView() {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);
         this.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        textField.setOnMousePressed(event -> textField.clear());
+        SearchFieldBehavior.installMouseClear(textField);
         menuButton.setMinWidth(110);
         menuButton.setPrefWidth(125);
         menuButton.setMaxWidth(125);

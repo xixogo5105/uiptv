@@ -16,11 +16,12 @@ import com.uiptv.widget.*;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
-import javafx.beans.value.ChangeListener;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -35,7 +36,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.uiptv.model.Account.CACHE_SUPPORTED;
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
-import static com.uiptv.util.AccountType.getAccountTypeByDisplay;
 import static com.uiptv.util.StringUtils.*;
 import static com.uiptv.widget.DialogAlert.showDialog;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
@@ -44,14 +44,18 @@ import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 public class ManageAccountUI extends VBox {
     public static final String PRIMARY_MAC_ADDRESS_HINT_KEY = "managePrimaryMacAddressHint";
     private static final String DEFAULT_TIMEZONE = "Europe/London";
+    private static final double ACTION_BUTTON_GAP = 6;
+    private static final double ACTION_ROW_EXTRA_SPACE = 12;
+    private static final double MAC_ADDRESS_LIST_PREF_HEIGHT = 136;
     final FileChooser fileChooser = new FileChooser();
     final Button browserButtonM3u8Path = new Button(I18n.tr("autoBrowse"));
     final UIptvText m3u8Path = new UIptvText("m3u8Path", "manageM3u8FilePathUrlPrompt", 5);
-    private final ComboBox<String> accountType = new ComboBox<>();
+    private final HBox m3u8PathBrowserRow = new HBox(6, m3u8Path, browserButtonM3u8Path);
+    private final PillBar<AccountType> accountTypePillBar = new PillBar<>(AccountType::getDisplay, AccountType::name);
     private final UIptvText name = new UIptvText("name", "manageAccountNameMustBeUniquePrompt", 5);
     private final UIptvText username = new UIptvText("username", "manageUserNamePrompt", 5);
     private final UIptvText password = new UIptvText("password", "managePasswordPrompt", 5);
-    private final UIptvCombo xtremeUsername = new UIptvCombo("xtremeUsername", "manageUserNamePrompt", 350);
+    private final UIptvCombo xtremeUsername = new UIptvCombo("xtremeUsername", "manageUserNamePrompt", 220);
     private final Hyperlink manageXtremeCredentialsLink = new Hyperlink(I18n.tr("autoManage"));
     private final HBox xtremeUsernameContainer = new HBox(5, xtremeUsername, manageXtremeCredentialsLink);
     private final UIptvText url = new UIptvText("url", "manageUrlPrompt", 5);
@@ -67,6 +71,8 @@ public class ManageAccountUI extends VBox {
     private final UIptvText signature = new UIptvText("signature", "manageSignaturePrompt", 5);
     private final CheckBox pinToTopCheckBox = new CheckBox(I18n.tr("autoPinAccountOnTop"));
     private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox(I18n.tr("manageResolveChainAndDeepRedirects"));
+    private final SwitchToggle pinToTopSwitch = new SwitchToggle();
+    private final SwitchToggle resolveChainAndDeepRedirectsSwitch = new SwitchToggle();
     private final UIptvCombo httpMethodCombo = new UIptvCombo("httpMethod", "manageHttpMethodPrompt", 150);
     private final UIptvCombo timezoneCombo = new UIptvCombo("timezone", "manageTimezonePrompt", 250);
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
@@ -79,12 +85,21 @@ public class ManageAccountUI extends VBox {
     private final ManageAccountInfoPane accountInfoPane = new ManageAccountInfoPane();
     private final ManageAccountXtremeCredentialsHelper xtremeCredentialsHelper =
             new ManageAccountXtremeCredentialsHelper(xtremeUsername, username, password, manageXtremeCredentialsLink, xtremeUsernameContainer);
-    private HBox macAddressContainer;
+    private FlowPane macAddressContainer;
     private VBox actionSection;
+    private HBox wideActionRow;
+    private FlowPane wrappedActionPane;
+    private Region actionSpacer;
+    private boolean actionLayoutWrapped;
+    private Node pinToTopSwitchRow;
+    private Node resolveChainAndDeepRedirectsSwitchRow;
     AccountService service = AccountService.getInstance();
     private String accountId;
+    private String originalAccountName;
     private Callback<Object> onSaveCallback;
     private Timeline saveSuccessTimeline;
+    private AccountType selectedAccountType = STALKER_PORTAL;
+    private boolean syncingAccountTypeSelection;
 
     public ManageAccountUI() {
         initWidgets();
@@ -97,8 +112,9 @@ public class ManageAccountUI extends VBox {
     private void initWidgets() {
         setPadding(Insets.EMPTY);
         setSpacing(0);
-        formContainer.setPadding(new Insets(8));
-        formContainer.setSpacing(5);
+        formContainer.getStyleClass().add("manage-account-form");
+        formContainer.setPadding(new Insets(6));
+        formContainer.setSpacing(6);
         formContainer.setFillWidth(true);
 
         ScrollPane scrollPane = new ScrollPane(formContainer);
@@ -110,22 +126,32 @@ public class ManageAccountUI extends VBox {
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         getChildren().setAll(scrollPane);
 
-        saveButton.setMinWidth(Region.USE_COMPUTED_SIZE);
-        saveButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
-        saveButton.setMaxWidth(Double.MAX_VALUE);
-        saveButton.setMinHeight(50);
-        saveButton.setPrefHeight(50);
-        refreshChannelsButton.setMinWidth(Region.USE_COMPUTED_SIZE);
-        refreshChannelsButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        saveButton.getStyleClass().add("manage-account-header-save");
+        saveButton.setMinWidth(72);
+        saveButton.setPrefWidth(86);
+        saveButton.setMaxWidth(Region.USE_PREF_SIZE);
+        saveButton.setMinHeight(30);
+        refreshChannelsButton.setMinWidth(92);
+        refreshChannelsButton.setPrefWidth(106);
+        refreshChannelsButton.setMaxWidth(Region.USE_PREF_SIZE);
         m3u8Path.setMinWidth(180);
-        accountType.setMinWidth(250);
-        macAddress.setPrefWidth(235); // Reduced by ~33% from 350
+        browserButtonM3u8Path.setMinWidth(Region.USE_PREF_SIZE);
+        browserButtonM3u8Path.setMaxWidth(Region.USE_PREF_SIZE);
+        macAddress.setMinWidth(155);
+        macAddress.setPrefWidth(188);
+        macAddress.setMaxWidth(210);
 
-        clearButton.setMinWidth(Region.USE_COMPUTED_SIZE);
-        clearButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
-        deleteButton.setMinWidth(Region.USE_COMPUTED_SIZE);
-        deleteButton.setPrefWidth(Region.USE_COMPUTED_SIZE);
-        accountType.setMaxWidth(Double.MAX_VALUE);
+        refreshChannelsButton.getStyleClass().add("manage-account-compact-action");
+        clearButton.getStyleClass().add("manage-account-compact-action");
+        deleteButton.getStyleClass().add("manage-account-compact-action");
+        clearButton.setMinWidth(72);
+        clearButton.setPrefWidth(84);
+        clearButton.setMaxWidth(Region.USE_PREF_SIZE);
+        deleteButton.setMinWidth(118);
+        deleteButton.setPrefWidth(124);
+        deleteButton.setMaxWidth(Region.USE_PREF_SIZE);
+        accountTypePillBar.getStyleClass().add("manage-account-type-pill-bar");
+        accountTypePillBar.setMaxWidth(Double.MAX_VALUE);
         name.setMaxWidth(Double.MAX_VALUE);
         url.setMaxWidth(Double.MAX_VALUE);
         m3u8Path.setMaxWidth(Double.MAX_VALUE);
@@ -137,16 +163,29 @@ public class ManageAccountUI extends VBox {
         deviceId2.setMaxWidth(Double.MAX_VALUE);
         signature.setMaxWidth(Double.MAX_VALUE);
         macAddressList.setMaxWidth(Double.MAX_VALUE);
+        macAddressList.setPrefHeight(MAC_ADDRESS_LIST_PREF_HEIGHT);
         httpMethodCombo.setMaxWidth(Double.MAX_VALUE);
         timezoneCombo.setMaxWidth(Double.MAX_VALUE);
-        xtremeUsername.setMaxWidth(Double.MAX_VALUE);
+        xtremeUsername.setMinWidth(150);
+        xtremeUsername.setPrefWidth(220);
+        xtremeUsername.setMaxWidth(240);
+        HBox.setHgrow(xtremeUsername, Priority.NEVER);
+        m3u8PathBrowserRow.getStyleClass().add("manage-account-path-browser-row");
+        m3u8PathBrowserRow.setAlignment(Pos.CENTER_LEFT);
+        m3u8PathBrowserRow.setMinWidth(0);
+        m3u8PathBrowserRow.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(m3u8Path, Priority.ALWAYS);
 
         macAddressList.textProperty().addListener((observable, oldVal, newVal) -> setupMacAddressByList(newVal));
 
         verifyMacsLink.setVisible(false);
+        verifyMacsLink.managedProperty().bind(verifyMacsLink.visibleProperty());
+        verifyMacsLink.getStyleClass().add("manage-mac-action-link");
         verifyMacsLink.setOnAction(event -> verifyMacAddresses());
 
         manageMacsLink.setVisible(false);
+        manageMacsLink.managedProperty().bind(manageMacsLink.visibleProperty());
+        manageMacsLink.getStyleClass().add("manage-mac-action-link");
         manageMacsLink.setOnAction(event -> openManageMacsPopup());
 
         manageXtremeCredentialsLink.setVisible(false);
@@ -154,20 +193,33 @@ public class ManageAccountUI extends VBox {
         manageXtremeCredentialsLink.setOnAction(event -> openManageXtremeCredentialsPopup());
         xtremeUsernameContainer.setAlignment(Pos.CENTER_LEFT);
 
+        pinToTopCheckBox.setManaged(false);
+        pinToTopCheckBox.setVisible(false);
+        resolveChainAndDeepRedirectsCheckBox.setManaged(false);
+        resolveChainAndDeepRedirectsCheckBox.setVisible(false);
+        pinToTopSwitch.selectedProperty().bindBidirectional(pinToTopCheckBox.selectedProperty());
+        resolveChainAndDeepRedirectsSwitch.selectedProperty().bindBidirectional(resolveChainAndDeepRedirectsCheckBox.selectedProperty());
+        pinToTopSwitchRow = createManageAccountSwitchRow("autoPinAccountOnTop", pinToTopSwitch);
+        resolveChainAndDeepRedirectsSwitchRow = createManageAccountSwitchRow("manageResolveChainAndDeepRedirects", resolveChainAndDeepRedirectsSwitch);
+
         pipeLabel.visibleProperty().bind(verifyMacsLink.visibleProperty());
+        pipeLabel.managedProperty().bind(pipeLabel.visibleProperty());
+        pipeLabel.getStyleClass().add("manage-mac-divider");
         manageMacsLink.visibleProperty().bind(verifyMacsLink.visibleProperty());
 
-        macAddressContainer = new HBox(5, macAddress, verifyMacsLink, pipeLabel, manageMacsLink);
-        macAddressContainer.setAlignment(Pos.CENTER_LEFT);
+        HBox macAddressActions = new HBox(4, verifyMacsLink, pipeLabel, manageMacsLink);
+        macAddressActions.getStyleClass().add("manage-mac-action-group");
+        macAddressActions.setAlignment(Pos.CENTER_LEFT);
+        macAddressActions.visibleProperty().bind(verifyMacsLink.visibleProperty());
+        macAddressActions.managedProperty().bind(macAddressActions.visibleProperty());
 
-        HBox actionButtonRow = new HBox(5, refreshChannelsButton, clearButton, deleteButton);
-        HBox.setHgrow(refreshChannelsButton, Priority.ALWAYS);
-        HBox.setHgrow(clearButton, Priority.ALWAYS);
-        HBox.setHgrow(deleteButton, Priority.ALWAYS);
-        refreshChannelsButton.setMaxWidth(Double.MAX_VALUE);
-        clearButton.setMaxWidth(Double.MAX_VALUE);
-        deleteButton.setMaxWidth(Double.MAX_VALUE);
-        actionSection = new VBox(12, saveButton, actionButtonRow);
+        macAddressContainer = new FlowPane(6, 6, macAddress, macAddressActions);
+        macAddressContainer.getStyleClass().add("manage-mac-action-row");
+        macAddressContainer.setAlignment(Pos.CENTER_LEFT);
+        macAddressContainer.setMinWidth(0);
+        macAddressContainer.setMaxWidth(Double.MAX_VALUE);
+
+        configureActionSection();
 
         addSubmitButtonClickHandler();
         addDeleteButtonClickHandler();
@@ -183,33 +235,31 @@ public class ManageAccountUI extends VBox {
         timezoneCombo.getItems().addAll(java.time.ZoneId.getAvailableZoneIds().stream().sorted().toList());
         timezoneCombo.setValue(DEFAULT_TIMEZONE);
 
-        accountType.getItems().addAll(Arrays.stream(AccountType.values()).map(AccountType::getDisplay).toList());
-        accountType.setValue(STALKER_PORTAL.getDisplay());
-        accountType.valueProperty().addListener((ChangeListener<String>) (observable, oldValue, newValue) -> {
-            if (newValue != null) {
-                Platform.runLater(() -> {
-                    AccountType type = getAccountTypeByDisplay(newValue);
-                    populateForm(type);
-                });
+        accountTypePillBar.setItems(Arrays.asList(AccountType.values()));
+        accountTypePillBar.selectedItemProperty().addListener((_, _, type) -> {
+            if (syncingAccountTypeSelection || type == null || selectedAccountType == type) {
+                return;
             }
+            selectedAccountType = type;
+            populateForm(type);
         });
-        populateForm(STALKER_PORTAL);
+        selectAccountType(STALKER_PORTAL);
     }
 
     private void populateForm(AccountType type) {
         formContainer.getChildren().clear();
         switch (type) {
             case STALKER_PORTAL:
-                formContainer.getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
+                formContainer.getChildren().addAll(accountTypePillBar, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow);
                 break;
             case M3U8_LOCAL:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
+                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8PathBrowserRow, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow);
                 break;
             case M3U8_URL:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
+                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow);
                 break;
             case XTREME_API:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox);
+                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow);
                 break;
         }
 
@@ -219,6 +269,106 @@ public class ManageAccountUI extends VBox {
         refreshChannelsButton.setManaged(cacheSupported);
         refreshChannelsButton.setVisible(cacheSupported);
         formContainer.getChildren().add(actionSection);
+        Platform.runLater(() -> updateActionSectionLayout(actionSection.getWidth()));
+    }
+
+    private void selectAccountType(AccountType type) {
+        AccountType safeType = type == null ? STALKER_PORTAL : type;
+        selectedAccountType = safeType;
+        if (accountTypePillBar.getSelectedItem() != safeType) {
+            syncingAccountTypeSelection = true;
+            try {
+                accountTypePillBar.setSelectedItem(safeType);
+            } finally {
+                syncingAccountTypeSelection = false;
+            }
+        }
+        populateForm(safeType);
+    }
+
+    private void configureActionSection() {
+        actionSpacer = new Region();
+        HBox.setHgrow(actionSpacer, Priority.ALWAYS);
+
+        wideActionRow = new HBox(ACTION_BUTTON_GAP);
+        wideActionRow.getStyleClass().add("manage-account-action-wide-row");
+        wideActionRow.setAlignment(Pos.CENTER_LEFT);
+        wideActionRow.setMinWidth(0);
+        wideActionRow.setMaxWidth(Double.MAX_VALUE);
+
+        wrappedActionPane = new FlowPane(ACTION_BUTTON_GAP, ACTION_BUTTON_GAP);
+        wrappedActionPane.getStyleClass().add("manage-account-action-wrap");
+        wrappedActionPane.setAlignment(Pos.CENTER_LEFT);
+        wrappedActionPane.setMinWidth(0);
+        wrappedActionPane.setMaxWidth(Double.MAX_VALUE);
+
+        actionSection = new VBox();
+        actionSection.getStyleClass().add("manage-account-action-row");
+        actionSection.setMinWidth(0);
+        actionSection.setMaxWidth(Double.MAX_VALUE);
+        actionSection.widthProperty().addListener((_, _, width) -> updateActionSectionLayout(width.doubleValue()));
+        showWideActionLayout();
+    }
+
+    private void updateActionSectionLayout(double width) {
+        if (actionSection == null || width <= 0) {
+            return;
+        }
+        if (width >= requiredWideActionWidth()) {
+            showWideActionLayout();
+        } else {
+            showWrappedActionLayout();
+        }
+    }
+
+    private double requiredWideActionWidth() {
+        double buttonWidth = clearButton.getPrefWidth() + deleteButton.getPrefWidth();
+        int visibleButtonCount = 2;
+        if (refreshChannelsButton.isManaged()) {
+            buttonWidth += refreshChannelsButton.getPrefWidth();
+            visibleButtonCount++;
+        }
+        return buttonWidth + (ACTION_BUTTON_GAP * visibleButtonCount) + ACTION_ROW_EXTRA_SPACE;
+    }
+
+    private void showWideActionLayout() {
+        if (!actionLayoutWrapped && actionSection.getChildren().contains(wideActionRow)) {
+            return;
+        }
+        wrappedActionPane.getChildren().clear();
+        wideActionRow.getChildren().setAll(refreshChannelsButton, clearButton, actionSpacer, deleteButton);
+        actionSection.getChildren().setAll(wideActionRow);
+        actionLayoutWrapped = false;
+    }
+
+    private void showWrappedActionLayout() {
+        if (actionLayoutWrapped && actionSection.getChildren().contains(wrappedActionPane)) {
+            return;
+        }
+        wideActionRow.getChildren().clear();
+        wrappedActionPane.getChildren().setAll(refreshChannelsButton, clearButton, deleteButton);
+        actionSection.getChildren().setAll(wrappedActionPane);
+        actionLayoutWrapped = true;
+    }
+
+    public Button getHeaderSaveButton() {
+        return saveButton;
+    }
+
+    private Node createManageAccountSwitchRow(String labelKey, SwitchToggle switchToggle) {
+        Label label = new Label(I18n.tr(labelKey));
+        label.getStyleClass().add("manage-account-switch-label");
+        label.setMinWidth(0);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.setWrapText(true);
+
+        HBox row = new HBox(12, label, switchToggle);
+        row.getStyleClass().add("manage-account-switch-row");
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(label, Priority.ALWAYS);
+        return row;
     }
 
     private void configureXtremeControls(AccountType type) {
@@ -226,11 +376,11 @@ public class ManageAccountUI extends VBox {
     }
 
     private void openManageXtremeCredentialsPopup() {
-        xtremeCredentialsHelper.openManagementPopup((Stage) getScene().getWindow(), () -> saveAccount(false));
+        xtremeCredentialsHelper.openManagementPopup(resolveOwnerStage(), () -> saveAccount(false));
     }
 
     private void ensureAccountInfoSectionVisibility(AccountType type) {
-        boolean showAccountInfo = type == STALKER_PORTAL && isNotBlank(accountId) && accountInfoPane.hasProfileJson();
+        boolean showAccountInfo = type == STALKER_PORTAL && isNotBlank(accountId) && accountInfoPane.hasSummary();
         if (!showAccountInfo) {
             formContainer.getChildren().remove(accountInfoPane);
             accountInfoPane.setManaged(false);
@@ -259,7 +409,7 @@ public class ManageAccountUI extends VBox {
         String currentDefault = macAddress.getValue();
 
         Account baseAccount = getAccountFromForm();
-        MacAddressManagementPopup popup = new MacAddressManagementPopup((Stage) getScene().getWindow(), baseAccount, macList, currentDefault, (newMacs, newDefault) -> {
+        MacAddressManagementPopup popup = new MacAddressManagementPopup(resolveOwnerStage(), baseAccount, macList, currentDefault, (newMacs, newDefault) -> {
             String newMacsStr = String.join(", ", newMacs);
             macAddressList.setText(newMacsStr);
 
@@ -280,7 +430,8 @@ public class ManageAccountUI extends VBox {
             return;
         }
 
-        ProgressDialog progressDialog = new ProgressDialog((Stage) getScene().getWindow());
+        ProgressDialog progressDialog = new ProgressDialog(resolveOwnerStage());
+        progressDialog.setDefaultMacAddress(macAddress.getValue());
         progressDialog.show();
 
         AtomicBoolean stopRequested = new AtomicBoolean(false);
@@ -363,10 +514,7 @@ public class ManageAccountUI extends VBox {
     }
 
     private void appendVerificationSectionHeader(ProgressDialog progressDialog, String mac, int index, int total) {
-        if (index > 0) {
-            progressDialog.addProgressText("--------------------------------------------------");
-        }
-        progressDialog.addProgressText(I18n.tr("manageVerifyingMacProgress", index + 1, total, mac));
+        progressDialog.addVerificationHeader(mac, index, total);
     }
 
     private void pauseBetweenMacChecks(ProgressDialog progressDialog, AtomicBoolean stopRequested) throws InterruptedException {
@@ -487,15 +635,16 @@ public class ManageAccountUI extends VBox {
         macAddress.getItems().clear();
         macAddress.setValue(null);
         macAddress.setPromptText(I18n.tr(PRIMARY_MAC_ADDRESS_HINT_KEY));
-        accountType.setValue(STALKER_PORTAL.getDisplay());
+        selectAccountType(STALKER_PORTAL);
         pinToTopCheckBox.setSelected(false);
         resolveChainAndDeepRedirectsCheckBox.setSelected(false);
         httpMethodCombo.setValue("GET");
         timezoneCombo.setValue(DEFAULT_TIMEZONE);
         verifyMacsLink.setVisible(false);
         accountId = null;
+        originalAccountName = null;
         accountInfoPane.clear();
-        ensureAccountInfoSectionVisibility(getAccountTypeByDisplay(accountType.getValue()));
+        ensureAccountInfoSectionVisibility(selectedAccountType);
         updateButtonState();
     }
 
@@ -507,9 +656,7 @@ public class ManageAccountUI extends VBox {
     }
 
     private Account getAccountFromForm() {
-        String selectedAccountType = accountType.getValue();
-        String accountTypeDisplay = isNotBlank(selectedAccountType) ? selectedAccountType : AccountType.STALKER_PORTAL.getDisplay();
-        AccountType resolvedType = getAccountTypeByDisplay(accountTypeDisplay);
+        AccountType resolvedType = selectedAccountType == null ? STALKER_PORTAL : selectedAccountType;
         String resolvedUsername = username.getText();
         if (resolvedType == AccountType.XTREME_API) {
             String xtremeSelectedUsername = xtremeUsername.getValue();
@@ -540,6 +687,10 @@ public class ManageAccountUI extends VBox {
                 return;
             }
 
+            if (!confirmAccountRenameIfNeeded()) {
+                return;
+            }
+
             saveButton.setDisable(true);
 
             Account account = getAccountFromForm();
@@ -558,12 +709,38 @@ public class ManageAccountUI extends VBox {
                 }
                 showSaveSuccessAnimation();
             } else {
+                refreshTrackedAccountIdentity(account);
                 saveButton.setDisable(false);
             }
         } catch (Exception _) {
             showErrorAlert(I18n.tr("autoFailedToSaveAccountPleaseTryAgain"));
             saveButton.setDisable(false);
         }
+    }
+
+    private boolean confirmAccountRenameIfNeeded() {
+        if (!isExistingAccountRename()) {
+            return true;
+        }
+        ButtonType result = showDialog(I18n.tr("manageAccountRenameCreatesNewAccountConfirm", originalAccountName, name.getText()));
+        return result == ButtonType.YES;
+    }
+
+    private boolean isExistingAccountRename() {
+        return isNotBlank(accountId)
+                && isNotBlank(originalAccountName)
+                && isNotBlank(name.getText())
+                && !Objects.equals(originalAccountName, name.getText());
+    }
+
+    private void refreshTrackedAccountIdentity(Account account) {
+        Account refreshedAccount = service.getByName(account.getAccountName());
+        if (refreshedAccount == null) {
+            return;
+        }
+        accountId = refreshedAccount.getDbId();
+        originalAccountName = refreshedAccount.getAccountName();
+        updateButtonState();
     }
 
     private void showSaveSuccessAnimation() {
@@ -630,6 +807,7 @@ public class ManageAccountUI extends VBox {
 
     public void editAccount(Account account) {
         accountId = account.getDbId();
+        originalAccountName = account.getAccountName();
         name.setText(account.getAccountName());
         username.setText(account.getUsername());
         password.setText(account.getPassword());
@@ -650,7 +828,7 @@ public class ManageAccountUI extends VBox {
         resolveChainAndDeepRedirectsCheckBox.setSelected(account.isResolveChainAndDeepRedirects());
         httpMethodCombo.setValue(isNotBlank(account.getHttpMethod()) ? account.getHttpMethod() : "GET");
         timezoneCombo.setValue(isNotBlank(account.getTimezone()) ? account.getTimezone() : DEFAULT_TIMEZONE);
-        accountType.setValue(account.getType().getDisplay());
+        selectAccountType(account.getType());
         if (account.getType() == AccountType.XTREME_API) {
             Platform.runLater(() -> xtremeCredentialsHelper.loadFromAccount(account));
         }

@@ -28,6 +28,15 @@ class ThemeStylesheetResolverTest {
     }
 
     @Test
+    void profileJsonTextAreaOverridesFocusedAccentOutline() throws Exception {
+        String lightContent = ThemeStylesheetResolver.readDefaultStylesheetContent(getClass(), false);
+        String darkContent = ThemeStylesheetResolver.readDefaultStylesheetContent(getClass(), true);
+
+        assertProfileJsonTextAreaFocusOverride(lightContent);
+        assertProfileJsonTextAreaFocusOverride(darkContent);
+    }
+
+    @Test
     void buildSceneRootStyle_appliesFontScaling() {
         assertTrue(ThemeStylesheetResolver.buildSceneRootStyle(100).contains("13.000"));
         assertTrue(ThemeStylesheetResolver.buildSceneRootStyle(125).contains("16.250"));
@@ -54,5 +63,15 @@ class ThemeStylesheetResolverTest {
         String prefix = "data:text/css;base64,";
         String payload = dataUrl.substring(prefix.length());
         return new String(Base64.getDecoder().decode(payload), StandardCharsets.UTF_8);
+    }
+
+    private static void assertProfileJsonTextAreaFocusOverride(String css) {
+        assertTrue(css.contains(".account-info-profile-text-area:focused"));
+        assertTrue(css.contains("-fx-focus-color: transparent"));
+        assertTrue(css.contains("-fx-faint-focus-color: transparent"));
+        assertTrue(css.contains("-fx-background-radius: 0"));
+        assertTrue(css.contains("-fx-border-radius: 0"));
+        assertTrue(css.contains(".account-info-profile-text-area > .scroll-pane,\n.account-info-profile-text-area > .scroll-pane > .viewport"));
+        assertTrue(css.contains(".account-info-profile-text-area:focused {\n    -fx-background-color: -uiptv-surface;\n    -fx-background-insets: 0;\n    -fx-border-color: -uiptv-border-subtle;\n    -fx-effect: none;"));
     }
 }

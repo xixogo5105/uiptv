@@ -8,6 +8,9 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 
 public class SegmentedProgressBar extends HBox {
+    private static final String STYLE_CLASS_CONTAINER = "progress-bar-container";
+    private static final String STYLE_CLASS_EMPTY = "empty";
+
     public enum SegmentStatus {
         SUCCESS,
         WARNING,
@@ -17,21 +20,27 @@ public class SegmentedProgressBar extends HBox {
     private int currentIndex = 0;
 
     public SegmentedProgressBar() {
-        super(0); // Spacing 0
-        setMinHeight(20);
-        setPrefHeight(20);
-        setMaxHeight(20);
+        super(3);
+        setMinHeight(12);
+        setPrefHeight(12);
+        setMaxHeight(12);
+        setMinWidth(0);
+        setMaxWidth(Double.MAX_VALUE);
+        setFillHeight(true);
         setAlignment(Pos.CENTER_LEFT);
-        getStyleClass().add("progress-bar-container");
+        getStyleClass().addAll(STYLE_CLASS_CONTAINER, STYLE_CLASS_EMPTY);
     }
 
     public void setTotal(int total) {
         this.currentIndex = 0;
         Platform.runLater(() -> {
             getChildren().clear();
+            setEmptyStyle(total <= 0);
             if (total > 0) {
                 for (int i = 0; i < total; i++) {
                     Region segment = new Region();
+                    segment.setMinWidth(2);
+                    segment.setMaxWidth(Double.MAX_VALUE);
                     HBox.setHgrow(segment, Priority.ALWAYS);
                     segment.getStyleClass().add("progress-bar-segment");
                     segment.getStyleClass().add("progress-bar-segment-default");
@@ -69,10 +78,19 @@ public class SegmentedProgressBar extends HBox {
 
     public void reset() {
         currentIndex = 0;
-        Platform.runLater(this::getChildrenClear);
+        Platform.runLater(() -> {
+            getChildren().clear();
+            setEmptyStyle(true);
+        });
     }
-    
-    private void getChildrenClear() {
-        getChildren().clear();
+
+    private void setEmptyStyle(boolean empty) {
+        if (empty) {
+            if (!getStyleClass().contains(STYLE_CLASS_EMPTY)) {
+                getStyleClass().add(STYLE_CLASS_EMPTY);
+            }
+        } else {
+            getStyleClass().remove(STYLE_CLASS_EMPTY);
+        }
     }
 }

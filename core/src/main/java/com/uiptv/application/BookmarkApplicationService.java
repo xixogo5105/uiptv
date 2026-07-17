@@ -2,6 +2,7 @@ package com.uiptv.application;
 
 import com.uiptv.db.CategoryDb;
 import com.uiptv.model.Account;
+import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.BookmarkCategory;
 import com.uiptv.model.Category;
@@ -64,7 +65,10 @@ public class BookmarkApplicationService {
         if (account == null || isBlank(request.channelId()) || isBlank(request.channelName())) {
             return null;
         }
-        applyMode(account, request.mode());
+        account = accountWithMode(account, request.mode());
+        if (account == null) {
+            return null;
+        }
 
         String categoryTitle = "";
         if (isNotBlank(request.categoryId())) {
@@ -196,10 +200,12 @@ public class BookmarkApplicationService {
                 .append("\n");
     }
 
-    private void applyMode(Account account, CatalogMode mode) {
-        if (account != null) {
-            account.setAction((mode == null ? CatalogMode.ITV : mode).toAccountAction());
+    private Account accountWithMode(Account account, CatalogMode mode) {
+        if (account == null) {
+            return null;
         }
+        AccountMediaContext context = AccountMediaContext.from(account, (mode == null ? CatalogMode.ITV : mode).toAccountAction());
+        return context == null ? null : context.toAccount();
     }
 
     private String safe(String value) {

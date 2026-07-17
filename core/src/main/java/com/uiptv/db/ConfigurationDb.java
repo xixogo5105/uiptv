@@ -116,10 +116,10 @@ public class ConfigurationDb extends BaseDb {
         c.setEnableVlcHttpForwardCookies(missingOrTrue(resultSet, "enableVlcHttpForwardCookies"));
         c.setResolveChainAndDeepRedirects(safeBoolean(resultSet, "resolveChainAndDeepRedirects"));
         c.setFilterLockUnlockDurationMinutes(duration);
-        c.setVlcNoVideoTitleShow(safeBoolean(resultSet, "vlcNoVideoTitleShow"));
-        c.setVlcQuiet(safeBoolean(resultSet, "vlcQuiet"));
-        c.setVlcHttpReconnect(safeBoolean(resultSet, "vlcHttpReconnect"));
-        c.setVlcAdaptiveUseAccess(safeBoolean(resultSet, "vlcAdaptiveUseAccess"));
+        c.setVlcNoVideoTitleShow(missingOrTrue(resultSet, "vlcNoVideoTitleShow"));
+        c.setVlcQuiet(missingOrTrue(resultSet, "vlcQuiet"));
+        c.setVlcHttpReconnect(missingOrTrue(resultSet, "vlcHttpReconnect"));
+        c.setVlcAdaptiveUseAccess(missingOrTrue(resultSet, "vlcAdaptiveUseAccess"));
         c.setVlcVout(nullSafeString(resultSet, "vlcVout"));
         c.setVlcAvcodecHw(nullSafeString(resultSet, "vlcAvcodecHw"));
         c.setDbId(nullSafeString(resultSet, "id"));

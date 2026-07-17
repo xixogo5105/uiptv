@@ -1,47 +1,371 @@
 .root {
     -uiptv-base-font-size: 13;
+    -fx-font-family: "Roboto";
     -fx-font-size: 13;
+    -fx-font-smoothing-type: gray;
     -fx-focus-color: -fx-accent;
     -fx-control-inner-background: derive(-fx-base, 35%);
     -fx-control-inner-background-alt: -fx-control-inner-background;
-    -uiptv-card-bg: #efefef;
-    -uiptv-card-border: #d6d6d6;
+    -uiptv-card-bg: #ffffff;
+    -uiptv-card-border: #e5e5e5;
+    -uiptv-app-bg: #ffffff;
+    -uiptv-surface: #ffffff;
+    -uiptv-surface-muted: #f5f5f5;
+    -uiptv-surface-hover: #f5f5f5;
+    -uiptv-border-subtle: #e5e5e5;
+    -uiptv-text-primary: #111318;
+    -uiptv-text-secondary: #737373;
+    -uiptv-text-muted: #8a8a8a;
+    -uiptv-nav-bg: #fafafa;
+    -uiptv-nav-selected-bg: #f5f5f5;
+    -uiptv-action-bg: #101827;
+    -uiptv-action-fg: #ffffff;
+    -uiptv-action-hover-bg: #1b2433;
+    -uiptv-action-pressed-bg: #0b1020;
+    -uiptv-header-action-hover-bg: #eef4ff;
+    -uiptv-header-action-hover-border: #bfdbfe;
+    -uiptv-header-action-hover-fg: #2563eb;
+    -uiptv-accent: #101827;
+    -uiptv-selected-card-bg: #101827;
+    -uiptv-selected-card-border: #1f2a44;
+    -uiptv-selected-card-fg: #ffffff;
+    -uiptv-selected-card-muted-fg: rgba(255, 255, 255, 0.72);
+}
+
+.scroll-bar:vertical {
+    -fx-min-width: 14;
+    -fx-pref-width: 14;
+    -fx-padding: 1 2 1 2;
+    -fx-background-color: transparent;
+}
+
+.scroll-bar:horizontal {
+    -fx-min-height: 14;
+    -fx-pref-height: 14;
+    -fx-padding: 2 1 2 1;
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .track {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: rgba(17, 19, 24, 0.22);
+    -fx-background-radius: 999;
+    -fx-background-insets: 1;
+}
+
+.scroll-bar:vertical .thumb {
+    -fx-min-width: 8;
+}
+
+.scroll-bar:horizontal .thumb {
+    -fx-min-height: 8;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: rgba(17, 19, 24, 0.38);
+}
+
+.scroll-bar .thumb:pressed {
+    -fx-background-color: rgba(17, 19, 24, 0.56);
+}
+
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+}
+
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-opacity: 0;
+}
+
+.scroll-pane > .corner {
+    -fx-background-color: transparent;
+}
+
+.text-field,
+.password-field,
+.text-area {
+    -fx-background-color: -uiptv-surface;
+    -fx-background-insets: 0;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-border-insets: 0;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-prompt-text-fill: -uiptv-text-muted;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-highlight-fill: rgba(16, 24, 40, 0.16);
+    -fx-highlight-text-fill: -uiptv-text-primary;
+}
+
+.text-field,
+.password-field {
+    -fx-padding: 8 12 8 12;
+}
+
+.text-area {
+    -fx-padding: 0;
+}
+
+.text-area > .scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.text-area > .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.text-area .content {
+    -fx-background-color: -uiptv-surface;
+    -fx-background-insets: 0;
+    -fx-background-radius: 13;
+    -fx-padding: 8 12 8 12;
+}
+
+.text-field:focused,
+.password-field:focused,
+.text-area:focused {
+    -fx-border-color: -uiptv-accent;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.10), 12, 0.10, 0, 2);
+}
+
+.check-box,
+.radio-button {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-padding: 2 0 2 0;
+}
+
+.check-box > .box {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: #d2d6dc;
+    -fx-border-width: 1;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-padding: 3;
+}
+
+.check-box:hover > .box,
+.check-box:focused > .box {
+    -fx-border-color: -uiptv-accent;
+}
+
+.check-box:selected > .box {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+}
+
+.check-box:selected > .box > .mark {
+    -fx-background-color: -uiptv-action-fg;
+}
+
+.radio-button > .radio {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: #d2d6dc;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-min-width: 16;
+    -fx-min-height: 16;
+    -fx-pref-width: 16;
+    -fx-pref-height: 16;
+    -fx-max-width: 16;
+    -fx-max-height: 16;
+}
+
+.radio-button > .radio > .dot {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+    -fx-padding: 3;
+}
+
+.radio-button:hover > .radio,
+.radio-button:focused > .radio {
+    -fx-border-color: -uiptv-accent;
+}
+
+.radio-button:selected > .radio {
+    -fx-border-color: -uiptv-action-bg;
+}
+
+.radio-button:selected > .radio > .dot {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+    -fx-padding: 3;
+}
+
+.combo-box-base {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+
+.combo-box-base:hover,
+.combo-box-base:focused {
+    -fx-border-color: -uiptv-accent;
+}
+
+.combo-box-base > .arrow-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0 12 0 8;
+}
+
+.combo-box-base > .arrow-button > .arrow {
+    -fx-background-color: -uiptv-text-secondary;
+}
+
+.combo-box-base .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-padding: 8 12 8 12;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 4;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.14), 20, 0.18, 0, 8);
+}
+
+.combo-box-popup .list-cell {
+    -fx-background-radius: 9;
+    -fx-padding: 8 10 8 10;
+}
+
+.combo-box-popup .list-cell:hover,
+.combo-box-popup .list-cell:filled:selected {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.button {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-padding: 8 14 8 14;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.button:hover,
+.button:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: #d4d4d4;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.10), 12, 0.12, 0, 2);
+}
+
+.button:pressed {
+    -fx-background-color: #eeeeee;
+    -fx-effect: none;
+}
+
+.button:disabled {
+    -fx-opacity: 0.48;
+}
+
+.tooltip {
+    -fx-background-color: #f4f4f5;
+    -fx-background-radius: 8;
+    -fx-border-color: #d9d9d9;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 6 8 6 8;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-size: 0.92em;
+    -fx-font-weight: normal;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.14), 12, 0.12, 0, 3);
+}
+
+.uiptv-circular-close-button {
+    -fx-min-width: 30;
+    -fx-pref-width: 30;
+    -fx-max-width: 30;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-max-height: 30;
+    -fx-padding: 0;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-alignment: center;
+}
+
+.uiptv-circular-close-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.uiptv-circular-close-button:hover .uiptv-circular-close-icon,
+.uiptv-circular-close-button:focused .uiptv-circular-close-icon {
+    -fx-fill: -uiptv-text-primary;
 }
 
 .dangerous {
-    -fx-background-color: linear-gradient(to bottom, #e57373, #c62828);
+    -fx-background-color: #dc2626;
     -fx-text-fill: white;
     -fx-font-weight: bold;
-    -fx-background-radius: 5;
-    -fx-border-color: #b71c1c;
-    -fx-border-radius: 5;
+    -fx-background-radius: 13;
+    -fx-border-color: #dc2626;
+    -fx-border-radius: 13;
     -fx-border-width: 1;
 }
 
-.dangerous:hover {
-    -fx-background-color: linear-gradient(to bottom, #ef9a9a, #d32f2f);
+.dangerous:hover,
+.dangerous:focused {
+    -fx-background-color: #b91c1c;
+    -fx-border-color: #b91c1c;
 }
 
 .dangerous:pressed {
-    -fx-background-color: #c62828;
+    -fx-background-color: #991b1b;
 }
 
 .prominent {
-    -fx-background-color: linear-gradient(to bottom, #66bb6a, darkgreen);
-    -fx-text-fill: white;
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
     -fx-font-weight: bold;
-    -fx-background-radius: 5;
-    -fx-border-color: #004d00;
-    -fx-border-radius: 5;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
     -fx-border-width: 1;
 }
 
-.prominent:hover {
-    -fx-background-color: linear-gradient(to bottom, #81c784, #006400);
+.prominent:hover,
+.prominent:focused {
+    -fx-background-color: -uiptv-action-hover-bg;
+    -fx-border-color: -uiptv-action-hover-bg;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.16), 8, 0.12, 0, 1);
 }
 
 .prominent:pressed {
-    -fx-background-color: darkgreen;
+    -fx-background-color: -uiptv-action-pressed-bg;
+    -fx-border-color: -uiptv-action-pressed-bg;
 }
 
 /* Reference placeholders for light-theme table/list styling (intentionally no-op) */
@@ -74,42 +398,61 @@
 
 /* Custom segmented progress bar */
 .progress-bar-container {
-    -fx-background-color: #f0f0f0;
-    -fx-padding: 2;
-    -fx-border-color: #c0c0c0;
+    -fx-background-color: rgba(15, 23, 42, 0.08);
+    -fx-padding: 3;
+    -fx-border-color: rgba(15, 23, 42, 0.06);
     -fx-border-width: 1;
-    -fx-border-radius: 3;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-effect: innershadow(gaussian, rgba(15, 23, 42, 0.05), 4, 0.16, 0, 1);
+}
+
+.progress-bar-container.empty {
+    -fx-background-color: rgba(15, 23, 42, 0.05);
 }
 
 .progress-bar-segment {
-    -fx-background-color: #e0e0e0; /* Default segment color */
-    -fx-background-radius: 0;
+    -fx-min-height: 6;
+    -fx-pref-height: 6;
+    -fx-background-color: rgba(100, 116, 139, 0.20);
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+}
+
+.progress-bar-segment.progress-bar-segment-default {
+    -fx-background-color: rgba(100, 116, 139, 0.22);
 }
 
 .progress-bar-segment.success {
-    -fx-background-color: #4CAF50; /* Green for success */
+    -fx-background-color: linear-gradient(to right, #22c55e, #16a34a);
 }
 
 .progress-bar-segment.warning {
-    -fx-background-color: #F59E0B; /* Amber for warning */
+    -fx-background-color: linear-gradient(to right, #fbbf24, #f59e0b);
 }
 
 .progress-bar-segment.failure {
-    -fx-background-color: #F44336; /* Red for failure */
+    -fx-background-color: linear-gradient(to right, #ef4444, #dc2626);
 }
 
 .log-scroll-pane {
-    -fx-border-color: #cccccc;
-    -fx-border-width: 1;
-    -fx-border-radius: 3;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.log-scroll-pane > .viewport {
+    -fx-background-color: transparent;
 }
 
 .log-message-container {
-    -fx-background-color: white;
+    -fx-background-color: transparent;
+    -fx-spacing: 7;
+    -fx-padding: 2;
 }
 
 .log-text {
-    -fx-fill: black;
+    -fx-fill: -uiptv-text-primary;
 }
 
 .censored-count {
@@ -118,24 +461,124 @@
 }
 
 .clock-face {
-    -fx-fill: transparent;
-    -fx-stroke: gray;
+    -fx-fill: rgba(16, 24, 39, 0.04);
+    -fx-stroke: -uiptv-text-secondary;
     -fx-stroke-width: 2;
 }
 
 .clock-hand {
-    -fx-stroke: red;
+    -fx-stroke: -uiptv-action-bg;
     -fx-stroke-width: 2;
 }
 
 .valid-text {
     -fx-font-weight: bold;
-    -fx-fill: green;
+    -fx-fill: #15803d;
 }
 
 .invalid-text {
     -fx-font-weight: bold;
-    -fx-fill: red;
+    -fx-fill: #b91c1c;
+}
+
+.verification-progress-root {
+    -fx-background-color: transparent;
+}
+
+.verification-progress-shell {
+    -fx-padding: 18;
+    -fx-alignment: center;
+}
+
+.verification-progress-card-shell {
+    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f6f7f9);
+    -fx-border-color: rgba(15, 23, 42, 0.10);
+    -fx-border-width: 1;
+    -fx-background-radius: 24;
+    -fx-border-radius: 24;
+    -fx-padding: 18;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.14), 24, 0.16, 0, 8);
+}
+
+.verification-progress-summary,
+.reload-progress-summary {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.94em;
+    -fx-font-weight: bold;
+}
+
+.verification-log-card {
+    -fx-min-height: 0;
+}
+
+.verification-log-container {
+    -fx-spacing: 10;
+}
+
+.verification-mac-card {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 15;
+    -fx-border-radius: 15;
+    -fx-padding: 11 13 11 13;
+}
+
+.verification-mac-card:hover {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(16, 24, 39, 0.12);
+}
+
+.verification-card-title {
+    -fx-padding: 0 0 2 0;
+}
+
+.verification-card-title-row {
+    -fx-alignment: center-left;
+    -fx-spacing: 8;
+}
+
+.verification-card-title .text,
+.verification-card-title Text,
+.verification-card-title-text {
+    -fx-font-weight: bold;
+}
+
+.verification-card-details {
+    -fx-padding: 4 0 0 0;
+}
+
+.verification-card-detail-line {
+    -fx-padding: 1 0 1 0;
+}
+
+.verification-delay-label {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.verification-delay-combo {
+    -fx-min-width: 136;
+    -fx-pref-width: 136;
+}
+
+.verification-pause-widget {
+    -fx-background-color: #eef6ff;
+    -fx-border-color: #b7d5ff;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 5 10 5 8;
+}
+
+.verification-pause-widget .label {
+    -fx-text-fill: #0d47a1;
+    -fx-font-weight: bold;
+}
+
+.verification-default-pill {
+    -fx-background-color: #0f7a38;
+    -fx-text-fill: #ffffff;
+    -fx-padding: 3 9 3 9;
 }
 
 .default-text {
@@ -185,6 +628,30 @@
     -fx-font-weight: bold;
     -fx-padding: 2 6 2 6;
     -fx-background-radius: 6;
+}
+
+.drm-badge.drm-badge-overlay {
+    -fx-font-size: 0.64em;
+    -fx-padding: 1 4 1 4;
+    -fx-background-radius: 5;
+}
+
+.series-watch-badge {
+    -fx-background-color: #0f766e;
+    -fx-text-fill: white;
+    -fx-font-size: 0.72em;
+    -fx-font-weight: bold;
+    -fx-padding: 2 7 2 7;
+    -fx-background-radius: 999;
+}
+
+.channel-bookmark-icon {
+    -fx-fill: -uiptv-text-primary;
+}
+
+.channel-bookmark-chip {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
 }
 
 .bookmark-account-label {
@@ -256,6 +723,65 @@
     -fx-text-fill: white;
 }
 
+.context-menu,
+.bookmark-context-menu {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 14;
+    -fx-border-color: #dfe5ee;
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+    -fx-padding: 6;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.18), 18, 0.16, 0, 6);
+}
+
+.context-menu .menu-item,
+.bookmark-context-menu .menu-item {
+    -fx-background-radius: 9;
+    -fx-padding: 8 12 8 12;
+}
+
+.context-menu .menu-item > .label,
+.bookmark-context-menu .menu-item > .label {
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.context-menu .menu-item .text,
+.bookmark-context-menu .menu-item .text {
+    -fx-fill: -uiptv-text-primary;
+}
+
+.context-menu .menu-item:focused,
+.context-menu .menu-item:hover,
+.context-menu .menu-item:armed,
+.bookmark-context-menu .menu-item:focused,
+.bookmark-context-menu .menu-item:hover,
+.bookmark-context-menu .menu-item:armed {
+    -fx-background-color: #eef4ff;
+}
+
+.context-menu .separator .line,
+.bookmark-context-menu .separator .line {
+    -fx-border-color: #e5e7eb;
+}
+
+.context-menu .menu-item.danger-menu-item:focused,
+.context-menu .menu-item.danger-menu-item:hover,
+.context-menu .menu-item.danger-menu-item:armed,
+.bookmark-context-menu .menu-item.danger-menu-item:focused,
+.bookmark-context-menu .menu-item.danger-menu-item:hover,
+.bookmark-context-menu .menu-item.danger-menu-item:armed {
+    -fx-background-color: #c62828;
+}
+
+.context-menu .menu-item.danger-menu-item:focused > .label,
+.context-menu .menu-item.danger-menu-item:hover > .label,
+.context-menu .menu-item.danger-menu-item:armed > .label,
+.bookmark-context-menu .menu-item.danger-menu-item:focused > .label,
+.bookmark-context-menu .menu-item.danger-menu-item:hover > .label,
+.bookmark-context-menu .menu-item.danger-menu-item:armed > .label {
+    -fx-text-fill: white;
+}
+
 .transparent-scroll-pane {
     -fx-background-color: transparent;
     -fx-border-color: transparent;
@@ -275,10 +801,2529 @@
 }
 
 .uiptv-outline-pane {
-    -fx-border-color: -fx-box-border;
-    -fx-border-radius: 8;
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+    -fx-background-radius: 14;
+    -fx-padding: 10;
+}
+
+.uiptv-app-tabs {
+    -fx-background-color: -uiptv-app-bg;
+    -fx-tab-min-width: 0;
+    -fx-tab-max-width: 0;
+    -fx-tab-min-height: 0;
+    -fx-tab-max-height: 0;
+}
+
+.uiptv-app-tabs > .tab-header-area {
+    -fx-background-color: transparent;
+    -fx-min-height: 0;
+    -fx-pref-height: 0;
+    -fx-max-height: 0;
+    -fx-padding: 0;
+    -fx-opacity: 0;
+}
+
+.uiptv-app-tabs > .tab-header-area > .tab-header-background {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+}
+
+.uiptv-app-tabs > .tab-header-area > .headers-region > .tab {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+     -fx-background-radius: 0;
+    -fx-padding: 0;
+    -fx-alignment: center;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-cursor: hand;
+}
+
+.uiptv-app-tabs > .tab-header-area > .headers-region > .tab .tab-container,
+.uiptv-app-tabs > .tab-header-area > .headers-region > .tab .tab-label {
+    -fx-cursor: hand;
+}
+
+.uiptv-app-tabs > .tab-header-area > .headers-region > .tab:hover {
+    -fx-background-color: transparent;
+}
+
+.uiptv-app-tabs > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: transparent;
+}
+
+.uiptv-app-tabs .tab:selected .focus-indicator {
+    -fx-border-color: transparent;
+}
+
+.uiptv-app-tabs > .tab-content-area {
+    -fx-background-color: -uiptv-app-bg;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.uiptv-nav-shell {
+    -fx-background-color: -uiptv-app-bg;
+}
+
+.uiptv-nav-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+
+.uiptv-nav-hitbox,
+.uiptv-nav-hitbox .uiptv-nav-item,
+.uiptv-nav-hitbox .uiptv-nav-icon {
+    -fx-cursor: hand;
+}
+
+.uiptv-app-tabs .tab:hover .uiptv-nav-item {
+    -fx-background-color: -uiptv-surface-hover;
+}
+
+.uiptv-app-tabs .tab:selected .uiptv-nav-item {
+    -fx-background-color: -uiptv-action-bg;
+}
+
+.uiptv-nav-icon {
+    -fx-fill: -uiptv-text-muted;
+    -fx-scale-x: 1.12;
+    -fx-scale-y: 1.12;
+}
+
+.uiptv-app-tabs .tab:hover .uiptv-nav-icon {
+    -fx-fill: -uiptv-text-primary;
+}
+
+.uiptv-app-tabs .tab:selected .uiptv-nav-icon {
+    -fx-fill: -uiptv-action-fg;
+}
+
+.bookmarks-page-root,
+.bookmarks-page,
+.account-page-root,
+.account-page,
+.account-list-page,
+.settings-page-root,
+.settings-page {
+    -fx-background-color: -uiptv-app-bg;
+}
+
+.bookmarks-page,
+.account-page,
+.account-list-page,
+.settings-page {
+    -fx-padding: 5 10 20 10;
+}
+
+.account-list-page-compact {
+    -fx-padding: 0;
+}
+
+.bookmarks-page-scroll,
+.bookmarks-page-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.bookmark-grid-frame,
+.episode-loading-frame,
+.watching-now-episode-card-frame {
+    -fx-background-color: transparent;
+}
+
+.bookmark-list-panel {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
     -fx-background-radius: 8;
-    -fx-padding: 6;
+    -fx-border-radius: 8;
+    -fx-padding: 10;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
+}
+
+.bookmark-loading-overlay {
+    -fx-padding: 8 14 8 14;
+    -fx-background-color: rgba(255, 255, 255, 0.94);
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.16), 14, 0.16, 0, 4);
+}
+
+.bookmarks-header-area {
+    -fx-padding: 0 0 6 0;
+}
+
+.bookmarks-header-stack {
+    -fx-fill-width: true;
+}
+
+.account-body,
+.account-embedded-stack,
+.account-detail-layout,
+.account-browser-layout {
+    -fx-background-color: transparent;
+}
+
+.account-browser-layout {
+    -fx-spacing: 4;
+}
+
+.manage-account-dock {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 10;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
+}
+
+.manage-account-dock-header {
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 6 8 6 8;
+}
+
+.manage-account-dock-title {
+    -fx-font-size: 1.08em;
+    -fx-font-weight: 800;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.manage-account-dock-close {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-min-width: 30;
+    -fx-pref-width: 30;
+    -fx-max-width: 30;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-max-height: 30;
+    -fx-padding: 0;
+}
+
+.manage-account-dock-save {
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-padding: 5 10 5 10;
+    -fx-font-size: 0.86em;
+}
+
+.account-list-panel {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 10;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
+}
+
+.account-list-panel-compact {
+    -fx-pref-width: 430;
+    -fx-min-width: 270;
+    -fx-max-width: 520;
+}
+
+.account-media-drawer {
+    -fx-padding: 14 10 12 10;
+}
+
+.account-media-drawer .uiptv-page-header {
+    -fx-spacing: 7;
+}
+
+.account-media-drawer .uiptv-page-title {
+    -fx-font-size: 1.56em;
+}
+
+.account-media-drawer .uiptv-page-search-field {
+    -fx-padding: 6 11 6 11;
+    -fx-pref-width: 190;
+}
+
+.account-list-panel-drawer {
+    -fx-padding: 9;
+}
+
+.account-list-panel-drawer .account-footer {
+    -fx-padding: 7 0 0 0;
+}
+
+.account-list-scroll,
+.account-list-scroll > .viewport,
+.account-channel-card-scroll,
+.account-channel-card-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.account-list-panel .table-view {
+    -fx-background-color: transparent;
+}
+
+.account-toolbar {
+    -fx-spacing: 8;
+    -fx-padding: 0 0 6 0;
+}
+
+.account-footer {
+    -fx-padding: 8 0 0 0;
+    -fx-border-color: rgba(17, 19, 24, 0.07) transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.account-add-button {
+    -fx-padding: 6 13 6 13;
+}
+
+.account-card-grid {
+    -fx-background-color: transparent;
+}
+
+.account-channel-card-grid {
+    -fx-background-color: transparent;
+}
+
+.account-loading-progress-card {
+    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f6f9fc);
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-padding: 9 11 10 11;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.06), 12, 0.12, 0, 3);
+}
+
+.account-loading-progress-header {
+    -fx-spacing: 8;
+}
+
+.account-loading-progress-title {
+    -fx-font-size: 0.94em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.account-loading-progress-value {
+    -fx-background-color: rgba(17, 24, 39, 0.07);
+    -fx-background-radius: 999;
+    -fx-padding: 2 8 2 8;
+    -fx-font-size: 0.84em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.account-loading-progress-bar {
+    -fx-min-height: 7;
+    -fx-pref-height: 7;
+    -fx-max-height: 7;
+    -fx-padding: 0;
+}
+
+.account-loading-progress-bar > .track {
+    -fx-background-color: rgba(17, 24, 39, 0.08);
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+}
+
+.account-loading-progress-bar > .bar {
+    -fx-background-color: linear-gradient(to right, #0ea5e9, -uiptv-action-bg);
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+    -fx-padding: 0.26em;
+}
+
+.account-loading-progress-card.complete .account-loading-progress-bar > .bar {
+    -fx-background-color: linear-gradient(to right, #22c55e, #16a34a);
+}
+
+.account-card {
+    -fx-spacing: 7;
+}
+
+.account-card-title {
+    -fx-font-size: 1.04em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.account-card-type,
+.account-card-metrics {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.account-card-type-text {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.account-card-expiry-date {
+    -fx-font-weight: bold;
+}
+
+.account-card-metrics {
+    -fx-font-size: 0.92em;
+}
+
+.account-card-pin-icon {
+    -fx-padding: 0;
+}
+
+.uiptv-responsive-card:selected .account-card-title,
+.uiptv-responsive-card.selected .account-card-title,
+.uiptv-responsive-card:selected .account-card-type,
+.uiptv-responsive-card.selected .account-card-type,
+.uiptv-responsive-card:selected .account-card-type-text,
+.uiptv-responsive-card.selected .account-card-type-text,
+.uiptv-responsive-card:selected .account-card-metrics,
+.uiptv-responsive-card.selected .account-card-metrics {
+    -fx-text-fill: -uiptv-selected-card-fg;
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.account-category-list-pane,
+.account-category-detail-pane {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 10;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
+}
+
+.account-category-panel {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-min-width: 0;
+}
+
+.account-category-panel-drawer {
+    -fx-spacing: 0;
+}
+
+.account-category-list-pane-drawer,
+.account-category-detail-pane-drawer {
+    -fx-padding: 9;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+}
+
+.account-category-list-pane-drawer .account-category-heading {
+    -fx-font-size: 0.96em;
+}
+
+.account-category-header,
+.account-category-detail-header {
+    -fx-spacing: 8;
+    -fx-padding: 0 0 4 0;
+}
+
+.account-category-heading {
+    -fx-font-size: 1.02em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-padding: 2 2 4 2;
+}
+
+.account-category-scroll,
+.account-category-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.account-category-card-list {
+    -fx-background-color: transparent;
+    -fx-padding: 2 2 12 2;
+}
+
+.account-category-card {
+    -fx-cursor: hand;
+}
+
+.account-category-card-title {
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.account-category-placeholder {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-padding: 18;
+}
+
+.account-category-lock-badge {
+    -fx-background-color: rgba(220, 38, 38, 0.10);
+    -fx-border-color: rgba(220, 38, 38, 0.20);
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 3 8 3 8;
+    -fx-font-size: 0.84em;
+    -fx-text-fill: #b91c1c;
+}
+
+.account-category-card.selected-card .label,
+.account-category-card.selected-card .account-category-card-title {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.account-category-detail-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.account-category-close-button {
+    -fx-min-width: 30;
+    -fx-pref-width: 30;
+    -fx-max-width: 30;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-max-height: 30;
+    -fx-padding: 0;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.account-category-back-button {
+    -fx-padding: 5 13 5 13;
+    -fx-min-width: 98;
+    -fx-pref-width: 98;
+    -fx-max-width: 98;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+}
+
+.uiptv-page-header {
+    -fx-spacing: 5;
+    -fx-fill-width: true;
+}
+
+.app-header-leading {
+    -fx-spacing: 9;
+    -fx-alignment: center-left;
+}
+
+.app-header-brand {
+    -fx-spacing: 0;
+    -fx-alignment: center-left;
+}
+
+.app-header-brand-title {
+    -fx-font-size: 1.0em;
+    -fx-font-weight: 800;
+}
+
+.app-header-top-tabs {
+    -fx-spacing: 4;
+    -fx-alignment: center-left;
+}
+
+.app-header-nav-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 0 9 0 9;
+    -fx-graphic-text-gap: 6;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.92em;
+    -fx-font-weight: 700;
+    -fx-cursor: hand;
+    -fx-focus-traversable: true;
+}
+
+.app-header-nav-button:hover {
+    -fx-background-color: -uiptv-header-action-hover-bg;
+    -fx-border-color: -uiptv-header-action-hover-border;
+    -fx-text-fill: -uiptv-header-action-hover-fg;
+}
+
+.app-header-nav-button:focused {
+    -fx-background-color: transparent;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.app-header-nav-button-active {
+    -fx-background-color: rgba(37, 99, 235, 0.10);
+    -fx-border-color: rgba(37, 99, 235, 0.24);
+    -fx-text-fill: -uiptv-accent;
+}
+
+.app-header-nav-button-active:hover,
+.app-header-nav-button-active:focused {
+    -fx-background-color: rgba(37, 99, 235, 0.14);
+    -fx-border-color: rgba(37, 99, 235, 0.34);
+}
+
+.app-header-nav-button-icon-only {
+    -fx-padding: 0;
+}
+
+.app-header-nav-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.app-header-nav-button:hover .app-header-nav-icon {
+    -fx-fill: -uiptv-header-action-hover-fg;
+}
+
+.app-header-nav-button:focused .app-header-nav-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.app-header-nav-button-active .app-header-nav-icon {
+    -fx-fill: -uiptv-accent;
+}
+
+.uiptv-page-actions {
+    -fx-spacing: 6;
+}
+
+.uiptv-page-title,
+.bookmarks-page-title {
+    -fx-font-size: 1.55em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-page-search-field,
+.bookmarks-search-field {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 8 15 8 15;
+    -fx-prompt-text-fill: -uiptv-text-muted;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-page-search-field:focused,
+.bookmarks-search-field:focused {
+    -fx-border-color: derive(-uiptv-accent, 20%);
+}
+
+.bulk-import-page,
+.log-page {
+     -fx-background-color: #ffffff;
+}
+
+.bulk-import-content,
+.log-content {
+    -fx-background-color: #ffffff;
+}
+
+.bulk-import-card,
+.log-card,
+.log-detached-card {
+     -fx-background-color: #ffffff;
+     -fx-border-color: transparent;
+     -fx-border-width: 0;
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
+     -fx-padding: 0;
+     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.06), 12, 0.06, 0, 4);
+}
+
+.bulk-import-mode-card {
+       -fx-background-color: #ffffff;
+}
+
+.bulk-import-editor-card,
+.log-card {
+       -fx-padding: 0;
+}
+
+.bulk-import-section-title,
+.log-detached-title {
+    -fx-font-size: 1.12em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.bulk-import-description {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.bulk-import-options {
+    -fx-padding: 4 0 0 0;
+}
+
+.bulk-import-switch-row {
+    -fx-background-color: rgba(15, 23, 42, 0.035);
+    -fx-border-color: rgba(15, 23, 42, 0.07);
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 11 12 11 14;
+}
+
+.bulk-import-switch-row:hover {
+    -fx-background-color: rgba(15, 23, 42, 0.055);
+}
+
+.bulk-import-switch-label {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+}
+
+.bulk-import-input {
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: rgba(15, 23, 42, 0.10);
+    -fx-font-family: "Courier New", monospace;
+}
+
+.bulk-import-input .content {
+    -fx-background-radius: 8;
+    -fx-padding: 14;
+}
+
+.bulk-import-actions {
+    -fx-padding: 0;
+}
+
+.bulk-import-primary-button {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 8 14 8 14;
+}
+
+.bulk-import-primary-button:hover,
+.bulk-import-primary-button:focused {
+    -fx-background-color: -uiptv-action-hover-bg;
+    -fx-border-color: -uiptv-action-hover-bg;
+}
+
+.bulk-import-clear-button {
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 12 18 12 18;
+}
+
+.log-card {
+    -fx-background-color: rgba(255, 255, 255, 0.94);
+    -fx-border-color: rgba(15, 23, 42, 0.10);
+}
+
+.log-window-root {
+    -fx-background-color: linear-gradient(to bottom, #fbfcff, #eef4fb);
+}
+
+.log-card-header {
+    -fx-spacing: 12;
+    -fx-alignment: center-left;
+}
+
+.log-card-title {
+    -fx-font-size: 1.08em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.log-web-location {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.log-control-row {
+    -fx-spacing: 8;
+}
+
+.log-action-button {
+    -fx-background-color: rgba(15, 23, 42, 0.04);
+    -fx-border-color: rgba(15, 23, 42, 0.10);
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-padding: 8 13 8 13;
+    -fx-cursor: hand;
+}
+
+.log-action-button:hover,
+.log-action-button:focused {
+    -fx-background-color: rgba(37, 99, 235, 0.08);
+    -fx-border-color: rgba(37, 99, 235, 0.22);
+}
+
+.log-primary-action-button {
+    -fx-background-color: #111827;
+    -fx-border-color: #111827;
+    -fx-text-fill: #ffffff;
+}
+
+.log-primary-action-button:hover,
+.log-primary-action-button:focused {
+    -fx-background-color: #1e293b;
+    -fx-border-color: #1e293b;
+}
+
+.log-text-area {
+    -fx-control-inner-background: #ffffff;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-highlight-fill: rgba(15, 23, 42, 0.14);
+    -fx-highlight-text-fill: -uiptv-text-primary;
+    -fx-border-color: rgba(15, 23, 42, 0.12);
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+}
+
+.log-text-area .content {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 8;
+    -fx-padding: 14;
+}
+
+.bookmarks-quick-action-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 1;
+    -fx-background-radius: 11;
+    -fx-border-radius: 11;
+    -fx-padding: 7;
+    -fx-min-width: 34;
+    -fx-min-height: 34;
+    -fx-cursor: hand;
+    -fx-focus-traversable: true;
+}
+
+.bookmarks-quick-action-button:hover,
+.bookmarks-quick-action-button:focused {
+    -fx-background-color: -uiptv-header-action-hover-bg;
+    -fx-border-color: -uiptv-header-action-hover-border;
+    -fx-effect: dropshadow(gaussian, rgba(37, 99, 235, 0.16), 10, 0.12, 0, 2);
+}
+
+.bookmarks-quick-action-button-lock-ok .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-ok:hover .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-ok:focused .bookmarks-quick-action-icon {
+    -fx-fill: #16a34a;
+}
+
+.bookmarks-quick-action-button-lock-paused .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-paused:hover .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-paused:focused .bookmarks-quick-action-icon {
+    -fx-fill: #dc2626;
+}
+
+.bookmarks-quick-action-button-active {
+    -fx-background-color: rgba(37, 99, 235, 0.10);
+    -fx-border-color: rgba(37, 99, 235, 0.24);
+    -fx-effect: none;
+}
+
+.bookmarks-quick-action-button-active .bookmarks-quick-action-icon {
+    -fx-fill: -uiptv-accent;
+}
+
+.bookmarks-quick-action-button-active:hover,
+.bookmarks-quick-action-button-active:focused {
+    -fx-background-color: rgba(37, 99, 235, 0.14);
+    -fx-border-color: rgba(37, 99, 235, 0.34);
+}
+
+.bookmarks-quick-action-button-active:hover .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-active:focused .bookmarks-quick-action-icon {
+    -fx-fill: derive(-uiptv-accent, -8%);
+}
+
+.bookmarks-quick-action-button:pressed {
+    -fx-background-color: #eeeeee;
+    -fx-effect: none;
+}
+
+.bookmarks-quick-action-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.bookmarks-quick-action-button:hover .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button:focused .bookmarks-quick-action-icon {
+    -fx-fill: -uiptv-header-action-hover-fg;
+}
+
+.bookmarks-quick-action-button-lock-ok .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-ok:hover .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-ok:focused .bookmarks-quick-action-icon {
+    -fx-fill: #16a34a;
+}
+
+.bookmarks-quick-action-button-lock-paused .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-paused:hover .bookmarks-quick-action-icon,
+.bookmarks-quick-action-button-lock-paused:focused .bookmarks-quick-action-icon {
+    -fx-fill: #dc2626;
+}
+
+.bookmark-category-row {
+    -fx-padding: 0;
+}
+
+.list-toolbar-actions {
+    -fx-padding: 0;
+    -fx-spacing: 8;
+}
+
+.list-toolbar-sort-menu,
+.list-toolbar-action-button {
+    -fx-background-color: rgba(255, 255, 255, 0.78);
+    -fx-border-color: rgba(15, 23, 42, 0.12);
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-min-height: 42;
+    -fx-pref-height: 42;
+    -fx-max-height: 42;
+    -fx-padding: 7 12 7 12;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-cursor: hand;
+    -fx-alignment: center;
+    -fx-effect: none;
+}
+
+.list-toolbar-sort-menu:hover,
+.list-toolbar-sort-menu:focused,
+.list-toolbar-action-button:hover,
+.list-toolbar-action-button:focused {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(37, 99, 235, 0.28);
+    -fx-effect: none;
+}
+
+.list-toolbar-sort-menu-active {
+    -fx-background-color: rgba(37, 99, 235, 0.08);
+    -fx-border-color: rgba(37, 99, 235, 0.24);
+}
+
+.list-toolbar-sort-menu > .label,
+.list-toolbar-action-button {
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.list-toolbar-sort-menu {
+    -fx-graphic-text-gap: 7;
+}
+
+.list-toolbar-action-button {
+    -fx-padding: 9 14 9 14;
+}
+
+.list-toolbar-sort-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.list-toolbar-add-icon {
+    -fx-fill: -uiptv-text-primary;
+}
+
+.list-toolbar-sort-menu .label,
+.list-toolbar-sort-menu .text {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-fill: -uiptv-text-primary;
+    -fx-opacity: 1;
+    -fx-font-size: 0.9em;
+    -fx-font-weight: 600;
+}
+
+.list-toolbar-sort-menu:hover .list-toolbar-sort-icon,
+.list-toolbar-sort-menu:focused .list-toolbar-sort-icon,
+.list-toolbar-sort-menu-active .list-toolbar-sort-icon {
+    -fx-fill: -uiptv-accent;
+}
+
+.list-toolbar-sort-menu .arrow {
+    -fx-background-color: -uiptv-text-secondary;
+}
+
+.bookmark-footer {
+    -fx-padding: 8 0 0 0;
+    -fx-border-color: rgba(17, 19, 24, 0.07) transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.uiptv-pill-bar {
+    -fx-background-color: #f5f5f5;
+    -fx-background-radius: 16;
+    -fx-border-color: #e5e5e5;
+    -fx-border-radius: 16;
+    -fx-border-width: 1;
+    -fx-padding: 5;
+}
+
+.uiptv-pill-bar-compact {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.uiptv-pill-bar-content {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-hgap: 5;
+    -fx-vgap: 5;
+}
+
+.uiptv-pill {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 5 13 5 13;
+    -fx-font-size: 0.94em;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-weight: 600;
+    -fx-cursor: hand;
+    -fx-effect: none;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.uiptv-pill:hover {
+    -fx-background-color: rgba(17, 19, 24, 0.06);
+}
+
+.uiptv-pill:focused {
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+}
+
+.uiptv-pill-bar-dropdown {
+    -fx-background-color: rgba(255, 255, 255, 0.78);
+    -fx-border-color: rgba(15, 23, 42, 0.12);
+    -fx-border-width: 1;
+    -fx-background-radius: 1.08em;
+    -fx-border-radius: 1.08em;
+    -fx-min-width: 112;
+    -fx-pref-width: 148;
+    -fx-padding: 0.26em 0.92em 0.26em 0.92em;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-cursor: hand;
+    -fx-alignment: center-left;
+    -fx-effect: none;
+    -fx-graphic-text-gap: 0.54em;
+}
+
+.uiptv-pill-bar-dropdown:hover,
+.uiptv-pill-bar-dropdown:focused {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(37, 99, 235, 0.28);
+    -fx-effect: none;
+}
+
+.uiptv-pill-bar-dropdown > .label,
+.uiptv-pill-bar-dropdown .text {
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-fill: -uiptv-text-primary;
+    -fx-opacity: 1;
+    -fx-font-size: 0.9em;
+    -fx-font-weight: 600;
+}
+
+.uiptv-pill-bar-dropdown > .label {
+    -fx-padding: 0 0 1 0;
+}
+
+.uiptv-pill-bar-dropdown .arrow {
+    -fx-background-color: -uiptv-text-secondary;
+}
+
+.uiptv-pill:selected {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: 600;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.13), 10, 0.18, 0, 2);
+}
+
+.uiptv-pill-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.uiptv-pill:selected .uiptv-pill-icon {
+    -fx-fill: -uiptv-text-primary;
+}
+
+.manage-account-type-pill-bar {
+    -fx-padding: 4;
+}
+
+.manage-account-type-pill-bar .uiptv-pill-bar-content {
+    -fx-hgap: 4;
+    -fx-vgap: 4;
+}
+
+.manage-account-type-pill-bar .uiptv-pill {
+    -fx-padding: 5 9 5 9;
+    -fx-font-size: 0.86em;
+}
+
+.account-list-panel-compact .uiptv-pill-bar {
+    -fx-padding: 5;
+}
+
+.account-list-panel-compact .uiptv-pill {
+    -fx-padding: 5 9 5 9;
+}
+
+.watching-now-page {
+    -fx-background-color: -uiptv-app-bg;
+    -fx-padding: 5 10 20 10;
+}
+
+.watching-now-content-pane,
+.watching-now-series-detail-layout,
+.watching-now-vod-detail-layout,
+.watching-now-series-grid,
+.watching-now-vod-grid,
+.watching-now-episode-card-list,
+.watching-now-season-card-group {
+    -fx-background-color: transparent;
+}
+
+.watching-now-detail-topbar {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 19, 24, 0.07);
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 12 14 12 14;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.06), 14, 0.10, 0, 4);
+}
+
+.watching-now-detail-heading {
+    -fx-font-size: 1.18em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.watching-now-detail-subheading,
+.watching-now-series-account,
+.watching-now-series-meta-line,
+.watching-now-episodes-series-title {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.watching-now-back-button,
+.watching-now-detail-reload-button {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 8 13 8 13;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-cursor: hand;
+}
+
+.watching-now-binge-button {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 8 13 8 13;
+    -fx-text-fill: -uiptv-action-fg;
+    -fx-cursor: hand;
+}
+
+.watching-now-binge-button > .label {
+    -fx-text-fill: -uiptv-action-fg;
+}
+
+.watching-now-binge-button > .arrow-button > .arrow {
+    -fx-background-color: -uiptv-action-fg;
+}
+
+.watching-now-back-button:hover,
+.watching-now-back-button:focused,
+.watching-now-detail-reload-button:hover,
+.watching-now-detail-reload-button:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-border-subtle;
+}
+
+.watching-now-binge-button:hover,
+.watching-now-binge-button:focused {
+    -fx-background-color: -uiptv-action-hover-bg;
+    -fx-border-color: -uiptv-action-hover-bg;
+}
+
+.watching-now-series-info-panel,
+.watching-now-vod-poster-panel,
+.watching-now-vod-details-panel,
+.watching-now-episodes-panel {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 19, 24, 0.07);
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 14;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
+}
+
+.watching-now-series-info-panel-compact {
+    -fx-padding: 12;
+}
+
+.watching-now-series-poster-wrap {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 19, 24, 0.07);
+    -fx-border-width: 1;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-padding: 10;
+}
+
+.watching-now-series-detail-title,
+.watching-now-episodes-title {
+    -fx-font-size: 1.12em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.watching-now-series-card,
+.watching-now-vod-card,
+.watching-now-episode-card {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-cursor: hand;
+}
+
+.watching-now-series-card,
+.watching-now-vod-card {
+    -fx-padding: 14 16 14 16;
+}
+
+.watching-now-card-text {
+    -fx-padding: 2 0 0 0;
+}
+
+.watching-now-card-title {
+    -fx-font-size: 1.08em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.watching-now-card-account {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.watching-now-card-meta-row {
+    -fx-padding: 4 0 2 0;
+}
+
+.watching-now-card-chip {
+    -fx-background-color: #f5f6f7;
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 4 9 4 9;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.92em;
+}
+
+.watching-now-card-poster-wrap {
+    -fx-background-color: linear-gradient(to bottom, #ffffff, #f5f6f7);
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 8;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.10), 18, 0.14, 0, 6);
+}
+
+.watching-now-card-action-row {
+    -fx-padding: 6 0 0 0;
+}
+
+.watching-now-open-hint {
+    -fx-background-color: rgba(11, 87, 208, 0.08);
+    -fx-border-color: rgba(11, 87, 208, 0.14);
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 5 10 5 10;
+    -fx-text-fill: #0b57d0;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.watching-now-open-hint:hover,
+.watching-now-open-hint:focused {
+    -fx-background-color: rgba(11, 87, 208, 0.13);
+    -fx-border-color: rgba(11, 87, 208, 0.25);
+    -fx-text-fill: #0847ad;
+}
+
+.watching-now-open-hint > .label,
+.watching-now-open-hint:hover > .label,
+.watching-now-open-hint:focused > .label {
+    -fx-text-fill: #0b57d0;
+}
+
+.watching-now-remove-button {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 7;
+}
+
+.watching-now-remove-button .bookmarks-quick-action-icon {
+    -fx-fill: #dc2626;
+}
+
+.watching-now-remove-button:hover,
+.watching-now-remove-button:focused {
+    -fx-background-color: rgba(220, 38, 38, 0.10);
+    -fx-border-color: rgba(220, 38, 38, 0.20);
+}
+
+.watching-now-remove-button:hover .bookmarks-quick-action-icon,
+.watching-now-remove-button:focused .bookmarks-quick-action-icon {
+    -fx-fill: #b91c1c;
+}
+
+.watching-now-card-plot {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-line-spacing: 1.5;
+}
+
+.watching-now-episode-card {
+    -fx-padding: 12;
+}
+
+.watching-now-episode-card-compact {
+    -fx-padding: 7 10 7 10;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-effect: none;
+}
+
+.watching-now-episode-card-compact .strong-label {
+    -fx-font-size: 0.98em;
+}
+
+.watching-now-episode-compact-meta {
+    -fx-padding: 0 32 0 0;
+}
+
+.watching-now-episode-meta-label,
+.watching-now-episode-plot {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.92em;
+}
+
+.watching-now-series-card:hover,
+.watching-now-vod-card:hover,
+.watching-now-episode-card:hover {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #d9d9d9;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.14), 16, 0.18, 0, 5);
+    -fx-translate-y: -1;
+}
+
+.watching-now-episode-card-compact:hover {
+    -fx-effect: none;
+    -fx-translate-y: 0;
+}
+
+.watching-now-series-card:focused,
+.watching-now-vod-card:focused,
+.watching-now-episode-card:focused {
+    -fx-border-color: -uiptv-selected-card-border;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.16), 16, 0.16, 0, 4);
+}
+
+.watching-now-series-card.selected-card,
+.watching-now-vod-card.selected-card,
+.watching-now-episode-card.selected-card {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-border;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.24), 18, 0.18, 0, 6);
+}
+
+.watching-now-series-card:selected .watching-now-card-chip,
+.watching-now-series-card.selected-card .watching-now-card-chip,
+.watching-now-vod-card:selected .watching-now-card-chip,
+.watching-now-vod-card.selected-card .watching-now-card-chip {
+    -fx-background-color: rgba(255, 255, 255, 0.16);
+    -fx-border-color: rgba(255, 255, 255, 0.20);
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-series-card:selected .watching-now-card-poster-wrap,
+.watching-now-series-card.selected-card .watching-now-card-poster-wrap,
+.watching-now-vod-card:selected .watching-now-card-poster-wrap,
+.watching-now-vod-card.selected-card .watching-now-card-poster-wrap {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-border-color: rgba(255, 255, 255, 0.22);
+}
+
+.watching-now-series-card.selected-card .hyperlink,
+.watching-now-series-card.selected-card .watching-now-view-link,
+.watching-now-vod-card.selected-card .hyperlink,
+.watching-now-episode-card.selected-card .hyperlink {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-series-card:selected .hyperlink,
+.watching-now-vod-card:selected .hyperlink {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-series-card:selected .label,
+.watching-now-vod-card:selected .label {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-series-card:selected .watching-now-open-hint,
+.watching-now-series-card.selected-card .watching-now-open-hint,
+.watching-now-vod-card:selected .watching-now-open-hint,
+.watching-now-vod-card.selected-card .watching-now-open-hint {
+    -fx-background-color: rgba(255, 255, 255, 0.92);
+    -fx-border-color: rgba(255, 255, 255, 0.96);
+    -fx-text-fill: #0b57d0;
+    -fx-effect: none;
+}
+
+.watching-now-series-card:selected .watching-now-open-hint > .label,
+.watching-now-series-card.selected-card .watching-now-open-hint > .label,
+.watching-now-vod-card:selected .watching-now-open-hint > .label,
+.watching-now-vod-card.selected-card .watching-now-open-hint > .label {
+    -fx-text-fill: #0b57d0;
+}
+
+.bookmark-manage-categories-button {
+    -fx-background-color: -uiptv-surface;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-background-radius: 11;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-radius: 11;
+    -fx-border-width: 1;
+    -fx-padding: 6 13 6 13;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.bookmark-manage-categories-button:hover,
+.bookmark-manage-categories-button:focused {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: #c9ced6;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.settings-section-grid {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 2 2 18 2;
+}
+
+.settings-section-card {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 13 15 14 15;
+    -fx-spacing: 12;
+    -fx-cursor: default;
+    -fx-translate-y: 0;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
+}
+
+.settings-section-card-header {
+    -fx-padding: 0 0 2 0;
+}
+
+.settings-section-title {
+    -fx-font-size: 1.12em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.settings-section-card:hover,
+.settings-section-card:focused {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 19, 24, 0.14);
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.11), 18, 0.14, 0, 6);
+    -fx-translate-y: -1;
+    -fx-cursor: default;
+}
+
+.settings-section-description {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.96em;
+    -fx-line-spacing: 1.5;
+}
+
+.settings-inline-action {
+    -fx-padding: 6 0 6 0;
+    -fx-border-color: transparent;
+    -fx-background-color: transparent;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-weight: bold;
+    -fx-underline: false;
+}
+
+.settings-inline-action:hover,
+.settings-inline-action:focused {
+    -fx-text-fill: #0b57d0;
+    -fx-underline: true;
+}
+
+.settings-player-panel {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 8;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-padding: 10;
+}
+
+.settings-player-panel-hint {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.90em;
+    -fx-padding: 0 2 1 2;
+}
+
+.settings-player-card-list {
+    -fx-fill-width: true;
+}
+
+.settings-player-card {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 24, 39, 0.07);
+    -fx-border-width: 1;
+    -fx-background-radius: 15;
+    -fx-border-radius: 15;
+    -fx-padding: 11;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.045), 10, 0.08, 0, 2);
+}
+
+.settings-player-card:selected {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(16, 24, 40, 0.42);
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.11), 14, 0.14, 0, 4);
+}
+
+.settings-player-card:hover {
+    -fx-border-color: rgba(17, 24, 39, 0.16);
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.09), 12, 0.12, 0, 3);
+}
+
+.settings-player-default-radio {
+    -fx-padding: 1 0 0 0;
+    -fx-cursor: hand;
+}
+
+.settings-player-default-radio > .radio {
+    -fx-min-width: 18;
+    -fx-min-height: 18;
+    -fx-pref-width: 18;
+    -fx-pref-height: 18;
+    -fx-max-width: 18;
+    -fx-max-height: 18;
+}
+
+.settings-player-default-radio:selected > .radio > .dot {
+    -fx-padding: 4;
+}
+
+.settings-player-card-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.settings-player-card-description {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.91em;
+}
+
+.settings-player-link {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-text-fill: #0b57d0;
+    -fx-font-weight: bold;
+    -fx-underline: true;
+    -fx-cursor: hand;
+}
+
+.settings-player-link:hover,
+.settings-player-link:focused {
+    -fx-text-fill: #063b91;
+}
+
+.settings-player-path-field {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 11;
+    -fx-border-radius: 11;
+    -fx-padding: 5 8 5 8;
+    -fx-min-height: 32;
+    -fx-pref-height: 32;
+}
+
+.settings-player-path-field:focused {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 24, 39, 0.14);
+}
+
+.settings-player-field-row {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+}
+
+.settings-player-browse-button {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-background-radius: 9;
+    -fx-border-radius: 9;
+    -fx-padding: 0;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.settings-player-browse-button:hover,
+.settings-player-browse-button:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: #d4d4d4;
+    -fx-opacity: 1;
+}
+
+.settings-server-port-row {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+    -fx-padding: 10;
+}
+
+.settings-server-port-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.settings-server-open-link {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0 2 0 2;
+    -fx-text-fill: #0b57d0;
+    -fx-font-weight: bold;
+    -fx-underline: true;
+    -fx-cursor: hand;
+}
+
+.settings-server-open-link:hover,
+.settings-server-open-link:focused {
+    -fx-text-fill: #063b91;
+}
+
+.settings-server-action-row {
+    -fx-padding: 4 0 0 0;
+}
+
+.settings-server-start-button,
+.settings-server-publish-button {
+    -fx-min-width: 150;
+}
+
+.settings-server-publish-button {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
+}
+
+.settings-filter-mode-row {
+    -fx-alignment: center-left;
+}
+
+.settings-filter-mode-label {
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.settings-numeric-field {
+    -fx-alignment: center;
+    -fx-font-weight: bold;
+    -fx-padding: 8 14 8 14;
+}
+
+.uiptv-switch-toggle {
+    -fx-min-width: 52;
+    -fx-pref-width: 52;
+    -fx-max-width: 52;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-max-height: 30;
+    -fx-cursor: hand;
+}
+
+.uiptv-switch-track {
+    -fx-background-color: #cbd5e1;
+    -fx-background-radius: 999;
+    -fx-padding: 3;
+    -fx-min-width: 52;
+    -fx-pref-width: 52;
+    -fx-max-width: 52;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-max-height: 30;
+}
+
+.uiptv-switch-thumb {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 999;
+    -fx-min-width: 24;
+    -fx-pref-width: 24;
+    -fx-max-width: 24;
+    -fx-min-height: 24;
+    -fx-pref-height: 24;
+    -fx-max-height: 24;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.22), 6, 0.18, 0, 1);
+}
+
+.uiptv-switch-toggle:hover .uiptv-switch-track {
+    -fx-background-color: #b8c4d4;
+}
+
+.uiptv-switch-toggle:selected .uiptv-switch-track,
+.uiptv-switch-toggle:selected:hover .uiptv-switch-track {
+    -fx-background-color: #22c55e;
+}
+
+.uiptv-switch-toggle:focused .uiptv-switch-track {
+    -fx-effect: dropshadow(gaussian, rgba(34, 197, 94, 0.28), 10, 0.16, 0, 0);
+}
+
+.uiptv-switch-toggle:disabled {
+    -fx-opacity: 0.55;
+}
+
+.plain-text-mode-menu-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.plain-text-mode-menu-icon-slash {
+    -fx-fill: #dc2626;
+}
+
+.filter-lock-state-row {
+    -fx-padding: 2 0 2 0;
+}
+
+.filter-lock-state-value {
+    -fx-font-size: 0.92em;
+    -fx-font-weight: bold;
+}
+
+.filter-lock-state-value.enabled {
+    -fx-text-fill: #16a34a;
+}
+
+.filter-lock-state-value.disabled {
+    -fx-text-fill: #dc2626;
+}
+
+.filter-lock-state-switch .uiptv-switch-track {
+    -fx-background-color: #ef4444;
+}
+
+.filter-lock-state-switch:hover .uiptv-switch-track {
+    -fx-background-color: #dc2626;
+}
+
+.filter-lock-state-switch:selected .uiptv-switch-track,
+.filter-lock-state-switch:selected:hover .uiptv-switch-track {
+    -fx-background-color: #22c55e;
+}
+
+.settings-filter-password-button {
+    -fx-max-width: Infinity;
+}
+
+.settings-filter-text-area {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+}
+
+.settings-filter-text-area .content {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 14;
+}
+
+.settings-filter-text-area:focused {
+    -fx-border-color: -uiptv-accent;
+}
+
+.settings-backup-action-card {
+    -fx-background-color: #ffffff;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-padding: 12 12 12 12;
+    -fx-cursor: hand;
+}
+
+.settings-backup-action-card:hover,
+.settings-backup-action-card:focused {
+    -fx-background-color: #ffffff;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.10), 14, 0.12, 0, 4);
+}
+
+.settings-backup-action-card.primary {
+    -fx-background-color: #ffffff;
+}
+
+.settings-backup-action-badge {
+    -fx-background-color: #101827;
+    -fx-background-radius: 13;
+    -fx-min-width: 36;
+    -fx-min-height: 36;
+    -fx-pref-width: 36;
+    -fx-pref-height: 36;
+    -fx-max-width: 36;
+    -fx-max-height: 36;
+}
+
+.settings-backup-action-icon {
+    -fx-fill: white;
+}
+
+.settings-backup-action-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.settings-backup-action-description {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.92em;
+}
+
+.uiptv-responsive-card-grid,
+.bookmark-card-grid {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.uiptv-responsive-card-flow {
+    -fx-padding: 2 2 18 2;
+}
+
+.account-channel-card-grid-drawer .uiptv-responsive-card-flow {
+    -fx-padding: 1 1 12 1;
+}
+
+.uiptv-responsive-card-placeholder {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 18 24 18 24;
+}
+
+.uiptv-responsive-card-placeholder-label,
+.uiptv-responsive-card-placeholder .label,
+.uiptv-loading-state-label {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 1.02em;
+}
+
+.uiptv-loading-state {
+    -fx-alignment: center-left;
+}
+
+.series-inline-loading-state {
+    -fx-alignment: center;
+    -fx-padding: 28 18 28 18;
+}
+
+.series-inline-loading-state .uiptv-loading-state-label {
+    -fx-font-size: 1.12em;
+    -fx-font-weight: bold;
+}
+
+.uiptv-responsive-card-placeholder .uiptv-loading-state {
+    -fx-alignment: center;
+}
+
+.uiptv-responsive-card,
+.bookmark-card {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-padding: 11 13 11 13;
+    -fx-cursor: hand;
+}
+
+.bookmark-card {
+    -fx-padding: 14 10 14 10;
+}
+
+.uiptv-responsive-card.plain-text-row-card,
+.bookmark-card.plain-text-row-card,
+.uiptv-card.plain-text-row-card {
+    -fx-padding: 8 12 8 12;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.bookmark-card.bookmark-plain-text-row-card {
+    -fx-padding: 6 12 6 12;
+}
+
+.account-drawer-channel-row {
+    -fx-padding: 8 9 8 9;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.account-drawer-channel-title,
+.watching-now-episode-drawer-title {
+    -fx-font-size: 0.93em;
+    -fx-font-weight: 700;
+}
+
+.account-drawer-channel-meta,
+.watching-now-episode-drawer-meta {
+    -fx-font-size: 0.82em;
+    -fx-text-fill: -uiptv-text-muted;
+}
+
+.watching-now-episode-drawer-row {
+    -fx-padding: 8 9 8 9;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.uiptv-responsive-card.watching-now-series-card,
+.uiptv-responsive-card.watching-now-vod-card {
+    -fx-padding: 14 16 14 16;
+}
+
+.uiptv-responsive-card:hover,
+.bookmark-card:hover {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #d9d9d9;
+    -fx-effect: none;
+    -fx-translate-y: 0;
+}
+
+.uiptv-responsive-card:focused,
+.bookmark-card:focused {
+    -fx-border-color: -uiptv-selected-card-border;
+    -fx-effect: none;
+    -fx-translate-y: 0;
+}
+
+.uiptv-responsive-card:selected,
+.uiptv-responsive-card.selected,
+.bookmark-card:selected,
+.bookmark-card.selected {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-border;
+    -fx-effect: none;
+    -fx-translate-y: 0;
+}
+
+.uiptv-responsive-card:selected .bookmark-channel-title,
+.uiptv-responsive-card.selected .bookmark-channel-title,
+.uiptv-responsive-card:selected .bookmark-channel-title-text,
+.uiptv-responsive-card.selected .bookmark-channel-title-text,
+.uiptv-responsive-card:selected .account-card-title,
+.uiptv-responsive-card.selected .account-card-title,
+.uiptv-responsive-card:selected .account-category-card-title,
+.uiptv-responsive-card.selected .account-category-card-title,
+.uiptv-responsive-card:selected .account-drawer-channel-title,
+.uiptv-responsive-card.selected .account-drawer-channel-title,
+.uiptv-responsive-card:selected .watching-now-episode-drawer-title,
+.uiptv-responsive-card.selected .watching-now-episode-drawer-title {
+    -fx-text-fill: -uiptv-selected-card-fg;
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .bookmark-channel-account,
+.uiptv-responsive-card.selected .bookmark-channel-account,
+.uiptv-responsive-card:selected .account-card-type,
+.uiptv-responsive-card.selected .account-card-type,
+.uiptv-responsive-card:selected .account-card-metrics,
+.uiptv-responsive-card.selected .account-card-metrics,
+.uiptv-responsive-card:selected .account-drawer-channel-meta,
+.uiptv-responsive-card.selected .account-drawer-channel-meta,
+.uiptv-responsive-card:selected .watching-now-episode-drawer-meta,
+.uiptv-responsive-card.selected .watching-now-episode-drawer-meta {
+    -fx-text-fill: -uiptv-selected-card-muted-fg;
+}
+
+.uiptv-responsive-card:selected .bookmark-account-suffix-text,
+.uiptv-responsive-card.selected .bookmark-account-suffix-text {
+    -fx-fill: -uiptv-selected-card-muted-fg;
+}
+
+.uiptv-responsive-card:selected .channel-bookmark-icon,
+.uiptv-responsive-card.selected .channel-bookmark-icon,
+.bookmark-card:selected .channel-bookmark-icon,
+.bookmark-card.selected .channel-bookmark-icon {
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card .channel-logo-view,
+.bookmark-card .channel-logo-view {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+}
+
+.bookmark-card .channel-logo-view.has-image {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
+}
+
+.uiptv-responsive-card:selected .channel-logo-view,
+.uiptv-responsive-card.selected .channel-logo-view {
+    -fx-background-color: rgba(255, 255, 255, 0.14);
+    -fx-border-color: rgba(255, 255, 255, 0.25);
+}
+
+.bookmark-channel-title {
+    -fx-font-size: 0.98em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.bookmark-title-flow {
+    -fx-line-spacing: 1.5;
+}
+
+.bookmark-channel-title-text {
+    -fx-font-size: 0.98em;
+    -fx-font-weight: bold;
+    -fx-fill: -uiptv-text-primary;
+}
+
+.bookmark-account-suffix-text {
+    -fx-font-size: 0.82em;
+    -fx-font-weight: normal;
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.bookmark-channel-account {
+    -fx-font-size: 0.88em;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.account-management-split {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.account-management-split > .split-pane-divider {
+    -fx-background-color: rgba(17, 19, 24, 0.08);
+    -fx-padding: 0 0.5 0 0.5;
+}
+
+.uiptv-dialog-backdrop {
+    -fx-background-color: rgba(17, 24, 39, 0.48);
+}
+
+.uiptv-notification-host {
+    -fx-background-color: -uiptv-app-bg;
+    -fx-padding: 10 14 14 14;
+}
+
+.uiptv-notification-card {
+    -fx-padding: 12 14 12 14;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.16), 18, 0.18, 0, 6);
+}
+
+.uiptv-notification-card.info {
+    -fx-background-color: linear-gradient(to right, #eef6ff, #f8fbff);
+    -fx-border-color: #9cc8ff;
+}
+
+.uiptv-notification-card.error {
+    -fx-background-color: linear-gradient(to right, #fff1f2, #fff8f8);
+    -fx-border-color: #f4a6ad;
+}
+
+.uiptv-notification-icon-shell {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.uiptv-notification-icon-shell.info {
+    -fx-background-color: #dbeafe;
+    -fx-border-color: #93c5fd;
+}
+
+.uiptv-notification-icon-shell.error {
+    -fx-background-color: #fee2e2;
+    -fx-border-color: #fca5a5;
+}
+
+.uiptv-notification-icon {
+    -fx-font-weight: bold;
+    -fx-font-size: 1.08em;
+}
+
+.uiptv-notification-icon-shell.info .uiptv-notification-icon {
+    -fx-text-fill: #0b57d0;
+}
+
+.uiptv-notification-icon-shell.error .uiptv-notification-icon {
+    -fx-text-fill: #b91c1c;
+}
+
+.uiptv-notification-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-notification-message {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.uiptv-notification-close {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 4 8 4 8;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.uiptv-notification-close:hover,
+.uiptv-notification-close:focused {
+    -fx-background-color: rgba(15, 23, 42, 0.08);
+    -fx-background-radius: 999;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-inline-host {
+    -fx-background-color: transparent;
+}
+
+.uiptv-inline-panel {
+    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f6f8fb);
+}
+
+.uiptv-inline-header {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 12 14 12 16;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.08), 16, 0.14, 0, 5);
+}
+
+.uiptv-inline-title {
+    -fx-font-size: 1.26em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-inline-primary-button,
+.uiptv-inline-secondary-button {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+    -fx-padding: 8 16 8 16;
+    -fx-min-height: 38;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.uiptv-inline-secondary-button {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.uiptv-inline-secondary-button:hover,
+.uiptv-inline-secondary-button:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-border-color: -uiptv-accent;
+}
+
+.uiptv-inline-close-button {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-min-width: 38;
+    -fx-pref-width: 38;
+    -fx-max-width: 38;
+    -fx-min-height: 38;
+    -fx-pref-height: 38;
+    -fx-max-height: 38;
+    -fx-padding: 0;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.uiptv-inline-close-button:hover,
+.uiptv-inline-close-button:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-accent;
+}
+
+.uiptv-inline-primary-button {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
+}
+
+.uiptv-inline-primary-button:hover,
+.uiptv-inline-primary-button:focused {
+    -fx-background-color: derive(-uiptv-action-bg, 10%);
+    -fx-border-color: derive(-uiptv-action-bg, 10%);
+}
+
+.uiptv-inline-scroll-pane {
+    -fx-background-color: transparent;
+}
+
+.uiptv-inline-content-shell {
+    -fx-alignment: top-center;
+    -fx-padding: 18 0 18 0;
+}
+
+.uiptv-inline-confirm-card {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 20;
+    -fx-border-radius: 20;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.12), 22, 0.18, 0, 8);
+}
+
+.uiptv-inline-confirm-message {
+    -fx-font-size: 1.08em;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-modal-dialog {
+    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f8fafc);
+    -fx-background-insets: 0;
+    -fx-background-radius: 22;
+    -fx-border-color: rgba(15, 23, 42, 0.10);
+    -fx-border-insets: 0;
+    -fx-border-radius: 22;
+    -fx-border-width: 1;
+    -fx-padding: 22;
+    -fx-min-width: 520;
+    -fx-pref-width: 560;
+}
+
+.uiptv-native-alert-dialog {
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
+}
+
+.uiptv-modal-dialog > .content {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 4 2 12 2;
+}
+
+.uiptv-modal-dialog > .header-panel,
+.uiptv-modal-dialog > .button-bar,
+.uiptv-modal-dialog > .button-bar > .container {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.uiptv-modal-dialog > .header-panel {
+    -fx-padding: 0 0 10 0;
+}
+
+.uiptv-modal-dialog > .header-panel .label {
+    -fx-font-size: 1.24em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-modal-dialog .label {
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-modal-dialog > .button-bar > .container {
+    -fx-padding: 14 0 0 0;
+}
+
+.uiptv-modal-dialog .button {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+    -fx-padding: 9 18 9 18;
+    -fx-min-height: 40;
+    -fx-min-width: 104;
+    -fx-cursor: hand;
+    -fx-font-weight: bold;
+}
+
+.uiptv-modal-dialog .uiptv-dialog-primary-button {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
+}
+
+.uiptv-modal-dialog .uiptv-dialog-primary-button:hover {
+    -fx-background-color: derive(-uiptv-action-bg, 10%);
+    -fx-border-color: derive(-uiptv-action-bg, 10%);
+}
+
+.uiptv-modal-dialog .uiptv-dialog-secondary-button {
+    -fx-background-color: transparent;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.uiptv-modal-dialog .uiptv-dialog-secondary-button:hover {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-alert-dialog > .content.label {
+    -fx-font-size: 1.04em;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-wrap-text: true;
+    -fx-min-width: 0;
+    -fx-pref-width: 492;
+    -fx-max-width: 492;
+}
+
+.uiptv-alert-dialog > .graphic-container {
+    -fx-padding: 2 16 0 0;
+}
+
+.reload-global-failure-content {
+    -fx-spacing: 10;
+}
+
+.reload-global-failure-message {
+    -fx-font-size: 1.0em;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-line-spacing: 1;
+}
+
+.reload-global-failure-options {
+    -fx-spacing: 6;
+}
+
+.reload-global-failure-option {
+    -fx-padding: 8 10 8 10;
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-background-radius: 12;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.reload-global-failure-option:hover,
+.reload-global-failure-option:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-accent;
+}
+
+.reload-global-failure-option:selected {
+    -fx-background-color: rgba(16, 24, 39, 0.06);
+    -fx-border-color: -uiptv-action-bg;
+}
+
+.uiptv-dialog-glyph {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+}
+
+.uiptv-dialog-glyph-text {
+    -fx-font-size: 1.42em;
+    -fx-font-weight: bold;
+}
+
+.uiptv-dialog-glyph.uiptv-confirm-dialog {
+    -fx-background-color: #dbeafe;
+    -fx-border-color: #93c5fd;
+}
+
+.uiptv-dialog-glyph.uiptv-confirm-dialog .uiptv-dialog-glyph-text {
+    -fx-text-fill: #0b57d0;
+}
+
+.uiptv-dialog-glyph.uiptv-error-dialog,
+.uiptv-dialog-glyph.uiptv-warning-dialog {
+    -fx-background-color: #fee2e2;
+    -fx-border-color: #fca5a5;
+}
+
+.uiptv-dialog-glyph.uiptv-error-dialog .uiptv-dialog-glyph-text,
+.uiptv-dialog-glyph.uiptv-warning-dialog .uiptv-dialog-glyph-text {
+    -fx-text-fill: #b91c1c;
+}
+
+.uiptv-help-dialog {
+    -fx-padding: 22;
+}
+
+.uiptv-help-dialog > .header-panel {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 10 0;
+}
+
+.uiptv-help-dialog > .header-panel .label {
+    -fx-font-size: 1.18em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-help-dialog > .content.label {
+    -fx-font-size: 1.00em;
+    -fx-line-spacing: 2;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-wrap-text: true;
+    -fx-min-width: 0;
+    -fx-pref-width: 492;
+    -fx-max-width: 492;
+}
+
+.uiptv-help-dialog > .graphic-container {
+    -fx-padding: 0;
+}
+
+.uiptv-vlc-options-dialog {
+    -fx-padding: 22;
+}
+
+.uiptv-vlc-dialog-content {
+    -fx-background-color: transparent;
+}
+
+.uiptv-vlc-dialog-title {
+    -fx-font-size: 1.25em;
+    -fx-font-weight: 600;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-vlc-dialog-description {
+    -fx-font-size: 0.95em;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-line-spacing: 1.4;
+}
+
+.uiptv-vlc-option-panel {
+    -fx-background-color: #f8f9fa;
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(17, 24, 39, 0.08);
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-padding: 12;
+}
+
+.uiptv-vlc-option-row {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 8;
+    -fx-border-color: rgba(17, 24, 39, 0.06);
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-padding: 10 12 10 12;
+}
+
+.uiptv-vlc-option-label {
+    -fx-font-weight: 500;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-size: 0.95em;
+}
+
+.uiptv-vlc-combo-box {
+    -fx-min-height: 36;
+    -fx-pref-height: 36;
+}
+
+.uiptv-dialog-text-field {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-padding: 8 12 8 12;
+    -fx-prompt-text-fill: -uiptv-text-muted;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-size: 0.95em;
+}
+
+.uiptv-dialog-text-field:focused {
+    -fx-border-color: derive(-uiptv-accent, 20%);
+}
+
+.uiptv-password-dialog {
+    -fx-border-color: #e5e5e5;
+    -fx-effect: dropshadow(gaussian, transparent, 0, 0, 0, 0);
+}
+
+.uiptv-password-dialog > .content {
+    -fx-padding: 4 2 12 2;
+}
+
+.uiptv-dialog-content {
+    -fx-background-color: transparent;
+}
+
+.uiptv-dialog-description {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 1.02em;
+}
+
+.uiptv-dialog-text-field {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 8 15 8 15;
+    -fx-prompt-text-fill: -uiptv-text-muted;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.uiptv-dialog-text-field:focused {
+    -fx-border-color: derive(-uiptv-accent, 20%);
 }
 
 .strong-label {
@@ -318,10 +3363,132 @@
 }
 
 .small-pill-button {
-    -fx-font-size: 0.769em;
+    -fx-font-size: 0.88em;
     -fx-font-weight: bold;
-    -fx-padding: 2 6 2 6;
-    -fx-background-radius: 6;
+    -fx-padding: 4 9 4 9;
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.play-menu-button,
+.episode-play-button {
+    -fx-min-width: 24;
+    -fx-pref-width: 24;
+    -fx-max-width: 24;
+    -fx-min-height: 24;
+    -fx-pref-height: 24;
+    -fx-max-height: 24;
+    -fx-padding: 0;
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-content-display: graphic-only;
+}
+
+.play-menu-icon-ring {
+    -fx-fill: transparent;
+    -fx-stroke: transparent;
+    -fx-stroke-width: 1.45;
+}
+
+.play-menu-icon-dot {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.bookmark-play-menu-button {
+    -fx-min-width: 24;
+    -fx-pref-width: 24;
+    -fx-max-width: 24;
+    -fx-min-height: 24;
+    -fx-pref-height: 24;
+    -fx-max-height: 24;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 7;
+    -fx-border-radius: 7;
+}
+
+.bookmark-play-menu-button .play-menu-icon-ring {
+    -fx-stroke: -uiptv-text-secondary;
+}
+
+.bookmark-play-menu-button .play-menu-icon-dot {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.uiptv-responsive-card:selected .bookmark-play-menu-button .play-menu-icon-ring,
+.uiptv-responsive-card.selected .bookmark-play-menu-button .play-menu-icon-ring,
+.bookmark-card:selected .bookmark-play-menu-button .play-menu-icon-ring,
+.bookmark-card.selected .bookmark-play-menu-button .play-menu-icon-ring {
+    -fx-stroke: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .bookmark-play-menu-button .play-menu-icon-dot,
+.uiptv-responsive-card.selected .bookmark-play-menu-button .play-menu-icon-dot,
+.bookmark-card:selected .bookmark-play-menu-button .play-menu-icon-dot,
+.bookmark-card.selected .bookmark-play-menu-button .play-menu-icon-dot {
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.play-menu-button.bookmark-play-menu-button:hover,
+.play-menu-button.bookmark-play-menu-button:focused {
+    -fx-background-color: rgba(255,255,255,0.12);
+}
+
+.play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-ring,
+.play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-ring {
+    -fx-stroke: -uiptv-text-primary;
+}
+
+.play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
+.play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot {
+    -fx-fill: -uiptv-text-primary;
+}
+
+.uiptv-responsive-card:selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-ring,
+.uiptv-responsive-card:selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-ring,
+.uiptv-responsive-card.selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-ring,
+.uiptv-responsive-card.selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-ring,
+.bookmark-card:selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-ring,
+.bookmark-card:selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-ring,
+.bookmark-card.selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-ring,
+.bookmark-card.selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-ring {
+    -fx-stroke: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
+.uiptv-responsive-card:selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot,
+.uiptv-responsive-card.selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
+.uiptv-responsive-card.selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot,
+.bookmark-card:selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
+.bookmark-card:selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot,
+.bookmark-card.selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
+.bookmark-card.selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot {
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.small-pill-button:hover,
+.small-pill-button:focused,
+.play-menu-button:hover,
+.play-menu-button:focused,
+.episode-play-button:hover,
+.episode-play-button:focused {
+    -fx-background-color: -uiptv-surface-hover;
+}
+
+.play-menu-button:hover .play-menu-icon-dot,
+.play-menu-button:focused .play-menu-icon-dot,
+.episode-play-button:hover .play-menu-icon-dot,
+.episode-play-button:focused .play-menu-icon-dot {
+    -fx-fill: -uiptv-text-primary;
 }
 
 .menu-item.episode-menu-item,
@@ -329,12 +3496,29 @@
     -fx-font-weight: normal;
 }
 
-.episode-play-button,
 .episode-play-button > .label {
-    -fx-font-size: 1em;
+    -fx-font-size: 0.86em;
     -fx-font-weight: normal;
-    -fx-padding: 2 6 2 6;
-    -fx-background-radius: 6;
+    -fx-padding: 0;
+}
+
+.watching-now-episode-card.selected-card .episode-play-button {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-fg;
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-episode-card.selected-card .episode-play-button .play-menu-icon-ring {
+    -fx-stroke: transparent;
+}
+
+.watching-now-episode-card.selected-card .episode-play-button .play-menu-icon-dot {
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-episode-card.selected-card .episode-play-button:hover,
+.watching-now-episode-card.selected-card .episode-play-button:focused {
+    -fx-background-color: derive(-uiptv-selected-card-bg, 18%);
 }
 
 .context-menu.binge-watch-context-menu .menu-item,
@@ -357,12 +3541,21 @@
 }
 
 .selected-card {
-    -fx-background-color: -fx-selection-bar;
+    -fx-background-color: -uiptv-selected-card-bg;
 }
 
-.selected-card-text,
-.selected-card-link {
-    -fx-text-fill: white;
+.selected-card-text {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.selected-card .account-drawer-channel-title,
+.selected-card .watching-now-episode-drawer-title {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.selected-card .account-drawer-channel-meta,
+.selected-card .watching-now-episode-drawer-meta {
+    -fx-text-fill: -uiptv-selected-card-muted-fg;
 }
 
 .imdb-pill {
@@ -378,44 +3571,478 @@
     -fx-text-fill: #111111;
 }
 
+.management-popup-root {
+    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f6f7f9);
+}
+
+.management-popup-header {
+    -fx-padding: 0 2 2 2;
+}
+
+.management-popup-title {
+    -fx-font-size: 1.54em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.management-popup-subtitle {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.management-popup-section-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.management-popup-card,
+.reload-column-card {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: rgba(17, 19, 24, 0.08);
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 14;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.06), 14, 0.10, 0, 4);
+}
+
+.management-popup-toolbar,
+.management-popup-action-strip,
+.management-popup-footer {
+    -fx-padding: 2 0 0 0;
+}
+
+.management-popup-text-field {
+    -fx-min-height: 36;
+}
+
+.reload-secondary-button {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.reload-secondary-button:hover,
+.reload-secondary-button:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-accent;
+}
+
+.manage-mac-action-row {
+    -fx-padding: 2 0 2 0;
+}
+
+.manage-mac-action-row .combo-box-base {
+    -fx-min-height: 34;
+    -fx-pref-height: 34;
+    -fx-font-size: 0.92em;
+}
+
+.manage-mac-action-group {
+    -fx-alignment: center-left;
+}
+
+.manage-mac-action-link {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 4 7 4 7;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-font-size: 0.86em;
+    -fx-font-weight: bold;
+    -fx-underline: false;
+}
+
+.manage-mac-action-link:hover,
+.manage-mac-action-link:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-accent;
+}
+
+.manage-mac-divider {
+    -fx-text-fill: -uiptv-text-muted;
+}
+
+.manage-account-info-card {
+    -fx-background-color: linear-gradient(to bottom right, -uiptv-surface, -uiptv-surface-muted);
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-effect: none;
+}
+
+.manage-account-info-compact {
+    -fx-min-height: 30;
+}
+
+.manage-account-info-compact-label {
+    -fx-font-size: 0.78em;
+    -fx-font-weight: 800;
+    -fx-text-fill: -uiptv-text-muted;
+}
+
+.manage-account-info-compact-value {
+    -fx-font-size: 0.88em;
+    -fx-font-weight: 900;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.manage-account-info-profile-button,
+.account-info-popup-copy-button,
+.account-info-popup-close-button {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 5 10 5 10;
+    -fx-text-fill: -uiptv-action-fg;
+    -fx-font-size: 0.82em;
+    -fx-font-weight: 900;
+}
+
+.manage-account-info-profile-button:hover,
+.manage-account-info-profile-button:focused,
+.account-info-popup-copy-button:hover,
+.account-info-popup-copy-button:focused,
+.account-info-popup-close-button:hover,
+.account-info-popup-close-button:focused {
+    -fx-background-color: -uiptv-action-hover-bg;
+    -fx-border-color: -uiptv-action-hover-bg;
+}
+
+.account-info-popup-root {
+    -fx-background-color: linear-gradient(to bottom right, -uiptv-app-bg, -uiptv-surface-muted);
+}
+
+.account-info-popup-card {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 16;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.12), 18, 0.12, 0, 6);
+}
+
+.account-info-popup-title {
+    -fx-font-size: 1.28em;
+    -fx-font-weight: 900;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.account-info-popup-subtitle {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.account-info-profile-text-area {
+    -fx-font-family: "Roboto Mono", "Roboto";
+    -fx-font-size: 0.98em;
+    -fx-control-inner-background: -uiptv-surface;
+    -fx-background-color: -uiptv-surface;
+    -fx-background-insets: 0;
+    -fx-text-fill: -uiptv-text-primary;
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-effect: none;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.account-info-profile-text-area:focused {
+    -fx-background-color: -uiptv-surface;
+    -fx-background-insets: 0;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-effect: none;
+}
+
+.account-info-profile-text-area > .scroll-pane,
+.account-info-profile-text-area > .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.account-info-profile-text-area .content {
+    -fx-background-color: -uiptv-surface;
+    -fx-background-insets: 0;
+     -fx-background-radius: 0;
+}
+
+.manage-account-switch-row {
+    -fx-padding: 2 0 2 0;
+}
+
+.manage-account-switch-label {
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.manage-account-action-row {
+    -fx-padding: 4 0 0 0;
+}
+
+.manage-account-action-row .button {
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-padding: 5 9 5 9;
+    -fx-font-size: 0.82em;
+}
+
+.manage-account-form .text-field,
+.manage-account-form .password-field {
+    -fx-padding: 6 10 6 10;
+}
+
+.management-list-view {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.management-list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 5 1 5 1;
+}
+
+.management-list-view .list-cell:empty {
+    -fx-padding: 0;
+}
+
+.management-popup-placeholder {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-weight: bold;
+}
+
+.management-popup-chip,
+.mac-default-pill {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-background-radius: 999;
+    -fx-padding: 3 9 3 9;
+    -fx-font-size: 0.86em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-action-fg;
+}
+
+.category-management-cell-content,
+.mac-management-row-content {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 10 12 10 12;
+}
+
+.management-list-view .list-cell:filled:selected .category-management-cell-content,
+.management-list-view .list-cell:filled:selected .mac-management-row-content {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-border;
+}
+
+.category-management-name,
+.mac-management-address {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.management-list-view .list-cell:filled:selected .category-management-name,
+.management-list-view .list-cell:filled:selected .mac-management-address {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.mac-management-info {
+    -fx-padding: 3 0 0 28;
+}
+
+.mac-management-meta-line .label {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.94em;
+}
+
+.reload-cache-popup {
+    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f4f6f8);
+}
+
+.reload-progress-card {
+    -fx-min-height: 52;
+    -fx-padding: 12 16 12 16;
+}
+
+.reload-failure-policy-card {
+    -fx-padding: 12 16 12 16;
+}
+
+.reload-failure-policy-row {
+    -fx-spacing: 12;
+}
+
+.reload-failure-policy-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.reload-failure-policy-description {
+    -fx-font-size: 0.92em;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.reload-failure-policy-combo {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-min-height: 38;
+}
+
+.reload-failure-policy-combo:hover,
+.reload-failure-policy-combo:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-accent;
+}
+
+.reload-log-list {
+    -fx-spacing: 8;
+}
+
+.reload-account-list {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-spacing: 0;
+}
+
+.reload-select-chip-row {
+    -fx-padding: 2 0 4 0;
+}
+
+.reload-select-chip {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 7 12 7 12;
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.reload-select-chip:hover,
+.reload-select-chip:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-accent;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.reload-select-chip:selected {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+    -fx-text-fill: -uiptv-action-fg;
+}
+
 .reload-account-row {
-    -fx-background-color: -fx-control-inner-background;
+    -fx-background-color: transparent;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 0 0 1 0;
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
+    -fx-padding: 7 10 7 10;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
 }
 
 .reload-account-row-alt {
-    -fx-background-color: derive(-fx-control-inner-background, -2%);
+    -fx-background-color: -uiptv-surface-muted;
+}
+
+.reload-account-row:hover,
+.reload-account-row:selected {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: -uiptv-border-subtle;
+}
+
+.reload-account-row:selected {
+    -fx-background-color: #eef3ff;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.reload-account-row > .box {
+    -fx-background-color: transparent;
+    -fx-border-color: #c9d1df;
+    -fx-border-width: 1.5;
+    -fx-background-radius: 7;
+    -fx-border-radius: 7;
+    -fx-padding: 4;
+}
+
+.reload-account-row:selected > .box {
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
+}
+
+.reload-account-row:selected > .box > .mark {
+    -fx-background-color: -uiptv-action-fg;
 }
 
 .reload-summary-box {
-    -fx-background-color: derive(-fx-control-inner-background, -2%);
-    -fx-border-color: -fx-box-border;
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+    -fx-background-radius: 14;
 }
 
 .reload-log-header {
-    -fx-background-color: derive(-fx-control-inner-background, -3%);
-    -fx-border-color: -fx-box-border;
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+    -fx-background-radius: 14;
+    -fx-padding: 9 11 9 11;
+    -fx-cursor: hand;
 }
 
 .reload-log-root {
-    -fx-border-color: -fx-box-border;
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-border-radius: 16;
+    -fx-background-radius: 16;
+    -fx-padding: 4;
 }
 
+.reload-log-body {
+    -fx-padding: 2 12 10 12;
+}
+
+.reload-account-title,
+.reload-status-label,
 .reload-status-queued,
 .reload-status-running,
 .reload-status-done,
 .reload-status-yellow,
-.reload-status-bad {
+.reload-status-bad,
+.reload-problem-level-bad,
+.reload-problem-level-yellow {
     -fx-font-weight: bold;
 }
 
+.reload-account-info-chip .label {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.92em;
+}
+
 .reload-status-queued {
-    -fx-text-fill: -fx-text-base-color;
+    -fx-text-fill: -uiptv-text-secondary;
 }
 
 .reload-status-running {
@@ -426,12 +4053,173 @@
     -fx-text-fill: #2e7d32;
 }
 
-.reload-status-yellow {
+.reload-status-yellow,
+.reload-problem-level-yellow {
     -fx-text-fill: #d97706;
 }
 
-.reload-status-bad {
+.reload-status-bad,
+.reload-problem-level-bad {
     -fx-text-fill: #b91c1c;
+}
+
+.reload-problem-accounts-popup {
+    -fx-padding: 14 14 0 14;
+}
+
+.reload-problem-accounts-card {
+    -fx-spacing: 14;
+    -fx-padding: 18 18 16 18;
+}
+
+.reload-problem-warning {
+    -fx-background-color: rgba(14, 165, 233, 0.08);
+    -fx-border-color: rgba(14, 165, 233, 0.18);
+    -fx-border-width: 1;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 11 13 11 13;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.reload-problem-select-all {
+    -fx-padding: 2 0 0 2;
+    -fx-font-weight: bold;
+}
+
+.reload-problem-account-scroll {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.reload-problem-account-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.reload-problem-account-list {
+    -fx-background-color: transparent;
+    -fx-spacing: 9;
+    -fx-padding: 2;
+}
+
+.reload-problem-section-title {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 5 11 5 11;
+    -fx-font-size: 0.88em;
+}
+
+.reload-problem-account-row {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 15;
+    -fx-border-radius: 15;
+    -fx-padding: 10 12 10 12;
+    -fx-alignment: top-left;
+    -fx-cursor: hand;
+}
+
+.reload-problem-account-row:hover,
+.reload-problem-account-row:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: rgba(14, 165, 233, 0.28);
+}
+
+.reload-problem-account-row:selected {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-border;
+}
+
+.reload-problem-account-row.reload-problem-account-yellow {
+    -fx-background-color: rgba(245, 158, 11, 0.08);
+    -fx-border-color: rgba(245, 158, 11, 0.24);
+}
+
+.reload-problem-account-row.reload-problem-account-bad {
+    -fx-background-color: rgba(220, 38, 38, 0.07);
+    -fx-border-color: rgba(220, 38, 38, 0.22);
+}
+
+.reload-problem-account-row.reload-problem-account-yellow:hover,
+.reload-problem-account-row.reload-problem-account-yellow:focused {
+    -fx-background-color: rgba(245, 158, 11, 0.12);
+    -fx-border-color: rgba(245, 158, 11, 0.34);
+}
+
+.reload-problem-account-row.reload-problem-account-bad:hover,
+.reload-problem-account-row.reload-problem-account-bad:focused {
+    -fx-background-color: rgba(220, 38, 38, 0.11);
+    -fx-border-color: rgba(220, 38, 38, 0.32);
+}
+
+.reload-problem-account-row.reload-problem-account-yellow:selected {
+    -fx-background-color: rgba(245, 158, 11, 0.16);
+    -fx-border-color: rgba(245, 158, 11, 0.42);
+}
+
+.reload-problem-account-row.reload-problem-account-bad:selected {
+    -fx-background-color: rgba(220, 38, 38, 0.15);
+    -fx-border-color: rgba(220, 38, 38, 0.40);
+}
+
+.reload-problem-account-content {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 0 12;
+    -fx-alignment: top-left;
+}
+
+.reload-problem-account-name {
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-primary;
+}
+
+.reload-problem-account-yellow .reload-problem-account-name {
+    -fx-text-fill: #b45309;
+}
+
+.reload-problem-account-bad .reload-problem-account-name {
+    -fx-text-fill: #b91c1c;
+}
+
+.reload-problem-account-type {
+    -fx-background-color: rgba(15, 23, 42, 0.07);
+    -fx-background-radius: 999;
+    -fx-padding: 3 9 3 9;
+    -fx-font-size: 0.86em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.reload-problem-account-reason {
+    -fx-text-fill: -uiptv-text-secondary;
+    -fx-font-size: 0.94em;
+}
+
+.reload-problem-account-row:selected .reload-problem-account-reason {
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.reload-problem-account-row.reload-problem-account-yellow:selected .reload-problem-account-name {
+    -fx-text-fill: #b45309;
+}
+
+.reload-problem-account-row.reload-problem-account-bad:selected .reload-problem-account-name {
+    -fx-text-fill: #b91c1c;
+}
+
+.reload-problem-account-row:selected .reload-problem-account-type {
+    -fx-background-color: rgba(15, 23, 42, 0.07);
+    -fx-text-fill: -uiptv-text-secondary;
+}
+
+.reload-problem-actions {
+    -fx-padding: 2 0 0 0;
 }
 
 .player-container {
@@ -470,7 +4258,38 @@
 .player-round-control-button {
     -fx-background-color: rgba(0, 0, 0, 0.6);
     -fx-background-radius: 50em;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-radius: 50em;
+    -fx-border-insets: 0;
+    -fx-padding: 8;
+    -fx-effect: none;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
     -fx-cursor: hand;
+}
+
+.player-round-control-button:hover,
+.player-round-control-button:armed,
+.player-round-control-button:focused {
+    -fx-background-color: rgba(0, 0, 0, 0.6);
+    -fx-background-radius: 50em;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-radius: 50em;
+    -fx-border-insets: 0;
+    -fx-effect: none;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.player-hiddenbar-close-button,
+.player-hiddenbar-close-button:hover,
+.player-hiddenbar-close-button:armed,
+.player-hiddenbar-close-button:focused {
+    -fx-background-color: rgba(0, 0, 0, 0.6);
 }
 
 .player-pip-overlay-button {
@@ -500,10 +4319,47 @@
 
 .player-icon-button {
     -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-radius: 4;
+    -fx-border-insets: 0;
+    -fx-padding: 3;
+    -fx-min-width: 26;
+    -fx-min-height: 26;
+    -fx-pref-width: 26;
+    -fx-pref-height: 26;
+    -fx-max-width: 26;
+    -fx-max-height: 26;
+    -fx-effect: none;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
     -fx-cursor: hand;
 }
 
-.player-icon-button:hover {
+.player-icon-button:hover,
+.player-icon-button:armed,
+.player-icon-button:focused {
+    -fx-background-color: rgba(255, 255, 255, 0.2);
+    -fx-background-radius: 4;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-effect: none;
+}
+
+.player-layout-mode-button:focused {
+    -fx-background-color: transparent;
+    -fx-background-radius: 4;
+}
+
+.player-layout-mode-button {
+    -fx-min-width: 26;
+    -fx-pref-width: 26;
+    -fx-max-width: 26;
+}
+
+.player-layout-mode-button:hover,
+.player-layout-mode-button:armed {
     -fx-background-color: rgba(255, 255, 255, 0.2);
     -fx-background-radius: 4;
 }
@@ -552,23 +4408,21 @@
 }
 
 .dialog-pane {
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
 }
 
 .dialog-pane > .header-panel {
-}
-
-.dialog-pane > .header-panel .label {
-}
-
-.dialog-pane > .content.label {
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
 }
 
 .custom-dialog-root {
     -fx-background-color: #e6e8eb;
     -fx-border-color: #bcc2c9;
     -fx-border-width: 1;
-    -fx-background-radius: 10;
-    -fx-border-radius: 10;
+     -fx-background-radius: 0;
+     -fx-border-radius: 0;
     -fx-background-insets: 0;
     -fx-border-insets: 0;
 }
@@ -772,11 +4626,19 @@
 /* Dedicated hooks used by custom widgets and player controls. */
 .progress-bar-segment-default {
     -fx-background-color: derive(-fx-control-inner-background, -10%);
-    -fx-background-radius: 0;
+     -fx-background-radius: 0;
 }
 
+.default-channel-icon,
 .default-channel-icon-shape {
-    -fx-background-color: -fx-text-fill;
+    -fx-background-color: -uiptv-text-muted;
+}
+
+.uiptv-responsive-card:selected .default-channel-icon,
+.uiptv-responsive-card.selected .default-channel-icon,
+.uiptv-responsive-card:selected .default-channel-icon-shape,
+.uiptv-responsive-card.selected .default-channel-icon-shape {
+    -fx-background-color: rgba(255, 255, 255, 0.78);
 }
 
 .player-stream-info-text {
@@ -796,8 +4658,14 @@
     -fx-font-weight: bold;
 }
 
-.about-root {
-    -fx-background-color: -fx-base;
+.about-dialog-card {
+    -fx-background-color: linear-gradient(to bottom right, #ffffff, #f8fafc);
+    -fx-border-color: rgba(15, 23, 42, 0.10);
+    -fx-border-width: 1;
+    -fx-border-radius: 24;
+    -fx-background-radius: 24;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.13), 24, 0.16, 0, 8);
 }
 
 .about-hero {
@@ -813,8 +4681,8 @@
     -fx-background-color: linear-gradient(to bottom, #2f8cff, #0d66d0);
     -fx-border-color: #7bb4ff;
     -fx-border-width: 1;
-    -fx-border-radius: 18;
-    -fx-background-radius: 18;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
     -fx-padding: 10;
     -fx-alignment: center;
 }
@@ -886,5 +4754,17 @@
 }
 
 .about-actions {
-    -fx-padding: 14 0 0 0;
+    -fx-padding: 4 0 0 0;
+}
+
+.about-actions .button {
+    -fx-min-width: 120;
+}
+
+.about-update-button:disabled {
+    -fx-opacity: 1;
+    -fx-background-color: #d9e8ff;
+    -fx-border-color: #b7d5ff;
+    -fx-text-fill: #2b5f9e;
+    -fx-cursor: default;
 }

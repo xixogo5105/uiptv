@@ -2,15 +2,20 @@ package com.uiptv.ui;
 
 import com.uiptv.service.FilterLockService;
 import com.uiptv.util.I18n;
-import javafx.geometry.Insets;
-import javafx.geometry.NodeOrientation;
+import com.uiptv.widget.ThemedDialogSupport;
 import javafx.scene.Node;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
-import javafx.stage.Modality;
-import javafx.stage.Window;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
@@ -25,21 +30,20 @@ public final class FilterLockDialogs {
             return true;
         }
 
-        PasswordField passwordField = new PasswordField();
-        passwordField.setPromptText(I18n.tr("filterLockPasswordPrompt"));
-        Label description = new Label(I18n.tr(reasonKey));
-        description.setWrapText(true);
+        PasswordField passwordField = createPasswordField("filterLockPasswordPrompt");
+        Label description = createDialogDescription(reasonKey);
 
-        Dialog<ButtonType> dialog = createDialog(owner, "filterLockUnlockTitle");
-        dialog.getDialogPane().setContent(new VBox(10, description, passwordField));
         ButtonType unlockButtonType = new ButtonType(I18n.tr("filterLockUnlockAction"), ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().setAll(unlockButtonType, ButtonType.CANCEL);
+        ButtonType cancelButtonType = cancelButtonType();
 
-        Node unlockButton = dialog.getDialogPane().lookupButton(unlockButtonType);
-        unlockButton.disableProperty().bind(passwordField.textProperty().isEmpty());
-        dialog.setResultConverter(buttonType -> buttonType);
-
-        Optional<ButtonType> result = dialog.showAndWait();
+        Optional<ButtonType> result = showPopupChoice(
+                owner,
+                "filterLockUnlockTitle",
+                createDialogContent(description, passwordField),
+                List.of(cancelButtonType, unlockButtonType),
+                cancelButtonType,
+                buttons -> bindButtonDisabled(buttons, unlockButtonType, passwordField.textProperty().isEmpty())
+        );
         if (result.isEmpty() || result.get() != unlockButtonType) {
             return false;
         }
@@ -54,30 +58,32 @@ public final class FilterLockDialogs {
         FilterLockService lockService = FilterLockService.getInstance();
         boolean passwordAlreadySet = lockService.hasPasswordConfigured();
 
-        PasswordField currentPassword = new PasswordField();
-        currentPassword.setPromptText(I18n.tr("filterLockCurrentPasswordPrompt"));
-        PasswordField newPassword = new PasswordField();
-        newPassword.setPromptText(I18n.tr("filterLockNewPasswordPrompt"));
-        PasswordField confirmPassword = new PasswordField();
-        confirmPassword.setPromptText(I18n.tr("filterLockConfirmPasswordPrompt"));
+        PasswordField currentPassword = createPasswordField("filterLockCurrentPasswordPrompt");
+        PasswordField newPassword = createPasswordField("filterLockNewPasswordPrompt");
+        PasswordField confirmPassword = createPasswordField("filterLockConfirmPasswordPrompt");
 
         VBox content = new VBox(10);
-        content.getChildren().add(new Label(I18n.tr("filterLockPasswordRequirements",
+        content.getStyleClass().add("uiptv-dialog-content");
+        content.getChildren().add(createDialogDescription("filterLockPasswordRequirements",
                 lockService.getMinPasswordLength(),
-                lockService.getUnlockWindowMinutes())));
+                lockService.getUnlockWindowMinutes()));
         if (passwordAlreadySet) {
             content.getChildren().add(currentPassword);
         }
         content.getChildren().addAll(newPassword, confirmPassword);
 
-        Dialog<ButtonType> dialog = createDialog(owner, passwordAlreadySet ? "filterLockChangePasswordTitle" : "filterLockSetPasswordTitle");
-        dialog.getDialogPane().setContent(content);
         ButtonType saveButtonType = new ButtonType(I18n.tr("commonSave"), ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().setAll(saveButtonType, ButtonType.CANCEL);
-        Node saveButton = dialog.getDialogPane().lookupButton(saveButtonType);
-        saveButton.disableProperty().bind(newPassword.textProperty().isEmpty().or(confirmPassword.textProperty().isEmpty()));
+        ButtonType cancelButtonType = cancelButtonType();
 
-        Optional<ButtonType> result = dialog.showAndWait();
+        Optional<ButtonType> result = showPopupChoice(
+                owner,
+                passwordAlreadySet ? "filterLockChangePasswordTitle" : "filterLockSetPasswordTitle",
+                content,
+                List.of(cancelButtonType, saveButtonType),
+                cancelButtonType,
+                buttons -> bindButtonDisabled(buttons, saveButtonType,
+                        newPassword.textProperty().isEmpty().or(confirmPassword.textProperty().isEmpty()))
+        );
         if (result.isEmpty() || result.get() != saveButtonType) {
             return;
         }
@@ -110,21 +116,21 @@ public final class FilterLockDialogs {
             return false;
         }
 
-        PasswordField currentPassword = new PasswordField();
-        currentPassword.setPromptText(I18n.tr("filterLockCurrentPasswordPrompt"));
-        Label warning = new Label(I18n.tr("filterLockDisablePasswordWarning"));
-        warning.setWrapText(true);
-        Label prompt = new Label(I18n.tr("filterLockDisablePasswordPrompt"));
-        prompt.setWrapText(true);
+        PasswordField currentPassword = createPasswordField("filterLockCurrentPasswordPrompt");
+        Label warning = createDialogDescription("filterLockDisablePasswordWarning");
+        Label prompt = createDialogDescription("filterLockDisablePasswordPrompt");
 
-        Dialog<ButtonType> dialog = createDialog(owner, "filterLockDisablePasswordTitle");
-        dialog.getDialogPane().setContent(new VBox(10, warning, prompt, currentPassword));
         ButtonType saveButtonType = new ButtonType(I18n.tr("commonSave"), ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().setAll(saveButtonType, ButtonType.CANCEL);
-        Node saveButton = dialog.getDialogPane().lookupButton(saveButtonType);
-        saveButton.disableProperty().bind(currentPassword.textProperty().isEmpty());
+        ButtonType cancelButtonType = cancelButtonType();
 
-        Optional<ButtonType> result = dialog.showAndWait();
+        Optional<ButtonType> result = showPopupChoice(
+                owner,
+                "filterLockDisablePasswordTitle",
+                createDialogContent(warning, prompt, currentPassword),
+                List.of(cancelButtonType, saveButtonType),
+                cancelButtonType,
+                buttons -> bindButtonDisabled(buttons, saveButtonType, currentPassword.textProperty().isEmpty())
+        );
         if (result.isEmpty() || result.get() != saveButtonType) {
             return false;
         }
@@ -145,22 +151,54 @@ public final class FilterLockDialogs {
         }
     }
 
-    private static Dialog<ButtonType> createDialog(Node owner, String titleKey) {
-        Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle(I18n.tr(titleKey));
-        dialog.setHeaderText(null);
-        dialog.initModality(Modality.APPLICATION_MODAL);
-        Window ownerWindow = owner != null && owner.getScene() != null ? owner.getScene().getWindow() : null;
-        if (ownerWindow != null) {
-            dialog.initOwner(ownerWindow);
-        }
-        if (RootApplication.getCurrentTheme() != null) {
-            dialog.getDialogPane().getStylesheets().add(RootApplication.getCurrentTheme());
-        }
-        dialog.getDialogPane().setNodeOrientation(
-                I18n.isCurrentLocaleRtl() ? NodeOrientation.RIGHT_TO_LEFT : NodeOrientation.LEFT_TO_RIGHT
+    private static PasswordField createPasswordField(String promptKey) {
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText(I18n.tr(promptKey));
+        passwordField.getStyleClass().add("uiptv-dialog-text-field");
+        passwordField.setMaxWidth(Double.MAX_VALUE);
+        return passwordField;
+    }
+
+    private static Label createDialogDescription(String key, Object... args) {
+        Label label = new Label(I18n.tr(key, args));
+        label.getStyleClass().add("uiptv-dialog-description");
+        label.setWrapText(true);
+        return label;
+    }
+
+    private static VBox createDialogContent(Node... nodes) {
+        VBox content = new VBox(10, nodes);
+        content.getStyleClass().add("uiptv-dialog-content");
+        return content;
+    }
+
+    private static Optional<ButtonType> showPopupChoice(Node owner,
+                                                        String titleKey,
+                                                        Node content,
+                                                        List<ButtonType> buttons,
+                                                        ButtonType fallbackButton,
+                                                        Consumer<Map<ButtonType, Button>> buttonConfigurer) {
+        return ThemedDialogSupport.showChoice(
+                I18n.tr(titleKey),
+                content,
+                buttons,
+                fallbackButton,
+                buttonConfigurer,
+                ThemedDialogSupport.ownerWindowOf(owner),
+                "uiptv-alert-dialog"
         );
-        dialog.getDialogPane().setPadding(new Insets(12));
-        return dialog;
+    }
+
+    private static ButtonType cancelButtonType() {
+        return new ButtonType(I18n.tr("autoCancel"), ButtonBar.ButtonData.CANCEL_CLOSE);
+    }
+
+    private static void bindButtonDisabled(Map<ButtonType, Button> buttons,
+                                           ButtonType buttonType,
+                                           javafx.beans.value.ObservableBooleanValue disabled) {
+        Button button = buttons.get(buttonType);
+        if (button != null) {
+            button.disableProperty().bind(disabled);
+        }
     }
 }
