@@ -63,14 +63,14 @@ jobs:
           distribution: temurin
 
       - name: Cache SonarQube packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
       - name: Cache Maven packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
@@ -286,7 +286,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Restore API 24 libmpv AAR
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: mobile/androidApp/libs/libmpv-android-api24.aar
           key: libmpv-api24-aar-${{ runner.os }}-v1-${{ hashFiles('scripts/build-mobile-with-libmpv.sh', 'mobile/androidApp/build.gradle.kts') }}
