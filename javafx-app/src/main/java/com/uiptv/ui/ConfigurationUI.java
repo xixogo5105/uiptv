@@ -3022,7 +3022,7 @@ public class ConfigurationUI extends VBox {
             Platform.runLater(() -> {
                 updateVlcOptionsLinkVisibility();
                 updateWideViewVisibility();
-                requestImmediateAutoSave("playerSelectionDeferred");
+                requestImmediateAutoSave();
             });
         }
     }
