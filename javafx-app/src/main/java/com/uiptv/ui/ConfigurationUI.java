@@ -75,6 +75,8 @@ public class ConfigurationUI extends VBox {
     private static final String BACKUP_CREATE_ICON_PATH = "M12 3 L19 10 H15 V17 H9 V10 H5 Z M5 19 H19 V21 H5 Z";
     private static final String BACKUP_RESTORE_ICON_PATH = "M12 5 C8.7 5 6 7.7 6 11 H3 L7 15 L11 11 H8 C8 8.8 9.8 7 12 7 C14.2 7 16 8.8 16 11 C16 13.2 14.2 15 12 15 C10.9 15 9.9 14.6 9.2 13.8 L7.8 15.2 C8.9 16.3 10.4 17 12 17 C15.3 17 18 14.3 18 11 C18 7.7 15.3 5 12 5 Z";
     private static final double STATUS_ICON_SIZE = 18;
+    private static final String STYLE_CLASS_SETTINGS_FILTER_MODE_LABEL = "settings-filter-mode-label";
+    private static final String I18N_COMMON_CLOSE = "commonClose";
     private static final Duration STATUS_TITLE_REFRESH_INTERVAL = Duration.seconds(30);
     private static final Duration AUTO_SAVE_DEBOUNCE = Duration.millis(450);
     private static final double DATABASE_SYNC_INLINE_WIDTH = 672;
@@ -458,13 +460,11 @@ public class ConfigurationUI extends VBox {
                 : settingsSearchTextField.getText().trim().toLowerCase(Locale.ROOT);
         settingsCardPane.getChildren().clear();
         for (SettingsSection section : settingsSections) {
-            if (!"all".equals(selectedFilterId) && !section.id().equals(selectedFilterId)) {
-                continue;
+            boolean matchesFilter = "all".equals(selectedFilterId) || section.id().equals(selectedFilterId);
+            boolean matchesQuery = query.isEmpty() || matchesSettingsSearch(section, query);
+            if (matchesFilter && matchesQuery) {
+                settingsCardPane.getChildren().add(createSettingsSectionCard(section));
             }
-            if (!query.isEmpty() && !matchesSettingsSearch(section, query)) {
-                continue;
-            }
-            settingsCardPane.getChildren().add(createSettingsSectionCard(section));
         }
         updateSettingsCardWidths();
     }
@@ -661,7 +661,7 @@ public class ConfigurationUI extends VBox {
 
     private Node createFilterLockStateRow() {
         filterLockStateSwitch.getStyleClass().add("filter-lock-state-switch");
-        filterLockStateTitleLabel.getStyleClass().add("settings-filter-mode-label");
+        filterLockStateTitleLabel.getStyleClass().add(STYLE_CLASS_SETTINGS_FILTER_MODE_LABEL);
         filterLockStateValueLabel.getStyleClass().add("filter-lock-state-value");
 
         VBox labels = new VBox(2, filterLockStateTitleLabel, filterLockStateValueLabel);
@@ -683,7 +683,7 @@ public class ConfigurationUI extends VBox {
 
     private Node createSettingSwitchHelpRow(String labelKey, SwitchToggle switchToggle, Hyperlink helpLink) {
         Label label = new Label(I18n.tr(labelKey));
-        label.getStyleClass().add("settings-filter-mode-label");
+        label.getStyleClass().add(STYLE_CLASS_SETTINGS_FILTER_MODE_LABEL);
         label.setMinWidth(0);
         label.setMaxWidth(Double.MAX_VALUE);
         label.setWrapText(false);
@@ -768,7 +768,7 @@ public class ConfigurationUI extends VBox {
 
     private Node createSettingControlRow(String labelKey, Node control, double controlWidth) {
         Label label = new Label(I18n.tr(labelKey));
-        label.getStyleClass().add("settings-filter-mode-label");
+        label.getStyleClass().add(STYLE_CLASS_SETTINGS_FILTER_MODE_LABEL);
         label.setMinWidth(0);
         label.setMaxWidth(Double.MAX_VALUE);
         label.setWrapText(false);
@@ -833,7 +833,7 @@ public class ConfigurationUI extends VBox {
 
     private Node createStackedSettingControlRow(String labelKey, Region control) {
         Label label = new Label(I18n.tr(labelKey));
-        label.getStyleClass().add("settings-filter-mode-label");
+        label.getStyleClass().add(STYLE_CLASS_SETTINGS_FILTER_MODE_LABEL);
         label.setMinWidth(0);
         label.setMaxWidth(Double.MAX_VALUE);
         label.setWrapText(true);
@@ -914,7 +914,7 @@ public class ConfigurationUI extends VBox {
             }
             darkThemeCheckBox.setSelected(selected.dark());
             applyThemePreview();
-            requestImmediateAutoSave("themeMode");
+            requestImmediateAutoSave();
         });
         syncThemeModeSelector();
     }
@@ -998,15 +998,15 @@ public class ConfigurationUI extends VBox {
     private void installAutoSaveHandlers() {
         autoSaveDebounce.setOnFinished(_ -> Platform.runLater(() -> saveCurrentSettings(true)));
 
-        installDebouncedAutoSave(playerPath1, "playerPath1");
-        installDebouncedAutoSave(playerPath2, "playerPath2");
-        installDebouncedAutoSave(playerPath3, "playerPath3");
-        installDebouncedAutoSave(filterCategoriesWithTextContains, "filterCategories");
-        installDebouncedAutoSave(filterChannelWithTextContains, "filterChannels");
-        installDebouncedAutoSave(serverPort, "serverPort");
-        installDebouncedAutoSave(httpsServerPort, "httpsServerPort");
-        installDebouncedAutoSave(cacheExpiryDays, "cacheExpiryDays");
-        installDebouncedAutoSave(tmdbReadAccessToken, "tmdbReadAccessToken");
+        installDebouncedAutoSave(playerPath1);
+        installDebouncedAutoSave(playerPath2);
+        installDebouncedAutoSave(playerPath3);
+        installDebouncedAutoSave(filterCategoriesWithTextContains);
+        installDebouncedAutoSave(filterChannelWithTextContains);
+        installDebouncedAutoSave(serverPort);
+        installDebouncedAutoSave(httpsServerPort);
+        installDebouncedAutoSave(cacheExpiryDays);
+        installDebouncedAutoSave(tmdbReadAccessToken);
 
         group.selectedToggleProperty().addListener((_, _, _) -> Platform.runLater(() -> {
             updateVlcOptionsLinkVisibility();
@@ -1018,27 +1018,27 @@ public class ConfigurationUI extends VBox {
                 playerSelectionSaveDeferred = true;
                 return;
             }
-            requestImmediateAutoSave("defaultPlayer");
+            requestImmediateAutoSave();
         }));
-        installImmediateAutoSave(wideViewCheckBox, "wideView");
-        installImmediateAutoSave(resolveChainAndDeepRedirectsCheckBox, "resolveRedirects");
-        installImmediateAutoSave(enableThumbnailsCheckBox, "enableThumbnails");
-        autoRunServerOnStartupSwitch.selectedProperty().addListener((_, _, _) -> requestImmediateAutoSave("autoRunServerOnStartup"));
+        installImmediateAutoSave(wideViewCheckBox);
+        installImmediateAutoSave(resolveChainAndDeepRedirectsCheckBox);
+        installImmediateAutoSave(enableThumbnailsCheckBox);
+        autoRunServerOnStartupSwitch.selectedProperty().addListener((_, _, _) -> requestImmediateAutoSave());
 
-        languageComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave("language"));
-        themeZoomComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave("themeZoom"));
-        filterLockUnlockDurationComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave("filterLockDuration"));
+        languageComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
+        themeZoomComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
+        filterLockUnlockDurationComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
     }
 
-    private void installDebouncedAutoSave(TextInputControl control, String reason) {
-        control.textProperty().addListener((_, _, _) -> requestDebouncedAutoSave(reason));
+    private void installDebouncedAutoSave(TextInputControl control) {
+        control.textProperty().addListener((_, _, _) -> requestDebouncedAutoSave());
     }
 
-    private void installImmediateAutoSave(CheckBox checkBox, String reason) {
-        checkBox.selectedProperty().addListener((_, _, _) -> requestImmediateAutoSave(reason));
+    private void installImmediateAutoSave(CheckBox checkBox) {
+        checkBox.selectedProperty().addListener((_, _, _) -> requestImmediateAutoSave());
     }
 
-    private void requestDebouncedAutoSave(String reason) {
+    private void requestDebouncedAutoSave() {
         if (isAutoSaveSuppressed()) {
             autoSaveDebounce.stop();
             return;
@@ -1046,7 +1046,7 @@ public class ConfigurationUI extends VBox {
         autoSaveDebounce.playFromStart();
     }
 
-    private void requestImmediateAutoSave(String reason) {
+    private void requestImmediateAutoSave() {
         if (isAutoSaveSuppressed()) {
             autoSaveDebounce.stop();
             return;
@@ -1698,7 +1698,7 @@ public class ConfigurationUI extends VBox {
             if (showRestartMessage && restartRequired(previous, newConfiguration)) {
                 showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
             }
-        } catch (Exception e) {
+        } catch (Exception _) {
             showErrorAlert(I18n.tr("configFailedToSave"));
         } finally {
             savingConfiguration = false;
@@ -1981,7 +1981,7 @@ public class ConfigurationUI extends VBox {
             closeAction.run();
         });
 
-        Button closeButton = new Button(I18n.tr("commonClose"));
+        Button closeButton = new Button(I18n.tr(I18N_COMMON_CLOSE));
         closeButton.getStyleClass().add("uiptv-inline-secondary-button");
         closeButton.setOnAction(event -> closeAction.run());
 
@@ -2150,6 +2150,7 @@ public class ConfigurationUI extends VBox {
                     event.consume();
                 }
                 default -> {
+                    // ignore
                 }
             }
         });
@@ -2227,7 +2228,7 @@ public class ConfigurationUI extends VBox {
                         .or(syncConfigurationCheckBox.disabledProperty())
         );
         Button runButton = new Button(I18n.tr(databaseSyncActionKey(importMode)));
-        Button cancelButton = new Button(I18n.tr("commonClose"));
+        Button cancelButton = new Button(I18n.tr(I18N_COMMON_CLOSE));
         ProgressBar progressBar = new ProgressBar(0);
         Label progressLabel = new Label();
         TextArea resultTextArea = new TextArea();
@@ -2916,7 +2917,7 @@ public class ConfigurationUI extends VBox {
         helpText.setMinWidth(0);
         helpText.setMaxWidth(Double.MAX_VALUE);
 
-        ButtonType closeButton = new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        ButtonType closeButton = new ButtonType(I18n.tr(I18N_COMMON_CLOSE), ButtonBar.ButtonData.CANCEL_CLOSE);
         ThemedDialogSupport.showChoice(title, helpText, List.of(closeButton), closeButton);
     }
 

@@ -62,6 +62,12 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private static final String STYLE_CLASS_BUTTON = "button";
     private static final double SERIES_EPISODE_LOADING_INDICATOR_SIZE = 24;
     private static final double SERIES_EPISODE_LOADING_PANEL_HEIGHT = 220;
+    private static final String I18N_AUTO_LOADING_IMDB_DETAILS = "autoLoadingIMDbDetails";
+    private static final String STYLE_CLASS_STRONG_LABEL = "strong-label";
+    private static final String STYLE_CLASS_UIPTV_CARD = "uiptv-card";
+    private static final String I18N_AUTO_RELEASE_PREFIX = "autoReleasePrefix";
+    private static final String STYLE_CLASS_SELECTED_CARD = "selected-card";
+    private static final String STYLE_CLASS_SELECTED_CARD_TEXT = "selected-card-text";
     private final PillBar<String> seasonPillBar = new PillBar<>(I18n::formatTabNumberLabel, season -> season);
     private final VBox cardsContainer = new VBox(8);
     private final ScrollPane cardsScroll = new ScrollPane(cardsContainer);
@@ -78,8 +84,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private final Label plotNode = new Label();
     private final MenuButton bingeWatchButton = new MenuButton();
     private final Button reloadEpisodesButton = new Button();
-    private final LoadingStateView imdbLoadingNode = new LoadingStateView(I18n.tr("autoLoadingIMDbDetails"), 14);
-    private final LoadingStateView episodeLoadingNode = createSeriesEpisodeLoadingNode(I18n.tr("autoLoadingIMDbDetails"));
+    private final LoadingStateView imdbLoadingNode = new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_IMDB_DETAILS), 14);
+    private final LoadingStateView episodeLoadingNode = createSeriesEpisodeLoadingNode(I18n.tr(I18N_AUTO_LOADING_IMDB_DETAILS));
     private final FlowPane watchingNowDetailLayout = new FlowPane(14, 14);
     private final VBox watchingNowEpisodesPanel = new VBox(12);
     private final Label episodesTitleNode = new Label(I18n.tr("autoEpisodes"));
@@ -310,7 +316,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         seriesPosterWrap.setAlignment(Pos.CENTER);
         seriesPosterWrap.setMaxWidth(Double.MAX_VALUE);
 
-        titleNode.getStyleClass().add("strong-label");
+        titleNode.getStyleClass().add(STYLE_CLASS_STRONG_LABEL);
         titleNode.setWrapText(true);
         titleNode.setTextOverrun(OverrunStyle.CLIP);
         titleNode.setMaxWidth(Double.MAX_VALUE);
@@ -405,7 +411,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         }
         watchingNowDetailStylingApplied = true;
         header.getStyleClass().remove("uiptv-outline-pane");
-        header.getStyleClass().remove("uiptv-card");
+        header.getStyleClass().remove(STYLE_CLASS_UIPTV_CARD);
         header.getStyleClass().add("watching-now-series-info-panel");
         seriesPosterWrap.getStyleClass().add("watching-now-series-poster-wrap");
         bingeWatchButton.getStyleClass().remove("binge-watch-menu-button");
@@ -558,7 +564,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             watchingNowEpisodesPanel.setPrefWidth(panelWidth);
             return;
         }
-        double detailsWidth = Math.min(340, Math.max(280, width * 0.32));
+        double detailsWidth = Math.clamp(width * 0.32, 280, 340);
         header.setPrefWidth(detailsWidth);
         header.setMaxWidth(380);
         watchingNowEpisodesPanel.setPrefWidth(Math.max(420, width - detailsWidth - 18));
@@ -585,6 +591,29 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             headerDetails.getChildren().add(0, titleRow);
         }
 
+        populateHeaderDetails();
+        updateBingeWatchButton();
+
+        String cover = sanitizePosterUrl(normalizeImageUrl(seasonInfo.optString(KEY_COVER, "")));
+        if (isBlank(cover)) {
+            cover = allEpisodeItems.stream().map(EpisodeItem::getLogo).map(this::sanitizePosterUrl).filter(s -> !isBlank(s)).findFirst().orElse("");
+        }
+        if (!isBlank(cover)) {
+            seasonInfo.put(KEY_COVER, cover);
+            String finalCover = cover;
+            ImageCacheManager.loadImageAsync(cover, EPISODE_CACHE)
+                    .thenAccept(image -> {
+                        if (image != null) {
+                            Platform.runLater(() -> seriesPosterNode.setImage(image));
+                        } else {
+                            com.uiptv.util.AppLog.addWarningLog(ThumbnailEpisodesListUI.class, "EpisodesListUI series poster failed: " + finalCover);
+                        }
+                    });
+        }
+        publishSeasonInfo();
+    }
+
+    private void populateHeaderDetails() {
         String rating = seasonInfo.optString(KEY_RATING, "");
         if (!isBlank(rating)) {
             ratingNode.setText(I18n.tr("autoImdbPrefix", rating));
@@ -607,7 +636,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
         String releaseDate = seasonInfo.optString(KEY_RELEASE_DATE, "");
         if (!isBlank(releaseDate)) {
-            releaseNode.setText(I18n.tr("autoReleasePrefix", shortDateOnly(releaseDate)));
+            releaseNode.setText(I18n.tr(I18N_AUTO_RELEASE_PREFIX, shortDateOnly(releaseDate)));
             headerDetails.getChildren().add(releaseNode);
         }
 
@@ -616,25 +645,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             plotNode.setText(plot);
             headerDetails.getChildren().add(plotNode);
         }
-        updateBingeWatchButton();
-
-        String cover = sanitizePosterUrl(normalizeImageUrl(seasonInfo.optString(KEY_COVER, "")));
-        if (isBlank(cover)) {
-            cover = allEpisodeItems.stream().map(EpisodeItem::getLogo).map(this::sanitizePosterUrl).filter(s -> !isBlank(s)).findFirst().orElse("");
-        }
-        if (!isBlank(cover)) {
-            seasonInfo.put(KEY_COVER, cover);
-            String finalCover = cover;
-            ImageCacheManager.loadImageAsync(cover, EPISODE_CACHE)
-                    .thenAccept(image -> {
-                        if (image != null) {
-                            Platform.runLater(() -> seriesPosterNode.setImage(image));
-                        } else {
-                            com.uiptv.util.AppLog.addWarningLog(ThumbnailEpisodesListUI.class, "EpisodesListUI series poster failed: " + finalCover);
-                        }
-                    });
-        }
-        publishSeasonInfo();
     }
 
     private void publishSeasonInfo() {
@@ -764,7 +774,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private VBox createEpisodeCard(EpisodeItem row) {
         VBox root = new VBox(8);
         root.setPadding(new Insets(10));
-        root.getStyleClass().add("uiptv-card");
+        root.getStyleClass().add(STYLE_CLASS_UIPTV_CARD);
         if (watchingNowDetailStylingApplied) {
             root.getStyleClass().add("watching-now-episode-card");
         }
@@ -816,41 +826,14 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         title.setWrapText(true);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMinHeight(Region.USE_PREF_SIZE);
-        title.getStyleClass().add("strong-label");
+        title.getStyleClass().add(STYLE_CLASS_STRONG_LABEL);
         text.getChildren().addAll(actionRow, title);
         List<Label> cardLabels = new ArrayList<>();
         cardLabels.add(title);
-        if (!isBlank(row.getReleaseDate())) {
-            Label release = new Label(I18n.tr("autoReleasePrefix", shortDateOnly(row.getReleaseDate())));
-            if (watchingNowDetailStylingApplied) {
-                release.getStyleClass().add("watching-now-episode-meta-label");
-            }
-            text.getChildren().add(release);
-            cardLabels.add(release);
-        }
-        if (!isBlank(row.getRating())) {
-            Label rating = new Label(I18n.tr("autoRatingPrefix", row.getRating()));
-            if (watchingNowDetailStylingApplied) {
-                rating.getStyleClass().add("watching-now-episode-meta-label");
-            }
-            text.getChildren().add(rating);
-            cardLabels.add(rating);
-        }
-
+        addEpisodeMetaLabels(text, row, cardLabels);
         top.getChildren().addAll(posterWrap, text);
         root.getChildren().add(top);
-
-        if (!isBlank(row.getPlot())) {
-            Label plot = new Label(row.getPlot());
-            plot.setWrapText(true);
-            plot.setMaxWidth(Double.MAX_VALUE);
-            plot.setMinHeight(Region.USE_PREF_SIZE);
-            if (watchingNowDetailStylingApplied) {
-                plot.getStyleClass().add("watching-now-episode-plot");
-            }
-            root.getChildren().add(plot);
-            cardLabels.add(plot);
-        }
+        addEpisodePlotLabel(root, row, cardLabels);
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
         root.focusedProperty().addListener((_, _, focused) -> {
             if (Boolean.TRUE.equals(focused)) {
@@ -874,6 +857,39 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         return root;
     }
 
+    private void addEpisodeMetaLabels(VBox text, EpisodeItem row, List<Label> cardLabels) {
+        if (!isBlank(row.getReleaseDate())) {
+            Label release = new Label(I18n.tr(I18N_AUTO_RELEASE_PREFIX, shortDateOnly(row.getReleaseDate())));
+            if (watchingNowDetailStylingApplied) {
+                release.getStyleClass().add("watching-now-episode-meta-label");
+            }
+            text.getChildren().add(release);
+            cardLabels.add(release);
+        }
+        if (!isBlank(row.getRating())) {
+            Label rating = new Label(I18n.tr("autoRatingPrefix", row.getRating()));
+            if (watchingNowDetailStylingApplied) {
+                rating.getStyleClass().add("watching-now-episode-meta-label");
+            }
+            text.getChildren().add(rating);
+            cardLabels.add(rating);
+        }
+    }
+
+    private void addEpisodePlotLabel(VBox root, EpisodeItem row, List<Label> cardLabels) {
+        if (!isBlank(row.getPlot())) {
+            Label plot = new Label(row.getPlot());
+            plot.setWrapText(true);
+            plot.setMaxWidth(Double.MAX_VALUE);
+            plot.setMinHeight(Region.USE_PREF_SIZE);
+            if (watchingNowDetailStylingApplied) {
+                plot.getStyleClass().add("watching-now-episode-plot");
+            }
+            root.getChildren().add(plot);
+            cardLabels.add(plot);
+        }
+    }
+
     private boolean isInteractiveChildEvent(Pane card, MouseEvent event) {
         Object target = event.getTarget();
         while (target instanceof Node node && node != card) {
@@ -888,7 +904,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private VBox createDrawerEpisodeRow(EpisodeItem row) {
         VBox root = new VBox(2);
         root.setPadding(new Insets(8, 9, 8, 9));
-        root.getStyleClass().addAll("uiptv-card", "watching-now-episode-card", "watching-now-episode-card-compact", "watching-now-episode-drawer-row");
+        root.getStyleClass().addAll(STYLE_CLASS_UIPTV_CARD, "watching-now-episode-card", "watching-now-episode-card-compact", "watching-now-episode-drawer-row");
         root.setFocusTraversable(true);
         root.setMinWidth(0);
         root.setMaxWidth(Double.MAX_VALUE);
@@ -896,18 +912,18 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         root.setPrefHeight(Region.USE_COMPUTED_SIZE);
 
         Label title = new Label(buildEpisodeDisplayTitle(row.getSeason(), row.getEpisodeNumber(), row.getEpisodeName()));
-        title.getStyleClass().addAll("strong-label", "watching-now-episode-drawer-title");
+        title.getStyleClass().addAll(STYLE_CLASS_STRONG_LABEL, "watching-now-episode-drawer-title");
         title.setWrapText(true);
         title.setMinWidth(0);
         title.setMaxWidth(Double.MAX_VALUE);
         title.setMouseTransparent(true);
         HBox.setHgrow(title, Priority.ALWAYS);
 
-        HBox titleRow = new HBox(6, title);
-        titleRow.setAlignment(Pos.CENTER_LEFT);
-        titleRow.setMinWidth(0);
-        titleRow.setMaxWidth(Double.MAX_VALUE);
-        titleRow.setMouseTransparent(true);
+        HBox titleBox = new HBox(6, title);
+        titleBox.setAlignment(Pos.CENTER_LEFT);
+        titleBox.setMinWidth(0);
+        titleBox.setMaxWidth(Double.MAX_VALUE);
+        titleBox.setMouseTransparent(true);
 
         if (row.isWatched()) {
             Label watched = new Label(I18n.tr("autoWatching"));
@@ -915,7 +931,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             watched.setMinWidth(Region.USE_PREF_SIZE);
             watched.setMaxWidth(Region.USE_PREF_SIZE);
             watched.setMouseTransparent(true);
-            titleRow.getChildren().add(watched);
+            titleBox.getChildren().add(watched);
         }
 
         Label meta = new Label(drawerEpisodeMeta(row));
@@ -930,7 +946,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         List<Label> cardLabels = new ArrayList<>();
         cardLabels.add(title);
         cardLabels.add(meta);
-        root.getChildren().addAll(titleRow, meta);
+        root.getChildren().addAll(titleBox, meta);
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
         addRightClickContextMenu(row, root);
         root.focusedProperty().addListener((_, _, focused) -> {
@@ -1062,7 +1078,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         double nextTop = targetTop < viewportTop ? targetTop : targetBottom - viewportHeight;
-        cardsScroll.setVvalue(Math.max(0, Math.min(1, nextTop / scrollableHeight)));
+        cardsScroll.setVvalue(Math.clamp(nextTop / scrollableHeight, 0, 1));
     }
 
     private String drawerEpisodeMeta(EpisodeItem row) {
@@ -1071,7 +1087,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return "";
         }
         if (!isBlank(row.getReleaseDate())) {
-            parts.add(I18n.tr("autoReleasePrefix", shortDateOnly(row.getReleaseDate())));
+            parts.add(I18n.tr(I18N_AUTO_RELEASE_PREFIX, shortDateOnly(row.getReleaseDate())));
         }
         if (!isBlank(row.getRating())) {
             parts.add(I18n.tr("autoRatingPrefix", row.getRating()));
@@ -1169,13 +1185,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         if (card == null) {
             return;
         }
-        if (selected) {
-            if (!card.getStyleClass().contains("selected-card")) {
-                card.getStyleClass().add("selected-card");
-            }
-        } else {
-            card.getStyleClass().remove("selected-card");
-        }
+        updateStyle(card.getStyleClass(), STYLE_CLASS_SELECTED_CARD, selected);
         Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
         if (labelsObj instanceof List<?> labels) {
             for (Object labelObj : labels) {
@@ -1190,12 +1200,16 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         if (label == null) {
             return;
         }
+        updateStyle(label.getStyleClass(), STYLE_CLASS_SELECTED_CARD_TEXT, selected);
+    }
+    
+    private void updateStyle(javafx.collections.ObservableList<String> styleClass, String style, boolean selected) {
         if (selected) {
-            if (!label.getStyleClass().contains("selected-card-text")) {
-                label.getStyleClass().add("selected-card-text");
+            if (!styleClass.contains(style)) {
+                styleClass.add(style);
             }
         } else {
-            label.getStyleClass().remove("selected-card-text");
+            styleClass.remove(style);
         }
     }
 

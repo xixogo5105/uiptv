@@ -155,7 +155,7 @@ public class WatchingNowUI extends VBox {
     }
 
     private String currentSearchQuery() {
-        String currentText = searchTextField == null ? "" : searchTextField.getText();
+        String currentText = searchTextField.getText();
         pendingSearchQuery = normalizeSearchInput(currentText);
         return pendingSearchQuery;
     }
@@ -164,14 +164,6 @@ public class WatchingNowUI extends VBox {
         return query == null ? "" : query;
     }
 
-    private void detachFromParent(Node node) {
-        if (node == null || node.getParent() == null) {
-            return;
-        }
-        if (node.getParent() instanceof Pane pane) {
-            pane.getChildren().remove(node);
-        }
-    }
 
     private VBox buildTabContent(BaseWatchingNowUI delegate) {
         VBox content = new VBox(8, delegate);

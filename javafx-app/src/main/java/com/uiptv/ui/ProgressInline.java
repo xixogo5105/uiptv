@@ -199,11 +199,9 @@ public class ProgressInline extends BorderPane {
         int value = Integer.parseInt(parts[0]);
         
         switch (parts[1]) {
-            case "sec":
-            case "secs":
+            case "sec", "secs":
                 return value * 1000L;
-            case "min":
-            case "mins":
+            case "min", "mins":
                 return value * 60 * 1000L;
             default:
                 return 10000L;

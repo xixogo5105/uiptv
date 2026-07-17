@@ -288,8 +288,8 @@ public class RootApplication extends Application {
     }
 
     private boolean insideRoundedRect(int x, int y, double left, double top, double right, double bottom, double radius) {
-        double nearestX = Math.max(left + radius, Math.min(x, right - radius));
-        double nearestY = Math.max(top + radius, Math.min(y, bottom - radius));
+        double nearestX = Math.clamp(x, left + radius, right - radius);
+        double nearestY = Math.clamp(y, top + radius, bottom - radius);
         double dx = x - nearestX;
         double dy = y - nearestY;
         return x >= left && x <= right && y >= top && y <= bottom && dx * dx + dy * dy <= radius * radius;

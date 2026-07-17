@@ -34,6 +34,10 @@ import static com.uiptv.ui.RootApplication.GUIDED_MAX_HEIGHT_PIXELS;
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 
 public class LogDisplayUI extends VBox {
+    private static final String STYLE_CLASS_LOG_PAGE = "log-page";
+    private static final String STYLE_CLASS_LOG_PRIMARY_ACTION_BUTTON = "log-primary-action-button";
+    private static final String I18N_AUTO_UIPTV_LOGS = "autoUiptvLogs";
+    private static final String STYLE_CLASS_LOG_CARD = "log-card";
     private static TextArea logArea;
     private final Button clearLogButton= new Button(I18n.tr("autoClear"));
     private final Button copyLogButton = new Button(I18n.tr("autoCopy"));
@@ -63,7 +67,7 @@ public class LogDisplayUI extends VBox {
         this.themeToggleHandler = themeToggleHandler;
         setPadding(Insets.EMPTY);
         setSpacing(0);
-        getStyleClass().add("log-page");
+        getStyleClass().add(STYLE_CLASS_LOG_PAGE);
         contentBox.getStyleClass().add("log-content");
         contentBox.setPadding(new Insets(5, 10, 20, 10));
         contentBox.setSpacing(14);
@@ -81,9 +85,9 @@ public class LogDisplayUI extends VBox {
         for (Button button : List.of(copyLogButton, clearLogButton, webLogButton, detachButton, attachButton)) {
             configureLogActionButton(button);
         }
-        webLogButton.getStyleClass().add("log-primary-action-button");
-        detachButton.getStyleClass().add("log-primary-action-button");
-        attachButton.getStyleClass().add("log-primary-action-button");
+        webLogButton.getStyleClass().add(STYLE_CLASS_LOG_PRIMARY_ACTION_BUTTON);
+        detachButton.getStyleClass().add(STYLE_CLASS_LOG_PRIMARY_ACTION_BUTTON);
+        attachButton.getStyleClass().add(STYLE_CLASS_LOG_PRIMARY_ACTION_BUTTON);
 
         clearLogButton.setOnAction(event -> logArea.clear());
 
@@ -144,11 +148,11 @@ public class LogDisplayUI extends VBox {
            });
         FlowPane controlBox = createControlRow(copyLogButton, clearLogButton, webLogButton, detachButton);
         AppPageHeader header = createHeader();
-        Label title = new Label(I18n.tr("autoUiptvLogs"));
+        Label title = new Label(I18n.tr(I18N_AUTO_UIPTV_LOGS));
         VBox cardHeader = createLogCardHeader(title, controlBox);
 
         VBox logCard = new VBox(12, cardHeader, logArea);
-        logCard.getStyleClass().add("log-card");
+        logCard.getStyleClass().add(STYLE_CLASS_LOG_CARD);
         logCard.setFillWidth(true);
         logCard.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         logCard.setMinHeight(0);
@@ -235,17 +239,17 @@ public class LogDisplayUI extends VBox {
         detachFromParent(logArea);
 
         VBox popupRoot = new VBox(14);
-        popupRoot.getStyleClass().addAll("log-page", "log-window-root");
+        popupRoot.getStyleClass().addAll(STYLE_CLASS_LOG_PAGE, "log-window-root");
         popupRoot.setPadding(new Insets(16));
         Button popupAttachButton = new Button(I18n.tr("autoAttach"));
         configureLogActionButton(popupAttachButton);
-        popupAttachButton.getStyleClass().add("log-primary-action-button");
+        popupAttachButton.getStyleClass().add(STYLE_CLASS_LOG_PRIMARY_ACTION_BUTTON);
         popupAttachButton.setOnAction(event -> attachWindow());
         FlowPane controlBox = createControlRow(copyLogButton, clearLogButton, webLogButton, popupAttachButton);
-        Label title = new Label(I18n.tr("autoUiptvLogs"));
+        Label title = new Label(I18n.tr(I18N_AUTO_UIPTV_LOGS));
         VBox cardHeader = createLogCardHeader(title, controlBox);
         VBox logCard = new VBox(12, cardHeader, logArea);
-        logCard.getStyleClass().add("log-card");
+        logCard.getStyleClass().add(STYLE_CLASS_LOG_CARD);
         logCard.setFillWidth(true);
         logCard.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         popupRoot.getChildren().add(logCard);
@@ -253,7 +257,7 @@ public class LogDisplayUI extends VBox {
         VBox.setVgrow(logArea, Priority.ALWAYS);
 
         setDetachedStage(new Stage());
-        detachedStage.setTitle(I18n.tr("autoUiptvLogs"));
+        detachedStage.setTitle(I18n.tr(I18N_AUTO_UIPTV_LOGS));
         Scene detachedScene = new Scene(popupRoot, 800, 600);
         applyCurrentTheme(detachedScene);
         detachedStage.setScene(detachedScene);
@@ -286,7 +290,7 @@ public class LogDisplayUI extends VBox {
         for (Button button : List.of(copyButton, clearButton, refreshButton, closeButton)) {
             configureLogActionButton(button);
         }
-        refreshButton.getStyleClass().add("log-primary-action-button");
+        refreshButton.getStyleClass().add(STYLE_CLASS_LOG_PRIMARY_ACTION_BUTTON);
         copyButton.setOnAction(event -> copyWebLogToClipboard());
         clearButton.setOnAction(event -> {
             WebActivityLog.clear();
@@ -296,11 +300,11 @@ public class LogDisplayUI extends VBox {
 
         FlowPane controls = createControlRow(copyButton, clearButton, refreshButton, closeButton);
         VBox card = new VBox(12, location, webLogArea, controls);
-        card.getStyleClass().add("log-card");
+        card.getStyleClass().add(STYLE_CLASS_LOG_CARD);
         card.setFillWidth(true);
         card.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         VBox popupRoot = new VBox(card);
-        popupRoot.getStyleClass().addAll("log-page", "log-window-root");
+        popupRoot.getStyleClass().addAll(STYLE_CLASS_LOG_PAGE, "log-window-root");
         popupRoot.setPadding(new Insets(16));
         VBox.setVgrow(card, Priority.ALWAYS);
         VBox.setVgrow(webLogArea, Priority.ALWAYS);

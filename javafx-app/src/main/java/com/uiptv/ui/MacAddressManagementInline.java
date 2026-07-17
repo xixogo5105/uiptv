@@ -21,7 +21,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
-import javafx.scene.Scene;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -39,6 +38,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class MacAddressManagementInline extends VBox {
 
+    private static final String STYLE_CLASS_MAC_MANAGEMENT_LIST_CELL = "mac-management-list-cell";
     private final ListView<MacItem> macListView = new ListView<>();
     private final TextField addMacField = new TextField();
     private final Button addButton = new Button(I18n.tr("autoAdd"));
@@ -203,10 +203,8 @@ public class MacAddressManagementInline extends VBox {
 
         boolean removingDefault = selectedItems.stream().anyMatch(item -> item.getMac().equalsIgnoreCase(defaultMac));
 
-        if (removingDefault) {
-            if (!showConfirmationAlert(I18n.tr("autoRemovingDefaultMacWarning"))) {
-                return;
-            }
+        if (removingDefault && !showConfirmationAlert(I18n.tr("autoRemovingDefaultMacWarning"))) {
+            return;
         }
 
         macItems.removeAll(selectedItems);
@@ -385,11 +383,11 @@ public class MacAddressManagementInline extends VBox {
             if (empty || item == null) {
                 setGraphic(null);
                 setText(null);
-                getStyleClass().remove("mac-management-list-cell");
+                getStyleClass().remove(STYLE_CLASS_MAC_MANAGEMENT_LIST_CELL);
                 return;
             }
-            if (!getStyleClass().contains("mac-management-list-cell")) {
-                getStyleClass().add("mac-management-list-cell");
+            if (!getStyleClass().contains(STYLE_CLASS_MAC_MANAGEMENT_LIST_CELL)) {
+                getStyleClass().add(STYLE_CLASS_MAC_MANAGEMENT_LIST_CELL);
             }
             bindSelection(item);
             setGraphic(buildGraphic(item));

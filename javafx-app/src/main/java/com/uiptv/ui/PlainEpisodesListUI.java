@@ -39,6 +39,8 @@ import static com.uiptv.util.StringUtils.isBlank;
 
 public class PlainEpisodesListUI extends BaseEpisodesListUI {
     private static final String KEY_CARD_LABELS = "cardLabels";
+    private static final String STYLE_CLASS_SELECTED_CARD = "selected-card";
+    private static final String STYLE_CLASS_SELECTED_CARD_TEXT = "selected-card-text";
     private final VBox cardsContainer = new VBox(6);
     private final ScrollPane cardsScroll = new ScrollPane(cardsContainer);
     private final PillBar<String> seasonPillBar = new PillBar<>(I18n::formatTabNumberLabel, season -> season);
@@ -388,7 +390,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         double nextTop = targetTop < viewportTop ? targetTop : targetBottom - viewportHeight;
-        cardsScroll.setVvalue(Math.max(0, Math.min(1, nextTop / scrollableHeight)));
+        cardsScroll.setVvalue(Math.clamp(nextTop / scrollableHeight, 0, 1));
     }
 
     private void refreshSeasonTabs() {
@@ -515,26 +517,24 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         if (card == null) {
             return;
         }
-        if (selected) {
-            if (!card.getStyleClass().contains("selected-card")) {
-                card.getStyleClass().add("selected-card");
-            }
-        } else {
-            card.getStyleClass().remove("selected-card");
-        }
+        updateStyle(card.getStyleClass(), STYLE_CLASS_SELECTED_CARD, selected);
         Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
         if (labelsObj instanceof List<?> labels) {
             for (Object labelObj : labels) {
                 if (labelObj instanceof Label label) {
-                    if (selected) {
-                        if (!label.getStyleClass().contains("selected-card-text")) {
-                            label.getStyleClass().add("selected-card-text");
-                        }
-                    } else {
-                        label.getStyleClass().remove("selected-card-text");
-                    }
+                    updateStyle(label.getStyleClass(), STYLE_CLASS_SELECTED_CARD_TEXT, selected);
                 }
             }
+        }
+    }
+
+    private void updateStyle(javafx.collections.ObservableList<String> styleClass, String style, boolean selected) {
+        if (selected) {
+            if (!styleClass.contains(style)) {
+                styleClass.add(style);
+            }
+        } else {
+            styleClass.remove(style);
         }
     }
 
