@@ -488,8 +488,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
         }
         detailHeaderActions.clear();
         ui.setDetailHeaderActionsHandler(this::setDetailHeaderActions);
-        replaceSearchText("", true);
-        rebuildCategoryCards();
         detailTitle.setText(title);
         updateDetailHeaderChildren();
         detailContent.getChildren().setAll(ui);
