@@ -25,7 +25,6 @@ import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
     static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
