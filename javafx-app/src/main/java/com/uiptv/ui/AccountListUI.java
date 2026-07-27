@@ -849,7 +849,7 @@ public class AccountListUI extends HBox implements SearchTarget {
             return;
         }
         accountBrowserCompact = false;
-        listView.getStyleClass().remove("account-list-panel-compact");
+        listView.getStyleClass().remove(STYLE_ACCOUNT_LIST_PANEL_COMPACT);
         accountGrid.setCardWidthRange(GRID_NORMAL_CARD_MIN_WIDTH, GRID_NORMAL_CARD_MAX_WIDTH);
         refreshAccountGridIfRowModeChanged(wasSingleLine);
     }
