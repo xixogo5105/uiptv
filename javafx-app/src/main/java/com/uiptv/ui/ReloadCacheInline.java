@@ -50,6 +50,8 @@ import static com.uiptv.model.Account.CACHE_SUPPORTED;
 
 public class ReloadCacheInline extends VBox {
     private static final double ACCOUNT_COLUMN_PERCENT = 42;
+    private static final String I18N_AUTO_QUEUED = "autoQueued";
+    private static final String STYLE_MANAGEMENT_POPUP_CARD = "management-popup-card";
     private static final double LOG_COLUMN_PERCENT = 58;
     private static final double ACCOUNT_COLUMN_MIN_WIDTH = 680;
     private static final double LOG_COLUMN_MIN_WIDTH = 360;
@@ -2680,6 +2682,3 @@ public class ReloadCacheInline extends VBox {
     private static final class SkipAccountReloadException extends RuntimeException {
     }
 }
-
-    private static final String I18N_AUTO_QUEUED = I18N_AUTO_QUEUED;
-    private static final String STYLE_MANAGEMENT_POPUP_CARD = STYLE_MANAGEMENT_POPUP_CARD;

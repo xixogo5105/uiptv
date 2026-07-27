@@ -44,6 +44,7 @@ import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 public class ManageAccountUI extends VBox {
     public static final String PRIMARY_MAC_ADDRESS_HINT_KEY = "managePrimaryMacAddressHint";
     private static final String DEFAULT_TIMEZONE = "Europe/London";
+    private static final String STYLE_MANAGE_ACCOUNT_COMPACT_ACTION = "manage-account-compact-action";
     private static final double ACTION_BUTTON_GAP = 6;
     private static final double ACTION_ROW_EXTRA_SPACE = 12;
     private static final double MAC_ADDRESS_LIST_PREF_HEIGHT = 136;

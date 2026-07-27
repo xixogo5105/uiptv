@@ -64,6 +64,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private static final String DRM_BADGE_STYLE_CLASS = "drm-badge";
     private static final String BOOKMARK_ICON_PATH = "M3 0 V14 L8 10 L13 14 V0 H3 Z";
     private static final String BOOKMARK_ICON_STYLE_CLASS = "channel-bookmark-icon";
+    private static final String COMPLETE = "complete";
+    private static final String STYLE_CLASS_DANGER_MENU_ITEM = "danger-menu-item";
+    private static final String I18N_AUTO_WATCHING_NOW = "autoWatchingNow";
+    private static final String I18N_AUTO_DRM = "autoDrm";
+    private static final String I18N_AUTO_IN_PROGRESS = "autoInProgress";
+    private static final String I18N_AUTO_LOADING_CHANNELS_FOR = "autoLoadingChannelsFor";
 
     private final AccountMediaContext mediaContext;
     private final Account account;
@@ -1218,12 +1224,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
             private final AsyncImageView imageView = new AsyncImageView();
 
             {
-    private static final String COMPLETE = COMPLETE;
-    private static final String STYLE_CLASS_DANGER_MENU_ITEM = STYLE_CLASS_DANGER_MENU_ITEM;
-    private static final String I18N_AUTO_WATCHING_NOW = I18N_AUTO_WATCHING_NOW;
-    private static final String I18N_AUTO_DRM = I18N_AUTO_DRM;
-    private static final String I18N_AUTO_IN_PROGRESS = I18N_AUTO_IN_PROGRESS;
-    private static final String I18N_AUTO_LOADING_CHANNELS_FOR = I18N_AUTO_LOADING_CHANNELS_FOR;
                 drmBadge.getStyleClass().add(DRM_BADGE_STYLE_CLASS);
                 drmBadge.setVisible(false);
                 drmBadge.setManaged(false);

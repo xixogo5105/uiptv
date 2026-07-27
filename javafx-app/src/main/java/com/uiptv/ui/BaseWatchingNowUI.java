@@ -51,8 +51,6 @@ import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 @SuppressWarnings("java:S5843")
-    private static final String STYLE_SEARCHABLE_TABLE_MANAGE_TABS = STYLE_SEARCHABLE_TABLE_MANAGE_TABS;
-    private static final String I18N_AUTO_WATCHING_NOW = I18N_AUTO_WATCHING_NOW;
 public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_COVER = "cover";
@@ -64,6 +62,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     private static final String WATCHING_NOW_CACHE = "watching-now";
     private static final String BINGE_WATCH_FAILED_PREFIX = "Binge watch failed: ";
     private static final String TRASH_ICON_PATH = "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5z";
+    private static final String STYLE_CLASS_DANGER_MENU_ITEM = "danger-menu-item";
+    private static final String I18N_AUTO_WATCHING_NOW = "autoWatchingNow";
     private static final Pattern SXXEYY_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})E(\\d{1,3})\\b");
     private static final Pattern SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
     private static final Pattern EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b|\\b\\d{1,2}x(\\d{1,3})\\b");
