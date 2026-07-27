@@ -80,6 +80,9 @@ public class AccountListUI extends HBox implements SearchTarget {
     private static final Comparator<AccountItem> ACCOUNT_NAME_COMPARATOR =
             Comparator.comparing(AccountItem::getAccountName, String.CASE_INSENSITIVE_ORDER)
                     .thenComparing(AccountItem::getAccountName);
+    private static final String STYLE_ACCOUNT_LIST_PANEL_COMPACT = "account-list-panel-compact";
+    private static final String STYLE_ACCOUNT_CARD = "account-card";
+    private static final String STYLE_ACCOUNT_CARD_TITLE = "account-card-title";
     private final TableColumn<AccountItem, String> accountName = new TableColumn<>(I18n.tr("accountListTitle"));
     private final AccountResolver accountResolver = new AccountResolver();
     private final HostServices hostServices;
@@ -831,7 +834,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         boolean wasSingleLine = useSingleLineAccountRows();
         if (mediaDrawerMode) {
             accountBrowserCompact = false;
-            listView.getStyleClass().remove("account-list-panel-compact");
+            listView.getStyleClass().remove(STYLE_ACCOUNT_LIST_PANEL_COMPACT);
             accountGrid.setCardWidthRange(GRID_DRAWER_CARD_MIN_WIDTH, GRID_DRAWER_CARD_MAX_WIDTH);
             refreshAccountGridIfRowModeChanged(wasSingleLine);
             return;
@@ -839,7 +842,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         if (compact) {
             accountBrowserCompact = true;
             if (!listView.getStyleClass().contains("account-list-panel-compact")) {
-                listView.getStyleClass().add("account-list-panel-compact");
+                listView.getStyleClass().add(STYLE_ACCOUNT_LIST_PANEL_COMPACT);
             }
             accountGrid.setCardWidthRange(GRID_COMPACT_CARD_MIN_WIDTH, GRID_COMPACT_CARD_MAX_WIDTH);
             refreshAccountGridIfRowModeChanged(wasSingleLine);
@@ -960,12 +963,12 @@ public class AccountListUI extends HBox implements SearchTarget {
         }
 
         VBox card = new VBox(7);
-        card.getStyleClass().add("account-card");
+        card.getStyleClass().add(STYLE_ACCOUNT_CARD);
         card.setMinWidth(0);
         card.setMaxWidth(Double.MAX_VALUE);
 
         Label title = new Label(item == null ? "" : item.getAccountName());
-        title.getStyleClass().add("account-card-title");
+        title.getStyleClass().add(STYLE_ACCOUNT_CARD_TITLE);
         title.setWrapText(true);
         title.setMinWidth(0);
         title.setMaxWidth(Double.MAX_VALUE);
@@ -1039,7 +1042,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         card.setMaxWidth(Double.MAX_VALUE);
 
         Label title = new Label(item == null ? "" : item.getAccountName());
-        title.getStyleClass().add("account-card-title");
+        title.getStyleClass().add(STYLE_ACCOUNT_CARD_TITLE);
         title.setWrapText(false);
         title.setTextOverrun(OverrunStyle.ELLIPSIS);
         title.setMinWidth(0);
@@ -1093,7 +1096,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         card.setMaxWidth(Double.MAX_VALUE);
 
         Label title = new Label(item == null ? "" : item.getAccountName());
-        title.getStyleClass().add("account-card-title");
+        title.getStyleClass().add(STYLE_ACCOUNT_CARD_TITLE);
         title.setWrapText(false);
         title.setTextOverrun(OverrunStyle.ELLIPSIS);
         title.setMinWidth(0);
