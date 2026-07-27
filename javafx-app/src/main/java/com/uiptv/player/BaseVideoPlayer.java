@@ -1321,7 +1321,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                     if (playerContainer.getParent() instanceof Pane currentParent) {
                         currentParent.getChildren().remove(playerContainer);
                     }
-                    int safeIndex = Math.max(0, Math.min(originalIndex, originalParent.getChildren().size()));
+                    int safeIndex = Math.clamp(originalIndex, 0, originalParent.getChildren().size());
                     originalParent.getChildren().add(safeIndex, playerContainer);
                 }
                 if (originalParent.getScene() != null) {
