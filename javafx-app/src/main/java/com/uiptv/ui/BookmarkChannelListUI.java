@@ -38,7 +38,6 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
-import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 import static javafx.application.Platform.runLater;
 
 public class BookmarkChannelListUI extends HBox implements SearchTarget {
