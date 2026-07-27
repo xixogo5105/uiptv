@@ -90,11 +90,12 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private final List<Node> detailHeaderActions = new ArrayList<>();
     private final EnumMap<Account.AccountAction, ModeState> modeStates = new EnumMap<>(Account.AccountAction.class);
     private static final String MODE_ACCOUNTS = "accounts";
+    private static final String I18N_AUTO_CATEGORIES = "autoCategories";
     private static final String MODE_ITV = "itv";
     private static final String MODE_VOD = "vod";
     private static final String MODE_SERIES = "series";
     SearchableTableView<CategoryItem> table = new SearchableTableView<>();
-    TableColumn<CategoryItem, String> categoryTitle = new TableColumn<>(I18n.tr("autoCategories"));
+    TableColumn<CategoryItem, String> categoryTitle = new TableColumn<>(I18n.tr(I18N_AUTO_CATEGORIES));
     TableColumn<CategoryItem, String> categoryId = new TableColumn<>("");
     private AtomicBoolean currentRequestCancelled;
     private Account.AccountAction activeMode;
@@ -308,14 +309,14 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private void rebuildCategoryCards() {
         if (categoryItems.isEmpty()) {
             showCategoryPlaceholder(categoryDataLoaded
-                    ? I18n.tr("autoNothingFoundFor", I18n.tr("autoCategories"))
+                    ? I18n.tr("autoNothingFoundFor", I18n.tr(I18N_AUTO_CATEGORIES))
                     : I18n.tr("autoLoadingCategories"));
             return;
         }
         List<CategoryItem> visibleItems = filteredCategoryItems();
         if (visibleItems.isEmpty()) {
             String target = searchText == null || searchText.isBlank()
-                    ? I18n.tr("autoCategories")
+                    ? I18n.tr(I18N_AUTO_CATEGORIES)
                     : searchText.trim();
             showCategoryPlaceholder(I18n.tr("autoNothingFoundFor", target));
             return;
@@ -850,7 +851,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
     private void refreshCategoryColumnTitle() {
         String accountName = accountName().trim();
-        String baseTitle = I18n.tr("autoCategories");
+        String baseTitle = I18n.tr(I18N_AUTO_CATEGORIES);
         String title = accountName.isEmpty() ? baseTitle : baseTitle + " - " + accountName;
         if (mediaDrawerMode) {
             String modeTitle = modePillLabel(switch (activeMode) {
