@@ -28,7 +28,7 @@ public class AppPageHeader extends VBox {
     }
 
     public AppPageHeader(String title, List<? extends Node> actionNodes) {
-        this(title, createActionContainer(actionNodes), true);
+        this(title, createActionContainer(actionNodes));
     }
 
     private AppPageHeader(String title, HBox actionContainer) {
