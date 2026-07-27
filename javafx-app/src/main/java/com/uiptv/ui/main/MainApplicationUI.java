@@ -199,6 +199,11 @@ public class MainApplicationUI extends BaseMainApplicationUI {
             restoreDockedTopControls();
             activeAccountListUI.setMediaDrawerMode(true);
             applyWideEmbeddedLayout();
+        } else if (shouldUsePlayerAdjacentTopControlsLayout()) {
+            retainedWideAppAreaWidth = -1;
+            activeAccountListUI.setMediaDrawerMode(shouldUseAccountMediaDrawerMode());
+            restoreDockedTopControls();
+            applyPlayerAdjacentTopControlsEmbeddedLayout();
         } else {
             retainedWideAppAreaWidth = -1;
             activeAccountListUI.setMediaDrawerMode(shouldUseAccountMediaDrawerMode());
@@ -334,6 +339,27 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         GridPane.setValignment(embeddedPlayer, VPos.TOP);
     }
 
+    private void applyPlayerAdjacentTopControlsEmbeddedLayout() {
+        applyPlayerAdjacentTopControlsEmbeddedArrangement();
+        setPlayerAdjacentControlsVisible(true);
+        activeTabPane.setMinWidth(0);
+        activeTabPane.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        activeTabPane.setMaxWidth(Double.MAX_VALUE);
+        activeTabPane.setMaxHeight(Double.MAX_VALUE);
+        activeTabPane.setMinHeight(0);
+        activeTabPane.setVisible(true);
+        activeTabPane.setManaged(true);
+
+        navigationShell.setMinWidth(0);
+        navigationShell.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        navigationShell.setMaxWidth(Double.MAX_VALUE);
+        navigationShell.setMinHeight(0);
+        navigationShell.setMaxHeight(Double.MAX_VALUE);
+        navigationShell.setVisible(true);
+        navigationShell.setManaged(true);
+        GridPane.setVgrow(navigationShell, Priority.ALWAYS);
+    }
+
 
     private void applyNavigationOnlyEmbeddedArrangement() {
         if (responsiveContent == null || navigationShell == null || embeddedPlayer == null || playerAdjacentControls == null) {
@@ -396,6 +422,45 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         GridPane.setVgrow(navigationShell, Priority.ALWAYS);
         GridPane.setHgrow(playerAdjacentControls, Priority.NEVER);
         GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
+    }
+
+    private void applyPlayerAdjacentTopControlsEmbeddedArrangement() {
+        if (responsiveContent == null || navigationShell == null || embeddedPlayer == null || playerAdjacentControls == null) {
+            return;
+        }
+        configurePlayerAdjacentTopControlsEmbeddedGrid();
+        placeInGrid(navigationShell, 0, 0);
+        GridPane.setColumnSpan(navigationShell, 2);
+        placeInGrid(embeddedPlayer, 0, 1);
+        placeInGrid(playerAdjacentControls, 1, 1);
+        GridPane.setVgrow(navigationShell, Priority.ALWAYS);
+        GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
+        GridPane.setValignment(embeddedPlayer, VPos.TOP);
+        GridPane.setHgrow(playerAdjacentControls, Priority.ALWAYS);
+        GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
+    }
+
+    private void configurePlayerAdjacentTopControlsEmbeddedGrid() {
+        if (responsiveContent == null) {
+            return;
+        }
+        ColumnConstraints playerColumn = new ColumnConstraints();
+        playerColumn.setMinWidth(STACKED_EMBEDDED_PLAYER_MAX_WIDTH);
+        playerColumn.setPrefWidth(STACKED_EMBEDDED_PLAYER_MAX_WIDTH);
+        playerColumn.setMaxWidth(STACKED_EMBEDDED_PLAYER_MAX_WIDTH);
+        playerColumn.setHgrow(Priority.NEVER);
+        playerColumn.setFillWidth(true);
+        ColumnConstraints controlsColumn = new ColumnConstraints();
+        controlsColumn.setMinWidth(0);
+        controlsColumn.setHgrow(Priority.ALWAYS);
+        controlsColumn.setFillWidth(true);
+        RowConstraints row = new RowConstraints();
+        row.setMinHeight(0);
+        row.setVgrow(Priority.ALWAYS);
+        row.setFillHeight(true);
+        responsiveContent.getColumnConstraints().setAll(playerColumn, controlsColumn);
+        responsiveContent.getRowConstraints().setAll(row);
     }
 
 
