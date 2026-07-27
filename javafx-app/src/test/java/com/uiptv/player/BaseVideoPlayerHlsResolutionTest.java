@@ -1,5 +1,12 @@
 package com.uiptv.player;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyMap;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.RootApplication;
@@ -10,7 +17,6 @@ import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -62,22 +68,22 @@ class BaseVideoPlayerHlsResolutionTest {
                 Map.of(),
                 Map.of());
 
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
-        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+        ConfigurationService configurationService = mock(ConfigurationService.class);
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
             configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenReturn(true);
-            Mockito.when(configurationService.isVlcHttpUserAgentEnabled()).thenReturn(true);
-            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq(masterUrl), Mockito.anyMap(), Mockito.eq("GET")))
+            when(configurationService.isResolveChainAndDeepRedirectsEnabled(any())).thenReturn(true);
+            when(configurationService.isVlcHttpUserAgentEnabled()).thenReturn(true);
+            httpUtil.when(() -> HttpUtil.sendRequest(eq(masterUrl), anyMap(), eq("GET")))
                     .thenReturn(master);
-            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq(variantUrl), Mockito.anyMap(), Mockito.eq("GET")))
+            httpUtil.when(() -> HttpUtil.sendRequest(eq(variantUrl), anyMap(), eq("GET")))
                     .thenReturn(variant);
 
             String resolved = player.resolve(masterUrl);
 
             assertEquals(masterUrl, resolved);
-            httpUtil.verify(() -> HttpUtil.sendRequest(Mockito.eq(masterUrl), Mockito.anyMap(), Mockito.eq("GET")));
-            httpUtil.verify(() -> HttpUtil.sendRequest(Mockito.eq(variantUrl), Mockito.anyMap(), Mockito.eq("GET")));
+            httpUtil.verify(() -> HttpUtil.sendRequest(eq(masterUrl), anyMap(), eq("GET")));
+            httpUtil.verify(() -> HttpUtil.sendRequest(eq(variantUrl), anyMap(), eq("GET")));
         }
     }
 
@@ -86,11 +92,11 @@ class BaseVideoPlayerHlsResolutionTest {
         TestPlayer player = runOnFxThread(TestPlayer::new);
         String uri = "http://example.com/master.m3u8";
 
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
-        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+        ConfigurationService configurationService = mock(ConfigurationService.class);
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
             configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenReturn(false);
+            when(configurationService.isResolveChainAndDeepRedirectsEnabled(any())).thenReturn(false);
 
             String resolved = player.resolve(uri);
 
@@ -106,10 +112,10 @@ class BaseVideoPlayerHlsResolutionTest {
             configuration.setEmbeddedPlayer(true);
             configuration.setWideView(true);
 
-            ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
-            try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class)) {
+            ConfigurationService configurationService = mock(ConfigurationService.class);
+            try (MockedStatic<ConfigurationService> configurationServiceStatic = mockStatic(ConfigurationService.class)) {
                 configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-                Mockito.when(configurationService.read()).thenReturn(configuration);
+                when(configurationService.read()).thenReturn(configuration);
 
                 TestPlayer player = new TestPlayer();
                 return new LayoutButtonState(
@@ -137,10 +143,10 @@ class BaseVideoPlayerHlsResolutionTest {
             configuration.setEmbeddedPlayer(true);
             List<Boolean> savedWideViews = new ArrayList<>();
 
-            ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
-            try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class)) {
+            ConfigurationService configurationService = mock(ConfigurationService.class);
+            try (MockedStatic<ConfigurationService> configurationServiceStatic = mockStatic(ConfigurationService.class)) {
                 configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-                Mockito.when(configurationService.read()).thenReturn(configuration);
+                when(configurationService.read()).thenReturn(configuration);
 
                 TestPlayer player = new TestPlayer();
                 player.onLayoutSave(wideView -> {
@@ -169,10 +175,10 @@ class BaseVideoPlayerHlsResolutionTest {
     @Test
     void layoutModeButtonSitsNextToZoomControl() throws Exception {
         boolean adjacent = runOnFxThread(() -> {
-            ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
-            try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class)) {
+            ConfigurationService configurationService = mock(ConfigurationService.class);
+            try (MockedStatic<ConfigurationService> configurationServiceStatic = mockStatic(ConfigurationService.class)) {
                 configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-                Mockito.when(configurationService.read()).thenReturn(new Configuration());
+                when(configurationService.read()).thenReturn(new Configuration());
                 return new TestPlayer().layoutButtonIsImmediatelyBeforeAspectRatioButton();
             }
         });
@@ -184,17 +190,17 @@ class BaseVideoPlayerHlsResolutionTest {
     void fullscreenTemporarilySuppressesPrimaryStageAlwaysOnTop() throws Exception {
         runOnFxThread(() -> {
             TestPlayer player = new TestPlayer();
-            Stage primaryStage = Mockito.mock(Stage.class);
-            Mockito.when(primaryStage.isAlwaysOnTop()).thenReturn(true);
+            Stage primaryStage = mock(Stage.class);
+            when(primaryStage.isAlwaysOnTop()).thenReturn(true);
 
-            try (MockedStatic<RootApplication> rootApplication = Mockito.mockStatic(RootApplication.class)) {
+            try (MockedStatic<RootApplication> rootApplication = mockStatic(RootApplication.class)) {
                 rootApplication.when(RootApplication::getPrimaryStage).thenReturn(primaryStage);
 
                 player.suppressPrimaryStageAlwaysOnTopForVideoOverlay();
-                Mockito.verify(primaryStage).setAlwaysOnTop(false);
+                verify(primaryStage).setAlwaysOnTop(false);
 
                 player.restorePrimaryStageAlwaysOnTopAfterVideoOverlay();
-                Mockito.verify(primaryStage).setAlwaysOnTop(true);
+                verify(primaryStage).setAlwaysOnTop(true);
             }
 
             return null;
@@ -205,18 +211,18 @@ class BaseVideoPlayerHlsResolutionTest {
     void pipOverlayStageIsOwnedByPrimaryStageAndAlwaysOnTop() throws Exception {
         runOnFxThread(() -> {
             TestPlayer player = new TestPlayer();
-            Stage overlayStage = Mockito.mock(Stage.class);
-            Stage primaryStage = Mockito.mock(Stage.class);
-            Mockito.when(overlayStage.isShowing()).thenReturn(false);
+            Stage overlayStage = mock(Stage.class);
+            Stage primaryStage = mock(Stage.class);
+            when(overlayStage.isShowing()).thenReturn(false);
 
-            try (MockedStatic<RootApplication> rootApplication = Mockito.mockStatic(RootApplication.class)) {
+            try (MockedStatic<RootApplication> rootApplication = mockStatic(RootApplication.class)) {
                 rootApplication.when(RootApplication::getPrimaryStage).thenReturn(primaryStage);
 
                 player.configureOverlayStage(overlayStage);
             }
 
-            Mockito.verify(overlayStage).initOwner(primaryStage);
-            Mockito.verify(overlayStage).setAlwaysOnTop(true);
+            verify(overlayStage).initOwner(primaryStage);
+            verify(overlayStage).setAlwaysOnTop(true);
             return null;
         });
     }

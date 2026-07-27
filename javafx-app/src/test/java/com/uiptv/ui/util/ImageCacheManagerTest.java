@@ -1,11 +1,12 @@
 package com.uiptv.ui.util;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import com.uiptv.ui.ThumbnailAwareUI;
 import javafx.scene.image.Image;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -38,7 +39,7 @@ class ImageCacheManagerTest {
         int maxEntries = Integer.getInteger("uiptv.image.cache.max.entries", 120);
 
         for (int i = 0; i < maxEntries + 10; i++) {
-            cache.put("watching-now:http://image.test/" + i + ".png", Mockito.mock(Image.class));
+            cache.put("watching-now:http://image.test/" + i + ".png", mock(Image.class));
         }
 
         assertTrue(cache.size() <= maxEntries);
@@ -50,8 +51,8 @@ class ImageCacheManagerTest {
         Map<String, Image> cache = imageCache();
         Map<String, CompletableFuture<Image>> loadingTasks = loadingTasks();
         ImageCacheManager.clearCache();
-        Image watchingNowImage = Mockito.mock(Image.class);
-        Image otherImage = Mockito.mock(Image.class);
+        Image watchingNowImage = mock(Image.class);
+        Image otherImage = mock(Image.class);
         CompletableFuture<Image> watchingNowFuture = new CompletableFuture<>();
         CompletableFuture<Image> otherFuture = new CompletableFuture<>();
 
@@ -76,7 +77,7 @@ class ImageCacheManagerTest {
         String cacheKey = "channel:" + url;
         CompletableFuture<Image> future = null;
 
-        try (MockedStatic<ThumbnailAwareUI> thumbnails = Mockito.mockStatic(ThumbnailAwareUI.class)) {
+        try (MockedStatic<ThumbnailAwareUI> thumbnails = mockStatic(ThumbnailAwareUI.class)) {
             thumbnails.when(ThumbnailAwareUI::areThumbnailsEnabled).thenReturn(true);
             future = ImageCacheManager.loadImageAsync(url, "Channel");
 
@@ -101,7 +102,7 @@ class ImageCacheManagerTest {
         LoaderBlock loaderBlock = blockImageLoader();
         CompletableFuture<Image> future = null;
 
-        try (MockedStatic<ThumbnailAwareUI> thumbnails = Mockito.mockStatic(ThumbnailAwareUI.class)) {
+        try (MockedStatic<ThumbnailAwareUI> thumbnails = mockStatic(ThumbnailAwareUI.class)) {
             thumbnails.when(ThumbnailAwareUI::areThumbnailsEnabled).thenReturn(true);
             future = ImageCacheManager.loadImageAsync(url, "Channel");
 

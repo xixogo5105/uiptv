@@ -1,5 +1,13 @@
 package com.uiptv.server.api.json;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.application.RemoteSyncApplicationService;
 import com.uiptv.server.TestHttpExchange;
 import com.uiptv.service.remotesync.RemoteSyncDirection;
@@ -10,7 +18,6 @@ import com.uiptv.service.remotesync.RemoteSyncStatus;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,11 +31,11 @@ class HttpRemoteSyncServersTest {
 
     @Test
     void requestServer_acceptsPostAndRejectsOtherMethods() throws Exception {
-        RemoteSyncApplicationService app = Mockito.mock(RemoteSyncApplicationService.class);
+        RemoteSyncApplicationService app = mock(RemoteSyncApplicationService.class);
         RemoteSyncSessionState state = state("session-1", RemoteSyncStatus.PENDING_APPROVAL, "created");
-        Mockito.when(app.createSession(Mockito.any(), Mockito.anyString())).thenReturn(state);
+        when(app.createSession(any(), anyString())).thenReturn(state);
 
-        try (MockedStatic<RemoteSyncApplicationService> appStatic = Mockito.mockStatic(RemoteSyncApplicationService.class)) {
+        try (MockedStatic<RemoteSyncApplicationService> appStatic = mockStatic(RemoteSyncApplicationService.class)) {
             appStatic.when(RemoteSyncApplicationService::getInstance).thenReturn(app);
 
             TestHttpExchange post = new TestHttpExchange("/remote-sync/request", "POST", new JSONObject()
@@ -53,11 +60,11 @@ class HttpRemoteSyncServersTest {
 
     @Test
     void completeServer_handlesSuccessAndBadRequests() throws Exception {
-        RemoteSyncApplicationService app = Mockito.mock(RemoteSyncApplicationService.class);
-        Mockito.doThrow(new IllegalStateException("bad session"))
-                .when(app).completeImport(Mockito.eq("bad"), Mockito.anyBoolean(), Mockito.anyString());
+        RemoteSyncApplicationService app = mock(RemoteSyncApplicationService.class);
+        doThrow(new IllegalStateException("bad session"))
+                .when(app).completeImport(eq("bad"), anyBoolean(), anyString());
 
-        try (MockedStatic<RemoteSyncApplicationService> appStatic = Mockito.mockStatic(RemoteSyncApplicationService.class)) {
+        try (MockedStatic<RemoteSyncApplicationService> appStatic = mockStatic(RemoteSyncApplicationService.class)) {
             appStatic.when(RemoteSyncApplicationService::getInstance).thenReturn(app);
 
             TestHttpExchange ok = new TestHttpExchange("/remote-sync/complete", "POST",
@@ -80,15 +87,15 @@ class HttpRemoteSyncServersTest {
 
     @Test
     void uploadServer_writesExecutionResultAndMapsErrors() throws Exception {
-        RemoteSyncApplicationService app = Mockito.mock(RemoteSyncApplicationService.class);
-        Mockito.when(app.acceptUpload(Mockito.eq("ok"), Mockito.any()))
+        RemoteSyncApplicationService app = mock(RemoteSyncApplicationService.class);
+        when(app.acceptUpload(eq("ok"), any()))
                 .thenReturn(new RemoteSyncExecutionResult(null, "imported"));
-        Mockito.when(app.acceptUpload(Mockito.eq("bad"), Mockito.any()))
+        when(app.acceptUpload(eq("bad"), any()))
                 .thenThrow(new IllegalArgumentException("bad upload"));
-        Mockito.when(app.acceptUpload(Mockito.eq("sql"), Mockito.any()))
+        when(app.acceptUpload(eq("sql"), any()))
                 .thenThrow(new SQLException("database failed"));
 
-        try (MockedStatic<RemoteSyncApplicationService> appStatic = Mockito.mockStatic(RemoteSyncApplicationService.class)) {
+        try (MockedStatic<RemoteSyncApplicationService> appStatic = mockStatic(RemoteSyncApplicationService.class)) {
             appStatic.when(RemoteSyncApplicationService::getInstance).thenReturn(app);
 
             TestHttpExchange ok = new TestHttpExchange("/remote-sync/upload?sessionId=ok", "PUT", "payload");
@@ -114,17 +121,17 @@ class HttpRemoteSyncServersTest {
 
     @Test
     void statusDownloadAndHealthServers_handleMethodsSuccessAndBadRequests() throws Exception {
-        RemoteSyncApplicationService app = Mockito.mock(RemoteSyncApplicationService.class);
+        RemoteSyncApplicationService app = mock(RemoteSyncApplicationService.class);
         RemoteSyncSessionState ready = state("ready", RemoteSyncStatus.READY_FOR_DOWNLOAD, "ready");
         Path snapshot = Files.createTempFile("remote-sync-download-", ".db");
         Files.write(snapshot, new byte[]{1, 2, 3});
 
-        Mockito.when(app.getSessionState("ready")).thenReturn(ready);
-        Mockito.when(app.getSessionState("bad")).thenThrow(new IllegalArgumentException("missing status"));
-        Mockito.when(app.getDownloadSnapshot("ready")).thenReturn(snapshot);
-        Mockito.when(app.getDownloadSnapshot("bad")).thenThrow(new IllegalStateException("missing download"));
+        when(app.getSessionState("ready")).thenReturn(ready);
+        when(app.getSessionState("bad")).thenThrow(new IllegalArgumentException("missing status"));
+        when(app.getDownloadSnapshot("ready")).thenReturn(snapshot);
+        when(app.getDownloadSnapshot("bad")).thenThrow(new IllegalStateException("missing download"));
 
-        try (MockedStatic<RemoteSyncApplicationService> appStatic = Mockito.mockStatic(RemoteSyncApplicationService.class)) {
+        try (MockedStatic<RemoteSyncApplicationService> appStatic = mockStatic(RemoteSyncApplicationService.class)) {
             appStatic.when(RemoteSyncApplicationService::getInstance).thenReturn(app);
 
             TestHttpExchange statusOk = new TestHttpExchange("/remote-sync/status?sessionId=ready", "GET");

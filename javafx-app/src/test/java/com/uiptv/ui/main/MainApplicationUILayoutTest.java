@@ -1,5 +1,7 @@
 package com.uiptv.ui.main;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.AccountListUI;
@@ -28,7 +30,6 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -102,8 +103,8 @@ class MainApplicationUILayoutTest {
             Configuration configuration = new Configuration();
             configuration.setEmbeddedPlayer(true);
             configuration.setWideView(false);
-            ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
-            Mockito.when(configurationService.read()).thenReturn(configuration);
+            ConfigurationService configurationService = mock(ConfigurationService.class);
+            when(configurationService.read()).thenReturn(configuration);
             MainApplicationUI ui = new MainApplicationUI(null, null, configurationService, null, 1368, 720, true);
             TabPane tabPane = new TabPane();
             StackPane navigationShell = new StackPane(tabPane);
@@ -246,9 +247,9 @@ class MainApplicationUILayoutTest {
     @Test
     void topMenuContainsHelpActionsOnly() throws Exception {
         runOnFxThread(() -> {
-            Stage stage = Mockito.mock(Stage.class);
-            ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
-            Mockito.when(configurationService.read()).thenReturn(new Configuration());
+            Stage stage = mock(Stage.class);
+            ConfigurationService configurationService = mock(ConfigurationService.class);
+            when(configurationService.read()).thenReturn(new Configuration());
             MainApplicationUI ui = new MainApplicationUI(stage, null, configurationService, _ -> {
             }, 1368, 720, false);
 
@@ -422,9 +423,9 @@ class MainApplicationUILayoutTest {
 
             Object manageAccountColumn = createManageAccountColumn();
             Node dockNode = manageAccountColumnNode(manageAccountColumn);
-            AccountListUI accountListUI = Mockito.mock(AccountListUI.class);
-            BookmarkChannelListUI bookmarkChannelListUI = Mockito.mock(BookmarkChannelListUI.class);
-            AtomicReference<WatchingNowUI> watchingNowRef = new AtomicReference<>(Mockito.mock(WatchingNowUI.class));
+            AccountListUI accountListUI = mock(AccountListUI.class);
+            BookmarkChannelListUI bookmarkChannelListUI = mock(BookmarkChannelListUI.class);
+            AtomicReference<WatchingNowUI> watchingNowRef = new AtomicReference<>(mock(WatchingNowUI.class));
 
             configureAppNavigation(
                     ui,

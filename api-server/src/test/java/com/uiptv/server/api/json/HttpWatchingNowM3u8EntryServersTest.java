@@ -1,5 +1,9 @@
 package com.uiptv.server.api.json;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.db.SeriesWatchingNowSnapshotDb;
 import com.uiptv.db.SeriesWatchStateDb;
 import com.uiptv.db.VodChannelDb;
@@ -18,7 +22,6 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.WebActivityLog;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Set;
@@ -145,14 +148,14 @@ class HttpWatchingNowM3u8EntryServersTest extends DbBackedTest {
         vodChannel.setCategoryId(categoryId);
         VodChannelDb.get().saveAll(List.of(vodChannel), categoryId, account);
 
-        PlayerService playerService = Mockito.mock(PlayerService.class);
-        Mockito.when(playerService.get(Mockito.any(), Mockito.any()))
+        PlayerService playerService = mock(PlayerService.class);
+        when(playerService.get(any(), any()))
                 .thenReturn(new PlayerResponse("http://resolved-stream.example/movie.m3u8"));
 
         HttpWatchingNowVodM3u8EntryServer handler = new HttpWatchingNowVodM3u8EntryServer();
-        try (MockedStatic<HandshakeService> handshakeStatic = Mockito.mockStatic(HandshakeService.class);
-             MockedStatic<PlayerService> playerStatic = Mockito.mockStatic(PlayerService.class)) {
-            handshakeStatic.when(HandshakeService::getInstance).thenReturn(Mockito.mock(HandshakeService.class));
+        try (MockedStatic<HandshakeService> handshakeStatic = mockStatic(HandshakeService.class);
+             MockedStatic<PlayerService> playerStatic = mockStatic(PlayerService.class)) {
+            handshakeStatic.when(HandshakeService::getInstance).thenReturn(mock(HandshakeService.class));
             playerStatic.when(PlayerService::getInstance).thenReturn(playerService);
 
             TestHttpExchange exchange = new TestHttpExchange(

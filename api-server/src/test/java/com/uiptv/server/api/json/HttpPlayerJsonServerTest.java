@@ -1,5 +1,14 @@
 package com.uiptv.server.api.json;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.nullable;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
@@ -18,7 +27,6 @@ import com.uiptv.util.ServerUrlUtil;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -59,20 +67,20 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
         response.setInputstreamaddon("inputstream.adaptive");
         response.setManifestType("hls");
 
-        AccountService accountService = Mockito.mock(AccountService.class);
-        ChannelDb channelDb = Mockito.mock(ChannelDb.class);
-        PlayerService playerService = Mockito.mock(PlayerService.class);
+        AccountService accountService = mock(AccountService.class);
+        ChannelDb channelDb = mock(ChannelDb.class);
+        PlayerService playerService = mock(PlayerService.class);
 
-        try (MockedStatic<AccountService> accountServiceStatic = Mockito.mockStatic(AccountService.class);
-             MockedStatic<ChannelDb> channelDbStatic = Mockito.mockStatic(ChannelDb.class);
-             MockedStatic<PlayerService> playerServiceStatic = Mockito.mockStatic(PlayerService.class)) {
+        try (MockedStatic<AccountService> accountServiceStatic = mockStatic(AccountService.class);
+             MockedStatic<ChannelDb> channelDbStatic = mockStatic(ChannelDb.class);
+             MockedStatic<PlayerService> playerServiceStatic = mockStatic(PlayerService.class)) {
             accountServiceStatic.when(AccountService::getInstance).thenReturn(accountService);
             channelDbStatic.when(ChannelDb::get).thenReturn(channelDb);
             playerServiceStatic.when(PlayerService::getInstance).thenReturn(playerService);
 
-            Mockito.when(accountService.getById("acc-1")).thenReturn(account);
-            Mockito.when(channelDb.getChannelById("ch-1", "cat-1")).thenReturn(dbChannel);
-            Mockito.when(playerService.get(Mockito.eq(account), Mockito.any(Channel.class), Mockito.eq("series-7"), Mockito.isNull(), Mockito.eq("")))
+            when(accountService.getById("acc-1")).thenReturn(account);
+            when(channelDb.getChannelById("ch-1", "cat-1")).thenReturn(dbChannel);
+            when(playerService.get(eq(account), any(Channel.class), eq("series-7"), isNull(), eq("")))
                     .thenReturn(response);
 
             StubHttpExchange exchange = new StubHttpExchange(
@@ -84,7 +92,7 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
             handler.handle(exchange);
 
             ArgumentCaptor<Channel> channelCaptor = ArgumentCaptor.forClass(Channel.class);
-            Mockito.verify(playerService).get(Mockito.eq(account), channelCaptor.capture(), Mockito.eq("series-7"), Mockito.isNull(), Mockito.eq(""));
+            verify(playerService).get(eq(account), channelCaptor.capture(), eq("series-7"), isNull(), eq(""));
 
             Channel merged = channelCaptor.getValue();
             assertEquals("Web Channel", merged.getName());
@@ -111,7 +119,7 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
         assertEquals("http://host/live/play/tokenized/9412", directVodResponse.getUrl());
 
         PlayerResponse proxyResponse = new PlayerResponse("https://host/play/movie.php?id=1");
-        try (MockedStatic<ServerUrlUtil> serverUrlStatic = Mockito.mockStatic(ServerUrlUtil.class)) {
+        try (MockedStatic<ServerUrlUtil> serverUrlStatic = mockStatic(ServerUrlUtil.class)) {
             serverUrlStatic.when(ServerUrlUtil::getLocalServerUrl).thenReturn("http://127.0.0.1:9090");
 
             invoke(handler, "applyWebPlaybackProcessing", new Class[]{PlayerResponse.class, String.class}, proxyResponse, "series");
@@ -159,27 +167,27 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
 
         PlayerResponse response = new PlayerResponse("http://provider/live/play/token/9412");
 
-        AccountService accountService = Mockito.mock(AccountService.class);
-        ChannelDb channelDb = Mockito.mock(ChannelDb.class);
-        VodChannelDb vodChannelDb = Mockito.mock(VodChannelDb.class);
-        PlayerService playerService = Mockito.mock(PlayerService.class);
+        AccountService accountService = mock(AccountService.class);
+        ChannelDb channelDb = mock(ChannelDb.class);
+        VodChannelDb vodChannelDb = mock(VodChannelDb.class);
+        PlayerService playerService = mock(PlayerService.class);
 
-        try (MockedStatic<AccountService> accountServiceStatic = Mockito.mockStatic(AccountService.class);
-             MockedStatic<ChannelDb> channelDbStatic = Mockito.mockStatic(ChannelDb.class);
-             MockedStatic<VodChannelDb> vodChannelDbStatic = Mockito.mockStatic(VodChannelDb.class);
-             MockedStatic<PlayerService> playerServiceStatic = Mockito.mockStatic(PlayerService.class)) {
+        try (MockedStatic<AccountService> accountServiceStatic = mockStatic(AccountService.class);
+             MockedStatic<ChannelDb> channelDbStatic = mockStatic(ChannelDb.class);
+             MockedStatic<VodChannelDb> vodChannelDbStatic = mockStatic(VodChannelDb.class);
+             MockedStatic<PlayerService> playerServiceStatic = mockStatic(PlayerService.class)) {
             accountServiceStatic.when(AccountService::getInstance).thenReturn(accountService);
             channelDbStatic.when(ChannelDb::get).thenReturn(channelDb);
             vodChannelDbStatic.when(VodChannelDb::get).thenReturn(vodChannelDb);
             playerServiceStatic.when(PlayerService::getInstance).thenReturn(playerService);
 
-            Mockito.when(accountService.getById("acc-1525")).thenReturn(account);
-            Mockito.when(channelDb.getChannelById("9412", "359")).thenReturn(null);
-            Mockito.when(vodChannelDb.getChannelByChannelId("9412", "359", "acc-1525")).thenReturn(null);
-            Mockito.when(vodChannelDb.getChannelByChannelIdAndAccount("9412", "acc-1525")).thenReturn(vodChannel);
-            Mockito.doReturn(response)
+            when(accountService.getById("acc-1525")).thenReturn(account);
+            when(channelDb.getChannelById("9412", "359")).thenReturn(null);
+            when(vodChannelDb.getChannelByChannelId("9412", "359", "acc-1525")).thenReturn(null);
+            when(vodChannelDb.getChannelByChannelIdAndAccount("9412", "acc-1525")).thenReturn(vodChannel);
+            doReturn(response)
                     .when(playerService)
-                    .get(Mockito.nullable(Account.class), Mockito.nullable(Channel.class), Mockito.nullable(String.class), Mockito.nullable(String.class), Mockito.nullable(String.class));
+                    .get(nullable(Account.class), nullable(Channel.class), nullable(String.class), nullable(String.class), nullable(String.class));
 
             StubHttpExchange exchange = new StubHttpExchange(
                     "/player?accountId=acc-1525&categoryId=359&channelId=9412&mode=vod&name=Shehzada%20-%202023&cmd=eyJ0eXBlIjoibW92aWUiLCJzdHJlYW1faWQiOiI5NDEyIn0",
@@ -189,12 +197,12 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
 
             ArgumentCaptor<Account> accountCaptor = ArgumentCaptor.forClass(Account.class);
             ArgumentCaptor<Channel> channelCaptor = ArgumentCaptor.forClass(Channel.class);
-            Mockito.verify(playerService).get(
+            verify(playerService).get(
                     accountCaptor.capture(),
                     channelCaptor.capture(),
-                    Mockito.nullable(String.class),
-                    Mockito.nullable(String.class),
-                    Mockito.nullable(String.class)
+                    nullable(String.class),
+                    nullable(String.class),
+                    nullable(String.class)
             );
             assertEquals(Account.AccountAction.itv, account.getAction());
             assertEquals(Account.AccountAction.vod, accountCaptor.getValue().getAction());

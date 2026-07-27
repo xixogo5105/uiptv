@@ -1,5 +1,9 @@
 package com.uiptv.application;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import com.uiptv.service.remotesync.RemoteSyncDirection;
 import com.uiptv.service.remotesync.RemoteSyncExecutionResult;
 import com.uiptv.service.remotesync.RemoteSyncOptions;
@@ -9,7 +13,6 @@ import com.uiptv.service.remotesync.RemoteSyncSessionState;
 import com.uiptv.service.remotesync.RemoteSyncStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Field;
@@ -57,12 +60,12 @@ class RemoteSyncApplicationServiceTest {
     @Test
     void singletonFacadeDelegatesSuccessfulUploadAndDownloadCalls() throws Exception {
         RemoteSyncApplicationService service = RemoteSyncApplicationService.getInstance();
-        RemoteSyncSessionService original = replaceSessionService(service, Mockito.mock(RemoteSyncSessionService.class));
+        RemoteSyncSessionService original = replaceSessionService(service, mock(RemoteSyncSessionService.class));
         RemoteSyncSessionService delegate = getSessionService(service);
         RemoteSyncExecutionResult result = new RemoteSyncExecutionResult(null, "uploaded");
         Path snapshot = Path.of("snapshot.db");
-        Mockito.when(delegate.acceptUpload(Mockito.eq("session"), Mockito.any())).thenReturn(result);
-        Mockito.when(delegate.getDownloadSnapshot("session")).thenReturn(snapshot);
+        when(delegate.acceptUpload(eq("session"), any())).thenReturn(result);
+        when(delegate.getDownloadSnapshot("session")).thenReturn(snapshot);
 
         try (ByteArrayInputStream upload = new ByteArrayInputStream(new byte[]{1})) {
             assertEquals(result, service.acceptUpload("session", upload));

@@ -1,12 +1,14 @@
 package com.uiptv.db;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -125,9 +127,9 @@ class AccountCategoryDbCoverageTest extends DbBackedTest {
         categoryDb.deleteByAccount(accountA);
         assertTrue(categoryDb.getCategories(accountA).isEmpty());
 
-        Connection conn = Mockito.mock(Connection.class);
-        Mockito.when(conn.prepareStatement(anyString())).thenThrow(new SQLException("boom"));
-        try (MockedStatic<SQLConnection> mocked = Mockito.mockStatic(SQLConnection.class)) {
+        Connection conn = mock(Connection.class);
+        when(conn.prepareStatement(anyString())).thenThrow(new SQLException("boom"));
+        try (MockedStatic<SQLConnection> mocked = mockStatic(SQLConnection.class)) {
             mocked.when(SQLConnection::connect).thenReturn(conn);
             Account failing = new Account("fail", "user", "pass", "http://portal.test", null, null, null, null, null, null,
                     AccountType.M3U8_URL, null, null, false);

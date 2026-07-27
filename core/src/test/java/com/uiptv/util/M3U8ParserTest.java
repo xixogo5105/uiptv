@@ -1,12 +1,16 @@
 package com.uiptv.util;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import com.uiptv.model.CategoryType;
 import com.uiptv.shared.PlaylistEntry;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -140,13 +144,13 @@ class M3U8ParserTest {
                 #EXTINF:-1 tvg-id="http-id" tvg-logo="https://img/logo.png" group-title="Remote",Remote Channel
                 https://stream.test/remote.m3u8
                 """;
-        try (MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+        try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
             httpUtil.when(() -> HttpUtil.openStream(
-                            Mockito.eq("https://playlist.test/live.m3u"),
-                            Mockito.isNull(),
-                            Mockito.eq("GET"),
-                            Mockito.isNull(),
-                            Mockito.any(HttpUtil.RequestOptions.class)))
+                            eq("https://playlist.test/live.m3u"),
+                            isNull(),
+                            eq("GET"),
+                            isNull(),
+                            any(HttpUtil.RequestOptions.class)))
                     .thenAnswer(_ -> streamResult(remotePlaylist));
 
             List<PlaylistEntry> channels = M3U8Parser.parseChannelUrlM3U8(URI.create("https://playlist.test/live.m3u").toURL());
@@ -181,7 +185,7 @@ class M3U8ParserTest {
                 Map.of(),
                 Map.of(),
                 new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)),
-                Mockito.mock(org.apache.hc.client5.http.impl.classic.CloseableHttpResponse.class)
+                mock(org.apache.hc.client5.http.impl.classic.CloseableHttpResponse.class)
         );
     }
 

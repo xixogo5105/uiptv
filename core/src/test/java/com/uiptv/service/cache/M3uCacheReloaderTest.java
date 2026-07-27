@@ -1,5 +1,10 @@
 package com.uiptv.service.cache;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
@@ -14,7 +19,6 @@ import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,12 +31,12 @@ class M3uCacheReloaderTest extends DbBackedTest {
     @Test
     void m3uReloader_skipsPersistenceWhenCategoryFetchIsEmpty() {
         Account account = persistAccount("m3u-empty", AccountType.M3U8_LOCAL);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         List<String> logs = new ArrayList<>();
 
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any())).thenReturn(List.of());
+            when(categoryService.get(eq(account), eq(false), any())).thenReturn(List.of());
 
             new StubM3uCacheReloader().reloadCache(account, logs::add);
         }
@@ -44,7 +48,7 @@ class M3uCacheReloaderTest extends DbBackedTest {
     @Test
     void m3uReloader_persistsChannelsForSuccessfulCategories_andIgnoresFailures() {
         Account account = persistAccount("m3u-success", AccountType.M3U8_LOCAL);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         Category news = new Category("10", "News", "news", false, 0);
         Category sports = new Category("20", "Sports", "sports", false, 0);
         List<String> logs = new ArrayList<>();
@@ -54,9 +58,9 @@ class M3uCacheReloaderTest extends DbBackedTest {
         reloader.channelsByCategory.put("News", List.of(channel("news-1", "News One")));
         // Sports has no channels, so it will be filtered out
 
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any())).thenReturn(List.of(news, sports));
+            when(categoryService.get(eq(account), eq(false), any())).thenReturn(List.of(news, sports));
 
             reloader.reloadCache(account, logs::add);
         }
@@ -71,7 +75,7 @@ class M3uCacheReloaderTest extends DbBackedTest {
     @Test
     void m3uReloader_buildsChannelMapOncePerReload() {
         Account account = persistAccount("m3u-single-pass", AccountType.M3U8_LOCAL);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         Category allCategory = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
         Category news = new Category("1", "News", "news", false, 0);
         Category sports = new Category("2", "Sports", "sports", false, 0);
@@ -84,9 +88,9 @@ class M3uCacheReloaderTest extends DbBackedTest {
         reloader.channelsByCategory.put("News", List.of(channel("news-1", "News One")));
         reloader.channelsByCategory.put("Sports", List.of(channel("sports-1", "Sports One")));
 
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+            when(categoryService.get(eq(account), eq(false), any()))
                     .thenReturn(List.of(allCategory, news, sports));
 
             reloader.reloadCache(account, null);
@@ -100,7 +104,7 @@ class M3uCacheReloaderTest extends DbBackedTest {
     void m3uReloader_singleNonAllCategoryTreatedAsAll() {
         // When exactly one category (besides All) exists, channels from that category should be treated as All
         Account account = persistAccount("m3u-single-category", AccountType.M3U8_LOCAL);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         Category allCategory = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
         Category singleCategory = new Category("1", "Movies", "movies", false, 0);
         List<String> logs = new ArrayList<>();
@@ -109,9 +113,9 @@ class M3uCacheReloaderTest extends DbBackedTest {
         // Only Movies has channels - this simulates M3U files where all entries have a single group-title
         reloader.channelsByCategory.put("Movies", List.of(channel("mov-1", "Channel One"), channel("mov-2", "Channel Two")));
 
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+            when(categoryService.get(eq(account), eq(false), any()))
                     .thenReturn(List.of(allCategory, singleCategory));
 
             reloader.reloadCache(account, logs::add);
@@ -128,7 +132,7 @@ class M3uCacheReloaderTest extends DbBackedTest {
     void m3uReloader_uncategorizedOnlyCreatedWhenItHasChannels() {
         // Uncategorized should only be saved if it has channels
         Account account = persistAccount("m3u-uncategorized-empty", AccountType.M3U8_LOCAL);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         Category allCategory = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
         Category sportsCategory = new Category("2", "Sports", "sports", false, 0);
         Category uncategorizedEmpty = new Category("3", CategoryType.UNCATEGORIZED.displayName(), CategoryType.UNCATEGORIZED.identifier(), false, 0);
@@ -138,9 +142,9 @@ class M3uCacheReloaderTest extends DbBackedTest {
         reloader.channelsByCategory.put("Sports", List.of(channel("sp-1", "Sports Channel")));
         // Uncategorized has NO channels
 
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+            when(categoryService.get(eq(account), eq(false), any()))
                     .thenReturn(List.of(allCategory, sportsCategory, uncategorizedEmpty));
 
             reloader.reloadCache(account, null);
@@ -157,7 +161,7 @@ class M3uCacheReloaderTest extends DbBackedTest {
     void m3uReloader_uncategorizedCreatedWhenItHasChannelsAndOtherCategoriesExist() {
         // Uncategorized should be saved if it has channels AND other categories exist
         Account account = persistAccount("m3u-uncategorized-with-channels", AccountType.M3U8_LOCAL);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         Category allCategory = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
         Category sportsCategory = new Category("2", "Sports", "sports", false, 0);
         Category uncategorized = new Category("3", CategoryType.UNCATEGORIZED.displayName(), CategoryType.UNCATEGORIZED.identifier(), false, 0);
@@ -167,9 +171,9 @@ class M3uCacheReloaderTest extends DbBackedTest {
         reloader.channelsByCategory.put("Sports", List.of(channel("sp-1", "Sports Channel")));
         reloader.channelsByCategory.put(CategoryType.UNCATEGORIZED.displayName(), List.of(channel("unc-1", "Uncategorized Channel")));
 
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+            when(categoryService.get(eq(account), eq(false), any()))
                     .thenReturn(List.of(allCategory, sportsCategory, uncategorized));
 
             reloader.reloadCache(account, null);
@@ -184,15 +188,15 @@ class M3uCacheReloaderTest extends DbBackedTest {
     void m3uReloader_noUncategorizedWhenOnlyAllExists() {
         // Never create Uncategorized when only All category exists
         Account account = persistAccount("m3u-only-all", AccountType.M3U8_LOCAL);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         Category allCategory = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
 
         StubM3uCacheReloader reloader = new StubM3uCacheReloader();
         reloader.channelsByCategory.put(CategoryType.ALL.displayName(), List.of(channel("all-1", "Channel One"), channel("all-2", "Channel Two")));
 
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+            when(categoryService.get(eq(account), eq(false), any()))
                     .thenReturn(List.of(allCategory));
 
             reloader.reloadCache(account, null);
@@ -208,7 +212,7 @@ class M3uCacheReloaderTest extends DbBackedTest {
     void m3uReloader_multipleCategoriesPreservedWhenNotSingleCategory() {
         // Multiple real categories should be preserved (not treated as single)
         Account account = persistAccount("m3u-multi-cats", AccountType.M3U8_LOCAL);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         Category allCategory = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
         Category news = new Category("1", "News", "news", false, 0);
         Category sports = new Category("2", "Sports", "sports", false, 0);
@@ -218,9 +222,9 @@ class M3uCacheReloaderTest extends DbBackedTest {
         reloader.channelsByCategory.put("News", List.of(channel("news-1", "News Channel")));
         reloader.channelsByCategory.put("Sports", List.of(channel("sp-1", "Sports Channel")));
 
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+            when(categoryService.get(eq(account), eq(false), any()))
                     .thenReturn(List.of(allCategory, news, sports));
 
             reloader.reloadCache(account, null);
@@ -237,7 +241,7 @@ class M3uCacheReloaderTest extends DbBackedTest {
     void m3uReloader_appliesActiveFiltersBeforeSavingCache() {
         saveConfiguration("Adult", "Premium", false);
         Account account = persistAccount("m3u-filtered-cache", AccountType.M3U8_LOCAL);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         Category allCategory = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
         Category adult = new Category("adult", "Adult", "adult", false, 0);
         Category sports = new Category("sports", "Sports", "sports", false, 0);
@@ -257,9 +261,9 @@ class M3uCacheReloaderTest extends DbBackedTest {
         reloader.channelsByCategory.put("News", List.of(newsChannel));
         reloader.channelsByCategory.put("Premium", List.of(premiumChannel));
 
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+            when(categoryService.get(eq(account), eq(false), any()))
                     .thenReturn(List.of(allCategory, adult, sports, news, premium));
 
             reloader.reloadCache(account, logs::add);
@@ -278,7 +282,7 @@ class M3uCacheReloaderTest extends DbBackedTest {
     void m3uReloader_emptyEntriesFilteredOut() {
         // Categories with no channels should be filtered out
         Account account = persistAccount("m3u-empty-categories", AccountType.M3U8_LOCAL);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         Category allCategory = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
         Category emptyNews = new Category("1", "News", "news", false, 0);
         Category sports = new Category("2", "Sports", "sports", false, 0);
@@ -290,9 +294,9 @@ class M3uCacheReloaderTest extends DbBackedTest {
         reloader.channelsByCategory.put("Sports", List.of(channel("sp-1", "Sports Channel")));
         // Intentionally NOT adding News to the channels map
 
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+            when(categoryService.get(eq(account), eq(false), any()))
                     .thenReturn(List.of(allCategory, emptyNews, sports));
 
             reloader.reloadCache(account, logs::add);
@@ -311,7 +315,7 @@ class M3uCacheReloaderTest extends DbBackedTest {
         // This is the APSATTV M3U scenario: all entries have group-title="Undefined"
         // Should merge Undefined channels into All and filter out Undefined
         Account account = persistAccount("m3u-apsattv-undefined", AccountType.M3U8_LOCAL);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         Category allCategory = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
         Category undefinedCategory = new Category("1", "Undefined", "undefined", false, 0);
         List<String> logs = new ArrayList<>();
@@ -324,9 +328,9 @@ class M3uCacheReloaderTest extends DbBackedTest {
                 channel("boat-1", "The Boat Show")
         ));
 
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+            when(categoryService.get(eq(account), eq(false), any()))
                     .thenReturn(List.of(allCategory, undefinedCategory));
 
             reloader.reloadCache(account, logs::add);
@@ -343,16 +347,16 @@ class M3uCacheReloaderTest extends DbBackedTest {
     void m3uReloader_allEmptyCategoriesMergedToAll() {
         // If all categories end up being empty (due to filtering), create All with accumulated channels
         Account account = persistAccount("m3u-all-empty", AccountType.M3U8_LOCAL);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         Category emptyNews = new Category("1", "News", "news", false, 0);
         Category emptySports = new Category("2", "Sports", "sports", false, 0);
 
         // No categories have channels in this mock
         // (This simulates a parsing scenario where channels exist but no categories match)
 
-        try (MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.eq(account), Mockito.eq(false), Mockito.any()))
+            when(categoryService.get(eq(account), eq(false), any()))
                     .thenReturn(List.of(emptyNews, emptySports));
 
             // Note: This test won't actually save anything because m3u8Channels returns empty

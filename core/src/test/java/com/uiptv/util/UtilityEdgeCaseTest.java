@@ -1,5 +1,9 @@
 package com.uiptv.util;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyMap;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.mockStatic;
 import com.uiptv.model.Account;
 import org.json.JSONObject;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
@@ -7,7 +11,6 @@ import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.protocol.RedirectLocations;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
 import java.net.URI;
@@ -110,13 +113,13 @@ class UtilityEdgeCaseTest {
         account.setToken("abc");
         account.setHttpMethod("POST");
 
-        try (MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+        try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
             httpUtil.when(() -> HttpUtil.sendRequest(
-                    Mockito.anyString(),
-                    Mockito.anyMap(),
-                    Mockito.anyString(),
-                    Mockito.any(),
-                    Mockito.any(HttpUtil.RequestOptions.class)
+                    anyString(),
+                    anyMap(),
+                    anyString(),
+                    any(),
+                    any(HttpUtil.RequestOptions.class)
             )).thenReturn(new HttpUtil.HttpResult(200, "ok", Map.of(), Map.of()));
 
             String body = FetchAPI.fetch(Map.of("token", "hello world"), account);

@@ -1,12 +1,12 @@
 package com.uiptv.util;
 
+import static org.mockito.Mockito.mockStatic;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.model.Configuration;
 import com.uiptv.server.UIptvServer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -30,7 +30,7 @@ class ServerUrlUtilTest {
 
     @Test
     void testGetLocalServerUrl_Default() {
-        try (MockedStatic<ConfigurationService> mockedService = Mockito.mockStatic(ConfigurationService.class)) {
+        try (MockedStatic<ConfigurationService> mockedService = mockStatic(ConfigurationService.class)) {
             ConfigurationService service = mock(ConfigurationService.class);
             Configuration config = new Configuration();
             when(service.read()).thenReturn(config);
@@ -48,7 +48,7 @@ class ServerUrlUtilTest {
 
     @Test
     void testGetLocalServerUrl_CustomPort() {
-        try (MockedStatic<ConfigurationService> mockedService = Mockito.mockStatic(ConfigurationService.class)) {
+        try (MockedStatic<ConfigurationService> mockedService = mockStatic(ConfigurationService.class)) {
             ConfigurationService service = mock(ConfigurationService.class);
             Configuration config = new Configuration();
             config.setServerPort("9090");
@@ -64,7 +64,7 @@ class ServerUrlUtilTest {
 
     @Test
     void secureServerUrl_usesConfiguredHttpsPortWhenEnabled() {
-        try (MockedStatic<ConfigurationService> mockedService = Mockito.mockStatic(ConfigurationService.class)) {
+        try (MockedStatic<ConfigurationService> mockedService = mockStatic(ConfigurationService.class)) {
             ConfigurationService service = mock(ConfigurationService.class);
             Configuration config = new Configuration();
             config.setHttpsServerEnabled(true);
@@ -80,7 +80,7 @@ class ServerUrlUtilTest {
 
     @Test
     void getLocalServerUrl_fallsBackWhenConfigurationFails() {
-        try (MockedStatic<ConfigurationService> mockedService = Mockito.mockStatic(ConfigurationService.class)) {
+        try (MockedStatic<ConfigurationService> mockedService = mockStatic(ConfigurationService.class)) {
             ConfigurationService service = mock(ConfigurationService.class);
             when(service.read()).thenThrow(new IllegalStateException("db unavailable"));
             mockedService.when(ConfigurationService::getInstance).thenReturn(service);

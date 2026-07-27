@@ -1,5 +1,9 @@
 package com.uiptv.server.api.json;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.application.CatalogApplicationService;
 import com.uiptv.application.CatalogPagedChannelsResult;
 import com.uiptv.application.CatalogWebChannelsQuery;
@@ -8,7 +12,6 @@ import com.uiptv.server.TestHttpExchange;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.util.List;
 
@@ -23,10 +26,10 @@ class HttpWebChannelJsonServerTest {
         channel.setChannelId("series-a");
         channel.setName("Series A");
 
-        try (MockedStatic<CatalogApplicationService> facadeStatic = Mockito.mockStatic(CatalogApplicationService.class)) {
-            CatalogApplicationService facade = Mockito.mock(CatalogApplicationService.class);
+        try (MockedStatic<CatalogApplicationService> facadeStatic = mockStatic(CatalogApplicationService.class)) {
+            CatalogApplicationService facade = mock(CatalogApplicationService.class);
             facadeStatic.when(CatalogApplicationService::getInstance).thenReturn(facade);
-            Mockito.when(facade.listWebChannels(Mockito.any(CatalogWebChannelsQuery.class)))
+            when(facade.listWebChannels(any(CatalogWebChannelsQuery.class)))
                     .thenReturn(new CatalogPagedChannelsResult(List.of(channel), 1, true, 0));
 
             TestHttpExchange exchange = new TestHttpExchange("/channels?accountId=1&mode=series&categoryId=cat-1&page=0&pageSize=120&prefetchPages=3&apiOffset=0", "GET");

@@ -1,5 +1,9 @@
 package com.uiptv.service;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyMap;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.mockStatic;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.uiptv.db.*;
@@ -25,7 +29,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -169,8 +172,8 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
         CacheService cacheService = new CacheServiceImpl();
         BookmarkService bookmarkService = BookmarkService.getInstance();
 
-        try (MockedStatic<LogUtil> logUtilMock = Mockito.mockStatic(LogUtil.class)) {
-            logUtilMock.when(() -> LogUtil.httpLog(Mockito.anyString(), Mockito.any(), Mockito.anyMap())).thenAnswer(invocation -> null);
+        try (MockedStatic<LogUtil> logUtilMock = mockStatic(LogUtil.class)) {
+            logUtilMock.when(() -> LogUtil.httpLog(anyString(), any(), anyMap())).thenAnswer(invocation -> null);
             assertConfigurationLifecycle(configurationService);
             seedAndImportAccounts();
             updateAccountsAndAssert(accountService);

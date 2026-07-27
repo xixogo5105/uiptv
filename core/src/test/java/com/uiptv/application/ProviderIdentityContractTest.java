@@ -1,5 +1,14 @@
 package com.uiptv.application;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyMap;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.db.SeriesCategoryDb;
@@ -19,7 +28,6 @@ import com.uiptv.util.FetchAPI;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -44,13 +52,13 @@ class ProviderIdentityContractTest extends DbBackedTest {
         providerRow.setName("Provider Series");
         providerRow.setCategoryId(category.getCategoryId());
 
-        ChannelService channelService = Mockito.mock(ChannelService.class);
-        try (MockedStatic<ChannelService> channelServiceStatic = Mockito.mockStatic(ChannelService.class)) {
+        ChannelService channelService = mock(ChannelService.class);
+        try (MockedStatic<ChannelService> channelServiceStatic = mockStatic(ChannelService.class)) {
             channelServiceStatic.when(ChannelService::getInstance).thenReturn(channelService);
-            Mockito.when(channelService.get(
-                    Mockito.eq(category.getCategoryId()),
-                    Mockito.any(Account.class),
-                    Mockito.eq(category.getDbId())
+            when(channelService.get(
+                    eq(category.getCategoryId()),
+                    any(Account.class),
+                    eq(category.getDbId())
             )).thenReturn(List.of(providerRow));
 
             List<Channel> channels = CatalogApplicationService.getInstance().listChannels(
@@ -58,15 +66,15 @@ class ProviderIdentityContractTest extends DbBackedTest {
             );
 
             assertEquals(List.of("provider-series-77"), channels.stream().map(Channel::getChannelId).toList());
-            Mockito.verify(channelService).get(
-                    Mockito.eq(category.getCategoryId()),
-                    Mockito.any(Account.class),
-                    Mockito.eq(category.getDbId())
+            verify(channelService).get(
+                    eq(category.getCategoryId()),
+                    any(Account.class),
+                    eq(category.getDbId())
             );
-            Mockito.verify(channelService, Mockito.never()).get(
-                    Mockito.eq(category.getDbId()),
-                    Mockito.any(Account.class),
-                    Mockito.eq(category.getDbId())
+            verify(channelService, never()).get(
+                    eq(category.getDbId()),
+                    any(Account.class),
+                    eq(category.getDbId())
             );
         }
     }
@@ -79,10 +87,10 @@ class ProviderIdentityContractTest extends DbBackedTest {
         assertNotEquals(category.getDbId(), category.getCategoryId());
 
         List<Map<String, String>> requests = new ArrayList<>();
-        try (MockedStatic<HandshakeService> handshakeStatic = Mockito.mockStatic(HandshakeService.class);
-             MockedStatic<FetchAPI> fetchStatic = Mockito.mockStatic(FetchAPI.class)) {
-            handshakeStatic.when(HandshakeService::getInstance).thenReturn(Mockito.mock(HandshakeService.class));
-            fetchStatic.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.any(Account.class))).thenAnswer(invocation -> {
+        try (MockedStatic<HandshakeService> handshakeStatic = mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchStatic = mockStatic(FetchAPI.class)) {
+            handshakeStatic.when(HandshakeService::getInstance).thenReturn(mock(HandshakeService.class));
+            fetchStatic.when(() -> FetchAPI.fetch(anyMap(), any(Account.class))).thenAnswer(invocation -> {
                 Map<String, String> params = invocation.getArgument(0);
                 requests.add(new LinkedHashMap<>(params));
                 return """
@@ -120,15 +128,15 @@ class ProviderIdentityContractTest extends DbBackedTest {
         Channel storedChannel = ChannelDb.get().getChannels(category.getDbId()).getFirst();
         assertNotEquals(storedChannel.getDbId(), storedChannel.getChannelId());
 
-        PlayerService playerService = Mockito.mock(PlayerService.class);
-        try (MockedStatic<PlayerService> playerStatic = Mockito.mockStatic(PlayerService.class)) {
+        PlayerService playerService = mock(PlayerService.class);
+        try (MockedStatic<PlayerService> playerStatic = mockStatic(PlayerService.class)) {
             playerStatic.when(PlayerService::getInstance).thenReturn(playerService);
-            Mockito.when(playerService.get(
-                    Mockito.any(Account.class),
-                    Mockito.any(Channel.class),
-                    Mockito.anyString(),
-                    Mockito.anyString(),
-                    Mockito.anyString()
+            when(playerService.get(
+                    any(Account.class),
+                    any(Channel.class),
+                    anyString(),
+                    anyString(),
+                    anyString()
             )).thenReturn(new PlayerResponse("http://resolved/live"));
 
             new PlayerRequestResolver().resolveDirectPlayback(
@@ -142,12 +150,12 @@ class ProviderIdentityContractTest extends DbBackedTest {
             );
 
             ArgumentCaptor<Channel> channelCaptor = ArgumentCaptor.forClass(Channel.class);
-            Mockito.verify(playerService).get(
-                    Mockito.eq(account),
+            verify(playerService).get(
+                    eq(account),
                     channelCaptor.capture(),
-                    Mockito.eq(""),
-                    Mockito.eq(""),
-                    Mockito.eq("")
+                    eq(""),
+                    eq(""),
+                    eq("")
             );
             assertEquals(storedChannel.getDbId(), channelCaptor.getValue().getDbId());
             assertEquals("portal-live-channel-33", channelCaptor.getValue().getChannelId());
@@ -166,15 +174,15 @@ class ProviderIdentityContractTest extends DbBackedTest {
         requestEpisode.setName("Episode 44");
         requestEpisode.setCmd("http://stream/episode-44");
 
-        PlayerService playerService = Mockito.mock(PlayerService.class);
-        try (MockedStatic<PlayerService> playerStatic = Mockito.mockStatic(PlayerService.class)) {
+        PlayerService playerService = mock(PlayerService.class);
+        try (MockedStatic<PlayerService> playerStatic = mockStatic(PlayerService.class)) {
             playerStatic.when(PlayerService::getInstance).thenReturn(playerService);
-            Mockito.when(playerService.get(
-                    Mockito.any(Account.class),
-                    Mockito.any(Channel.class),
-                    Mockito.anyString(),
-                    Mockito.anyString(),
-                    Mockito.anyString()
+            when(playerService.get(
+                    any(Account.class),
+                    any(Channel.class),
+                    anyString(),
+                    anyString(),
+                    anyString()
             )).thenReturn(new PlayerResponse("http://resolved/series"));
 
             new PlayerRequestResolver().resolveDirectPlayback(
@@ -187,7 +195,7 @@ class ProviderIdentityContractTest extends DbBackedTest {
                     requestEpisode
             );
 
-            Mockito.verify(playerService).get(
+            verify(playerService).get(
                     account,
                     requestEpisode,
                     "provider-episode-44",

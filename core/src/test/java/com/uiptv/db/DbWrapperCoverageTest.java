@@ -1,5 +1,8 @@
 package com.uiptv.db;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.api.JsonCompliant;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
@@ -11,7 +14,6 @@ import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
 import java.sql.Connection;
@@ -146,14 +148,14 @@ class DbWrapperCoverageTest extends DbBackedTest {
     @Test
     void baseDb_helpersHandleBlankNumbersAndSqlExceptions() throws Exception {
         TestBaseDb baseDb = new TestBaseDb();
-        ResultSet resultSet = Mockito.mock(ResultSet.class);
+        ResultSet resultSet = mock(ResultSet.class);
 
-        Mockito.when(resultSet.getString("value")).thenReturn("text");
-        Mockito.when(resultSet.getString("blankInt")).thenReturn("");
-        Mockito.when(resultSet.getString("intVal")).thenReturn("7");
-        Mockito.when(resultSet.getString("boolBlank")).thenReturn("");
-        Mockito.when(resultSet.getString("boolOne")).thenReturn("1");
-        Mockito.when(resultSet.getString("missing")).thenThrow(new SQLException("missing"));
+        when(resultSet.getString("value")).thenReturn("text");
+        when(resultSet.getString("blankInt")).thenReturn("");
+        when(resultSet.getString("intVal")).thenReturn("7");
+        when(resultSet.getString("boolBlank")).thenReturn("");
+        when(resultSet.getString("boolOne")).thenReturn("1");
+        when(resultSet.getString("missing")).thenThrow(new SQLException("missing"));
 
         assertEquals("text", baseDb.nullSafeString(resultSet, "value"));
         assertNull(baseDb.nullSafeString(resultSet, "missing"));
@@ -169,22 +171,22 @@ class DbWrapperCoverageTest extends DbBackedTest {
     void sqlConnection_applySchemaPrefersMigrationsThenBaselineAndFailsWhenMissing() throws Exception {
         Method applySchema = SQLConnection.class.getDeclaredMethod("applySchema", Connection.class);
         applySchema.setAccessible(true);
-        Connection connection = Mockito.mock(Connection.class);
+        Connection connection = mock(Connection.class);
 
-        try (MockedStatic<DatabasePatchesUtils> patches = Mockito.mockStatic(DatabasePatchesUtils.class)) {
+        try (MockedStatic<DatabasePatchesUtils> patches = mockStatic(DatabasePatchesUtils.class)) {
             patches.when(DatabasePatchesUtils::hasMigrationsListResource).thenReturn(true);
             assertDoesNotThrow(() -> applySchema.invoke(null, connection));
             patches.verify(() -> DatabasePatchesUtils.applyPatches(connection));
         }
 
-        try (MockedStatic<DatabasePatchesUtils> patches = Mockito.mockStatic(DatabasePatchesUtils.class)) {
+        try (MockedStatic<DatabasePatchesUtils> patches = mockStatic(DatabasePatchesUtils.class)) {
             patches.when(DatabasePatchesUtils::hasMigrationsListResource).thenReturn(false);
             patches.when(DatabasePatchesUtils::hasBaselineResource).thenReturn(true);
             assertDoesNotThrow(() -> applySchema.invoke(null, connection));
             patches.verify(() -> DatabasePatchesUtils.applyBaseline(connection));
         }
 
-        try (MockedStatic<DatabasePatchesUtils> patches = Mockito.mockStatic(DatabasePatchesUtils.class)) {
+        try (MockedStatic<DatabasePatchesUtils> patches = mockStatic(DatabasePatchesUtils.class)) {
             patches.when(DatabasePatchesUtils::hasMigrationsListResource).thenReturn(false);
             patches.when(DatabasePatchesUtils::hasBaselineResource).thenReturn(false);
             Exception ex = org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> applySchema.invoke(null, connection));

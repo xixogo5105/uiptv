@@ -1,10 +1,10 @@
 package com.uiptv.util;
 
+import static org.mockito.Mockito.mockStatic;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -15,7 +15,7 @@ class EmbeddedPlayerWideViewUtilTest {
 
     @Test
     void wideView_disabled_whenConfigurationMissing() {
-        try (MockedStatic<ConfigurationService> mockedService = Mockito.mockStatic(ConfigurationService.class)) {
+        try (MockedStatic<ConfigurationService> mockedService = mockStatic(ConfigurationService.class)) {
             ConfigurationService service = mock(ConfigurationService.class);
             when(service.read()).thenReturn(null);
             mockedService.when(ConfigurationService::getInstance).thenReturn(service);
@@ -26,7 +26,7 @@ class EmbeddedPlayerWideViewUtilTest {
 
     @Test
     void wideView_disabled_whenEmbeddedPlayerDisabled_evenIfWideViewEnabled() {
-        try (MockedStatic<ConfigurationService> mockedService = Mockito.mockStatic(ConfigurationService.class)) {
+        try (MockedStatic<ConfigurationService> mockedService = mockStatic(ConfigurationService.class)) {
             ConfigurationService service = mock(ConfigurationService.class);
             Configuration configuration = new Configuration();
             configuration.setEmbeddedPlayer(false);
@@ -40,7 +40,7 @@ class EmbeddedPlayerWideViewUtilTest {
 
     @Test
     void wideView_disabled_whenWideViewFlagDisabled() {
-        try (MockedStatic<ConfigurationService> mockedService = Mockito.mockStatic(ConfigurationService.class)) {
+        try (MockedStatic<ConfigurationService> mockedService = mockStatic(ConfigurationService.class)) {
             ConfigurationService service = mock(ConfigurationService.class);
             Configuration configuration = new Configuration();
             configuration.setEmbeddedPlayer(true);
@@ -54,7 +54,7 @@ class EmbeddedPlayerWideViewUtilTest {
 
     @Test
     void wideView_enabled_only_whenEmbeddedAndWideViewAreBothEnabled() {
-        try (MockedStatic<ConfigurationService> mockedService = Mockito.mockStatic(ConfigurationService.class)) {
+        try (MockedStatic<ConfigurationService> mockedService = mockStatic(ConfigurationService.class)) {
             ConfigurationService service = mock(ConfigurationService.class);
             Configuration configuration = new Configuration();
             configuration.setEmbeddedPlayer(true);

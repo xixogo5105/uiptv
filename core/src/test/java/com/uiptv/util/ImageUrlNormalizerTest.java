@@ -1,9 +1,9 @@
 package com.uiptv.util;
 
+import static org.mockito.Mockito.mockStatic;
 import com.uiptv.model.Account;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -35,7 +35,7 @@ class ImageUrlNormalizerTest {
         assertEquals("https://cdn.example.test/image.png", ImageUrlNormalizer.normalizeImageUrl("cdn.example.test/image.png", null));
         assertEquals("/root.png", ImageUrlNormalizer.normalizeImageUrl("/root.png", null));
 
-        try (MockedStatic<ServerUrlUtil> serverUrlUtil = Mockito.mockStatic(ServerUrlUtil.class)) {
+        try (MockedStatic<ServerUrlUtil> serverUrlUtil = mockStatic(ServerUrlUtil.class)) {
             serverUrlUtil.when(ServerUrlUtil::getLocalServerUrl).thenReturn("http://127.0.0.1:9999");
 
             assertEquals("http://127.0.0.1:9999/images/poster.jpg",

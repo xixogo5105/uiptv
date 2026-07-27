@@ -1,5 +1,11 @@
 package com.uiptv.server.api.json;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyMap;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
@@ -17,7 +23,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -180,7 +185,7 @@ class HttpM3u8ServersTest extends DbBackedTest {
         BookmarkService.getInstance().save(bookmark);
         Bookmark savedBookmark = BookmarkService.getInstance().getBookmark(bookmark);
 
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        ConfigurationService configurationService = mock(ConfigurationService.class);
         HttpUtil.HttpResult masterPlaylist = new HttpUtil.HttpResult(
                 200,
                 "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nvariant.m3u8\n",
@@ -194,14 +199,14 @@ class HttpM3u8ServersTest extends DbBackedTest {
                 Map.of()
         );
 
-        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
             configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenReturn(true);
-            Mockito.when(configurationService.isVlcHttpUserAgentEnabled()).thenReturn(true);
-            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq("http://origin/master.m3u8"), Mockito.anyMap(), Mockito.eq("GET")))
+            when(configurationService.isResolveChainAndDeepRedirectsEnabled(any())).thenReturn(true);
+            when(configurationService.isVlcHttpUserAgentEnabled()).thenReturn(true);
+            httpUtil.when(() -> HttpUtil.sendRequest(eq("http://origin/master.m3u8"), anyMap(), eq("GET")))
                     .thenReturn(masterPlaylist);
-            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq("http://origin/variant.m3u8"), Mockito.anyMap(), Mockito.eq("GET")))
+            httpUtil.when(() -> HttpUtil.sendRequest(eq("http://origin/variant.m3u8"), anyMap(), eq("GET")))
                     .thenReturn(variantPlaylist);
 
             HttpM3u8BookmarkEntry handler = new HttpM3u8BookmarkEntry();
@@ -221,11 +226,11 @@ class HttpM3u8ServersTest extends DbBackedTest {
         BookmarkService.getInstance().save(bookmark);
         Bookmark savedBookmark = BookmarkService.getInstance().getBookmark(bookmark);
 
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
-        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+        ConfigurationService configurationService = mock(ConfigurationService.class);
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
             configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenReturn(false);
+            when(configurationService.isResolveChainAndDeepRedirectsEnabled(any())).thenReturn(false);
 
             HttpM3u8BookmarkEntry handler = new HttpM3u8BookmarkEntry();
             StubHttpExchange exchange = new StubHttpExchange("/m3u8BookmarkEntry?bookmarkId=" + savedBookmark.getDbId(), "GET");
@@ -246,7 +251,7 @@ class HttpM3u8ServersTest extends DbBackedTest {
         BookmarkService.getInstance().save(bookmark);
         Bookmark savedBookmark = BookmarkService.getInstance().getBookmark(bookmark);
 
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        ConfigurationService configurationService = mock(ConfigurationService.class);
         HttpUtil.HttpResult masterPlaylist = new HttpUtil.HttpResult(
                 200,
                 "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nvariant.m3u8\n",
@@ -260,17 +265,17 @@ class HttpM3u8ServersTest extends DbBackedTest {
                 Map.of()
         );
 
-        try (MockedStatic<ConfigurationService> configurationServiceStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+        try (MockedStatic<ConfigurationService> configurationServiceStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
             configurationServiceStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.isResolveChainAndDeepRedirectsEnabled(Mockito.any())).thenAnswer(invocation -> {
+            when(configurationService.isResolveChainAndDeepRedirectsEnabled(any())).thenAnswer(invocation -> {
                 Account resolvedAccount = invocation.getArgument(0);
                 return resolvedAccount != null && resolvedAccount.isResolveChainAndDeepRedirects();
             });
-            Mockito.when(configurationService.isVlcHttpUserAgentEnabled()).thenReturn(true);
-            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq("http://origin/master.m3u8"), Mockito.anyMap(), Mockito.eq("GET")))
+            when(configurationService.isVlcHttpUserAgentEnabled()).thenReturn(true);
+            httpUtil.when(() -> HttpUtil.sendRequest(eq("http://origin/master.m3u8"), anyMap(), eq("GET")))
                     .thenReturn(masterPlaylist);
-            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.eq("http://origin/variant.m3u8"), Mockito.anyMap(), Mockito.eq("GET")))
+            httpUtil.when(() -> HttpUtil.sendRequest(eq("http://origin/variant.m3u8"), anyMap(), eq("GET")))
                     .thenReturn(variantPlaylist);
 
             HttpM3u8BookmarkEntry handler = new HttpM3u8BookmarkEntry();
@@ -339,12 +344,12 @@ class HttpM3u8ServersTest extends DbBackedTest {
                 new SeriesWatchState()
         );
 
-        PlayerService playerService = Mockito.mock(PlayerService.class);
-        Mockito.when(playerService.get(Mockito.any(), Mockito.any(), Mockito.eq("ep-22"), Mockito.eq("series-1"), Mockito.eq("cat-1")))
+        PlayerService playerService = mock(PlayerService.class);
+        when(playerService.get(any(), any(), eq("ep-22"), eq("series-1"), eq("cat-1")))
                 .thenReturn(new PlayerResponse("http://stream.example/ep-22.m3u8"));
 
         HttpBingeWatchEntryServer handler = new HttpBingeWatchEntryServer();
-        try (MockedStatic<PlayerService> playerServiceStatic = Mockito.mockStatic(PlayerService.class)) {
+        try (MockedStatic<PlayerService> playerServiceStatic = mockStatic(PlayerService.class)) {
             playerServiceStatic.when(PlayerService::getInstance).thenReturn(playerService);
             TestHttpExchange exchange = new TestHttpExchange("/bingwatch?token=" + token + "&episodeId=ep-22", "GET");
 

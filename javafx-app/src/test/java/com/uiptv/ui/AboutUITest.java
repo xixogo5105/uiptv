@@ -1,5 +1,7 @@
 package com.uiptv.ui;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
 import javafx.application.HostServices;
@@ -11,7 +13,6 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Pane;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.util.List;
 
@@ -29,7 +30,7 @@ class AboutUITest {
     @Test
     void aboutUpdateActionUsesInlinePrimaryStyle() throws Exception {
         ButtonSnapshot updateButton = runOnFxThread(() -> {
-            Pane dialogCard = AboutUI.createDialogCard(Mockito.mock(HostServices.class), () -> { });
+            Pane dialogCard = AboutUI.createDialogCard(mock(HostServices.class), () -> { });
             return snapshot(findButtonByText(dialogCard, I18n.tr("autoCheckForUpdates")));
         });
 
@@ -43,7 +44,7 @@ class AboutUITest {
     @Test
     void aboutCloseActionUsesInlineSecondaryStyle() throws Exception {
         ButtonSnapshot closeButton = runOnFxThread(() -> {
-            Pane dialogCard = AboutUI.createDialogCard(Mockito.mock(HostServices.class), () -> { });
+            Pane dialogCard = AboutUI.createDialogCard(mock(HostServices.class), () -> { });
             return snapshot(findButtonByStyle(dialogCard, "about-close-button"));
         });
 
@@ -53,7 +54,7 @@ class AboutUITest {
 
     @Test
     void aboutIncludesHelpGuideLink() throws Exception {
-        HostServices hostServices = Mockito.mock(HostServices.class);
+        HostServices hostServices = mock(HostServices.class);
 
         Hyperlink helpLink = runOnFxThread(() -> {
             Pane dialogCard = AboutUI.createDialogCard(hostServices, () -> { });
@@ -67,7 +68,7 @@ class AboutUITest {
             return null;
         });
 
-        Mockito.verify(hostServices).showDocument("https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md");
+        verify(hostServices).showDocument("https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md");
     }
 
     private static ButtonSnapshot snapshot(Button button) {

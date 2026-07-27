@@ -1,10 +1,14 @@
 package com.uiptv.util;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,12 +20,12 @@ class XtremeParserCoverageTest {
 
     @Test
     void parseAndSave_parsesLabeledAndUnlabeledBlocks_andSkipsInvalidOnes() {
-        AccountService accountService = Mockito.mock(AccountService.class);
+        AccountService accountService = mock(AccountService.class);
         List<Account> saved = new ArrayList<>();
-        Mockito.doAnswer(invocation -> {
+        doAnswer(invocation -> {
             saved.add(invocation.getArgument(0));
             return null;
-        }).when(accountService).save(Mockito.any(Account.class));
+        }).when(accountService).save(any(Account.class));
 
         String text = """
                 http://alpha.example:8080 userA passA
@@ -34,7 +38,7 @@ class XtremeParserCoverageTest {
                 http://gamma.example:8080 User: lonelyUser
                 """;
 
-        try (MockedStatic<AccountService> accountServiceStatic = Mockito.mockStatic(AccountService.class)) {
+        try (MockedStatic<AccountService> accountServiceStatic = mockStatic(AccountService.class)) {
             accountServiceStatic.when(AccountService::getInstance).thenReturn(accountService);
 
             List<Account> parsed = new XtremeParser().parseAndSave(text, false, false);
@@ -51,8 +55,8 @@ class XtremeParserCoverageTest {
 
     @Test
     void parseAndSave_completesMissingCredentialFromUnlabeledTokens_andStripsSingleCharacterNoise() {
-        AccountService accountService = Mockito.mock(AccountService.class);
-        Mockito.doNothing().when(accountService).save(Mockito.any(Account.class));
+        AccountService accountService = mock(AccountService.class);
+        doNothing().when(accountService).save(any(Account.class));
 
         String text = """
                 http://delta.example:8080 user=deltaUser deltaPass x
@@ -62,7 +66,7 @@ class XtremeParserCoverageTest {
                 http://zeta.example:8080 \u0007 user=zetaUser pw=zetaPass
                 """;
 
-        try (MockedStatic<AccountService> accountServiceStatic = Mockito.mockStatic(AccountService.class)) {
+        try (MockedStatic<AccountService> accountServiceStatic = mockStatic(AccountService.class)) {
             accountServiceStatic.when(AccountService::getInstance).thenReturn(accountService);
 
             List<Account> parsed = new XtremeParser().parseAndSave(text, false, false);

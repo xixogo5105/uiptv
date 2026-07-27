@@ -1,5 +1,11 @@
 package com.uiptv.service;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
@@ -9,7 +15,6 @@ import com.uiptv.shared.EpisodeList;
 import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -54,12 +59,12 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
     @Test
     void getEpisodes_fetchesAndPersistsStalkerEpisodes() {
         Account account = createStalkerAccount("stalker-series-fetch");
-        ChannelService channelService = Mockito.mock(ChannelService.class);
+        ChannelService channelService = mock(ChannelService.class);
         List<Channel> remote = List.of(channel("stalker-1", "Season 4 Episode 2", "cmd://stalker"));
 
-        try (MockedStatic<ChannelService> channelServiceStatic = Mockito.mockStatic(ChannelService.class)) {
+        try (MockedStatic<ChannelService> channelServiceStatic = mockStatic(ChannelService.class)) {
             channelServiceStatic.when(ChannelService::getInstance).thenReturn(channelService);
-            Mockito.when(channelService.getSeries(Mockito.eq("cat-s"), Mockito.eq("series-s"), Mockito.eq(account), Mockito.isNull(), Mockito.any()))
+            when(channelService.getSeries(eq("cat-s"), eq("series-s"), eq(account), isNull(), any()))
                     .thenReturn(remote);
 
             EpisodeList list = SeriesEpisodeService.getInstance().getEpisodes(account, "cat-s", "series-s", () -> false);

@@ -1,12 +1,12 @@
 package com.uiptv.service;
 
+import static org.mockito.Mockito.mockStatic;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.ServerUrlUtil;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -100,7 +100,7 @@ class PlayerServiceTest {
         channel.setDrmType("org.w3.clearkey");
         channel.setClearKeysJson("{\"kid\":\"key\"}");
 
-        try (MockedStatic<ServerUrlUtil> serverUrlUtil = Mockito.mockStatic(ServerUrlUtil.class)) {
+        try (MockedStatic<ServerUrlUtil> serverUrlUtil = mockStatic(ServerUrlUtil.class)) {
             serverUrlUtil.when(ServerUrlUtil::getLoopbackServerUrl).thenReturn("http://127.0.0.1:9090");
 
             String url = service.buildDrmBrowserPlaybackUrl(account, channel, "Sports", "itv");

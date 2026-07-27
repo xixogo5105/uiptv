@@ -1,5 +1,15 @@
 package com.uiptv.application;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyList;
+import static org.mockito.Mockito.anyMap;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.db.VodCategoryDb;
@@ -26,7 +36,6 @@ import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.util.List;
 
@@ -42,19 +51,19 @@ class CatalogApplicationServiceTest extends DbBackedTest {
         Category category = new Category("10", "Sports", "sports", false, 0);
         category.setDbId("10");
 
-        try (MockedStatic<AccountService> accountServiceStatic = Mockito.mockStatic(AccountService.class);
-             MockedStatic<CategoryService> categoryServiceStatic = Mockito.mockStatic(CategoryService.class)) {
-            AccountService accountService = Mockito.mock(AccountService.class);
-            CategoryService categoryService = Mockito.mock(CategoryService.class);
+        try (MockedStatic<AccountService> accountServiceStatic = mockStatic(AccountService.class);
+             MockedStatic<CategoryService> categoryServiceStatic = mockStatic(CategoryService.class)) {
+            AccountService accountService = mock(AccountService.class);
+            CategoryService categoryService = mock(CategoryService.class);
             accountServiceStatic.when(AccountService::getInstance).thenReturn(accountService);
             categoryServiceStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(accountService.getById("1")).thenReturn(account);
-            Mockito.when(categoryService.get(Mockito.any(Account.class))).thenReturn(List.of(category));
+            when(accountService.getById("1")).thenReturn(account);
+            when(categoryService.get(any(Account.class))).thenReturn(List.of(category));
 
             List<Category> resolved = CatalogApplicationService.getInstance().listCategories("1", CatalogMode.SERIES);
 
             ArgumentCaptor<Account> serviceAccount = ArgumentCaptor.forClass(Account.class);
-            Mockito.verify(categoryService).get(serviceAccount.capture());
+            verify(categoryService).get(serviceAccount.capture());
             assertEquals(Account.AccountAction.itv, account.getAction());
             assertEquals(Account.AccountAction.series, serviceAccount.getValue().getAction());
             assertEquals(account.getAccountName(), serviceAccount.getValue().getAccountName());
@@ -123,8 +132,8 @@ class CatalogApplicationServiceTest extends DbBackedTest {
         EpisodeList list = new EpisodeList();
         list.getEpisodes().add(episode);
 
-        try (MockedStatic<XtremeApiParser> xtremeParser = Mockito.mockStatic(XtremeApiParser.class)) {
-            xtremeParser.when(() -> XtremeApiParser.parseEpisodes(Mockito.eq("series-21"), Mockito.any(Account.class))).thenReturn(list);
+        try (MockedStatic<XtremeApiParser> xtremeParser = mockStatic(XtremeApiParser.class)) {
+            xtremeParser.when(() -> XtremeApiParser.parseEpisodes(eq("series-21"), any(Account.class))).thenReturn(list);
 
             List<Channel> result = CatalogApplicationService.getInstance()
                     .listSeriesEpisodes(new CatalogSeriesEpisodesQuery(account.getDbId(), "", "series-21"));
@@ -142,17 +151,17 @@ class CatalogApplicationServiceTest extends DbBackedTest {
         Category category = VodCategoryDb.get().getCategories(account).getFirst();
         VodChannelDb.get().saveAll(List.of(channel("vod-9", "Provider Title", "https://img/provider.png")), category.getDbId(), account);
 
-        ImdbMetadataService imdbService = Mockito.mock(ImdbMetadataService.class);
+        ImdbMetadataService imdbService = mock(ImdbMetadataService.class);
         JSONObject imdb = new JSONObject();
         imdb.put("plot", "IMDB Plot");
         imdb.put("rating", "8.7");
         imdb.put("releaseDate", "2024-06-01");
         imdb.put("cover", "https://img/imdb.png");
         imdb.put("imdbUrl", "https://www.imdb.com/title/tt1234567/");
-        Mockito.when(imdbService.findBestEffortMovieDetails(Mockito.anyString(), Mockito.anyString(), Mockito.anyList()))
+        when(imdbService.findBestEffortMovieDetails(anyString(), anyString(), anyList()))
                 .thenReturn(imdb);
 
-        try (MockedStatic<ImdbMetadataService> imdbStatic = Mockito.mockStatic(ImdbMetadataService.class)) {
+        try (MockedStatic<ImdbMetadataService> imdbStatic = mockStatic(ImdbMetadataService.class)) {
             imdbStatic.when(ImdbMetadataService::getInstance).thenReturn(imdbService);
 
             CatalogVodDetailsResult response = CatalogApplicationService.getInstance().getVodDetails(
@@ -210,19 +219,19 @@ class CatalogApplicationServiceTest extends DbBackedTest {
                 .put("plot", "Fallback plot")
                 .put("releaseDate", "2021");
 
-        AccountService accountService = Mockito.mock(AccountService.class);
-        ImdbMetadataService imdbMetadataService = Mockito.mock(ImdbMetadataService.class);
+        AccountService accountService = mock(AccountService.class);
+        ImdbMetadataService imdbMetadataService = mock(ImdbMetadataService.class);
 
-        try (MockedStatic<AccountService> accountStatic = Mockito.mockStatic(AccountService.class);
-             MockedStatic<XtremeApiParser> xtremeParser = Mockito.mockStatic(XtremeApiParser.class);
-             MockedStatic<ImdbMetadataService> imdbStatic = Mockito.mockStatic(ImdbMetadataService.class)) {
+        try (MockedStatic<AccountService> accountStatic = mockStatic(AccountService.class);
+             MockedStatic<XtremeApiParser> xtremeParser = mockStatic(XtremeApiParser.class);
+             MockedStatic<ImdbMetadataService> imdbStatic = mockStatic(ImdbMetadataService.class)) {
             accountStatic.when(AccountService::getInstance).thenReturn(accountService);
-            Mockito.when(accountService.getById("acc-1")).thenReturn(account);
+            when(accountService.getById("acc-1")).thenReturn(account);
 
             xtremeParser.when(() -> XtremeApiParser.parseEpisodes("series-1", account)).thenReturn(episodeList);
 
             imdbStatic.when(ImdbMetadataService::getInstance).thenReturn(imdbMetadataService);
-            Mockito.when(imdbMetadataService.findBestEffortDetails(Mockito.anyString(), Mockito.anyString(), Mockito.anyList()))
+            when(imdbMetadataService.findBestEffortDetails(anyString(), anyString(), anyList()))
                     .thenReturn(imdbFirst, imdbFallback);
 
             CatalogSeriesDetailsResult response = CatalogApplicationService.getInstance()
@@ -257,11 +266,11 @@ class CatalogApplicationServiceTest extends DbBackedTest {
         row2.setName("Series B");
         row2.setCategoryId(saved2.getCategoryId());
 
-        ChannelService channelService = Mockito.mock(ChannelService.class);
-        try (MockedStatic<ChannelService> channelStatic = Mockito.mockStatic(ChannelService.class)) {
+        ChannelService channelService = mock(ChannelService.class);
+        try (MockedStatic<ChannelService> channelStatic = mockStatic(ChannelService.class)) {
             channelStatic.when(ChannelService::getInstance).thenReturn(channelService);
-            Mockito.when(channelService.get(saved1.getCategoryId(), account, saved1.getDbId())).thenReturn(List.of(row1));
-            Mockito.when(channelService.get(saved2.getCategoryId(), account, saved2.getDbId())).thenReturn(List.of(row2));
+            when(channelService.get(saved1.getCategoryId(), account, saved1.getDbId())).thenReturn(List.of(row1));
+            when(channelService.get(saved2.getCategoryId(), account, saved2.getDbId())).thenReturn(List.of(row2));
 
             SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
                     account, saved1.getCategoryId(), "series-a", "ep-1", "Episode 1", "1", "1"
@@ -286,29 +295,29 @@ class CatalogApplicationServiceTest extends DbBackedTest {
         Category category = new Category("api-cat", "Series", "series", false, 0);
         category.setDbId("db-cat");
 
-        AccountService accountService = Mockito.mock(AccountService.class);
-        ChannelService channelService = Mockito.mock(ChannelService.class);
-        try (MockedStatic<AccountService> accountStatic = Mockito.mockStatic(AccountService.class);
-             MockedStatic<ChannelService> channelStatic = Mockito.mockStatic(ChannelService.class);
-             MockedStatic<FetchAPI> fetchStatic = Mockito.mockStatic(FetchAPI.class)) {
+        AccountService accountService = mock(AccountService.class);
+        ChannelService channelService = mock(ChannelService.class);
+        try (MockedStatic<AccountService> accountStatic = mockStatic(AccountService.class);
+             MockedStatic<ChannelService> channelStatic = mockStatic(ChannelService.class);
+             MockedStatic<FetchAPI> fetchStatic = mockStatic(FetchAPI.class)) {
             accountStatic.when(AccountService::getInstance).thenReturn(accountService);
             channelStatic.when(ChannelService::getInstance).thenReturn(channelService);
-            Mockito.when(accountService.getById("stalker-1")).thenReturn(account);
-            Mockito.when(channelService.parsePagination(Mockito.anyString(), Mockito.isNull())).thenReturn(new Pagination());
+            when(accountService.getById("stalker-1")).thenReturn(account);
+            when(channelService.parsePagination(anyString(), isNull())).thenReturn(new Pagination());
 
             Channel paged = new Channel();
             paged.setChannelId("series-1");
             paged.setName("Series 1");
             paged.setCategoryId("api-cat");
-            Mockito.when(channelService.parseVodChannels(Mockito.eq(account), Mockito.anyString(), Mockito.eq(true)))
+            when(channelService.parseVodChannels(eq(account), anyString(), eq(true)))
                     .thenReturn(List.of(), List.of(paged));
-            fetchStatic.when(() -> FetchAPI.fetch(Mockito.anyMap(), Mockito.eq(account))).thenReturn("{\"page\":0}", "{\"page\":1}");
+            fetchStatic.when(() -> FetchAPI.fetch(anyMap(), eq(account))).thenReturn("{\"page\":0}", "{\"page\":1}");
 
-            try (MockedStatic<SeriesCategoryDb> seriesCategoryStatic = Mockito.mockStatic(SeriesCategoryDb.class)) {
-                SeriesCategoryDb seriesCategoryDb = Mockito.mock(SeriesCategoryDb.class);
+            try (MockedStatic<SeriesCategoryDb> seriesCategoryStatic = mockStatic(SeriesCategoryDb.class)) {
+                SeriesCategoryDb seriesCategoryDb = mock(SeriesCategoryDb.class);
                 seriesCategoryStatic.when(SeriesCategoryDb::get).thenReturn(seriesCategoryDb);
-                Mockito.when(seriesCategoryDb.getById("db-cat")).thenReturn(category);
-                Mockito.when(seriesCategoryDb.getById("api-cat")).thenReturn(category);
+                when(seriesCategoryDb.getById("db-cat")).thenReturn(category);
+                when(seriesCategoryDb.getById("api-cat")).thenReturn(category);
 
                 CatalogPagedChannelsResult result = CatalogApplicationService.getInstance()
                         .listWebChannels(new CatalogWebChannelsQuery("stalker-1", CatalogMode.SERIES, "db-cat", "", 0, 120, 1, 0));

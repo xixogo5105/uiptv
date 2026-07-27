@@ -1,8 +1,11 @@
 package com.uiptv.util;
 
+import static org.mockito.Mockito.anyMap;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mockStatic;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.util.Map;
 
@@ -12,11 +15,11 @@ class HlsPlaylistResolverTest {
 
     @Test
     void resolveHlsPlaylistChain_followsHighestBandwidthVariantAndPreservesQuery() {
-        try (MockedStatic<HttpUtil> http = Mockito.mockStatic(HttpUtil.class)) {
+        try (MockedStatic<HttpUtil> http = mockStatic(HttpUtil.class)) {
             http.when(() -> HttpUtil.sendRequest(
-                    Mockito.eq("http://cdn.test/master.m3u8?token=abc"),
-                    Mockito.anyMap(),
-                    Mockito.eq("GET")
+                    eq("http://cdn.test/master.m3u8?token=abc"),
+                    anyMap(),
+                    eq("GET")
             )).thenReturn(new HttpUtil.HttpResult("GET", "http://cdn.test/path/master.m3u8?token=abc", 200, """
                     #EXTM3U
                     #EXT-X-STREAM-INF:BANDWIDTH=1000
@@ -25,9 +28,9 @@ class HlsPlaylistResolverTest {
                     high/index.m3u8
                     """, Map.of(), Map.of()));
             http.when(() -> HttpUtil.sendRequest(
-                    Mockito.eq("http://cdn.test/path/high/index.m3u8?token=abc"),
-                    Mockito.anyMap(),
-                    Mockito.eq("GET")
+                    eq("http://cdn.test/path/high/index.m3u8?token=abc"),
+                    anyMap(),
+                    eq("GET")
             )).thenReturn(new HttpUtil.HttpResult(200, "#EXTM3U\n#EXTINF:1,\nsegment.ts", Map.of(), Map.of()));
 
             String resolved = HlsPlaylistResolver.resolveHlsPlaylistChain(
@@ -46,8 +49,8 @@ class HlsPlaylistResolverTest {
         assertEquals("   ", HlsPlaylistResolver.resolveHlsPlaylistChain("   ", Map.of(), 2));
         assertEquals("http://cdn.test/video.mp4", HlsPlaylistResolver.resolveHlsPlaylistChain("http://cdn.test/video.mp4", Map.of(), 2));
 
-        try (MockedStatic<HttpUtil> http = Mockito.mockStatic(HttpUtil.class)) {
-            http.when(() -> HttpUtil.sendRequest(Mockito.anyString(), Mockito.anyMap(), Mockito.eq("GET")))
+        try (MockedStatic<HttpUtil> http = mockStatic(HttpUtil.class)) {
+            http.when(() -> HttpUtil.sendRequest(anyString(), anyMap(), eq("GET")))
                     .thenReturn(new HttpUtil.HttpResult(500, "", Map.of(), Map.of()));
 
             assertEquals("http://cdn.test/live", HlsPlaylistResolver.resolveHlsPlaylistChain("http://cdn.test/live", Map.of(), 2));

@@ -1,8 +1,9 @@
 package com.uiptv.server;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import com.sun.net.httpserver.HttpExchange;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -27,8 +28,8 @@ class StaticWebFileResolverTest {
     void resolve_rejectsInvalidRequestsAndPaths() {
         assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(null));
 
-        HttpExchange exchange = Mockito.mock(HttpExchange.class);
-        Mockito.when(exchange.getRequestURI()).thenReturn(null);
+        HttpExchange exchange = mock(HttpExchange.class);
+        when(exchange.getRequestURI()).thenReturn(null);
         assertThrows(IOException.class, () -> StaticWebFileResolver.resolve(exchange));
 
         TestHttpExchange blankPath = new TestHttpExchange("/", "GET");

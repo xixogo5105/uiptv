@@ -1,9 +1,12 @@
 package com.uiptv.server;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.service.BingeWatchService;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -12,10 +15,10 @@ class BingeWatchServerEdgeCaseTest {
     @Test
     void playlistServer_returns404WhenMissingToken() throws Exception {
         HttpBingeWatchPlaylistServer handler = new HttpBingeWatchPlaylistServer();
-        BingeWatchService service = Mockito.mock(BingeWatchService.class);
-        try (MockedStatic<BingeWatchService> staticService = Mockito.mockStatic(BingeWatchService.class)) {
+        BingeWatchService service = mock(BingeWatchService.class);
+        try (MockedStatic<BingeWatchService> staticService = mockStatic(BingeWatchService.class)) {
             staticService.when(BingeWatchService::getInstance).thenReturn(service);
-            Mockito.when(service.renderPlaylist(Mockito.any())).thenReturn("");
+            when(service.renderPlaylist(any())).thenReturn("");
 
             TestHttpExchange exchange = new TestHttpExchange("/bingewatch.m3u8", "GET");
             handler.handle(exchange);
@@ -40,10 +43,10 @@ class BingeWatchServerEdgeCaseTest {
     void entryServer_handlesResolveFailures() throws Exception {
         HttpBingeWatchEntryServer handler = new HttpBingeWatchEntryServer();
 
-        BingeWatchService service = Mockito.mock(BingeWatchService.class);
-        try (MockedStatic<BingeWatchService> staticService = Mockito.mockStatic(BingeWatchService.class)) {
+        BingeWatchService service = mock(BingeWatchService.class);
+        try (MockedStatic<BingeWatchService> staticService = mockStatic(BingeWatchService.class)) {
             staticService.when(BingeWatchService::getInstance).thenReturn(service);
-            Mockito.when(service.resolveEpisode("tok", "ep"))
+            when(service.resolveEpisode("tok", "ep"))
                     .thenReturn(null)
                     .thenThrow(new RuntimeException("boom"));
 

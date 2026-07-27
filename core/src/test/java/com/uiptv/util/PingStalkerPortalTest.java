@@ -1,9 +1,13 @@
 package com.uiptv.util;
 
+import static org.mockito.Mockito.anyMap;
+import static org.mockito.Mockito.contains;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.startsWith;
 import com.uiptv.model.Account;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
 import java.net.ConnectException;
@@ -27,8 +31,8 @@ class PingStalkerPortalTest {
                 java.util.Map.of()
         );
 
-        try (MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
-            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.contains("xpcom.common.js"), Mockito.anyMap(), Mockito.eq("GET")))
+        try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
+            httpUtil.when(() -> HttpUtil.sendRequest(contains("xpcom.common.js"), anyMap(), eq("GET")))
                     .thenReturn(xpcom);
 
             assertEquals("http://example.com/stalker_portal/c/stalker_portal/server/load.php", PingStalkerPortal.ping(account));
@@ -39,8 +43,8 @@ class PingStalkerPortalTest {
     void ping_fallsBackToDefaultEndpointWhenXpcomFetchHasNetworkError() {
         Account account = createPortalAccount("demo.example/stalker_portal/c/");
 
-        try (MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
-            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.contains("xpcom.common.js"), Mockito.anyMap(), Mockito.eq("GET")))
+        try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
+            httpUtil.when(() -> HttpUtil.sendRequest(contains("xpcom.common.js"), anyMap(), eq("GET")))
                     .thenThrow(new UnknownHostException("offline"));
 
             assertEquals("http://demo.example/stalker_portal/server/load.php", PingStalkerPortal.ping(account));
@@ -54,12 +58,12 @@ class PingStalkerPortalTest {
         HttpUtil.HttpResult miss = new HttpUtil.HttpResult(404, "", java.util.Map.of(), java.util.Map.of());
         HttpUtil.HttpResult hit = new HttpUtil.HttpResult(200, "{\"js\":{\"token\":\"ok\"}}", java.util.Map.of(), java.util.Map.of());
 
-        try (MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
-            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.contains("xpcom.common.js"), Mockito.anyMap(), Mockito.eq("GET")))
+        try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
+            httpUtil.when(() -> HttpUtil.sendRequest(contains("xpcom.common.js"), anyMap(), eq("GET")))
                     .thenReturn(xpcom);
-            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.startsWith("http://portal.example/c/portal.php?"), Mockito.anyMap(), Mockito.eq("GET")))
+            httpUtil.when(() -> HttpUtil.sendRequest(startsWith("http://portal.example/c/portal.php?"), anyMap(), eq("GET")))
                     .thenReturn(miss);
-            httpUtil.when(() -> HttpUtil.sendRequest(Mockito.startsWith("http://portal.example/stalker_portal/c/portal.php?"), Mockito.anyMap(), Mockito.eq("GET")))
+            httpUtil.when(() -> HttpUtil.sendRequest(startsWith("http://portal.example/stalker_portal/c/portal.php?"), anyMap(), eq("GET")))
                     .thenReturn(hit);
 
             assertEquals("http://portal.example/stalker_portal/c/portal.php", PingStalkerPortal.ping(account));

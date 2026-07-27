@@ -1,8 +1,11 @@
 package com.uiptv.db;
 
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import com.uiptv.service.DbBackedTest;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -49,15 +52,15 @@ class DatabasePatchesUtilsEdgeCaseTest extends DbBackedTest {
 
             executeDirective.invoke(null, conn, "--@add_column TestTable name TEXT");
 
-            Connection mockConn = Mockito.mock(Connection.class);
-            Statement mockStatement = Mockito.mock(Statement.class);
-            ResultSet mockResultSet = Mockito.mock(ResultSet.class);
-            Mockito.when(mockConn.createStatement()).thenReturn(mockStatement);
-            Mockito.when(mockStatement.executeQuery(Mockito.anyString())).thenReturn(mockResultSet);
-            Mockito.when(mockResultSet.next()).thenReturn(true, false);
-            Mockito.when(mockResultSet.getString("name")).thenReturn("name");
+            Connection mockConn = mock(Connection.class);
+            Statement mockStatement = mock(Statement.class);
+            ResultSet mockResultSet = mock(ResultSet.class);
+            when(mockConn.createStatement()).thenReturn(mockStatement);
+            when(mockStatement.executeQuery(anyString())).thenReturn(mockResultSet);
+            when(mockResultSet.next()).thenReturn(true, false);
+            when(mockResultSet.getString("name")).thenReturn("name");
             executeDirective.invoke(null, mockConn, "--@drop_column TestTable name");
-            Mockito.verify(mockStatement).executeUpdate("ALTER TABLE TestTable DROP COLUMN name");
+            verify(mockStatement).executeUpdate("ALTER TABLE TestTable DROP COLUMN name");
 
             executeDirective.invoke(null, conn, "--@drop_column TestTable name");
 

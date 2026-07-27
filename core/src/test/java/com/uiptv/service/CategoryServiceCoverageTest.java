@@ -1,5 +1,6 @@
 package com.uiptv.service;
 
+import static org.mockito.Mockito.mockStatic;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.SeriesCategoryDb;
 import com.uiptv.db.VodCategoryDb;
@@ -10,7 +11,6 @@ import com.uiptv.util.XtremeApiParser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -58,7 +58,7 @@ class CategoryServiceCoverageTest extends DbBackedTest {
         Account account = persistAccount("provider-vod-cache", Account.AccountAction.vod, AccountType.XTREME_API, null);
         List<Category> remote = List.of(new Category("vod-2", "Cinema", "cinema", false, 0));
 
-        try (MockedStatic<XtremeApiParser> xtremeParser = Mockito.mockStatic(XtremeApiParser.class)) {
+        try (MockedStatic<XtremeApiParser> xtremeParser = mockStatic(XtremeApiParser.class)) {
             xtremeParser.when(() -> XtremeApiParser.parseCategories(account)).thenReturn(remote);
 
             List<Category> categories = CategoryService.getInstance().get(account, false, null);

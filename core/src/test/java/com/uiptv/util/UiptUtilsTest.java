@@ -1,10 +1,12 @@
 package com.uiptv.util;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.model.Account;
 import com.uiptv.service.AccountService;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -67,11 +69,11 @@ class UiptUtilsTest {
 
     @Test
     void uniqueNameFromUrlIncrementsUntilAvailable() {
-        AccountService accountService = Mockito.mock(AccountService.class);
-        try (MockedStatic<AccountService> accountStatic = Mockito.mockStatic(AccountService.class)) {
+        AccountService accountService = mock(AccountService.class);
+        try (MockedStatic<AccountService> accountStatic = mockStatic(AccountService.class)) {
             accountStatic.when(AccountService::getInstance).thenReturn(accountService);
-            Mockito.when(accountService.getByName("example.test (1)")).thenReturn(new Account());
-            Mockito.when(accountService.getByName("example.test (2)")).thenReturn(null);
+            when(accountService.getByName("example.test (1)")).thenReturn(new Account());
+            when(accountService.getByName("example.test (2)")).thenReturn(null);
 
             assertEquals("example.test (2)", UiptUtils.getUniqueNameFromUrl("http://example.test/path"));
         }

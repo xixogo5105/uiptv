@@ -1,5 +1,11 @@
 package com.uiptv.server;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyMap;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.uiptv.db.CategoryDb;
@@ -35,7 +41,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -164,17 +169,17 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         saveAccounts();
         warmUpCacheAndData();
 
-        try (MockedStatic<LogUtil> logUtilMock = Mockito.mockStatic(LogUtil.class);
-             MockedStatic<ImdbMetadataService> imdbStatic = Mockito.mockStatic(ImdbMetadataService.class)) {
-            logUtilMock.when(() -> LogUtil.httpLog(Mockito.anyString(), Mockito.any(), Mockito.anyMap())).thenAnswer(i -> null);
+        try (MockedStatic<LogUtil> logUtilMock = mockStatic(LogUtil.class);
+             MockedStatic<ImdbMetadataService> imdbStatic = mockStatic(ImdbMetadataService.class)) {
+            logUtilMock.when(() -> LogUtil.httpLog(anyString(), any(), anyMap())).thenAnswer(i -> null);
 
-            ImdbMetadataService imdb = Mockito.mock(ImdbMetadataService.class);
+            ImdbMetadataService imdb = mock(ImdbMetadataService.class);
             imdbStatic.when(ImdbMetadataService::getInstance).thenReturn(imdb);
-            Mockito.when(imdb.findBestEffortDetails(Mockito.anyString(), Mockito.anyString()))
+            when(imdb.findBestEffortDetails(anyString(), anyString()))
                     .thenReturn(new JSONObject("""
                             {"name":"Series Mock","imdbUrl":"https://www.imdb.com/title/tt1234567/","episodesMeta":[]}
                             """));
-            Mockito.when(imdb.findBestEffortMovieDetails(Mockito.anyString(), Mockito.anyString()))
+            when(imdb.findBestEffortMovieDetails(anyString(), anyString()))
                     .thenReturn(new JSONObject("""
                             {"name":"Movie Mock","imdbUrl":"https://www.imdb.com/title/tt7654321/"}
                             """));

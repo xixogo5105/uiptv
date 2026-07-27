@@ -1,5 +1,13 @@
 package com.uiptv.service;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
@@ -9,7 +17,6 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.XtremeApiParser;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.util.List;
 
@@ -33,7 +40,7 @@ class SeriesEpisodeServiceReloadTest extends DbBackedTest {
         EpisodeList portalResponse = new EpisodeList();
         portalResponse.setEpisodes(List.of(freshEpisode));
 
-        try (MockedStatic<XtremeApiParser> xtremeParserMock = Mockito.mockStatic(XtremeApiParser.class)) {
+        try (MockedStatic<XtremeApiParser> xtremeParserMock = mockStatic(XtremeApiParser.class)) {
             xtremeParserMock.when(() -> XtremeApiParser.parseEpisodes(seriesId, account)).thenReturn(portalResponse);
 
             EpisodeList reloaded = SeriesEpisodeService.getInstance()
@@ -41,7 +48,7 @@ class SeriesEpisodeServiceReloadTest extends DbBackedTest {
 
             assertEquals(1, reloaded.getEpisodes().size());
             assertEquals("fresh-ep-9", reloaded.getEpisodes().getFirst().getId());
-            xtremeParserMock.verify(() -> XtremeApiParser.parseEpisodes(seriesId, account), Mockito.times(1));
+            xtremeParserMock.verify(() -> XtremeApiParser.parseEpisodes(seriesId, account), times(1));
         }
 
         List<Channel> stored = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);
@@ -57,12 +64,12 @@ class SeriesEpisodeServiceReloadTest extends DbBackedTest {
         String seriesId = "series-s";
         SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, List.of(channel("cached-stalker", "Cached Episode", "cmd://cached")));
 
-        ChannelService channelService = Mockito.mock(ChannelService.class);
+        ChannelService channelService = mock(ChannelService.class);
         List<Channel> remote = List.of(channel("fresh-stalker", "Season 4 Episode 2", "cmd://fresh-stalker"));
 
-        try (MockedStatic<ChannelService> channelServiceStatic = Mockito.mockStatic(ChannelService.class)) {
+        try (MockedStatic<ChannelService> channelServiceStatic = mockStatic(ChannelService.class)) {
             channelServiceStatic.when(ChannelService::getInstance).thenReturn(channelService);
-            Mockito.when(channelService.getSeries(Mockito.eq(categoryId), Mockito.eq(seriesId), Mockito.eq(account), Mockito.isNull(), Mockito.any()))
+            when(channelService.getSeries(eq(categoryId), eq(seriesId), eq(account), isNull(), any()))
                     .thenReturn(remote);
 
             EpisodeList reloaded = SeriesEpisodeService.getInstance()
@@ -70,8 +77,8 @@ class SeriesEpisodeServiceReloadTest extends DbBackedTest {
 
             assertEquals(1, reloaded.getEpisodes().size());
             assertEquals("fresh-stalker", reloaded.getEpisodes().getFirst().getId());
-            Mockito.verify(channelService, Mockito.times(1))
-                    .getSeries(Mockito.eq(categoryId), Mockito.eq(seriesId), Mockito.eq(account), Mockito.isNull(), Mockito.any());
+            verify(channelService, times(1))
+                    .getSeries(eq(categoryId), eq(seriesId), eq(account), isNull(), any());
         }
 
         List<Channel> stored = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);
@@ -87,7 +94,7 @@ class SeriesEpisodeServiceReloadTest extends DbBackedTest {
         String seriesId = "series-fallback";
         SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, List.of(channel("cached-ep", "Season 1 Episode 8", "cmd://cached")));
 
-        try (MockedStatic<XtremeApiParser> xtremeParser = Mockito.mockStatic(XtremeApiParser.class)) {
+        try (MockedStatic<XtremeApiParser> xtremeParser = mockStatic(XtremeApiParser.class)) {
             xtremeParser.when(() -> XtremeApiParser.parseEpisodes(seriesId, account)).thenThrow(new RuntimeException("boom"));
 
             EpisodeList list = SeriesEpisodeService.getInstance()
@@ -95,7 +102,7 @@ class SeriesEpisodeServiceReloadTest extends DbBackedTest {
 
             assertEquals(1, list.getEpisodes().size());
             assertEquals("8", list.getEpisodes().getFirst().getEpisodeNum());
-            xtremeParser.verify(() -> XtremeApiParser.parseEpisodes(seriesId, account), Mockito.times(1));
+            xtremeParser.verify(() -> XtremeApiParser.parseEpisodes(seriesId, account), times(1));
         }
     }
 

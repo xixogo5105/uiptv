@@ -1,8 +1,8 @@
 package com.uiptv.server.api.json;
 
+import static org.mockito.Mockito.mock;
 import com.uiptv.server.TestHttpExchange;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.lang.reflect.Field;
 
@@ -14,7 +14,7 @@ class HttpPlayerGatewayServerTest {
     @Test
     void handle_delegatesToPlayerHandler() throws Exception {
         HttpPlayerGatewayServer gateway = new HttpPlayerGatewayServer();
-        HttpPlayerJsonServer delegate = Mockito.mock(HttpPlayerJsonServer.class);
+        HttpPlayerJsonServer delegate = mock(HttpPlayerJsonServer.class);
 
         Field field = HttpPlayerGatewayServer.class.getDeclaredField("delegate");
         field.setAccessible(true);

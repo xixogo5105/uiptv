@@ -1,5 +1,11 @@
 package com.uiptv.service.cache;
 
+import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.api.LoggerCallback;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.ChannelDb;
@@ -15,7 +21,6 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.XtremeApiParser;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.util.List;
 
@@ -27,12 +32,12 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
     @Test
     void reloadCache_forVodPersistsOnlyVodCategories() {
         Account account = persistAccount("xtreme-vod", Account.AccountAction.vod);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         List<Category> vodCategories = List.of(new Category("vod-1", "Movies", "movies", false, 0));
 
-        try (MockedStatic<CategoryService> categoriesStatic = Mockito.mockStatic(CategoryService.class)) {
+        try (MockedStatic<CategoryService> categoriesStatic = mockStatic(CategoryService.class)) {
             categoriesStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(account, false, (LoggerCallback) null)).thenReturn(vodCategories);
+            when(categoryService.get(account, false, (LoggerCallback) null)).thenReturn(vodCategories);
 
             new XtremeApiCacheReloader().reloadCache(account, null);
         }
@@ -44,7 +49,7 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
     @Test
     void reloadCache_liveGlobalLookupSavesMatchedAndOrphanedChannelsAndCachesSecondaryModes() {
         Account account = persistAccount("xtreme-itv-global", Account.AccountAction.itv);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         List<Category> liveCategories = List.of(
                 new Category("10", "News", "news", false, 0),
                 new Category("20", "Sports", "sports", false, 0)
@@ -57,13 +62,13 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
                 channel("c3", "999", "Orphan")
         );
 
-        try (MockedStatic<CategoryService> categoriesStatic = Mockito.mockStatic(CategoryService.class);
-             MockedStatic<XtremeApiParser> xtremeStatic = Mockito.mockStatic(XtremeApiParser.class)) {
+        try (MockedStatic<CategoryService> categoriesStatic = mockStatic(CategoryService.class);
+             MockedStatic<XtremeApiParser> xtremeStatic = mockStatic(XtremeApiParser.class)) {
             categoriesStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(account, false, (LoggerCallback) null)).thenReturn(liveCategories);
-            Mockito.when(categoryService.get(Mockito.argThat(a -> a != null && a.getAction() == Account.AccountAction.vod), Mockito.eq(false), Mockito.isNull()))
+            when(categoryService.get(account, false, (LoggerCallback) null)).thenReturn(liveCategories);
+            when(categoryService.get(argThat(a -> a != null && a.getAction() == Account.AccountAction.vod), eq(false), isNull()))
                     .thenReturn(vodCategories);
-            Mockito.when(categoryService.get(Mockito.argThat(a -> a != null && a.getAction() == Account.AccountAction.series), Mockito.eq(false), Mockito.isNull()))
+            when(categoryService.get(argThat(a -> a != null && a.getAction() == Account.AccountAction.series), eq(false), isNull()))
                     .thenReturn(seriesCategories);
             xtremeStatic.when(() -> XtremeApiParser.parseAllChannels(account)).thenReturn(allChannels);
 
@@ -83,20 +88,20 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
     @Test
     void reloadCache_fallsBackToCategoryFetchWhenGlobalLookupIsUncategorizedOnly() {
         Account account = persistAccount("xtreme-itv-category", Account.AccountAction.itv);
-        CategoryService categoryService = Mockito.mock(CategoryService.class);
+        CategoryService categoryService = mock(CategoryService.class);
         List<Category> liveCategories = List.of(
                 new Category("10", "News", "news", false, 0),
                 new Category("20", "Sports", "sports", false, 0)
         );
 
-        try (MockedStatic<CategoryService> categoriesStatic = Mockito.mockStatic(CategoryService.class);
-             MockedStatic<XtremeApiParser> xtremeStatic = Mockito.mockStatic(XtremeApiParser.class)) {
+        try (MockedStatic<CategoryService> categoriesStatic = mockStatic(CategoryService.class);
+             MockedStatic<XtremeApiParser> xtremeStatic = mockStatic(XtremeApiParser.class)) {
             categoriesStatic.when(CategoryService::getInstance).thenReturn(categoryService);
-            Mockito.when(categoryService.get(Mockito.argThat(a -> a != null && a.getAction() == Account.AccountAction.itv), Mockito.eq(false), Mockito.isNull()))
+            when(categoryService.get(argThat(a -> a != null && a.getAction() == Account.AccountAction.itv), eq(false), isNull()))
                     .thenReturn(liveCategories);
-            Mockito.when(categoryService.get(Mockito.argThat(a -> a != null && a.getAction() == Account.AccountAction.vod), Mockito.eq(false), Mockito.isNull()))
+            when(categoryService.get(argThat(a -> a != null && a.getAction() == Account.AccountAction.vod), eq(false), isNull()))
                     .thenReturn(List.of());
-            Mockito.when(categoryService.get(Mockito.argThat(a -> a != null && a.getAction() == Account.AccountAction.series), Mockito.eq(false), Mockito.isNull()))
+            when(categoryService.get(argThat(a -> a != null && a.getAction() == Account.AccountAction.series), eq(false), isNull()))
                     .thenReturn(List.of());
             xtremeStatic.when(() -> XtremeApiParser.parseAllChannels(account)).thenReturn(List.of(channel("uncat", "", "Loose channel")));
             xtremeStatic.when(() -> XtremeApiParser.parseChannels("10", account)).thenReturn(List.of(channel("news-1", "10", "News A")));

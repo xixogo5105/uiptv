@@ -1,5 +1,8 @@
 package com.uiptv.server.api.json;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.application.CatalogApplicationService;
 import com.uiptv.application.CatalogSeriesDetailsQuery;
 import com.uiptv.application.CatalogSeriesDetailsResult;
@@ -8,7 +11,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -21,10 +23,10 @@ class HttpSeriesDetailsJsonServerTest {
         JSONArray episodes = new JSONArray().put(new JSONObject().put("channelId", "ep-1").put("name", "Episode 1"));
         JSONArray episodesMeta = new JSONArray().put(new JSONObject().put("season", "1").put("episodeNum", "1"));
 
-        try (MockedStatic<CatalogApplicationService> facadeStatic = Mockito.mockStatic(CatalogApplicationService.class)) {
-            CatalogApplicationService facade = Mockito.mock(CatalogApplicationService.class);
+        try (MockedStatic<CatalogApplicationService> facadeStatic = mockStatic(CatalogApplicationService.class)) {
+            CatalogApplicationService facade = mock(CatalogApplicationService.class);
             facadeStatic.when(CatalogApplicationService::getInstance).thenReturn(facade);
-            Mockito.when(facade.getSeriesDetails(new CatalogSeriesDetailsQuery("acc-1", "cat-1", "series-1", "Show (2021)")))
+            when(facade.getSeriesDetails(new CatalogSeriesDetailsQuery("acc-1", "cat-1", "series-1", "Show (2021)")))
                     .thenReturn(new CatalogSeriesDetailsResult(seasonInfo, episodes, episodesMeta));
 
             TestHttpExchange exchange = new TestHttpExchange(

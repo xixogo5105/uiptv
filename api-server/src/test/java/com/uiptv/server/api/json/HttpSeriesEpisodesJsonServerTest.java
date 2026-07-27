@@ -1,12 +1,14 @@
 package com.uiptv.server.api.json;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.application.CatalogApplicationService;
 import com.uiptv.application.CatalogSeriesEpisodesQuery;
 import com.uiptv.model.Channel;
 import com.uiptv.server.TestHttpExchange;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.util.List;
 
@@ -24,10 +26,10 @@ class HttpSeriesEpisodesJsonServerTest {
         episode.setEpisodeNum("1");
         episode.setWatched(true);
 
-        try (MockedStatic<CatalogApplicationService> facadeStatic = Mockito.mockStatic(CatalogApplicationService.class)) {
-            CatalogApplicationService facade = Mockito.mock(CatalogApplicationService.class);
+        try (MockedStatic<CatalogApplicationService> facadeStatic = mockStatic(CatalogApplicationService.class)) {
+            CatalogApplicationService facade = mock(CatalogApplicationService.class);
             facadeStatic.when(CatalogApplicationService::getInstance).thenReturn(facade);
-            Mockito.when(facade.listSeriesEpisodes(new CatalogSeriesEpisodesQuery("1", "cat-1", "series-21")))
+            when(facade.listSeriesEpisodes(new CatalogSeriesEpisodesQuery("1", "cat-1", "series-21")))
                     .thenReturn(List.of(episode));
 
             TestHttpExchange exchange = new TestHttpExchange("/seriesEpisodes?accountId=1&categoryId=cat-1&seriesId=series-21", "GET");
@@ -41,10 +43,10 @@ class HttpSeriesEpisodesJsonServerTest {
 
     @Test
     void handle_returnsEmptyArrayWhenFacadeReturnsNoEpisodes() throws Exception {
-        try (MockedStatic<CatalogApplicationService> facadeStatic = Mockito.mockStatic(CatalogApplicationService.class)) {
-            CatalogApplicationService facade = Mockito.mock(CatalogApplicationService.class);
+        try (MockedStatic<CatalogApplicationService> facadeStatic = mockStatic(CatalogApplicationService.class)) {
+            CatalogApplicationService facade = mock(CatalogApplicationService.class);
             facadeStatic.when(CatalogApplicationService::getInstance).thenReturn(facade);
-            Mockito.when(facade.listSeriesEpisodes(new CatalogSeriesEpisodesQuery("missing", "", "")))
+            when(facade.listSeriesEpisodes(new CatalogSeriesEpisodesQuery("missing", "", "")))
                     .thenReturn(List.of());
 
             TestHttpExchange exchange = new TestHttpExchange("/seriesEpisodes?accountId=missing&categoryId=&seriesId=", "GET");

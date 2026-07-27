@@ -1,5 +1,8 @@
 package com.uiptv.server.api.json;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.application.CatalogApplicationService;
 import com.uiptv.application.CatalogVodDetailsQuery;
 import com.uiptv.application.CatalogVodDetailsResult;
@@ -7,7 +10,6 @@ import com.uiptv.server.TestHttpExchange;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -29,10 +31,10 @@ class HttpVodDetailsJsonServerTest {
                 "120"
         );
 
-        try (MockedStatic<CatalogApplicationService> facadeStatic = Mockito.mockStatic(CatalogApplicationService.class)) {
-            CatalogApplicationService facade = Mockito.mock(CatalogApplicationService.class);
+        try (MockedStatic<CatalogApplicationService> facadeStatic = mockStatic(CatalogApplicationService.class)) {
+            CatalogApplicationService facade = mock(CatalogApplicationService.class);
             facadeStatic.when(CatalogApplicationService::getInstance).thenReturn(facade);
-            Mockito.when(facade.getVodDetails(new CatalogVodDetailsQuery("1", "cat-1", "vod-9", "Movie Nine")))
+            when(facade.getVodDetails(new CatalogVodDetailsQuery("1", "cat-1", "vod-9", "Movie Nine")))
                     .thenReturn(result);
 
             TestHttpExchange exchange = new TestHttpExchange("/vodDetails?accountId=1&categoryId=cat-1&channelId=vod-9&vodName=Movie+Nine", "GET");

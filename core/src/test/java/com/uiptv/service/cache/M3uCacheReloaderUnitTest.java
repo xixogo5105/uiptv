@@ -1,5 +1,10 @@
 package com.uiptv.service.cache;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import com.uiptv.api.LoggerCallback;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
@@ -10,7 +15,6 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.HttpUtil;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -41,13 +45,13 @@ class M3uCacheReloaderUnitTest {
         M3uCacheReloader reloader = new M3uCacheReloader();
         List<PlaylistEntry> entries = new ArrayList<>();
 
-        try (MockedStatic<HttpUtil> httpUtil = Mockito.mockStatic(HttpUtil.class)) {
+        try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
             httpUtil.when(() -> HttpUtil.openStream(
-                            Mockito.eq(playlistUrl),
-                            Mockito.isNull(),
-                            Mockito.eq("GET"),
-                            Mockito.isNull(),
-                            Mockito.any(HttpUtil.RequestOptions.class)))
+                            eq(playlistUrl),
+                            isNull(),
+                            eq("GET"),
+                            isNull(),
+                            any(HttpUtil.RequestOptions.class)))
                     .thenAnswer(_ -> streamResult(playlistUrl, playlist));
 
             Method method = M3uCacheReloader.class.getDeclaredMethod("forEachM3uEntry", Account.class, Consumer.class);
@@ -149,7 +153,7 @@ class M3uCacheReloaderUnitTest {
                 Map.of(),
                 Map.of(),
                 new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)),
-                Mockito.mock(org.apache.hc.client5.http.impl.classic.CloseableHttpResponse.class)
+                mock(org.apache.hc.client5.http.impl.classic.CloseableHttpResponse.class)
         );
     }
 }
