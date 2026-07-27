@@ -1731,7 +1731,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             return;
         }
         double nextTop = targetTop < viewportTop ? targetTop : targetBottom - viewportHeight;
-        scrollPane.setVvalue(Math.max(0, Math.min(1, nextTop / scrollableHeight)));
+        scrollPane.setVvalue(Math.clamp(nextTop / scrollableHeight, 0, 1));
     }
 
     private void setSelectedEpisodeCard(SeriesPanelData data, VBox current) {

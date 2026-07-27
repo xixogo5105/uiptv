@@ -1348,7 +1348,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         } else if (cardBottom > viewportBottom) {
             nextPixels = Math.min(scrollableHeight, cardBottom - viewportHeight + verticalGap);
         }
-        double nextValue = Math.max(0, Math.min(1, nextPixels / scrollableHeight));
+        double nextValue = Math.clamp(nextPixels / scrollableHeight, 0, 1);
         if (Math.abs(nextValue - pageScrollPane.getVvalue()) >= SCROLL_VALUE_TOLERANCE) {
             pageScrollPane.setVvalue(nextValue);
         }
