@@ -2680,3 +2680,6 @@ public class ReloadCacheInline extends VBox {
     private static final class SkipAccountReloadException extends RuntimeException {
     }
 }
+
+    private static final String I18N_AUTO_QUEUED = I18N_AUTO_QUEUED;
+    private static final String STYLE_MANAGEMENT_POPUP_CARD = STYLE_MANAGEMENT_POPUP_CARD;

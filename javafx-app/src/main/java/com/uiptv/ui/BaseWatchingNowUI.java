@@ -51,6 +51,8 @@ import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 
 @SuppressWarnings("java:S5843")
+    private static final String STYLE_SEARCHABLE_TABLE_MANAGE_TABS = STYLE_SEARCHABLE_TABLE_MANAGE_TABS;
+    private static final String I18N_AUTO_WATCHING_NOW = I18N_AUTO_WATCHING_NOW;
 public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_COVER = "cover";
@@ -677,7 +679,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         } else {
             // Add "Remove Watching Now" option - clears the watched marker
             MenuItem removeWatchingNowItem = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
-            removeWatchingNowItem.getStyleClass().add("danger-menu-item");
+            removeWatchingNowItem.getStyleClass().add(STYLE_CLASS_DANGER_MENU_ITEM);
             removeWatchingNowItem.getStyleClass().add(EPISODE_MENU_ITEM);
             removeWatchingNowItem.setOnAction(e -> {
                 String seriesName = firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle, I18n.tr("watchingNowThisSeries"));
@@ -1879,7 +1881,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             rowMenu.getItems().add(watchingNow);
         } else {
             MenuItem removeWatchingNow = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
-            removeWatchingNow.getStyleClass().add("danger-menu-item");
+            removeWatchingNow.getStyleClass().add(STYLE_CLASS_DANGER_MENU_ITEM);
             removeWatchingNow.getStyleClass().add(EPISODE_MENU_ITEM);
             removeWatchingNow.setOnAction(e -> {
                 clearWatchedMarker(item);

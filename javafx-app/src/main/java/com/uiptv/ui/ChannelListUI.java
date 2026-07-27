@@ -412,7 +412,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         cancelLoadingProgressHide();
         loadingProgressBox.setVisible(true);
         loadingProgressBox.setManaged(true);
-        loadingProgressBox.getStyleClass().remove("complete");
+        loadingProgressBox.getStyleClass().remove(COMPLETE);
     }
 
     private void finalizeLoadingProgress() {
@@ -424,8 +424,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
         loadingProgress.setProgress(1.0);
         updateLoadingProgressValue(1.0);
-        if (!loadingProgressBox.getStyleClass().contains("complete")) {
-            loadingProgressBox.getStyleClass().add("complete");
+        if (!loadingProgressBox.getStyleClass().contains(COMPLETE)) {
+            loadingProgressBox.getStyleClass().add(COMPLETE);
         }
         scheduleLoadingProgressHide();
     }
@@ -449,7 +449,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         loadingProgressHideTimer.setOnFinished(event -> {
             loadingProgressBox.setVisible(false);
             loadingProgressBox.setManaged(false);
-            loadingProgressBox.getStyleClass().remove("complete");
+            loadingProgressBox.getStyleClass().remove(COMPLETE);
             updateLoadingProgressValue(ProgressIndicator.INDETERMINATE_PROGRESS);
         });
         loadingProgressHideTimer.play();
@@ -1218,6 +1218,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
             private final AsyncImageView imageView = new AsyncImageView();
 
             {
+    private static final String COMPLETE = COMPLETE;
+    private static final String STYLE_CLASS_DANGER_MENU_ITEM = STYLE_CLASS_DANGER_MENU_ITEM;
+    private static final String I18N_AUTO_WATCHING_NOW = I18N_AUTO_WATCHING_NOW;
+    private static final String I18N_AUTO_DRM = I18N_AUTO_DRM;
+    private static final String I18N_AUTO_IN_PROGRESS = I18N_AUTO_IN_PROGRESS;
+    private static final String I18N_AUTO_LOADING_CHANNELS_FOR = I18N_AUTO_LOADING_CHANNELS_FOR;
                 drmBadge.getStyleClass().add(DRM_BADGE_STYLE_CLASS);
                 drmBadge.setVisible(false);
                 drmBadge.setManaged(false);
