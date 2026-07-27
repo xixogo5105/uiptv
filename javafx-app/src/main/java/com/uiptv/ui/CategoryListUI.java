@@ -90,6 +90,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
     private final List<Node> detailHeaderActions = new ArrayList<>();
     private final EnumMap<Account.AccountAction, ModeState> modeStates = new EnumMap<>(Account.AccountAction.class);
     private static final String MODE_ACCOUNTS = "accounts";
+    private static final String I18N_AUTO_LOADING_CATEGORIES = "autoLoadingCategories";
+    private static final String I18N_AUTO_ACCOUNT = "autoAccount";
     private static final String I18N_AUTO_CATEGORIES = "autoCategories";
     private static final String MODE_ITV = "itv";
     private static final String MODE_VOD = "vod";
@@ -121,7 +123,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         this.activeMode = this.mediaContext.action();
         initWidgets();
         refreshCategoryColumnTitle();
-        table.setPlaceholder(new Label(I18n.tr("autoLoadingCategories")));
+        table.setPlaceholder(new Label(I18n.tr(I18N_AUTO_LOADING_CATEGORIES)));
     }
 
     private AccountMediaContext contextForMode(Account.AccountAction mode) {
@@ -290,7 +292,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
                 event.consume();
             }
         });
-        showCategoryPlaceholder(I18n.tr("autoLoadingCategories"));
+        showCategoryPlaceholder(I18n.tr(I18N_AUTO_LOADING_CATEGORIES));
     }
 
     private void setupSearchRow() {
@@ -310,7 +312,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         if (categoryItems.isEmpty()) {
             showCategoryPlaceholder(categoryDataLoaded
                     ? I18n.tr("autoNothingFoundFor", I18n.tr(I18N_AUTO_CATEGORIES))
-                    : I18n.tr("autoLoadingCategories"));
+                    : I18n.tr(I18N_AUTO_LOADING_CATEGORIES));
             return;
         }
         List<CategoryItem> visibleItems = filteredCategoryItems();
@@ -780,7 +782,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
     private String modePillLabel(String mode) {
         return switch (mode) {
-            case MODE_ACCOUNTS -> I18n.tr("autoAccount");
+            case MODE_ACCOUNTS -> I18n.tr(I18N_AUTO_ACCOUNT);
             case MODE_VOD -> I18n.tr("autoVod");
             case MODE_SERIES -> I18n.tr("autoSeries");
             default -> I18n.tr("autoTvChannels");
@@ -817,8 +819,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
         selectedCategoryItems.clear();
         focusedCategoryItem = null;
         categoryDataLoaded = false;
-        showCategoryPlaceholder(I18n.tr("autoLoadingCategories"));
-        table.setPlaceholder(new Label(I18n.tr("autoLoadingCategories")));
+        showCategoryPlaceholder(I18n.tr(I18N_AUTO_LOADING_CATEGORIES));
+        table.setPlaceholder(new Label(I18n.tr(I18N_AUTO_LOADING_CATEGORIES)));
         showListView();
 
         new Thread(() -> {
@@ -860,8 +862,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
                 case itv -> MODE_ITV;
             });
             title = accountName.isEmpty()
-                    ? I18n.tr("autoAccount") + " / " + modeTitle
-                    : I18n.tr("autoAccount") + " / " + accountName + " / " + modeTitle;
+                    ? I18n.tr(I18N_AUTO_ACCOUNT) + " / " + modeTitle
+                    : I18n.tr(I18N_AUTO_ACCOUNT) + " / " + accountName + " / " + modeTitle;
         }
         categoryTitle.setText(title);
         categoryHeading.setText(title);

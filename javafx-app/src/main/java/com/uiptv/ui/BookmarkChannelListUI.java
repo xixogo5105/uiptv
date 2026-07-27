@@ -42,6 +42,8 @@ import static javafx.application.Platform.runLater;
 
 public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final String BOOKMARK_CACHE = "bookmark";
+    private static final String I18N_AUTO_LOADING_BOOKMARKS = "autoLoadingBookmarks";
+    private static final String I18N_AUTO_NO_BOOKMARKS_FOUND = "autoNoBookmarksFound";
     private static final double GRID_NORMAL_VERTICAL_GAP = 14;
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
@@ -61,7 +63,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private final TextField searchTextField = new TextField();
     private final ResponsiveCardGrid<BookmarkItem> bookmarkGrid = new ResponsiveCardGrid<>(this::createBookmarkCard);
     private final StackPane bookmarkGridFrame = new StackPane();
-    private final LoadingStateView bookmarkLoadingOverlay = new LoadingStateView(I18n.tr("autoLoadingBookmarks"));
+    private final LoadingStateView bookmarkLoadingOverlay = new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS));
     private final PillBar<BookmarkCategory> categoryPillBar =
             new PillBar<>(BookmarkCategory::getName, BookmarkCategory::getId);
     private final VBox listPanel = new VBox(8);
@@ -153,7 +155,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             if (generation != reloadGeneration.get()) {
                 return;
             }
-            bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr("autoLoadingBookmarks")));
+            bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS)));
             setBookmarkLoadingOverlayVisible(!filteredItems.isEmpty());
         };
         if (Platform.isFxApplicationThread()) {
@@ -239,7 +241,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         filterView();
         restoreGridSelection(selectedBookmarkIds);
         if (allBookmarkItems.isEmpty()) {
-            bookmarkGrid.setPlaceholderText(I18n.tr("autoNoBookmarksFound"));
+            bookmarkGrid.setPlaceholderText(I18n.tr(I18N_AUTO_NO_BOOKMARKS_FOUND));
         }
         lastKnownBookmarkRevision = revision;
         reloadInProgress = false;
@@ -514,7 +516,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         bookmarkGrid.setCardWidthRange(255, 345);
         bookmarkGrid.setGaps(16, 14);
         bookmarkGrid.setReorderEnabled(true);
-        bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr("autoLoadingBookmarks")));
+        bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS)));
         applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
 
         bookmarkGridFrame.getStyleClass().add("bookmark-grid-frame");
@@ -829,10 +831,10 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         }
         if (filteredList.isEmpty()) {
             if (reloadInProgress && allBookmarkItems.isEmpty()) {
-                bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr("autoLoadingBookmarks")));
+                bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS)));
             } else {
                 bookmarkGrid.setPlaceholderText(searchText.isBlank()
-                        ? I18n.tr("autoNoBookmarksFound")
+                        ? I18n.tr(I18N_AUTO_NO_BOOKMARKS_FOUND)
                         : I18n.tr("autoNothingFoundFor", rawSearchText));
             }
         } else {
@@ -1116,7 +1118,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                         filterView();
                         bookmarkGrid.clearSelection();
                         if (allBookmarkItems.isEmpty()) {
-                            bookmarkGrid.setPlaceholderText(I18n.tr("autoNoBookmarksFound"));
+                            bookmarkGrid.setPlaceholderText(I18n.tr(I18N_AUTO_NO_BOOKMARKS_FOUND));
                         }
                     }
                     lastKnownBookmarkRevision = BookmarkService.getInstance().getChangeRevision();
