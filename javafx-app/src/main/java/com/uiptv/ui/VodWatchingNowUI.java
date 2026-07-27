@@ -747,14 +747,6 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         vodGrid.refresh();
     }
 
-    private void addContextMenu(HBox card, ContextMenu menu, VodPanelData data) {
-        card.setOnContextMenuRequested(event -> {
-            setSelectedCard(card);
-            showContextMenu(menu, card, data, event.getScreenX(), event.getScreenY());
-            event.consume();
-        });
-    }
-
     private void showContextMenu(ContextMenu menu, HBox card, VodPanelData data) {
         double x = card.localToScreen(card.getBoundsInLocal()).getMinX() + card.getWidth() - 8;
         double y = card.localToScreen(card.getBoundsInLocal()).getMinY() + 8;

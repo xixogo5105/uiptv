@@ -291,8 +291,7 @@ public class PillBar<T> extends StackPane {
 
     @Override
     protected double computePrefHeight(double width) {
-        boolean compactDropdownVisible = shouldUseCompactDropdown(width);
-        return heightForMode(compactDropdownVisible, rowCountForWidth(width));
+        return computeMinHeight(width);
     }
 
     @Override
@@ -569,7 +568,7 @@ public class PillBar<T> extends StackPane {
             return;
         }
         int direction = event.getCode() == KeyCode.LEFT || event.getCode() == KeyCode.UP ? -1 : 1;
-        int nextIndex = Math.max(0, Math.min(content.getChildren().size() - 1, currentIndex + direction));
+        int nextIndex = Math.clamp(currentIndex + direction, 0, content.getChildren().size() - 1);
         if (nextIndex == currentIndex || !(content.getChildren().get(nextIndex) instanceof ToggleButton nextPill)) {
             return;
         }

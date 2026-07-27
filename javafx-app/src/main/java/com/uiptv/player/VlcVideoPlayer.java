@@ -25,6 +25,7 @@ import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
     static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
@@ -73,42 +74,63 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     static List<String> buildVlcArgs(Configuration configuration) {
         List<String> vlcArgs = new ArrayList<>();
         ConfigurationService configurationService = ConfigurationService.getInstance();
-        String networkCachingMs = configurationService.normalizeVlcCachingMs(configuration == null ? null : configuration.getVlcNetworkCachingMs());
-        String liveCachingMs = configurationService.normalizeVlcCachingMs(configuration == null ? null : configuration.getVlcLiveCachingMs());
+        String networkCachingMs = normalizeCachingMs(configurationService, configuration, Configuration::getVlcNetworkCachingMs);
+        String liveCachingMs = normalizeCachingMs(configurationService, configuration, Configuration::getVlcLiveCachingMs);
         boolean enableUserAgent = configuration == null || configuration.isEnableVlcHttpUserAgent();
         boolean enableForwardCookies = configuration == null || configuration.isEnableVlcHttpForwardCookies();
 
+        addCachingArgs(vlcArgs, networkCachingMs, liveCachingMs);
+        addVideoOutputArg(vlcArgs, configuration);
+        addHardwareAccelerationArg(vlcArgs, configuration);
+        addGeneralVlcArgs(vlcArgs, configuration);
+        addHttpArgs(vlcArgs, enableUserAgent, enableForwardCookies);
+        return vlcArgs;
+    }
+
+    private static String normalizeCachingMs(ConfigurationService configurationService, Configuration configuration, java.util.function.Function<Configuration, String> accessor) {
+        return configurationService.normalizeVlcCachingMs(configuration == null ? null : accessor.apply(configuration));
+    }
+
+    private static void addCachingArgs(List<String> vlcArgs, String networkCachingMs, String liveCachingMs) {
         if (!networkCachingMs.isBlank()) {
             vlcArgs.add("--network-caching=" + networkCachingMs);
         }
         if (!liveCachingMs.isBlank()) {
             vlcArgs.add("--live-caching=" + liveCachingMs);
         }
-        // OS-specific video output and hardware acceleration
+    }
+
+    private static void addVideoOutputArg(List<String> vlcArgs, Configuration configuration) {
         boolean enableVlcVout = configuration != null && configuration.getVlcVout() != null && !configuration.getVlcVout().isBlank();
+        if (!enableVlcVout) {
+            return;
+        }
+        if (SystemUtils.IS_OS_WINDOWS) {
+            vlcArgs.add("--vout=direct3d11");
+        } else if (SystemUtils.IS_OS_LINUX) {
+            vlcArgs.add("--vout=gl");
+        } else if (SystemUtils.IS_OS_MAC_OSX) {
+            vlcArgs.add("--vout=macosx");
+        } else {
+            vlcArgs.add("--vout=none");
+        }
+    }
+
+    private static void addHardwareAccelerationArg(List<String> vlcArgs, Configuration configuration) {
         boolean enableVlcAvcodecHw = configuration != null && configuration.getVlcAvcodecHw() != null && !configuration.getVlcAvcodecHw().isBlank();
-        if (enableVlcVout) {
-            if (SystemUtils.IS_OS_WINDOWS) {
-                vlcArgs.add("--vout=direct3d11");
-            } else if (SystemUtils.IS_OS_LINUX) {
-                vlcArgs.add("--vout=gl");
-            } else if (SystemUtils.IS_OS_MAC_OSX) {
-                vlcArgs.add("--vout=macosx");
-            } else {
-                // Fallback for unknown OS
-                vlcArgs.add("--vout=none");
-            }
+        if (!enableVlcAvcodecHw) {
+            return;
         }
-        if (enableVlcAvcodecHw) {
-            if (SystemUtils.IS_OS_WINDOWS) {
-                vlcArgs.add("--avcodec-hw=d3d11va");
-            } else if (SystemUtils.IS_OS_MAC_OSX) {
-                vlcArgs.add("--avcodec-hw=videotoolbox");
-            } else {
-                // Fallback for unknown OS
-                vlcArgs.add("--avcodec-hw=any");
-            }
+        if (SystemUtils.IS_OS_WINDOWS) {
+            vlcArgs.add("--avcodec-hw=d3d11va");
+        } else if (SystemUtils.IS_OS_MAC_OSX) {
+            vlcArgs.add("--avcodec-hw=videotoolbox");
+        } else {
+            vlcArgs.add("--avcodec-hw=any");
         }
+    }
+
+    private static void addGeneralVlcArgs(List<String> vlcArgs, Configuration configuration) {
         if (configuration == null || configuration.isVlcNoVideoTitleShow()) {
             vlcArgs.add("--no-video-title-show");
         }
@@ -121,15 +143,15 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (configuration == null || configuration.isVlcAdaptiveUseAccess()) {
             vlcArgs.add("--adaptive-use-access");
         }
+    }
 
-
+    private static void addHttpArgs(List<String> vlcArgs, boolean enableUserAgent, boolean enableForwardCookies) {
         if (enableUserAgent) {
             vlcArgs.add("--http-user-agent=" + VLC_HTTP_USER_AGENT);
         }
         if (enableForwardCookies) {
             vlcArgs.add("--http-forward-cookies");
         }
-        return vlcArgs;
     }
 
     private void configureEmbeddedPlayer() {

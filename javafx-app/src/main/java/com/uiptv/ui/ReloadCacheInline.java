@@ -72,6 +72,8 @@ public class ReloadCacheInline extends VBox {
     private static final String MODE_VOD = "VOD";
     private static final String STYLE_CLASS_CENSORED_COUNT = "censored-count";
     private static final String STYLE_CLASS_LOG_TEXT = "log-text";
+    private static final String STYLE_SCROLL_PANE_TRANSPARENT = "transparent-scroll-pane";
+    private static final String STYLE_CLASS_RELOAD_SECONDARY_BUTTON = "reload-secondary-button";
     private static final String STYLE_TEXT_BASE_FILL = "-fx-fill: -fx-text-base-color;";
     private static final String TR_CATEGORY_TAB_SERIES = "categoryTabTvSeries";
     private static final String TR_CATEGORY_TAB_VOD = "categoryTabVideoOnDemand";
@@ -439,7 +441,7 @@ public class ReloadCacheInline extends VBox {
         accountsScrollPane.setMinHeight(0);
         accountsScrollPane.setMaxWidth(Double.MAX_VALUE);
         accountsScrollPane.setMaxHeight(Double.MAX_VALUE);
-        accountsScrollPane.getStyleClass().addAll("transparent-scroll-pane", "reload-account-scroll");
+        accountsScrollPane.getStyleClass().addAll(STYLE_SCROLL_PANE_TRANSPARENT, "reload-account-scroll");
         VBox.setVgrow(accountsScrollPane, Priority.ALWAYS);
         logScrollPane.setFitToWidth(true);
         logScrollPane.setFitToHeight(true);
@@ -447,7 +449,7 @@ public class ReloadCacheInline extends VBox {
         logScrollPane.setMinHeight(0);
         logScrollPane.setMaxWidth(Double.MAX_VALUE);
         logScrollPane.setMaxHeight(Double.MAX_VALUE);
-        logScrollPane.getStyleClass().addAll("transparent-scroll-pane", "reload-log-scroll");
+        logScrollPane.getStyleClass().addAll(STYLE_SCROLL_PANE_TRANSPARENT, "reload-log-scroll");
         VBox.setVgrow(logScrollPane, Priority.ALWAYS);
     }
 
@@ -624,10 +626,10 @@ public class ReloadCacheInline extends VBox {
         stopButton.getStyleClass().add("dangerous");
         stopButton.setOnAction(event -> requestStop());
         Button copyLogButton = new Button(I18n.tr("autoCopyLog"));
-        copyLogButton.getStyleClass().add("reload-secondary-button");
+        copyLogButton.getStyleClass().add(STYLE_CLASS_RELOAD_SECONDARY_BUTTON);
         copyLogButton.setOnAction(event -> copyLogsToClipboard());
         Button closeButton = new Button(I18n.tr("autoClose"));
-        closeButton.getStyleClass().add("reload-secondary-button");
+        closeButton.getStyleClass().add(STYLE_CLASS_RELOAD_SECONDARY_BUTTON);
         closeButton.setOnAction(event -> requestClose());
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -997,7 +999,7 @@ public class ReloadCacheInline extends VBox {
                 return;
             }
             int safeTotal = Math.max(0, total);
-            int safeCompleted = Math.max(0, Math.min(completed, safeTotal));
+            int safeCompleted = Math.clamp(completed, 0, safeTotal);
             progressSummaryLabel.setText(safeTotal <= 0
                     ? I18n.tr("autoQueued")
                     : I18n.tr("autoRunningProgress", safeCompleted, safeTotal));
@@ -1252,7 +1254,7 @@ public class ReloadCacheInline extends VBox {
         accountsBox.setFillWidth(true);
         accountsBox.setMinWidth(0);
         ScrollPane scrollPane = new ScrollPane(accountsBox);
-        scrollPane.getStyleClass().addAll("transparent-scroll-pane", "reload-problem-account-scroll");
+        scrollPane.getStyleClass().addAll(STYLE_SCROLL_PANE_TRANSPARENT, "reload-problem-account-scroll");
         scrollPane.setFitToWidth(true);
         scrollPane.setMinHeight(PROBLEM_ACCOUNTS_MIN_LIST_HEIGHT);
         scrollPane.setPrefViewportHeight(problemAccountsListHeight(accountsBox));
@@ -1266,7 +1268,7 @@ public class ReloadCacheInline extends VBox {
                 .count();
         long sectionRows = Math.max(1, accountsBox.getChildren().size() - selectableRows);
         double estimatedHeight = selectableRows * PROBLEM_ACCOUNTS_ROW_HEIGHT_ESTIMATE + sectionRows * 34 + 16;
-        return Math.min(PROBLEM_ACCOUNTS_MAX_LIST_HEIGHT, Math.max(PROBLEM_ACCOUNTS_MIN_LIST_HEIGHT, estimatedHeight));
+        return Math.clamp(estimatedHeight, PROBLEM_ACCOUNTS_MIN_LIST_HEIGHT, PROBLEM_ACCOUNTS_MAX_LIST_HEIGHT);
     }
 
     private void populateProblemAccountsBox(VBox accountsBox, List<Account> processedAccounts,
@@ -1304,7 +1306,7 @@ public class ReloadCacheInline extends VBox {
         deleteButton.setOnAction(e -> deleteSelectedProblemAccounts(accountsBox, closeAction));
 
         Button cancelButton = new Button(I18n.tr("autoCancel"));
-        cancelButton.getStyleClass().add("reload-secondary-button");
+        cancelButton.getStyleClass().add(STYLE_CLASS_RELOAD_SECONDARY_BUTTON);
         cancelButton.setOnAction(e -> closeAction.run());
 
         HBox buttons = new HBox(10, deleteButton, cancelButton);

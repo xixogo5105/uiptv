@@ -16,6 +16,7 @@ public class RemoteSyncClientService {
     private static final Duration STATUS_TIMEOUT = Duration.ofMinutes(3);
     private static final String REMOTE_SYNC_COMPLETED_MESSAGE = "Remote database sync completed.";
     private static final String REMOTE_SYNC_FAILED_MESSAGE = "Remote database sync failed.";
+    private static final String PREFIX_HTTP = "http://";
 
     private final RemoteSyncHttpClient httpClient;
     private final DatabaseSnapshotService snapshotService;
@@ -224,7 +225,7 @@ public class RemoteSyncClientService {
 
     private String buildBaseUrl(String host, int port) {
         if (host == null || host.isBlank()) {
-            return "http://localhost:" + port;
+            return PREFIX_HTTP + "localhost:" + port;
            }
         String lowerHost = host.toLowerCase();
         String prefix;
@@ -233,11 +234,11 @@ public class RemoteSyncClientService {
             prefix = "https://";
             prefixLen = 8;
          } else if (lowerHost.startsWith("http://")) {
-            prefix = "http://";
-            prefixLen = 7;
+             prefix = PREFIX_HTTP;
+             prefixLen = 7;
          } else {
-            prefix = "http://";
-            prefixLen = 0;
+             prefix = PREFIX_HTTP;
+             prefixLen = 0;
          }
         String hostPart = lowerHost.substring(prefixLen);
          // Extract hostname only (strip port and path)

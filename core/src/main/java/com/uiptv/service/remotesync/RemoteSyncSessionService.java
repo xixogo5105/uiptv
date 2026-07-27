@@ -25,6 +25,7 @@ public class RemoteSyncSessionService {
     private static final Duration TRANSFER_TTL = Duration.ofMinutes(10);
     private static final String REMOTE_SYNC_COMPLETED_MESSAGE = "Remote database sync completed.";
     private static final String REMOTE_SYNC_FAILED_MESSAGE = "Remote database sync failed.";
+    private static final String I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE = "remoteSyncRemoteFailedMessage";
 
     private final Map<String, SessionState> sessions = new ConcurrentHashMap<>();
     private final DatabaseSnapshotService snapshotService;
@@ -96,7 +97,7 @@ public class RemoteSyncSessionService {
                 Files.copy(inputStream, uploadedTransfer, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException ex) {
                 session.fail(REMOTE_SYNC_FAILED_MESSAGE);
-                notifier.get().showError("remoteSyncRemoteFailedMessage");
+                notifier.get().showError(I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE);
                 deleteIfExists(uploadedTransfer);
                 throw ex;
             }
@@ -157,7 +158,7 @@ public class RemoteSyncSessionService {
                 notifier.get().showInfo("remoteSyncRemoteCompletedMessage");
             } else {
                 session.fail(blankToFallback(message, REMOTE_SYNC_FAILED_MESSAGE));
-                notifier.get().showError("remoteSyncRemoteFailedMessage");
+                notifier.get().showError(I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE);
             }
             cleanupSnapshot(session);
         }

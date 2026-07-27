@@ -526,16 +526,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                 .collect(java.util.stream.Collectors.joining("|"));
     }
 
-    private TableView<SeriesListItem> buildSeriesListTable(List<SeriesPanelData> rows) {
-        TableView<SeriesListItem> table = new TableView<>();
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        table.setFocusTraversable(false);
-        table.getColumns().add(createSeriesListColumn());
-        table.setItems(buildSeriesListItems(rows));
-        wireSeriesListTableSelection(table);
-        return table;
-    }
-
     private TableColumn<SeriesListItem, String> createSeriesListColumn() {
         TableColumn<SeriesListItem, String> seriesColumn = new TableColumn<>(I18n.tr("autoSeries"));
         seriesColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(

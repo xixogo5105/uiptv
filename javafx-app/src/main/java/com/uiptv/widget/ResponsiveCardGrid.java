@@ -33,6 +33,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         ContextMenu create(T item, List<T> selectedItems, Node owner);
     }
 
+    private static final String SELECTED_STYLE_CLASS = "selected";
     private static final DataFormat CARD_INDEX_FORMAT = new DataFormat("application/x-uiptv-responsive-card-index");
     private static final PseudoClass SELECTED_PSEUDO_CLASS = PseudoClass.getPseudoClass("selected");
     private static final double DEFAULT_MIN_CARD_WIDTH = 220;
@@ -390,7 +391,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (newItems.isEmpty()) {
             return;
         }
-        int insertIndex = Math.max(0, Math.min(index, cardPane.getChildren().size()));
+        int insertIndex = Math.clamp(index, 0, cardPane.getChildren().size());
         for (T item : newItems) {
             Region card = cardFactory.apply(item);
             configureCard(item, card);
@@ -527,8 +528,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     private void renderVirtualWindow(int firstIndex, int lastIndex, double translateY) {
-        int safeFirst = Math.max(0, Math.min(firstIndex, items.size()));
-        int safeLast = Math.max(safeFirst, Math.min(lastIndex, items.size()));
+        int safeFirst = Math.clamp(firstIndex, 0, items.size());
+        int safeLast = Math.clamp(lastIndex, safeFirst, items.size());
         if (safeFirst == firstRenderedIndex
                 && safeLast == lastRenderedExclusive
                 && Math.abs(renderedCardWidth - computedCardWidth) < 0.5
@@ -1455,10 +1456,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
             boolean selected = selectedItems.contains(entry.getKey());
             Region card = entry.getValue();
             card.pseudoClassStateChanged(SELECTED_PSEUDO_CLASS, selected);
-            if (selected && !card.getStyleClass().contains("selected")) {
-                card.getStyleClass().add("selected");
+            if (selected && !card.getStyleClass().contains(SELECTED_STYLE_CLASS)) {
+                card.getStyleClass().add(SELECTED_STYLE_CLASS);
             } else if (!selected) {
-                card.getStyleClass().remove("selected");
+                card.getStyleClass().remove(SELECTED_STYLE_CLASS);
             }
         }
     }

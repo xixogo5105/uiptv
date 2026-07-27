@@ -84,7 +84,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     @Override
     protected HBox buildMainContent(TabPane tabPane, AccountListUI accountListUI) {
         if (!embeddedEnabled) {
-            return createMainContent(tabPane, accountListUI);
+            return createMainContent(tabPane);
         }
 
         activeTabPane = tabPane;
@@ -334,45 +334,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         GridPane.setValignment(embeddedPlayer, VPos.TOP);
     }
 
-    private void applyPlayerAdjacentTopControlsEmbeddedLayout() {
-        if (!dockSelectedPageTopControls()) {
-            applyStackedEmbeddedLayout();
-            return;
-        }
-        applyPlayerAdjacentTopControlsEmbeddedArrangement();
-
-        activeTabPane.setMinWidth(0);
-        activeTabPane.setPrefWidth(Region.USE_COMPUTED_SIZE);
-        activeTabPane.setMaxWidth(Double.MAX_VALUE);
-        activeTabPane.setMaxHeight(Double.MAX_VALUE);
-        activeTabPane.setMinHeight(0);
-        activeTabPane.setVisible(true);
-        activeTabPane.setManaged(true);
-
-        navigationShell.setMinWidth(0);
-        navigationShell.setPrefWidth(Region.USE_COMPUTED_SIZE);
-        navigationShell.setMaxWidth(Double.MAX_VALUE);
-        navigationShell.setMinHeight(0);
-        navigationShell.setMaxHeight(Double.MAX_VALUE);
-        navigationShell.setVisible(true);
-        navigationShell.setManaged(true);
-        GridPane.setHgrow(navigationShell, Priority.ALWAYS);
-        GridPane.setVgrow(navigationShell, Priority.ALWAYS);
-
-        applyStackedEmbeddedPlayerSize();
-        configurePlayerAdjacentTopControlsResponsiveGrid();
-        GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
-        GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
-        GridPane.setHalignment(embeddedPlayer, HPos.LEFT);
-        GridPane.setValignment(embeddedPlayer, VPos.TOP);
-
-        setPlayerAdjacentControlsVisible(true);
-        playerAdjacentControls.setMaxHeight(stackedEmbeddedPlayerHeight());
-        GridPane.setHgrow(playerAdjacentControls, Priority.ALWAYS);
-        GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
-        GridPane.setHalignment(playerAdjacentControls, HPos.LEFT);
-        GridPane.setValignment(playerAdjacentControls, VPos.TOP);
-    }
 
     private void applyNavigationOnlyEmbeddedArrangement() {
         if (responsiveContent == null || navigationShell == null || embeddedPlayer == null || playerAdjacentControls == null) {
@@ -619,17 +580,15 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         if (responsiveContent != null && responsiveContent.getWidth() > 0) {
             width = Math.min(width, responsiveContent.getWidth());
         }
-        return Math.max(0, Math.min(STACKED_EMBEDDED_PLAYER_MAX_WIDTH, width));
+        return Math.clamp(width, 0, STACKED_EMBEDDED_PLAYER_MAX_WIDTH);
     }
 
     private double stackedEmbeddedPlayerHeight() {
         double width = stackedEmbeddedPlayerWidth();
-        return Math.max(
+        return Math.clamp(
+                width * STACKED_EMBEDDED_PLAYER_ASPECT_RATIO + STACKED_EMBEDDED_PLAYER_VERTICAL_CHROME,
                 STACKED_EMBEDDED_PLAYER_MIN_HEIGHT,
-                Math.min(
-                        STACKED_EMBEDDED_PLAYER_MAX_HEIGHT,
-                        width * STACKED_EMBEDDED_PLAYER_ASPECT_RATIO + STACKED_EMBEDDED_PLAYER_VERTICAL_CHROME
-                )
+                STACKED_EMBEDDED_PLAYER_MAX_HEIGHT
         );
     }
 
@@ -889,7 +848,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         double minWidth = availableWidth < WIDE_APP_AREA_SMALL_SCREEN_THRESHOLD
                 ? WIDE_APP_AREA_SMALL_SCREEN_MIN_WIDTH
                 : WIDE_APP_AREA_MIN_WIDTH;
-        return Math.max(minWidth, Math.min(WIDE_APP_AREA_MAX_WIDTH, availableWidth * WIDE_APP_AREA_FRACTION));
+        return Math.clamp(availableWidth * WIDE_APP_AREA_FRACTION, minWidth, WIDE_APP_AREA_MAX_WIDTH);
     }
 
     private double availableLayoutWidth() {

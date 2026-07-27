@@ -329,7 +329,7 @@ public abstract class BaseMainApplicationUI {
         embeddedPlayer.setAlignment(Pos.CENTER);
     }
 
-    protected HBox createMainContent(TabPane tabPane, AccountListUI accountListUI) {
+    protected HBox createMainContent(TabPane tabPane) {
         tabPane.setMinWidth(0);
         tabPane.setPrefWidth(guidedMaxWidthPixels);
         tabPane.setMaxWidth(Double.MAX_VALUE);

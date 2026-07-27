@@ -922,13 +922,13 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
     private boolean confirmCachedCategoryRemoval(int selectedCount) {
         ButtonType okButton = UIptvAlert.okButtonType();
-        ButtonType closeButton = UIptvAlert.closeButtonType();
+        ButtonType alertCloseButton = UIptvAlert.closeButtonType();
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
                 I18n.tr("categoryRemoveCachedConfirmMessage",
                         I18n.formatNumber(String.valueOf(selectedCount)),
                         removalContentLabel(activeMode)),
                 okButton,
-                closeButton);
+                alertCloseButton);
         alert.setTitle(I18n.tr("categoryRemoveCachedTitle"));
         alert.setHeaderText(I18n.tr("categoryRemoveCachedTitle"));
         javafx.stage.Window ownerWindow = getScene() == null

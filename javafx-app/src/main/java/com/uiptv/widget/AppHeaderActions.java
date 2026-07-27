@@ -29,6 +29,7 @@ import javafx.stage.Window;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public class AppHeaderActions extends HBox {
+    private static final String I18N_AUTO_SETTINGS = "autoSettings";
     private static final String GUIDE_URL = "https://github.com/xixogo5105/uiptv/blob/main/GUIDE.md";
     private static final String FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON = "filterLockUnlockManageFiltersReason";
     private static final String ICON_ABOUT = "M11 17H13V11H11V17ZM11 9H13V7H11V9ZM12 2C6.48 2 2 6.48 2 12S6.48 22 12 22 22 17.52 22 12 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12S7.59 4 12 4 20 7.59 20 12 16.41 20 12 20Z";
@@ -42,7 +43,7 @@ public class AppHeaderActions extends HBox {
     private final HostServices hostServices;
     private final Runnable themeToggleHandler;
     private final Runnable parentalPauseChangedHandler;
-    private final IconActionButton gearButton = new IconActionButton(I18n.tr("autoSettings"), ICON_GEAR, this::showGearMenu);
+    private final IconActionButton gearButton = new IconActionButton(I18n.tr(I18N_AUTO_SETTINGS), ICON_GEAR, this::showGearMenu);
     private final ConfigurationChangeListener configurationChangeListener =
             _ -> Platform.runLater(() -> {
                 if (getScene() != null) {
@@ -81,7 +82,7 @@ public class AppHeaderActions extends HBox {
     private void updateGearButton() {
         Configuration configuration = readConfigurationSafely();
         boolean paused = configuration != null && configuration.isPauseFiltering();
-        gearButton.setTooltipText(I18n.tr("autoSettings"));
+        gearButton.setTooltipText(I18n.tr(I18N_AUTO_SETTINGS));
         gearButton.getStyleClass().remove("bookmarks-quick-action-button-lock-ok");
         gearButton.getStyleClass().remove("bookmarks-quick-action-button-lock-paused");
         gearButton.getStyleClass().add(paused
@@ -97,7 +98,7 @@ public class AppHeaderActions extends HBox {
 
     ContextMenu createGearMenu() {
         return new ContextMenu(
-                createNavigationMenuItem(I18n.tr("autoSettings"), AppNavigationPane.ICON_SETTINGS, AppNavigationController.Target.SETTINGS),
+                createNavigationMenuItem(I18n.tr(I18N_AUTO_SETTINGS), AppNavigationPane.ICON_SETTINGS, AppNavigationController.Target.SETTINGS),
                 createNavigationMenuItem(I18n.tr("autoImportBulkAccounts"), AppNavigationPane.ICON_IMPORT, AppNavigationController.Target.IMPORT),
                 createNavigationMenuItem(I18n.tr("autoLogs"), AppNavigationPane.ICON_LOGS, AppNavigationController.Target.LOGS),
                 new SeparatorMenuItem(),

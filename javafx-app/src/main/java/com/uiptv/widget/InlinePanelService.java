@@ -31,6 +31,7 @@ import java.util.function.Consumer;
 
 public final class InlinePanelService {
     public static final String FILL_HEIGHT_STYLE_CLASS = "uiptv-inline-fill-height";
+    private static final String I18N_COMMON_CLOSE = "commonClose";
 
     private static final ArrayDeque<List<Node>> viewStack = new ArrayDeque<>();
     private static StackPane host;
@@ -69,7 +70,7 @@ public final class InlinePanelService {
     }
 
     public static Optional<InlinePanelHandle> open(String title, Node content) {
-        return open(title, content, I18n.tr("commonClose"), null);
+        return open(title, content, I18n.tr(I18N_COMMON_CLOSE), null);
     }
 
     public static Optional<InlinePanelHandle> open(String title, Node content, String closeCaption, Runnable onClose) {
@@ -105,7 +106,7 @@ public final class InlinePanelService {
                 ? new ButtonType(I18n.tr("commonOk"), ButtonBar.ButtonData.OK_DONE)
                 : primaryButton;
         ButtonType secondary = secondaryButton == null
-                ? new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE)
+                ? new ButtonType(I18n.tr(I18N_COMMON_CLOSE), ButtonBar.ButtonData.CANCEL_CLOSE)
                 : secondaryButton;
         return showChoice(title, message, List.of(secondary, primary), secondary);
     }
@@ -138,7 +139,7 @@ public final class InlinePanelService {
             return Optional.empty();
         }
         ButtonType fallback = fallbackButton == null
-                ? new ButtonType(I18n.tr("commonClose"), ButtonBar.ButtonData.CANCEL_CLOSE)
+                ? new ButtonType(I18n.tr(I18N_COMMON_CLOSE), ButtonBar.ButtonData.CANCEL_CLOSE)
                 : fallbackButton;
         List<ButtonType> normalizedButtons = buttons == null || buttons.isEmpty()
                 ? List.of(fallback)
@@ -213,7 +214,7 @@ public final class InlinePanelService {
             buttonConfigurer.accept(Map.copyOf(renderedButtons));
         }
 
-        Optional<InlinePanelHandle> handle = open(title, card, I18n.tr("commonClose"), () -> {
+        Optional<InlinePanelHandle> handle = open(title, card, I18n.tr(I18N_COMMON_CLOSE), () -> {
             if (finished.compareAndSet(false, true)) {
                 selected.set(fallbackButton);
                 Platform.exitNestedEventLoop(loopKey, fallbackButton);
@@ -262,7 +263,7 @@ public final class InlinePanelService {
 
     private static String buttonText(ButtonType buttonType) {
         if (buttonType == null || buttonType.getText() == null || buttonType.getText().isBlank()) {
-            return I18n.tr("commonClose");
+            return I18n.tr(I18N_COMMON_CLOSE);
         }
         return buttonType.getText();
     }
@@ -276,7 +277,7 @@ public final class InlinePanelService {
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
         Button closeButton = new CloseIconButton(closeCaption == null || closeCaption.isBlank()
-                ? I18n.tr("commonClose")
+                ? I18n.tr(I18N_COMMON_CLOSE)
                 : closeCaption);
         closeButton.getStyleClass().add("uiptv-inline-close-button");
         closeButton.setOnAction(event -> closeAction.run());

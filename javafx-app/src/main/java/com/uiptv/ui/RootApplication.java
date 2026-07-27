@@ -66,7 +66,7 @@ public class RootApplication extends Application {
     private Timeline titleStatusTimeline;
 
     public static void main(String[] args) {
-        System.setProperty("apple.awt.application.name", "UIPTV");
+        System.setProperty("apple.awt.application.name", PRODUCT_TITLE);
         ServerUrlUtil.installServerShutdownHook();
         boolean showLogsEnabled = hasShowLogsArg(args);
         String[] filteredArgs = removeShowLogsArg(args);
