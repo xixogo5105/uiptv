@@ -679,7 +679,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     private double clamp(double value, double min, double max) {
-        return Math.max(min, Math.min(max, value));
+        return Math.clamp(value, min, max);
     }
 
     private void configureCard(T item, Region card) {
