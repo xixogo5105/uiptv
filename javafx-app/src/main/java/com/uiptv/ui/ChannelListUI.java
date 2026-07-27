@@ -65,6 +65,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private static final String BOOKMARK_ICON_PATH = "M3 0 V14 L8 10 L13 14 V0 H3 Z";
     private static final String BOOKMARK_ICON_STYLE_CLASS = "channel-bookmark-icon";
 
+    private static final String I18N_AUTO_LOADING_CHANNELS_FOR = "autoLoadingChannelsFor";
+    private static final String I18N_AUTO_IN_PROGRESS = "autoInPROGRESS";
+    private static final String I18N_AUTO_DRM = "autoDrm";
+    private static final String I18N_AUTO_WATCHING_NOW = "autoWatchingNow";
+    private static final String STYLE_CLASS_DANGER_MENU_ITEM = "danger-menu-item";
+
     private final AccountMediaContext mediaContext;
     private final Account account;
     private final Account.AccountAction listAction;
