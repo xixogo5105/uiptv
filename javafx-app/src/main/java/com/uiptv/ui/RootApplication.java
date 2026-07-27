@@ -296,8 +296,8 @@ public class RootApplication extends Application {
     }
 
     private void fillRect(PixelWriter writer, int x, int y, int width, int height, Color color, int imageSize) {
-        for (int yy = Math.max(0, y); yy < Math.min(imageSize, y + height); yy++) {
-            for (int xx = Math.max(0, x); xx < Math.min(imageSize, x + width); xx++) {
+        for (int yy = Math.clamp(y, 0, imageSize); yy < Math.clamp(y + height, 0, imageSize); yy++) {
+            for (int xx = Math.clamp(x, 0, imageSize); xx < Math.clamp(x + width, 0, imageSize); xx++) {
                 writer.setColor(xx, yy, color);
             }
         }

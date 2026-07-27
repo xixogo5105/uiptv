@@ -806,7 +806,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             }
             return;
         }
-        T currentItem = items.get(Math.max(0, Math.min(currentIndex, items.size() - 1)));
+        T currentItem = items.get(Math.clamp(currentIndex, 0, items.size() - 1));
         if (focusInteractiveChild(currentItem, false)) {
             event.consume();
         }
