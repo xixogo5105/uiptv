@@ -528,40 +528,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                 .collect(java.util.stream.Collectors.joining("|"));
     }
 
-    private TableColumn<SeriesListItem, String> createSeriesListColumn() {
-        TableColumn<SeriesListItem, String> seriesColumn = new TableColumn<>(I18n.tr("autoSeries"));
-        seriesColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(
-                cellData.getValue().seriesTitleProperty().get() + " (" + cellData.getValue().accountNameProperty().get() + ")"
-        ));
-        seriesColumn.setReorderable(false);
-        return seriesColumn;
-    }
-
-    private ObservableList<SeriesListItem> buildSeriesListItems(List<SeriesPanelData> rows) {
-        ObservableList<SeriesListItem> items = FXCollections.observableArrayList();
-        for (SeriesPanelData data : rows) {
-            items.add(new SeriesListItem(
-                    firstNonBlank(data.seasonInfo.optString("name", ""), data.seriesTitle),
-                    data.account.getAccountName(),
-                    seriesPaneKey(data)
-            ));
-        }
-        return items;
-    }
-
-    private void wireSeriesListTableSelection(TableView<SeriesListItem> table) {
-        table.setOnMousePressed(event -> {
-            if (event.getClickCount() == 2 && event.getButton() == MouseButton.PRIMARY) {
-                openSelectedSeries(table);
-            }
-        });
-        table.setOnKeyPressed(event -> {
-            if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
-                openSelectedSeries(table);
-            }
-        });
-    }
-
     private void openSelectedSeries(TableView<SeriesListItem> table) {
         SeriesListItem selected = table.getSelectionModel().getSelectedItem();
         if (selected == null) {

@@ -568,7 +568,7 @@ public class PillBar<T> extends StackPane {
             return;
         }
         int direction = event.getCode() == KeyCode.LEFT || event.getCode() == KeyCode.UP ? -1 : 1;
-        int nextIndex = Math.clamp(currentIndex + direction, 0, content.getChildren().size() - 1);
+        int nextIndex = (int) Math.clamp(currentIndex + (long) direction, 0L, content.getChildren().size() - 1L);
         if (nextIndex == currentIndex || !(content.getChildren().get(nextIndex) instanceof ToggleButton nextPill)) {
             return;
         }

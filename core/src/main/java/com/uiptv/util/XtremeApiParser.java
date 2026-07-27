@@ -17,8 +17,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -45,7 +45,7 @@ public class XtremeApiParser {
         return parseChannels(categoryId, account, null, null);
     }
 
-    public static List<Channel> parseChannels(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
+    public static List<Channel> parseChannels(String categoryId, Account account, Consumer<List<Channel>> callback, BooleanSupplier isCancelled) {
         try {
             Map<String, String> extraParams = new LinkedHashMap<>();
             extraParams.put(PARAM_CATEGORY_ID, categoryId);
@@ -93,36 +93,17 @@ public class XtremeApiParser {
         return doParseChannels(json, account, null, null);
     }
 
-    private static List<Channel> doParseChannels(String json, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
+    private static List<Channel> doParseChannels(String json, Account account, Consumer<List<Channel>> callback, BooleanSupplier isCancelled) {
         List<Channel> categoryList = new ArrayList<>();
         List<Channel> callbackBatch = callback == null ? null : new ArrayList<>(CHANNEL_PARSE_BATCH_SIZE);
         try {
             JSONArray list = new JSONArray(json);
             for (int i = 0; i < list.length(); i++) {
-                if (isCancelled != null && Boolean.TRUE.equals(isCancelled.get())) {
+                if (isCancelled != null && isCancelled.getAsBoolean()) {
                     break;
                 }
                 JSONObject jsonCategory = list.getJSONObject(i);
-                Channel channel = new Channel(
-                        safeGetString(jsonCategory, account.getAction() == series ? "series_id" : "stream_id"),
-                        safeGetString(jsonCategory, "name"),
-                        null,
-                        buildXtremeStreamUrl(account, safeGetString(jsonCategory, "stream_id"), safeGetString(jsonCategory, "container_extension")),
-                        null,
-                        null,
-                        null,
-                        safeGetString(jsonCategory, account.getAction() == series ? "cover" : "stream_icon"),
-                        0,
-                        0,
-                        0,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null
-                );
-                channel.setCategoryId(safeGetString(jsonCategory, PARAM_CATEGORY_ID));
-                channel.setExtraJson(jsonCategory.toString());
+                Channel channel = parseXtremeChannel(jsonCategory, account);
                 categoryList.add(channel);
                 if (callbackBatch != null) {
                     callbackBatch.add(channel);
@@ -139,6 +120,30 @@ public class XtremeApiParser {
             AppLog.addErrorLog(XtremeApiParser.class, XTREME_ERROR_PROCESSING_RESPONSE_DATA + e.getMessage());
         }
         return categoryList;
+    }
+
+    private static Channel parseXtremeChannel(JSONObject jsonCategory, Account account) {
+        Channel channel = new Channel(
+                safeGetString(jsonCategory, account.getAction() == series ? "series_id" : "stream_id"),
+                safeGetString(jsonCategory, "name"),
+                null,
+                buildXtremeStreamUrl(account, safeGetString(jsonCategory, "stream_id"), safeGetString(jsonCategory, "container_extension")),
+                null,
+                null,
+                null,
+                safeGetString(jsonCategory, account.getAction() == series ? "cover" : "stream_icon"),
+                0,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        channel.setCategoryId(safeGetString(jsonCategory, PARAM_CATEGORY_ID));
+        channel.setExtraJson(jsonCategory.toString());
+        return channel;
     }
 
     private static EpisodeList doParseEpisodes(String json, Account account) {

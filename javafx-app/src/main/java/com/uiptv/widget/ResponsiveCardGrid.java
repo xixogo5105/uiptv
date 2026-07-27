@@ -545,12 +545,11 @@ public class ResponsiveCardGrid<T> extends StackPane {
         List<Node> renderedCards = new ArrayList<>(safeLast - safeFirst);
         for (int index = safeFirst; index < safeLast; index++) {
             T item = items.get(index);
-            Region card = cardsByItem.get(item);
-            if (card == null) {
-                card = cardFactory.apply(item);
-                configureCard(item, card);
-                cardsByItem.put(item, card);
-            }
+            Region card = cardsByItem.computeIfAbsent(item, k -> {
+                Region c = cardFactory.apply(k);
+                configureCard(k, c);
+                return c;
+            });
             applyComputedCardWidth(card);
             renderedCards.add(card);
         }

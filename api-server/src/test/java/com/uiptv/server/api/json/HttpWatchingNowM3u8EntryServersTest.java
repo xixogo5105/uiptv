@@ -224,7 +224,7 @@ class HttpWatchingNowM3u8EntryServersTest extends DbBackedTest {
     }
 
     @Test
-    void getPublishedM3u8_includesWatchingNowVodWhenSelectedAndDataExists() throws Exception {
+    void getPublishedM3u8_includesWatchingNowVodWhenSelectedAndDataExists() {
         Account account = createVodAccount("published-vod-account");
         String accountId = account.getDbId();
         String categoryId = "vod-cat";

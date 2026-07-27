@@ -6,7 +6,6 @@ import java.net.URI;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import static com.uiptv.util.StringUtils.EMPTY;
 import static com.uiptv.util.StringUtils.isBlank;

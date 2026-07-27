@@ -3,7 +3,7 @@ package com.uiptv.util;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
+
 
 /**
  * Interface for attribute parsers used by the StalkerPortalParser.

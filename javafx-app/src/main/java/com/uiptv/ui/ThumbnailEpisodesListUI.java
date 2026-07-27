@@ -1311,7 +1311,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         imdbLoading = true;
         Platform.runLater(() -> {
             applySeriesHeader();
-            setEpisodeLoadingOverlayVisible(!allEpisodeItems.isEmpty(), I18n.tr("autoLoadingIMDbDetails"));
+            setEpisodeLoadingOverlayVisible(!allEpisodeItems.isEmpty(), I18n.tr(I18N_AUTO_LOADING_IMDB_DETAILS));
         });
         long generation = lifecycleGeneration.get();
         boolean submitted = WatchingNowMetadataExecutor.submit(() -> {

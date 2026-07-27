@@ -398,33 +398,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
     }
 
-    private void applyPlayerAdjacentTopControlsEmbeddedArrangement() {
-        if (responsiveContent == null || navigationShell == null || embeddedPlayer == null || playerAdjacentControls == null) {
-            return;
-        }
-        boolean alreadyAdjacent = rowIndex(embeddedPlayer) == 0
-                && columnIndex(embeddedPlayer) == 0
-                && rowIndex(playerAdjacentControls) == 0
-                && columnIndex(playerAdjacentControls) == 1
-                && rowIndex(navigationShell) == 1
-                && columnIndex(navigationShell) == 0;
-        if (alreadyAdjacent) {
-            return;
-        }
-        configurePlayerAdjacentTopControlsResponsiveGrid();
-        placeInGrid(embeddedPlayer, 0, 0);
-        placeInGrid(playerAdjacentControls, 1, 0);
-        placeInGrid(navigationShell, 0, 1);
-        GridPane.setColumnSpan(navigationShell, 2);
-        GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
-        GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
-        GridPane.setHalignment(embeddedPlayer, HPos.LEFT);
-        GridPane.setValignment(embeddedPlayer, VPos.TOP);
-        GridPane.setHgrow(playerAdjacentControls, Priority.ALWAYS);
-        GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
-        GridPane.setHgrow(navigationShell, Priority.ALWAYS);
-        GridPane.setVgrow(navigationShell, Priority.ALWAYS);
-    }
 
     private GridPane createResponsiveContent() {
         GridPane grid = new GridPane();
@@ -656,29 +629,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         playerAdjacentControls.setManaged(visible);
     }
 
-    private boolean dockSelectedPageTopControls() {
-        Tab selectedTab = activeTabPane == null ? null : activeTabPane.getSelectionModel().getSelectedItem();
-        if (selectedTab == null || playerAdjacentControls == null) {
-            restoreDockedTopControls();
-            return false;
-        }
-        if (dockedTopControls != null && dockedTopControls.tab() == selectedTab) {
-            return !playerAdjacentControls.getChildren().isEmpty();
-        }
-
-        restoreDockedTopControls();
-        List<DockedNode> dockedNodes = findDockableTopControls(selectedTab.getContent());
-        if (dockedNodes.isEmpty()) {
-            setPlayerAdjacentControlsVisible(false);
-            return false;
-        }
-        for (DockedNode dockedNode : dockedNodes) {
-            dockNode(dockedNode);
-            playerAdjacentControls.getChildren().add(dockedNode.dockNode());
-        }
-        dockedTopControls = new DockedTopControls(selectedTab, dockedNodes);
-        return true;
-    }
 
     private void restoreDockedTopControls() {
         if (dockedTopControls == null || playerAdjacentControls == null) {

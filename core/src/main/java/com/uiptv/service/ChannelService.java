@@ -314,7 +314,7 @@ public class ChannelService {
                                                              Consumer<List<Channel>> callback, Consumer<PageProgress> progressCallback) {
         List<Channel> channels;
         if (account.getType() == XTREME_API) {
-            channels = dedupeChannels(XtremeApiParser.parseChannels(categoryId, account, callback, isCancelled));
+            channels = dedupeChannels(XtremeApiParser.parseChannels(categoryId, account, callback, isCancelled == null ? null : isCancelled::get));
             if (progressCallback != null) {
                 progressCallback.accept(new PageProgress(channels.size(), channels.size(), 1, 1));
             }

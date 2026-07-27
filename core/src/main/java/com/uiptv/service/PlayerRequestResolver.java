@@ -18,8 +18,9 @@ public class PlayerRequestResolver {
     public PlayerResponse resolveBookmarkPlayback(String bookmarkId, String mode, String seriesParentId) throws IOException {
         Bookmark bookmark = BookmarkService.getInstance().getBookmark(bookmarkId);
         Account account = AccountService.getInstance().getAll().get(bookmark.getAccountName());
+        Account.AccountAction defaultAction = account == null ? null : account.getAction();
         Account.AccountAction action = bookmark.getAccountAction() == null
-                ? resolveMode(mode, account == null ? null : account.getAction())
+                ? resolveMode(mode, defaultAction)
                 : bookmark.getAccountAction();
         Account playbackAccount = accountWithMode(account, action);
         Channel channel = resolveBookmarkChannel(bookmark);
