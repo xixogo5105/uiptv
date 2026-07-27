@@ -841,7 +841,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         }
         if (compact) {
             accountBrowserCompact = true;
-            if (!listView.getStyleClass().contains("account-list-panel-compact")) {
+            if (!listView.getStyleClass().contains(STYLE_ACCOUNT_LIST_PANEL_COMPACT)) {
                 listView.getStyleClass().add(STYLE_ACCOUNT_LIST_PANEL_COMPACT);
             }
             accountGrid.setCardWidthRange(GRID_COMPACT_CARD_MIN_WIDTH, GRID_COMPACT_CARD_MAX_WIDTH);
@@ -1036,7 +1036,7 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     private Region createCompactAccountCard(AccountItem item) {
         HBox card = new HBox(7);
-        card.getStyleClass().addAll("account-card", "plain-text-row-card");
+        card.getStyleClass().addAll(STYLE_ACCOUNT_CARD, "plain-text-row-card");
         card.setAlignment(Pos.CENTER_LEFT);
         card.setMinWidth(0);
         card.setMaxWidth(Double.MAX_VALUE);
@@ -1090,7 +1090,7 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     private Region createPlainTextAccountCard(AccountItem item) {
         HBox card = new HBox();
-        card.getStyleClass().addAll("account-card", "plain-text-row-card");
+        card.getStyleClass().addAll(STYLE_ACCOUNT_CARD, "plain-text-row-card");
         card.setAlignment(Pos.CENTER_LEFT);
         card.setMinWidth(0);
         card.setMaxWidth(Double.MAX_VALUE);
