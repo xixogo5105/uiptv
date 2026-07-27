@@ -665,7 +665,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         
         if (!hasWatchedEpisode) {
             // Add "Watching Now" option - sets first episode as watched
-            MenuItem watchingNowItem = new MenuItem(I18n.tr("autoWatchingNow"));
+            MenuItem watchingNowItem = new MenuItem(I18n.tr(I18N_AUTO_WATCHING_NOW));
             watchingNowItem.getStyleClass().add(EPISODE_MENU_ITEM);
             watchingNowItem.setOnAction(e -> {
                 WatchingEpisode firstEpisode = data.episodes.isEmpty() ? null : data.episodes.getFirst();
@@ -775,7 +775,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         reload.getStyleClass().add("watching-now-detail-reload-button");
         reload.setOnAction(event -> reloadSeriesDetailFromServer(data, reload));
 
-        Label headerTitle = new Label(I18n.tr("autoWatchingNow"));
+        Label headerTitle = new Label(I18n.tr(I18N_AUTO_WATCHING_NOW));
         headerTitle.getStyleClass().add("watching-now-detail-heading");
         Label headerSubtitle = new Label(initialTitle);
         headerSubtitle.getStyleClass().add("watching-now-detail-subheading");
@@ -1870,7 +1870,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         }
         addEpisodeContextMenuSeparatorIfNeeded(rowMenu);
         if (!item.watched) {
-            MenuItem watchingNow = new MenuItem(I18n.tr("autoWatchingNow"));
+            MenuItem watchingNow = new MenuItem(I18n.tr(I18N_AUTO_WATCHING_NOW));
             watchingNow.getStyleClass().add(EPISODE_MENU_ITEM);
             watchingNow.setOnAction(e -> {
                 markEpisodeAsWatched(item);

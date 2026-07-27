@@ -269,7 +269,7 @@ public class ReloadCacheInline extends VBox {
         progressSummaryLabel.getStyleClass().add("reload-progress-summary");
         progressSummaryLabel.setMinWidth(Region.USE_PREF_SIZE);
         progressSummaryLabel.setMaxWidth(Region.USE_PREF_SIZE);
-        progressSummaryLabel.setText(I18n.tr("autoQueued"));
+        progressSummaryLabel.setText(I18n.tr(I18N_AUTO_QUEUED));
 
         progressBar.setMinWidth(0);
         progressBar.setMaxWidth(Double.MAX_VALUE);
@@ -281,7 +281,7 @@ public class ReloadCacheInline extends VBox {
         progressRow.setMaxWidth(Double.MAX_VALUE);
 
         VBox progressCard = new VBox(progressRow);
-        progressCard.getStyleClass().addAll("management-popup-card", "reload-progress-card");
+        progressCard.getStyleClass().addAll(STYLE_MANAGEMENT_POPUP_CARD, "reload-progress-card");
         progressCard.setAlignment(Pos.CENTER_LEFT);
         progressCard.setFillWidth(true);
         progressCard.setMinWidth(0);
@@ -321,7 +321,7 @@ public class ReloadCacheInline extends VBox {
         row.setMaxWidth(Double.MAX_VALUE);
 
         VBox card = new VBox(row);
-        card.getStyleClass().addAll("management-popup-card", "reload-failure-policy-card");
+        card.getStyleClass().addAll(STYLE_MANAGEMENT_POPUP_CARD, "reload-failure-policy-card");
         card.setFillWidth(true);
         card.setMinWidth(0);
         card.setMaxWidth(Double.MAX_VALUE);
@@ -455,7 +455,7 @@ public class ReloadCacheInline extends VBox {
 
     private GridPane buildMainContent(FlowPane selectControls) {
         accountColumn = new VBox(10, selectControls, accountsScrollPane);
-        accountColumn.getStyleClass().addAll("management-popup-card", "reload-column-card", "reload-account-column");
+        accountColumn.getStyleClass().addAll(STYLE_MANAGEMENT_POPUP_CARD, "reload-column-card", "reload-account-column");
         accountColumn.setFillWidth(true);
         accountColumn.setMinSize(0, 0);
         accountColumn.setMaxWidth(Double.MAX_VALUE);
@@ -464,7 +464,7 @@ public class ReloadCacheInline extends VBox {
 
         Label logTitle = createColumnTitle(I18n.tr("autoLogs"));
         logColumn = new VBox(10, logTitle, logScrollPane);
-        logColumn.getStyleClass().addAll("management-popup-card", "reload-column-card", "reload-log-column");
+        logColumn.getStyleClass().addAll(STYLE_MANAGEMENT_POPUP_CARD, "reload-column-card", "reload-log-column");
         logColumn.setFillWidth(true);
         logColumn.setMinSize(0, 0);
         logColumn.setMaxWidth(Double.MAX_VALUE);
@@ -1001,7 +1001,7 @@ public class ReloadCacheInline extends VBox {
             int safeTotal = Math.max(0, total);
             int safeCompleted = Math.clamp(completed, 0, safeTotal);
             progressSummaryLabel.setText(safeTotal <= 0
-                    ? I18n.tr("autoQueued")
+                    ? I18n.tr(I18N_AUTO_QUEUED)
                     : I18n.tr("autoRunningProgress", safeCompleted, safeTotal));
         });
     }
@@ -1207,7 +1207,7 @@ public class ReloadCacheInline extends VBox {
                                                 VBox accountsBox,
                                                 Runnable closeAction) {
         VBox card = new VBox(14);
-        card.getStyleClass().addAll("management-popup-card", "reload-problem-accounts-card");
+        card.getStyleClass().addAll(STYLE_MANAGEMENT_POPUP_CARD, "reload-problem-accounts-card");
         card.setFillWidth(true);
         card.setMinWidth(0);
         card.setMaxWidth(Double.MAX_VALUE);
@@ -2619,7 +2619,7 @@ public class ReloadCacheInline extends VBox {
             switch (status) {
                 case QUEUED:
                     runningIndicator.setVisible(false);
-                    runStatusLabel.setText(I18n.tr("autoQueued"));
+                    runStatusLabel.setText(I18n.tr(I18N_AUTO_QUEUED));
                     setRunStatusStyle("reload-status-queued");
                     break;
                 case RUNNING:

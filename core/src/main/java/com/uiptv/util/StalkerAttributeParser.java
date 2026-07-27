@@ -30,7 +30,7 @@ public interface StalkerAttributeParser {
         String cleaned = normalized.replaceAll("[^\\x20-\\x7E]", " ").trim();
         List<String> tokens = new ArrayList<>(List.of(cleaned.split("\\s+")));
         for (String token : tokens.reversed()) {
-            if (Pattern.compile("^[0-9A-Fa-f]{6,}$").matcher(token).matches()) {
+            if (token.matches("^[0-9A-Fa-f]{6,}$")) {
                 return token;
             }
         }

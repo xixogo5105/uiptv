@@ -45,7 +45,7 @@ public class UiptUtils {
 
     public static boolean isValidMACAddress(String line) {
         if (isBlank(line)) return false;
-        return Pattern.compile(MAC_ADDRESS_REGEX).matcher(line).matches();
+        return line.matches(MAC_ADDRESS_REGEX);
     }
 
     public static String getUniqueNameFromUrl(String urlString) {

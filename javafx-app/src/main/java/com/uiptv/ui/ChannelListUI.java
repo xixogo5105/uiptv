@@ -144,7 +144,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         preloadAllCategoryContextAsync();
         initWidgets();
         registerSceneLifecycleListener();
-        table.setPlaceholder(new Label(I18n.tr("autoLoadingChannelsFor", categoryTitle)));
+        table.setPlaceholder(new Label(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle)));
     }
 
     public void setMediaDrawerMode(boolean mediaDrawerMode) {
@@ -394,7 +394,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         loadingProgressTitle.getStyleClass().add("account-loading-progress-title");
         loadingProgressValue.getStyleClass().add("account-loading-progress-value");
         loadingProgress.getStyleClass().add("account-loading-progress-bar");
-        loadingProgressTitle.setText(I18n.tr("autoLoadingChannelsFor", categoryTitle));
+        loadingProgressTitle.setText(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle));
         loadingProgressTitle.setWrapText(true);
         loadingProgressTitle.setMinWidth(0);
         loadingProgressTitle.setMaxWidth(Double.MAX_VALUE);
@@ -518,7 +518,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
         applyChannelGridSizing();
         channelGrid.setItems(table.getItems());
-        channelGrid.setPlaceholderNode(new LoadingStateView(I18n.tr("autoLoadingChannelsFor", categoryTitle)));
+        channelGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle)));
         channelGrid.setOnItemActivated(this::playOrShowSeries);
         channelGrid.setContextMenuFactory((item, selectedItems, owner) -> createChannelContextMenu(item, selectedItems, owner));
         channelGrid.setOnKeyPressed(event -> {
@@ -807,7 +807,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private String formatSeriesWatchBadgeText(SeriesWatchState state) {
         String seasonEpisode = formatSeasonEpisode(state);
-        return isBlank(seasonEpisode) ? I18n.tr("autoInPROGRESS") : seasonEpisode;
+        return isBlank(seasonEpisode) ? I18n.tr(I18N_AUTO_IN_PROGRESS) : seasonEpisode;
     }
 
     private String formatSeriesWatchTooltipText(SeriesWatchState state) {
@@ -817,7 +817,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         String episodeName = state.getEpisodeName();
         String seasonEpisode = formatSeasonEpisode(state);
         if (isBlank(episodeName)) {
-            return isBlank(seasonEpisode) ? I18n.tr("autoInPROGRESS") : seasonEpisode;
+            return isBlank(seasonEpisode) ? I18n.tr(I18N_AUTO_IN_PROGRESS) : seasonEpisode;
         }
         return isBlank(seasonEpisode) ? episodeName : seasonEpisode + " · " + episodeName;
     }
@@ -853,14 +853,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
         card.getChildren().add(title);
         if (item != null && item.getChannel() != null && PlayerService.getInstance().isDrmProtected(item.getChannel())) {
-            card.getChildren().add(createDrawerBadge(I18n.tr("autoDrm")));
+            card.getChildren().add(createDrawerBadge(I18n.tr(I18N_AUTO_DRM)));
         }
         if (item != null && item.isBookmarked()) {
             card.getChildren().add(createBookmarkIcon());
         }
         // Show watching badge for series
         if (item != null && item.getChannel() != null && listAction == series && item.getChannel().isWatched()) {
-            card.getChildren().add(createDrawerBadge(I18n.tr("autoInPROGRESS")));
+            card.getChildren().add(createDrawerBadge(I18n.tr(I18N_AUTO_IN_PROGRESS)));
         }
         return card;
     }
@@ -928,13 +928,13 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
         Channel channel = item.getChannel();
         if (channel != null && PlayerService.getInstance().isDrmProtected(channel)) {
-            badges.getChildren().add(createDrawerBadge(I18n.tr("autoDrm")));
+            badges.getChildren().add(createDrawerBadge(I18n.tr(I18N_AUTO_DRM)));
         }
         if (item.isBookmarked()) {
             badges.getChildren().add(createBookmarkIcon());
         }
         if (channel != null && listAction == series && channel.isWatched()) {
-            badges.getChildren().add(createDrawerBadge(I18n.tr("autoInPROGRESS")));
+            badges.getChildren().add(createDrawerBadge(I18n.tr(I18N_AUTO_IN_PROGRESS)));
         }
     }
 
@@ -1031,7 +1031,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private List<Label> createMediaMetadataNodes(ChannelItem item, WatchingNowVodResolver.VodMetadata vodMetadata) {
         List<Label> metadataNodes = new ArrayList<>();
         if (listAction == vod && item != null && item.isBookmarked()) {
-            Label watchingNowChip = WatchingNowMediaCardFactory.createChip(I18n.tr("autoWatchingNow"));
+            Label watchingNowChip = WatchingNowMediaCardFactory.createChip(I18n.tr(I18N_AUTO_WATCHING_NOW));
             watchingNowChip.getStyleClass().add("channel-bookmark-chip");
             metadataNodes.add(watchingNowChip);
         }
@@ -1043,14 +1043,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
             return metadataNodes;
         }
         if (PlayerService.getInstance().isDrmProtected(channel)) {
-            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoDrm")));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr(I18N_AUTO_DRM)));
         }
         if (listAction == vod) {
             populateVodMetaChips(metadataNodes, vodMetadata);
             return metadataNodes;
         }
         if (listAction == series && channel.isWatched()) {
-            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoInPROGRESS")));
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr(I18N_AUTO_IN_PROGRESS)));
         }
         if (!isBlank(channel.getRating())) {
             metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoRatingPrefix", channel.getRating())));
@@ -1161,12 +1161,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
         // Add Watching Now / Remove Watching Now menu options
         boolean hasWatchedEpisode = item.getChannel() != null && item.getChannel().isWatched();
         if (!hasWatchedEpisode) {
-            MenuItem watchingNowItem = new MenuItem(I18n.tr("autoWatchingNow"));
+            MenuItem watchingNowItem = new MenuItem(I18n.tr(I18N_AUTO_WATCHING_NOW));
             watchingNowItem.setOnAction(e -> saveSeriesWatchingNow(item));
             menu.getItems().add(watchingNowItem);
         } else {
             MenuItem removeWatchingNowItem = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
-            removeWatchingNowItem.getStyleClass().add("danger-menu-item");
+            removeWatchingNowItem.getStyleClass().add(STYLE_CLASS_DANGER_MENU_ITEM);
             removeWatchingNowItem.setOnAction(e -> removeSeriesWatchingNow(item));
             menu.getItems().add(removeWatchingNowItem);
         }
@@ -1211,8 +1211,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
-            private final Label drmBadge = new Label(I18n.tr("autoDrm"));
-            private final Label progressBadge = new Label(I18n.tr("autoInPROGRESS"));
+            private final Label drmBadge = new Label(I18n.tr(I18N_AUTO_DRM));
+            private final Label progressBadge = new Label(I18n.tr(I18N_AUTO_IN_PROGRESS));
             private final Pane spacer = new Pane();
             private final SVGPath bookmarkIcon = createBookmarkIcon();
             private final AsyncImageView imageView = new AsyncImageView();
@@ -1271,8 +1271,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
             private final HBox graphic = new HBox(10);
             private final Label nameLabel = new Label();
-            private final Label drmBadge = new Label(I18n.tr("autoDrm"));
-            private final Label progressBadge = new Label(I18n.tr("autoInPROGRESS"));
+            private final Label drmBadge = new Label(I18n.tr(I18N_AUTO_DRM));
+            private final Label progressBadge = new Label(I18n.tr(I18N_AUTO_IN_PROGRESS));
             private final Pane spacer = new Pane();
             private final SVGPath bookmarkIcon = createBookmarkIcon();
 
@@ -1977,7 +1977,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private MenuItem buildRemoveBookmarkItem(Map<ChannelItem, Bookmark> existingBookmarks) {
         MenuItem unbookmarkItem = new MenuItem(I18n.tr("autoRemoveBookmark"));
-        unbookmarkItem.getStyleClass().add("danger-menu-item");
+        unbookmarkItem.getStyleClass().add(STYLE_CLASS_DANGER_MENU_ITEM);
         unbookmarkItem.setOnAction(e -> removeBookmarksAsync(existingBookmarks));
         return unbookmarkItem;
     }
@@ -2011,7 +2011,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         )) {
             switch (action.kind()) {
                 case WATCHING_NOW -> {
-                    MenuItem watchingNowItem = new MenuItem(I18n.tr("autoWatchingNow"));
+                    MenuItem watchingNowItem = new MenuItem(I18n.tr(I18N_AUTO_WATCHING_NOW));
                     watchingNowItem.setOnAction(e -> saveVodWatchingNow(item));
                     rowMenu.getItems().add(watchingNowItem);
                 }
@@ -2026,7 +2026,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 }
                 case REMOVE_WATCHING_NOW -> {
                     MenuItem removeWatchingNowItem = new MenuItem(I18n.tr("autoRemoveWatchingNow"));
-                    removeWatchingNowItem.getStyleClass().add("danger-menu-item");
+                    removeWatchingNowItem.getStyleClass().add(STYLE_CLASS_DANGER_MENU_ITEM);
                     removeWatchingNowItem.setOnAction(e -> removeVodWatchingNow(item));
                     rowMenu.getItems().add(removeWatchingNowItem);
                 }

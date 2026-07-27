@@ -141,9 +141,9 @@ public class ManageAccountUI extends VBox {
         macAddress.setPrefWidth(188);
         macAddress.setMaxWidth(210);
 
-        refreshChannelsButton.getStyleClass().add("manage-account-compact-action");
-        clearButton.getStyleClass().add("manage-account-compact-action");
-        deleteButton.getStyleClass().add("manage-account-compact-action");
+        refreshChannelsButton.getStyleClass().add(STYLE_MANAGE_ACCOUNT_COMPACT_ACTION);
+        clearButton.getStyleClass().add(STYLE_MANAGE_ACCOUNT_COMPACT_ACTION);
+        deleteButton.getStyleClass().add(STYLE_MANAGE_ACCOUNT_COMPACT_ACTION);
         clearButton.setMinWidth(72);
         clearButton.setPrefWidth(84);
         clearButton.setMaxWidth(Region.USE_PREF_SIZE);
