@@ -31,7 +31,7 @@ public class AppPageHeader extends VBox {
         this(title, createActionContainer(actionNodes), true);
     }
 
-    private AppPageHeader(String title, HBox actionContainer, boolean unused) {
+    private AppPageHeader(String title, HBox actionContainer) {
         getStyleClass().add("uiptv-page-header");
         UiRenderQuality.optimizeLayout(this);
         UiRenderQuality.optimizeLayout(actions);

@@ -140,8 +140,8 @@ public class M3U8PublicationService {
         StringBuilder result = new StringBuilder();
         result.append(EXTM3U).append("\n");
         appendSelectedBookmarkPlaylist(result, selections.accountIds(), requestHost, categoryMode);
-        appendSelectedWatchingNowSeriesPlaylist(result, selections.accountIds(), requestHost, categoryMode);
-        appendSelectedWatchingNowVodPlaylist(result, selections.accountIds(), requestHost, categoryMode);
+        appendSelectedWatchingNowSeriesPlaylist(result, selections.accountIds(), requestHost);
+        appendSelectedWatchingNowVodPlaylist(result, selections.accountIds(), requestHost);
         for (Account account : getSelectedAccounts(selections.accountIds())) {
             appendSelectedAccountPlaylist(result, account, selections, categoryMode);
         }
@@ -226,8 +226,7 @@ public class M3U8PublicationService {
 
     private void appendSelectedWatchingNowSeriesPlaylist(StringBuilder result,
                                                          Set<String> accountIds,
-                                                         String requestHost,
-                                                         PublishedCategoryMode categoryMode) {
+                                                         String requestHost) {
         if (!accountIds.contains(WATCHING_NOW_SERIES_PLAYLIST_ACCOUNT_ID)) {
             return;
         }
@@ -256,9 +255,8 @@ public class M3U8PublicationService {
     }
 
     private void appendSelectedWatchingNowVodPlaylist(StringBuilder result,
-                                                      Set<String> accountIds,
-                                                      String requestHost,
-                                                      PublishedCategoryMode categoryMode) {
+                                                       Set<String> accountIds,
+                                                       String requestHost) {
         if (!accountIds.contains(WATCHING_NOW_VOD_PLAYLIST_ACCOUNT_ID)) {
             return;
         }
