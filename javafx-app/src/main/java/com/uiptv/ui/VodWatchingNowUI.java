@@ -25,7 +25,6 @@ import javafx.scene.control.*;
 import javafx.scene.control.OverrunStyle;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.MouseButton;
 import javafx.scene.Node;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;

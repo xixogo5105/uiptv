@@ -10,7 +10,6 @@ import com.uiptv.util.SystemUtils;
 import com.uiptv.widget.AppNavigationController;
 import com.uiptv.widget.AppNotificationCenter;
 import com.uiptv.widget.AppNavigationPane;
-import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.CloseIconButton;
 import com.uiptv.widget.InlinePanelService;
 import javafx.animation.PauseTransition;
