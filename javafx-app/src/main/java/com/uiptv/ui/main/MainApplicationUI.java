@@ -568,37 +568,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         responsiveContent.getColumnConstraints().setAll(contentColumn);
         responsiveContent.getRowConstraints().setAll(playerRow, navigationRow);
     }
-
-    private void configurePlayerAdjacentTopControlsResponsiveGrid() {
-        if (responsiveContent == null) {
-            return;
-        }
-        double playerWidth = stackedEmbeddedPlayerWidth();
-        double playerHeight = stackedEmbeddedPlayerHeight();
-        ColumnConstraints playerColumn = new ColumnConstraints();
-        playerColumn.setMinWidth(playerWidth);
-        playerColumn.setPrefWidth(playerWidth);
-        playerColumn.setMaxWidth(playerWidth);
-        playerColumn.setHgrow(Priority.NEVER);
-        playerColumn.setFillWidth(true);
-        ColumnConstraints navigationColumn = new ColumnConstraints();
-        navigationColumn.setMinWidth(0);
-        navigationColumn.setHgrow(Priority.ALWAYS);
-        navigationColumn.setFillWidth(true);
-        RowConstraints controlsRow = new RowConstraints();
-        controlsRow.setMinHeight(playerHeight);
-        controlsRow.setPrefHeight(playerHeight);
-        controlsRow.setMaxHeight(playerHeight);
-        controlsRow.setVgrow(Priority.NEVER);
-        controlsRow.setFillHeight(true);
-        RowConstraints navigationRow = new RowConstraints();
-        navigationRow.setMinHeight(0);
-        navigationRow.setVgrow(Priority.ALWAYS);
-        navigationRow.setFillHeight(true);
-        responsiveContent.getColumnConstraints().setAll(playerColumn, navigationColumn);
-        responsiveContent.getRowConstraints().setAll(controlsRow, navigationRow);
-    }
-
     private void applyStackedEmbeddedPlayerSize() {
         embeddedPlayer.prefHeightProperty().unbind();
         embeddedPlayer.maxHeightProperty().unbind();
@@ -706,21 +675,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         playerAdjacentControls.getChildren().clear();
         setPlayerAdjacentControlsVisible(false);
     }
-
-    private List<DockedNode> findDockableTopControls(Node root) {
-        List<DockedNode> controls = new ArrayList<>();
-        Node header = firstNodeWithStyle(root, "uiptv-page-header");
-        Node dockedHeader = ancestorWithStyle(header, "bookmarks-header-area");
-        addDockedNode(controls, dockedHeader == null ? header : dockedHeader);
-
-        addDockedNode(controls, firstNodeWithStyle(root, "bookmark-category-row"));
-        addDockedNode(controls, firstNodeWithStyle(root, "account-toolbar"));
-
-        Node sibling = nextDockableSibling(dockedHeader == null ? header : dockedHeader);
-        addDockedNode(controls, sibling);
-        return controls;
-    }
-
     private void addDockedNode(List<DockedNode> controls, Node node) {
         if (node == null || containsDockedNode(controls, node)) {
             return;
@@ -748,24 +702,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         }
         return new DockedNode(parent, index, node, node, null, List.of());
     }
-
-    private void dockNode(DockedNode dockedNode) {
-        dockedNode.parent().getChildren().remove(dockedNode.originalNode());
-        if (dockedNode.childSource() == null) {
-            return;
-        }
-        dockedNode.childSource().getChildren().clear();
-        boolean firstChild = true;
-        for (Node child : dockedNode.movedChildren()) {
-            dockedNode.dockRowChildren().add(child);
-            if (child instanceof Region region) {
-                region.setMaxWidth(Double.MAX_VALUE);
-                HBox.setHgrow(region, firstChild ? Priority.ALWAYS : Priority.NEVER);
-            }
-            firstChild = false;
-        }
-    }
-
     private void restoreDockNode(DockedNode dockedNode) {
         playerAdjacentControls.getChildren().remove(dockedNode.dockNode());
         if (dockedNode.childSource() != null) {

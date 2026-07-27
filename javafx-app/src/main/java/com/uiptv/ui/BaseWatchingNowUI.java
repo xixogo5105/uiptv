@@ -21,7 +21,7 @@ import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
+
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -528,19 +528,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                 .collect(java.util.stream.Collectors.joining("|"));
     }
 
-    private void openSelectedSeries(TableView<SeriesListItem> table) {
-        SeriesListItem selected = table.getSelectionModel().getSelectedItem();
-        if (selected == null) {
-            return;
-        }
-        SeriesPanelData panelData = panelDataByKey.get(selected.getPanelKey());
-        if (panelData == null) {
-            return;
-        }
-        selectedSeriesKey = selected.getPanelKey();
-        renderCurrentView();
-    }
-
     private HBox createSeriesListCard(SeriesPanelData data) {
         ImageView poster = null;
         if (thumbnailsEnabled()) {
@@ -974,13 +961,13 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             return;
         }
         if (!thumbnailsEnabled()) {
-            double detailsWidth = Math.min(290, Math.max(240, width * 0.22));
+            double detailsWidth = Math.clamp(width * 0.22, 240.0, 290.0);
             detailsPanel.setPrefWidth(detailsWidth);
             detailsPanel.setMaxWidth(310);
             episodesPanel.setPrefWidth(Math.max(480, width - detailsWidth - 18));
             return;
         }
-        double detailsWidth = Math.min(340, Math.max(280, width * 0.32));
+        double detailsWidth = Math.clamp(width * 0.32, 280.0, 340.0);
         detailsPanel.setPrefWidth(detailsWidth);
         detailsPanel.setMaxWidth(380);
         episodesPanel.setPrefWidth(Math.max(420, width - detailsWidth - 18));
@@ -1545,9 +1532,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                     playEpisode(data, row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
                     event.consume();
                 }
-                case UP, DOWN, HOME, END -> handleSeriesEpisodeNavigationKeyPressed(data, event);
-                default -> {
-                }
             }
         });
         return root;
@@ -1798,7 +1782,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         ContextMenu rowMenu = new ContextMenu();
         rowMenu.getStyleClass().add("episode-context-menu");
         UiI18n.preparePopupControl(rowMenu, target);
-        if (item == null) {
+        if (item == null || target == null) {
             return rowMenu;
         }
         rowMenu.setHideOnEscape(true);

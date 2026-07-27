@@ -59,7 +59,7 @@ public class ReloadCacheInline extends VBox {
     private static final double STACKED_LAYOUT_WIDTH = ACCOUNT_COLUMN_MIN_WIDTH + LOG_COLUMN_MIN_WIDTH + MAIN_CONTENT_COLUMN_GAP;
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d+)");
     private static final Pattern DISPLAY_CENSORED_COUNT_PATTERN =
-            Pattern.compile("^(.*\\bcensored\\s+(?:categories|channels):\\s*)([\\p{Nd},.]+)(.*)$",
+            Pattern.compile("^(.*?\\bcensored\\s+(?:categories|channels):\\s*)([\\p{Nd},.]+)(.*)$",
                     Pattern.CASE_INSENSITIVE);
     private static final String GLOBAL_SERIES_CATEGORY_LIST_FAILED = "Global SERIES category list failed:";
     private static final String GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED = "Global Stalker get_all_channels failed";
@@ -217,7 +217,7 @@ public class ReloadCacheInline extends VBox {
         failureHandlingCard = buildFailureHandlingCard();
         setProgressCardVisible(false);
         setFailureHandlingCardVisible(this.showFailureHandlingCard);
-        GridPane mainContent = buildMainContent(selectControls);
+        this.mainContent = buildMainContent(selectControls);
         HBox buttonBox = buildButtonBox();
         getChildren().addAll(buildHeader(), progressCard);
         if (this.showFailureHandlingCard) {
@@ -282,13 +282,13 @@ public class ReloadCacheInline extends VBox {
         progressRow.setAlignment(Pos.CENTER_LEFT);
         progressRow.setMaxWidth(Double.MAX_VALUE);
 
-        VBox progressCard = new VBox(progressRow);
-        progressCard.getStyleClass().addAll(STYLE_MANAGEMENT_POPUP_CARD, "reload-progress-card");
-        progressCard.setAlignment(Pos.CENTER_LEFT);
-        progressCard.setFillWidth(true);
-        progressCard.setMinWidth(0);
-        progressCard.setMaxWidth(Double.MAX_VALUE);
-        return progressCard;
+        VBox card = new VBox(progressRow);
+        card.getStyleClass().addAll(STYLE_MANAGEMENT_POPUP_CARD, "reload-progress-card");
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setFillWidth(true);
+        card.setMinWidth(0);
+        card.setMaxWidth(Double.MAX_VALUE);
+        return card;
     }
 
     private void setProgressCardVisible(boolean visible) {
@@ -1959,7 +1959,7 @@ public class ReloadCacheInline extends VBox {
     }
 
     private String translatePageFetchLog(String trimmed) {
-        Matcher fetching = Pattern.compile("Fetching page\\s+(\\d+)\\s+for category\\s+(.+)\\.\\.\\.").matcher(trimmed);
+        Matcher fetching = Pattern.compile("Fetching page\\s+(\\d+)\\s+for category\\s+(.+?)\\.\\.\\.").matcher(trimmed);
         if (fetching.matches()) {
             return I18n.tr("reloadPageCategory", I18n.formatNumber(fetching.group(1)), fetching.group(2).trim());
         }

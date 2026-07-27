@@ -115,7 +115,6 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private AppPageHeader pageHeader;
     private MenuButton accountSortButton;
-    private VBox accountToolbar;
     private CategoryListUI activeCategoryListUI;
     private Node leadingBodyContent;
     private final ChangeListener<Boolean> leadingBodyContentVisibilityListener =
@@ -413,7 +412,7 @@ public class AccountListUI extends HBox implements SearchTarget {
 
         configureAccountTypePillBar();
         pageHeader = createPageHeader();
-        accountToolbar = createAccountToolbar();
+        VBox accountToolbar = createAccountToolbar();
         configurePageContainers();
         configureAccountGrid();
         configureAccountScrollPane();
@@ -459,7 +458,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         applyAccountGridDisplayMode(ThumbnailAwareUI.areThumbnailsEnabled());
         accountGrid.setPlaceholderText(I18n.tr("autoNothingFoundFor", I18n.tr("autoAccount")));
         accountGrid.setOnItemActivated(item -> retrieveThreadedAccountCategories(item, itv));
-        accountGrid.setContextMenuFactory((item, selectedItems, owner) -> createAccountContextMenu(item, selectedItems, owner));
+        accountGrid.setContextMenuFactory(this::createAccountContextMenu);
         accountGrid.getSelectedItems().addListener((ListChangeListener<AccountItem>) _ -> handleAccountGridSelectionChanged());
         accountGrid.setOnKeyReleased(event -> {
             if (event.getCode() == KeyCode.DELETE) {
