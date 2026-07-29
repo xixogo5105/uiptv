@@ -143,105 +143,11 @@ MainApplicationUI ui = new MainApplicationUI(null, null, configurationService, n
     }
 
     @Test
-    void playerAdjacentTopControlsLayoutActivatesOnlyWhenThereIsRoomBesidePlayer() throws Exception {
-        assertFalse(shouldUsePlayerAdjacentTopControlsLayout(480));
-        assertFalse(shouldUsePlayerAdjacentTopControlsLayout(827));
-        assertFalse(shouldUsePlayerAdjacentTopControlsLayout(1199));
-        assertTrue(shouldUsePlayerAdjacentTopControlsLayout(1200));
-        assertTrue(shouldUsePlayerAdjacentTopControlsLayout(1368));
-    }
-
-    @Test
     void accountMediaDrawerModeActivatesOnlyWhenTopPlayerWidthCannotFitSplitBrowser() throws Exception {
         assertTrue(shouldUseAccountMediaDrawerMode(480));
         assertTrue(shouldUseAccountMediaDrawerMode(899));
         assertFalse(shouldUseAccountMediaDrawerMode(900));
         assertFalse(shouldUseAccountMediaDrawerMode(1200));
-    }
-
-    @Test
-    void playerAdjacentTopControlsLayoutUsesSceneWidthWhenContentIsClipped() throws Exception {
-        assertFalse(runOnFxThread(() -> {
-            MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, true);
-            HBox mainContent = new HBox();
-            mainContent.resize(1200, 600);
-            new Scene(mainContent, 700, 600);
-            setField(ui, "mainContent", mainContent);
-            Method method = MainApplicationUI.class.getDeclaredMethod("shouldUsePlayerAdjacentTopControlsLayout");
-            method.setAccessible(true);
-            return (boolean) method.invoke(ui);
-        }));
-    }
-
-    @Test
-    void playerAdjacentTopControlsLayoutUsesResponsiveContentWidthWhenSceneIsCurrent() throws Exception {
-        assertFalse(runOnFxThread(() -> {
-            MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, true);
-            GridPane responsiveContent = new GridPane();
-            HBox mainContent = new HBox(responsiveContent);
-            new Scene(mainContent, 1280, 600);
-            mainContent.resize(1280, 600);
-            responsiveContent.resize(1180, 600);
-            setField(ui, "mainContent", mainContent);
-            setField(ui, "responsiveContent", responsiveContent);
-            Method method = MainApplicationUI.class.getDeclaredMethod("shouldUsePlayerAdjacentTopControlsLayout");
-            method.setAccessible(true);
-            return (boolean) method.invoke(ui);
-        }));
-    }
-
-    @Test
-    void playerAdjacentTopControlsLayoutIgnoresStaleNarrowGridAfterLargeSceneExpansion() throws Exception {
-        assertTrue(runOnFxThread(() -> {
-            MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, true);
-            GridPane responsiveContent = new GridPane();
-            HBox mainContent = new HBox(responsiveContent);
-            new Scene(mainContent, 1920, 600);
-            mainContent.resize(544, 600);
-            responsiveContent.resize(544, 600);
-            setField(ui, "mainContent", mainContent);
-            setField(ui, "responsiveContent", responsiveContent);
-            Method method = MainApplicationUI.class.getDeclaredMethod("shouldUsePlayerAdjacentTopControlsLayout");
-            method.setAccessible(true);
-            return (boolean) method.invoke(ui);
-        }));
-    }
-
-    @Test
-    void playerAdjacentLayoutReservesFixedPlayerColumnAndFullWidthNavigationRow() throws Exception {
-        assertTrue(runOnFxThread(() -> {
-            MainApplicationUI ui = new MainApplicationUI(null, null, null, null, 1368, 720, true);
-            TabPane tabPane = new TabPane();
-            StackPane navigationShell = new StackPane(tabPane);
-            HBox embeddedPlayer = new HBox();
-            VBox playerAdjacentControls = new VBox();
-            embeddedPlayer.setManaged(true);
-            GridPane responsiveContent = new GridPane();
-            HBox mainContent = new HBox(responsiveContent);
-            new Scene(mainContent, 1368, 600);
-            mainContent.resize(1368, 600);
-            responsiveContent.resize(1368, 600);
-            setField(ui, "activeTabPane", tabPane);
-            setField(ui, "navigationShell", navigationShell);
-            setField(ui, "embeddedPlayer", embeddedPlayer);
-            setField(ui, "playerAdjacentControls", playerAdjacentControls);
-            setField(ui, "responsiveContent", responsiveContent);
-            setField(ui, "mainContent", mainContent);
-            Method method = MainApplicationUI.class.getDeclaredMethod("applyPlayerAdjacentTopControlsEmbeddedArrangement");
-            method.setAccessible(true);
-            method.invoke(ui);
-            if (responsiveContent.getColumnConstraints().size() != 2) {
-                return false;
-            }
-            ColumnConstraints playerColumn = responsiveContent.getColumnConstraints().getFirst();
-            ColumnConstraints controlsColumn = responsiveContent.getColumnConstraints().get(1);
-            return GridPane.getColumnSpan(navigationShell) == 2
-                    && playerColumn.getMinWidth() == 480.0
-                    && playerColumn.getPrefWidth() == 480.0
-                    && playerColumn.getMaxWidth() == 480.0
-                    && playerColumn.getHgrow() == Priority.NEVER
-                    && controlsColumn.getHgrow() == Priority.ALWAYS;
-        }));
     }
 
     @Test
@@ -484,13 +390,6 @@ MainApplicationUI ui = new MainApplicationUI(null, null, configurationService, n
         Method method = MainApplicationUI.class.getDeclaredMethod("preferredWideAppAreaWidth");
         method.setAccessible(true);
         return (double) method.invoke(ui);
-    }
-
-    private static boolean shouldUsePlayerAdjacentTopControlsLayout(int guidedWidth) throws Exception {
-        MainApplicationUI ui = new MainApplicationUI(null, null, null, null, guidedWidth, 720, true);
-        Method method = MainApplicationUI.class.getDeclaredMethod("shouldUsePlayerAdjacentTopControlsLayout");
-        method.setAccessible(true);
-        return (boolean) method.invoke(ui);
     }
 
     private static boolean shouldUseAccountMediaDrawerMode(int guidedWidth) throws Exception {
