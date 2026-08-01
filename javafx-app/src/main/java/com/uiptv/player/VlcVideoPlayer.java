@@ -24,12 +24,20 @@ import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
     static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
 
     private final Object playerLock = new Object();
+    private final ExecutorService playExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "vlc-play-media");
+        t.setDaemon(true);
+        return t;
+    });
     private MediaPlayerFactory mediaPlayerFactory;
     private EmbeddedMediaPlayer mediaPlayer;
     private MediaPlayerEventAdapter mediaPlayerEvents;
@@ -390,7 +398,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void playMedia(String uri) {
-        Thread playThread = new Thread(() -> {
+        loadingSpinner.setVisible(true);
+        playExecutor.submit(() -> {
             if (isDisposed.get()) {
                 return;
             }
@@ -409,8 +418,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             synchronized (playerLock) {
                 EmbeddedMediaPlayer player = mediaPlayer;
                 if (player != null && !isDisposed.get()) {
-                    // Pass User-Agent as a media option to ensure it's used for all HLS segment requests.
-                    // Some CDNs ignore the global --http-user-agent for HLS modules.
                     if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
                         player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
                     } else {
@@ -419,9 +426,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     scheduleAudioStateStartupSync(requestVersion);
                 }
             }
-        }, "vlc-play-media");
-        playThread.setDaemon(true);
-        playThread.start();
+        });
     }
 
     @Override
@@ -431,37 +436,37 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void disposeMedia() {
+        EmbeddedMediaPlayer playerToCleanup;
+        MediaPlayerFactory factoryToCleanup;
         synchronized (playerLock) {
-            if (mediaPlayer != null) {
-                try {
-                    mediaPlayer.controls().stop();
-                } catch (Exception _) {
-                    // Best-effort shutdown: player may already be stopped or detached.
-                }
-                try {
-                    mediaPlayer.videoSurface().set(null);
-                } catch (Exception _) {
-                    // Best-effort shutdown: surface can already be released during teardown.
-                }
-                try {
-                    // Keep all VLC teardown serialized with any in-flight play request.
-                    // That avoids racing native listener detachment against a concurrent start.
-                    // Releasing the media player will also remove all listeners internally.
-                    // Explicit removal can sometimes cause crashes during native teardown on some platforms.
-                    mediaPlayer.release();
-                } catch (Exception _) {
-                    // Best-effort shutdown: native VLC release can fail after partial teardown.
-                }
-                mediaPlayer = null;
-                mediaPlayerEvents = null;
+            playerToCleanup = mediaPlayer;
+            factoryToCleanup = mediaPlayerFactory;
+            mediaPlayer = null;
+            mediaPlayerEvents = null;
+            mediaPlayerFactory = null;
+        }
+        if (playerToCleanup != null) {
+            try {
+                playerToCleanup.controls().stop();
+            } catch (Exception _) {
+                // Best-effort: VLC may be in a bad state.
             }
-            if (mediaPlayerFactory != null) {
-                try {
-                    mediaPlayerFactory.release();
-                } catch (Exception _) {
-                    // Best-effort shutdown: native factory cleanup should not block UI disposal.
-                }
-                mediaPlayerFactory = null;
+            try {
+                playerToCleanup.videoSurface().set(null);
+            } catch (Exception _) {
+                // Best-effort: surface can already be released during teardown.
+            }
+            try {
+                playerToCleanup.release();
+            } catch (Exception _) {
+                // Best-effort: native VLC release can fail after partial teardown.
+            }
+        }
+        if (factoryToCleanup != null) {
+            try {
+                factoryToCleanup.release();
+            } catch (Exception _) {
+                // Best-effort: factory cleanup should not block UI disposal.
             }
         }
         videoImageView.setImage(null);

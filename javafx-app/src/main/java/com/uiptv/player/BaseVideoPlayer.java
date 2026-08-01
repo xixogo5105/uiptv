@@ -61,6 +61,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntConsumer;
 
@@ -958,7 +959,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 }
             });
             try {
-                latch.await();
+                latch.await(10, TimeUnit.SECONDS);
             } catch (InterruptedException _) {
                 // Preserve interruption while waiting for JavaFX to finish PiP cleanup.
                 Thread.currentThread().interrupt();
