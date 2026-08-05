@@ -77,7 +77,7 @@ jobs:
           restore-keys: ${{ runner.os }}-m2
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.2.0
+        uses: gradle/actions/setup-gradle@v6.3.0
 
       - name: Run mobile tests and coverage
         working-directory: mobile
@@ -283,7 +283,7 @@ jobs:
           java-version: '21'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6.2.0
+        uses: gradle/actions/setup-gradle@v6.3.0
 
       - name: Restore API 24 libmpv AAR
         uses: actions/cache@v6
