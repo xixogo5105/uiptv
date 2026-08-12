@@ -6,6 +6,8 @@ import com.uiptv.model.PlayerResponse;
 import com.uiptv.util.PlayerUrlUtils;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
@@ -45,7 +47,7 @@ public class XtremePlayerService implements AccountPlayerService {
         String extension = inferExtensionFromCmd(fallbackCmd);
         String type = resolveStreamType(account, parentSeriesId);
         String resolvedExtension = defaultExtension(extension, type);
-        return baseUrl + type + "/" + account.getUsername() + "/" + account.getPassword() + "/" + channel.getChannelId() + "." + resolvedExtension;
+        return baseUrl + type + "/" + URLEncoder.encode(account.getUsername(), StandardCharsets.UTF_8) + "/" + URLEncoder.encode(account.getPassword(), StandardCharsets.UTF_8) + "/" + channel.getChannelId() + "." + resolvedExtension;
     }
 
     private String resolveBaseUrl(Account account) {

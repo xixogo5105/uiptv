@@ -11,6 +11,7 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -24,6 +25,7 @@ import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.nullSafeEncode;
 import static com.uiptv.util.StringUtils.safeGetString;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class XtremeApiParser {
     private static final String PARAM_CATEGORY_ID = "category_id";
@@ -312,13 +314,15 @@ public class XtremeApiParser {
             return "";
         }
         String ext = isBlank(extension) ? "ts" : extension;
+        String username = URLEncoder.encode(account.getUsername(), UTF_8);
+        String password = URLEncoder.encode(account.getPassword(), UTF_8);
         switch (account.getAction()) {
             case vod:
-                return baseUrl + "movie/" + account.getUsername() + "/" + account.getPassword() + "/" + streamId + "." + ext;
+                return baseUrl + "movie/" + username + "/" + password + "/" + streamId + "." + ext;
             case series:
-                return baseUrl + "series/" + account.getUsername() + "/" + account.getPassword() + "/" + streamId + "." + ext;
+                return baseUrl + "series/" + username + "/" + password + "/" + streamId + "." + ext;
             default:
-                return baseUrl + account.getUsername() + "/" + account.getPassword() + "/" + streamId;
+                return baseUrl + username + "/" + password + "/" + streamId;
         }
     }
 }

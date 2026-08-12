@@ -51,7 +51,7 @@ public class HttpUtil {
     private static final int MAX_REDIRECTS = Integer.getInteger("uiptv.http.max.redirects", 5);
     private static final int MAX_CONNECTIONS_TOTAL = Integer.getInteger("uiptv.http.max.connections.total", 50);
     private static final int MAX_CONNECTIONS_PER_ROUTE = Integer.getInteger("uiptv.http.max.connections.per.route", 10);
-    private static final int IDLE_CONNECTION_EVICT_SECONDS = Integer.getInteger("uiptv.http.idle.connection.evict.seconds", 30);
+    private static final int IDLE_CONNECTION_EVICT_SECONDS = Integer.getInteger("uiptv.http.idle.connection.evict.seconds", 120);
     private static final PoolingHttpClientConnectionManager CONNECTION_MANAGER =
             PoolingHttpClientConnectionManagerBuilder.create()
                     .setMaxConnTotal(MAX_CONNECTIONS_TOTAL)

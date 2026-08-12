@@ -429,38 +429,47 @@ public class MainApplicationUI extends BaseMainApplicationUI {
             return;
         }
         configurePlayerAdjacentTopControlsEmbeddedGrid();
-        placeInGrid(navigationShell, 0, 0);
+        placeInGrid(embeddedPlayer, 0, 0);
+        placeInGrid(playerAdjacentControls, 1, 0);
+        placeInGrid(navigationShell, 0, 1);
         GridPane.setColumnSpan(navigationShell, 2);
-        placeInGrid(embeddedPlayer, 0, 1);
-        placeInGrid(playerAdjacentControls, 1, 1);
-        GridPane.setVgrow(navigationShell, Priority.ALWAYS);
         GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setValignment(embeddedPlayer, VPos.TOP);
         GridPane.setHgrow(playerAdjacentControls, Priority.ALWAYS);
         GridPane.setVgrow(playerAdjacentControls, Priority.NEVER);
+        GridPane.setVgrow(navigationShell, Priority.ALWAYS);
     }
 
     private void configurePlayerAdjacentTopControlsEmbeddedGrid() {
         if (responsiveContent == null) {
             return;
         }
+        applyStackedEmbeddedPlayerSize();
+        double playerWidth = stackedEmbeddedPlayerWidth();
+        double playerHeight = stackedEmbeddedPlayerHeight();
         ColumnConstraints playerColumn = new ColumnConstraints();
-        playerColumn.setMinWidth(STACKED_EMBEDDED_PLAYER_MAX_WIDTH);
-        playerColumn.setPrefWidth(STACKED_EMBEDDED_PLAYER_MAX_WIDTH);
-        playerColumn.setMaxWidth(STACKED_EMBEDDED_PLAYER_MAX_WIDTH);
+        playerColumn.setMinWidth(playerWidth);
+        playerColumn.setPrefWidth(playerWidth);
+        playerColumn.setMaxWidth(playerWidth);
         playerColumn.setHgrow(Priority.NEVER);
         playerColumn.setFillWidth(true);
         ColumnConstraints controlsColumn = new ColumnConstraints();
         controlsColumn.setMinWidth(0);
         controlsColumn.setHgrow(Priority.ALWAYS);
         controlsColumn.setFillWidth(true);
-        RowConstraints row = new RowConstraints();
-        row.setMinHeight(0);
-        row.setVgrow(Priority.ALWAYS);
-        row.setFillHeight(true);
+        RowConstraints controlsRow = new RowConstraints();
+        controlsRow.setMinHeight(playerHeight);
+        controlsRow.setPrefHeight(playerHeight);
+        controlsRow.setMaxHeight(playerHeight);
+        controlsRow.setVgrow(Priority.NEVER);
+        controlsRow.setFillHeight(true);
+        RowConstraints navigationRow = new RowConstraints();
+        navigationRow.setMinHeight(0);
+        navigationRow.setVgrow(Priority.ALWAYS);
+        navigationRow.setFillHeight(true);
         responsiveContent.getColumnConstraints().setAll(playerColumn, controlsColumn);
-        responsiveContent.getRowConstraints().setAll(row);
+        responsiveContent.getRowConstraints().setAll(controlsRow, navigationRow);
     }
 
 

@@ -221,14 +221,16 @@ public class StringUtils {
         if (account == null || account.getAction() == null) {
             return "";
         }
+        String username = encode(account.getUsername());
+        String password = encode(account.getPassword());
         switch (account.getAction()) {
             case vod:
-                return account.getM3u8Path() + "movie/" + account.getUsername() + "/" + account.getPassword() + "/" + streamId + "." + extension;
+                return account.getM3u8Path() + "movie/" + username + "/" + password + "/" + streamId + "." + extension;
             case series:
-                return account.getM3u8Path() + "series/" + account.getUsername() + "/" + account.getPassword() + "/" + streamId + "." + extension;
+                return account.getM3u8Path() + "series/" + username + "/" + password + "/" + streamId + "." + extension;
             case itv:
             default:
-                return account.getM3u8Path() + account.getUsername() + "/" + account.getPassword() + "/" + streamId;
+                return account.getM3u8Path() + username + "/" + password + "/" + streamId;
         }
     }
 
