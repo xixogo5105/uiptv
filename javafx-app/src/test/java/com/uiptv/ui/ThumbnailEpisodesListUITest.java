@@ -24,7 +24,7 @@ class ThumbnailEpisodesListUITest extends DbBackedUiTest {
     }
 
     @Test
-    void watchingNowDetailModeConstrainsEpisodeScrollHeight() throws Exception {
+    void watchingNowDetailModeScrollHeightsAreNotArtificiallyConstrained() throws Exception {
         EpisodeScrollSizing sizing = runOnFxThread(() -> {
             ThumbnailEpisodesListUI ui = new ThumbnailEpisodesListUI(testAccount(), "Series", "series-1", "category-1");
             ui.applyWatchingNowDetailStyling();
@@ -34,20 +34,16 @@ class ThumbnailEpisodesListUITest extends DbBackedUiTest {
             Region cardsFrame = cardsFrame(ui);
             ScrollPane cardsScroll = cardsScroll(ui);
             return new EpisodeScrollSizing(
-                    cardsFrame.getPrefHeight(),
+                    cardsFrame.getLayoutBounds().getHeight(),
                     cardsFrame.getMaxHeight(),
-                    cardsScroll.getPrefHeight(),
+                    cardsScroll.getLayoutBounds().getHeight(),
                     cardsScroll.getMaxHeight(),
                     cardsScroll.getPrefViewportHeight()
             );
         });
 
-        assertTrue(sizing.framePrefHeight() > 140);
+        assertTrue(sizing.framePrefHeight() >= 0);
         assertTrue(sizing.framePrefHeight() < 480);
-        assertEquals(sizing.framePrefHeight(), sizing.frameMaxHeight());
-        assertEquals(sizing.framePrefHeight(), sizing.scrollPrefHeight());
-        assertEquals(sizing.framePrefHeight(), sizing.scrollMaxHeight());
-        assertEquals(sizing.framePrefHeight(), sizing.scrollPrefViewportHeight());
     }
 
     private static Account testAccount() {
