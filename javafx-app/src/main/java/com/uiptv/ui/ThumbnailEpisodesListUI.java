@@ -70,7 +70,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private static final String STYLE_CLASS_SELECTED_CARD_TEXT = "selected-card-text";
     private final PillBar<String> seasonPillBar = new PillBar<>(I18n::formatTabNumberLabel, season -> season);
     private final VBox cardsContainer = new VBox(8);
-    private final ScrollPane cardsScroll = new ScrollPane(cardsContainer);
+    private final ScrollPane cardsScroll = new ScrollPane();
     private final StackPane cardsFrame = new StackPane();
     private final VBox header = new VBox(12);
     private final ImageView seriesPosterNode = new ImageView();
@@ -157,19 +157,18 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         cardsFrame.setMinSize(0, 0);
         cardsFrame.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         setEpisodeLoadingOverlayVisible(false, null);
-        cardsFrame.getChildren().setAll(cardsScroll);
+        cardsFrame.getChildren().setAll(cardsContainer);
 
         bodyContainer = new VBox(6, header, seasonPillBar, cardsFrame);
         bodyContainer.setMinSize(0, 0);
         bodyContainer.setMaxWidth(Double.MAX_VALUE);
-        bodyContainer.setMaxHeight(Double.MAX_VALUE);
         bodyContainer.setPadding(new Insets(0, 4, 0, 4));
         HBox.setHgrow(bodyContainer, Priority.ALWAYS);
         header.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(header, Priority.NEVER);
-        VBox.setVgrow(cardsScroll, Priority.ALWAYS);
         VBox.setVgrow(cardsFrame, Priority.ALWAYS);
         VBox.setVgrow(seasonPillBar, Priority.NEVER);
+        cardsScroll.setContent(bodyContainer);
         contentStack.heightProperty().addListener((_, _, _) -> updateWatchingNowEpisodeScrollHeight());
         watchingNowEpisodesPanel.heightProperty().addListener((_, _, _) -> updateWatchingNowEpisodeScrollHeight());
         sceneProperty().addListener((_, _, newScene) -> {
@@ -183,7 +182,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 scheduleInitialEpisodeFocus();
             }
         });
-        contentStack.getChildren().add(bodyContainer);
+        contentStack.getChildren().add(cardsScroll);
     }
 
     @Override
@@ -442,30 +441,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private void updateWatchingNowEpisodeScrollHeight() {
-        if (!watchingNowDetailStylingApplied) {
-            return;
-        }
-        double availableHeight = contentStack.getHeight() > 0 ? contentStack.getHeight() : getHeight();
-        if (availableHeight <= 0) {
-            return;
-        }
-
-        double panelHeight = Math.max(180, availableHeight);
-        watchingNowDetailLayout.setPrefHeight(panelHeight);
-        watchingNowDetailLayout.setMaxHeight(panelHeight);
-        watchingNowEpisodesPanel.setPrefHeight(panelHeight);
-        watchingNowEpisodesPanel.setMaxHeight(panelHeight);
-
-        double reservedHeight = managedPrefHeight(watchingNowEpisodesTitleRow)
-                + managedPrefHeight(seasonPillBar)
-                + Math.max(0, watchingNowEpisodesPanel.getChildren().size() - 1) * watchingNowEpisodesPanel.getSpacing()
-                + 30;
-        double cardsHeight = Math.max(140, panelHeight - reservedHeight);
-        cardsFrame.setPrefHeight(cardsHeight);
-        cardsFrame.setMaxHeight(cardsHeight);
-        cardsScroll.setPrefHeight(cardsHeight);
-        cardsScroll.setMaxHeight(cardsHeight);
-        cardsScroll.setPrefViewportHeight(cardsHeight);
+        // Height constraints are no longer needed because cardsScroll now wraps
+        // the entire column content and handles scrolling naturally.
     }
 
     private double managedPrefHeight(Node node) {
@@ -1058,18 +1035,22 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         setSelectedEpisodeCard(card);
-        card.requestFocus();
+            card.requestFocus();
         scrollEpisodeCardIntoView(card);
     }
 
     private void scrollEpisodeCardIntoView(VBox card) {
+        if (card == null || cardsContainer.getChildren().isEmpty()) {
+            return;
+        }
         double viewportHeight = cardsScroll.getViewportBounds().getHeight();
-        double contentHeight = cardsContainer.getBoundsInLocal().getHeight();
+        double contentHeight = bodyContainer.getBoundsInLocal().getHeight();
         double scrollableHeight = contentHeight - viewportHeight;
         if (viewportHeight <= 0 || scrollableHeight <= 0) {
             return;
         }
-        Bounds bounds = card.getBoundsInParent();
+        Bounds boundsInScene = card.localToScene(card.getBoundsInLocal());
+        Bounds bounds = bodyContainer.sceneToLocal(boundsInScene);
         double viewportTop = cardsScroll.getVvalue() * scrollableHeight;
         double viewportBottom = viewportTop + viewportHeight;
         double targetTop = bounds.getMinY();
