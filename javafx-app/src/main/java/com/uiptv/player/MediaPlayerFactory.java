@@ -6,6 +6,12 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.DummyVideoPlayer;
 import com.uiptv.util.AppLog;
 import javafx.scene.Node;
+
+import com.uiptv.util.I18n;
+import com.uiptv.widget.AppNotificationCenter;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import javafx.scene.Parent;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -40,8 +46,9 @@ public class MediaPlayerFactory {
                 instance = new VlcVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.VLC;
                 AppLog.addInfoLog(MediaPlayerFactory.class, "VLC found. Using it for embedded player");
-            } catch (Exception e) {
-                AppLog.addWarningLog(MediaPlayerFactory.class, "VLC not found. Embedded playback is unavailable. Error: " + e.getMessage());
+            } catch (Throwable t) {
+                // Catch Throwable to include LinkageError/UnsatisfiedLinkError from native lib loading
+                handleVlcInitFailure(t);
                 instance = new DummyVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.DUMMY;
             }
@@ -116,6 +123,41 @@ public class MediaPlayerFactory {
         playerHostContainer.visibleProperty().bind(playerNode.visibleProperty());
         playerHostContainer.managedProperty().bind(playerNode.managedProperty());
         requestLayoutHierarchy();
+    }
+
+    /**
+     * Handle failures during VLC native initialization.
+     * Logs stacktrace for diagnostics and shows a user-facing notification.
+     * Package-private for testability.
+     */
+    static void handleVlcInitFailure(Throwable t) {
+        String cause = t == null ? "unknown" : t.toString();
+        AppLog.addWarningLog(MediaPlayerFactory.class, "VLC not available. Embedded playback disabled. Cause: " + cause);
+
+        // Log full stacktrace for diagnostics / analytics
+        try {
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            if (t != null) {
+                t.printStackTrace(pw);
+            }
+            pw.flush();
+            AppLog.addErrorLog(MediaPlayerFactory.class, sw.toString());
+        } catch (Exception ex) {
+            AppLog.addErrorLog(MediaPlayerFactory.class, "Failed to capture VLC init stacktrace: " + (ex == null ? "unknown" : ex.toString()));
+        }
+
+        // Show a user-visible notification so users understand why embedded playback is disabled.
+        String message = I18n.tr("autoVlcNativeMissing");
+        if (message == null || message.isBlank() || message.startsWith("autoVlcNativeMissing")) {
+            message = "VLC native libraries not found. Embedded playback is disabled. Install VLC or select a different player in Settings.";
+        }
+        // Best-effort show notification (may be false if notification host not installed yet)
+        try {
+            AppNotificationCenter.showError(message, null);
+        } catch (Exception ignored) {
+            // Do not let notification failures break startup.
+        }
     }
 
     private static void requestLayoutHierarchy() {
