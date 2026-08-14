@@ -4039,12 +4039,12 @@
 }
 
 .reload-account-row:selected > .box {
-    -fx-background-color: -uiptv-selected-card-fg;
-    -fx-border-color: -uiptv-selected-card-fg;
+    -fx-background-color: -uiptv-action-bg;
+    -fx-border-color: -uiptv-action-bg;
 }
 
 .reload-account-row:selected > .box > .mark {
-    -fx-background-color: #ffffff;
+    -fx-background-color: -uiptv-action-fg;
 }
 
 .reload-summary-box {
