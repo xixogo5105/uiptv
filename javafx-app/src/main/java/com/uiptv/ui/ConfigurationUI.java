@@ -530,7 +530,21 @@ public class ConfigurationUI extends VBox {
                 saveButton.setDisable(false);
             }
         });
-        resetButton.setOnAction(e -> refreshFromCurrentConfiguration());
+        resetButton.setOnAction(e -> {
+            // Provide non-green transient feedback for reset: show "Restored" and disable briefly
+            resetButton.setDisable(true);
+            refreshFromCurrentConfiguration();
+            String priorText = resetButton.getText();
+            resetButton.setText(I18n.tr("autoRestore"));
+            resetButton.getStyleClass().add(STYLE_CLASS_CONFIGURATION_STATUS_ICON_OFF);
+            PauseTransition ptReset = new PauseTransition(Duration.seconds(3));
+            ptReset.setOnFinished(evt -> {
+                resetButton.setText(priorText);
+                resetButton.getStyleClass().remove(STYLE_CLASS_CONFIGURATION_STATUS_ICON_OFF);
+                resetButton.setDisable(false);
+            });
+            ptReset.play();
+        });
         card.getChildren().setAll(titleRow, section.content(), actions);
         return card;
     }
