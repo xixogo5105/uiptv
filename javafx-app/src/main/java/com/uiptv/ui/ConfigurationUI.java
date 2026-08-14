@@ -78,7 +78,6 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_SETTINGS_FILTER_MODE_LABEL = "settings-filter-mode-label";
     private static final String I18N_COMMON_CLOSE = "commonClose";
     private static final Duration STATUS_TITLE_REFRESH_INTERVAL = Duration.seconds(30);
-    private static final Duration AUTO_SAVE_DEBOUNCE = Duration.millis(450);
     private static final double DATABASE_SYNC_INLINE_WIDTH = 672;
     private static final double SETTINGS_CARD_WIDTH = 440;
     private static final double SETTINGS_MIN_COMPACT_CARD_WIDTH = 280;
@@ -94,7 +93,6 @@ public class ConfigurationUI extends VBox {
     final Button browserButtonPlayerPath3 = new Button("...");
     final FileChooser fileChooser = new FileChooser();
     private final VBox contentContainer = new VBox();
-    private final PauseTransition autoSaveDebounce = new PauseTransition(AUTO_SAVE_DEBOUNCE);
     private final TextField settingsSearchTextField = new TextField();
     private final HBox searchRow = new HBox(8);
     private final PillBar<SettingsPanelFilter> settingsPillBar =
@@ -433,7 +431,6 @@ public class ConfigurationUI extends VBox {
         addDatabaseSyncButtonHandlers();
         addVlcOptionsLinkClickHandler();
         addThemePreviewHandlers();
-        installAutoSaveHandlers();
         installPlayerSelectionConfirmationHandler();
         installServerStatusMonitor();
         installStatusTitleMonitor();
@@ -506,7 +503,17 @@ public class ConfigurationUI extends VBox {
             titleRow.getChildren().add(section.helpLink());
         }
 
-        card.getChildren().setAll(titleRow, section.content());
+        Button saveButton = new Button(I18n.tr("commonSave"));
+        Button resetButton = new Button(I18n.tr("autoRestore"));
+        HBox actions = new HBox(8);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        actions.getChildren().addAll(spacer, resetButton, saveButton);
+        saveButton.getStyleClass().add("uiptv-primary");
+        resetButton.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
+        saveButton.setOnAction(e -> saveCurrentSettings(true));
+        resetButton.setOnAction(e -> refreshFromCurrentConfiguration());
+        card.getChildren().setAll(titleRow, section.content(), actions);
         return card;
     }
 
@@ -914,7 +921,6 @@ public class ConfigurationUI extends VBox {
             }
             darkThemeCheckBox.setSelected(selected.dark());
             applyThemePreview();
-            requestImmediateAutoSave();
         });
         syncThemeModeSelector();
     }
@@ -995,88 +1001,6 @@ public class ConfigurationUI extends VBox {
         themeZoomComboBox.valueProperty().addListener((obs, oldValue, newValue) -> applyThemePreview());
     }
 
-    private void installAutoSaveHandlers() {
-        autoSaveDebounce.setOnFinished(_ -> Platform.runLater(() -> saveCurrentSettings(true)));
-
-        installDebouncedAutoSave(playerPath1);
-        installDebouncedAutoSave(playerPath2);
-        installDebouncedAutoSave(playerPath3);
-        installDebouncedAutoSave(filterCategoriesWithTextContains);
-        installDebouncedAutoSave(filterChannelWithTextContains);
-        installDebouncedAutoSave(serverPort);
-        installDebouncedAutoSave(httpsServerPort);
-        installDebouncedAutoSave(cacheExpiryDays);
-        installDebouncedAutoSave(tmdbReadAccessToken);
-
-        group.selectedToggleProperty().addListener((_, _, _) -> Platform.runLater(() -> {
-            updateVlcOptionsLinkVisibility();
-            updateWideViewVisibility();
-            if (ignorePlayerSelectionPrompt) {
-                return;
-            }
-            if (playerSelectionConfirmationActive) {
-                playerSelectionSaveDeferred = true;
-                return;
-            }
-            requestImmediateAutoSave();
-        }));
-        installImmediateAutoSave(wideViewCheckBox);
-        installImmediateAutoSave(resolveChainAndDeepRedirectsCheckBox);
-        installImmediateAutoSave(enableThumbnailsCheckBox);
-        autoRunServerOnStartupSwitch.selectedProperty().addListener((_, _, _) -> requestImmediateAutoSave());
-
-        languageComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
-        themeZoomComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
-        filterLockUnlockDurationComboBox.valueProperty().addListener((_, _, _) -> requestImmediateAutoSave());
-    }
-
-    private void installDebouncedAutoSave(TextInputControl control) {
-        control.textProperty().addListener((_, _, _) -> requestDebouncedAutoSave());
-    }
-
-    private void installImmediateAutoSave(CheckBox checkBox) {
-        checkBox.selectedProperty().addListener((_, _, _) -> requestImmediateAutoSave());
-    }
-
-    private void requestDebouncedAutoSave() {
-        if (isAutoSaveSuppressed()) {
-            autoSaveDebounce.stop();
-            return;
-        }
-        autoSaveDebounce.playFromStart();
-    }
-
-    private void requestImmediateAutoSave() {
-        if (isAutoSaveSuppressed()) {
-            autoSaveDebounce.stop();
-            return;
-        }
-        autoSaveDebounce.stop();
-        saveCurrentSettings(true);
-    }
-
-    private boolean isAutoSaveSuppressed() {
-        return syncingConfigurationToForm
-                || savingConfiguration
-                || syncingThemeModeSelector
-                || syncingThumbnailModeSelector
-                || syncingPasswordProtectionSelector
-                || syncingFilterLockStateSwitch;
-    }
-
-    private void runWithAutoSaveSuppressed(Runnable action) {
-        if (action == null) {
-            return;
-        }
-        boolean wasSyncingConfigurationToForm = syncingConfigurationToForm;
-        syncingConfigurationToForm = true;
-        autoSaveDebounce.stop();
-        try {
-            action.run();
-        } finally {
-            syncingConfigurationToForm = wasSyncingConfigurationToForm;
-        }
-    }
 
     private void applyThemePreview() {
         Scene scene = getScene();
@@ -1523,7 +1447,9 @@ public class ConfigurationUI extends VBox {
 
     public void refreshFromCurrentConfiguration() {
         Configuration configuration = service.read();
-        runWithAutoSaveSuppressed(() -> {
+        boolean wasSyncing = syncingConfigurationToForm;
+        syncingConfigurationToForm = true;
+        try {
             applyConfigurationToForm(configuration);
             selectDefaultPlayer(configuration);
             updateVlcOptionsLinkVisibility();
@@ -1531,12 +1457,20 @@ public class ConfigurationUI extends VBox {
             refreshServerStatusUI();
             refreshFilterLockUi();
             refreshConfigurationBlockTitles();
-        });
+        } finally {
+            syncingConfigurationToForm = wasSyncing;
+        }
         refreshHeaderActions();
     }
 
     private void refreshFilterLockUi() {
-        runWithAutoSaveSuppressed(this::refreshFilterLockUiWithoutAutoSaveGuard);
+        boolean wasSyncing = syncingConfigurationToForm;
+        syncingConfigurationToForm = true;
+        try {
+            refreshFilterLockUiWithoutAutoSaveGuard();
+        } finally {
+            syncingConfigurationToForm = wasSyncing;
+        }
     }
 
     private void refreshFilterLockUiWithoutAutoSaveGuard() {
@@ -3020,9 +2954,8 @@ public class ConfigurationUI extends VBox {
         playerSelectionSaveDeferred = false;
         if (shouldSave) {
             Platform.runLater(() -> {
-                updateVlcOptionsLinkVisibility();
-                updateWideViewVisibility();
-                requestImmediateAutoSave();
+            updateVlcOptionsLinkVisibility();
+            updateWideViewVisibility();
             });
         }
     }
