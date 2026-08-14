@@ -511,7 +511,25 @@ public class ConfigurationUI extends VBox {
         actions.getChildren().addAll(spacer, resetButton, saveButton);
         saveButton.getStyleClass().add("uiptv-primary");
         resetButton.getStyleClass().add(STYLE_CLASS_NO_DIM_DISABLED);
-        saveButton.setOnAction(e -> saveCurrentSettings(true));
+        saveButton.setOnAction(e -> {
+            saveButton.setDisable(true);
+            boolean saved = saveCurrentSettings(true);
+            if (saved) {
+                String priorText = saveButton.getText();
+                saveButton.setText("\u2713"); // check mark
+                saveButton.getStyleClass().add(STYLE_CLASS_CONFIGURATION_STATUS_ICON_ON);
+                PauseTransition pt = new PauseTransition(Duration.seconds(5));
+                pt.setOnFinished(evt -> {
+                    saveButton.setText(I18n.tr("commonSave"));
+                    saveButton.getStyleClass().remove(STYLE_CLASS_CONFIGURATION_STATUS_ICON_ON);
+                    saveButton.setDisable(false);
+                });
+                pt.play();
+            } else {
+                // save failed or suppressed - re-enable button so user can try again
+                saveButton.setDisable(false);
+            }
+        });
         resetButton.setOnAction(e -> refreshFromCurrentConfiguration());
         card.getChildren().setAll(titleRow, section.content(), actions);
         return card;
@@ -1597,9 +1615,9 @@ public class ConfigurationUI extends VBox {
                 : configuredPort.trim();
     }
 
-    private void saveCurrentSettings(boolean showRestartMessage) {
+    private boolean saveCurrentSettings(boolean showRestartMessage) {
         if (syncingConfigurationToForm || savingConfiguration) {
-            return;
+            return false;
         }
         try {
             savingConfiguration = true;
@@ -1607,7 +1625,7 @@ public class ConfigurationUI extends VBox {
             Configuration previous = service.read();
             boolean wasAlreadyUnlocked = wasFilterAlreadyUnlocked();
             if (!ensureFilterAccessForPendingSave()) {
-                return;
+                return false;
             }
             Configuration newConfiguration = buildConfigurationToSave(previous);
             if (Objects.equals(previous, newConfiguration)) {
@@ -1617,7 +1635,7 @@ public class ConfigurationUI extends VBox {
                 if (!wasAlreadyUnlocked) {
                     FilterLockService.getInstance().clearUnlockSession();
                 }
-                return;
+                return true; // No changes, but treat as successful save (no-op)
             }
             saveConfiguration(newConfiguration);
             applyPostSaveEffects(previous, newConfiguration);
@@ -1632,8 +1650,10 @@ public class ConfigurationUI extends VBox {
             if (showRestartMessage && restartRequired(previous, newConfiguration)) {
                 showMessageAlert(I18n.tr(CONFIG_EMBED_PLAYER_RESTART_NEEDED));
             }
+            return true;
         } catch (Exception _) {
             showErrorAlert(I18n.tr("configFailedToSave"));
+            return false;
         } finally {
             savingConfiguration = false;
         }
