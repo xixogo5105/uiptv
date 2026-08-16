@@ -209,11 +209,15 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private void maybeStreamPartialReload(long generation, List<BookmarkItem> loadedItems) {
-        if (loadedItems.size() % BOOKMARK_STREAM_BATCH_SIZE != 0) {
+        // Stream immediately the first item so user sees something quickly, then stream every batch.
+        int size = loadedItems.size();
+        if (size == 0) {
             return;
         }
-        List<BookmarkItem> snapshot = new ArrayList<>(loadedItems);
-        runLater(() -> applyPartialReload(generation, snapshot));
+        if (size == 1 || size % BOOKMARK_STREAM_BATCH_SIZE == 0) {
+            List<BookmarkItem> snapshot = new ArrayList<>(loadedItems);
+            runLater(() -> applyPartialReload(generation, snapshot));
+        }
     }
 
     private void handleReloadFailure(long generation) {
