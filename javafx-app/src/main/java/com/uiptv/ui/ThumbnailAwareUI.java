@@ -22,7 +22,9 @@ public abstract class ThumbnailAwareUI {
      * When false, UI should render plain text without images.
      */
     public static boolean areThumbnailsEnabled() {
-        return readThumbnailState();
+        // Use the cached lastKnownThumbnailState updated by notifyThumbnailModeChanged
+        // to avoid race conditions where configuration reads are not yet visible.
+        return lastKnownThumbnailState;
     }
 
     public static void addThumbnailModeListener(ThumbnailModeListener listener) {
