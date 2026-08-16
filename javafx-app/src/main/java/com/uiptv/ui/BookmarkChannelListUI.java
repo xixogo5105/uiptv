@@ -49,6 +49,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 46;
     private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
+    private static final int BOOKMARK_INITIAL_STREAM_SIZE = 5;
     private static final double FILTER_TOOLBAR_GAP = 8;
     private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
     private static final Comparator<BookmarkItem> BOOKMARK_NAME_COMPARATOR =
@@ -172,9 +173,15 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private void reloadBookmarks(long generation) {
         try {
             long revisionBeforeRead = BookmarkService.getInstance().getChangeRevision();
+            long t0 = System.nanoTime();
             List<Bookmark> bookmarks = BookmarkService.getInstance().read();
+            long t1 = System.nanoTime();
+            System.out.println("[bookmark-profiling] BookmarkService.read() took " + ((t1 - t0) / 1_000_000) + " ms; rows=" + (bookmarks == null ? 0 : bookmarks.size()));
             BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(bookmarks);
+            long t2 = System.nanoTime();
             List<BookmarkItem> loadedItems = buildLoadedBookmarkItems(generation, bookmarks, context);
+            long t3 = System.nanoTime();
+            System.out.println("[bookmark-profiling] buildLoadedBookmarkItems took " + ((t3 - t2) / 1_000_000) + " ms; totalProcessing=" + ((t3 - t0) / 1_000_000) + " ms");
             if (generation != reloadGeneration.get()) {
                 return;
             }
@@ -209,12 +216,12 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private void maybeStreamPartialReload(long generation, List<BookmarkItem> loadedItems) {
-        // Stream immediately the first item so user sees something quickly, then stream every batch.
+        // Stream an initial small batch quickly to improve perceived load time, then stream every batch.
         int size = loadedItems.size();
         if (size == 0) {
             return;
         }
-        if (size == 1 || size % BOOKMARK_STREAM_BATCH_SIZE == 0) {
+        if (size <= BOOKMARK_INITIAL_STREAM_SIZE || size % BOOKMARK_STREAM_BATCH_SIZE == 0) {
             List<BookmarkItem> snapshot = new ArrayList<>(loadedItems);
             runLater(() -> applyPartialReload(generation, snapshot));
         }
