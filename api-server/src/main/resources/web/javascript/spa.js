@@ -57,6 +57,7 @@ createApp({
 
         const playerInstance = ref(null);
         const mpegtsPlayer = ref(null);
+        const hlsPlayer = ref(null);
         const videoPlayer = ref(null);
         const videoTracks = ref([]);
         const audioTracks = ref([]);
@@ -78,6 +79,9 @@ createApp({
         let playbackRequestId = 0;
         let playbackFetchController = null;
         let playbackGestureResume = null;
+        // Prevent overlapping startPlayback runs; queue the latest request while one is in-flight.
+        let playbackInFlight = false;
+        let pendingStartArgs = null;
         const languageNames = typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
             ? new Intl.DisplayNames([navigator.language || 'en'], {type: 'language'})
             : null;
@@ -3004,6 +3008,13 @@ createApp({
 
         const startPlayback = async (url, nextChannel = null, options = {}) => {
             const requestId = ++playbackRequestId;
+            // If another startPlayback is already running, queue the latest request and return immediately.
+            if (playbackInFlight) {
+                pendingStartArgs = {url, nextChannel, options};
+                return;
+            }
+            playbackInFlight = true;
+
             controlsVisible.value = true;
             playerManuallyHidden.value = false;
             const targetChannel = nextChannel ? {...nextChannel} : currentChannel.value;
@@ -3077,6 +3088,21 @@ createApp({
                     if (playbackFetchController === controller) {
                         playbackFetchController = null;
                     }
+
+                    // Ensure the in-flight flag is cleared and process any queued request.
+                    playbackInFlight = false;
+                    if (pendingStartArgs) {
+                        const next = pendingStartArgs;
+                        pendingStartArgs = null;
+                        // Schedule next playback slightly later to allow cleanup to complete.
+                        setTimeout(() => {
+                            try {
+                                startPlayback(next.url, next.nextChannel, next.options);
+                            } catch (_) {
+                                // swallow
+                            }
+                        }, 50);
+                    }
                 }
             }
         };
@@ -3105,6 +3131,16 @@ createApp({
                     console.warn('Error destroying MPEGTS player', e);
                 }
                 mpegtsPlayer.value = null;
+            }
+
+            if (hlsPlayer.value) {
+                try {
+                    // hls.js provides destroy()
+                    hlsPlayer.value.destroy();
+                } catch (e) {
+                    console.warn('Error destroying hls.js player', e);
+                }
+                hlsPlayer.value = null;
             }
 
             clearVideoElement(videoPlayer.value);
@@ -3201,7 +3237,7 @@ createApp({
                 return;
             }
 
-            const preferShakaFallback = isHls && !prefersNativeHls;
+            const preferHlsFallback = isHls && !prefersNativeHls;
             try {
                 if (hasDRM) {
                     await loadShaka(channel);
@@ -3210,14 +3246,15 @@ createApp({
                 } else if (isHls && prefersNativeHls) {
                     await loadNative(channel);
                 } else if (isHls) {
-                    await loadShaka(channel);
+                    // Prefer hls.js for non-native HLS playback; Shaka remains the DRM-capable fallback.
+                    await loadHls(channel);
                 } else if (canNative) {
                     await loadNative(channel);
                 } else {
                     await loadShaka(channel);
                 }
             } catch (e) {
-                if (!hasDRM && !isTs && await tryProxyPlaybackFallback(channel, preferShakaFallback, e)) {
+                if (!hasDRM && !isTs && await tryProxyPlaybackFallback(channel, preferHlsFallback, e)) {
                     return;
                 }
                 throw e;
@@ -3387,6 +3424,47 @@ createApp({
 
         const normalizeWebPlaybackUrl = (rawUrl) => playbackUtils.normalizeWebPlaybackUrl(rawUrl);
         const downgradeHttpsToHttpForKnownPaths = (url) => playbackUtils.downgradeHttpsToHttpForKnownPaths(url);
+
+        const loadHls = async (channel) => {
+            await nextTick();
+            const video = videoPlayer.value;
+            if (!video) return;
+
+            bindPlaybackEvents(video);
+            const sourceUrl = normalizeWebPlaybackUrl(channel.url);
+
+            if (window.Hls && typeof Hls.isSupported === 'function' && Hls.isSupported()) {
+                try {
+                    // Clean up previous hls instance if any
+                    if (hlsPlayer.value) {
+                        try { hlsPlayer.value.destroy(); } catch (_) {}
+                        hlsPlayer.value = null;
+                    }
+                    const hls = new Hls({enableWorker: true});
+                    hlsPlayer.value = hls;
+                    hls.on(Hls.Events.ERROR, function (event, data) {
+                        const isFatal = data && data.fatal;
+                        const msg = data && data.details ? data.details : 'hls.js error';
+                        if (isFatal) {
+                            playbackError.value = `Playback error: ${msg}`;
+                        } else {
+                            console.warn('hls.js non-fatal error', data);
+                        }
+                    });
+                    hls.attachMedia(video);
+                    hls.loadSource(sourceUrl);
+                    await playWithGestureFallback(() => video.play());
+                    playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'hls');
+                    return;
+                } catch (e) {
+                    console.warn('hls.js playback failed', e);
+                    throw e;
+                }
+            }
+
+            // If hls.js is not available or not supported, fall back to Shaka.
+            await loadShaka(channel);
+        };
 
         const loadShaka = async (channel) => {
             await nextTick();
