@@ -9,7 +9,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class FxTestSupport {
     private static final AtomicBoolean FX_STARTED = new AtomicBoolean(false);
-    private static final long FX_WAIT_TIMEOUT_SECONDS = 3L;
+    // Increased timeout to accommodate slower Windows CI / dev machines
+    private static final long FX_WAIT_TIMEOUT_SECONDS = 10L;
 
     private FxTestSupport() {
     }

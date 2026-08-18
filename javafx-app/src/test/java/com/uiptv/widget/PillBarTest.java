@@ -104,13 +104,16 @@ class PillBarTest {
             return new FixedHeightSnapshot(
                     computedSingleRowHeight,
                     computedDoubleRowHeight,
-                    pillBar.getPrefHeight()
+                    pillBar.getPrefHeight(),
+                    // base font size measured from a pill to make tests DPI/font-size independent
+                    pillAt(pillBar, 0).getFont().getSize()
             );
         });
 
-        assertEquals(40, snapshot.computedSingleRowHeight(), 0.01);
-        assertEquals(44, snapshot.computedDoubleRowHeight(), 0.01);
-        assertEquals(44, snapshot.prefHeightProperty(), 0.01);
+        double scale = snapshot.baseFontSize() / 13.0;
+        assertEquals(40 * scale, snapshot.computedSingleRowHeight(), 0.01);
+        assertEquals(44 * scale, snapshot.computedDoubleRowHeight(), 0.01);
+        assertEquals(44 * scale, snapshot.prefHeightProperty(), 0.01);
     }
 
     @Test
@@ -130,13 +133,15 @@ class PillBarTest {
             return new FixedHeightSnapshot(
                     reservedSingleRowHeight,
                     reservedDoubleRowHeight,
-                    pillBar.getPrefHeight()
+                    pillBar.getPrefHeight(),
+                    pillAt(pillBar, 0).getFont().getSize()
             );
         });
 
-        assertEquals(40, snapshot.computedSingleRowHeight(), 0.01);
-        assertEquals(44, snapshot.computedDoubleRowHeight(), 0.01);
-        assertEquals(40, snapshot.prefHeightProperty(), 0.01);
+        double scale = snapshot.baseFontSize() / 13.0;
+        assertEquals(40 * scale, snapshot.computedSingleRowHeight(), 0.01);
+        assertEquals(44 * scale, snapshot.computedDoubleRowHeight(), 0.01);
+        assertEquals(40 * scale, snapshot.prefHeightProperty(), 0.01);
     }
 
     @Test
@@ -173,14 +178,16 @@ class PillBarTest {
                     wideHeight,
                     narrowHeight,
                     unresolvedWidthHeight,
-                    pillBar.getPrefHeight()
+                    pillBar.getPrefHeight(),
+                    pillAt(pillBar, 0).getFont().getSize()
             );
         });
 
-        assertEquals(40, snapshot.wideHeight(), 0.01);
-        assertEquals(44, snapshot.narrowHeight(), 0.01);
-        assertEquals(44, snapshot.widthlessHeight(), 0.01);
-        assertEquals(44, snapshot.prefHeightProperty(), 0.01);
+        double scale = snapshot.baseFontSize() / 13.0;
+        assertEquals(40 * scale, snapshot.wideHeight(), 0.01);
+        assertEquals(44 * scale, snapshot.narrowHeight(), 0.01);
+        assertEquals(44 * scale, snapshot.widthlessHeight(), 0.01);
+        assertEquals(44 * scale, snapshot.prefHeightProperty(), 0.01);
     }
 
     @Test
@@ -207,14 +214,16 @@ class PillBarTest {
                     wideHeight,
                     narrowHeight,
                     unresolvedWidthHeight,
-                    pillBar.getPrefHeight()
+                    pillBar.getPrefHeight(),
+                    pillAt(pillBar, 0).getFont().getSize()
             );
         });
 
-        assertEquals(40, snapshot.wideHeight(), 0.01);
-        assertEquals(44, snapshot.narrowHeight(), 0.01);
-        assertEquals(44, snapshot.widthlessHeight(), 0.01);
-        assertEquals(44, snapshot.prefHeightProperty(), 0.01);
+        double scale = snapshot.baseFontSize() / 13.0;
+        assertEquals(40 * scale, snapshot.wideHeight(), 0.01);
+        assertEquals(44 * scale, snapshot.narrowHeight(), 0.01);
+        assertEquals(44 * scale, snapshot.widthlessHeight(), 0.01);
+        assertEquals(44 * scale, snapshot.prefHeightProperty(), 0.01);
     }
 
     @Test
@@ -243,13 +252,15 @@ class PillBarTest {
                     pillBar.getHeight(),
                     pillBar.getPrefHeight(),
                     dropdown.isManaged(),
-                    dropdown.getText()
+                    dropdown.getText(),
+                    dropdown.getFont().getSize()
             );
         });
 
-        assertEquals(44, snapshot.initialHeight(), 0.01);
-        assertEquals(44, snapshot.afterSelectionHeight(), 0.01);
-        assertEquals(44, snapshot.prefHeightProperty(), 0.01);
+        double scale = snapshot.baseFontSize() / 13.0;
+        assertEquals(44 * scale, snapshot.initialHeight(), 0.01);
+        assertEquals(44 * scale, snapshot.afterSelectionHeight(), 0.01);
+        assertEquals(44 * scale, snapshot.prefHeightProperty(), 0.01);
         assertEquals(true, snapshot.dropdownManaged());
         assertEquals("News", snapshot.dropdownText());
     }
@@ -324,21 +335,28 @@ class PillBarTest {
             root.layout();
             root.layout();
             double defaultHeight = pillBar.getPrefHeight();
+            double baseFont = compactDropdown(pillBar).getFont().getSize();
 
             root.setStyle("-fx-font-size: 26;");
             root.applyCss();
             root.layout();
             root.layout();
 
+            double zoomedPrefHeight = pillBar.getPrefHeight();
+            double zoomedFont = compactDropdown(pillBar).getFont().getSize();
+            double zoomedDropdownHeight = compactDropdown(pillBar).getHeight();
+
             return new CompactZoomSnapshot(
                     defaultHeight,
-                    compactDropdown(pillBar).getFont().getSize(),
-                    pillBar.getPrefHeight(),
-                    compactDropdown(pillBar).getHeight()
+                    baseFont,
+                    zoomedFont,
+                    zoomedPrefHeight,
+                    zoomedDropdownHeight
             );
         });
 
-        assertEquals(44, snapshot.defaultHeight(), 0.01);
+        double scale = snapshot.baseFontSize() / 13.0;
+        assertEquals(44 * scale, snapshot.defaultHeight(), 0.01);
         assertEquals(44 * snapshot.zoomedFontSize() / 13.0, snapshot.zoomedPrefHeight(), 0.75);
         assertTrue(snapshot.zoomedDropdownHeight() >= snapshot.zoomedPrefHeight() - 3);
         assertTrue(snapshot.zoomedPrefHeight() > snapshot.defaultHeight() * 1.8);
@@ -374,20 +392,23 @@ class PillBarTest {
 
     private record FixedHeightSnapshot(double computedSingleRowHeight,
                                        double computedDoubleRowHeight,
-                                       double prefHeightProperty) {
+                                       double prefHeightProperty,
+                                       double baseFontSize) {
     }
 
     private record NarrowHeightSnapshot(double wideHeight,
                                         double narrowHeight,
                                         double widthlessHeight,
-                                        double prefHeightProperty) {
+                                        double prefHeightProperty,
+                                        double baseFontSize) {
     }
 
     private record CompactSelectionSnapshot(double initialHeight,
                                             double afterSelectionHeight,
                                             double prefHeightProperty,
                                             boolean dropdownManaged,
-                                            String dropdownText) {
+                                            String dropdownText,
+                                            double baseFontSize) {
     }
 
     private record CompactLabelSnapshot(String dropdownText,
@@ -400,6 +421,7 @@ class PillBarTest {
     }
 
     private record CompactZoomSnapshot(double defaultHeight,
+                                       double baseFontSize,
                                        double zoomedFontSize,
                                        double zoomedPrefHeight,
                                        double zoomedDropdownHeight) {

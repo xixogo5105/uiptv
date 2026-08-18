@@ -66,12 +66,14 @@ class ThemeStylesheetResolverTest {
     }
 
     private static void assertProfileJsonTextAreaFocusOverride(String css) {
-        assertTrue(css.contains(".account-info-profile-text-area:focused"));
-        assertTrue(css.contains("-fx-focus-color: transparent"));
-        assertTrue(css.contains("-fx-faint-focus-color: transparent"));
-        assertTrue(css.contains("-fx-background-radius: 0"));
-        assertTrue(css.contains("-fx-border-radius: 0"));
-        assertTrue(css.contains(".account-info-profile-text-area > .scroll-pane,\n.account-info-profile-text-area > .scroll-pane > .viewport"));
-        assertTrue(css.contains(".account-info-profile-text-area:focused {\n    -fx-background-color: -uiptv-surface;\n    -fx-background-insets: 0;\n    -fx-border-color: -uiptv-border-subtle;\n    -fx-effect: none;"));
+        // Normalize platform line endings so tests pass on Windows (CRLF) and Unix (LF)
+        String normalized = css.replace("\r\n", "\n");
+        assertTrue(normalized.contains(".account-info-profile-text-area:focused"));
+        assertTrue(normalized.contains("-fx-focus-color: transparent"));
+        assertTrue(normalized.contains("-fx-faint-focus-color: transparent"));
+        assertTrue(normalized.contains("-fx-background-radius: 0"));
+        assertTrue(normalized.contains("-fx-border-radius: 0"));
+        assertTrue(normalized.contains(".account-info-profile-text-area > .scroll-pane,\n.account-info-profile-text-area > .scroll-pane > .viewport"));
+        assertTrue(normalized.contains(".account-info-profile-text-area:focused {\n    -fx-background-color: -uiptv-surface;\n    -fx-background-insets: 0;\n    -fx-border-color: -uiptv-border-subtle;\n    -fx-effect: none;"));
     }
 }
