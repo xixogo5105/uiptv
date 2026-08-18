@@ -2938,11 +2938,19 @@ createApp({
 
         const playWithGestureFallback = async (playAction) => {
             if (typeof playAction !== 'function') return true;
+            const myRequestId = playbackRequestId;
             try {
                 await playAction();
                 clearPlaybackGestureRequirement();
                 return true;
             } catch (e) {
+                // If a newer playback request started meanwhile and the play() was interrupted by pause,
+                // treat this as a benign cancellation instead of surfacing an error to the user.
+                const errText = String(e?.message || e || '').toLowerCase();
+                if (playbackRequestId !== myRequestId && errText.includes('interrupted by a call to pause')) {
+                    return false;
+                }
+
                 if (!isPlaybackGestureError(e)) {
                     throw e;
                 }
@@ -2953,6 +2961,10 @@ createApp({
                         clearPlaybackGestureRequirement();
                         return true;
                     } catch (mutedError) {
+                        const mutedText = String(mutedError?.message || mutedError || '').toLowerCase();
+                        if (playbackRequestId !== myRequestId && mutedText.includes('interrupted by a call to pause')) {
+                            return false;
+                        }
                         if (!isPlaybackGestureError(mutedError)) {
                             throw mutedError;
                         }
