@@ -24,6 +24,8 @@ import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.net.URISyntaxException;
+import org.apache.http.client.utils.URIBuilder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -411,6 +413,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             videoSourceHeight = 0;
             lastStreamInfoLabel = "";
             String playUri = resolveHlsPlaylistChain(uri);
+            // Sanitize URL for libvlc: encode raw braces and other problematic characters that some CDNs reject
+            playUri = sanitizeUriForLibVlc(playUri);
             if (isDisposed.get()) {
                 return;
             }
@@ -427,6 +431,22 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 }
             }
         });
+    }
+
+    // Sanitize URIs before handing to libvlc. Use Apache URIBuilder to build a properly encoded URI.
+    private String sanitizeUriForLibVlc(String uri) {
+        if (uri == null) return null;
+        try {
+            URIBuilder b = new URIBuilder(uri);
+            return b.build().toString();
+        } catch (URISyntaxException | IllegalArgumentException e) {
+            // Fallback to conservative replacements if parsing/encoding fails
+            try {
+                return uri.replace("{", "%7B").replace("}", "%7D").replace(" ", "%20").replace("`", "%60");
+            } catch (Exception ex) {
+                return uri;
+            }
+        }
     }
 
     @Override
