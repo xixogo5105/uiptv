@@ -7,11 +7,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
 import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
+import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.ui.RootApplication;
 import com.uiptv.util.HttpUtil;
-import javafx.application.Platform;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
@@ -21,10 +22,6 @@ import org.mockito.MockedStatic;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,25 +29,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BaseVideoPlayerHlsResolutionTest {
-    private static final AtomicBoolean FX_STARTED = new AtomicBoolean(false);
-    private static final long FX_WAIT_TIMEOUT_SECONDS = 3L;
-
     @BeforeAll
     static void initJavaFx() throws Exception {
-        if (FX_STARTED.compareAndSet(false, true)) {
-            CountDownLatch latch = new CountDownLatch(1);
-            try {
-                Platform.startup(latch::countDown);
-            } catch (IllegalStateException e) {
-                if (!String.valueOf(e.getMessage()).contains("Toolkit already initialized")) {
-                    throw e;
-                }
-                latch.countDown();
-            }
-            if (!latch.await(FX_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                throw new IllegalStateException("JavaFX platform failed to start");
-            }
-        }
+        FxTestSupport.initJavaFx();
     }
 
     @Test
@@ -245,38 +226,8 @@ class BaseVideoPlayerHlsResolutionTest {
         });
     }
 
-    private static <T> T runOnFxThread(FxCallable<T> task) throws Exception {
-        if (Platform.isFxApplicationThread()) {
-            return task.call();
-        }
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<T> result = new AtomicReference<>();
-        AtomicReference<Throwable> failure = new AtomicReference<>();
-        Platform.runLater(() -> {
-            try {
-                result.set(task.call());
-            } catch (Throwable t) {
-                failure.set(t);
-            } finally {
-                latch.countDown();
-            }
-        });
-        if (!latch.await(FX_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-            throw new IllegalStateException("Timed out waiting for JavaFX task");
-        }
-        if (failure.get() != null) {
-            Throwable t = failure.get();
-            if (t instanceof Exception e) {
-                throw e;
-            }
-            throw new RuntimeException(t);
-        }
-        return result.get();
-    }
-
-    @FunctionalInterface
-    private interface FxCallable<T> {
-        T call() throws Exception;
+    private static <T> T runOnFxThread(FxTestSupport.FxCallable<T> task) throws Exception {
+        return FxTestSupport.runOnFxThread(task);
     }
 
     private record LayoutButtonState(
