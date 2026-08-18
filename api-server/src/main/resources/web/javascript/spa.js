@@ -82,6 +82,8 @@ createApp({
         // Prevent overlapping startPlayback runs; queue the latest request while one is in-flight.
         let playbackInFlight = false;
         let pendingStartArgs = null;
+        // UI debounce flag to briefly disable play buttons after a click to give feedback and avoid rapid duplicates.
+        const playClicksDisabled = ref(false);
         const languageNames = typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
             ? new Intl.DisplayNames([navigator.language || 'en'], {type: 'language'})
             : null;
@@ -2531,6 +2533,9 @@ createApp({
         };
 
         const playChannel = (channel) => {
+            if (playClicksDisabled.value) return;
+            playClicksDisabled.value = true;
+            setTimeout(() => { playClicksDisabled.value = false; }, 600);
             scrollToTop();
             const modeToUse = String(contentMode.value || 'itv').toLowerCase();
             const playbackCategoryId = resolvePlaybackCategoryIdForChannel(channel, modeToUse);
@@ -2576,6 +2581,9 @@ createApp({
         };
 
         const playBookmark = (bookmark) => {
+            if (playClicksDisabled.value) return;
+            playClicksDisabled.value = true;
+            setTimeout(() => { playClicksDisabled.value = false; }, 600);
             scrollToTop();
             const bookmarkMode = String(bookmark.accountAction || bookmark.mode || 'itv').toLowerCase();
             const query = new URLSearchParams();
@@ -2618,6 +2626,9 @@ createApp({
         };
 
         const handleChannelSelection = async (channel) => {
+            if (playClicksDisabled.value) return;
+            playClicksDisabled.value = true;
+            setTimeout(() => { playClicksDisabled.value = false; }, 600);
             if (contentMode.value === 'series' && viewState.value === 'channels') {
                 const seriesId = channel.channelId || channel.id || channel.dbId;
                 const modeState = getModeState('series');
@@ -4241,6 +4252,7 @@ createApp({
             isMuted,
             isFullscreen,
             playbackLoading,
+            playClicksDisabled,
             theme,
             themeIcon,
             contentMode,
