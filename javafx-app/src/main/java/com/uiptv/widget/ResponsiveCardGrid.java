@@ -9,6 +9,7 @@ import javafx.collections.ObservableList;
 import javafx.css.PseudoClass;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
+import javafx.scene.CacheHint;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.SnapshotParameters;
@@ -57,8 +58,11 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private final ObservableList<T> selectedItems = FXCollections.observableArrayList();
     private final ObservableList<T> readonlySelectedItems = FXCollections.unmodifiableObservableList(selectedItems);
     private final ListChangeListener<T> itemChangeListener = this::handleItemsChanged;
-    private final ChangeListener<Number> virtualScrollValueListener = (_, _, _) -> updateVirtualWindowImmediately();
-    private final ChangeListener<Bounds> virtualViewportBoundsListener = (_, _, _) -> updateVirtualWindowImmediately();
+    // ScrollBar thumb dragging can publish many values inside a single JavaFX pulse. Rebuilding
+    // cards for every intermediate value stalls the application thread and makes the thumb lag
+    // behind the pointer. Render only the latest window once the current event batch completes.
+    private final ChangeListener<Number> virtualScrollValueListener = (_, _, _) -> scheduleVirtualWindowUpdate();
+    private final ChangeListener<Bounds> virtualViewportBoundsListener = (_, _, _) -> scheduleVirtualWindowUpdate();
     private ObservableList<T> items = FXCollections.observableArrayList();
     private ContextMenuFactory<T> contextMenuFactory;
     private Consumer<T> itemActivatedHandler;
@@ -472,17 +476,6 @@ public class ResponsiveCardGrid<T> extends StackPane {
         });
     }
 
-    private void updateVirtualWindowImmediately() {
-        if (!virtualizedActive) {
-            return;
-        }
-        if (!Platform.isFxApplicationThread()) {
-            scheduleVirtualWindowUpdate();
-            return;
-        }
-        updateVirtualWindowGuarded();
-    }
-
     private void updateVirtualWindowGuarded() {
         if (!virtualizedActive) {
             return;
@@ -687,6 +680,12 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         card.setCursor(Cursor.HAND);
         UiRenderQuality.optimizeLayout(card);
+        // A card is visually stable while its parent ScrollPane moves. Cache the complete card
+        // (including text, images and CSS effects) so Prism can translate one texture instead of
+        // repainting the whole subtree on every scroll pulse. Virtualization bounds the number of
+        // cached cards for large data sets.
+        card.setCache(true);
+        card.setCacheHint(CacheHint.SPEED);
         card.setFocusTraversable(false);
         card.setMinHeight(cardMinHeight);
         card.setMaxWidth(maxCardWidth);

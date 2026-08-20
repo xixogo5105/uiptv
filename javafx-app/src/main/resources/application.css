@@ -92,6 +92,34 @@
     -fx-background-color: transparent;
 }
 
+.fast-vertical-scroll > .scroll-bar:vertical {
+    -fx-min-width: 12;
+    -fx-pref-width: 12;
+    -fx-padding: 1;
+    -fx-background-color: transparent;
+}
+
+.fast-vertical-scroll > .scroll-bar:vertical .track {
+    -fx-background-color: rgba(17, 19, 24, 0.06);
+    -fx-background-radius: 4;
+    -fx-border-color: transparent;
+}
+
+.fast-vertical-scroll > .scroll-bar:vertical .thumb {
+    -fx-min-width: 8;
+    -fx-background-color: rgba(17, 19, 24, 0.34);
+    -fx-background-radius: 4;
+    -fx-background-insets: 0;
+}
+
+.fast-vertical-scroll > .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: rgba(17, 19, 24, 0.46);
+}
+
+.fast-vertical-scroll > .scroll-bar:vertical .thumb:pressed {
+    -fx-background-color: rgba(17, 19, 24, 0.56);
+}
+
 .text-field,
 .password-field,
 .text-area {

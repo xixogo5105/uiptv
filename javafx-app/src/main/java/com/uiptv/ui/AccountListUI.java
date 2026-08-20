@@ -454,6 +454,7 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     private void configureAccountGrid() {
         accountGrid.getStyleClass().add("account-card-grid");
+        accountGrid.setLowVirtualizationThreshold();
         accountGrid.setCardWidthRange(GRID_NORMAL_CARD_MIN_WIDTH, GRID_NORMAL_CARD_MAX_WIDTH);
         applyAccountGridDisplayMode(ThumbnailAwareUI.areThumbnailsEnabled());
         accountGrid.setPlaceholderText(I18n.tr("autoNothingFoundFor", I18n.tr("autoAccount")));
@@ -472,12 +473,12 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void configureAccountScrollPane() {
-        accountScrollPane.getStyleClass().addAll("account-list-scroll", "transparent-scroll-pane");
+        accountScrollPane.getStyleClass().addAll("account-list-scroll", "transparent-scroll-pane", "fast-vertical-scroll");
         accountScrollPane.setContent(accountGrid);
         accountScrollPane.setFitToWidth(true);
         accountScrollPane.setPannable(true);
         accountScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        accountScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        accountScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
         accountScrollPane.setFocusTraversable(false);
         accountScrollPane.setMinSize(0, 0);
         accountScrollPane.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);

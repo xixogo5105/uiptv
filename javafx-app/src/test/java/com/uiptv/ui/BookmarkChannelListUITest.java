@@ -6,11 +6,13 @@ import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.PillBar;
+import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.ObservableList;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.Region;
@@ -33,6 +35,31 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     @BeforeAll
     static void setUpJavaFx() throws Exception {
         FxTestSupport.initJavaFx();
+    }
+
+    @Test
+    void bookmarkGridUsesLowVirtualizationThreshold() throws Exception {
+        int threshold = runOnFxThread(() -> {
+            BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
+            return virtualizationThreshold(bookmarkGrid(ui));
+        });
+
+        assertEquals(50, threshold);
+    }
+
+    @Test
+    void bookmarkScrollPaneUsesFastVerticalAlwaysVisibleScrollbar() throws Exception {
+        runOnFxThread(() -> {
+            BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
+            ScrollPane scrollPane = (ScrollPane) findByStyle(ui, "bookmarks-page-scroll");
+
+            assertTrue(scrollPane.getStyleClass().contains("fast-vertical-scroll"));
+            assertEquals(ScrollPane.ScrollBarPolicy.ALWAYS, scrollPane.getVbarPolicy());
+            assertEquals(ScrollPane.ScrollBarPolicy.NEVER, scrollPane.getHbarPolicy());
+            assertTrue(scrollPane.isPannable());
+            assertTrue(scrollPane.isFitToWidth());
+            return null;
+        });
     }
 
     @Test
@@ -270,6 +297,19 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
         Method method = BookmarkChannelListUI.class.getDeclaredMethod("filterView");
         method.setAccessible(true);
         method.invoke(ui);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ResponsiveCardGrid<BookmarkChannelListUI.BookmarkItem> bookmarkGrid(BookmarkChannelListUI ui) throws Exception {
+        Field field = BookmarkChannelListUI.class.getDeclaredField("bookmarkGrid");
+        field.setAccessible(true);
+        return (ResponsiveCardGrid<BookmarkChannelListUI.BookmarkItem>) field.get(ui);
+    }
+
+    private static int virtualizationThreshold(ResponsiveCardGrid<?> grid) throws Exception {
+        Field field = ResponsiveCardGrid.class.getDeclaredField("virtualizationThreshold");
+        field.setAccessible(true);
+        return field.getInt(grid);
     }
 
     private static void populateCategoryPills(BookmarkChannelListUI ui, List<BookmarkCategory> categories) throws Exception {

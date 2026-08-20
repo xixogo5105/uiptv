@@ -40,6 +40,31 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     @Test
+    void channelGridUsesLowVirtualizationThreshold() throws Exception {
+        int threshold = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            return virtualizationThreshold(channelGrid(ui));
+        });
+
+        assertEquals(50, threshold);
+    }
+
+    @Test
+    void channelGridScrollUsesFastVerticalAlwaysVisibleScrollbar() throws Exception {
+        runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            ScrollPane scrollPane = channelGridScroll(ui);
+
+            assertTrue(scrollPane.getStyleClass().contains("fast-vertical-scroll"));
+            assertEquals(ScrollPane.ScrollBarPolicy.ALWAYS, scrollPane.getVbarPolicy());
+            assertEquals(ScrollPane.ScrollBarPolicy.NEVER, scrollPane.getHbarPolicy());
+            assertTrue(scrollPane.isPannable());
+            assertTrue(scrollPane.isFitToWidth());
+            return null;
+        });
+    }
+
+    @Test
     void liveChannelContextMenuShowsPlayersBeforeBookmarkMenu() throws Exception {
         List<String> menuOrder = runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
@@ -339,6 +364,12 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
         Field field = ChannelListUI.class.getDeclaredField("channelGrid");
         field.setAccessible(true);
         return (ResponsiveCardGrid<ChannelListUI.ChannelItem>) field.get(ui);
+    }
+
+    private static int virtualizationThreshold(ResponsiveCardGrid<?> grid) throws Exception {
+        Field field = ResponsiveCardGrid.class.getDeclaredField("virtualizationThreshold");
+        field.setAccessible(true);
+        return field.getInt(grid);
     }
 
     private static ScrollPane channelGridScroll(ChannelListUI ui) throws Exception {

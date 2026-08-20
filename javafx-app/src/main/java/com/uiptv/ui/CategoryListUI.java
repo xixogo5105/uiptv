@@ -244,6 +244,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         categoryHeading.setMinWidth(0);
         categoryHeading.setMaxWidth(Double.MAX_VALUE);
         categoryCardGrid.getStyleClass().add("account-category-card-list");
+        categoryCardGrid.setLowVirtualizationThreshold();
         categoryCardGrid.setSingleColumn(true);
         categoryCardGrid.setCardMinHeight(44);
         categoryCardGrid.setCardWidthRange(180, 960);
@@ -270,11 +271,11 @@ public class CategoryListUI extends HBox implements SearchTarget {
                 event.consume();
             }
         });
-        categoryScrollPane.getStyleClass().addAll("account-category-scroll", "transparent-scroll-pane");
+        categoryScrollPane.getStyleClass().addAll("account-category-scroll", "transparent-scroll-pane", "fast-vertical-scroll");
         categoryScrollPane.setFitToWidth(true);
         categoryScrollPane.setPannable(true);
         categoryScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        categoryScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        categoryScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
         categoryScrollPane.setFocusTraversable(true);
         categoryScrollPane.setMinSize(0, 0);
         categoryScrollPane.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);

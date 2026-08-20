@@ -16,6 +16,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Labeled;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -60,6 +61,28 @@ class AccountListUILayoutTest extends DbBackedUiTest {
 
         assertTrue(cardWidth >= 340, "Expected full-width account cards to be wide enough for about five columns");
         assertTrue(cardWidth <= 365, "Expected full-width account cards to remain responsive rather than fixed oversized cards");
+    }
+
+    @Test
+    void accountGridUsesLowVirtualizationThreshold() throws Exception {
+        int threshold = runOnFxThread(() -> virtualizationThreshold(accountGrid(new AccountListUI(null, null))));
+
+        assertEquals(50, threshold);
+    }
+
+    @Test
+    void accountScrollPaneUsesFastVerticalAlwaysVisibleScrollbar() throws Exception {
+        runOnFxThread(() -> {
+            AccountListUI ui = new AccountListUI(null, null);
+            ScrollPane scrollPane = accountScrollPane(ui);
+
+            assertTrue(scrollPane.getStyleClass().contains("fast-vertical-scroll"));
+            assertEquals(ScrollPane.ScrollBarPolicy.ALWAYS, scrollPane.getVbarPolicy());
+            assertEquals(ScrollPane.ScrollBarPolicy.NEVER, scrollPane.getHbarPolicy());
+            assertTrue(scrollPane.isPannable());
+            assertTrue(scrollPane.isFitToWidth());
+            return null;
+        });
     }
 
     @Test
@@ -548,6 +571,18 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         Field field = AccountListUI.class.getDeclaredField("accountGrid");
         field.setAccessible(true);
         return (ResponsiveCardGrid<AccountListUI.AccountItem>) field.get(ui);
+    }
+
+    private static int virtualizationThreshold(ResponsiveCardGrid<?> grid) throws Exception {
+        Field field = ResponsiveCardGrid.class.getDeclaredField("virtualizationThreshold");
+        field.setAccessible(true);
+        return field.getInt(grid);
+    }
+
+    private static ScrollPane accountScrollPane(AccountListUI ui) throws Exception {
+        Field field = AccountListUI.class.getDeclaredField("accountScrollPane");
+        field.setAccessible(true);
+        return (ScrollPane) field.get(ui);
     }
 
     private static Region firstCard(ResponsiveCardGrid<?> grid) {
