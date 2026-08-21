@@ -106,10 +106,9 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         setSpacing(5);
         scrollPane.setFitToWidth(true);
         scrollPane.setFitToHeight(false);
-        scrollPane.setPannable(true);
         scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
-        scrollPane.getStyleClass().addAll("transparent-scroll-pane", "fast-vertical-scroll");
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.getStyleClass().add("transparent-scroll-pane");
         contentBox.setPadding(new Insets(5));
         configureSeriesGrid();
         getChildren().add(scrollPane);
@@ -125,7 +124,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
 
     private void configureSeriesGrid() {
         seriesGrid.getStyleClass().add("watching-now-series-grid");
-        seriesGrid.setLowVirtualizationThreshold();
         seriesGrid.setCardWidthRange(480, 720);
         seriesGrid.setSingleColumn(!thumbnailsEnabled());
         seriesGrid.setGaps(18, 16);

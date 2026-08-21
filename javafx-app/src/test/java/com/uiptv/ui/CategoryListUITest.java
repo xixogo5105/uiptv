@@ -8,7 +8,6 @@ import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.PickResult;
@@ -154,37 +153,6 @@ class CategoryListUITest extends DbBackedUiTest {
         assertTrue(renderedCards < 250);
     }
 
-    @Test
-    void categoryGridUsesLowVirtualizationThreshold() throws Exception {
-        int threshold = runOnFxThread(() -> {
-            Account account = new Account();
-            account.setAccountName("Account");
-            account.setAction(Account.AccountAction.itv);
-            CategoryListUI ui = new CategoryListUI(account);
-            return virtualizationThreshold(categoryGrid(ui));
-        });
-
-        assertEquals(50, threshold);
-    }
-
-    @Test
-    void categoryScrollPaneUsesFastVerticalAlwaysVisibleScrollbar() throws Exception {
-        runOnFxThread(() -> {
-            Account account = new Account();
-            account.setAccountName("Account");
-            account.setAction(Account.AccountAction.itv);
-            CategoryListUI ui = new CategoryListUI(account);
-            ScrollPane scrollPane = categoryScrollPane(ui);
-
-            assertTrue(scrollPane.getStyleClass().contains("fast-vertical-scroll"));
-            assertEquals(ScrollPane.ScrollBarPolicy.ALWAYS, scrollPane.getVbarPolicy());
-            assertEquals(ScrollPane.ScrollBarPolicy.NEVER, scrollPane.getHbarPolicy());
-            assertTrue(scrollPane.isPannable());
-            assertTrue(scrollPane.isFitToWidth());
-            return null;
-        });
-    }
-
     private static Category category(String id, String title) {
         Category category = new Category();
         category.setDbId(id);
@@ -224,26 +192,10 @@ class CategoryListUITest extends DbBackedUiTest {
     }
 
     private static FlowPane categoryCardPane(CategoryListUI ui) throws Exception {
-        ResponsiveCardGrid<?> grid = categoryGrid(ui);
-        return (FlowPane) grid.getChildren().getFirst();
-    }
-
-    private static ResponsiveCardGrid<?> categoryGrid(CategoryListUI ui) throws Exception {
         Field field = CategoryListUI.class.getDeclaredField("categoryCardGrid");
         field.setAccessible(true);
-        return (ResponsiveCardGrid<?>) field.get(ui);
-    }
-
-    private static ScrollPane categoryScrollPane(CategoryListUI ui) throws Exception {
-        Field field = CategoryListUI.class.getDeclaredField("categoryScrollPane");
-        field.setAccessible(true);
-        return (ScrollPane) field.get(ui);
-    }
-
-    private static int virtualizationThreshold(ResponsiveCardGrid<?> grid) throws Exception {
-        Field field = ResponsiveCardGrid.class.getDeclaredField("virtualizationThreshold");
-        field.setAccessible(true);
-        return field.getInt(grid);
+        ResponsiveCardGrid<?> grid = (ResponsiveCardGrid<?>) field.get(ui);
+        return (FlowPane) grid.getChildren().getFirst();
     }
 
     @SuppressWarnings("unchecked")

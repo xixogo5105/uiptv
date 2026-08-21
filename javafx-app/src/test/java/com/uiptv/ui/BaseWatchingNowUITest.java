@@ -4,8 +4,6 @@ import com.uiptv.model.Account;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.AccountType;
-import com.uiptv.widget.ResponsiveCardGrid;
-import javafx.scene.control.ScrollPane;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -13,40 +11,12 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
-import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BaseWatchingNowUITest {
     @BeforeAll
     static void setupFx() throws Exception {
         FxTestSupport.initJavaFx();
-    }
-
-    @Test
-    void seriesWatchingNowUsesFastVerticalScrollConfiguration() throws Exception {
-        runOnFxThread(() -> {
-            ThumbnailWatchingNowUI ui = new ThumbnailWatchingNowUI();
-            ScrollPane scrollPane = field(ui, BaseWatchingNowUI.class, "scrollPane");
-            ResponsiveCardGrid<?> grid = field(ui, BaseWatchingNowUI.class, "seriesGrid");
-
-            assertFastVerticalScrollPane(scrollPane);
-            assertEquals(50, virtualizationThreshold(grid));
-            return null;
-        });
-    }
-
-    @Test
-    void vodWatchingNowUsesFastVerticalScrollConfiguration() throws Exception {
-        runOnFxThread(() -> {
-            VodWatchingNowUI ui = new VodWatchingNowUI();
-            ScrollPane scrollPane = field(ui, VodWatchingNowUI.class, "scrollPane");
-            ResponsiveCardGrid<?> grid = field(ui, VodWatchingNowUI.class, "vodGrid");
-
-            assertFastVerticalScrollPane(scrollPane);
-            assertEquals(50, virtualizationThreshold(grid));
-            return null;
-        });
     }
 
     @Test
@@ -89,26 +59,5 @@ class BaseWatchingNowUITest {
             }
             return null;
         });
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> T field(Object target, Class<?> declaringClass, String fieldName) throws Exception {
-        Field field = declaringClass.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        return (T) field.get(target);
-    }
-
-    private static int virtualizationThreshold(ResponsiveCardGrid<?> grid) throws Exception {
-        Field field = ResponsiveCardGrid.class.getDeclaredField("virtualizationThreshold");
-        field.setAccessible(true);
-        return field.getInt(grid);
-    }
-
-    private static void assertFastVerticalScrollPane(ScrollPane scrollPane) {
-        assertTrue(scrollPane.getStyleClass().contains("fast-vertical-scroll"));
-        assertEquals(ScrollPane.ScrollBarPolicy.ALWAYS, scrollPane.getVbarPolicy());
-        assertEquals(ScrollPane.ScrollBarPolicy.NEVER, scrollPane.getHbarPolicy());
-        assertTrue(scrollPane.isPannable());
-        assertTrue(scrollPane.isFitToWidth());
     }
 }

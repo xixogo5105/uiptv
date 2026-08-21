@@ -81,10 +81,9 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         setSpacing(5);
         scrollPane.setFitToWidth(true);
         scrollPane.setFitToHeight(false);
-        scrollPane.setPannable(true);
         scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
-        scrollPane.getStyleClass().addAll("transparent-scroll-pane", "fast-vertical-scroll");
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.getStyleClass().add("transparent-scroll-pane");
         contentBox.setPadding(new Insets(5));
         configureVodGrid();
         getChildren().add(scrollPane);
@@ -98,7 +97,6 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
 
     private void configureVodGrid() {
         vodGrid.getStyleClass().add("watching-now-vod-grid");
-        vodGrid.setLowVirtualizationThreshold();
         vodGrid.setCardWidthRange(520, 760);
         vodGrid.setSingleColumn(!ThumbnailAwareUI.areThumbnailsEnabled());
         vodGrid.setGaps(18, 16);

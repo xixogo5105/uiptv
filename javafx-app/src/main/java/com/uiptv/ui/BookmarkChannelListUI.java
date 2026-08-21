@@ -397,11 +397,11 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
         ScrollPane pageScroll = new ScrollPane(bookmarkGridFrame);
         UiRenderQuality.optimizeLayout(pageScroll);
-        pageScroll.getStyleClass().addAll("bookmarks-page-scroll", "transparent-scroll-pane", "fast-vertical-scroll");
+        pageScroll.getStyleClass().addAll("bookmarks-page-scroll", "transparent-scroll-pane");
         pageScroll.setFitToWidth(true);
         pageScroll.setPannable(true);
         pageScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        pageScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
+        pageScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         pageScroll.setFocusTraversable(false);
         pageScroll.setMinSize(0, 0);
         pageScroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
@@ -523,7 +523,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
     private void setupBookmarkGrid() {
         bookmarkGrid.getStyleClass().add("bookmark-card-grid");
-        bookmarkGrid.setLowVirtualizationThreshold();
         bookmarkGrid.setItems(filteredItems);
         bookmarkGrid.setCardWidthRange(255, 345);
         bookmarkGrid.setGaps(16, 14);

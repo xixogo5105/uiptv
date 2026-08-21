@@ -5,7 +5,6 @@ import javafx.collections.ObservableList;
 import javafx.event.Event;
 import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.CacheHint;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
@@ -718,11 +717,9 @@ class ResponsiveCardGridTest {
     }
 
     @Test
-    void virtualizedWindowCoalescesScrollChangesAndTracksLatestValue() throws Exception {
-        AtomicInteger createdCards = new AtomicInteger();
-        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+    void virtualizedWindowTracksScrollValueImmediately() throws Exception {
+        List<String> rendered = runOnFxThread(() -> {
             ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> {
-                createdCards.incrementAndGet();
                 Label label = new Label(item);
                 label.setMinHeight(40);
                 label.setPrefHeight(40);
@@ -748,29 +745,11 @@ class ResponsiveCardGridTest {
             root.layout();
 
             invokeInstallVirtualScrollPane(cardGrid);
-            createdCards.set(0);
-            scrollPane.setVvalue(0.25);
-            scrollPane.setVvalue(0.50);
-            scrollPane.setVvalue(0.75);
             scrollPane.setVvalue(1.0);
-            assertEquals(0, createdCards.get(), "scroll listener must not rebuild cards synchronously");
-            return cardGrid;
+            return renderedLabelTexts(cardGrid);
         });
 
-        waitForFxEvents();
-
-        assertTrue(runOnFxThread(() -> renderedLabelTexts(grid).contains("item-9999")));
-        assertTrue(createdCards.get() < 50, "intermediate scroll positions should be skipped");
-    }
-
-    @Test
-    void cardsUseBitmapCachingForSmoothViewportTranslation() throws Exception {
-        ResponsiveCardGrid<String> grid = runOnFxThread(ResponsiveCardGridTest::newGrid);
-
-        Region card = runOnFxThread(() -> cardAt(grid, 0));
-
-        assertTrue(runOnFxThread(card::isCache));
-        assertEquals(CacheHint.SPEED, runOnFxThread(card::getCacheHint));
+        assertTrue(rendered.contains("item-9999"));
     }
 
     @Test

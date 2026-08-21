@@ -517,7 +517,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private void setupChannelGrid() {
         channelGrid.getStyleClass().add("account-channel-card-grid");
-        channelGrid.setLowVirtualizationThreshold();
         if (isMediaCatalogMode()) {
             channelGrid.getStyleClass().add(listAction == vod ? "watching-now-vod-grid" : "watching-now-series-grid");
         } else {
@@ -570,12 +569,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void setupChannelGridScroll() {
-        channelGridScroll.getStyleClass().addAll("account-channel-card-scroll", "transparent-scroll-pane", "fast-vertical-scroll");
+        channelGridScroll.getStyleClass().addAll("account-channel-card-scroll", "transparent-scroll-pane");
         channelGridScroll.setContent(channelGrid);
         channelGridScroll.setFitToWidth(true);
         channelGridScroll.setPannable(true);
         channelGridScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        channelGridScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.ALWAYS);
+        channelGridScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         channelGridScroll.setFocusTraversable(false);
         channelGridScroll.setMinSize(0, 0);
         channelGridScroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
