@@ -6,7 +6,7 @@ import javafx.scene.shape.SVGPath;
 import javafx.util.Duration;
 
 public class IconActionButton extends Button {
-    private final Tooltip tooltip;
+    private Tooltip tooltip;
     private final SVGPath icon = new SVGPath();
 
     public IconActionButton(String tooltipText, String iconPath, Runnable action) {
@@ -16,12 +16,16 @@ public class IconActionButton extends Button {
         setFocusTraversable(true);
         setAccessibleText(tooltipText);
 
-        tooltip = new Tooltip(tooltipText);
-        tooltip.setShowDelay(Duration.millis(250));
-        tooltip.setHideDelay(Duration.millis(80));
-        tooltip.setShowDuration(Duration.seconds(4));
-        tooltip.setConsumeAutoHidingEvents(false);
-        setTooltip(tooltip);
+        if (tooltipText != null && !tooltipText.isEmpty()) {
+            tooltip = new Tooltip(tooltipText);
+            tooltip.setShowDelay(Duration.millis(250));
+            tooltip.setHideDelay(Duration.millis(80));
+            tooltip.setShowDuration(Duration.seconds(4));
+            tooltip.setConsumeAutoHidingEvents(false);
+            setTooltip(tooltip);
+        } else {
+            tooltip = null;
+        }
 
         icon.getStyleClass().add("bookmarks-quick-action-icon");
         icon.setMouseTransparent(true);
@@ -32,7 +36,18 @@ public class IconActionButton extends Button {
 
     public void setTooltipText(String tooltipText) {
         setAccessibleText(tooltipText);
-        tooltip.setText(tooltipText);
+        if (tooltip == null) {
+            if (tooltipText != null && !tooltipText.isEmpty()) {
+                tooltip = new Tooltip(tooltipText);
+                tooltip.setShowDelay(Duration.millis(250));
+                tooltip.setHideDelay(Duration.millis(80));
+                tooltip.setShowDuration(Duration.seconds(4));
+                tooltip.setConsumeAutoHidingEvents(false);
+                setTooltip(tooltip);
+            }
+        } else {
+            tooltip.setText(tooltipText);
+        }
     }
 
     public void setIconPath(String iconPath) {

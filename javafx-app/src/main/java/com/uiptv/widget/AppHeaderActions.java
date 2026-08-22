@@ -64,6 +64,8 @@ public class AppHeaderActions extends HBox {
         setMaxWidth(Region.USE_PREF_SIZE);
         setPickOnBounds(false);
         getChildren().addAll(gearButton);
+        // remove hover tooltip for gear to avoid flicker while keeping accessible text for tests/assistive tech
+        gearButton.setTooltip(null);
         refreshState();
         sceneProperty().addListener((_, oldScene, newScene) -> {
             if (oldScene == null && newScene != null) {
@@ -82,7 +84,6 @@ public class AppHeaderActions extends HBox {
     private void updateGearButton() {
         Configuration configuration = readConfigurationSafely();
         boolean paused = configuration != null && configuration.isPauseFiltering();
-        gearButton.setTooltipText(I18n.tr(I18N_AUTO_SETTINGS));
         gearButton.getStyleClass().remove("bookmarks-quick-action-button-lock-ok");
         gearButton.getStyleClass().remove("bookmarks-quick-action-button-lock-paused");
         gearButton.getStyleClass().add(paused
