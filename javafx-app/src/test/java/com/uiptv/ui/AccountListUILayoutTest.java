@@ -8,6 +8,7 @@ import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.ResponsiveCardGrid;
+import com.uiptv.ui.ThumbnailAwareUI;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -673,6 +674,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         Configuration configuration = ConfigurationService.getInstance().read();
         configuration.setEnableThumbnails(enabled);
         ConfigurationService.getInstance().save(configuration);
+        ThumbnailAwareUI.notifyThumbnailModeChanged(enabled);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
