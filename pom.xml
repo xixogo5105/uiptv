@@ -28,7 +28,7 @@
         <maven.compiler.target>25</maven.compiler.target>
         <maven.compiler.release>25</maven.compiler.release>
         <vlcj.version>4.12.1</vlcj.version>
-        <lombok.version>1.18.46</lombok.version>
+        <lombok.version>1.18.48</lombok.version>
         <sonar.organization>xixogo5105</sonar.organization>
         <sonar.exclusions>.github/**</sonar.exclusions>
         <sonar.coverage.jacoco.xmlReportPaths>
