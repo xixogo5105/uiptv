@@ -1,4 +1,4 @@
-const CACHE_NAME = 'uiptv-cache-v28';
+const CACHE_NAME = 'uiptv-cache-v29';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -18,9 +18,11 @@ const urlsToCache = [
   '/javascript/bookmark-watch-utils.js',
   '/javascript/spa.js',
   'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css',
+  'https://cdn.jsdelivr.net/npm/video.js@8.24.0/dist/video-js.css',
   'https://unpkg.com/vue@3/dist/vue.global.prod.js',
   'https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js',
-  'https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js'
+  'https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js',
+  'https://cdn.jsdelivr.net/npm/video.js@8.24.0/dist/video.min.js'
 ];
 
 const urlsToCacheSet = new Set();

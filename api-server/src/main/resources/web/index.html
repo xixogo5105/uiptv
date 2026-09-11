@@ -16,24 +16,15 @@
     <link href="/icon-192.png" rel="apple-touch-icon">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/video.js@8.24.0/dist/video-js.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260523e" rel="stylesheet">
     <link href="/css/spa.css?v=20260526a" rel="stylesheet">
     <style>
-        /* Visual feedback when play buttons are disabled to debounce rapid clicks */
-        .play-buttons-disabled .row-card,
-        .play-buttons-disabled .primary-button,
-        .play-buttons-disabled .soft-button,
-        .play-buttons-disabled .filter-chip {
-            pointer-events: none !important;
-            opacity: 0.65 !important;
-            cursor: not-allowed !important;
-        }
-        .play-buttons-disabled .row-card { user-select: none; }
     </style>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/video.js@8.24.0/dist/video.min.js"></script>
     <script src="/javascript/playback-utils.js?v=20260523e"></script>
     <script src="/javascript/player-controls.js?v=20260310a"></script>
     <script src="/javascript/shared-player.js?v=20260523d"></script>
@@ -41,7 +32,7 @@
 </head>
 <body>
 
-<div id="app" :class="['app-shell', { 'play-buttons-disabled': playClicksDisabled }]">
+<div id="app" class="app-shell">
     <main class="workspace">
         <header class="topbar">
             <button @click="resetApp" aria-label="UIPTV home" class="brand" type="button">
@@ -100,7 +91,7 @@
             </div>
         </header>
 
-        <div :class="{ 'player-hidden': !playerPanelVisible }" class="content-shell">
+        <div :class="{ 'player-hidden': !playerPanelVisible, 'wide-view': wideViewActive }" class="content-shell">
             <section aria-label="Content browser" class="content-stage">
                 <section class="content-screen" v-if="activeTab === 'bookmarks'">
                     <div class="screen-heading">
@@ -108,17 +99,43 @@
                             <h1>Bookmarks</h1>
                             <p>Favorite channels grouped for quick playback.</p>
                         </div>
-                        <div aria-label="Bookmark categories" class="chip-row" role="tablist">
+                        <div aria-label="Bookmark categories" class="chip-row bookmark-tabs" role="tablist">
                             <button
                                     :class="{ active: String(selectedBookmarkCategoryId || '') === String(category.id || '') }"
                                     :key="'bookmark-category-' + (category.id || 'all')"
                                     @click="selectBookmarkCategory(category.id)"
                                     class="filter-chip"
                                     type="button"
-                                    v-for="category in bookmarkCategoryTabs">
+                                    v-for="category in bookmarkPrimaryTabs">
                                 {{ category.name }}
                             </button>
                         </div>
+                        <div class="chip-row bookmark-overflow" v-if="bookmarkOverflowTabs.length > 0">
+                            <div class="bookmark-overflow-dropdown">
+                                <button ref="bookmarkOverflowToggleRef"
+                                        class="filter-chip dropdown-toggle"
+                                        :class="{ active: isBookmarkOverflowActive, 'show': isBookmarkOverflowDropdownOpen }"
+                                        type="button"
+                                        @click="toggleBookmarkOverflowDropdown">
+                                    <span>{{ selectedBookmarkCategoryLabel || 'More' }}</span>
+                                </button>
+                                <div class="bookmark-overflow-menu" v-show="isBookmarkOverflowDropdownOpen">
+                                    <button v-for="tab in bookmarkOverflowTabs"
+                                            :key="'overflow-' + tab.id"
+                                            :class="{ active: String(selectedBookmarkCategoryId || '') === String(tab.id || '') }"
+                                            @click="onBookmarkOverflowSelect(tab.id)"
+                                            class="dropdown-item"
+                                            type="button">
+                                        {{ tab.name }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <select class="bookmark-dropdown" v-model="selectedBookmarkCategoryId" @change="selectBookmarkCategory(selectedBookmarkCategoryId)">
+                            <option v-for="category in bookmarkCategoryTabs" :key="'bd-' + (category.id || 'all')" :value="category.id">
+                                {{ category.name }}<span v-if="category.itemCount"> ({{ category.itemCount }})</span>
+                            </option>
+                        </select>
                     </div>
 
                     <div class="scroll-area">
@@ -187,12 +204,18 @@
                             <p v-else>{{ currentAccountName }} · {{ currentAccountTypeLabel }}</p>
                         </div>
                         <div class="account-actions" v-if="viewState === 'accounts'">
-                            <div aria-label="Account type" class="chip-row" role="group">
+                            <div aria-label="Account type" class="chip-row account-type-tabs" role="group">
                                 <button :class="{ active: selectedAccountTypeFilter === 'all' }" @click="selectAccountTypeFilter('all')" class="filter-chip" type="button">All</button>
                                 <button :class="{ active: selectedAccountTypeFilter === 'stalker' }" @click="selectAccountTypeFilter('stalker')" class="filter-chip" type="button">Stalker</button>
                                 <button :class="{ active: selectedAccountTypeFilter === 'xtreme' }" @click="selectAccountTypeFilter('xtreme')" class="filter-chip" type="button">Xtreme</button>
                                 <button :class="{ active: selectedAccountTypeFilter === 'm3u' }" @click="selectAccountTypeFilter('m3u')" class="filter-chip" type="button">M3U</button>
                             </div>
+                            <select class="account-type-dropdown" v-model="selectedAccountTypeFilter" @change="selectAccountTypeFilter(selectedAccountTypeFilter)">
+                                <option value="all">All</option>
+                                <option value="stalker">Stalker</option>
+                                <option value="xtreme">Xtreme</option>
+                                <option value="m3u">M3U</option>
+                            </select>
                         </div>
                         <div class="drilldown-actions" v-else>
                             <button @click="goBackToAccounts" class="soft-button" type="button">
@@ -207,11 +230,16 @@
                                 <i class="bi bi-arrow-left"></i>
                                 <span>{{ contentMode === 'series' ? 'Series' : 'Movies' }}</span>
                             </button>
-                            <div aria-label="Content mode" class="segmented" role="group" v-if="supportsVodSeriesForSelectedAccount">
+                            <div aria-label="Content mode" class="segmented content-mode-tabs" role="group" v-if="supportsVodSeriesForSelectedAccount">
                                 <button :class="{ active: contentMode === 'itv' }" @click="setContentMode('itv')" type="button">Channels</button>
                                 <button :class="{ active: contentMode === 'vod' }" @click="setContentMode('vod')" type="button">Movies</button>
                                 <button :class="{ active: contentMode === 'series' }" @click="setContentMode('series')" type="button">Series</button>
                             </div>
+                            <select class="content-mode-dropdown" v-model="contentMode" @change="setContentMode(contentMode)" v-if="supportsVodSeriesForSelectedAccount">
+                                <option value="itv">Channels</option>
+                                <option value="vod">Movies</option>
+                                <option value="series">Series</option>
+                            </select>
                         </div>
                     </div>
 
@@ -700,16 +728,22 @@
                     </header>
                     <section class="settings-body">
                         <div class="settings-row">
-                            <label>Wide view (cinematic) by default</label>
+                            <label>
+                                <span class="settings-label-text">Wide view (cinematic) by default</span>
+                                <span class="settings-hint">Keeps content browser and player visible side by side, matching the desktop app layout.</span>
+                            </label>
                             <input type="checkbox" v-model="defaultWideView">
                         </div>
                         <div class="settings-row">
-                            <label>Player engine preference</label>
+                            <label>
+                                <span class="settings-label-text">Player engine preference</span>
+                                <span class="settings-hint">Video.js (VHS) handles HLS/DASH; Shaka handles DRM; mpegts.js handles MPEG-TS.</span>
+                            </label>
                             <select v-model="playerEnginePref">
                                 <option value="auto">Auto (best available)</option>
-                                <option value="hls">HLS (hls.js)</option>
-                                <option value="shaka">Shaka</option>
-                                <option value="native">Native</option>
+                                <option value="videojs">Video.js (HLS/DASH)</option>
+                                <option value="shaka">Shaka Player</option>
+                                <option value="native">Native HTML5</option>
                             </select>
                         </div>
                         <div class="settings-row">

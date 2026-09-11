@@ -59,6 +59,14 @@
     font-size: 1.05rem;
 }
 
+.uiptv-layout-icon {
+    display: block;
+}
+
+.uiptv-layout-icon path {
+    fill: currentColor;
+}
+
 .uiptv-favorite-icon {
     transition: color 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
 }

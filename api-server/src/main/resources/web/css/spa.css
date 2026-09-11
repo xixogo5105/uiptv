@@ -312,6 +312,49 @@ a[href] {
     color: var(--on-primary-container);
 }
 
+.bookmark-overflow-dropdown {
+    position: relative;
+    flex: 1 1 100%;
+}
+
+.bookmark-overflow-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--outline) 28%, transparent);
+    border-radius: 10px;
+    box-shadow: 0 12px 28px var(--shadow);
+    min-width: 100%;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.dropdown-item {
+    width: 100%;
+    min-width: 0;
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    background: transparent;
+    color: var(--text);
+    border: none;
+    border-radius: 0;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
+}
+
+.dropdown-item:hover,
+.dropdown-item.active {
+    background: color-mix(in srgb, var(--primary-container) 24%, transparent);
+    color: var(--on-primary-container);
+}
+
 .content-shell {
     min-width: 0;
     min-height: 0;
@@ -346,6 +389,7 @@ a[href] {
 .content-stage {
     display: block;
     height: 100%;
+    overflow-y: auto;
 }
 
 .content-screen {
@@ -354,7 +398,6 @@ a[href] {
     grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 10px;
     padding: 12px;
-    overflow: hidden;
 }
 
 .screen-heading {
@@ -394,6 +437,27 @@ a[href] {
     align-items: center;
 }
 
+.bookmark-dropdown,
+.account-type-dropdown,
+.content-mode-dropdown {
+    display: none;
+}
+
+.bookmark-dropdown select,
+.account-type-dropdown select,
+.content-mode-dropdown select {
+    width: 100%;
+    max-width: 280px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--outline) 38%, transparent);
+    background: var(--surface-high);
+    color: var(--text);
+    font-size: 0.83rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
 .drilldown-actions {
     justify-content: flex-end;
 }
@@ -402,6 +466,7 @@ a[href] {
 .panel-list {
     min-width: 0;
     min-height: 0;
+    height: 100%;
     overflow-x: hidden;
     overflow-y: auto;
     padding-right: 4px;
@@ -1166,56 +1231,73 @@ a[href] {
     }
 }
 
-.app-shell.player-expanded {
+.content-shell {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+    gap: 12px;
+    align-items: stretch;
+    overflow: hidden;
+}
+
+.content-shell.wide-view {
+    grid-template-columns: minmax(0, 540px) minmax(0, 1fr);
+}
+
+.content-shell.wide-view.player-hidden {
     grid-template-columns: minmax(0, 1fr);
-    min-height: 100vh;
-    height: 100vh;
-    overflow: hidden;
 }
 
-.app-shell.player-expanded .topbar,
-.app-shell.player-expanded .content-stage {
-    display: none;
-}
-
-.app-shell.player-expanded .workspace {
-    padding: 0;
-    min-height: 0;
+.content-shell.wide-view .player-panel {
+    max-height: none;
     height: 100%;
-    grid-template-rows: minmax(0, 1fr);
-    overflow: hidden;
+    overflow-y: hidden;
 }
 
-.app-shell.player-expanded .content-shell {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-    min-height: 0;
+.content-shell.wide-view #player-wrapper {
     height: 100%;
-    overflow: hidden;
-}
-
-.app-shell.player-expanded .player-panel {
-    width: 100%;
-    height: 100%;
-    align-self: stretch;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-    grid-template-rows: auto minmax(0, 1fr) auto auto;
-    overflow: hidden;
-}
-
-.app-shell.player-expanded #player-wrapper {
-    width: 100%;
-    height: 100%;
-    aspect-ratio: auto;
     min-height: 0;
 }
 
-.app-shell.player-expanded .uiptv-player-header {
-    background: var(--surface);
-    border-radius: 8px;
-    padding: 8px;
+@media (max-width: 1300px) {
+    .content-shell.wide-view {
+        grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+    }
+}
+
+    .content-shell.wide-view .uiptv-player-header {
+        background: var(--surface);
+        border-radius: 8px;
+        padding: 8px;
+    }
+
+    /* In wide view, list items are displayed one per line (matches desktop app) */
+    .content-shell.wide-view .content-grid,
+    .content-shell.wide-view .bookmark-grid,
+    .content-shell.wide-view .account-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* In wide view, allow the content panel to scroll */
+    .content-shell.wide-view .content-stage {
+        overflow-y: auto;
+    }
+
+    /* In wide view, collapse nav button groups into dropdowns */
+    .content-shell.wide-view .bookmark-tabs,
+    .content-shell.wide-view .bookmark-overflow,
+    .content-shell.wide-view .account-type-tabs,
+    .content-shell.wide-view .content-mode-tabs {
+        display: none;
+    }
+
+    .content-shell.wide-view .bookmark-dropdown,
+    .content-shell.wide-view .account-type-dropdown,
+    .content-shell.wide-view .content-mode-dropdown {
+        display: flex;
+    }
 }
 
 @media (max-width: 1180px) {
@@ -1245,6 +1327,30 @@ a[href] {
     .content-shell.player-hidden {
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr);
+    }
+
+    .content-shell.wide-view {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+     .content-shell.wide-view .player-panel {
+        max-height: min(42vh, 420px);
+        height: auto;
+    }
+
+    /* Mobile single-column view: collapse button groups into dropdowns */
+    .bookmark-tabs,
+    .bookmark-overflow,
+    .account-type-tabs,
+    .content-mode-tabs {
+        display: none;
+    }
+
+    .bookmark-dropdown,
+    .account-type-dropdown,
+    .content-mode-dropdown {
+        display: flex;
     }
 
     .content-shell:not(.player-hidden) .content-stage {
@@ -1322,4 +1428,118 @@ a[href] {
         grid-row: 1;
         max-height: min(46vh, 380px);
     }
+}
+
+.settings-modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.settings-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+
+.settings-panel {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--outline) 28%, transparent);
+    border-radius: 12px;
+    box-shadow: 0 24px 64px var(--shadow);
+    max-width: 460px;
+    width: min(90vw, 460px);
+    overflow: hidden;
+    z-index: 1;
+}
+
+.settings-panel header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--outline) 24%, transparent);
+}
+
+.settings-panel header strong {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.close-btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    display: grid;
+    place-items: center;
+    border: 1px solid transparent;
+}
+
+.close-btn:hover {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--outline) 48%, transparent);
+}
+
+.settings-body {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.settings-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+}
+
+.settings-label-text {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.settings-hint {
+    font-size: 0.76rem;
+    color: var(--muted);
+    line-height: 1.35;
+}
+
+.settings-row select {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--outline) 38%, transparent);
+    background: var(--surface-high);
+    color: var(--text);
+    font-size: 0.86rem;
+}
+
+.settings-row button {
+    min-height: 36px;
+    font-weight: 600;
+}
+
+.settings-row .primary-button {
+    justify-self: flex-start;
+}
+
+.settings-row .soft-button {
+    justify-self: flex-start;
 }

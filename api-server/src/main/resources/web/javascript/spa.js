@@ -43,7 +43,7 @@ createApp({
         const playbackGestureRequired = ref(false);
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
-        const playerExpanded = ref(false);
+        const wideViewActive = ref(false);
         const showSettingsModal = ref(false);
         const defaultWideView = ref(localStorage.getItem('uiptv_default_wide_view') === '1');
         const playerEnginePref = ref(localStorage.getItem('uiptv_player_engine_pref') || 'auto');
@@ -58,9 +58,7 @@ createApp({
                 console.warn('Failed to persist settings', e);
             }
             // Apply to runtime - if wide view preference changed, adapt current layout
-            if (defaultWideView.value) {
-                playerExpanded.value = true;
-            }
+            wideViewActive.value = !!defaultWideView.value;
             closeSettings();
         };
         const playerManuallyHidden = ref(false);
@@ -70,6 +68,7 @@ createApp({
         const dragOverBookmarkId = ref('');
         const suppressNextBookmarkClick = ref(false);
         const bookmarkOverflowToggleRef = ref(null);
+        const isBookmarkOverflowDropdownOpen = ref(false);
         const recentBookmarkHistory = ref([]);
         const bingeWatchLoading = ref(false);
         const activeBingeWatch = ref({token: '', currentEpisodeId: '', items: []});
@@ -77,6 +76,7 @@ createApp({
         const playerInstance = ref(null);
         const mpegtsPlayer = ref(null);
         const hlsPlayer = ref(null);
+        const videoJsPlayer = ref(null);
         const videoPlayer = ref(null);
         const videoTracks = ref([]);
         const audioTracks = ref([]);
@@ -98,9 +98,9 @@ createApp({
         let playbackRequestId = 0;
         let playbackFetchController = null;
         let playbackGestureResume = null;
-        // Prevent overlapping startPlayback runs; queue the latest request while one is in-flight.
+        // Prevent overlapping startPlayback runs; if one is stuck, abort it so the next click can proceed.
         let playbackInFlight = false;
-        let pendingStartArgs = null;
+        let currentPlaybackRequestId = 0;
         // UI debounce flag to briefly disable play buttons after a click to give feedback and avoid rapid duplicates.
         const playClicksDisabled = ref(false);
         const languageNames = typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
@@ -875,10 +875,27 @@ createApp({
         });
         const bookmarkPrimaryTabs = computed(() => bookmarkCategoryTabs.value.slice(0, 7));
         const bookmarkOverflowTabs = computed(() => bookmarkCategoryTabs.value.slice(7));
-        const isSelectedBookmarkInOverflow = computed(() => {
+        const isBookmarkOverflowActive = computed(() => {
             const selected = String(selectedBookmarkCategoryId.value || '');
             return bookmarkOverflowTabs.value.some(tab => String(tab?.id || '') === selected);
         });
+        const selectedBookmarkCategoryLabel = computed(() => {
+            const selectedId = String(selectedBookmarkCategoryId.value || '');
+            const found = bookmarkCategoryTabs.value.find(tab => String(tab?.id || '') === selectedId);
+            return found ? String(found.name || '') : 'More';
+        });
+
+        const toggleBookmarkOverflowDropdown = () => {
+            isBookmarkOverflowDropdownOpen.value = !isBookmarkOverflowDropdownOpen.value;
+        };
+
+        const hideBookmarkOverflowDropdown = () => {
+            isBookmarkOverflowDropdownOpen.value = false;
+            const toggle = bookmarkOverflowToggleRef.value;
+            if (!toggle || typeof bootstrap === 'undefined' || !bootstrap?.Dropdown) return;
+            const instance = bootstrap.Dropdown.getOrCreateInstance(toggle);
+            instance.hide();
+        };
 
         const canReorderBookmarks = computed(() => {
             return activeTab.value === 'bookmarks'
@@ -962,7 +979,7 @@ createApp({
         );
         const playerPanelVisible = computed(() => hasPlayerContent.value && !playerManuallyHidden.value);
         const playbackSeekable = computed(() => Number.isFinite(playbackDuration.value) && playbackDuration.value > 0);
-        const widePlayerProgressVisible = computed(() => playerExpanded.value && isPlaying.value);
+        const widePlayerProgressVisible = computed(() => wideViewActive.value && isPlaying.value);
 
         const setBrowserTitle = () => {
             const channelTitle = String(currentChannelDebugTitle.value || '').trim();
@@ -993,8 +1010,9 @@ createApp({
             });
         };
         const resetPlaybackDefaults = () => {
-            strategyOverride.value = 'auto';
             strategyOverrideKey = '';
+            const pref = String(playerEnginePref.value || 'auto').toLowerCase();
+            strategyOverride.value = pref && pref !== 'auto' ? pref : 'auto';
             syncSharedHeader();
             syncSharedMenus();
         };
@@ -1251,6 +1269,11 @@ createApp({
                 thumbnailsEnabled.value = config?.enableThumbnails !== false;
             } catch (e) {
                 thumbnailsEnabled.value = true;
+            }
+            // Apply persisted player engine preference
+            const pref = String(playerEnginePref.value || 'auto').toLowerCase();
+            if (pref && pref !== 'auto') {
+                strategyOverride.value = pref;
             }
         };
 
@@ -1805,13 +1828,7 @@ createApp({
         const selectBookmarkCategory = (categoryId) => {
             selectedBookmarkCategoryId.value = String(categoryId || '');
             clearSearch();
-        };
-
-        const hideBookmarkOverflowDropdown = () => {
-            const toggle = bookmarkOverflowToggleRef.value;
-            if (!toggle || typeof bootstrap === 'undefined' || !bootstrap?.Dropdown) return;
-            const instance = bootstrap.Dropdown.getOrCreateInstance(toggle);
-            instance.hide();
+            hideBookmarkOverflowDropdown();
         };
 
         const onBookmarkOverflowSelect = (categoryId) => {
@@ -2041,20 +2058,20 @@ createApp({
         const hidePlayerPanel = () => {
             if (!hasPlayerContent.value) return;
             playerManuallyHidden.value = true;
-            playerExpanded.value = false;
+            wideViewActive.value = false;
         };
 
         const togglePlayerPanel = () => {
             if (!hasPlayerContent.value) return;
             playerManuallyHidden.value = !playerManuallyHidden.value;
             if (playerManuallyHidden.value) {
-                playerExpanded.value = false;
+                wideViewActive.value = false;
             }
         };
 
-        const togglePlayerExpanded = () => {
+        const toggleWideView = () => {
             if (!playerPanelVisible.value) return;
-            playerExpanded.value = !playerExpanded.value;
+            wideViewActive.value = !wideViewActive.value;
             nextTick(() => {
                 const video = videoPlayer.value;
                 if (video && typeof video.play === 'function' && isPlaying.value && video.paused && !video.ended) {
@@ -2067,12 +2084,6 @@ createApp({
             return broadcasting
                 ? '/images/broadcast-on.svg?v=20260705a'
                 : '/images/broadcast-off.svg?v=20260705a';
-        };
-
-        const syncPlayerExpandedClass = () => {
-            const root = document.getElementById('app');
-            if (!root) return;
-            root.classList.toggle('player-expanded', !!playerExpanded.value);
         };
 
         const selectAccount = async (account) => {
@@ -2349,7 +2360,7 @@ createApp({
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
             };
-            await startPlayback(playbackUrl, nextChannel, {expandPlayer: true});
+            await startPlayback(playbackUrl, nextChannel, {wideView: true});
             window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
             return true;
         };
@@ -2427,7 +2438,7 @@ createApp({
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
             };
-            await startPlayback(playbackUrl, nextChannel, {expandPlayer: true});
+            await startPlayback(playbackUrl, nextChannel, {wideView: true});
 
             const cleanUrl = `${window.location.origin}${window.location.pathname}`;
             window.history.replaceState({}, document.title, cleanUrl);
@@ -2467,7 +2478,7 @@ createApp({
                 type: 'channel',
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
-            }, {expandPlayer: true});
+            }, {wideView: true});
             window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
             return true;
         };
@@ -2552,9 +2563,6 @@ createApp({
         };
 
         const playChannel = (channel) => {
-            if (playClicksDisabled.value) return;
-            playClicksDisabled.value = true;
-            setTimeout(() => { playClicksDisabled.value = false; }, 600);
             scrollToTop();
             const modeToUse = String(contentMode.value || 'itv').toLowerCase();
             const playbackCategoryId = resolvePlaybackCategoryIdForChannel(channel, modeToUse);
@@ -2581,28 +2589,10 @@ createApp({
                 mode: modeToUse,
                 playRequestUrl: playbackUrl
             };
-            if (isPendingPlaybackTarget({
-                id: nextChannel.channelId || nextChannel.id || '',
-                accountId: nextChannel.accountId || '',
-                mode: nextChannel.mode || '',
-                season: nextChannel.season || '',
-                episodeNum: nextChannel.episodeNum || ''
-            }) || matchesCurrentPlayback({
-                id: nextChannel.channelId || nextChannel.id || '',
-                accountId: nextChannel.accountId || '',
-                mode: nextChannel.mode || '',
-                season: nextChannel.season || '',
-                episodeNum: nextChannel.episodeNum || ''
-            })) {
-                return;
-            }
             startPlayback(playbackUrl, nextChannel);
         };
 
         const playBookmark = (bookmark) => {
-            if (playClicksDisabled.value) return;
-            playClicksDisabled.value = true;
-            setTimeout(() => { playClicksDisabled.value = false; }, 600);
             scrollToTop();
             const bookmarkMode = String(bookmark.accountAction || bookmark.mode || 'itv').toLowerCase();
             const query = new URLSearchParams();
@@ -2625,29 +2615,11 @@ createApp({
                 mode: bookmarkMode,
                 playRequestUrl: playbackUrl
             };
-            if (isPendingPlaybackTarget({
-                id: nextChannel.channelId || '',
-                accountId: nextChannel.accountId || '',
-                accountName: nextChannel.accountName || '',
-                mode: nextChannel.mode || '',
-                bookmarkId: nextChannel.bookmarkId || ''
-            }) || matchesCurrentPlayback({
-                id: nextChannel.channelId || '',
-                accountId: nextChannel.accountId || '',
-                accountName: nextChannel.accountName || '',
-                mode: nextChannel.mode || '',
-                bookmarkId: nextChannel.bookmarkId || ''
-            })) {
-                return;
-            }
             recordRecentlyPlayedBookmark(bookmark);
             startPlayback(playbackUrl, nextChannel);
         };
 
         const handleChannelSelection = async (channel) => {
-            if (playClicksDisabled.value) return;
-            playClicksDisabled.value = true;
-            setTimeout(() => { playClicksDisabled.value = false; }, 600);
             if (contentMode.value === 'series' && viewState.value === 'channels') {
                 const seriesId = channel.channelId || channel.id || channel.dbId;
                 const modeState = getModeState('series');
@@ -3038,12 +3010,26 @@ createApp({
 
         const startPlayback = async (url, nextChannel = null, options = {}) => {
             const requestId = ++playbackRequestId;
-            // If another startPlayback is already running, queue the latest request and return immediately.
+            // If another startPlayback is already running, abort it and process this request instead.
             if (playbackInFlight) {
-                pendingStartArgs = {url, nextChannel, options};
-                return;
+                if (playbackFetchController) {
+                    try { playbackFetchController.abort(); } catch (_) {}
+                    playbackFetchController = null;
+                }
+                // Fully reset video element to prevent blank screen on rapid stream switch
+                const video = videoPlayer.value;
+                if (video) {
+                    video.pause();
+                    video.removeAttribute('src');
+                    video.src = '';
+                    video.load();
+                }
+                await stopPlayback(true);
+                // Small delay to let cleanup complete before starting the new request.
+                await new Promise(resolve => setTimeout(resolve, 50));
             }
             playbackInFlight = true;
+            currentPlaybackRequestId = requestId;
 
             controlsVisible.value = true;
             playerManuallyHidden.value = false;
@@ -3052,8 +3038,8 @@ createApp({
             if (switching) {
                 await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true, hideControls: false});
             }
-            if (options.expandPlayer === true) {
-                playerExpanded.value = true;
+            if (options.wideView === true) {
+                wideViewActive.value = true;
             }
             if (playbackFetchController) {
                 try {
@@ -3068,6 +3054,11 @@ createApp({
             if (channelKey && channelKey !== strategyOverrideKey) {
                 strategyOverride.value = 'auto';
                 strategyOverrideKey = channelKey;
+            }
+            // Apply persisted player engine preference (if not 'auto')
+            const pref = String(playerEnginePref.value || 'auto').toLowerCase();
+            if (pref && pref !== 'auto') {
+                strategyOverride.value = pref;
             }
             pendingPlaybackKey.value = buildPlaybackTargetKey({
                 id: targetChannel?.channelId || targetChannel?.id || '',
@@ -3109,7 +3100,7 @@ createApp({
                 playbackError.value = `Playback failed: ${e?.message || 'Unknown error'}`;
                 isPlaying.value = false;
             } finally {
-                if (requestId === playbackRequestId) {
+                if (requestId === currentPlaybackRequestId) {
                     playbackLoading.value = false;
                     if (!isPlaying.value) {
                         playbackMode.value = '';
@@ -3119,20 +3110,8 @@ createApp({
                         playbackFetchController = null;
                     }
 
-                    // Ensure the in-flight flag is cleared and process any queued request.
+                    // Ensure the in-flight flag is cleared.
                     playbackInFlight = false;
-                    if (pendingStartArgs) {
-                        const next = pendingStartArgs;
-                        pendingStartArgs = null;
-                        // Schedule next playback slightly later to allow cleanup to complete.
-                        setTimeout(() => {
-                            try {
-                                startPlayback(next.url, next.nextChannel, next.options);
-                            } catch (_) {
-                                // swallow
-                            }
-                        }, 50);
-                    }
                 }
             }
         };
@@ -3165,12 +3144,28 @@ createApp({
 
             if (hlsPlayer.value) {
                 try {
-                    // hls.js provides destroy()
                     hlsPlayer.value.destroy();
                 } catch (e) {
                     console.warn('Error destroying hls.js player', e);
                 }
                 hlsPlayer.value = null;
+            }
+
+            if (videoJsPlayer.value) {
+                try {
+                    videoJsPlayer.value.dispose();
+                } catch (e) {
+                    console.warn('Error destroying Video.js player', e);
+                }
+                videoJsPlayer.value = null;
+                // Ensure video element is fully reset after Video.js disposal
+                const video = videoPlayer.value;
+                if (video) {
+                    video.pause();
+                    video.removeAttribute('src');
+                    video.src = '';
+                    video.load();
+                }
             }
 
             clearVideoElement(videoPlayer.value);
@@ -3182,7 +3177,7 @@ createApp({
                 currentChannel.value = null;
                 playbackError.value = '';
                 clearPlaybackGestureRequirement();
-                playerExpanded.value = false;
+                wideViewActive.value = false;
                 playerManuallyHidden.value = false;
                 clearActiveBingeWatch();
             }
@@ -3213,7 +3208,7 @@ createApp({
             if (hideControls) {
                 controlsVisible.value = false;
             }
-            playerExpanded.value = false;
+            wideViewActive.value = false;
             playerManuallyHidden.value = false;
             await stopPlayback(false);
         };
@@ -3266,6 +3261,23 @@ createApp({
                 await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)});
                 return;
             }
+            if (override === 'videojs') {
+                await loadVideoJs(channel);
+                return;
+            }
+            if (override === 'shaka') {
+                await loadShaka(channel);
+                return;
+            }
+            if (override === 'native') {
+                await loadNative(channel);
+                return;
+            }
+            // Legacy 'hls' override — hls.js was removed, route to Video.js
+            if (override === 'hls') {
+                await loadVideoJs(channel);
+                return;
+            }
 
             const preferHlsFallback = isHls && !prefersNativeHls;
             try {
@@ -3276,12 +3288,12 @@ createApp({
                 } else if (isHls && prefersNativeHls) {
                     await loadNative(channel);
                 } else if (isHls) {
-                    // Prefer hls.js for non-native HLS playback; Shaka remains the DRM-capable fallback.
-                    await loadHls(channel);
+                    // Prefer Video.js (VHS) for non-native HLS playback; Shaka remains the DRM-capable fallback.
+                    await loadVideoJs(channel);
                 } else if (canNative) {
                     await loadNative(channel);
                 } else {
-                    await loadShaka(channel);
+                    await loadVideoJs(channel);
                 }
             } catch (e) {
                 if (!hasDRM && !isTs && await tryProxyPlaybackFallback(channel, preferHlsFallback, e)) {
@@ -3300,7 +3312,7 @@ createApp({
             console.warn('Playback failed, retrying through local proxy.', previousError);
             const attempts = preferShaka
                 ? [loadShaka, loadNative]
-                : [loadNative, loadShaka];
+                : [loadNative, loadVideoJs];
             let lastError = previousError;
             for (const attempt of attempts) {
                 await stopPlayback(true);
@@ -3455,7 +3467,7 @@ createApp({
         const normalizeWebPlaybackUrl = (rawUrl) => playbackUtils.normalizeWebPlaybackUrl(rawUrl);
         const downgradeHttpsToHttpForKnownPaths = (url) => playbackUtils.downgradeHttpsToHttpForKnownPaths(url);
 
-        const loadHls = async (channel) => {
+        const loadVideoJs = async (channel) => {
             await nextTick();
             const video = videoPlayer.value;
             if (!video) return;
@@ -3463,57 +3475,163 @@ createApp({
             bindPlaybackEvents(video);
             const sourceUrl = normalizeWebPlaybackUrl(channel.url);
 
-            if (window.Hls && typeof Hls.isSupported === 'function' && Hls.isSupported()) {
-                try {
-                    // Clean up previous hls instance if any
-                    if (hlsPlayer.value) {
-                        try { hlsPlayer.value.destroy(); } catch (_) {}
-                        hlsPlayer.value = null;
-                    }
-                    const hls = new Hls({
-                           enableWorker: true,
-                           capLevelToPlayerSize: false,
-                           maxBufferLength: 60,
-                           maxMaxBufferLength: 120,
-                           maxLoadingDelay: 4,
-                           lowLatencyMode: false,
-                           abrEwmaDefaultEstimate: 5000000,
-                           startLevel: -1
-                       });
-                    hlsPlayer.value = hls;
-                    hls.on(Hls.Events.ERROR, function (event, data) {
-                        const isFatal = data && data.fatal;
-                        const msg = data && data.details ? data.details : 'hls.js error';
-                        if (isFatal) {
-                            playbackError.value = `Playback error: ${msg}`;
-                        } else {
-                            console.warn('hls.js non-fatal error', data);
-                        }
-                    });
-                    hls.attachMedia(video);
-                    hls.loadSource(sourceUrl);
-
-                    // Populate track menus when manifest/levels are available
-                    const onManifestOrLevel = () => refreshHlsTracks(hls);
-                    hls.on(Hls.Events.MANIFEST_PARSED, onManifestOrLevel);
-                    hls.on(Hls.Events.LEVEL_LOADED, onManifestOrLevel);
-                    hls.on(Hls.Events.LEVEL_SWITCHED, onManifestOrLevel);
-                    hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, onManifestOrLevel);
-
-                    // Ensure initial menus are built even if manifest events already fired
-                    try { refreshHlsTracks(hls); } catch (_) {}
-
-                    await playWithGestureFallback(() => video.play());
-                    playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'hls');
-                    return;
-                } catch (e) {
-                    console.warn('hls.js playback failed', e);
-                    throw e;
-                }
+            if (!window.videojs) {
+                console.error('Video.js is not loaded.');
+                playbackError.value = 'Playback failed: Video.js is not available.';
+                throw new Error('Video.js is not available');
             }
 
-            // If hls.js is not available or not supported, fall back to Shaka.
-            await loadShaka(channel);
+            if (videoJsPlayer.value) {
+                try { videoJsPlayer.value.dispose(); } catch (_) {}
+                videoJsPlayer.value = null;
+                // Force full video element reset to prevent blank screen on rapid stream switch
+                video.pause();
+                video.removeAttribute('src');
+                video.src = '';
+                video.load();
+                await new Promise(resolve => setTimeout(resolve, 30));
+            }
+
+            const normalizedUri = String(channel.url || '').toLowerCase();
+            let sourceType = '';
+            if (normalizedUri.includes('.m3u8') || normalizedUri.includes('.m3u?')) {
+                sourceType = 'application/x-mpegURL';
+            } else if (normalizedUri.includes('.mpd')) {
+                sourceType = 'application/dash+xml';
+            }
+
+            try {
+                const player = window.videojs(video, {
+                    controls: false,
+                    autoplay: true,
+                    preload: 'auto',
+                    playsinline: true,
+                    html5: {
+                        hls: {
+                            enableWorker: true,
+                            enableWorkerToken: true,
+                            maxBufferLength: 60,
+                            maxMaxBufferLength: 120,
+                            maxLoadingDelay: 4,
+                            lowLatencyMode: false,
+                            abrEnabled: true,
+                            capLevelToPlayerSize: false,
+                            startLevel: -1,
+                            useAccurateLiveSeekToEnd: true
+                        },
+                        dash: {
+                            autoLiveStartParam: true
+                        }
+                    }
+                });
+                videoJsPlayer.value = player;
+
+                player.on('error', (e) => {
+                    const err = player && player.error ? player.error() : null;
+                    const msg = (err && err.message) ? err.message : 'Video.js error';
+                    console.error('Video.js error:', err, e);
+                    playbackError.value = `Playback error: ${msg}`;
+                });
+
+                player.on('loadedmetadata', () => {
+                    refreshVideoJsTracks(player);
+                });
+                player.on('qualitylevelchange', () => {
+                    refreshVideoJsTracks(player);
+                });
+                player.on('audiotrackchange', () => {
+                    refreshVideoJsTracks(player);
+                });
+                player.on('texttrackchange', () => {
+                    refreshVideoJsTracks(player);
+                });
+
+                if (sourceType) {
+                    player.src({src: sourceUrl, type: sourceType});
+                } else {
+                    player.src(sourceUrl);
+                }
+
+                const playAction = typeof player.play === 'function'
+                    ? () => player.play()
+                    : () => video.play();
+                await playWithGestureFallback(playAction);
+                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'videojs');
+                refreshVideoJsTracks(player);
+                return;
+            } catch (e) {
+                console.warn('Video.js playback failed', e);
+                throw e;
+            }
+        };
+
+        const refreshVideoJsTracks = (player) => {
+            if (!player) return;
+
+            try {
+                const levels = typeof player.qualityLevels === 'function' ? player.qualityLevels() : null;
+                if (levels && typeof levels.toArray === 'function') {
+                    const allLevels = levels.toArray();
+                    videoTracks.value = allLevels.map((level, idx) => ({
+                        id: `vjs-q-${idx}`,
+                        index: idx,
+                        bandwidth: Number(level.bitrate || 0),
+                        width: Number(level.width || 0),
+                        height: Number(level.height || 0),
+                        label: level.height ? `${level.height}p (${Math.round((Number(level.bitrate || 0) / 1000) || 0)} kbps)` : `${Math.round((Number(level.bitrate || 0) / 1000) || 0)} kbps`,
+                        active: !!level.enabled
+                    })).filter((track, idx, arr) => arr.findIndex(other =>
+                        Number(other.height || 0) === Number(track.height || 0)
+                        && Number(other.bandwidth || 0) === Number(track.bandwidth || 0)
+                    ) === idx).sort((a, b) => (Number(a.height || 0) - Number(b.height || 0)) || (Number(a.bandwidth || 0) - Number(b.bandwidth || 0)));
+                } else {
+                    videoTracks.value = [];
+                }
+            } catch (e) {
+                videoTracks.value = [];
+            }
+
+            try {
+                const audioTracksList = typeof player.audioTracks === 'function' ? player.audioTracks() : null;
+                if (audioTracksList && typeof audioTracksList.toArray === 'function') {
+                    const allAudio = audioTracksList.toArray();
+                    const audioByKey = new Map();
+                    for (const track of allAudio) {
+                        const key = `${String(track.language || '')}|${String(track.label || '')}`;
+                        if (!audioByKey.has(key)) {
+                            audioByKey.set(key, {
+                                id: key,
+                                language: track.language || '',
+                                label: track.label || '',
+                                active: !!track.enabled
+                            });
+                        } else if (track.enabled) {
+                            audioByKey.get(key).active = true;
+                        }
+                    }
+                    audioTracks.value = Array.from(audioByKey.values());
+                } else {
+                    audioTracks.value = [];
+                }
+            } catch (e) {
+                audioTracks.value = [];
+            }
+
+            try {
+                const textTracksList = typeof player.textTracks === 'function' ? player.textTracks() : null;
+                if (textTracksList && typeof textTracksList.toArray === 'function') {
+                    const allText = textTracksList.toArray();
+                    textTracks.value = allText.map(t => ({
+                        id: String(t.id || t.label || t.language || ''),
+                        label: t.label || t.language || '',
+                        active: t.mode === 'showing'
+                    }));
+                } else {
+                    textTracks.value = [];
+                }
+            } catch (e) {
+                textTracks.value = [];
+            }
         };
 
         const loadShaka = async (channel) => {
@@ -3684,6 +3802,23 @@ createApp({
         };
 
         const switchVideoTrack = (trackId) => {
+            // Video.js (VHS) path
+            if (videoJsPlayer.value) {
+                setMaxQualityEnabled(false);
+                const qlevels = videoJsPlayer.value.qualityLevels();
+                if (qlevels && qlevels.length > 0) {
+                    const match = (videoTracks.value || []).find(t => String(t.id) === String(trackId));
+                    const targetIndex = match && typeof match.index === 'number' ? match.index : -1;
+                    if (targetIndex >= 0) {
+                        qlevels.auto = false;
+                        for (let i = 0; i < qlevels.length; i++) {
+                            qlevels[i].enabled = (i === targetIndex);
+                        }
+                    }
+                }
+                refreshVideoJsTracks(videoJsPlayer.value);
+                return;
+            }
             // Attempt SHAKA first
             if (playerInstance.value) {
                 const track = playerInstance.value.getVariantTracks().find(t => t.id === trackId);
@@ -3715,6 +3850,16 @@ createApp({
         };
 
         const switchVideoAuto = () => {
+            if (videoJsPlayer.value) {
+                setMaxQualityEnabled(false);
+                try {
+                    // Video.js auto = ABR enabled
+                    const qlevels = videoJsPlayer.value.qualityLevels();
+                    if (qlevels) qlevels.auto = true;
+                } catch (e) { console.warn('Failed to set Video.js ABR', e); }
+                refreshVideoJsTracks(videoJsPlayer.value);
+                return;
+            }
             if (playerInstance.value) {
                 setMaxQualityEnabled(false);
                 if (typeof playerInstance.value.configure === 'function') {
@@ -3734,6 +3879,26 @@ createApp({
         };
 
         const switchVideoMax = () => {
+            if (videoJsPlayer.value) {
+                setMaxQualityEnabled(true);
+                const qlevels = videoJsPlayer.value.qualityLevels();
+                if (qlevels && qlevels.length > 0) {
+                    qlevels.auto = false;
+                    let best = 0;
+                    for (let i = 1; i < qlevels.length; i++) {
+                        const h = qlevels[i];
+                        if ((Number(h.height || 0) > Number(qlevels[best].height || 0)) ||
+                            ((Number(h.height || 0) === Number(qlevels[best].height || 0)) && Number(h.bitrate || 0) > Number(qlevels[best].bitrate || 0))) {
+                            best = i;
+                        }
+                    }
+                    for (let i = 0; i < qlevels.length; i++) {
+                        qlevels[i].enabled = (i === best);
+                    }
+                }
+                refreshVideoJsTracks(videoJsPlayer.value);
+                return;
+            }
             if (playerInstance.value) {
                 setMaxQualityEnabled(true);
                 applyMaxQualityPreference(playerInstance.value);
@@ -3761,6 +3926,28 @@ createApp({
         };
 
         const switchAudioTrack = (trackId) => {
+            // Video.js (VHS) path
+            if (videoJsPlayer.value) {
+                const target = (audioTracks.value || []).find(track => String(track.id) === String(trackId));
+                if (target) {
+                    const tracks = videoJsPlayer.value.audioTracks();
+                    if (tracks) {
+                        for (let i = 0; i < tracks.length; i++) {
+                            tracks[i].enabled = false;
+                        }
+                        for (let i = 0; i < tracks.length; i++) {
+                            const t = tracks[i];
+                            if (String(t.language || '') === String(target.language || '') &&
+                                String(t.label || '') === String(target.label || '')) {
+                                t.enabled = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                refreshVideoJsTracks(videoJsPlayer.value);
+                return;
+            }
             // Shaka path
             if (playerInstance.value) {
                 const [language, role, label] = String(trackId || '').split('|');
@@ -3810,6 +3997,29 @@ createApp({
         };
 
         const switchTextTrack = async (trackId) => {
+            // Video.js (VHS) path
+            if (videoJsPlayer.value) {
+                const tracks = videoJsPlayer.value.textTracks();
+                if (tracks) {
+                    if (trackId === 'off') {
+                        for (let i = 0; i < tracks.length; i++) {
+                            try { tracks[i].mode = 'disabled'; } catch (e) {}
+                        }
+                        selectedTextTrackId.value = 'off';
+                        refreshVideoJsTracks(videoJsPlayer.value);
+                        return;
+                    }
+                    for (let i = 0; i < tracks.length; i++) {
+                        try {
+                            const id = String(tracks[i].id || tracks[i].label || tracks[i].language || '');
+                            tracks[i].mode = id === String(trackId) ? 'showing' : 'disabled';
+                        } catch (e) {}
+                    }
+                    selectedTextTrackId.value = String(trackId);
+                    refreshVideoJsTracks(videoJsPlayer.value);
+                    return;
+                }
+            }
             // Shaka path
             if (playerInstance.value) {
                 if (trackId === 'off') {
@@ -4072,7 +4282,7 @@ createApp({
                 mute: (event) => onPlayerControlClick(event, toggleMute),
                 fullscreen: (event) => onPlayerControlClick(event, requestFullscreenPlayer),
                 'hide-panel': hidePlayerPanel,
-                'toggle-layout': togglePlayerExpanded,
+                 'toggle-layout': toggleWideView,
                 stop: (event) => onPlayerControlClick(event, stopPlaybackAndHide),
                 'quality-menu': () => {},
                 'audio-menu': () => {},
@@ -4093,7 +4303,7 @@ createApp({
                 isFullscreen: isFullscreen.value,
                 isFavorite: isCurrentFavorite.value,
                 isPlaying: headerVisible,
-                isPanelExpanded: playerExpanded.value
+                isPanelExpanded: wideViewActive.value
             });
             sharedHeader.setTitle({
                 title: baseTitle,
@@ -4108,10 +4318,21 @@ createApp({
             const maxEnabled = isMaxQualityEnabled();
             const abrEnabled = (() => {
                 try {
-                    return !!playerInstance.value?.getConfiguration()?.abr?.enabled;
+                    if (playerInstance.value && typeof playerInstance.value.getConfiguration === 'function') {
+                        return !!playerInstance.value.getConfiguration()?.abr?.enabled;
+                    }
+                } catch (_) {
+                    // fall through
+                }
+                try {
+                    if (videoJsPlayer.value && typeof videoJsPlayer.value.qualityLevels === 'function') {
+                        const qlevels = videoJsPlayer.value.qualityLevels();
+                        return !!qlevels && qlevels.length > 0 && !!qlevels.auto;
+                    }
                 } catch (_) {
                     return false;
                 }
+                return false;
             })();
             const qualityItems = [];
             qualityItems.push({
@@ -4273,7 +4494,7 @@ createApp({
         const resetApp = () => {
             stopPlayback();
             activeTab.value = 'bookmarks';
-            playerExpanded.value = false;
+            wideViewActive.value = false;
             playerManuallyHidden.value = false;
             viewState.value = 'accounts';
             contentMode.value = 'itv';
@@ -4349,10 +4570,6 @@ createApp({
             syncSharedMenus();
         }, {deep: true});
 
-        watch(playerExpanded, () => {
-            syncPlayerExpandedClass();
-        }, {immediate: true});
-
         return {
             activeTab,
             viewState,
@@ -4387,7 +4604,10 @@ createApp({
             bookmarkCategoryTabs,
             bookmarkPrimaryTabs,
             bookmarkOverflowTabs,
-            isSelectedBookmarkInOverflow,
+            isBookmarkOverflowActive,
+            isBookmarkOverflowDropdownOpen,
+            selectedBookmarkCategoryLabel,
+            toggleBookmarkOverflowDropdown,
             bookmarkOverflowToggleRef,
             seriesSeasonTabs,
             selectedSeriesSeason,
@@ -4419,7 +4639,7 @@ createApp({
             playbackGestureRequired,
             showOverlay,
             showBookmarkModal,
-            playerExpanded,
+            wideViewActive,
             showSettingsModal,
             hasPlayerContent,
             playerPanelVisible,
@@ -4489,7 +4709,7 @@ createApp({
             focusSearch,
             hidePlayerPanel,
             togglePlayerPanel,
-            togglePlayerExpanded,
+            toggleWideView,
             openSettings,
             closeSettings,
             defaultWideView,

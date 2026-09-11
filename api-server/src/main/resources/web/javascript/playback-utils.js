@@ -19,18 +19,23 @@
         return !!engine && typeof engine.isSupported === 'function' && engine.isSupported();
     };
 
-    const resolvePlaybackModeLabel = (url, engine = '') => {
-        const lowerUrl = String(url || '').trim().toLowerCase();
-        const normalizedEngine = String(engine || '').trim().toLowerCase();
-        if (normalizedEngine === 'mpegts') return lowerUrl.includes('/proxy-stream') ? 'mpegts proxy' : 'mpegts';
-        if (normalizedEngine === 'shaka') {
-            if (lowerUrl.includes('.mpd')) return 'dash';
-            if (lowerUrl.includes('.m3u8')) return 'hls';
-            return 'shaka';
-        }
-        if (lowerUrl.includes('/proxy-stream')) return 'proxy';
-        return 'direct';
-    };
+        const resolvePlaybackModeLabel = (url, engine = '') => {
+            const lowerUrl = String(url || '').trim().toLowerCase();
+            const normalizedEngine = String(engine || '').trim().toLowerCase();
+            if (normalizedEngine === 'mpegts') return lowerUrl.includes('/proxy-stream') ? 'mpegts proxy' : 'mpegts';
+            if (normalizedEngine === 'shaka') {
+                if (lowerUrl.includes('.mpd')) return 'dash';
+                if (lowerUrl.includes('.m3u8')) return 'hls';
+                return 'shaka';
+            }
+            if (normalizedEngine === 'videojs') {
+                if (lowerUrl.includes('.mpd')) return 'dash';
+                if (lowerUrl.includes('.m3u8')) return 'hls';
+                return 'videojs';
+            }
+            if (lowerUrl.includes('/proxy-stream')) return 'proxy';
+            return 'direct';
+        };
 
     const downgradeHttpsToHttpForKnownPaths = (url) => {
         const value = String(url || '').trim();
