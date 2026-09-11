@@ -145,7 +145,7 @@ class CatalogApplicationServiceTest extends DbBackedTest {
     }
 
     @Test
-    void getVodDetails_mergesProviderFallbackWithImdbMetadata() {
+    void getVodDetails_prefersImdbCoverWhileFallingBackForMissingFields() {
         Account account = createVodAccount("vod-details");
         VodCategoryDb.get().saveAll(List.of(new Category("vod-cat", "Movies", "movies", false, 0)), account);
         Category category = VodCategoryDb.get().getCategories(account).getFirst();
@@ -169,7 +169,7 @@ class CatalogApplicationServiceTest extends DbBackedTest {
             );
 
             assertEquals("Movie Nine", response.name());
-            assertEquals("https://img/provider.png", response.cover());
+            assertEquals("https://img/imdb.png", response.cover());
             assertEquals("IMDB Plot", response.plot());
             assertEquals("8.7", response.rating());
             assertEquals("2024-06-01", response.releaseDate());

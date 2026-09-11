@@ -532,7 +532,7 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
             return;
         }
         if (data.detailPosterNode != null && !isBlank(data.metadata.coverUrl)) {
-            ImageCacheManager.loadImageAsync(data.metadata.coverUrl, VOD_WATCHING_NOW_CACHE).thenAccept(image -> {
+            ImageCacheManager.loadImageAsync(data.metadata.coverUrl, VOD_WATCHING_NOW_CACHE, data.account).thenAccept(image -> {
                 if (image != null) {
                     Platform.runLater(() -> {
                         if (data.detailPosterNode != null) {

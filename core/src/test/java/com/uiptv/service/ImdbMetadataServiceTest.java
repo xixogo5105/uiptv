@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 import com.uiptv.util.I18n;
+import org.junit.jupiter.api.AfterEach;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -29,6 +31,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ImdbMetadataServiceTest {
 
     private final ImdbMetadataService service = ImdbMetadataService.getInstance();
+
+    @AfterEach
+    void tearDown() {
+        service.clearCache();
+        I18n.setLocale(I18n.DEFAULT_LANGUAGE_TAG);
+    }
 
     @Test
     void titleAndQueryHelpers_normalizeEpisodeAndSearchInputs() throws Exception {
@@ -262,19 +270,22 @@ class ImdbMetadataServiceTest {
     }
 
     @Test
-    void findBestEffortDetails_returnsEmptyWhenThumbnailsDisabled() {
+    void findBestEffortDetails_stillResolvesMetadataWhenThumbnailsDisabled() {
         ConfigurationService configurationService = mock(ConfigurationService.class);
         com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
         configuration.setEnableThumbnails(false);
 
-        try (MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class)) {
+        try (MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
             configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
             when(configurationService.read()).thenReturn(configuration);
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(anyString(), anyMap(), eq("GET")))
+                    .thenReturn(new com.uiptv.util.HttpUtil.HttpResult(404, "", Map.of(), Map.of()));
 
-            assertTrue(service.findBestEffortDetails("Anything", "tt1234567").isEmpty());
-            assertTrue(service.findBestEffortDetails("Anything", "tt1234567", List.of("hint")).isEmpty());
-            assertTrue(service.findBestEffortMovieDetails("Anything", "tt1234567").isEmpty());
-            assertTrue(service.findBestEffortMovieDetails("Anything", "tt1234567", List.of("hint")).isEmpty());
+            assertEquals("tt1234567", service.findBestEffortDetails("Anything", "tt1234567").getString("tmdb"));
+            assertEquals("tt1234567", service.findBestEffortDetails("Anything", "tt1234567", List.of("hint")).getString("tmdb"));
+            assertEquals("tt1234567", service.findBestEffortMovieDetails("Anything", "tt1234567").getString("tmdb"));
+            assertEquals("tt1234567", service.findBestEffortMovieDetails("Anything", "tt1234567", List.of("hint")).getString("tmdb"));
         }
     }
 
@@ -300,6 +311,39 @@ class ImdbMetadataServiceTest {
             JSONObject movieDetailsWithHints = service.findBestEffortMovieDetails("", "tt7654321", List.of("hint"));
             assertEquals("tt7654321", seriesDetails.getString("tmdb"));
             assertEquals("tt7654321", movieDetailsWithHints.getString("tmdb"));
+        }
+    }
+
+    @Test
+    void findBestEffortDetails_reusesCachedMetadataAndReturnsDefensiveCopies() {
+        ConfigurationService configurationService = mock(ConfigurationService.class);
+        com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
+        configuration.setEnableThumbnails(true);
+        AtomicInteger requests = new AtomicInteger();
+
+        try (MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
+            configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            when(configurationService.read()).thenReturn(configuration);
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(anyString(), anyMap(), eq("GET")))
+                    .thenAnswer(invocation -> {
+                        requests.incrementAndGet();
+                        return new com.uiptv.util.HttpUtil.HttpResult(
+                                com.uiptv.util.HttpUtil.STATUS_OK,
+                                metadataBodyFor(invocation.getArgument(0, String.class)),
+                                Map.of(),
+                                Map.of()
+                        );
+                    });
+
+            JSONObject first = service.findBestEffortDetails("Example Show Season 1", "", List.of("Example Show 2024"));
+            first.put("name", "Mutated");
+            int requestCountAfterFirstLoad = requests.get();
+
+            JSONObject second = service.findBestEffortDetails("Example Show Season 1", "", List.of("Example Show 2024"));
+
+            assertEquals(requestCountAfterFirstLoad, requests.get());
+            assertEquals("IMDb Name", second.getString("name"));
         }
     }
 

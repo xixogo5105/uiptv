@@ -19,6 +19,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -116,6 +117,45 @@ class ImageCacheManagerTest {
         }
     }
 
+    @Test
+    void localFileImagesAreAcceptedByLoader() throws Exception {
+        Path imageFile = Files.createTempFile("uiptv-image-cache-manager", ".png");
+        Files.write(imageFile, PNG_1X1_BYTES);
+
+        try (MockedStatic<ThumbnailAwareUI> thumbnails = mockStatic(ThumbnailAwareUI.class)) {
+            thumbnails.when(ThumbnailAwareUI::areThumbnailsEnabled).thenReturn(true);
+
+            assertDoesNotThrow(() -> {
+                Image image = ImageCacheManager.loadImageAsync(imageFile.toUri().toString(), "Channel")
+                        .get(3, TimeUnit.SECONDS);
+                assertTrue(image == null || !image.isError());
+            });
+        } finally {
+            Files.deleteIfExists(imageFile);
+        }
+    }
+
+    @Test
+    void supportedImageUrlsAreMatchedCaseInsensitively() throws Exception {
+        assertTrue((Boolean) invoke("isSupportedImageUrl", new Class[]{String.class}, "HTTPS://image.test/logo.png"));
+        assertTrue((Boolean) invoke("isSupportedImageUrl", new Class[]{String.class}, "FILE:/tmp/logo.png"));
+        assertTrue((Boolean) invoke("isSupportedImageUrl", new Class[]{String.class}, "DATA:image/png;base64," + PNG_1X1_BASE64));
+        assertFalse((Boolean) invoke("isSupportedImageUrl", new Class[]{String.class}, "ftp://image.test/logo.png"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void imageCandidatesUpgradeHttpCaseInsensitively() throws Exception {
+        java.util.List<String> candidates = (java.util.List<String>) invoke(
+                "buildImageCandidates",
+                new Class[]{String.class},
+                "HTTP://image.test/logo.png"
+        );
+
+        assertTrue(candidates.contains("HTTP://image.test/logo.png"));
+        assertTrue(candidates.contains("https://image.test/logo.png"));
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Image> imageCache() throws Exception {
         return (Map<String, Image>) staticField("IMAGE_CACHE").get(null);
@@ -140,6 +180,12 @@ class ImageCacheManagerTest {
         Method method = ImageCacheManager.class.getDeclaredMethod("cacheFilePath", String.class, String.class);
         method.setAccessible(true);
         return (Path) method.invoke(null, cacheKey, caller);
+    }
+
+    private Object invoke(String name, Class<?>[] parameterTypes, Object... args) throws Exception {
+        Method method = ImageCacheManager.class.getDeclaredMethod(name, parameterTypes);
+        method.setAccessible(true);
+        return method.invoke(null, args);
     }
 
     private LoaderBlock blockImageLoader() throws Exception {

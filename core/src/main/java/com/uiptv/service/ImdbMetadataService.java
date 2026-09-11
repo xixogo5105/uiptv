@@ -9,8 +9,10 @@ import org.json.JSONObject;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -50,6 +52,17 @@ public class ImdbMetadataService {
     private static final int MAX_TMDB_SEASONS = Math.max(1, Integer.getInteger("uiptv.imdb.tmdb.maxSeasons", 24));
     private static final int MAX_METADATA_BODY_CHARS = Math.max(64 * 1024,
             Integer.getInteger("uiptv.imdb.http.maxBodyChars", 2 * 1024 * 1024));
+    private static final int MAX_METADATA_CACHE_ENTRIES = Integer.getInteger("uiptv.imdb.cache.max.entries", 1_000);
+    private static final long METADATA_CACHE_SUCCESS_MS = Long.getLong("uiptv.imdb.cache.success.ms", 12L * 60L * 60L * 1000L);
+    private static final long METADATA_CACHE_EMPTY_MS = Long.getLong("uiptv.imdb.cache.empty.ms", 10L * 60L * 1000L);
+    private static final Map<String, MetadataCacheEntry> METADATA_CACHE = Collections.synchronizedMap(
+            new LinkedHashMap<String, MetadataCacheEntry>(256, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, MetadataCacheEntry> eldest) {
+                    return size() > MAX_METADATA_CACHE_ENTRIES;
+                }
+            }
+    );
 
     private static final class CandidateMatch {
         private final JSONObject candidate;
@@ -61,6 +74,9 @@ public class ImdbMetadataService {
         }
     }
 
+    private record MetadataCacheEntry(JSONObject details, long expiresAtMs) {
+    }
+
     private static class SingletonHelper {
         private static final ImdbMetadataService INSTANCE = new ImdbMetadataService();
     }
@@ -70,61 +86,53 @@ public class ImdbMetadataService {
     }
 
     public JSONObject findBestEffortDetails(String rawTitle, String preferredImdbId) {
-        // Return immediately when thumbnails disabled
-        if (!areThumbnailsEnabled()) {
-            return new JSONObject();
-        }
         return findBestEffortInternal(rawTitle, preferredImdbId, false, List.of());
     }
 
     public JSONObject findBestEffortDetails(String rawTitle, String preferredImdbId, List<String> fuzzyHints) {
-        // Return immediately when thumbnails disabled
-        if (!areThumbnailsEnabled()) {
-            return new JSONObject();
-        }
         return findBestEffortInternal(rawTitle, preferredImdbId, false, fuzzyHints);
     }
 
     public JSONObject findBestEffortMovieDetails(String rawTitle, String preferredImdbId) {
-        // Return immediately when thumbnails disabled
-        if (!areThumbnailsEnabled()) {
-            return new JSONObject();
-        }
         return findBestEffortInternal(rawTitle, preferredImdbId, true, List.of());
     }
 
     public JSONObject findBestEffortMovieDetails(String rawTitle, String preferredImdbId, List<String> fuzzyHints) {
-        // Return immediately when thumbnails disabled
-        if (!areThumbnailsEnabled()) {
-            return new JSONObject();
-        }
         return findBestEffortInternal(rawTitle, preferredImdbId, true, fuzzyHints);
-    }
-
-    private boolean areThumbnailsEnabled() {
-        try {
-            Configuration configuration = ConfigurationService.getInstance().read();
-            return configuration != null && configuration.isEnableThumbnails();
-        } catch (Exception _) {
-            return false;
-        }
     }
 
     @SuppressWarnings("java:S135")
     private JSONObject findBestEffortInternal(String rawTitle, String preferredImdbId, boolean moviePreferred, List<String> fuzzyHints) {
-        JSONObject details = new JSONObject();
         if (isBlank(rawTitle) && isBlank(preferredImdbId)) {
-            return details;
+            return new JSONObject();
+        }
+
+        boolean thumbnailsEnabled = areThumbnailsEnabled();
+        if (!thumbnailsEnabled && isBlank(preferredImdbId)) {
+            return new JSONObject();
         }
 
         List<String> searchQueries = buildSearchQueries(rawTitle, fuzzyHints);
+        String cacheKey = metadataCacheKey(moviePreferred, preferredImdbId, searchQueries);
+        JSONObject cached = readMetadataCache(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        JSONObject details = new JSONObject();
         JSONObject candidate = searchBestCandidate(searchQueries);
         String imdbId = resolvePreferredImdbId(preferredImdbId, candidate, searchQueries);
         if (isBlank(imdbId)) {
+            writeMetadataCache(cacheKey, details);
             return details;
         }
 
         initializeImdbDetails(details, imdbId);
+        if (!thumbnailsEnabled) {
+            writeMetadataCache(cacheKey, details);
+            return details;
+        }
+
         mergeSuggestedMetadata(details, candidate);
         mergePageMetadata(details, imdbId);
         JSONObject primaryMeta = moviePreferred ? fetchCinemetaMovieDetails(imdbId) : fetchCinemetaSeriesDetails(imdbId);
@@ -132,7 +140,65 @@ public class ImdbMetadataService {
         mergeCinemetaMetadata(details, primaryMeta, true);
         mergeCinemetaMetadata(details, secondaryMeta, false);
         applyTmdbLocalization(details, primaryMeta, secondaryMeta, moviePreferred);
+        writeMetadataCache(cacheKey, details);
         return details;
+    }
+
+    private boolean areThumbnailsEnabled() {
+        try {
+            Configuration configuration = ConfigurationService.getInstance().read();
+            return configuration == null || configuration.isEnableThumbnails();
+        } catch (Exception _) {
+            return false;
+        }
+    }
+
+    private String metadataCacheKey(boolean moviePreferred, String preferredImdbId, List<String> searchQueries) {
+        StringBuilder key = new StringBuilder(moviePreferred ? "movie" : "series")
+                .append('|')
+                .append(I18n.getCurrentLanguageTag())
+                .append('|')
+                .append(isBlank(preferredImdbId) ? "" : preferredImdbId.trim().toLowerCase(Locale.ROOT));
+        if (searchQueries != null) {
+            for (String query : searchQueries) {
+                String normalized = normalizeTitle(query);
+                if (isNotBlank(normalized)) {
+                    key.append('|').append(normalized);
+                }
+            }
+        }
+        return key.toString();
+    }
+
+    private JSONObject readMetadataCache(String cacheKey) {
+        if (isBlank(cacheKey)) {
+            return null;
+        }
+        MetadataCacheEntry entry = METADATA_CACHE.get(cacheKey);
+        if (entry == null) {
+            return null;
+        }
+        if (entry.expiresAtMs() <= System.currentTimeMillis()) {
+            METADATA_CACHE.remove(cacheKey, entry);
+            return null;
+        }
+        return copyJson(entry.details());
+    }
+
+    private void writeMetadataCache(String cacheKey, JSONObject details) {
+        if (isBlank(cacheKey) || details == null) {
+            return;
+        }
+        long ttl = details.isEmpty() ? METADATA_CACHE_EMPTY_MS : METADATA_CACHE_SUCCESS_MS;
+        METADATA_CACHE.put(cacheKey, new MetadataCacheEntry(copyJson(details), System.currentTimeMillis() + ttl));
+    }
+
+    private JSONObject copyJson(JSONObject source) {
+        return source == null ? new JSONObject() : new JSONObject(source.toString());
+    }
+
+    public void clearCache() {
+        METADATA_CACHE.clear();
     }
 
     private void initializeImdbDetails(JSONObject details, String imdbId) {

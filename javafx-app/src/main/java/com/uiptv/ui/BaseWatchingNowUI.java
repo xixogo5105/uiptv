@@ -2062,7 +2062,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (isBlank(cover)) {
             return;
         }
-        ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
+        ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE, data.account).thenAccept(img -> {
             if (img != null) {
                 Platform.runLater(() -> {
                     if (data.seriesPosterNode != null) {
@@ -2081,7 +2081,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (isBlank(cover)) {
             return;
         }
-        ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
+        ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE, data.account).thenAccept(img -> {
             if (img != null) {
                 Platform.runLater(() -> {
                     if (data.seriesListPosterNode != null) {
@@ -2520,7 +2520,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (selected.seriesPosterNode != null) {
             String cover = resolveSeriesPosterUrl(selected);
             if (!isBlank(cover)) {
-                ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE).thenAccept(img -> {
+                ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE, selected.account).thenAccept(img -> {
                     if (img != null) {
                         Platform.runLater(() -> {
                             if (selected.seriesPosterNode != null) {

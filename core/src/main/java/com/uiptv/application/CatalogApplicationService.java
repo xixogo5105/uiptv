@@ -27,6 +27,7 @@ import com.uiptv.shared.Pagination;
 import com.uiptv.shared.SeasonInfo;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
+import com.uiptv.util.ImageUrlNormalizer;
 import com.uiptv.util.ServerUtils;
 import com.uiptv.util.StringUtils;
 import com.uiptv.util.XtremeApiParser;
@@ -194,7 +195,7 @@ public class CatalogApplicationService {
         );
 
         name = firstNonBlank(name, imdb.optString("name", ""), fallbackName);
-        cover = firstNonBlank(cover, imdb.optString(KEY_COVER, ""));
+        cover = firstNonBlank(imdb.optString(KEY_COVER, ""), cover);
         plot = firstNonBlank(plot, imdb.optString("plot", ""));
         cast = firstNonBlank(cast, imdb.optString("cast", ""));
         director = firstNonBlank(director, imdb.optString(KEY_DIRECTOR, ""));
@@ -204,7 +205,7 @@ public class CatalogApplicationService {
         tmdb = firstNonBlank(tmdb, imdb.optString("tmdb", ""));
         imdbUrl = firstNonBlank(imdbUrl, imdb.optString(KEY_IMDB_URL, ""));
 
-        return new CatalogVodDetailsResult(name, cover, plot, cast, director, genre, releaseDate, rating, tmdb, imdbUrl, duration);
+        return new CatalogVodDetailsResult(name, normalizeImageUrl(cover, account), plot, cast, director, genre, releaseDate, rating, tmdb, imdbUrl, duration);
     }
 
     public CatalogSeriesDetailsResult getSeriesDetails(CatalogSeriesDetailsQuery query) {
@@ -249,6 +250,7 @@ public class CatalogApplicationService {
 
         episodes = enrichEpisodes(episodes, episodesMeta);
         applyNameYearFallback(seasonInfo, seriesName);
+        normalizeSeasonAndEpisodeArtwork(seasonInfo, episodes, account);
         return new CatalogSeriesDetailsResult(seasonInfo, episodes, episodesMeta == null ? new JSONArray() : episodesMeta);
     }
 
@@ -695,6 +697,21 @@ public class CatalogApplicationService {
         mergeMissing(target, source, KEY_IMDB_URL);
     }
 
+    private void normalizeSeasonAndEpisodeArtwork(JSONObject seasonInfo, JSONArray episodes, Account account) {
+        if (seasonInfo != null && isNotBlank(seasonInfo.optString(KEY_COVER, ""))) {
+            seasonInfo.put(KEY_COVER, normalizeImageUrl(seasonInfo.optString(KEY_COVER, ""), account));
+        }
+        if (episodes == null || episodes.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < episodes.length(); i++) {
+            JSONObject episode = episodes.optJSONObject(i);
+            if (episode != null && isNotBlank(episode.optString("logo", ""))) {
+                episode.put("logo", normalizeImageUrl(episode.optString("logo", ""), account));
+            }
+        }
+    }
+
     private void copyMetadata(JSONObject target, JSONObject source) {
         copyIfPresent(target, source, "name");
         copyIfPresent(target, source, KEY_COVER);
@@ -874,6 +891,10 @@ public class CatalogApplicationService {
             }
         }
         return "";
+    }
+
+    private String normalizeImageUrl(String imageUrl, Account account) {
+        return ImageUrlNormalizer.normalizeImageUrl(imageUrl, account);
     }
 
     private static class SingletonHelper {
