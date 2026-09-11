@@ -60,11 +60,25 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
     }
 
     protected boolean shouldApplyCategoryCensoring() {
+        return shouldApplyCategoryCensoring(null);
+    }
+
+    protected boolean shouldApplyCategoryCensoring(Account account) {
+        if (account != null && !account.isParentalLock()) {
+            return false;
+        }
         Configuration configuration = ConfigurationService.getInstance().read();
         return isFilteringActive(configuration) && isNotBlank(configuration.getFilterCategoriesList());
     }
 
     protected boolean shouldApplyChannelCensoring() {
+        return shouldApplyChannelCensoring(null);
+    }
+
+    protected boolean shouldApplyChannelCensoring(Account account) {
+        if (account != null && !account.isParentalLock()) {
+            return false;
+        }
         Configuration configuration = ConfigurationService.getInstance().read();
         return isFilteringActive(configuration) && isNotBlank(configuration.getFilterChannelsList());
     }
@@ -108,7 +122,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
             return CensoringSummary.empty();
         }
         Account.AccountAction original = account.getAction();
-        boolean applyCategoryCensoring = shouldApplyCategoryCensoring();
+        boolean applyCategoryCensoring = shouldApplyCategoryCensoring(account);
         CensoringSummary summary = CensoringSummary.empty();
         try {
             for (Account.AccountAction mode : List.of(vod, series)) {

@@ -33,7 +33,7 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.0/dist/hls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
     <script src="/javascript/playback-utils.js?v=20260523e"></script>
     <script src="/javascript/player-controls.js?v=20260310a"></script>
     <script src="/javascript/shared-player.js?v=20260523d"></script>
@@ -90,6 +90,10 @@
                 <a class="soft-button icon-only" download href="/iptv.m3u8" title="Download Published Playlist">
                     <i class="bi bi-cloud-arrow-down"></i>
                 </a>
+                <!-- Configuration / Settings button (desktop parity) -->
+                <button @click="openSettings" class="soft-button icon-only" title="Settings" type="button">
+                    <i class="bi bi-gear"></i>
+                </button>
                 <button :title="'Theme: ' + theme" @click="toggleTheme" class="theme-toggle icon-only" type="button">
                     <i :class="themeIcon" class="bi"></i>
                 </button>
@@ -685,6 +689,37 @@
 
                 <div class="uiptv-shared-player" data-uiptv-shared-player data-variant="stacked"></div>
             </aside>
+
+            <!-- Settings modal injected by SPA for parity with desktop configuration -->
+            <div v-if="showSettingsModal" class="settings-modal" role="dialog" aria-modal="true" aria-label="Settings">
+                <div class="settings-backdrop" @click="closeSettings"></div>
+                <div class="settings-panel">
+                    <header>
+                        <strong>Settings</strong>
+                        <button class="close-btn" @click="closeSettings" aria-label="Close settings" type="button"><i class="bi bi-x-lg"></i></button>
+                    </header>
+                    <section class="settings-body">
+                        <div class="settings-row">
+                            <label>Wide view (cinematic) by default</label>
+                            <input type="checkbox" v-model="defaultWideView">
+                        </div>
+                        <div class="settings-row">
+                            <label>Player engine preference</label>
+                            <select v-model="playerEnginePref">
+                                <option value="auto">Auto (best available)</option>
+                                <option value="hls">HLS (hls.js)</option>
+                                <option value="shaka">Shaka</option>
+                                <option value="native">Native</option>
+                            </select>
+                        </div>
+                        <div class="settings-row">
+                            <button class="primary-button" @click="applySettings">Apply</button>
+                            <button class="soft-button" @click="closeSettings">Cancel</button>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
         </div>
     </main>
 </div>

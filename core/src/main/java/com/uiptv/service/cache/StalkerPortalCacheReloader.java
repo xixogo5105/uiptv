@@ -31,8 +31,8 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
     @Override
     public void reloadCache(Account account, LoggerCallback logger) {
-        boolean applyCategoryCensoring = shouldApplyCategoryCensoring();
-        boolean applyChannelCensoring = shouldApplyChannelCensoring();
+        boolean applyCategoryCensoring = shouldApplyCategoryCensoring(account);
+        boolean applyChannelCensoring = shouldApplyChannelCensoring(account);
         HandshakeService.getInstance().connect(account);
         if (account.isNotConnected()) {
             log(logger, "Handshake failed for: " + account.getAccountName());

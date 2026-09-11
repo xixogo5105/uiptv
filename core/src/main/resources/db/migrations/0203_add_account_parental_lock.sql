@@ -1,0 +1,1 @@
+--@add_column Account parentalLock TEXT DEFAULT '1'

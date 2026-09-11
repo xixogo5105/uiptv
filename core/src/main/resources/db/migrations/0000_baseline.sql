@@ -140,7 +140,11 @@ CREATE TABLE IF NOT EXISTS Account
     httpMethod
     TEXT,
     timezone
+    TEXT,
+    parentalLock
     TEXT
+    default
+       '1'
 );
 
 CREATE TABLE IF NOT EXISTS AccountInfo

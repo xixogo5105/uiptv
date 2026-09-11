@@ -23,7 +23,19 @@ const urlsToCache = [
   'https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js'
 ];
 
-const urlsToCacheSet = new Set(urlsToCache);
+const urlsToCacheSet = new Set();
+urlsToCache.forEach((u) => {
+  try {
+    const url = new URL(u, self.location);
+    // store multiple lookup forms so requests with/without search match the precache
+    urlsToCacheSet.add(u);
+    urlsToCacheSet.add(url.href);
+    urlsToCacheSet.add(url.pathname + url.search);
+    urlsToCacheSet.add(url.pathname);
+  } catch (_) {
+    urlsToCacheSet.add(u);
+  }
+});
 
 const isVersionedStaticAsset = (requestUrl) => {
   if (requestUrl.origin !== self.location.origin) {
@@ -42,7 +54,7 @@ const isVersionedStaticAsset = (requestUrl) => {
 
 const isPrecachedRequest = (requestUrl) => {
   if (requestUrl.origin === self.location.origin) {
-    return urlsToCacheSet.has(requestUrl.pathname);
+    return urlsToCacheSet.has(requestUrl.pathname + requestUrl.search) || urlsToCacheSet.has(requestUrl.pathname);
   }
   return urlsToCacheSet.has(requestUrl.href);
 };

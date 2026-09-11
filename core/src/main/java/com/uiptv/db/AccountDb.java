@@ -40,6 +40,8 @@ public class AccountDb extends BaseDb {
         account.setHttpMethod(isNotBlank(nullSafeString(resultSet, "httpMethod")) ? nullSafeString(resultSet, "httpMethod") : "GET");
         account.setTimezone(isNotBlank(nullSafeString(resultSet, "timezone")) ? nullSafeString(resultSet, "timezone") : "Europe/London");
         account.setXtremeCredentialsJson(nullSafeString(resultSet, "xtremeCredentialsJson"));
+        String parentalLockCol = nullSafeString(resultSet, "parentalLock");
+        account.setParentalLock(parentalLockCol == null || parentalLockCol.isBlank() || "1".equals(parentalLockCol) || "true".equalsIgnoreCase(parentalLockCol));
         return account;
     }
 
@@ -80,9 +82,10 @@ public class AccountDb extends BaseDb {
             statement.setString(17, account.isResolveChainAndDeepRedirects() ? "1" : "0");
             statement.setString(18, account.getHttpMethod());
             statement.setString(19, account.getTimezone());
+            statement.setString(20, account.isParentalLock() ? "1" : "0");
 
             if (accountExist) {
-                statement.setInt(20, Integer.valueOf(dbAccount.getDbId()));
+                statement.setInt(21, Integer.valueOf(dbAccount.getDbId()));
             }
             statement.execute();
         } catch (SQLException e) {

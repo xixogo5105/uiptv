@@ -23,7 +23,7 @@
         <button id="hide-panel-btn" class="uiptv-control-btn" type="button" title="Hide player" data-action="hide-panel" data-label="Hide player">
             <i class="bi bi-eye-slash"></i>
         </button>
-        <button id="expand-panel-btn" class="uiptv-control-btn" type="button" title="Expand player" data-action="expand-panel" data-label="Expand player">
+        <button id="layout-toggle-btn" class="uiptv-control-btn" type="button" title="Toggle narrow/wide layout" data-action="toggle-layout" data-label="Toggle layout">
             <i class="bi bi-arrows-angle-expand"></i>
         </button>
         <div class="uiptv-control-menu" data-menu="quality">
@@ -208,7 +208,7 @@
             const muteBtn = root.querySelector('#mute-btn');
             const fullscreenBtn = root.querySelector('#fullscreen-btn');
             const favoriteBtn = root.querySelector('#favorite-btn');
-            const expandPanelBtn = root.querySelector('#expand-panel-btn');
+            const layoutToggleBtn = root.querySelector('#layout-toggle-btn');
             if (nodes.header && typeof isPlaying !== 'undefined') {
                 nodes.header.dataset.state = isPlaying ? 'active' : 'inactive';
                 if (!isPlaying) {
@@ -232,10 +232,10 @@
                 const icon = fullscreenBtn.querySelector('i');
                 if (icon) icon.className = isFullscreen ? 'bi bi-fullscreen-exit' : 'bi bi-fullscreen';
             }
-            if (expandPanelBtn) {
-                expandPanelBtn.setAttribute('aria-pressed', isPanelExpanded ? 'true' : 'false');
-                expandPanelBtn.title = isPanelExpanded ? 'Restore player panel' : 'Expand player';
-                const icon = expandPanelBtn.querySelector('i');
+            if (layoutToggleBtn) {
+                layoutToggleBtn.setAttribute('aria-pressed', isPanelExpanded ? 'true' : 'false');
+                layoutToggleBtn.title = isPanelExpanded ? 'Exit wide layout' : 'Enter wide layout';
+                const icon = layoutToggleBtn.querySelector('i');
                 if (icon) icon.className = isPanelExpanded ? 'bi bi-layout-sidebar-inset-reverse' : 'bi bi-arrows-angle-expand';
             }
             if (favoriteBtn) {

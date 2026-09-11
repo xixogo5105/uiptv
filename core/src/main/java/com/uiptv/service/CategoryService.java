@@ -73,6 +73,9 @@ public class CategoryService {
     }
 
     public List<Category> get(Account account, boolean censor, LoggerCallback logger) {
+        if (account != null && !account.isParentalLock()) {
+            censor = false;
+        }
         if (usesVodSeriesCategoryCache(account)) {
             return getVodSeriesCategories(account, censor, logger);
         }

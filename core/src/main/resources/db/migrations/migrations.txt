@@ -80,3 +80,4 @@
 0200_add_configuration_https_server_enabled.sql
 0201_add_configuration_https_server_port.sql
 0202_add_configuration_vlc_options.sql
+0203_add_account_parental_lock.sql

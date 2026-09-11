@@ -2185,6 +2185,9 @@ public class ChannelListUI extends HBox implements SearchTarget {
             com.uiptv.util.AppLog.addInfoLog(ChannelListUI.class, "[ParentalLock] channelAccessCheck skipped: missing item/channel");
             return true;
         }
+        if (account != null && !account.isParentalLock()) {
+            return true;
+        }
         int censored = item.getChannel().getCensored();
         boolean isStalker = account.getType() == STALKER_PORTAL;
         boolean passwordConfigured = com.uiptv.service.FilterLockService.getInstance().hasPasswordConfigured();

@@ -27,7 +27,8 @@ public record AccountView(
         boolean resolveChainAndDeepRedirects,
         AccountType type,
         String httpMethod,
-        String timezone
+        String timezone,
+        boolean parentalLock
 ) {
     public static AccountView from(Account account) {
         if (account == null) {
@@ -54,8 +55,13 @@ public record AccountView(
                 account.isResolveChainAndDeepRedirects(),
                 account.getType(),
                 account.getHttpMethod(),
-                account.getTimezone()
+                account.getTimezone(),
+                account.isParentalLock()
         );
+    }
+
+    public Account toAccount() {
+        return toAccount(Account.AccountAction.itv);
     }
 
     public Account toAccount(Account.AccountAction action) {
@@ -83,6 +89,7 @@ public record AccountView(
         mutable.setHttpMethod(httpMethod == null || httpMethod.isBlank() ? "GET" : httpMethod);
         mutable.setTimezone(timezone == null || timezone.isBlank() ? "Europe/London" : timezone);
         mutable.setAction(action == null ? Account.AccountAction.itv : action);
+        mutable.setParentalLock(parentalLock);
         return mutable;
     }
 
@@ -108,7 +115,8 @@ public record AccountView(
                 resolveChainAndDeepRedirects,
                 type,
                 httpMethod,
-                timezone
+                timezone,
+                parentalLock
         );
     }
 }

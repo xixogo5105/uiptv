@@ -107,7 +107,7 @@ public class ChannelService {
         }
         List<Channel> channels = loadCachedLiveChannels(categoryId, dbId, account, logger);
         if (account.getAction() == itv && !channels.isEmpty()) {
-            List<Channel> visibleChannels = maybeFilterChannels(dedupeChannels(channels), true);
+            List<Channel> visibleChannels = maybeFilterChannels(dedupeChannels(channels), true, account);
             publishChannels(visibleChannels, callback);
             resolveChannelLogosAsync(visibleChannels, callback, () -> isCancelled != null && isCancelled.get());
             return visibleChannels;
@@ -116,7 +116,7 @@ public class ChannelService {
         if (account.getType() == STALKER_PORTAL && account.getAction() == itv && channels.isEmpty()) {
             fetchAndCacheMissingLiveChannels(categoryId, account, dbId, callback, isCancelled, logger, channels);
         }
-        List<Channel> result = maybeFilterChannels(dedupeChannels(channels), true);
+        List<Channel> result = maybeFilterChannels(dedupeChannels(channels), true, account);
         return publishChannels(result, callback);
     }
 
@@ -153,7 +153,7 @@ public class ChannelService {
             if (progressCallback != null) {
                 progressCallback.accept(new PageProgress(cachedChannels.size(), cachedChannels.size(), 1, 1));
             }
-            return publishChannels(maybeFilterChannels(dedupeChannels(cachedChannels), true), callback);
+            return publishChannels(maybeFilterChannels(dedupeChannels(cachedChannels), true, account), callback);
         }
         log(logger, "No fresh cache found for category " + categoryId + ". Fetching from portal...");
         boolean streamingCallback = callback != null && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API);
@@ -170,7 +170,7 @@ public class ChannelService {
             log(logger, "Channel fetch cancelled before cache save for category " + categoryId + ".");
         }
         List<Channel> resolved = !fetchedChannels.isEmpty() ? fetchedChannels : cachedChannels;
-        return publishChannels(maybeFilterChannels(dedupeChannels(resolved), true), streamingCallback ? null : callback);
+        return publishChannels(maybeFilterChannels(dedupeChannels(resolved), true, account), streamingCallback ? null : callback);
     }
 
     private void fetchAndCacheMissingLiveChannels(String categoryId, Account account, String dbId, Consumer<List<Channel>> callback,
@@ -260,7 +260,7 @@ public class ChannelService {
     private List<Channel> getVodOrSeries(String categoryId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
                                          LoggerCallback logger, Consumer<PageProgress> progressCallback) {
         List<Channel> cachedChannels = new ArrayList<>(getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, true, logger, progressCallback));
-        return maybeFilterChannels(cachedChannels, true);
+        return maybeFilterChannels(cachedChannels, true, account);
     }
 
     private boolean shouldUseVodSeriesDbCache(Account account) {
@@ -746,7 +746,7 @@ public class ChannelService {
     public List<Channel> getSeries(String categoryId, String movieId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
         // This method does not seem to be part of the caching logic, so it can stay here.
         // If it needs to be cached, it should be moved to CacheServiceImpl.
-        return maybeFilterChannels(getStalkerPortalChOrSeries(categoryId, account, movieId, "0", callback, isCancelled), true);
+        return maybeFilterChannels(getStalkerPortalChOrSeries(categoryId, account, movieId, "0", callback, isCancelled), true, account);
     }
 
     public String readToJson(Category category, Account account) throws IOException {
@@ -837,7 +837,7 @@ public class ChannelService {
                     channelList.add(channel);
                 }
             }
-            List<Channel> censoredChannelList = maybeFilterChannels(dedupeChannels(channelList), censor);
+            List<Channel> censoredChannelList = maybeFilterChannels(dedupeChannels(channelList), censor, account);
             Collections.sort(censoredChannelList, Comparator.comparing(Channel::getCompareSeason).thenComparing(Channel::getCompareEpisode));
             return censoredChannelList;
         } catch (Exception _) {
@@ -925,6 +925,13 @@ public class ChannelService {
     }
 
     private List<Channel> maybeFilterChannels(List<Channel> channels, boolean applyFilter) {
+        return maybeFilterChannels(channels, applyFilter, null);
+    }
+
+    private List<Channel> maybeFilterChannels(List<Channel> channels, boolean applyFilter, Account account) {
+        if (account != null && !account.isParentalLock()) {
+            return channels;
+        }
         return applyFilter ? contentFilterService.filterChannels(channels) : channels;
     }
 

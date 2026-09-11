@@ -72,6 +72,7 @@ public class UIptvServer {
         routes.addPrefixPath("/javascript", adapt(new HttpJavascriptServer()));
         routes.addPrefixPath("/js", adapt(new HttpJavascriptServer()));
         routes.addPrefixPath("/css", adapt(new HttpCssServer()));
+        routes.addPrefixPath("/images", adapt(new HttpImageServer()));
 
         // Local stream proxy for web playback.
         routes.addPrefixPath("/proxy-stream", adapt(new HttpProxyStreamServer()));

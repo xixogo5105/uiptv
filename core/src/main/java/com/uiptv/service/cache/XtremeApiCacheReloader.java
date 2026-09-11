@@ -25,8 +25,8 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
     @Override
     public void reloadCache(Account account, LoggerCallback logger) {
-        boolean applyCategoryCensoring = shouldApplyCategoryCensoring();
-        boolean applyChannelCensoring = shouldApplyChannelCensoring();
+        boolean applyCategoryCensoring = shouldApplyCategoryCensoring(account);
+        boolean applyChannelCensoring = shouldApplyChannelCensoring(account);
         CensoringSummary summary;
         if (isVodOrSeriesAction(account)) {
             summary = reloadVodOrSeriesCategories(account, logger, applyCategoryCensoring);

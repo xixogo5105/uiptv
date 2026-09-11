@@ -44,6 +44,25 @@ createApp({
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
         const playerExpanded = ref(false);
+        const showSettingsModal = ref(false);
+        const defaultWideView = ref(localStorage.getItem('uiptv_default_wide_view') === '1');
+        const playerEnginePref = ref(localStorage.getItem('uiptv_player_engine_pref') || 'auto');
+
+        const openSettings = () => { showSettingsModal.value = true; };
+        const closeSettings = () => { showSettingsModal.value = false; };
+        const applySettings = () => {
+            try {
+                localStorage.setItem('uiptv_default_wide_view', defaultWideView.value ? '1' : '0');
+                localStorage.setItem('uiptv_player_engine_pref', playerEnginePref.value || 'auto');
+            } catch (e) {
+                console.warn('Failed to persist settings', e);
+            }
+            // Apply to runtime - if wide view preference changed, adapt current layout
+            if (defaultWideView.value) {
+                playerExpanded.value = true;
+            }
+            closeSettings();
+        };
         const playerManuallyHidden = ref(false);
         const listLoading = ref(false);
         const listLoadingMessage = ref('Loading...');
@@ -3451,7 +3470,16 @@ createApp({
                         try { hlsPlayer.value.destroy(); } catch (_) {}
                         hlsPlayer.value = null;
                     }
-                    const hls = new Hls({enableWorker: true});
+                    const hls = new Hls({
+                           enableWorker: true,
+                           capLevelToPlayerSize: false,
+                           maxBufferLength: 60,
+                           maxMaxBufferLength: 120,
+                           maxLoadingDelay: 4,
+                           lowLatencyMode: false,
+                           abrEwmaDefaultEstimate: 5000000,
+                           startLevel: -1
+                       });
                     hlsPlayer.value = hls;
                     hls.on(Hls.Events.ERROR, function (event, data) {
                         const isFatal = data && data.fatal;
@@ -3464,6 +3492,17 @@ createApp({
                     });
                     hls.attachMedia(video);
                     hls.loadSource(sourceUrl);
+
+                    // Populate track menus when manifest/levels are available
+                    const onManifestOrLevel = () => refreshHlsTracks(hls);
+                    hls.on(Hls.Events.MANIFEST_PARSED, onManifestOrLevel);
+                    hls.on(Hls.Events.LEVEL_LOADED, onManifestOrLevel);
+                    hls.on(Hls.Events.LEVEL_SWITCHED, onManifestOrLevel);
+                    hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, onManifestOrLevel);
+
+                    // Ensure initial menus are built even if manifest events already fired
+                    try { refreshHlsTracks(hls); } catch (_) {}
+
                     await playWithGestureFallback(() => video.play());
                     playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'hls');
                     return;
@@ -3589,85 +3628,237 @@ createApp({
             selectedTextTrackId.value = selectedText ? String(selectedText.id) : 'off';
         };
 
-        const switchVideoTrack = (trackId) => {
-            if (!playerInstance.value) return;
-            const track = playerInstance.value.getVariantTracks().find(t => t.id === trackId);
-            if (track) {
-                setMaxQualityEnabled(false);
-                playerInstance.value.selectVariantTrack(track, true);
-                if (typeof playerInstance.value.configure === 'function') {
-                    playerInstance.value.configure('abr.enabled', false);
+        const refreshHlsTracks = (hls) => {
+            try {
+                if (!hls || !Array.isArray(hls.levels)) {
+                    videoTracks.value = [];
+                } else {
+                    // levels have attributes: {url, attrs: {BANDWIDTH}, bitrate, width, height}
+                    const leveled = hls.levels.map((lvl, idx) => ({
+                        id: `hls-${idx}`,
+                        index: idx,
+                        bandwidth: Number(lvl.bitrate || (lvl.attrs && Number(lvl.attrs.BANDWIDTH)) || 0),
+                        width: Number(lvl.width || 0),
+                        height: Number(lvl.height || 0),
+                        label: lvl.height ? `${lvl.height}p (${Math.round((Number(lvl.bitrate||0)/1000)||0)} kbps)` : `${Math.round((Number(lvl.bitrate||0)/1000)||0)} kbps`,
+                        active: idx === (typeof hls.currentLevel === 'number' ? hls.currentLevel : -1)
+                    }));
+                    // dedupe by resolution+bandwidth
+                    const seen = new Map();
+                    const filtered = [];
+                    for (const t of leveled) {
+                        const key = `${t.height}|${t.bandwidth}`;
+                        if (!seen.has(key)) { seen.set(key, true); filtered.push(t); }
+                    }
+                    filtered.sort((a,b) => (Number(a.height||0) - Number(b.height||0)) || (Number(a.bandwidth||0)-Number(b.bandwidth||0)));
+                    videoTracks.value = filtered;
                 }
-                refreshShakaTracks(playerInstance.value);
+
+                // audio tracks
+                const hlsAudio = Array.isArray(hls.audioTracks) ? hls.audioTracks : [];
+                const audioByKey = new Map();
+                let selectedAudioKey = '';
+                if (typeof hls.audioTrack === 'number') {
+                    const sel = hls.audioTracks[hls.audioTrack];
+                    if (sel) selectedAudioKey = `${String(sel.lang||'')}|${String(sel.name||'')}`;
+                }
+                for (let i=0;i<hlsAudio.length;i++) {
+                    const at = hlsAudio[i];
+                    const key = `${String(at.lang||'')}|${String(at.name||'')}`;
+                    if (!audioByKey.has(key)) {
+                        audioByKey.set(key, {id: key, language: at.lang||'', label: at.name||'', active: key===selectedAudioKey});
+                    } else if (key===selectedAudioKey) {
+                        audioByKey.get(key).active = true;
+                    }
+                }
+                audioTracks.value = Array.from(audioByKey.values());
+
+                // text tracks rely on native video.textTracks
+                const texts = Array.from((videoPlayer.value && videoPlayer.value.textTracks) || []).map(t => ({id: t.id || t.label || t.language || '', label: t.label || t.language || '', active: t.mode === 'showing'}));
+                textTracks.value = texts;
+                const selectedText = texts.find(t => t && t.active);
+                selectedTextTrackId.value = selectedText ? String(selectedText.id) : 'off';
+            } catch (e) {
+                console.warn('Failed to refresh HLS tracks', e);
+            }
+        };
+
+        const switchVideoTrack = (trackId) => {
+            // Attempt SHAKA first
+            if (playerInstance.value) {
+                const track = playerInstance.value.getVariantTracks().find(t => t.id === trackId);
+                if (track) {
+                    setMaxQualityEnabled(false);
+                    playerInstance.value.selectVariantTrack(track, true);
+                    if (typeof playerInstance.value.configure === 'function') {
+                        playerInstance.value.configure('abr.enabled', false);
+                    }
+                    refreshShakaTracks(playerInstance.value);
+                    return;
+                }
+            }
+            // Attempt HLS
+            if (hlsPlayer.value) {
+                const match = (videoTracks.value || []).find(t => String(t.id) === String(trackId));
+                if (match && typeof hlsPlayer.value.currentLevel !== 'undefined') {
+                    try {
+                        setMaxQualityEnabled(false);
+                        // match.index if present
+                        const lvlIndex = (typeof match.index === 'number') ? match.index : (match.index || 0);
+                        hlsPlayer.value.currentLevel = Number(lvlIndex);
+                        refreshHlsTracks(hlsPlayer.value);
+                    } catch (e) {
+                        console.warn('Failed to switch hls level', e);
+                    }
+                }
             }
         };
 
         const switchVideoAuto = () => {
-            if (!playerInstance.value) return;
-            setMaxQualityEnabled(false);
-            if (typeof playerInstance.value.configure === 'function') {
-                playerInstance.value.configure('abr.enabled', true);
+            if (playerInstance.value) {
+                setMaxQualityEnabled(false);
+                if (typeof playerInstance.value.configure === 'function') {
+                    playerInstance.value.configure('abr.enabled', true);
+                }
+                refreshShakaTracks(playerInstance.value);
+                return;
             }
-            refreshShakaTracks(playerInstance.value);
+            if (hlsPlayer.value) {
+                setMaxQualityEnabled(false);
+                try {
+                    // -1 is auto in hls.js
+                    hlsPlayer.value.currentLevel = -1;
+                    refreshHlsTracks(hlsPlayer.value);
+                } catch (e) { console.warn('Failed to set hls auto level', e); }
+            }
         };
 
         const switchVideoMax = () => {
-            if (!playerInstance.value) return;
-            setMaxQualityEnabled(true);
-            applyMaxQualityPreference(playerInstance.value);
-            refreshShakaTracks(playerInstance.value);
+            if (playerInstance.value) {
+                setMaxQualityEnabled(true);
+                applyMaxQualityPreference(playerInstance.value);
+                refreshShakaTracks(playerInstance.value);
+                return;
+            }
+            if (hlsPlayer.value) {
+                setMaxQualityEnabled(true);
+                try {
+                    // choose highest level index
+                    const levels = hlsPlayer.value.levels || [];
+                    if (levels.length > 0) {
+                        let best = 0;
+                        for (let i=0;i<levels.length;i++) {
+                            const h = levels[i];
+                            if ((Number(h.height||0) > Number(levels[best].height||0)) || ((Number(h.height||0)===Number(levels[best].height||0)) && Number(h.bitrate||0) > Number(levels[best].bitrate||0))) {
+                                best = i;
+                            }
+                        }
+                        hlsPlayer.value.currentLevel = best;
+                        refreshHlsTracks(hlsPlayer.value);
+                    }
+                } catch (e) { console.warn('Failed to set hls max level', e); }
+            }
         };
 
         const switchAudioTrack = (trackId) => {
-            if (!playerInstance.value) return;
-            const [language, role, label] = String(trackId || '').split('|');
-            const target = (audioTracks.value || []).find(track =>
+            // Shaka path
+            if (playerInstance.value) {
+                const [language, role, label] = String(trackId || '').split('|');
+                const target = (audioTracks.value || []).find(track =>
                     String(track.id) === String(trackId)
                     || (
                         String(track.language || '') === String(language || '')
                         && String(track.role || '') === String(role || '')
                         && String(track.label || '') === String(label || '')
                     )
-            );
-            if (target && typeof playerInstance.value.selectAudioLanguage === 'function' && normalizeLanguageCode(target.language)) {
-                playerInstance.value.selectAudioLanguage(target.language || '', target.role || '');
-                refreshShakaTracks(playerInstance.value);
+                );
+                if (target && typeof playerInstance.value.selectAudioLanguage === 'function' && normalizeLanguageCode(target.language)) {
+                    playerInstance.value.selectAudioLanguage(target.language || '', target.role || '');
+                    refreshShakaTracks(playerInstance.value);
+                    return;
+                }
+                const fallback = (playerInstance.value.getVariantTracks ? playerInstance.value.getVariantTracks() : [])
+                    .find(track =>
+                        String(track.language || '') === String(language || '')
+                        && String(track.roles?.[0] || '') === String(role || '')
+                    );
+                if (fallback) {
+                    playerInstance.value.selectVariantTrack(fallback, true);
+                    refreshShakaTracks(playerInstance.value);
+                    return;
+                }
                 return;
             }
-            const fallback = (playerInstance.value.getVariantTracks ? playerInstance.value.getVariantTracks() : [])
-                .find(track =>
-                    String(track.language || '') === String(language || '')
-                    && String(track.roles?.[0] || '') === String(role || '')
-                );
-            if (fallback) {
-                playerInstance.value.selectVariantTrack(fallback, true);
-                refreshShakaTracks(playerInstance.value);
+
+            // HLS/native path
+            if (hlsPlayer.value && Array.isArray(hlsPlayer.value.audioTracks)) {
+                const [language, , label] = String(trackId || '').split('|');
+                const audioList = hlsPlayer.value.audioTracks || [];
+                let targetIndex = -1;
+                for (let i = 0; i < audioList.length; i++) {
+                    const at = audioList[i];
+                    const key = `${String(at.lang||'')}|${String(at.name||'')}`;
+                    if (String(key) === String(trackId) || String(at.lang||'') === String(language||'') || String(at.name||'') === String(label||'')) {
+                        targetIndex = i; break;
+                    }
+                }
+                if (targetIndex >= 0) {
+                    try { hlsPlayer.value.audioTrack = Number(targetIndex); } catch (e) { console.warn('Failed to switch hls audio track', e); }
+                    refreshHlsTracks(hlsPlayer.value);
+                }
             }
         };
 
         const switchTextTrack = async (trackId) => {
-            if (!playerInstance.value) return;
-            if (trackId === 'off') {
-                selectedTextTrackId.value = 'off';
-                if (typeof playerInstance.value.setTextTrackVisibility === 'function') {
-                    await playerInstance.value.setTextTrackVisibility(false);
-                } else if (typeof playerInstance.value.selectTextLanguage === 'function') {
-                    playerInstance.value.selectTextLanguage('');
+            // Shaka path
+            if (playerInstance.value) {
+                if (trackId === 'off') {
+                    selectedTextTrackId.value = 'off';
+                    if (typeof playerInstance.value.setTextTrackVisibility === 'function') {
+                        await playerInstance.value.setTextTrackVisibility(false);
+                    } else if (typeof playerInstance.value.selectTextLanguage === 'function') {
+                        playerInstance.value.selectTextLanguage('');
+                    }
+                    refreshShakaTracks(playerInstance.value);
+                    return;
                 }
+                const track = (playerInstance.value.getTextTracks ? playerInstance.value.getTextTracks() : [])
+                    .find(t => String(t.id) === String(trackId));
+                if (!track) return;
+                if (typeof playerInstance.value.selectTextTrack === 'function') {
+                    playerInstance.value.selectTextTrack(track);
+                }
+                if (typeof playerInstance.value.setTextTrackVisibility === 'function') {
+                    await playerInstance.value.setTextTrackVisibility(true);
+                }
+                selectedTextTrackId.value = String(track.id);
                 refreshShakaTracks(playerInstance.value);
                 return;
             }
-            const track = (playerInstance.value.getTextTracks ? playerInstance.value.getTextTracks() : [])
-                .find(t => String(t.id) === String(trackId));
-            if (!track) return;
-            if (typeof playerInstance.value.selectTextTrack === 'function') {
-                playerInstance.value.selectTextTrack(track);
+
+            // HLS / native path using video.textTracks
+            const video = videoPlayer.value;
+            if (!video) return;
+            const texts = Array.from(video.textTracks || []);
+            if (trackId === 'off') {
+                for (const t of texts) {
+                    try { t.mode = 'disabled'; } catch (e) {}
+                }
+                selectedTextTrackId.value = 'off';
+                refreshHlsTracks(hlsPlayer.value);
+                return;
             }
-            if (typeof playerInstance.value.setTextTrackVisibility === 'function') {
-                await playerInstance.value.setTextTrackVisibility(true);
+            // trackId might be id or label
+            for (const t of texts) {
+                const id = String(t.id || t.label || t.language || '');
+                if (String(id) === String(trackId) || String(t.label || '') === String(trackId)) {
+                    try { t.mode = 'showing'; } catch (e) { console.warn('Failed to show text track', e); }
+                    selectedTextTrackId.value = id;
+                } else {
+                    try { t.mode = 'disabled'; } catch (e) {}
+                }
             }
-            selectedTextTrackId.value = String(track.id);
-            refreshShakaTracks(playerInstance.value);
+            refreshHlsTracks(hlsPlayer.value);
         };
 
         const toggleSeriesWatchingNow = async () => {
@@ -3881,7 +4072,7 @@ createApp({
                 mute: (event) => onPlayerControlClick(event, toggleMute),
                 fullscreen: (event) => onPlayerControlClick(event, requestFullscreenPlayer),
                 'hide-panel': hidePlayerPanel,
-                'expand-panel': togglePlayerExpanded,
+                'toggle-layout': togglePlayerExpanded,
                 stop: (event) => onPlayerControlClick(event, stopPlaybackAndHide),
                 'quality-menu': () => {},
                 'audio-menu': () => {},
@@ -4229,6 +4420,7 @@ createApp({
             showOverlay,
             showBookmarkModal,
             playerExpanded,
+            showSettingsModal,
             hasPlayerContent,
             playerPanelVisible,
             bingeWatchLoading,
@@ -4298,6 +4490,11 @@ createApp({
             hidePlayerPanel,
             togglePlayerPanel,
             togglePlayerExpanded,
+            openSettings,
+            closeSettings,
+            defaultWideView,
+            playerEnginePref,
+            applySettings,
             broadcastIndicatorSrc,
             formatPlaybackTime,
             seekPlayback,

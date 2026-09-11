@@ -73,6 +73,7 @@ public class ManageAccountUI extends VBox {
     private final CheckBox pinToTopCheckBox = new CheckBox(I18n.tr("autoPinAccountOnTop"));
     private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox(I18n.tr("manageResolveChainAndDeepRedirects"));
     private final SwitchToggle pinToTopSwitch = new SwitchToggle();
+    private final SwitchToggle parentalLockSwitch = new SwitchToggle();
     private final SwitchToggle resolveChainAndDeepRedirectsSwitch = new SwitchToggle();
     private final UIptvCombo httpMethodCombo = new UIptvCombo("httpMethod", "manageHttpMethodPrompt", 150);
     private final UIptvCombo timezoneCombo = new UIptvCombo("timezone", "manageTimezonePrompt", 250);
@@ -94,6 +95,7 @@ public class ManageAccountUI extends VBox {
     private boolean actionLayoutWrapped;
     private Node pinToTopSwitchRow;
     private Node resolveChainAndDeepRedirectsSwitchRow;
+    private Node parentalLockSwitchRow;
     AccountService service = AccountService.getInstance();
     private String accountId;
     private String originalAccountName;
@@ -202,6 +204,7 @@ public class ManageAccountUI extends VBox {
         resolveChainAndDeepRedirectsSwitch.selectedProperty().bindBidirectional(resolveChainAndDeepRedirectsCheckBox.selectedProperty());
         pinToTopSwitchRow = createManageAccountSwitchRow("autoPinAccountOnTop", pinToTopSwitch);
         resolveChainAndDeepRedirectsSwitchRow = createManageAccountSwitchRow("manageResolveChainAndDeepRedirects", resolveChainAndDeepRedirectsSwitch);
+        parentalLockSwitchRow = createManageAccountSwitchRow("filterLockStateToggleLabel", parentalLockSwitch);
 
         pipeLabel.visibleProperty().bind(verifyMacsLink.visibleProperty());
         pipeLabel.managedProperty().bind(pipeLabel.visibleProperty());
@@ -227,6 +230,7 @@ public class ManageAccountUI extends VBox {
         addClearButtonClickHandler();
         addRefreshChannelsButtonClickHandler();
         addBrowserButton1ClickHandler();
+        addParentalLockToggleHandler();
 
         // Initialize HTTP Method combo
         httpMethodCombo.getItems().addAll("GET", "POST");
@@ -251,16 +255,16 @@ public class ManageAccountUI extends VBox {
         formContainer.getChildren().clear();
         switch (type) {
             case STALKER_PORTAL:
-                formContainer.getChildren().addAll(accountTypePillBar, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);
                 break;
             case M3U8_LOCAL:
-                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8PathBrowserRow, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8PathBrowserRow, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);
                 break;
             case M3U8_URL:
-                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);
                 break;
             case XTREME_API:
-                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);
                 break;
         }
 
@@ -605,6 +609,20 @@ public class ManageAccountUI extends VBox {
         });
     }
 
+    private void addParentalLockToggleHandler() {
+        parentalLockSwitch.selectedProperty().addListener((observable, oldVal, newVal) -> {
+            // If disabling parental lock (newVal == false) and a password is configured,
+            // require the parental password before allowing the change.
+            if (oldVal && !newVal) {
+                boolean allowed = FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockManageFiltersReason");
+                if (!allowed) {
+                    // revert switch
+                    Platform.runLater(() -> parentalLockSwitch.setSelected(true));
+                }
+            }
+        });
+    }
+
     private void addRefreshChannelsButtonClickHandler() {
         refreshChannelsButton.setOnAction(event -> {
             Account account = getAccountFromForm();
@@ -674,6 +692,7 @@ public class ManageAccountUI extends VBox {
         account.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
         account.setHttpMethod(httpMethodCombo.getValue() != null ? httpMethodCombo.getValue() : "GET");
         account.setTimezone(timezoneCombo.getValue() != null ? timezoneCombo.getValue() : DEFAULT_TIMEZONE);
+        account.setParentalLock(parentalLockSwitch.isSelected());
         return account;
     }
 
@@ -827,6 +846,7 @@ public class ManageAccountUI extends VBox {
         m3u8Path.setText(account.getM3u8Path());
         pinToTopCheckBox.setSelected(account.isPinToTop());
         resolveChainAndDeepRedirectsCheckBox.setSelected(account.isResolveChainAndDeepRedirects());
+        parentalLockSwitch.setSelected(account.isParentalLock());
         httpMethodCombo.setValue(isNotBlank(account.getHttpMethod()) ? account.getHttpMethod() : "GET");
         timezoneCombo.setValue(isNotBlank(account.getTimezone()) ? account.getTimezone() : DEFAULT_TIMEZONE);
         selectAccountType(account.getType());

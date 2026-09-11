@@ -1146,6 +1146,9 @@ public class CategoryListUI extends HBox implements SearchTarget {
     }
 
     private boolean ensureCategoryAccess(CategoryItem item) {
+        if (account != null && !account.parentalLock()) {
+            return true;
+        }
         if (accountType() != STALKER_PORTAL || !item.isCensored()) {
             return true;
         }
