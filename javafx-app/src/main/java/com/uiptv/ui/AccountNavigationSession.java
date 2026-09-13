@@ -48,6 +48,10 @@ public final class AccountNavigationSession {
     }
 
     public static void setAtCategories(Account acc, Account.AccountAction act) {
+        setAtCategories(acc, act, null);
+    }
+
+    public static void setAtCategories(Account acc, Account.AccountAction act, String catId) {
         if (acc == null) {
             setAtAccounts();
             return;
@@ -55,8 +59,12 @@ public final class AccountNavigationSession {
         level = Level.CATEGORIES;
         account = acc;
         action = act != null ? act : (acc.getAction() != null ? acc.getAction() : Account.AccountAction.itv);
-        categoryId = null;
+        categoryId = catId;
         channel = null;
+    }
+
+    public static void setCategoryId(String catId) {
+        categoryId = catId;
     }
 
     public static void setAtChannels(Account acc, Account.AccountAction act, String catId, Channel ch) {
@@ -68,14 +76,10 @@ public final class AccountNavigationSession {
         account = acc;
         action = act != null ? act : (acc.getAction() != null ? acc.getAction() : Account.AccountAction.itv);
         categoryId = catId;
-        if (ch != null) {
-            channel = ch;
-        }
+        channel = ch;
     }
 
     public static void setChannel(Channel ch) {
-        if (ch != null) {
-            channel = ch;
-        }
+        channel = ch;
     }
 }

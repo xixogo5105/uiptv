@@ -70,6 +70,55 @@ public class CategoryListUI extends HBox {
     private Account.AccountAction activeMode;
     private volatile Channel pendingChannelToSelect;
 
+    public static String resolveCategoryKey(CategoryItem item) {
+        if (item == null) {
+            return null;
+        }
+        String key = item.getCategoryId();
+        if (key == null || key.isBlank()) {
+            key = item.getId();
+        }
+        if (key == null || key.isBlank()) {
+            key = item.getCategoryTitle();
+        }
+        return key;
+    }
+
+    private CategoryItem findCategoryItem(String categoryKey) {
+        if (categoryKey == null || categoryKey.isBlank()) {
+            return null;
+        }
+        for (CategoryItem item : table.getItems()) {
+            if (item != null && (categoryKey.equalsIgnoreCase(item.getCategoryId())
+                    || categoryKey.equalsIgnoreCase(item.getId())
+                    || categoryKey.equalsIgnoreCase(item.getCategoryTitle()))) {
+                return item;
+            }
+        }
+        for (CategoryItem item : table.getItems()) {
+            if (item != null && item.getCategoryTitle() != null
+                    && item.getCategoryTitle().toLowerCase().contains(categoryKey.toLowerCase())) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    public void selectCategory(String categoryKey) {
+        if (categoryKey == null || categoryKey.isBlank()) {
+            return;
+        }
+        AccountNavigationSession.setAtCategories(account, activeMode, categoryKey);
+        Platform.runLater(() -> {
+            CategoryItem target = findCategoryItem(categoryKey);
+            if (target != null) {
+                table.getSelectionModel().clearSelection();
+                table.getSelectionModel().select(target);
+                table.scrollTo(target);
+            }
+        });
+    }
+
     public void openCategoryAndSelectChannel(String categoryKey, Channel channelToSelect) {
         if (categoryKey == null || categoryKey.isBlank()) {
             return;
@@ -77,24 +126,7 @@ public class CategoryListUI extends HBox {
         this.pendingChannelToSelect = channelToSelect;
         AccountNavigationSession.setAtChannels(account, activeMode, categoryKey, channelToSelect);
         Platform.runLater(() -> {
-            CategoryItem target = null;
-            for (CategoryItem item : table.getItems()) {
-                if (item != null && (categoryKey.equalsIgnoreCase(item.getCategoryId())
-                        || categoryKey.equalsIgnoreCase(item.getId())
-                        || categoryKey.equalsIgnoreCase(item.getCategoryTitle()))) {
-                    target = item;
-                    break;
-                }
-            }
-            if (target == null && !table.getItems().isEmpty()) {
-                for (CategoryItem item : table.getItems()) {
-                    if (item != null && item.getCategoryTitle() != null
-                            && item.getCategoryTitle().toLowerCase().contains(categoryKey.toLowerCase())) {
-                        target = item;
-                        break;
-                    }
-                }
-            }
+            CategoryItem target = findCategoryItem(categoryKey);
             if (target != null) {
                 table.getSelectionModel().select(target);
                 table.scrollTo(target);
@@ -169,6 +201,14 @@ public class CategoryListUI extends HBox {
         leftPane.setMaxHeight(Double.MAX_VALUE);
         leftPane.setMinHeight(0);
         VBox.setVgrow(leftPane, Priority.ALWAYS);
+        table.getSelectionModel().selectedItemProperty().addListener((obs, oldItem, newItem) -> {
+            if (newItem != null) {
+                String key = resolveCategoryKey(newItem);
+                if (AccountNavigationSession.getLevel() == AccountNavigationSession.Level.CATEGORIES) {
+                    AccountNavigationSession.setCategoryId(key);
+                }
+            }
+        });
         initDetailPane();
         getChildren().setAll(leftPane);
         addChannelClickHandler();
@@ -214,7 +254,8 @@ public class CategoryListUI extends HBox {
             }
         }
         showListView();
-        AccountNavigationSession.setAtCategories(account, activeMode);
+        CategoryItem currentSel = table.getSelectionModel().getSelectedItem();
+        AccountNavigationSession.setAtCategories(account, activeMode, resolveCategoryKey(currentSel));
         return true;
     }
 
@@ -514,13 +555,7 @@ public class CategoryListUI extends HBox {
         }
         final Account.AccountAction mode = activeMode;
         account.setAction(mode);
-        String catKey = item.getCategoryId();
-        if (catKey == null || catKey.isBlank()) {
-            catKey = item.getId();
-        }
-        if (catKey == null || catKey.isBlank()) {
-            catKey = item.getCategoryTitle();
-        }
+        String catKey = resolveCategoryKey(item);
         AccountNavigationSession.setAtChannels(account, mode, catKey, pendingChannelToSelect);
         final ModeState state = modeStates.computeIfAbsent(mode, k -> new ModeState());
         if (state.selectedCategory != null

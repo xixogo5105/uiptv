@@ -100,20 +100,22 @@ public abstract class BaseMainApplicationUI {
             Account targetAccount = AccountNavigationSession.getAccount();
             if (targetAccount == null && PlaybackUIService.getLastPlaybackOrigin() == PlaybackUIService.PlaybackOrigin.ACCOUNT) {
                 targetAccount = PlaybackUIService.getLastPlaybackAccount();
+                String catId = PlaybackUIService.getLastPlaybackCategoryId();
+                Channel ch = PlaybackUIService.getLastPlaybackChannel();
+                if (targetAccount != null) {
+                    accountListUI.openAccountAndChannel(targetAccount, catId, ch);
+                }
+                return;
             }
             if (targetAccount != null) {
                 String catId = AccountNavigationSession.getCategoryId();
-                if (catId == null || catId.isBlank()) {
-                    catId = PlaybackUIService.getLastPlaybackCategoryId();
-                }
-                Channel ch = AccountNavigationSession.getChannel();
-                if (ch == null) {
-                    ch = PlaybackUIService.getLastPlaybackChannel();
-                }
-                if (level == AccountNavigationSession.Level.CHANNELS || ch != null || (catId != null && !catId.isBlank())) {
+                if (level == AccountNavigationSession.Level.CHANNELS) {
+                    Channel ch = AccountNavigationSession.getChannel();
                     accountListUI.openAccountAndChannel(targetAccount, catId, ch);
                 } else if (level == AccountNavigationSession.Level.CATEGORIES) {
-                    accountListUI.openAccount(targetAccount);
+                    accountListUI.openAccountAndSelectCategory(targetAccount, catId);
+                } else {
+                    accountListUI.showAccountListView();
                 }
             }
         });

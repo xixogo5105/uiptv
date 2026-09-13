@@ -246,7 +246,23 @@ public class AccountListUI extends HBox {
     }
 
     public void openAccount(Account account) {
-        openAccountAndChannel(account, null, null);
+        openAccountAndSelectCategory(account, null);
+    }
+
+    public void openAccountAndSelectCategory(Account account, String categoryId) {
+        if (account == null) {
+            return;
+        }
+        if (masterAccountItems.isEmpty()) {
+            refresh();
+        }
+        for (AccountItem item : masterAccountItems) {
+            if (account.getDbId() != null && account.getDbId().equals(item.getAccountId())) {
+                Account.AccountAction action = account.getAction() != null ? account.getAction() : AccountNavigationSession.getAction();
+                retrieveThreadedAccountCategories(item, action != null ? action : Account.AccountAction.itv, categoryId, null, false);
+                break;
+            }
+        }
     }
 
     public void openAccountAndChannel(Account account, String categoryId, Channel channelToSelect) {
@@ -258,7 +274,8 @@ public class AccountListUI extends HBox {
         }
         for (AccountItem item : masterAccountItems) {
             if (account.getDbId() != null && account.getDbId().equals(item.getAccountId())) {
-                retrieveThreadedAccountCategories(item, account.getAction() != null ? account.getAction() : Account.AccountAction.itv, categoryId, channelToSelect);
+                Account.AccountAction action = account.getAction() != null ? account.getAction() : AccountNavigationSession.getAction();
+                retrieveThreadedAccountCategories(item, action != null ? action : Account.AccountAction.itv, categoryId, channelToSelect, true);
                 break;
             }
         }
@@ -613,20 +630,24 @@ public class AccountListUI extends HBox {
     }
 
     private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction) {
-        retrieveThreadedAccountCategories(item, accountAction, null, null);
+        retrieveThreadedAccountCategories(item, accountAction, null, null, false);
     }
 
     private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction, String categoryIdToOpen, Channel channelToSelect) {
+        retrieveThreadedAccountCategories(item, accountAction, categoryIdToOpen, channelToSelect, categoryIdToOpen != null && !categoryIdToOpen.isBlank());
+    }
+
+    private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction, String categoryIdToOpen, Channel channelToSelect, boolean openChannelList) {
         Account account = accountService.getById(item.getAccountId());
         if (account == null) {
             showErrorAlert(I18n.tr("autoUnableToFindAccount"));
             return;
         }
         account.setAction(accountAction);
-        if (categoryIdToOpen != null && !categoryIdToOpen.isBlank()) {
+        if (openChannelList && categoryIdToOpen != null && !categoryIdToOpen.isBlank()) {
             AccountNavigationSession.setAtChannels(account, accountAction, categoryIdToOpen, channelToSelect);
         } else {
-            AccountNavigationSession.setAtCategories(account, accountAction);
+            AccountNavigationSession.setAtCategories(account, accountAction, categoryIdToOpen);
         }
 
         // Immediately show the CategoryListUI in loading state
@@ -651,7 +672,11 @@ public class AccountListUI extends HBox {
                 Platform.runLater(() -> {
                     categoryListUI.setItems(list);
                     if (categoryIdToOpen != null && !categoryIdToOpen.isBlank()) {
-                        categoryListUI.openCategoryAndSelectChannel(categoryIdToOpen, channelToSelect);
+                        if (openChannelList) {
+                            categoryListUI.openCategoryAndSelectChannel(categoryIdToOpen, channelToSelect);
+                        } else {
+                            categoryListUI.selectCategory(categoryIdToOpen);
+                        }
                     }
                 });
             } catch (Exception e) {
