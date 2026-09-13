@@ -29,8 +29,8 @@ import static com.uiptv.model.CategoryType.ALL;
 public class M3uCacheReloader extends AbstractAccountCacheReloader {
     @Override
     public void reloadCache(Account account, LoggerCallback logger) {
-        boolean categoryCensoringEnabled = shouldApplyCategoryCensoring();
-        boolean channelCensoringEnabled = shouldApplyChannelCensoring();
+        boolean categoryCensoringEnabled = shouldApplyCategoryCensoring(account);
+        boolean channelCensoringEnabled = shouldApplyChannelCensoring(account);
         M3uReloadData rawReloadData = loadM3uReloadData(account, logger);
         int rawTotalChannels = totalChannels(rawReloadData.channelsByCategory());
         int rawUniqueChannels = uniqueChannelCount(rawReloadData.channelsByCategory());

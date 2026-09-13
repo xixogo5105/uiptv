@@ -19,7 +19,13 @@ public class BookmarkResolver {
         Map<String, Account> accountByName = AccountService.getInstance().getAll();
         Map<String, BookmarkRenderData> renderDataByBookmarkId = preloadRenderData(bookmarks);
         Map<String, Channel> channelByAccountAndChannel = preloadFallbackChannels(bookmarks, accountByName, renderDataByBookmarkId);
-        return new ResolutionContext(accountByName, channelByAccountAndChannel, renderDataByBookmarkId);
+        return new ResolutionContext(accountByName, channelByAccountAndChannel, renderDataByBookmarkId, true);
+    }
+
+    public ResolutionContext prepareFast(List<Bookmark> bookmarks) {
+        Map<String, Account> accountByName = AccountService.getInstance().getAll();
+        Map<String, BookmarkRenderData> renderDataByBookmarkId = preloadRenderData(bookmarks);
+        return new ResolutionContext(accountByName, Map.of(), renderDataByBookmarkId, false);
     }
 
     public List<ResolvedBookmark> resolveBookmarks(List<Bookmark> bookmarks) {
@@ -35,9 +41,12 @@ public class BookmarkResolver {
     }
 
     public ResolvedBookmark resolveBookmark(Bookmark bookmark, ResolutionContext context) {
+        if (bookmark == null || context == null) {
+            return new ResolvedBookmark(bookmark, null, null, BookmarkRenderData.fromBookmark(bookmark));
+        }
         Account account = context.accountByName.get(bookmark.getAccountName());
         BookmarkRenderData renderData = context.renderDataByBookmarkId.getOrDefault(bookmarkKey(bookmark), BookmarkRenderData.fromBookmark(bookmark));
-        if (needsChannelFallback(renderData)) {
+        if (context.allowFallbackLookup && needsChannelFallback(renderData)) {
             mergeRenderData(renderData, lookupFallbackChannel(account, bookmark.getChannelId(), context.channelByAccountAndChannel));
         }
 
@@ -214,13 +223,16 @@ public class BookmarkResolver {
         private final Map<String, Account> accountByName;
         private final Map<String, Channel> channelByAccountAndChannel;
         private final Map<String, BookmarkRenderData> renderDataByBookmarkId;
+        private final boolean allowFallbackLookup;
 
         private ResolutionContext(Map<String, Account> accountByName,
                                   Map<String, Channel> channelByAccountAndChannel,
-                                  Map<String, BookmarkRenderData> renderDataByBookmarkId) {
+                                  Map<String, BookmarkRenderData> renderDataByBookmarkId,
+                                  boolean allowFallbackLookup) {
             this.accountByName = accountByName == null ? Map.of() : accountByName;
             this.channelByAccountAndChannel = channelByAccountAndChannel == null ? Map.of() : channelByAccountAndChannel;
             this.renderDataByBookmarkId = renderDataByBookmarkId == null ? Map.of() : renderDataByBookmarkId;
+            this.allowFallbackLookup = allowFallbackLookup;
         }
     }
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'uiptv-cache-v28';
+const CACHE_NAME = 'uiptv-cache-v29';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -18,12 +18,26 @@ const urlsToCache = [
   '/javascript/bookmark-watch-utils.js',
   '/javascript/spa.js',
   'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css',
+  'https://cdn.jsdelivr.net/npm/video.js@8.24.0/dist/video-js.css',
   'https://unpkg.com/vue@3/dist/vue.global.prod.js',
   'https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js',
-  'https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js'
+  'https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js',
+  'https://cdn.jsdelivr.net/npm/video.js@8.24.0/dist/video.min.js'
 ];
 
-const urlsToCacheSet = new Set(urlsToCache);
+const urlsToCacheSet = new Set();
+urlsToCache.forEach((u) => {
+  try {
+    const url = new URL(u, self.location);
+    // store multiple lookup forms so requests with/without search match the precache
+    urlsToCacheSet.add(u);
+    urlsToCacheSet.add(url.href);
+    urlsToCacheSet.add(url.pathname + url.search);
+    urlsToCacheSet.add(url.pathname);
+  } catch (_) {
+    urlsToCacheSet.add(u);
+  }
+});
 
 const isVersionedStaticAsset = (requestUrl) => {
   if (requestUrl.origin !== self.location.origin) {
@@ -42,7 +56,7 @@ const isVersionedStaticAsset = (requestUrl) => {
 
 const isPrecachedRequest = (requestUrl) => {
   if (requestUrl.origin === self.location.origin) {
-    return urlsToCacheSet.has(requestUrl.pathname);
+    return urlsToCacheSet.has(requestUrl.pathname + requestUrl.search) || urlsToCacheSet.has(requestUrl.pathname);
   }
   return urlsToCacheSet.has(requestUrl.href);
 };

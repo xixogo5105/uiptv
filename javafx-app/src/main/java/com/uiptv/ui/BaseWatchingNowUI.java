@@ -185,9 +185,7 @@ public abstract class BaseWatchingNowUI extends VBox {
             );
         }
         List<WatchingEpisode> episodes = mapEpisodesFromCache(account, scopedState, list);
-        if (episodes.isEmpty()) {
-            return null;
-        }
+        boolean episodesEmpty = episodes.isEmpty();
 
         JSONObject seasonInfo = new JSONObject();
         seasonInfo.put("name", cacheInfo.seriesTitle);
@@ -206,6 +204,28 @@ public abstract class BaseWatchingNowUI extends VBox {
         }
 
         SeriesPanelData panel = new SeriesPanelData(account, scopedState, cacheInfo.seriesTitle, seasonInfo, episodes, list);
+        if (episodesEmpty) {
+            // Show panel immediately, then load missing episodes in background to avoid blocking UI
+            panel.episodeLoadingVisible = true;
+            new Thread(() -> {
+                EpisodeList fetched = null;
+                try {
+                    fetched = SeriesEpisodeService.getInstance().reloadEpisodesFromPortal(
+                            account,
+                            scopedState.getCategoryId(),
+                            scopedState.getSeriesId(),
+                            () -> false
+                    );
+                } catch (Exception ignored) {
+                }
+                EpisodeList safeList = fetched == null ? new EpisodeList() : fetched;
+                Platform.runLater(() -> {
+                    applyReloadedEpisodesToPanel(panel, safeList);
+                    // refresh the visible list so the newly loaded episodes are rendered
+                    renderCurrentView();
+                });
+            }, "watching-now-episodes-background-fetch").start();
+        }
         applyImdbMemoryCache(panel);
         return panel;
     }
@@ -1976,6 +1996,7 @@ public abstract class BaseWatchingNowUI extends VBox {
         private EpisodeList episodeList;
         private boolean imdbLoaded;
         private boolean imdbLoading;
+        private boolean episodeLoadingVisible;
         private Label titleNode;
         private Label ratingNode;
         private Label genreNode;

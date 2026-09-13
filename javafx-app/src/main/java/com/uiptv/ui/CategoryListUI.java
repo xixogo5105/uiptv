@@ -632,6 +632,9 @@ public class CategoryListUI extends HBox {
     }
 
     private boolean ensureCategoryAccess(CategoryItem item) {
+        if (account != null && !account.isParentalLock()) {
+            return true;
+        }
         if (account.getType() != STALKER_PORTAL || !item.isCensored()) {
             return true;
         }

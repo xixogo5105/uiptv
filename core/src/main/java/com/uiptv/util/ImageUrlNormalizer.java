@@ -98,7 +98,7 @@ public final class ImageUrlNormalizer {
         if (!isBlank(host)) {
             return scheme + "://" + host + formatPort(port) + value;
         }
-        return value;
+        return ServerUrlUtil.getLocalServerUrl() + value;
     }
 
     private static String buildRelativeImageUrl(String value, String scheme, String host, int port) {

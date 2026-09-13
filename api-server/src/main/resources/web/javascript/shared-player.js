@@ -23,8 +23,10 @@
         <button id="hide-panel-btn" class="uiptv-control-btn" type="button" title="Hide player" data-action="hide-panel" data-label="Hide player">
             <i class="bi bi-eye-slash"></i>
         </button>
-        <button id="expand-panel-btn" class="uiptv-control-btn" type="button" title="Expand player" data-action="expand-panel" data-label="Expand player">
-            <i class="bi bi-arrows-angle-expand"></i>
+        <button id="layout-toggle-btn" class="uiptv-control-btn" type="button" title="Toggle narrow/wide layout" data-action="toggle-layout" data-label="Toggle layout">
+            <svg class="uiptv-layout-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path d="M3 5H21V19H3V5ZM5 7V17H14V7H5ZM16 7V17H19V7H16Z"></path>
+            </svg>
         </button>
         <div class="uiptv-control-menu" data-menu="quality">
             <button id="quality-menu-btn" class="uiptv-control-btn" type="button" title="Resolutions" data-action="quality-menu" data-label="Quality">
@@ -208,7 +210,7 @@
             const muteBtn = root.querySelector('#mute-btn');
             const fullscreenBtn = root.querySelector('#fullscreen-btn');
             const favoriteBtn = root.querySelector('#favorite-btn');
-            const expandPanelBtn = root.querySelector('#expand-panel-btn');
+            const layoutToggleBtn = root.querySelector('#layout-toggle-btn');
             if (nodes.header && typeof isPlaying !== 'undefined') {
                 nodes.header.dataset.state = isPlaying ? 'active' : 'inactive';
                 if (!isPlaying) {
@@ -232,11 +234,15 @@
                 const icon = fullscreenBtn.querySelector('i');
                 if (icon) icon.className = isFullscreen ? 'bi bi-fullscreen-exit' : 'bi bi-fullscreen';
             }
-            if (expandPanelBtn) {
-                expandPanelBtn.setAttribute('aria-pressed', isPanelExpanded ? 'true' : 'false');
-                expandPanelBtn.title = isPanelExpanded ? 'Restore player panel' : 'Expand player';
-                const icon = expandPanelBtn.querySelector('i');
-                if (icon) icon.className = isPanelExpanded ? 'bi bi-layout-sidebar-inset-reverse' : 'bi bi-arrows-angle-expand';
+            if (layoutToggleBtn) {
+                layoutToggleBtn.setAttribute('aria-pressed', isPanelExpanded ? 'true' : 'false');
+                layoutToggleBtn.title = isPanelExpanded ? 'Exit wide layout' : 'Enter wide layout';
+                const path = layoutToggleBtn.querySelector('.uiptv-layout-icon path');
+                if (path) {
+                    path.setAttribute('d', isPanelExpanded
+                        ? 'M3 5H21V19H3V5ZM5 7V17H11V7H5ZM13 7V17H19V7H13Z'
+                        : 'M3 5H21V19H3V5ZM5 7V17H14V7H5ZM16 7V17H19V7H16Z');
+                }
             }
             if (favoriteBtn) {
                 favoriteBtn.setAttribute('aria-pressed', isFavorite ? 'true' : 'false');

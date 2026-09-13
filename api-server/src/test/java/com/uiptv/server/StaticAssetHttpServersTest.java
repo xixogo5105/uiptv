@@ -32,6 +32,12 @@ class StaticAssetHttpServersTest {
         assertEquals(200, manifestExchange.getResponseCode());
         assertTrue(manifestExchange.getResponseHeaders().getFirst("Content-Type").contains("application/json"));
         assertTrue(manifestExchange.getResponseBodyText().contains("name"));
+
+        HttpImageServer imageServer = new HttpImageServer();
+        TestHttpExchange imageExchange = new TestHttpExchange("/images/broadcast-off.svg", "GET");
+        imageServer.handle(imageExchange);
+        assertEquals(200, imageExchange.getResponseCode());
+        assertTrue(imageExchange.getResponseHeaders().getFirst("Content-Type").contains("image/svg+xml"));
     }
 
     @Test
@@ -50,6 +56,11 @@ class StaticAssetHttpServersTest {
         TestHttpExchange manifestExchange = new TestHttpExchange("/manifest-missing.json", "GET");
         manifestServer.handle(manifestExchange);
         assertEquals(404, manifestExchange.getResponseCode());
+
+        HttpImageServer imageServer = new HttpImageServer();
+        TestHttpExchange imageExchange = new TestHttpExchange("/images/missing.png", "GET");
+        imageServer.handle(imageExchange);
+        assertEquals(404, imageExchange.getResponseCode());
     }
 
     @Test
@@ -58,6 +69,11 @@ class StaticAssetHttpServersTest {
         TestHttpExchange cssExchange = new TestHttpExchange("/css/uiptv.css", "POST");
         cssServer.handle(cssExchange);
         assertEquals(405, cssExchange.getResponseCode());
+
+        HttpImageServer imageServer = new HttpImageServer();
+        TestHttpExchange imageExchange = new TestHttpExchange("/images/broadcast-off.svg", "POST");
+        imageServer.handle(imageExchange);
+        assertEquals(405, imageExchange.getResponseCode());
     }
 
     @Test

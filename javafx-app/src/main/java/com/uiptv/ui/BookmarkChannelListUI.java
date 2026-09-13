@@ -40,6 +40,7 @@ public class BookmarkChannelListUI extends HBox {
     private static final String BOOKMARK_CACHE = "bookmark";
     private static final String BOOKMARK_ACCOUNT_LABEL_STYLE_CLASS = "bookmark-account-label";
     private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
+    private static final int BOOKMARK_INITIAL_STREAM_SIZE = 5;
     private final SearchableTableViewWithButton<BookmarkItem> bookmarkTable = new SearchableTableViewWithButton<>();
     private final TableColumn<BookmarkItem, String> bookmarkColumn = new TableColumn<>("bookmarkColumn");
     private final TabPane categoryTabPane = new TabPane();
@@ -131,9 +132,15 @@ public class BookmarkChannelListUI extends HBox {
     private void reloadBookmarks(long generation) {
         try {
             long revisionBeforeRead = BookmarkService.getInstance().getChangeRevision();
+            long t0 = System.nanoTime();
             List<Bookmark> bookmarks = BookmarkService.getInstance().read();
-            BookmarkResolver.ResolutionContext context = bookmarkResolver.prepare(bookmarks);
+            long t1 = System.nanoTime();
+            System.out.println("[bookmark-profiling] BookmarkService.read() took " + ((t1 - t0) / 1_000_000) + " ms; rows=" + (bookmarks == null ? 0 : bookmarks.size()));
+            BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(bookmarks);
+            long t2 = System.nanoTime();
             List<BookmarkItem> loadedItems = buildLoadedBookmarkItems(generation, bookmarks, context);
+            long t3 = System.nanoTime();
+            System.out.println("[bookmark-profiling] buildLoadedBookmarkItems took " + ((t3 - t2) / 1_000_000) + " ms; totalProcessing=" + ((t3 - t0) / 1_000_000) + " ms");
             if (generation != reloadGeneration.get()) {
                 return;
             }
@@ -168,11 +175,14 @@ public class BookmarkChannelListUI extends HBox {
     }
 
     private void maybeStreamPartialReload(long generation, List<BookmarkItem> loadedItems) {
-        if (loadedItems.size() % BOOKMARK_STREAM_BATCH_SIZE != 0) {
+        int size = loadedItems.size();
+        if (size == 0) {
             return;
         }
-        List<BookmarkItem> snapshot = new ArrayList<>(loadedItems);
-        runLater(() -> applyPartialReload(generation, snapshot));
+        if (size <= BOOKMARK_INITIAL_STREAM_SIZE || size % BOOKMARK_STREAM_BATCH_SIZE == 0) {
+            List<BookmarkItem> snapshot = new ArrayList<>(loadedItems);
+            runLater(() -> applyPartialReload(generation, snapshot));
+        }
     }
 
     private void handleReloadFailure(long generation) {

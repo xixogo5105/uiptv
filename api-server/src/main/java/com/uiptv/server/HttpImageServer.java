@@ -2,17 +2,21 @@ package com.uiptv.server;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class HttpImageServer implements HttpHandler {
-    private static final String CONTENT_TYPE_PNG = "image/png";
-    private static final String CONTENT_TYPE_SVG = "image/svg+xml";
-    private static final String CONTENT_TYPE_JPEG = "image/jpeg";
-    private static final String CONTENT_TYPE_WEBP = "image/webp";
-    private static final String CONTENT_TYPE_GIF = "image/gif";
+    private static final String SVG_CONTENT_TYPE = "image/svg+xml";
+    private static final String PNG_CONTENT_TYPE = "image/png";
+    private static final String JPEG_CONTENT_TYPE = "image/jpeg";
+    private static final String WEBP_CONTENT_TYPE = "image/webp";
+    private static final String GIF_CONTENT_TYPE = "image/gif";
+    private static final String ICO_CONTENT_TYPE = "image/x-icon";
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
@@ -22,38 +26,54 @@ public class HttpImageServer implements HttpHandler {
             return;
         }
 
-        Path filePath;
-        try {
-            filePath = StaticWebFileResolver.resolve(ex);
-        } catch (IOException _) {
-            ex.sendResponseHeaders(404, -1);
-            return;
-        }
-
-        String contentType = contentTypeFor(filePath);
+        String requestPath = ex.getRequestURI().getPath();
+        String contentType = contentTypeFor(requestPath);
         if (contentType == null) {
             ex.sendResponseHeaders(404, -1);
             return;
         }
 
-        byte[] bytes = Files.readAllBytes(filePath);
+        byte[] bytes = null;
+        try {
+            Path filePath = StaticWebFileResolver.resolve(ex);
+            bytes = Files.readAllBytes(filePath);
+        } catch (IOException _) {
+            // Fall through to classpath resource loading
+        }
+
+        if (bytes == null) {
+            String resourcePath = "/web" + (requestPath.startsWith("/") ? requestPath : "/" + requestPath);
+            try (InputStream is = HttpImageServer.class.getResourceAsStream(resourcePath)) {
+                if (is != null) {
+                    bytes = IOUtils.toByteArray(is);
+                }
+            } catch (IOException _) {
+                // Ignore and handle 404 below
+            }
+        }
+
+        if (bytes == null) {
+            ex.sendResponseHeaders(404, -1);
+            return;
+        }
+
         ex.getResponseHeaders().set("Content-Type", contentType);
+        ex.getResponseHeaders().set("Cache-Control", "public, max-age=86400");
         ex.sendResponseHeaders(200, bytes.length);
-        try (var os = ex.getResponseBody()) {
+        try (OutputStream os = ex.getResponseBody()) {
             os.write(bytes);
         }
     }
 
-    private static String contentTypeFor(Path filePath) {
-        if (filePath == null) {
-            return null;
-        }
-        String name = filePath.getFileName().toString().toLowerCase();
-        if (name.endsWith(".png")) return CONTENT_TYPE_PNG;
-        if (name.endsWith(".svg")) return CONTENT_TYPE_SVG;
-        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return CONTENT_TYPE_JPEG;
-        if (name.endsWith(".webp")) return CONTENT_TYPE_WEBP;
-        if (name.endsWith(".gif")) return CONTENT_TYPE_GIF;
+    static String contentTypeFor(String path) {
+        if (path == null) return null;
+        String lower = path.toLowerCase();
+        if (lower.endsWith(".svg")) return SVG_CONTENT_TYPE;
+        if (lower.endsWith(".png")) return PNG_CONTENT_TYPE;
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return JPEG_CONTENT_TYPE;
+        if (lower.endsWith(".webp")) return WEBP_CONTENT_TYPE;
+        if (lower.endsWith(".gif")) return GIF_CONTENT_TYPE;
+        if (lower.endsWith(".ico")) return ICO_CONTENT_TYPE;
         return null;
     }
 }

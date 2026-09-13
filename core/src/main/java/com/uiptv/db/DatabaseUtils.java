@@ -106,7 +106,8 @@ public class DatabaseUtils {
                 new DataColumn("pinToTop", "TEXT"),
                 new DataColumn("resolveChainAndDeepRedirects", "TEXT"),
                 new DataColumn("httpMethod", "TEXT"),
-                new DataColumn("timezone", "TEXT")
+                new DataColumn("timezone", "TEXT"),
+                new DataColumn("parentalLock", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_INFO_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),

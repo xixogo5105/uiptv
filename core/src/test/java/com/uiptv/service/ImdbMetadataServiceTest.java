@@ -1,11 +1,18 @@
 package com.uiptv.service;
 
+import static org.mockito.Mockito.anyMap;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.contains;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.util.I18n;
+import org.junit.jupiter.api.AfterEach;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -13,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -23,6 +31,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ImdbMetadataServiceTest {
 
     private final ImdbMetadataService service = ImdbMetadataService.getInstance();
+
+    @AfterEach
+    void tearDown() {
+        service.clearCache();
+        I18n.setLocale(I18n.DEFAULT_LANGUAGE_TAG);
+    }
 
     @Test
     void titleAndQueryHelpers_normalizeEpisodeAndSearchInputs() throws Exception {
@@ -159,19 +173,19 @@ class ImdbMetadataServiceTest {
 
     @Test
     void tmdbFetchHelpers_coverBearerTokenLocalizedFetchAndEpisodeMerge() throws Exception {
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        ConfigurationService configurationService = mock(ConfigurationService.class);
         com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
         configuration.setTmdbReadAccessToken(" bearer-token ");
 
-        try (MockedStatic<ConfigurationService> configurationStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
+        try (MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
             configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.read()).thenReturn(configuration);
+            when(configurationService.read()).thenReturn(configuration);
 
             httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(
-                    Mockito.contains("/movie/123?language=fr-FR"),
-                    Mockito.anyMap(),
-                    Mockito.eq("GET")
+                    contains("/movie/123?language=fr-FR"),
+                    anyMap(),
+                    eq("GET")
             )).thenReturn(new com.uiptv.util.HttpUtil.HttpResult(
                     com.uiptv.util.HttpUtil.STATUS_OK,
                     """
@@ -181,9 +195,9 @@ class ImdbMetadataServiceTest {
                     Map.of(), Map.of()
             ));
             httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(
-                    Mockito.contains("/tv/321/season/1?language=fr-FR"),
-                    Mockito.anyMap(),
-                    Mockito.eq("GET")
+                    contains("/tv/321/season/1?language=fr-FR"),
+                    anyMap(),
+                    eq("GET")
             )).thenReturn(new com.uiptv.util.HttpUtil.HttpResult(
                     com.uiptv.util.HttpUtil.STATUS_OK,
                     """
@@ -218,19 +232,19 @@ class ImdbMetadataServiceTest {
 
     @Test
     void findBestEffortDetails_mergesSuggestionImdbCinemetaAndTvMazeMetadata() {
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        ConfigurationService configurationService = mock(ConfigurationService.class);
         com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
         configuration.setEnableThumbnails(true);
 
-        try (MockedStatic<ConfigurationService> configurationStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
+        try (MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
             configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.read()).thenReturn(configuration);
+            when(configurationService.read()).thenReturn(configuration);
 
             httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(
-                    Mockito.anyString(),
-                    Mockito.anyMap(),
-                    Mockito.eq("GET")
+                    anyString(),
+                    anyMap(),
+                    eq("GET")
             )).thenAnswer(invocation -> new com.uiptv.util.HttpUtil.HttpResult(
                     com.uiptv.util.HttpUtil.STATUS_OK,
                     metadataBodyFor(invocation.getArgument(0, String.class)),
@@ -256,33 +270,36 @@ class ImdbMetadataServiceTest {
     }
 
     @Test
-    void findBestEffortDetails_returnsEmptyWhenThumbnailsDisabled() {
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+    void findBestEffortDetails_stillResolvesMetadataWhenThumbnailsDisabled() {
+        ConfigurationService configurationService = mock(ConfigurationService.class);
         com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
         configuration.setEnableThumbnails(false);
 
-        try (MockedStatic<ConfigurationService> configurationStatic = Mockito.mockStatic(ConfigurationService.class)) {
+        try (MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
             configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.read()).thenReturn(configuration);
+            when(configurationService.read()).thenReturn(configuration);
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(anyString(), anyMap(), eq("GET")))
+                    .thenReturn(new com.uiptv.util.HttpUtil.HttpResult(404, "", Map.of(), Map.of()));
 
-            assertTrue(service.findBestEffortDetails("Anything", "tt1234567").isEmpty());
-            assertTrue(service.findBestEffortDetails("Anything", "tt1234567", List.of("hint")).isEmpty());
-            assertTrue(service.findBestEffortMovieDetails("Anything", "tt1234567").isEmpty());
-            assertTrue(service.findBestEffortMovieDetails("Anything", "tt1234567", List.of("hint")).isEmpty());
+            assertEquals("tt1234567", service.findBestEffortDetails("Anything", "tt1234567").getString("tmdb"));
+            assertEquals("tt1234567", service.findBestEffortDetails("Anything", "tt1234567", List.of("hint")).getString("tmdb"));
+            assertEquals("tt1234567", service.findBestEffortMovieDetails("Anything", "tt1234567").getString("tmdb"));
+            assertEquals("tt1234567", service.findBestEffortMovieDetails("Anything", "tt1234567", List.of("hint")).getString("tmdb"));
         }
     }
 
     @Test
     void findBestEffortDetails_usesConsistentPreferredIdWhenSearchHasNoCandidate() {
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        ConfigurationService configurationService = mock(ConfigurationService.class);
         com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
         configuration.setEnableThumbnails(true);
 
-        try (MockedStatic<ConfigurationService> configurationStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
+        try (MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
             configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.read()).thenReturn(configuration);
-            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(Mockito.anyString(), Mockito.anyMap(), Mockito.eq("GET")))
+            when(configurationService.read()).thenReturn(configuration);
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(anyString(), anyMap(), eq("GET")))
                     .thenReturn(new com.uiptv.util.HttpUtil.HttpResult(404, "", Map.of(), Map.of()));
 
             JSONObject details = service.findBestEffortMovieDetails("", "tt7654321");
@@ -294,6 +311,39 @@ class ImdbMetadataServiceTest {
             JSONObject movieDetailsWithHints = service.findBestEffortMovieDetails("", "tt7654321", List.of("hint"));
             assertEquals("tt7654321", seriesDetails.getString("tmdb"));
             assertEquals("tt7654321", movieDetailsWithHints.getString("tmdb"));
+        }
+    }
+
+    @Test
+    void findBestEffortDetails_reusesCachedMetadataAndReturnsDefensiveCopies() {
+        ConfigurationService configurationService = mock(ConfigurationService.class);
+        com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
+        configuration.setEnableThumbnails(true);
+        AtomicInteger requests = new AtomicInteger();
+
+        try (MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
+            configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            when(configurationService.read()).thenReturn(configuration);
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(anyString(), anyMap(), eq("GET")))
+                    .thenAnswer(invocation -> {
+                        requests.incrementAndGet();
+                        return new com.uiptv.util.HttpUtil.HttpResult(
+                                com.uiptv.util.HttpUtil.STATUS_OK,
+                                metadataBodyFor(invocation.getArgument(0, String.class)),
+                                Map.of(),
+                                Map.of()
+                        );
+                    });
+
+            JSONObject first = service.findBestEffortDetails("Example Show Season 1", "", List.of("Example Show 2024"));
+            first.put("name", "Mutated");
+            int requestCountAfterFirstLoad = requests.get();
+
+            JSONObject second = service.findBestEffortDetails("Example Show Season 1", "", List.of("Example Show 2024"));
+
+            assertEquals(requestCountAfterFirstLoad, requests.get());
+            assertEquals("IMDb Name", second.getString("name"));
         }
     }
 
@@ -315,12 +365,12 @@ class ImdbMetadataServiceTest {
         assertEquals("Mapped", mapped.getString("name"));
         assertFalse(mapped.has("cover"));
 
-        try (MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
-            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(Mockito.contains("/x/"), Mockito.anyMap(), Mockito.eq("GET")))
+        try (MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(contains("/x/"), anyMap(), eq("GET")))
                     .thenReturn(new com.uiptv.util.HttpUtil.HttpResult(200, "{\"d\":[]}", Map.of(), Map.of()));
             assertNotNull(invoke("querySuggestions", new Class[]{String.class}, "!bad"));
 
-            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(Mockito.anyString(), Mockito.anyMap(), Mockito.eq("GET")))
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(anyString(), anyMap(), eq("GET")))
                     .thenThrow(new RuntimeException("network"));
             assertNull(invoke("querySuggestions", new Class[]{String.class}, "broken"));
             assertEquals("", invokeString("httpGet", "https://broken.test"));
@@ -399,8 +449,8 @@ class ImdbMetadataServiceTest {
         assertTrue(seasons.contains("1"));
         assertFalse(seasons.contains("40"));
 
-        try (MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
-            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(Mockito.anyString(), Mockito.anyMap(), Mockito.eq("GET")))
+        try (MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(anyString(), anyMap(), eq("GET")))
                     .thenReturn(new com.uiptv.util.HttpUtil.HttpResult(200, "x".repeat((2 * 1024 * 1024) + 1), Map.of(), Map.of()));
             assertEquals("", invokeString("httpGet", "https://large.test"));
         }
@@ -408,28 +458,28 @@ class ImdbMetadataServiceTest {
 
     @Test
     void tmdbFetchHelpers_coverFailureAndTokenBranches() throws Exception {
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        ConfigurationService configurationService = mock(ConfigurationService.class);
 
-        try (MockedStatic<ConfigurationService> configurationStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
+        try (MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
             configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.read()).thenReturn(null);
+            when(configurationService.read()).thenReturn(null);
             assertEquals("", invokeString("resolveConfiguredTmdbBearerToken"));
             assertTrue(((JSONObject) invoke("fetchTmdbLocalizedDetails", new Class[]{String.class, String.class, String.class}, "123", "movie", "en-US")).isEmpty());
             assertTrue(((JSONArray) invoke("fetchTmdbSeasonEpisodes", new Class[]{String.class, String.class, String.class}, "123", "1", "en-US")).isEmpty());
 
             com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
             configuration.setTmdbReadAccessToken("token");
-            Mockito.when(configurationService.read()).thenReturn(configuration);
-            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(Mockito.contains("/movie/500"), Mockito.anyMap(), Mockito.eq("GET")))
+            when(configurationService.read()).thenReturn(configuration);
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(contains("/movie/500"), anyMap(), eq("GET")))
                     .thenReturn(new com.uiptv.util.HttpUtil.HttpResult(500, "{}", Map.of(), Map.of()));
             assertTrue(((JSONObject) invoke("fetchTmdbLocalizedDetails", new Class[]{String.class, String.class, String.class}, "500", "movie", "en-US")).isEmpty());
 
-            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(Mockito.contains("/season/2"), Mockito.anyMap(), Mockito.eq("GET")))
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(contains("/season/2"), anyMap(), eq("GET")))
                     .thenReturn(new com.uiptv.util.HttpUtil.HttpResult(200, "{}", Map.of(), Map.of()));
             assertTrue(((JSONArray) invoke("fetchTmdbSeasonEpisodes", new Class[]{String.class, String.class, String.class}, "123", "2", "en-US")).isEmpty());
 
-            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(Mockito.contains("/season/3"), Mockito.anyMap(), Mockito.eq("GET")))
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(contains("/season/3"), anyMap(), eq("GET")))
                     .thenThrow(new RuntimeException("network"));
             assertTrue(((JSONArray) invoke("fetchTmdbSeasonEpisodes", new Class[]{String.class, String.class, String.class}, "123", "3", "en-US")).isEmpty());
         }
@@ -437,8 +487,8 @@ class ImdbMetadataServiceTest {
 
     @Test
     void remoteMetadataHelpers_coverEmptyMalformedAndLocalizationBranches() throws Exception {
-        try (MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
-            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(Mockito.anyString(), Mockito.anyMap(), Mockito.eq("GET")))
+        try (MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(anyString(), anyMap(), eq("GET")))
                     .thenAnswer(invocation -> new com.uiptv.util.HttpUtil.HttpResult(200,
                             branchMetadataBodyFor(invocation.getArgument(0, String.class)), Map.of(), Map.of()));
 
@@ -467,14 +517,14 @@ class ImdbMetadataServiceTest {
         }
 
         I18n.setLocale("fr-FR");
-        ConfigurationService configurationService = Mockito.mock(ConfigurationService.class);
+        ConfigurationService configurationService = mock(ConfigurationService.class);
         com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
         configuration.setTmdbReadAccessToken("token");
-        try (MockedStatic<ConfigurationService> configurationStatic = Mockito.mockStatic(ConfigurationService.class);
-             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = Mockito.mockStatic(com.uiptv.util.HttpUtil.class)) {
+        try (MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
             configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
-            Mockito.when(configurationService.read()).thenReturn(configuration);
-            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(Mockito.anyString(), Mockito.anyMap(), Mockito.eq("GET")))
+            when(configurationService.read()).thenReturn(configuration);
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(anyString(), anyMap(), eq("GET")))
                     .thenAnswer(invocation -> new com.uiptv.util.HttpUtil.HttpResult(200,
                             branchMetadataBodyFor(invocation.getArgument(0, String.class)), Map.of(), Map.of()));
 

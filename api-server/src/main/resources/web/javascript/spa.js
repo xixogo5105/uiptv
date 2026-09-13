@@ -43,7 +43,24 @@ createApp({
         const playbackGestureRequired = ref(false);
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
-        const playerExpanded = ref(false);
+        const wideViewActive = ref(false);
+        const showSettingsModal = ref(false);
+        const defaultWideView = ref(localStorage.getItem('uiptv_default_wide_view') === '1');
+        const playerEnginePref = ref(localStorage.getItem('uiptv_player_engine_pref') || 'auto');
+
+        const openSettings = () => { showSettingsModal.value = true; };
+        const closeSettings = () => { showSettingsModal.value = false; };
+        const applySettings = () => {
+            try {
+                localStorage.setItem('uiptv_default_wide_view', defaultWideView.value ? '1' : '0');
+                localStorage.setItem('uiptv_player_engine_pref', playerEnginePref.value || 'auto');
+            } catch (e) {
+                console.warn('Failed to persist settings', e);
+            }
+            // Apply to runtime - if wide view preference changed, adapt current layout
+            wideViewActive.value = !!defaultWideView.value;
+            closeSettings();
+        };
         const playerManuallyHidden = ref(false);
         const listLoading = ref(false);
         const listLoadingMessage = ref('Loading...');
@@ -51,12 +68,15 @@ createApp({
         const dragOverBookmarkId = ref('');
         const suppressNextBookmarkClick = ref(false);
         const bookmarkOverflowToggleRef = ref(null);
+        const isBookmarkOverflowDropdownOpen = ref(false);
         const recentBookmarkHistory = ref([]);
         const bingeWatchLoading = ref(false);
         const activeBingeWatch = ref({token: '', currentEpisodeId: '', items: []});
 
         const playerInstance = ref(null);
         const mpegtsPlayer = ref(null);
+        const hlsPlayer = ref(null);
+        const videoJsPlayer = ref(null);
         const videoPlayer = ref(null);
         const videoTracks = ref([]);
         const audioTracks = ref([]);
@@ -78,6 +98,11 @@ createApp({
         let playbackRequestId = 0;
         let playbackFetchController = null;
         let playbackGestureResume = null;
+        // Prevent overlapping startPlayback runs; if one is stuck, abort it so the next click can proceed.
+        let playbackInFlight = false;
+        let currentPlaybackRequestId = 0;
+        // UI debounce flag to briefly disable play buttons after a click to give feedback and avoid rapid duplicates.
+        const playClicksDisabled = ref(false);
         const languageNames = typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
             ? new Intl.DisplayNames([navigator.language || 'en'], {type: 'language'})
             : null;
@@ -850,10 +875,27 @@ createApp({
         });
         const bookmarkPrimaryTabs = computed(() => bookmarkCategoryTabs.value.slice(0, 7));
         const bookmarkOverflowTabs = computed(() => bookmarkCategoryTabs.value.slice(7));
-        const isSelectedBookmarkInOverflow = computed(() => {
+        const isBookmarkOverflowActive = computed(() => {
             const selected = String(selectedBookmarkCategoryId.value || '');
             return bookmarkOverflowTabs.value.some(tab => String(tab?.id || '') === selected);
         });
+        const selectedBookmarkCategoryLabel = computed(() => {
+            const selectedId = String(selectedBookmarkCategoryId.value || '');
+            const found = bookmarkCategoryTabs.value.find(tab => String(tab?.id || '') === selectedId);
+            return found ? String(found.name || '') : 'More';
+        });
+
+        const toggleBookmarkOverflowDropdown = () => {
+            isBookmarkOverflowDropdownOpen.value = !isBookmarkOverflowDropdownOpen.value;
+        };
+
+        const hideBookmarkOverflowDropdown = () => {
+            isBookmarkOverflowDropdownOpen.value = false;
+            const toggle = bookmarkOverflowToggleRef.value;
+            if (!toggle || typeof bootstrap === 'undefined' || !bootstrap?.Dropdown) return;
+            const instance = bootstrap.Dropdown.getOrCreateInstance(toggle);
+            instance.hide();
+        };
 
         const canReorderBookmarks = computed(() => {
             return activeTab.value === 'bookmarks'
@@ -937,7 +979,7 @@ createApp({
         );
         const playerPanelVisible = computed(() => hasPlayerContent.value && !playerManuallyHidden.value);
         const playbackSeekable = computed(() => Number.isFinite(playbackDuration.value) && playbackDuration.value > 0);
-        const widePlayerProgressVisible = computed(() => playerExpanded.value && isPlaying.value);
+        const widePlayerProgressVisible = computed(() => wideViewActive.value && isPlaying.value);
 
         const setBrowserTitle = () => {
             const channelTitle = String(currentChannelDebugTitle.value || '').trim();
@@ -968,8 +1010,9 @@ createApp({
             });
         };
         const resetPlaybackDefaults = () => {
-            strategyOverride.value = 'auto';
             strategyOverrideKey = '';
+            const pref = String(playerEnginePref.value || 'auto').toLowerCase();
+            strategyOverride.value = pref && pref !== 'auto' ? pref : 'auto';
             syncSharedHeader();
             syncSharedMenus();
         };
@@ -1226,6 +1269,11 @@ createApp({
                 thumbnailsEnabled.value = config?.enableThumbnails !== false;
             } catch (e) {
                 thumbnailsEnabled.value = true;
+            }
+            // Apply persisted player engine preference
+            const pref = String(playerEnginePref.value || 'auto').toLowerCase();
+            if (pref && pref !== 'auto') {
+                strategyOverride.value = pref;
             }
         };
 
@@ -1780,13 +1828,7 @@ createApp({
         const selectBookmarkCategory = (categoryId) => {
             selectedBookmarkCategoryId.value = String(categoryId || '');
             clearSearch();
-        };
-
-        const hideBookmarkOverflowDropdown = () => {
-            const toggle = bookmarkOverflowToggleRef.value;
-            if (!toggle || typeof bootstrap === 'undefined' || !bootstrap?.Dropdown) return;
-            const instance = bootstrap.Dropdown.getOrCreateInstance(toggle);
-            instance.hide();
+            hideBookmarkOverflowDropdown();
         };
 
         const onBookmarkOverflowSelect = (categoryId) => {
@@ -2016,20 +2058,20 @@ createApp({
         const hidePlayerPanel = () => {
             if (!hasPlayerContent.value) return;
             playerManuallyHidden.value = true;
-            playerExpanded.value = false;
+            wideViewActive.value = false;
         };
 
         const togglePlayerPanel = () => {
             if (!hasPlayerContent.value) return;
             playerManuallyHidden.value = !playerManuallyHidden.value;
             if (playerManuallyHidden.value) {
-                playerExpanded.value = false;
+                wideViewActive.value = false;
             }
         };
 
-        const togglePlayerExpanded = () => {
+        const toggleWideView = () => {
             if (!playerPanelVisible.value) return;
-            playerExpanded.value = !playerExpanded.value;
+            wideViewActive.value = !wideViewActive.value;
             nextTick(() => {
                 const video = videoPlayer.value;
                 if (video && typeof video.play === 'function' && isPlaying.value && video.paused && !video.ended) {
@@ -2042,12 +2084,6 @@ createApp({
             return broadcasting
                 ? '/images/broadcast-on.svg?v=20260705a'
                 : '/images/broadcast-off.svg?v=20260705a';
-        };
-
-        const syncPlayerExpandedClass = () => {
-            const root = document.getElementById('app');
-            if (!root) return;
-            root.classList.toggle('player-expanded', !!playerExpanded.value);
         };
 
         const selectAccount = async (account) => {
@@ -2324,7 +2360,7 @@ createApp({
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
             };
-            await startPlayback(playbackUrl, nextChannel, {expandPlayer: true});
+            await startPlayback(playbackUrl, nextChannel, {wideView: true});
             window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
             return true;
         };
@@ -2402,7 +2438,7 @@ createApp({
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
             };
-            await startPlayback(playbackUrl, nextChannel, {expandPlayer: true});
+            await startPlayback(playbackUrl, nextChannel, {wideView: true});
 
             const cleanUrl = `${window.location.origin}${window.location.pathname}`;
             window.history.replaceState({}, document.title, cleanUrl);
@@ -2442,7 +2478,7 @@ createApp({
                 type: 'channel',
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
-            }, {expandPlayer: true});
+            }, {wideView: true});
             window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
             return true;
         };
@@ -2553,21 +2589,6 @@ createApp({
                 mode: modeToUse,
                 playRequestUrl: playbackUrl
             };
-            if (isPendingPlaybackTarget({
-                id: nextChannel.channelId || nextChannel.id || '',
-                accountId: nextChannel.accountId || '',
-                mode: nextChannel.mode || '',
-                season: nextChannel.season || '',
-                episodeNum: nextChannel.episodeNum || ''
-            }) || matchesCurrentPlayback({
-                id: nextChannel.channelId || nextChannel.id || '',
-                accountId: nextChannel.accountId || '',
-                mode: nextChannel.mode || '',
-                season: nextChannel.season || '',
-                episodeNum: nextChannel.episodeNum || ''
-            })) {
-                return;
-            }
             startPlayback(playbackUrl, nextChannel);
         };
 
@@ -2594,21 +2615,6 @@ createApp({
                 mode: bookmarkMode,
                 playRequestUrl: playbackUrl
             };
-            if (isPendingPlaybackTarget({
-                id: nextChannel.channelId || '',
-                accountId: nextChannel.accountId || '',
-                accountName: nextChannel.accountName || '',
-                mode: nextChannel.mode || '',
-                bookmarkId: nextChannel.bookmarkId || ''
-            }) || matchesCurrentPlayback({
-                id: nextChannel.channelId || '',
-                accountId: nextChannel.accountId || '',
-                accountName: nextChannel.accountName || '',
-                mode: nextChannel.mode || '',
-                bookmarkId: nextChannel.bookmarkId || ''
-            })) {
-                return;
-            }
             recordRecentlyPlayedBookmark(bookmark);
             startPlayback(playbackUrl, nextChannel);
         };
@@ -2938,11 +2944,19 @@ createApp({
 
         const playWithGestureFallback = async (playAction) => {
             if (typeof playAction !== 'function') return true;
+            const myRequestId = playbackRequestId;
             try {
                 await playAction();
                 clearPlaybackGestureRequirement();
                 return true;
             } catch (e) {
+                // If a newer playback request started meanwhile and the play() was interrupted by pause,
+                // treat this as a benign cancellation instead of surfacing an error to the user.
+                const errText = String(e?.message || e || '').toLowerCase();
+                if (playbackRequestId !== myRequestId && errText.includes('interrupted by a call to pause')) {
+                    return false;
+                }
+
                 if (!isPlaybackGestureError(e)) {
                     throw e;
                 }
@@ -2953,6 +2967,10 @@ createApp({
                         clearPlaybackGestureRequirement();
                         return true;
                     } catch (mutedError) {
+                        const mutedText = String(mutedError?.message || mutedError || '').toLowerCase();
+                        if (playbackRequestId !== myRequestId && mutedText.includes('interrupted by a call to pause')) {
+                            return false;
+                        }
                         if (!isPlaybackGestureError(mutedError)) {
                             throw mutedError;
                         }
@@ -2992,6 +3010,27 @@ createApp({
 
         const startPlayback = async (url, nextChannel = null, options = {}) => {
             const requestId = ++playbackRequestId;
+            // If another startPlayback is already running, abort it and process this request instead.
+            if (playbackInFlight) {
+                if (playbackFetchController) {
+                    try { playbackFetchController.abort(); } catch (_) {}
+                    playbackFetchController = null;
+                }
+                // Fully reset video element to prevent blank screen on rapid stream switch
+                const video = videoPlayer.value;
+                if (video) {
+                    video.pause();
+                    video.removeAttribute('src');
+                    video.src = '';
+                    video.load();
+                }
+                await stopPlayback(true);
+                // Small delay to let cleanup complete before starting the new request.
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+            playbackInFlight = true;
+            currentPlaybackRequestId = requestId;
+
             controlsVisible.value = true;
             playerManuallyHidden.value = false;
             const targetChannel = nextChannel ? {...nextChannel} : currentChannel.value;
@@ -2999,8 +3038,8 @@ createApp({
             if (switching) {
                 await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true, hideControls: false});
             }
-            if (options.expandPlayer === true) {
-                playerExpanded.value = true;
+            if (options.wideView === true) {
+                wideViewActive.value = true;
             }
             if (playbackFetchController) {
                 try {
@@ -3015,6 +3054,11 @@ createApp({
             if (channelKey && channelKey !== strategyOverrideKey) {
                 strategyOverride.value = 'auto';
                 strategyOverrideKey = channelKey;
+            }
+            // Apply persisted player engine preference (if not 'auto')
+            const pref = String(playerEnginePref.value || 'auto').toLowerCase();
+            if (pref && pref !== 'auto') {
+                strategyOverride.value = pref;
             }
             pendingPlaybackKey.value = buildPlaybackTargetKey({
                 id: targetChannel?.channelId || targetChannel?.id || '',
@@ -3056,7 +3100,7 @@ createApp({
                 playbackError.value = `Playback failed: ${e?.message || 'Unknown error'}`;
                 isPlaying.value = false;
             } finally {
-                if (requestId === playbackRequestId) {
+                if (requestId === currentPlaybackRequestId) {
                     playbackLoading.value = false;
                     if (!isPlaying.value) {
                         playbackMode.value = '';
@@ -3065,6 +3109,9 @@ createApp({
                     if (playbackFetchController === controller) {
                         playbackFetchController = null;
                     }
+
+                    // Ensure the in-flight flag is cleared.
+                    playbackInFlight = false;
                 }
             }
         };
@@ -3095,6 +3142,32 @@ createApp({
                 mpegtsPlayer.value = null;
             }
 
+            if (hlsPlayer.value) {
+                try {
+                    hlsPlayer.value.destroy();
+                } catch (e) {
+                    console.warn('Error destroying hls.js player', e);
+                }
+                hlsPlayer.value = null;
+            }
+
+            if (videoJsPlayer.value) {
+                try {
+                    videoJsPlayer.value.dispose();
+                } catch (e) {
+                    console.warn('Error destroying Video.js player', e);
+                }
+                videoJsPlayer.value = null;
+                // Ensure video element is fully reset after Video.js disposal
+                const video = videoPlayer.value;
+                if (video) {
+                    video.pause();
+                    video.removeAttribute('src');
+                    video.src = '';
+                    video.load();
+                }
+            }
+
             clearVideoElement(videoPlayer.value);
 
             if (!preserveUi) {
@@ -3104,7 +3177,7 @@ createApp({
                 currentChannel.value = null;
                 playbackError.value = '';
                 clearPlaybackGestureRequirement();
-                playerExpanded.value = false;
+                wideViewActive.value = false;
                 playerManuallyHidden.value = false;
                 clearActiveBingeWatch();
             }
@@ -3135,7 +3208,7 @@ createApp({
             if (hideControls) {
                 controlsVisible.value = false;
             }
-            playerExpanded.value = false;
+            wideViewActive.value = false;
             playerManuallyHidden.value = false;
             await stopPlayback(false);
         };
@@ -3188,8 +3261,25 @@ createApp({
                 await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)});
                 return;
             }
+            if (override === 'videojs') {
+                await loadVideoJs(channel);
+                return;
+            }
+            if (override === 'shaka') {
+                await loadShaka(channel);
+                return;
+            }
+            if (override === 'native') {
+                await loadNative(channel);
+                return;
+            }
+            // Legacy 'hls' override — hls.js was removed, route to Video.js
+            if (override === 'hls') {
+                await loadVideoJs(channel);
+                return;
+            }
 
-            const preferShakaFallback = isHls && !prefersNativeHls;
+            const preferHlsFallback = isHls && !prefersNativeHls;
             try {
                 if (hasDRM) {
                     await loadShaka(channel);
@@ -3198,14 +3288,15 @@ createApp({
                 } else if (isHls && prefersNativeHls) {
                     await loadNative(channel);
                 } else if (isHls) {
-                    await loadShaka(channel);
+                    // Prefer Video.js (VHS) for non-native HLS playback; Shaka remains the DRM-capable fallback.
+                    await loadVideoJs(channel);
                 } else if (canNative) {
                     await loadNative(channel);
                 } else {
-                    await loadShaka(channel);
+                    await loadVideoJs(channel);
                 }
             } catch (e) {
-                if (!hasDRM && !isTs && await tryProxyPlaybackFallback(channel, preferShakaFallback, e)) {
+                if (!hasDRM && !isTs && await tryProxyPlaybackFallback(channel, preferHlsFallback, e)) {
                     return;
                 }
                 throw e;
@@ -3221,7 +3312,7 @@ createApp({
             console.warn('Playback failed, retrying through local proxy.', previousError);
             const attempts = preferShaka
                 ? [loadShaka, loadNative]
-                : [loadNative, loadShaka];
+                : [loadNative, loadVideoJs];
             let lastError = previousError;
             for (const attempt of attempts) {
                 await stopPlayback(true);
@@ -3376,6 +3467,173 @@ createApp({
         const normalizeWebPlaybackUrl = (rawUrl) => playbackUtils.normalizeWebPlaybackUrl(rawUrl);
         const downgradeHttpsToHttpForKnownPaths = (url) => playbackUtils.downgradeHttpsToHttpForKnownPaths(url);
 
+        const loadVideoJs = async (channel) => {
+            await nextTick();
+            const video = videoPlayer.value;
+            if (!video) return;
+
+            bindPlaybackEvents(video);
+            const sourceUrl = normalizeWebPlaybackUrl(channel.url);
+
+            if (!window.videojs) {
+                console.error('Video.js is not loaded.');
+                playbackError.value = 'Playback failed: Video.js is not available.';
+                throw new Error('Video.js is not available');
+            }
+
+            if (videoJsPlayer.value) {
+                try { videoJsPlayer.value.dispose(); } catch (_) {}
+                videoJsPlayer.value = null;
+                // Force full video element reset to prevent blank screen on rapid stream switch
+                video.pause();
+                video.removeAttribute('src');
+                video.src = '';
+                video.load();
+                await new Promise(resolve => setTimeout(resolve, 30));
+            }
+
+            const normalizedUri = String(channel.url || '').toLowerCase();
+            let sourceType = '';
+            if (normalizedUri.includes('.m3u8') || normalizedUri.includes('.m3u?')) {
+                sourceType = 'application/x-mpegURL';
+            } else if (normalizedUri.includes('.mpd')) {
+                sourceType = 'application/dash+xml';
+            }
+
+            try {
+                const player = window.videojs(video, {
+                    controls: false,
+                    autoplay: true,
+                    preload: 'auto',
+                    playsinline: true,
+                    html5: {
+                        hls: {
+                            enableWorker: true,
+                            enableWorkerToken: true,
+                            maxBufferLength: 60,
+                            maxMaxBufferLength: 120,
+                            maxLoadingDelay: 4,
+                            lowLatencyMode: false,
+                            abrEnabled: true,
+                            capLevelToPlayerSize: false,
+                            startLevel: -1,
+                            useAccurateLiveSeekToEnd: true
+                        },
+                        dash: {
+                            autoLiveStartParam: true
+                        }
+                    }
+                });
+                videoJsPlayer.value = player;
+
+                player.on('error', (e) => {
+                    const err = player && player.error ? player.error() : null;
+                    const msg = (err && err.message) ? err.message : 'Video.js error';
+                    console.error('Video.js error:', err, e);
+                    playbackError.value = `Playback error: ${msg}`;
+                });
+
+                player.on('loadedmetadata', () => {
+                    refreshVideoJsTracks(player);
+                });
+                player.on('qualitylevelchange', () => {
+                    refreshVideoJsTracks(player);
+                });
+                player.on('audiotrackchange', () => {
+                    refreshVideoJsTracks(player);
+                });
+                player.on('texttrackchange', () => {
+                    refreshVideoJsTracks(player);
+                });
+
+                if (sourceType) {
+                    player.src({src: sourceUrl, type: sourceType});
+                } else {
+                    player.src(sourceUrl);
+                }
+
+                const playAction = typeof player.play === 'function'
+                    ? () => player.play()
+                    : () => video.play();
+                await playWithGestureFallback(playAction);
+                playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'videojs');
+                refreshVideoJsTracks(player);
+                return;
+            } catch (e) {
+                console.warn('Video.js playback failed', e);
+                throw e;
+            }
+        };
+
+        const refreshVideoJsTracks = (player) => {
+            if (!player) return;
+
+            try {
+                const levels = typeof player.qualityLevels === 'function' ? player.qualityLevels() : null;
+                if (levels && typeof levels.toArray === 'function') {
+                    const allLevels = levels.toArray();
+                    videoTracks.value = allLevels.map((level, idx) => ({
+                        id: `vjs-q-${idx}`,
+                        index: idx,
+                        bandwidth: Number(level.bitrate || 0),
+                        width: Number(level.width || 0),
+                        height: Number(level.height || 0),
+                        label: level.height ? `${level.height}p (${Math.round((Number(level.bitrate || 0) / 1000) || 0)} kbps)` : `${Math.round((Number(level.bitrate || 0) / 1000) || 0)} kbps`,
+                        active: !!level.enabled
+                    })).filter((track, idx, arr) => arr.findIndex(other =>
+                        Number(other.height || 0) === Number(track.height || 0)
+                        && Number(other.bandwidth || 0) === Number(track.bandwidth || 0)
+                    ) === idx).sort((a, b) => (Number(a.height || 0) - Number(b.height || 0)) || (Number(a.bandwidth || 0) - Number(b.bandwidth || 0)));
+                } else {
+                    videoTracks.value = [];
+                }
+            } catch (e) {
+                videoTracks.value = [];
+            }
+
+            try {
+                const audioTracksList = typeof player.audioTracks === 'function' ? player.audioTracks() : null;
+                if (audioTracksList && typeof audioTracksList.toArray === 'function') {
+                    const allAudio = audioTracksList.toArray();
+                    const audioByKey = new Map();
+                    for (const track of allAudio) {
+                        const key = `${String(track.language || '')}|${String(track.label || '')}`;
+                        if (!audioByKey.has(key)) {
+                            audioByKey.set(key, {
+                                id: key,
+                                language: track.language || '',
+                                label: track.label || '',
+                                active: !!track.enabled
+                            });
+                        } else if (track.enabled) {
+                            audioByKey.get(key).active = true;
+                        }
+                    }
+                    audioTracks.value = Array.from(audioByKey.values());
+                } else {
+                    audioTracks.value = [];
+                }
+            } catch (e) {
+                audioTracks.value = [];
+            }
+
+            try {
+                const textTracksList = typeof player.textTracks === 'function' ? player.textTracks() : null;
+                if (textTracksList && typeof textTracksList.toArray === 'function') {
+                    const allText = textTracksList.toArray();
+                    textTracks.value = allText.map(t => ({
+                        id: String(t.id || t.label || t.language || ''),
+                        label: t.label || t.language || '',
+                        active: t.mode === 'showing'
+                    }));
+                } else {
+                    textTracks.value = [];
+                }
+            } catch (e) {
+                textTracks.value = [];
+            }
+        };
+
         const loadShaka = async (channel) => {
             await nextTick();
             const video = videoPlayer.value;
@@ -3488,85 +3746,329 @@ createApp({
             selectedTextTrackId.value = selectedText ? String(selectedText.id) : 'off';
         };
 
-        const switchVideoTrack = (trackId) => {
-            if (!playerInstance.value) return;
-            const track = playerInstance.value.getVariantTracks().find(t => t.id === trackId);
-            if (track) {
-                setMaxQualityEnabled(false);
-                playerInstance.value.selectVariantTrack(track, true);
-                if (typeof playerInstance.value.configure === 'function') {
-                    playerInstance.value.configure('abr.enabled', false);
+        const refreshHlsTracks = (hls) => {
+            try {
+                if (!hls || !Array.isArray(hls.levels)) {
+                    videoTracks.value = [];
+                } else {
+                    // levels have attributes: {url, attrs: {BANDWIDTH}, bitrate, width, height}
+                    const leveled = hls.levels.map((lvl, idx) => ({
+                        id: `hls-${idx}`,
+                        index: idx,
+                        bandwidth: Number(lvl.bitrate || (lvl.attrs && Number(lvl.attrs.BANDWIDTH)) || 0),
+                        width: Number(lvl.width || 0),
+                        height: Number(lvl.height || 0),
+                        label: lvl.height ? `${lvl.height}p (${Math.round((Number(lvl.bitrate||0)/1000)||0)} kbps)` : `${Math.round((Number(lvl.bitrate||0)/1000)||0)} kbps`,
+                        active: idx === (typeof hls.currentLevel === 'number' ? hls.currentLevel : -1)
+                    }));
+                    // dedupe by resolution+bandwidth
+                    const seen = new Map();
+                    const filtered = [];
+                    for (const t of leveled) {
+                        const key = `${t.height}|${t.bandwidth}`;
+                        if (!seen.has(key)) { seen.set(key, true); filtered.push(t); }
+                    }
+                    filtered.sort((a,b) => (Number(a.height||0) - Number(b.height||0)) || (Number(a.bandwidth||0)-Number(b.bandwidth||0)));
+                    videoTracks.value = filtered;
                 }
-                refreshShakaTracks(playerInstance.value);
+
+                // audio tracks
+                const hlsAudio = Array.isArray(hls.audioTracks) ? hls.audioTracks : [];
+                const audioByKey = new Map();
+                let selectedAudioKey = '';
+                if (typeof hls.audioTrack === 'number') {
+                    const sel = hls.audioTracks[hls.audioTrack];
+                    if (sel) selectedAudioKey = `${String(sel.lang||'')}|${String(sel.name||'')}`;
+                }
+                for (let i=0;i<hlsAudio.length;i++) {
+                    const at = hlsAudio[i];
+                    const key = `${String(at.lang||'')}|${String(at.name||'')}`;
+                    if (!audioByKey.has(key)) {
+                        audioByKey.set(key, {id: key, language: at.lang||'', label: at.name||'', active: key===selectedAudioKey});
+                    } else if (key===selectedAudioKey) {
+                        audioByKey.get(key).active = true;
+                    }
+                }
+                audioTracks.value = Array.from(audioByKey.values());
+
+                // text tracks rely on native video.textTracks
+                const texts = Array.from((videoPlayer.value && videoPlayer.value.textTracks) || []).map(t => ({id: t.id || t.label || t.language || '', label: t.label || t.language || '', active: t.mode === 'showing'}));
+                textTracks.value = texts;
+                const selectedText = texts.find(t => t && t.active);
+                selectedTextTrackId.value = selectedText ? String(selectedText.id) : 'off';
+            } catch (e) {
+                console.warn('Failed to refresh HLS tracks', e);
+            }
+        };
+
+        const switchVideoTrack = (trackId) => {
+            // Video.js (VHS) path
+            if (videoJsPlayer.value) {
+                setMaxQualityEnabled(false);
+                const qlevels = videoJsPlayer.value.qualityLevels();
+                if (qlevels && qlevels.length > 0) {
+                    const match = (videoTracks.value || []).find(t => String(t.id) === String(trackId));
+                    const targetIndex = match && typeof match.index === 'number' ? match.index : -1;
+                    if (targetIndex >= 0) {
+                        qlevels.auto = false;
+                        for (let i = 0; i < qlevels.length; i++) {
+                            qlevels[i].enabled = (i === targetIndex);
+                        }
+                    }
+                }
+                refreshVideoJsTracks(videoJsPlayer.value);
+                return;
+            }
+            // Attempt SHAKA first
+            if (playerInstance.value) {
+                const track = playerInstance.value.getVariantTracks().find(t => t.id === trackId);
+                if (track) {
+                    setMaxQualityEnabled(false);
+                    playerInstance.value.selectVariantTrack(track, true);
+                    if (typeof playerInstance.value.configure === 'function') {
+                        playerInstance.value.configure('abr.enabled', false);
+                    }
+                    refreshShakaTracks(playerInstance.value);
+                    return;
+                }
+            }
+            // Attempt HLS
+            if (hlsPlayer.value) {
+                const match = (videoTracks.value || []).find(t => String(t.id) === String(trackId));
+                if (match && typeof hlsPlayer.value.currentLevel !== 'undefined') {
+                    try {
+                        setMaxQualityEnabled(false);
+                        // match.index if present
+                        const lvlIndex = (typeof match.index === 'number') ? match.index : (match.index || 0);
+                        hlsPlayer.value.currentLevel = Number(lvlIndex);
+                        refreshHlsTracks(hlsPlayer.value);
+                    } catch (e) {
+                        console.warn('Failed to switch hls level', e);
+                    }
+                }
             }
         };
 
         const switchVideoAuto = () => {
-            if (!playerInstance.value) return;
-            setMaxQualityEnabled(false);
-            if (typeof playerInstance.value.configure === 'function') {
-                playerInstance.value.configure('abr.enabled', true);
+            if (videoJsPlayer.value) {
+                setMaxQualityEnabled(false);
+                try {
+                    // Video.js auto = ABR enabled
+                    const qlevels = videoJsPlayer.value.qualityLevels();
+                    if (qlevels) qlevels.auto = true;
+                } catch (e) { console.warn('Failed to set Video.js ABR', e); }
+                refreshVideoJsTracks(videoJsPlayer.value);
+                return;
             }
-            refreshShakaTracks(playerInstance.value);
+            if (playerInstance.value) {
+                setMaxQualityEnabled(false);
+                if (typeof playerInstance.value.configure === 'function') {
+                    playerInstance.value.configure('abr.enabled', true);
+                }
+                refreshShakaTracks(playerInstance.value);
+                return;
+            }
+            if (hlsPlayer.value) {
+                setMaxQualityEnabled(false);
+                try {
+                    // -1 is auto in hls.js
+                    hlsPlayer.value.currentLevel = -1;
+                    refreshHlsTracks(hlsPlayer.value);
+                } catch (e) { console.warn('Failed to set hls auto level', e); }
+            }
         };
 
         const switchVideoMax = () => {
-            if (!playerInstance.value) return;
-            setMaxQualityEnabled(true);
-            applyMaxQualityPreference(playerInstance.value);
-            refreshShakaTracks(playerInstance.value);
+            if (videoJsPlayer.value) {
+                setMaxQualityEnabled(true);
+                const qlevels = videoJsPlayer.value.qualityLevels();
+                if (qlevels && qlevels.length > 0) {
+                    qlevels.auto = false;
+                    let best = 0;
+                    for (let i = 1; i < qlevels.length; i++) {
+                        const h = qlevels[i];
+                        if ((Number(h.height || 0) > Number(qlevels[best].height || 0)) ||
+                            ((Number(h.height || 0) === Number(qlevels[best].height || 0)) && Number(h.bitrate || 0) > Number(qlevels[best].bitrate || 0))) {
+                            best = i;
+                        }
+                    }
+                    for (let i = 0; i < qlevels.length; i++) {
+                        qlevels[i].enabled = (i === best);
+                    }
+                }
+                refreshVideoJsTracks(videoJsPlayer.value);
+                return;
+            }
+            if (playerInstance.value) {
+                setMaxQualityEnabled(true);
+                applyMaxQualityPreference(playerInstance.value);
+                refreshShakaTracks(playerInstance.value);
+                return;
+            }
+            if (hlsPlayer.value) {
+                setMaxQualityEnabled(true);
+                try {
+                    // choose highest level index
+                    const levels = hlsPlayer.value.levels || [];
+                    if (levels.length > 0) {
+                        let best = 0;
+                        for (let i=0;i<levels.length;i++) {
+                            const h = levels[i];
+                            if ((Number(h.height||0) > Number(levels[best].height||0)) || ((Number(h.height||0)===Number(levels[best].height||0)) && Number(h.bitrate||0) > Number(levels[best].bitrate||0))) {
+                                best = i;
+                            }
+                        }
+                        hlsPlayer.value.currentLevel = best;
+                        refreshHlsTracks(hlsPlayer.value);
+                    }
+                } catch (e) { console.warn('Failed to set hls max level', e); }
+            }
         };
 
         const switchAudioTrack = (trackId) => {
-            if (!playerInstance.value) return;
-            const [language, role, label] = String(trackId || '').split('|');
-            const target = (audioTracks.value || []).find(track =>
+            // Video.js (VHS) path
+            if (videoJsPlayer.value) {
+                const target = (audioTracks.value || []).find(track => String(track.id) === String(trackId));
+                if (target) {
+                    const tracks = videoJsPlayer.value.audioTracks();
+                    if (tracks) {
+                        for (let i = 0; i < tracks.length; i++) {
+                            tracks[i].enabled = false;
+                        }
+                        for (let i = 0; i < tracks.length; i++) {
+                            const t = tracks[i];
+                            if (String(t.language || '') === String(target.language || '') &&
+                                String(t.label || '') === String(target.label || '')) {
+                                t.enabled = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                refreshVideoJsTracks(videoJsPlayer.value);
+                return;
+            }
+            // Shaka path
+            if (playerInstance.value) {
+                const [language, role, label] = String(trackId || '').split('|');
+                const target = (audioTracks.value || []).find(track =>
                     String(track.id) === String(trackId)
                     || (
                         String(track.language || '') === String(language || '')
                         && String(track.role || '') === String(role || '')
                         && String(track.label || '') === String(label || '')
                     )
-            );
-            if (target && typeof playerInstance.value.selectAudioLanguage === 'function' && normalizeLanguageCode(target.language)) {
-                playerInstance.value.selectAudioLanguage(target.language || '', target.role || '');
-                refreshShakaTracks(playerInstance.value);
+                );
+                if (target && typeof playerInstance.value.selectAudioLanguage === 'function' && normalizeLanguageCode(target.language)) {
+                    playerInstance.value.selectAudioLanguage(target.language || '', target.role || '');
+                    refreshShakaTracks(playerInstance.value);
+                    return;
+                }
+                const fallback = (playerInstance.value.getVariantTracks ? playerInstance.value.getVariantTracks() : [])
+                    .find(track =>
+                        String(track.language || '') === String(language || '')
+                        && String(track.roles?.[0] || '') === String(role || '')
+                    );
+                if (fallback) {
+                    playerInstance.value.selectVariantTrack(fallback, true);
+                    refreshShakaTracks(playerInstance.value);
+                    return;
+                }
                 return;
             }
-            const fallback = (playerInstance.value.getVariantTracks ? playerInstance.value.getVariantTracks() : [])
-                .find(track =>
-                    String(track.language || '') === String(language || '')
-                    && String(track.roles?.[0] || '') === String(role || '')
-                );
-            if (fallback) {
-                playerInstance.value.selectVariantTrack(fallback, true);
-                refreshShakaTracks(playerInstance.value);
+
+            // HLS/native path
+            if (hlsPlayer.value && Array.isArray(hlsPlayer.value.audioTracks)) {
+                const [language, , label] = String(trackId || '').split('|');
+                const audioList = hlsPlayer.value.audioTracks || [];
+                let targetIndex = -1;
+                for (let i = 0; i < audioList.length; i++) {
+                    const at = audioList[i];
+                    const key = `${String(at.lang||'')}|${String(at.name||'')}`;
+                    if (String(key) === String(trackId) || String(at.lang||'') === String(language||'') || String(at.name||'') === String(label||'')) {
+                        targetIndex = i; break;
+                    }
+                }
+                if (targetIndex >= 0) {
+                    try { hlsPlayer.value.audioTrack = Number(targetIndex); } catch (e) { console.warn('Failed to switch hls audio track', e); }
+                    refreshHlsTracks(hlsPlayer.value);
+                }
             }
         };
 
         const switchTextTrack = async (trackId) => {
-            if (!playerInstance.value) return;
-            if (trackId === 'off') {
-                selectedTextTrackId.value = 'off';
-                if (typeof playerInstance.value.setTextTrackVisibility === 'function') {
-                    await playerInstance.value.setTextTrackVisibility(false);
-                } else if (typeof playerInstance.value.selectTextLanguage === 'function') {
-                    playerInstance.value.selectTextLanguage('');
+            // Video.js (VHS) path
+            if (videoJsPlayer.value) {
+                const tracks = videoJsPlayer.value.textTracks();
+                if (tracks) {
+                    if (trackId === 'off') {
+                        for (let i = 0; i < tracks.length; i++) {
+                            try { tracks[i].mode = 'disabled'; } catch (e) {}
+                        }
+                        selectedTextTrackId.value = 'off';
+                        refreshVideoJsTracks(videoJsPlayer.value);
+                        return;
+                    }
+                    for (let i = 0; i < tracks.length; i++) {
+                        try {
+                            const id = String(tracks[i].id || tracks[i].label || tracks[i].language || '');
+                            tracks[i].mode = id === String(trackId) ? 'showing' : 'disabled';
+                        } catch (e) {}
+                    }
+                    selectedTextTrackId.value = String(trackId);
+                    refreshVideoJsTracks(videoJsPlayer.value);
+                    return;
                 }
+            }
+            // Shaka path
+            if (playerInstance.value) {
+                if (trackId === 'off') {
+                    selectedTextTrackId.value = 'off';
+                    if (typeof playerInstance.value.setTextTrackVisibility === 'function') {
+                        await playerInstance.value.setTextTrackVisibility(false);
+                    } else if (typeof playerInstance.value.selectTextLanguage === 'function') {
+                        playerInstance.value.selectTextLanguage('');
+                    }
+                    refreshShakaTracks(playerInstance.value);
+                    return;
+                }
+                const track = (playerInstance.value.getTextTracks ? playerInstance.value.getTextTracks() : [])
+                    .find(t => String(t.id) === String(trackId));
+                if (!track) return;
+                if (typeof playerInstance.value.selectTextTrack === 'function') {
+                    playerInstance.value.selectTextTrack(track);
+                }
+                if (typeof playerInstance.value.setTextTrackVisibility === 'function') {
+                    await playerInstance.value.setTextTrackVisibility(true);
+                }
+                selectedTextTrackId.value = String(track.id);
                 refreshShakaTracks(playerInstance.value);
                 return;
             }
-            const track = (playerInstance.value.getTextTracks ? playerInstance.value.getTextTracks() : [])
-                .find(t => String(t.id) === String(trackId));
-            if (!track) return;
-            if (typeof playerInstance.value.selectTextTrack === 'function') {
-                playerInstance.value.selectTextTrack(track);
+
+            // HLS / native path using video.textTracks
+            const video = videoPlayer.value;
+            if (!video) return;
+            const texts = Array.from(video.textTracks || []);
+            if (trackId === 'off') {
+                for (const t of texts) {
+                    try { t.mode = 'disabled'; } catch (e) {}
+                }
+                selectedTextTrackId.value = 'off';
+                refreshHlsTracks(hlsPlayer.value);
+                return;
             }
-            if (typeof playerInstance.value.setTextTrackVisibility === 'function') {
-                await playerInstance.value.setTextTrackVisibility(true);
+            // trackId might be id or label
+            for (const t of texts) {
+                const id = String(t.id || t.label || t.language || '');
+                if (String(id) === String(trackId) || String(t.label || '') === String(trackId)) {
+                    try { t.mode = 'showing'; } catch (e) { console.warn('Failed to show text track', e); }
+                    selectedTextTrackId.value = id;
+                } else {
+                    try { t.mode = 'disabled'; } catch (e) {}
+                }
             }
-            selectedTextTrackId.value = String(track.id);
-            refreshShakaTracks(playerInstance.value);
+            refreshHlsTracks(hlsPlayer.value);
         };
 
         const toggleSeriesWatchingNow = async () => {
@@ -3780,7 +4282,7 @@ createApp({
                 mute: (event) => onPlayerControlClick(event, toggleMute),
                 fullscreen: (event) => onPlayerControlClick(event, requestFullscreenPlayer),
                 'hide-panel': hidePlayerPanel,
-                'expand-panel': togglePlayerExpanded,
+                 'toggle-layout': toggleWideView,
                 stop: (event) => onPlayerControlClick(event, stopPlaybackAndHide),
                 'quality-menu': () => {},
                 'audio-menu': () => {},
@@ -3801,7 +4303,7 @@ createApp({
                 isFullscreen: isFullscreen.value,
                 isFavorite: isCurrentFavorite.value,
                 isPlaying: headerVisible,
-                isPanelExpanded: playerExpanded.value
+                isPanelExpanded: wideViewActive.value
             });
             sharedHeader.setTitle({
                 title: baseTitle,
@@ -3816,10 +4318,21 @@ createApp({
             const maxEnabled = isMaxQualityEnabled();
             const abrEnabled = (() => {
                 try {
-                    return !!playerInstance.value?.getConfiguration()?.abr?.enabled;
+                    if (playerInstance.value && typeof playerInstance.value.getConfiguration === 'function') {
+                        return !!playerInstance.value.getConfiguration()?.abr?.enabled;
+                    }
+                } catch (_) {
+                    // fall through
+                }
+                try {
+                    if (videoJsPlayer.value && typeof videoJsPlayer.value.qualityLevels === 'function') {
+                        const qlevels = videoJsPlayer.value.qualityLevels();
+                        return !!qlevels && qlevels.length > 0 && !!qlevels.auto;
+                    }
                 } catch (_) {
                     return false;
                 }
+                return false;
             })();
             const qualityItems = [];
             qualityItems.push({
@@ -3981,7 +4494,7 @@ createApp({
         const resetApp = () => {
             stopPlayback();
             activeTab.value = 'bookmarks';
-            playerExpanded.value = false;
+            wideViewActive.value = false;
             playerManuallyHidden.value = false;
             viewState.value = 'accounts';
             contentMode.value = 'itv';
@@ -4057,10 +4570,6 @@ createApp({
             syncSharedMenus();
         }, {deep: true});
 
-        watch(playerExpanded, () => {
-            syncPlayerExpandedClass();
-        }, {immediate: true});
-
         return {
             activeTab,
             viewState,
@@ -4095,7 +4604,10 @@ createApp({
             bookmarkCategoryTabs,
             bookmarkPrimaryTabs,
             bookmarkOverflowTabs,
-            isSelectedBookmarkInOverflow,
+            isBookmarkOverflowActive,
+            isBookmarkOverflowDropdownOpen,
+            selectedBookmarkCategoryLabel,
+            toggleBookmarkOverflowDropdown,
             bookmarkOverflowToggleRef,
             seriesSeasonTabs,
             selectedSeriesSeason,
@@ -4127,7 +4639,8 @@ createApp({
             playbackGestureRequired,
             showOverlay,
             showBookmarkModal,
-            playerExpanded,
+            wideViewActive,
+            showSettingsModal,
             hasPlayerContent,
             playerPanelVisible,
             bingeWatchLoading,
@@ -4151,6 +4664,7 @@ createApp({
             isMuted,
             isFullscreen,
             playbackLoading,
+            playClicksDisabled,
             theme,
             themeIcon,
             contentMode,
@@ -4195,7 +4709,12 @@ createApp({
             focusSearch,
             hidePlayerPanel,
             togglePlayerPanel,
-            togglePlayerExpanded,
+            toggleWideView,
+            openSettings,
+            closeSettings,
+            defaultWideView,
+            playerEnginePref,
+            applySettings,
             broadcastIndicatorSrc,
             formatPlaybackTime,
             seekPlayback,

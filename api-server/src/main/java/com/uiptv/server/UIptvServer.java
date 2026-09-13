@@ -67,12 +67,12 @@ public class UIptvServer {
         routes.addExactPath("/icon-192.png", adapt(new HttpIconServer()));
         routes.addExactPath("/icon-512.png", adapt(new HttpIconServer()));
         routes.addExactPath("/icon-maskable-512.png", adapt(new HttpIconServer()));
-        routes.addPrefixPath("/images", adapt(new HttpImageServer()));
 
         // Static file servers
         routes.addPrefixPath("/javascript", adapt(new HttpJavascriptServer()));
         routes.addPrefixPath("/js", adapt(new HttpJavascriptServer()));
         routes.addPrefixPath("/css", adapt(new HttpCssServer()));
+        routes.addPrefixPath("/images", adapt(new HttpImageServer()));
 
         // Local stream proxy for web playback.
         routes.addPrefixPath("/proxy-stream", adapt(new HttpProxyStreamServer()));

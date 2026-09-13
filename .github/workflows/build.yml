@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
@@ -57,7 +57,7 @@ jobs:
           fetch-depth: 0 # Shallow clones should be disabled for better relevancy of analysis
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           java-version: '25'
           distribution: temurin
@@ -77,7 +77,7 @@ jobs:
           restore-keys: ${{ runner.os }}-m2
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@v6.3.0
 
       - name: Run mobile tests and coverage
         working-directory: mobile
@@ -135,7 +135,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
@@ -169,7 +169,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
@@ -196,7 +196,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
@@ -277,13 +277,13 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@v6.3.0
 
       - name: Restore API 24 libmpv AAR
         uses: actions/cache@v6
@@ -321,7 +321,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
