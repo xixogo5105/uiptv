@@ -51,10 +51,52 @@ public final class PlaybackUIService {
         );
     }
 
+    public enum PlaybackOrigin {
+        BOOKMARK,
+        ACCOUNT,
+        WATCHING_NOW,
+        NONE
+    }
+    private static volatile PlaybackOrigin lastPlaybackOrigin = PlaybackOrigin.NONE;
+    private static volatile Account lastPlaybackAccount = null;
+    private static volatile Channel lastPlaybackChannel = null;
+    private static volatile String lastPlaybackCategoryId = "";
+
+    public static PlaybackOrigin getLastPlaybackOrigin() {
+        return lastPlaybackOrigin;
+    }
+
+    public static Account getLastPlaybackAccount() {
+        return lastPlaybackAccount;
+    }
+
+    public static Channel getLastPlaybackChannel() {
+        return lastPlaybackChannel;
+    }
+
+    public static String getLastPlaybackCategoryId() {
+        return lastPlaybackCategoryId;
+    }
+
     public static void play(Node source, PlaybackRequest request) {
         if (source == null || request == null || request.account == null || request.channel == null) {
             return;
         }
+
+        if (source instanceof BookmarkChannelListUI) {
+            lastPlaybackOrigin = PlaybackOrigin.BOOKMARK;
+        } else if (source instanceof BaseWatchingNowUI) {
+            lastPlaybackOrigin = PlaybackOrigin.WATCHING_NOW;
+        } else {
+            lastPlaybackOrigin = PlaybackOrigin.ACCOUNT;
+        }
+        lastPlaybackAccount = request.account;
+        lastPlaybackChannel = request.channel;
+        String catId = request.categoryId;
+        if (isBlank(catId) && request.channel != null) {
+            catId = request.channel.getCategoryId();
+        }
+        lastPlaybackCategoryId = catId != null ? catId : "";
 
         Configuration configuration = ConfigurationService.getInstance().read();
         PlaybackModeContext context = buildPlaybackModeContext(configuration, request);

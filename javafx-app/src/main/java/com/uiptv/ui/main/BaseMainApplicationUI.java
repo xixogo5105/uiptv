@@ -1,6 +1,7 @@
 package com.uiptv.ui.main;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.Channel;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.*;
@@ -9,6 +10,7 @@ import com.uiptv.util.I18n;
 import com.uiptv.util.SystemUtils;
 import javafx.animation.PauseTransition;
 import javafx.application.HostServices;
+import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Scene;
@@ -24,6 +26,12 @@ import java.util.function.Supplier;
 public abstract class BaseMainApplicationUI {
 
     private static final Duration DEFERRED_TAB_GAP = Duration.millis(400);
+    // Tab index order: configurationTab=0, manageAccountTab=1, parseMultipleAccountTab=2,
+    //                  logDisplayTab=3, watchingNowTab=4, bookmarkChannelListTab=5
+    private static final int DEFAULT_TAB_INDEX = 5; // bookmarkChannelListTab
+    // Preserved across scene rebuilds (wide/narrow toggle) so user stays on same tab.
+    private static int lastSelectedTabIndex = DEFAULT_TAB_INDEX;
+
     protected final Stage primaryStage;
     protected final HostServices hostServices;
     protected final ConfigurationService configurationService;
@@ -63,7 +71,20 @@ public abstract class BaseMainApplicationUI {
         Tab logDisplayTab = new Tab(I18n.tr("autoLogs"), createDeferredPlaceholder());
         Tab configurationTab = new Tab(I18n.tr("autoSettings"), createDeferredPlaceholder());
 
+        tabPane.getTabs().addAll(configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab);
+
+        // Restore the tab the user was on before any wide/narrow rebuild.
+        // Tabs on the left must ALWAYS remain where they are!
+        int tabToSelect = (lastSelectedTabIndex >= 0 && lastSelectedTabIndex < tabPane.getTabs().size())
+                ? lastSelectedTabIndex : DEFAULT_TAB_INDEX;
+        tabPane.getSelectionModel().select(tabToSelect);
+
+        // Register listener AFTER initial selection so lastSelectedTabIndex is never overwritten during scene build
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            int idx = tabPane.getTabs().indexOf(newTab);
+            if (idx >= 0) {
+                lastSelectedTabIndex = idx;
+            }
             LogDisplayUI.setLoggingEnabled(newTab == logDisplayTab);
             if (newTab == watchingNowTab) {
                 WatchingNowUI watchingNowUI = watchingNowRef.get();
@@ -73,8 +94,16 @@ public abstract class BaseMainApplicationUI {
             }
         });
 
-        tabPane.getTabs().addAll(configurationTab, manageAccountTab, parseMultipleAccountTab, logDisplayTab, watchingNowTab, bookmarkChannelListTab);
-        tabPane.getSelectionModel().select(bookmarkChannelListTab);
+        // If user was on the account tab (or in narrow mode Column 2), restore the selected account's channel
+        if (PlaybackUIService.getLastPlaybackOrigin() == PlaybackUIService.PlaybackOrigin.ACCOUNT) {
+            Account lastAccount = PlaybackUIService.getLastPlaybackAccount();
+            String lastCatId = PlaybackUIService.getLastPlaybackCategoryId();
+            Channel lastChannel = PlaybackUIService.getLastPlaybackChannel();
+            if (lastAccount != null && (!useEmbeddedAccountFlow() || tabToSelect == 1)) {
+                Platform.runLater(() -> accountListUI.openAccountAndChannel(lastAccount, lastCatId, lastChannel));
+            }
+        }
+
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.setSide(Side.LEFT);
 
@@ -258,14 +287,36 @@ public abstract class BaseMainApplicationUI {
     }
 
     protected StackPane createEmbeddedPlayerShell(javafx.scene.Node playerNode) {
+        if (playerNode != null && playerNode.getParent() instanceof Pane parent) {
+            parent.getChildren().remove(playerNode);
+        }
         StackPane shell = new StackPane();
         shell.getStyleClass().add("embedded-player-shell");
         shell.setMinSize(0, 0);
         shell.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
         if (playerNode instanceof Region region) {
-            region.setMinSize(0, 0);
-            region.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+            region.minHeightProperty().unbind();
+            region.prefHeightProperty().unbind();
+            region.setMinWidth(0);
+            region.setPrefWidth(Region.USE_COMPUTED_SIZE);
+            region.setMaxWidth(Double.MAX_VALUE);
+            region.setMinHeight(0);
+            region.setPrefHeight(Region.USE_COMPUTED_SIZE);
+            region.setMaxHeight(Double.MAX_VALUE);
+        }
+        if (playerNode instanceof Pane pane && !pane.getChildren().isEmpty()) {
+            javafx.scene.Node active = pane.getChildren().get(0);
+            if (active instanceof Region region) {
+                region.minHeightProperty().unbind();
+                region.prefHeightProperty().unbind();
+                region.setMinWidth(0);
+                region.setPrefWidth(Region.USE_COMPUTED_SIZE);
+                region.setMaxWidth(Double.MAX_VALUE);
+                region.setMinHeight(0);
+                region.setPrefHeight(Region.USE_COMPUTED_SIZE);
+                region.setMaxHeight(Double.MAX_VALUE);
+            }
         }
 
         VBox placeholder = createEmbeddedPlayerPlaceholder();

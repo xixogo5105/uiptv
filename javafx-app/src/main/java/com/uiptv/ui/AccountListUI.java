@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
+import com.uiptv.model.Channel;
 import com.uiptv.service.AccountChangeListener;
 import com.uiptv.service.AccountResolver;
 import com.uiptv.service.AccountService;
@@ -241,6 +242,25 @@ public class AccountListUI extends HBox {
             embeddedContainer.getChildren().setAll(navHeader, currentContent);
         }
         getChildren().setAll(embeddedContainer);
+    }
+
+    public void openAccount(Account account) {
+        openAccountAndChannel(account, null, null);
+    }
+
+    public void openAccountAndChannel(Account account, String categoryId, Channel channelToSelect) {
+        if (account == null) {
+            return;
+        }
+        if (masterAccountItems.isEmpty()) {
+            refresh();
+        }
+        for (AccountItem item : masterAccountItems) {
+            if (account.getDbId() != null && account.getDbId().equals(item.getAccountId())) {
+                retrieveThreadedAccountCategories(item, account.getAction() != null ? account.getAction() : Account.AccountAction.itv, categoryId, channelToSelect);
+                break;
+            }
+        }
     }
 
     private void showDetailView(Node content) {
@@ -588,6 +608,10 @@ public class AccountListUI extends HBox {
     }
 
     private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction) {
+        retrieveThreadedAccountCategories(item, accountAction, null, null);
+    }
+
+    private void retrieveThreadedAccountCategories(AccountItem item, Account.AccountAction accountAction, String categoryIdToOpen, Channel channelToSelect) {
         Account account = accountService.getById(item.getAccountId());
         if (account == null) {
             showErrorAlert(I18n.tr("autoUnableToFindAccount"));
@@ -614,7 +638,12 @@ public class AccountListUI extends HBox {
                                         + " action=" + account.getAction()
                                         + " categories: " + message));
 
-                Platform.runLater(() -> categoryListUI.setItems(list));
+                Platform.runLater(() -> {
+                    categoryListUI.setItems(list);
+                    if (categoryIdToOpen != null && !categoryIdToOpen.isBlank()) {
+                        categoryListUI.openCategoryAndSelectChannel(categoryIdToOpen, channelToSelect);
+                    }
+                });
             } catch (Exception e) {
                 Platform.runLater(() -> showErrorAlert(I18n.tr("autoFailedRefreshChannels", e.getMessage())));
             } finally {

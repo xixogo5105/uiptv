@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.CategoryType;
+import com.uiptv.model.Channel;
 import com.uiptv.service.CategoryCacheRemovalService;
 import com.uiptv.service.CategoryResolver;
 import com.uiptv.service.CategoryService;
@@ -67,6 +68,25 @@ public class CategoryListUI extends HBox {
     TableColumn<CategoryItem, String> categoryId = new TableColumn<>("");
     private AtomicBoolean currentRequestCancelled;
     private Account.AccountAction activeMode;
+    private volatile Channel pendingChannelToSelect;
+
+    public void openCategoryAndSelectChannel(String categoryKey, Channel channelToSelect) {
+        if (categoryKey == null || categoryKey.isBlank()) {
+            return;
+        }
+        this.pendingChannelToSelect = channelToSelect;
+        Platform.runLater(() -> {
+            for (CategoryItem item : table.getItems()) {
+                if (item != null && (categoryKey.equalsIgnoreCase(item.getCategoryId())
+                        || categoryKey.equalsIgnoreCase(item.getId())
+                        || categoryKey.equalsIgnoreCase(item.getCategoryTitle()))) {
+                    table.getSelectionModel().select(item);
+                    doRetrieveChannels(item);
+                    break;
+                }
+            }
+        });
+    }
 
     public CategoryListUI(List<Category> list, Account account) { // Removed MediaPlayer argument
         this(account, false);
@@ -577,6 +597,10 @@ public class CategoryListUI extends HBox {
         channelListUIHolder[0] = ui;
         state.channelListUI = ui;
         state.selectedCategory = item;
+        if (pendingChannelToSelect != null) {
+            ui.setPendingChannelToSelect(pendingChannelToSelect);
+            pendingChannelToSelect = null;
+        }
         if (embeddedMode) {
             showDetailView(ui, title);
         } else {

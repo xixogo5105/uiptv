@@ -4,6 +4,8 @@ import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.AccountListUI;
 import javafx.application.HostServices;
+import javafx.beans.binding.Bindings;
+import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.TabPane;
@@ -40,26 +42,52 @@ public class MainApplicationUI extends BaseMainApplicationUI {
 
         MediaPlayerFactory.getPlayer();
         Node playerContainer = MediaPlayerFactory.getPlayerContainer();
+        if (playerContainer.getParent() instanceof Pane parent) {
+            parent.getChildren().remove(playerContainer);
+        }
+
         Node activePlayerNode = playerContainer;
         if (playerContainer instanceof Pane pane && !pane.getChildren().isEmpty()) {
             activePlayerNode = pane.getChildren().get(0);
         }
         if (activePlayerNode instanceof Region region) {
+            region.minHeightProperty().unbind();
+            region.prefHeightProperty().unbind();
             // Non-wide width: 478px player + 1px spacing each side = 480px total.
+            region.setMinWidth(478);
+            region.setPrefWidth(478);
+            region.setMaxWidth(478);
+        }
+        if (playerContainer instanceof Region region) {
+            region.minHeightProperty().unbind();
+            region.prefHeightProperty().unbind();
             region.setMinWidth(478);
             region.setPrefWidth(478);
             region.setMaxWidth(478);
         }
 
         HBox embeddedPlayer = new HBox(playerContainer);
-        // Keep total row width aligned with the fixed 480px left pane.
-        // 478px player + 1px left/right insets = 480px.
-        embeddedPlayer.setPadding(new javafx.geometry.Insets(1));
+        embeddedPlayer.setPadding(new Insets(1));
         embeddedPlayer.setMinWidth(480);
         embeddedPlayer.setPrefWidth(480);
         embeddedPlayer.setMaxWidth(480);
+
+        // DO NOT PRE-ALLOCATE SPACE:
+        // Bound to player visibility so it takes 0 space when idle, and only appears when playing
         embeddedPlayer.managedProperty().bind(activePlayerNode.managedProperty());
         embeddedPlayer.visibleProperty().bind(activePlayerNode.visibleProperty());
+
+        // Allocate 275px height when active so it is never squashed by VBox
+        embeddedPlayer.minHeightProperty().bind(
+                Bindings.when(activePlayerNode.visibleProperty())
+                        .then(275.0)
+                        .otherwise(0.0)
+        );
+        embeddedPlayer.prefHeightProperty().bind(
+                Bindings.when(activePlayerNode.visibleProperty())
+                        .then(275.0)
+                        .otherwise(0.0)
+        );
 
         VBox containerWithEmbeddedPlayer = new VBox();
         VBox.setVgrow(tabPane, Priority.ALWAYS);
@@ -78,3 +106,4 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         return false;
     }
 }
+

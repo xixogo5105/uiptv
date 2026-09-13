@@ -7,6 +7,11 @@ public final class EmbeddedPlayerWideViewUtil {
     private EmbeddedPlayerWideViewUtil() {
     }
 
+    public static boolean isEmbeddedEnabled() {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        return configuration != null && configuration.isEmbeddedPlayer();
+    }
+
     public static boolean isWideViewEnabled() {
         Configuration configuration = ConfigurationService.getInstance().read();
         return configuration != null && configuration.isEmbeddedPlayer() && configuration.isWideView();

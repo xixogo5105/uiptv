@@ -3,9 +3,11 @@ package com.uiptv.player;
 import com.uiptv.player.api.VideoPlayerInterface;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
+import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.BingeWatchService;
+import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.service.SeriesWatchStateChangeListener;
@@ -67,6 +69,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private static final String STYLE_CLASS_PLAYER_PIP_OVERLAY_BUTTON = "player-pip-overlay-button";
     public static final String PLAYER_ICON_BUTTON = "player-icon-button";
     public static final String PLAYER_TRACKS_MENU_ITEM = "player-tracks-menu-item";
+    private static final String STYLE_CLASS_PLAYER_LAYOUT_MODE_BUTTON = "player-layout-mode-button";
+    private static final String WIDE_LAYOUT_ICON = "M3 5H21V19H3V5ZM5 7V17H11V7H5ZM13 7V17H19V7H13Z";
+    private static final String NARROW_LAYOUT_ICON = "M3 5H21V19H3V5ZM5 7V17H14V7H5ZM16 7V17H19V7H16Z";
 
     // State
     protected boolean isMuted = true;
@@ -82,6 +87,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected static final int ASPECT_RATIO_STRETCH = 2;
     protected int aspectRatioMode = ASPECT_RATIO_FIT; // 0=Fit, 1=Fill (Zoom), 2=Stretch
     protected boolean isUserSeeking = false;
+    private final ConfigurationChangeListener layoutModeConfigurationChangeListener =
+            _ -> Platform.runLater(this::updateLayoutModeButton);
+    private boolean layoutModeConfigListenerRegistered;
 
     // UI Components
     protected Slider timeSlider;
@@ -106,6 +114,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected Button btnFastForward;
     protected Button btnAspectRatio;
     protected Button btnHideBar;
+    protected Button btnLayoutMode;
+    protected SVGPath layoutModeIcon;
     protected Button btnTracks;
     protected ContextMenu tracksContextMenu;
     protected ImageView playIcon;
@@ -227,6 +237,13 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btnHideBar = createIconButton(hideBarIcon);
         btnHideBar.setTooltip(new Tooltip(I18n.tr("autoHideThisBar")));
 
+        layoutModeIcon = createLayoutModeIcon();
+        btnLayoutMode = createIconButton(layoutModeIcon);
+        btnLayoutMode.getStyleClass().add(STYLE_CLASS_PLAYER_LAYOUT_MODE_BUTTON);
+        btnLayoutMode.setFocusTraversable(false);
+        updateLayoutModeButton();
+        registerLayoutModeConfigListener();
+
         btnTracks = createTrackRootButton();
         tracksContextMenu = new ContextMenu();
         UiI18n.preparePopupControl(tracksContextMenu, btnTracks);
@@ -255,7 +272,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         HBox buttonRow = new HBox(1.5);
         buttonRow.setAlignment(Pos.CENTER_LEFT);
-        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnAspectRatio);
+        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnLayoutMode, btnAspectRatio);
         buttonRow.getChildren().add(btnTracks);
         buttonRow.getChildren().add(btnHideBar);
 
@@ -398,6 +415,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             togglePip();
         });
         btnAspectRatio.setOnAction(e -> toggleAspectRatio());
+        btnLayoutMode.setOnAction(e -> toggleWideViewPreference());
         btnHideBar.setOnAction(e -> hideControlBarByUser());
         btnMute.setOnAction(e -> {
             isMuted = !isMuted;
@@ -1612,6 +1630,39 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         return btn;
     }
 
+    private Button createIconButton(SVGPath icon) {
+        Button btn = new Button();
+        btn.setGraphic(icon);
+        btn.setPadding(new Insets(3));
+        btn.getStyleClass().add(PLAYER_ICON_BUTTON);
+        return btn;
+    }
+
+    private SVGPath createLayoutModeIcon() {
+        SVGPath icon = new SVGPath();
+        icon.setContent(NARROW_LAYOUT_ICON);
+        icon.setFill(Color.WHITE);
+        icon.setScaleX(0.9);
+        icon.setScaleY(0.9);
+        return icon;
+    }
+
+    private void registerLayoutModeConfigListener() {
+        if (layoutModeConfigListenerRegistered) {
+            return;
+        }
+        ConfigurationService.getInstance().addChangeListener(layoutModeConfigurationChangeListener);
+        layoutModeConfigListenerRegistered = true;
+    }
+
+    private void unregisterLayoutModeConfigListener() {
+        if (!layoutModeConfigListenerRegistered) {
+            return;
+        }
+        ConfigurationService.getInstance().removeChangeListener(layoutModeConfigurationChangeListener);
+        layoutModeConfigListenerRegistered = false;
+    }
+
     private Button createTransportButton(ImageView icon, String tooltip) {
         Button btn = new Button();
         btn.setGraphic(icon);
@@ -1936,5 +1987,66 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     private static void markHiddenBarMessageShown() {
         hasShownHiddenBarMessage = true;
+    }
+
+    private void toggleWideViewPreference() {
+        Configuration current = readConfigurationSafely();
+        if (current == null || !current.isEmbeddedPlayer()) {
+            updateLayoutModeButton();
+            return;
+        }
+        boolean nextWideView = !current.isWideView();
+        applyLayoutModeButtonState(true, nextWideView);
+        saveWideViewPreferenceAsync(nextWideView);
+    }
+
+    protected void saveWideViewPreferenceAsync(boolean wideView) {
+        Thread saveThread = new Thread(() -> saveWideViewPreference(wideView), "embedded-player-wide-view-save");
+        saveThread.setDaemon(true);
+        saveThread.start();
+    }
+
+    private void saveWideViewPreference(boolean wideView) {
+        Configuration configuration = readConfigurationSafely();
+        if (configuration == null || !configuration.isEmbeddedPlayer() || configuration.isWideView() == wideView) {
+            return;
+        }
+        configuration.setWideView(wideView);
+        try {
+            ConfigurationService.getInstance().save(configuration);
+        } catch (RuntimeException _) {
+            Platform.runLater(this::updateLayoutModeButton);
+        }
+    }
+
+    private void updateLayoutModeButton() {
+        Configuration configuration = readConfigurationSafely();
+        boolean available = configuration != null && configuration.isEmbeddedPlayer();
+        applyLayoutModeButtonState(available, available && configuration != null && configuration.isWideView());
+    }
+
+    private Configuration readConfigurationSafely() {
+        try {
+            return ConfigurationService.getInstance().read();
+        } catch (RuntimeException _) {
+            return null;
+        }
+    }
+
+    private void applyLayoutModeButtonState(boolean available, boolean wideView) {
+        if (btnLayoutMode == null || layoutModeIcon == null) {
+            return;
+        }
+        btnLayoutMode.setVisible(available);
+        btnLayoutMode.setManaged(available);
+        layoutModeIcon.setContent(wideView ? WIDE_LAYOUT_ICON : NARROW_LAYOUT_ICON);
+        layoutModeIcon.setOpacity(wideView ? 1.0 : 0.72);
+        String tooltipText = I18n.tr("configWideView") + ": " + I18n.tr(wideView ? "commonEnabled" : "commonDisabled");
+        if (btnLayoutMode.getTooltip() == null) {
+            btnLayoutMode.setTooltip(new Tooltip(tooltipText));
+        } else {
+            btnLayoutMode.getTooltip().setText(tooltipText);
+        }
+        btnLayoutMode.setAccessibleText(tooltipText);
     }
 }

@@ -101,6 +101,7 @@ public class ConfigurationUI extends VBox {
     private final Button filterUnlockButton = new Button(I18n.tr("filterLockUnlockAction"));
     private final Button filterRelockButton = new Button(I18n.tr("filterLockLockNowAction"));
     private final CheckBox filterDisablePasswordCheckBox = new CheckBox(I18n.tr("filterLockDisablePasswordAction"));
+    private final CheckBox filterLockStateToggle = new CheckBox(I18n.tr("filterLockStateToggle"));
     private final ComboBox<Integer> filterLockUnlockDurationComboBox = new ComboBox<>();
     private HBox filterLockDurationRow;
     private final VBox filterAdminControls = new VBox(10);
@@ -291,7 +292,7 @@ public class ConfigurationUI extends VBox {
         HBox filterLockActions = new HBox(8, filterLockPasswordButton, filterUnlockButton, filterRelockButton);
         filterLockActions.setAlignment(Pos.CENTER_LEFT);
         filterLockDurationRow = createFilterLockDurationRow();
-        VBox filtersGroup = new VBox(10, filterLockStatusLabel, filterLockActions, filterDisablePasswordCheckBox, filterLockDurationRow, filterAdminControls);
+        VBox filtersGroup = new VBox(10, filterLockStatusLabel, filterLockStateToggle, filterLockActions, filterDisablePasswordCheckBox, filterLockDurationRow, filterAdminControls);
 
         VBox themeOverridesGroup = buildThemeOverrideGroup();
 
@@ -345,6 +346,7 @@ public class ConfigurationUI extends VBox {
         addDatabaseSyncButtonHandlers();
         addVlcOptionsLinkClickHandler();
         addThemePreviewHandlers();
+        addWideViewToggleHandler();
         installPlayerSelectionConfirmationHandler();
         installServerStatusMonitor();
         installStatusTitleMonitor();
@@ -736,6 +738,8 @@ public class ConfigurationUI extends VBox {
             FilterLockDialogs.openPasswordChangeDialog(this);
             refreshConfigurationForm();
         });
+        filterLockStateToggle.selectedProperty().addListener((_, _, restrictionsActiveRequested) ->
+                handleFilterLockStateToggleChanged(restrictionsActiveRequested));
         filterUnlockButton.setOnAction(event -> {
             if (FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
                 refreshFilterLockUi();
@@ -767,6 +771,22 @@ public class ConfigurationUI extends VBox {
             refreshFilterLockUi();
             filterPausedCheckBox.setSelected(!persistedPauseFilteringValue);
         });
+    }
+
+    private void handleFilterLockStateToggleChanged(boolean restrictionsActiveRequested) {
+        FilterLockService filterLockService = FilterLockService.getInstance();
+        if (filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked()) {
+            if (!FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
+                filterLockStateToggle.setSelected(!persistedPauseFilteringValue);
+                return;
+            }
+            refreshFilterLockUi();
+            filterLockStateToggle.setSelected(restrictionsActiveRequested);
+        }
+        if (restrictionsActiveRequested) {
+            filterLockService.clearUnlockSession();
+        }
+        refreshFilterLockUi();
     }
 
     private void addVlcOptionsLinkClickHandler() {
@@ -1133,9 +1153,7 @@ public class ConfigurationUI extends VBox {
 
     private boolean restartRequired(Configuration previous, Configuration current) {
         boolean previousEmbeddedPlayer = previous != null && previous.isEmbeddedPlayer();
-        boolean previousWideView = previous != null && previous.isWideView();
         return previousEmbeddedPlayer != current.isEmbeddedPlayer()
-                || previousWideView != current.isWideView()
                 || !Objects.equals(previous == null ? null : previous.getLanguageLocale(), current.getLanguageLocale());
     }
 
@@ -1169,6 +1187,12 @@ public class ConfigurationUI extends VBox {
         if (!isEmbedded) {
             wideViewCheckBox.setSelected(false);
         }
+    }
+
+    private void addWideViewToggleHandler() {
+        // Wide view layout changes are driven by ConfigurationChangeListener in RootApplication.
+        // The layout rebuilds automatically when config is saved with a different wideView value.
+        // The VLC embedded player's layout-mode button also triggers rebuild in real time.
     }
 
     private void openVlcOptionsPopup() {

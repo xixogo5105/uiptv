@@ -190,9 +190,6 @@ public class RootApplication extends Application {
         RemoteSyncSessionService.getInstance().setApprovalPrompt(remoteSyncUiBridge);
         RemoteSyncSessionService.getInstance().setNotifier(remoteSyncUiBridge);
 
-        boolean embeddedEnabled = bootConfiguration != null && bootConfiguration.isEmbeddedPlayer();
-        boolean embeddedWideViewEnabled = EmbeddedPlayerWideViewUtil.isWideViewEnabled();
-
         primaryStage.setOnCloseRequest(event -> {
             Platform.exit();
             System.exit(0);
@@ -208,12 +205,34 @@ public class RootApplication extends Application {
         autoStartInternalServer(bootConfiguration);
 
         Platform.runLater(() -> {
-            BaseMainApplicationUI mainUiRoute = selectMainUiRoute(embeddedEnabled, embeddedWideViewEnabled);
-            Scene scene = mainUiRoute.buildScene();
-            UiI18n.applySceneOrientation(scene);
-            primaryStage.setScene(scene);
-            applyMaximizedBounds(primaryStage);
+            buildAndApplyMainScene();
+            registerWideViewChangeListener();
         });
+    }
+
+    private void buildAndApplyMainScene() {
+        boolean embeddedEnabled = EmbeddedPlayerWideViewUtil.isEmbeddedEnabled();
+        boolean embeddedWideViewEnabled = EmbeddedPlayerWideViewUtil.isWideViewEnabled();
+        BaseMainApplicationUI mainUiRoute = selectMainUiRoute(embeddedEnabled, embeddedWideViewEnabled);
+        Scene scene = mainUiRoute.buildScene();
+        UiI18n.applySceneOrientation(scene);
+        primaryStage.setScene(scene);
+        applyMaximizedBounds(primaryStage);
+    }
+
+    private boolean lastKnownWideView = EmbeddedPlayerWideViewUtil.isWideViewEnabled();
+    private ConfigurationChangeListener wideViewChangeListener;
+
+    private void registerWideViewChangeListener() {
+        lastKnownWideView = EmbeddedPlayerWideViewUtil.isWideViewEnabled();
+        wideViewChangeListener = _ -> {
+            boolean currentWideView = EmbeddedPlayerWideViewUtil.isWideViewEnabled();
+            if (currentWideView != lastKnownWideView) {
+                lastKnownWideView = currentWideView;
+                Platform.runLater(this::buildAndApplyMainScene);
+            }
+        };
+        configurationService.addChangeListener(wideViewChangeListener);
     }
 
     private void applyMaximizedBounds(Stage stage) {
@@ -267,6 +286,10 @@ public class RootApplication extends Application {
     @Override
     public void stop() {
         unregisterTitleStatusUpdater();
+        if (wideViewChangeListener != null) {
+            configurationService.removeChangeListener(wideViewChangeListener);
+            wideViewChangeListener = null;
+        }
         try {
             MediaPlayerFactory.release();
         } catch (Exception _) {

@@ -130,6 +130,33 @@ public class ChannelListUI extends HBox {
         }
     }
 
+    private volatile Channel pendingChannelToSelect;
+
+    public void setPendingChannelToSelect(Channel channel) {
+        this.pendingChannelToSelect = channel;
+        if (channel != null && !channelItems.isEmpty()) {
+            selectChannel(channel);
+        }
+    }
+
+    public void selectChannel(Channel channelToSelect) {
+        if (channelToSelect == null) {
+            return;
+        }
+        runLater(() -> {
+            for (ChannelItem item : channelItems) {
+                if (item.getChannel() != null &&
+                        ((channelToSelect.getDbId() != null && channelToSelect.getDbId().equals(item.getChannel().getDbId()))
+                                || (channelToSelect.getChannelId() != null && channelToSelect.getChannelId().equals(item.getChannel().getChannelId())))) {
+                    table.getSelectionModel().clearSelection();
+                    table.getSelectionModel().select(item);
+                    table.scrollTo(item);
+                    break;
+                }
+            }
+        });
+    }
+
     public void addItems(List<Channel> newChannels) {
         if (newChannels != null && !newChannels.isEmpty()) {
             itemsLoaded.set(true);
@@ -143,6 +170,9 @@ public class ChannelListUI extends HBox {
                 if (!newItems.isEmpty()) {
                     channelItems.addAll(newItems);
                     table.setPlaceholder(null);
+                    if (pendingChannelToSelect != null) {
+                        selectChannel(pendingChannelToSelect);
+                    }
                 }
                 if (!logoUpdates.isEmpty()) {
                     for (LogoUpdate update : logoUpdates) {
