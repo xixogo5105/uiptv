@@ -233,6 +233,7 @@ public class AccountListUI extends HBox {
         if (!embeddedMode) {
             return;
         }
+        AccountNavigationSession.setAtAccounts();
         viewStack.clear();
         setCurrentContent(listView);
         updateNavButtons();
@@ -307,9 +308,13 @@ public class AccountListUI extends HBox {
             }
         }
         if (viewStack.isEmpty()) {
+            AccountNavigationSession.setAtAccounts();
             return;
         }
         Node prev = viewStack.pop();
+        if (viewStack.isEmpty()) {
+            AccountNavigationSession.setAtAccounts();
+        }
         setCurrentContent(prev);
         updateNavButtons();
         embeddedContainer.getChildren().setAll(navHeader, currentContent);
@@ -618,6 +623,11 @@ public class AccountListUI extends HBox {
             return;
         }
         account.setAction(accountAction);
+        if (categoryIdToOpen != null && !categoryIdToOpen.isBlank()) {
+            AccountNavigationSession.setAtChannels(account, accountAction, categoryIdToOpen, channelToSelect);
+        } else {
+            AccountNavigationSession.setAtCategories(account, accountAction);
+        }
 
         // Immediately show the CategoryListUI in loading state
         CategoryListUI categoryListUI = new CategoryListUI(account, embeddedMode);

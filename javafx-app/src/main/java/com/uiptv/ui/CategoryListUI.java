@@ -75,15 +75,30 @@ public class CategoryListUI extends HBox {
             return;
         }
         this.pendingChannelToSelect = channelToSelect;
+        AccountNavigationSession.setAtChannels(account, activeMode, categoryKey, channelToSelect);
         Platform.runLater(() -> {
+            CategoryItem target = null;
             for (CategoryItem item : table.getItems()) {
                 if (item != null && (categoryKey.equalsIgnoreCase(item.getCategoryId())
                         || categoryKey.equalsIgnoreCase(item.getId())
                         || categoryKey.equalsIgnoreCase(item.getCategoryTitle()))) {
-                    table.getSelectionModel().select(item);
-                    doRetrieveChannels(item);
+                    target = item;
                     break;
                 }
+            }
+            if (target == null && !table.getItems().isEmpty()) {
+                for (CategoryItem item : table.getItems()) {
+                    if (item != null && item.getCategoryTitle() != null
+                            && item.getCategoryTitle().toLowerCase().contains(categoryKey.toLowerCase())) {
+                        target = item;
+                        break;
+                    }
+                }
+            }
+            if (target != null) {
+                table.getSelectionModel().select(target);
+                table.scrollTo(target);
+                doRetrieveChannels(target);
             }
         });
     }
@@ -199,6 +214,7 @@ public class CategoryListUI extends HBox {
             }
         }
         showListView();
+        AccountNavigationSession.setAtCategories(account, activeMode);
         return true;
     }
 
@@ -274,6 +290,7 @@ public class CategoryListUI extends HBox {
         disposeChannelListState(modeStates.get(activeMode));
         activeMode = mode;
         account.setAction(mode);
+        AccountNavigationSession.setAtCategories(account, mode);
         refreshCategoryColumnTitle();
         selectActiveModeTab();
 
@@ -497,10 +514,22 @@ public class CategoryListUI extends HBox {
         }
         final Account.AccountAction mode = activeMode;
         account.setAction(mode);
+        String catKey = item.getCategoryId();
+        if (catKey == null || catKey.isBlank()) {
+            catKey = item.getId();
+        }
+        if (catKey == null || catKey.isBlank()) {
+            catKey = item.getCategoryTitle();
+        }
+        AccountNavigationSession.setAtChannels(account, mode, catKey, pendingChannelToSelect);
         final ModeState state = modeStates.computeIfAbsent(mode, k -> new ModeState());
         if (state.selectedCategory != null
                 && state.channelListUI != null
                 && sameCategorySelection(state.selectedCategory, item)) {
+            if (pendingChannelToSelect != null) {
+                state.channelListUI.setPendingChannelToSelect(pendingChannelToSelect);
+                pendingChannelToSelect = null;
+            }
             if (embeddedMode) {
                 showDetailView(state.channelListUI, item.getCategoryTitle());
             } else {

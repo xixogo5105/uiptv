@@ -94,15 +94,29 @@ public abstract class BaseMainApplicationUI {
             }
         });
 
-        // If user was on the account tab (or in narrow mode Column 2), restore the selected account's channel
-        if (PlaybackUIService.getLastPlaybackOrigin() == PlaybackUIService.PlaybackOrigin.ACCOUNT) {
-            Account lastAccount = PlaybackUIService.getLastPlaybackAccount();
-            String lastCatId = PlaybackUIService.getLastPlaybackCategoryId();
-            Channel lastChannel = PlaybackUIService.getLastPlaybackChannel();
-            if (lastAccount != null && (!useEmbeddedAccountFlow() || tabToSelect == 1)) {
-                Platform.runLater(() -> accountListUI.openAccountAndChannel(lastAccount, lastCatId, lastChannel));
+        // Restore account navigation state (account -> categories -> channels/VOD/series)
+        Platform.runLater(() -> {
+            AccountNavigationSession.Level level = AccountNavigationSession.getLevel();
+            Account targetAccount = AccountNavigationSession.getAccount();
+            if (targetAccount == null && PlaybackUIService.getLastPlaybackOrigin() == PlaybackUIService.PlaybackOrigin.ACCOUNT) {
+                targetAccount = PlaybackUIService.getLastPlaybackAccount();
             }
-        }
+            if (targetAccount != null) {
+                String catId = AccountNavigationSession.getCategoryId();
+                if (catId == null || catId.isBlank()) {
+                    catId = PlaybackUIService.getLastPlaybackCategoryId();
+                }
+                Channel ch = AccountNavigationSession.getChannel();
+                if (ch == null) {
+                    ch = PlaybackUIService.getLastPlaybackChannel();
+                }
+                if (level == AccountNavigationSession.Level.CHANNELS || ch != null || (catId != null && !catId.isBlank())) {
+                    accountListUI.openAccountAndChannel(targetAccount, catId, ch);
+                } else if (level == AccountNavigationSession.Level.CATEGORIES) {
+                    accountListUI.openAccount(targetAccount);
+                }
+            }
+        });
 
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.setSide(Side.LEFT);

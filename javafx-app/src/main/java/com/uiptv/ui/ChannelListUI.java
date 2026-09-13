@@ -143,11 +143,13 @@ public class ChannelListUI extends HBox {
         if (channelToSelect == null) {
             return;
         }
+        AccountNavigationSession.setChannel(channelToSelect);
         runLater(() -> {
             for (ChannelItem item : channelItems) {
                 if (item.getChannel() != null &&
                         ((channelToSelect.getDbId() != null && channelToSelect.getDbId().equals(item.getChannel().getDbId()))
-                                || (channelToSelect.getChannelId() != null && channelToSelect.getChannelId().equals(item.getChannel().getChannelId())))) {
+                                || (channelToSelect.getChannelId() != null && channelToSelect.getChannelId().equals(item.getChannel().getChannelId()))
+                                || (channelToSelect.getName() != null && channelToSelect.getName().equalsIgnoreCase(item.getChannel().getName())))) {
                     table.getSelectionModel().clearSelection();
                     table.getSelectionModel().select(item);
                     table.scrollTo(item);
@@ -976,6 +978,11 @@ public class ChannelListUI extends HBox {
             });
             addRightClickContextMenu(row);
             return row;
+        });
+        table.getSelectionModel().selectedItemProperty().addListener((obs, oldItem, newItem) -> {
+            if (newItem != null && newItem.getChannel() != null) {
+                AccountNavigationSession.setChannel(newItem.getChannel());
+            }
         });
     }
 

@@ -98,6 +98,10 @@ public final class PlaybackUIService {
         }
         lastPlaybackCategoryId = catId != null ? catId : "";
 
+        if (lastPlaybackOrigin == PlaybackOrigin.ACCOUNT) {
+            AccountNavigationSession.setAtChannels(request.account, request.account.getAction(), lastPlaybackCategoryId, request.channel);
+        }
+
         Configuration configuration = ConfigurationService.getInstance().read();
         PlaybackModeContext context = buildPlaybackModeContext(configuration, request);
 
