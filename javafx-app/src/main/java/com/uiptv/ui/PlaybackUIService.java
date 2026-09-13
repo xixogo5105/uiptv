@@ -98,7 +98,7 @@ public final class PlaybackUIService {
         }
         lastPlaybackCategoryId = catId != null ? catId : "";
 
-        if (lastPlaybackOrigin == PlaybackOrigin.ACCOUNT) {
+        if (request.account != null) {
             AccountNavigationSession.setAtChannels(request.account, request.account.getAction(), lastPlaybackCategoryId, request.channel);
         }
 

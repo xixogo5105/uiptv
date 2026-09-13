@@ -98,12 +98,15 @@ public abstract class BaseMainApplicationUI {
         Platform.runLater(() -> {
             AccountNavigationSession.Level level = AccountNavigationSession.getLevel();
             Account targetAccount = AccountNavigationSession.getAccount();
-            if (targetAccount == null && PlaybackUIService.getLastPlaybackOrigin() == PlaybackUIService.PlaybackOrigin.ACCOUNT) {
+            PlaybackUIService.PlaybackOrigin playbackOrigin = PlaybackUIService.getLastPlaybackOrigin();
+            if (targetAccount == null && playbackOrigin != PlaybackUIService.PlaybackOrigin.NONE) {
                 targetAccount = PlaybackUIService.getLastPlaybackAccount();
                 String catId = PlaybackUIService.getLastPlaybackCategoryId();
                 Channel ch = PlaybackUIService.getLastPlaybackChannel();
                 if (targetAccount != null) {
-                    accountListUI.openAccountAndChannel(targetAccount, catId, ch);
+                    if (playbackOrigin == PlaybackUIService.PlaybackOrigin.ACCOUNT || playbackOrigin == PlaybackUIService.PlaybackOrigin.BOOKMARK || playbackOrigin == PlaybackUIService.PlaybackOrigin.WATCHING_NOW) {
+                        accountListUI.openAccountAndChannel(targetAccount, catId, ch);
+                    }
                 }
                 return;
             }
