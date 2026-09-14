@@ -59,7 +59,6 @@ public class AsyncImageView extends StackPane {
             return;
         }
 
-        clearImage();
         this.currentUrl = url;
 
         ImageCacheManager.loadImageAsync(url, type)

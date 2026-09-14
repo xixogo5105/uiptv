@@ -115,6 +115,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private AtomicBoolean currentRequestCancelled;
     private final ScheduledExecutorService refreshExecutor = Executors.newSingleThreadScheduledExecutor();
     private final AtomicReference<ScheduledFuture<?>> refreshFuture = new AtomicReference<>();
+    private static final long REFRESH_THROTTLE_MS = 300;
+    private long lastRefreshMs = 0;
 
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private Consumer<List<Node>> detailHeaderActionsHandler;
@@ -1403,6 +1405,11 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void refreshChannelViews() {
+        long now = System.currentTimeMillis();
+        if (now - lastRefreshMs < REFRESH_THROTTLE_MS) {
+            return;
+        }
+        lastRefreshMs = now;
         table.refresh();
         channelGrid.refresh();
     }
