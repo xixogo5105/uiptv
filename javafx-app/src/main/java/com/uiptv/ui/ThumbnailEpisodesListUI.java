@@ -716,7 +716,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         setEmptyState("", false);
         selectedEpisodeCard = null;
         selectedEpisodeItem = null;
-        renderedCardsByItem.clear();
         cardsContainer.getChildren().clear();
         String season = selectedSeason();
         List<EpisodeItem> filtered;
@@ -805,10 +804,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     private void renderAllCards(List<EpisodeItem> items) {
         cardsContainer.getChildren().clear();
-        renderedCardsByItem.clear();
         for (EpisodeItem item : items) {
-            VBox card = mediaDrawerDetailMode ? createDrawerEpisodeRow(item) : createEpisodeCard(item);
-            renderedCardsByItem.put(item, card);
+            VBox card = renderedCardsByItem.computeIfAbsent(item, k ->
+                    mediaDrawerDetailMode ? createDrawerEpisodeRow(k) : createEpisodeCard(k));
             cardsContainer.getChildren().add(card);
         }
         if (episodeLoadingVisible) {
@@ -819,11 +817,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     private void renderCardsInRange(List<EpisodeItem> items, int firstIndex, int lastIndex) {
         cardsContainer.getChildren().clear();
-        renderedCardsByItem.clear();
         for (int index = firstIndex; index < lastIndex; index++) {
             EpisodeItem item = items.get(index);
-            VBox card = mediaDrawerDetailMode ? createDrawerEpisodeRow(item) : createEpisodeCard(item);
-            renderedCardsByItem.put(item, card);
+            VBox card = renderedCardsByItem.computeIfAbsent(item, k ->
+                    mediaDrawerDetailMode ? createDrawerEpisodeRow(k) : createEpisodeCard(k));
             cardsContainer.getChildren().add(card);
         }
         if (episodeLoadingVisible && !cardsContainer.getChildren().contains(episodeLoadingNode)) {
