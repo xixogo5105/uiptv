@@ -127,6 +127,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         seriesGrid.setCardWidthRange(480, 720);
         seriesGrid.setSingleColumn(!thumbnailsEnabled());
         seriesGrid.setGaps(18, 16);
+        seriesGrid.setLowVirtualizationThreshold();
         seriesGrid.setPlaceholderText(I18n.tr(MESSAGE_NO_CURRENTLY_WATCHED_SERIES));
         seriesGrid.setOnItemActivated(this::openSeriesDetail);
         seriesGrid.setOnKeyReleased(event -> {

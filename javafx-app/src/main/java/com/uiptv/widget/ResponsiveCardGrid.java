@@ -19,7 +19,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.input.*;
-import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 
@@ -50,7 +50,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private static final double MIN_VIRTUAL_CARD_HEIGHT = 32;
 
     private final Function<T, Region> cardFactory;
-    private final FlowPane cardPane = new FlowPane();
+    private final GridPane cardPane = new GridPane();
     private final StackPane placeholder = new StackPane();
     private final Label placeholderLabel = new Label();
     private final Map<T, Region> cardsByItem = new LinkedHashMap<>();
@@ -341,11 +341,21 @@ public class ResponsiveCardGrid<T> extends StackPane {
             return;
         }
         clearVirtualContentLayout();
+        updateCardWidths();
+        int gridCol = 0;
+        int gridRow = 0;
         for (T item : items) {
             Region card = cardFactory.apply(item);
             configureCard(item, card);
             cardsByItem.put(item, card);
+            GridPane.setColumnIndex(card, gridCol);
+            GridPane.setRowIndex(card, gridRow);
             cardPane.getChildren().add(card);
+            gridCol++;
+            if (gridCol >= columnCount) {
+                gridCol = 0;
+                gridRow++;
+            }
         }
         updatePlaceholderVisibility();
         updateCardWidths();
@@ -396,18 +406,26 @@ public class ResponsiveCardGrid<T> extends StackPane {
             Region card = cardFactory.apply(item);
             configureCard(item, card);
             cardsByItem.put(item, card);
-            cardPane.getChildren().add(insertIndex++, card);
+            int gridCol = insertIndex % Math.max(1, columnCount);
+            int gridRow = insertIndex / Math.max(1, columnCount);
+            GridPane.setColumnIndex(card, gridCol);
+            GridPane.setRowIndex(card, gridRow);
+            cardPane.getChildren().add(insertIndex, card);
+            insertIndex++;
         }
     }
 
     private void updateCards(int from, int to) {
         int start = Math.max(0, from);
         int end = Math.min(to, Math.min(items.size(), cardPane.getChildren().size()));
+        int colCount = Math.max(1, columnCount);
         for (int index = start; index < end; index++) {
             T item = items.get(index);
             Region card = cardFactory.apply(item);
             configureCard(item, card);
             cardsByItem.put(item, card);
+            GridPane.setColumnIndex(card, index % colCount);
+            GridPane.setRowIndex(card, index / colCount);
             cardPane.getChildren().set(index, card);
         }
     }
@@ -551,6 +569,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 return c;
             });
             applyComputedCardWidth(card);
+            int gridIndex = index - safeFirst;
+            GridPane.setColumnIndex(card, gridIndex % columnCount);
+            GridPane.setRowIndex(card, gridIndex / columnCount);
             renderedCards.add(card);
         }
         cardPane.getChildren().setAll(renderedCards);
@@ -1146,7 +1167,6 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (singleColumn) {
             columnCount = 1;
             computedCardWidth = available;
-            cardPane.setPrefWrapLength(available);
             for (Region card : cardsByItem.values()) {
                 applyComputedCardWidth(card);
             }
@@ -1162,7 +1182,6 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         columnCount = Math.max(1, columns);
         computedCardWidth = cardWidth;
-        cardPane.setPrefWrapLength(available);
         for (Region card : cardsByItem.values()) {
             applyComputedCardWidth(card);
         }

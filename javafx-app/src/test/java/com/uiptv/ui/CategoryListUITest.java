@@ -11,7 +11,7 @@ import javafx.scene.control.Label;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.PickResult;
-import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -191,11 +191,11 @@ class CategoryListUITest extends DbBackedUiTest {
         return (VBox) field.get(ui);
     }
 
-    private static FlowPane categoryCardPane(CategoryListUI ui) throws Exception {
+    private static GridPane categoryCardPane(CategoryListUI ui) throws Exception {
         Field field = CategoryListUI.class.getDeclaredField("categoryCardGrid");
         field.setAccessible(true);
         ResponsiveCardGrid<?> grid = (ResponsiveCardGrid<?>) field.get(ui);
-        return (FlowPane) grid.getChildren().getFirst();
+        return (GridPane) grid.getChildren().getFirst();
     }
 
     @SuppressWarnings("unchecked")

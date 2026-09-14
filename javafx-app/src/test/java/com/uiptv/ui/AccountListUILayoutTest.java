@@ -18,7 +18,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.ToggleButton;
-import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -552,7 +552,7 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     }
 
     private static Region firstCard(ResponsiveCardGrid<?> grid) {
-        FlowPane cardPane = (FlowPane) grid.getChildren().getFirst();
+        GridPane cardPane = (GridPane) grid.getChildren().getFirst();
         return (Region) cardPane.getChildren().getFirst();
     }
 
@@ -627,11 +627,11 @@ class AccountListUILayoutTest extends DbBackedUiTest {
         return category;
     }
 
-    private static FlowPane categoryCardList(CategoryListUI ui) throws Exception {
+    private static GridPane categoryCardList(CategoryListUI ui) throws Exception {
         Field field = CategoryListUI.class.getDeclaredField("categoryCardGrid");
         field.setAccessible(true);
         ResponsiveCardGrid<?> grid = (ResponsiveCardGrid<?>) field.get(ui);
-        return (FlowPane) grid.getChildren().getFirst();
+        return (GridPane) grid.getChildren().getFirst();
     }
 
     private static Node currentContent(AccountListUI ui) throws Exception {

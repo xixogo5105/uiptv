@@ -455,6 +455,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     private void configureAccountGrid() {
         accountGrid.getStyleClass().add("account-card-grid");
         accountGrid.setCardWidthRange(GRID_NORMAL_CARD_MIN_WIDTH, GRID_NORMAL_CARD_MAX_WIDTH);
+        accountGrid.setLowVirtualizationThreshold();
         applyAccountGridDisplayMode(ThumbnailAwareUI.areThumbnailsEnabled());
         accountGrid.setPlaceholderText(I18n.tr("autoNothingFoundFor", I18n.tr("autoAccount")));
         accountGrid.setOnItemActivated(item -> retrieveThreadedAccountCategories(item, itv));

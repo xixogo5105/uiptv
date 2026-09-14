@@ -247,6 +247,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         categoryCardGrid.setSingleColumn(true);
         categoryCardGrid.setCardMinHeight(44);
         categoryCardGrid.setCardWidthRange(180, 960);
+        categoryCardGrid.setLowVirtualizationThreshold();
         categoryCardGrid.setGaps(0, 6);
         categoryCardGrid.setOnItemActivated(this::doRetrieveChannels);
         categoryCardGrid.setContextMenuFactory((item, selectedItems, owner) -> {

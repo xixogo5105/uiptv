@@ -15,7 +15,7 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.PickResult;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import org.junit.jupiter.api.BeforeAll;
@@ -790,8 +790,8 @@ class ResponsiveCardGridTest {
         return grid;
     }
 
-    private static FlowPane cardPane(ResponsiveCardGrid<?> grid) {
-        return (FlowPane) grid.getChildren().get(0);
+    private static GridPane cardPane(ResponsiveCardGrid<?> grid) {
+        return (GridPane) grid.getChildren().get(0);
     }
 
     private static Region cardAt(ResponsiveCardGrid<?> grid, int index) {

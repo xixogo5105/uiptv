@@ -30,6 +30,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -47,9 +48,14 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     private final MenuButton bingeWatchButton = new MenuButton();
     private final Button reloadEpisodesButton = new Button();
     private final Map<EpisodeItem, Pane> renderedCardsByItem = new HashMap<>();
+    private EpisodeItem selectedEpisodeItem;
+    private List<EpisodeItem> currentFilteredEpisodes = List.of();
+    private static final int EPISODE_VIRTUAL_BUFFER = 3;
+    private double estimatedCardHeight = 50;
+    private boolean cardsWindowDirty = true;
+    private boolean cardWindowUpdateQueued = false;
     private HBox seasonControls;
     private VBox bodyContainer;
-    private Pane selectedEpisodeCard;
     private boolean internalReloadControlVisible = true;
     private List<String> seasonOptions = List.of();
 
@@ -106,6 +112,8 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         cardsScroll.setMaxHeight(Double.MAX_VALUE);
         cardsScroll.getStyleClass().add("transparent-scroll-pane");
         cardsContainer.addEventHandler(KeyEvent.KEY_PRESSED, this::handleEpisodeNavigationKeyPressed);
+        cardsScroll.vvalueProperty().addListener((_, _, _) -> scheduleCardWindowUpdate());
+        cardsScroll.viewportBoundsProperty().addListener((_, _, _) -> scheduleCardWindowUpdate());
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene != null) {
                 scheduleInitialEpisodeFocus();
@@ -154,6 +162,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     @Override
     protected void showPlaceholder(String text) {
         cardsContainer.getChildren().setAll(new LoadingStateView(text));
+        cardsWindowDirty = true;
     }
 
     @Override
@@ -216,24 +225,124 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     private void applyEpisodeRows() {
         if (allEpisodeItems.isEmpty()) {
             renderedCardsByItem.clear();
-            selectedEpisodeCard = null;
+            selectedEpisodeItem = null;
             cardsContainer.getChildren().clear();
             setEmptyState(I18n.tr("autoNoEpisodesFound"), true);
             return;
         }
         setEmptyState("", false);
         String season = selectedSeason();
-        List<EpisodeItem> rows = isBlank(season)
-                ? List.copyOf(allEpisodeItems)
-                : allEpisodeItems.stream()
-                .filter(item -> season.equals(item.getSeason()))
-                .toList();
-        renderedCardsByItem.clear();
-        selectedEpisodeCard = null;
-        cardsContainer.getChildren().setAll(rows.stream()
-                .map(this::createEpisodeRow)
-                .toList());
+        List<EpisodeItem> rows;
+        if (isBlank(season)) {
+            rows = new ArrayList<>(allEpisodeItems);
+        } else {
+            rows = allEpisodeItems.stream()
+                    .filter(item -> season.equals(item.getSeason()))
+                    .toList();
+        }
+        currentFilteredEpisodes = rows;
+        if (rows.isEmpty()) {
+            cardsContainer.getChildren().add(new Label(I18n.tr("autoNoEpisodesFound")));
+            updateBingeWatchButton();
+            return;
+        }
+        updateCardWindow();
+        updateBingeWatchButton();
         scheduleInitialEpisodeFocus();
+    }
+
+    private void updateCardWindow() {
+        if (currentFilteredEpisodes.isEmpty()) {
+            return;
+        }
+        double viewportHeight = cardsScroll.getViewportBounds().getHeight();
+        if (viewportHeight <= 0) {
+            renderAllCards(currentFilteredEpisodes);
+            return;
+        }
+        if (cardsWindowDirty || estimatedCardHeight <= 0) {
+            measureCardHeight();
+            cardsWindowDirty = false;
+        }
+        double scrollTop = cardsScroll.getVvalue() * Math.max(0, getCardsContentHeight() - viewportHeight);
+        int firstIndex = Math.max(0, (int) Math.floor(scrollTop / estimatedCardHeight) - EPISODE_VIRTUAL_BUFFER);
+        int visibleCount = Math.max(1, (int) Math.ceil(viewportHeight / estimatedCardHeight) + 2 * EPISODE_VIRTUAL_BUFFER);
+        int lastIndex = Math.min(currentFilteredEpisodes.size(), firstIndex + visibleCount);
+        renderCardsInRange(currentFilteredEpisodes, firstIndex, lastIndex);
+    }
+
+    private void scheduleCardWindowUpdate() {
+        if (cardWindowUpdateQueued) {
+            return;
+        }
+        cardWindowUpdateQueued = true;
+        Platform.runLater(() -> {
+            cardWindowUpdateQueued = false;
+            updateCardWindow();
+        });
+    }
+
+    private void measureCardHeight() {
+        if (renderedCardsByItem.isEmpty()) {
+            return;
+        }
+        double maxHeight = 0;
+        for (Pane card : renderedCardsByItem.values()) {
+            double height = card.getLayoutBounds().getHeight();
+            if (height <= 0) {
+                height = card.prefHeight(-1);
+            }
+            maxHeight = Math.max(maxHeight, height);
+        }
+        if (maxHeight > 0) {
+            estimatedCardHeight = Math.ceil(maxHeight);
+        }
+    }
+
+    private double getCardsContentHeight() {
+        int count = currentFilteredEpisodes.size();
+        if (count <= 0) {
+            return 0;
+        }
+        return paddingTop(cardsContainer) + (count * estimatedCardHeight) + Math.max(0, count - 1) * cardsContainer.getSpacing();
+    }
+
+    private double paddingTop(VBox box) {
+        Insets insets = box.getPadding();
+        return insets == null ? 0 : insets.getTop();
+    }
+
+    private void renderAllCards(List<EpisodeItem> items) {
+        cardsContainer.getChildren().clear();
+        renderedCardsByItem.clear();
+        for (EpisodeItem item : items) {
+            Pane card = createEpisodeRow(item);
+            renderedCardsByItem.put(item, card);
+            cardsContainer.getChildren().add(card);
+        }
+        applySelectionToVisibleCards();
+    }
+
+    private void renderCardsInRange(List<EpisodeItem> items, int firstIndex, int lastIndex) {
+        cardsContainer.getChildren().clear();
+        renderedCardsByItem.clear();
+        for (int index = firstIndex; index < lastIndex; index++) {
+            EpisodeItem item = items.get(index);
+            Pane card = createEpisodeRow(item);
+            renderedCardsByItem.put(item, card);
+            cardsContainer.getChildren().add(card);
+        }
+        applySelectionToVisibleCards();
+    }
+
+    private void applySelectionToVisibleCards() {
+        if (selectedEpisodeItem == null) {
+            return;
+        }
+        Pane selectedCard = renderedCardsByItem.get(selectedEpisodeItem);
+        if (selectedCard != null) {
+            applyCardSelection(selectedCard, true);
+        }
     }
 
     private Pane createEpisodeRow(EpisodeItem row) {
@@ -263,21 +372,24 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         addRightClickContextMenu(row, card);
         card.focusedProperty().addListener((_, _, focused) -> {
             if (Boolean.TRUE.equals(focused)) {
-                setSelectedEpisodeCard(card);
+                selectedEpisodeItem = row;
+                clearEpisodeCardSelections(card);
+                applyCardSelection(card, true);
             }
         });
         card.setOnMouseClicked(event -> {
             if (event.getButton() != MouseButton.PRIMARY) {
                 return;
             }
-            setSelectedEpisodeCard(card);
+            selectedEpisodeItem = row;
+            clearEpisodeCardSelections(card);
+            applyCardSelection(card, true);
             card.requestFocus();
             if (event.getClickCount() == 2) {
                 play(row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
             }
             event.consume();
         });
-        renderedCardsByItem.put(row, card);
         return card;
     }
 
@@ -286,7 +398,19 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         if (cards.isEmpty()) {
             return;
         }
-        int currentIndex = currentEpisodeCardIndex(cards);
+        int currentIndex = selectedEpisodeItem == null ? -1 : (int) cards.indexOf(renderedCardsByItem.get(selectedEpisodeItem));
+        if (currentIndex < 0) {
+            Node focusOwner = getScene() == null ? null : getScene().getFocusOwner();
+            for (int index = 0; index < cards.size(); index++) {
+                if (isDescendantOf(focusOwner, cards.get(index))) {
+                    currentIndex = index;
+                    break;
+                }
+            }
+        }
+        if (currentIndex < 0) {
+            currentIndex = 0;
+        }
         int targetIndex = switch (event.getCode()) {
             case UP -> Math.max(0, currentIndex - 1);
             case DOWN -> Math.min(cards.size() - 1, currentIndex + 1);
@@ -309,7 +433,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private int currentEpisodeCardIndex(List<Pane> cards) {
-        int selectedIndex = selectedEpisodeCard == null ? -1 : cards.indexOf(selectedEpisodeCard);
+        int selectedIndex = selectedEpisodeItem == null ? -1 : cards.indexOf(renderedCardsByItem.get(selectedEpisodeItem));
         if (selectedIndex >= 0) {
             return selectedIndex;
         }
@@ -336,9 +460,8 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         if (cards.isEmpty() || !isDisplayable()) {
             return;
         }
-        Pane target = selectedEpisodeCard != null && cards.contains(selectedEpisodeCard)
-                ? selectedEpisodeCard
-                : cards.getFirst();
+        Pane targetCard = selectedEpisodeItem != null ? renderedCardsByItem.get(selectedEpisodeItem) : null;
+        Pane target = targetCard != null && cards.contains(targetCard) ? targetCard : cards.getFirst();
         setSelectedEpisodeCard(target);
         Node focusOwner = getScene().getFocusOwner();
         if (isDescendantOf(focusOwner, cardsContainer) || isProtectedFocusOwner(focusOwner)) {
@@ -369,7 +492,13 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         if (card == null) {
             return;
         }
-        setSelectedEpisodeCard(card);
+        if (selectedEpisodeItem == null) {
+            selectedEpisodeItem = renderedCardsByItem.entrySet().stream()
+                    .filter(e -> e.getValue() == card)
+                    .map(Map.Entry::getKey)
+                    .findFirst()
+                    .orElse(null);
+        }
         card.requestFocus();
         scrollEpisodeCardIntoView(card);
     }
@@ -494,11 +623,16 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     @SuppressWarnings("unchecked")
     private void setSelectedEpisodeCard(Pane current) {
         if (current == null) {
+            selectedEpisodeItem = null;
             return;
         }
         clearEpisodeCardSelections(current);
         applyCardSelection(current, true);
-        selectedEpisodeCard = current;
+        selectedEpisodeItem = renderedCardsByItem.entrySet().stream()
+                .filter(e -> e.getValue() == current)
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(null);
     }
 
     private void clearEpisodeCardSelections(Pane except) {
@@ -506,9 +640,6 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             if (card != except) {
                 applyCardSelection(card, false);
             }
-        }
-        if (selectedEpisodeCard != null && selectedEpisodeCard != except) {
-            applyCardSelection(selectedEpisodeCard, false);
         }
     }
 

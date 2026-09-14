@@ -528,6 +528,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         bookmarkGrid.setGaps(16, 14);
         bookmarkGrid.setReorderEnabled(true);
         bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS)));
+        bookmarkGrid.setLowVirtualizationThreshold();
         applyThumbnailMode(ThumbnailAwareUI.areThumbnailsEnabled());
 
         bookmarkGridFrame.getStyleClass().add("bookmark-grid-frame");

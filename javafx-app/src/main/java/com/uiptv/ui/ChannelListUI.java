@@ -524,6 +524,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
         applyChannelGridSizing();
         channelGrid.setItems(table.getItems());
+        channelGrid.setLowVirtualizationThreshold();
         channelGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle)));
         channelGrid.setOnItemActivated(this::playOrShowSeries);
         channelGrid.setContextMenuFactory((item, selectedItems, owner) -> createChannelContextMenu(item, selectedItems, owner));
