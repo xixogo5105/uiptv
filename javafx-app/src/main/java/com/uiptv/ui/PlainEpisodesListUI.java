@@ -314,10 +314,8 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
     private void renderAllCards(List<EpisodeItem> items) {
         cardsContainer.getChildren().clear();
-        renderedCardsByItem.clear();
         for (EpisodeItem item : items) {
-            Pane card = createEpisodeRow(item);
-            renderedCardsByItem.put(item, card);
+            Pane card = renderedCardsByItem.computeIfAbsent(item, this::createEpisodeRow);
             cardsContainer.getChildren().add(card);
         }
         applySelectionToVisibleCards();
@@ -325,11 +323,9 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
 
     private void renderCardsInRange(List<EpisodeItem> items, int firstIndex, int lastIndex) {
         cardsContainer.getChildren().clear();
-        renderedCardsByItem.clear();
         for (int index = firstIndex; index < lastIndex; index++) {
             EpisodeItem item = items.get(index);
-            Pane card = createEpisodeRow(item);
-            renderedCardsByItem.put(item, card);
+            Pane card = renderedCardsByItem.computeIfAbsent(item, this::createEpisodeRow);
             cardsContainer.getChildren().add(card);
         }
         applySelectionToVisibleCards();
