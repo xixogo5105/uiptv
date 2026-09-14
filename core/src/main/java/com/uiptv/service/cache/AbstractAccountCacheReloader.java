@@ -135,6 +135,8 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
                     List<Category> categories = applyCategoryCensoring(rawCategories, applyCategoryCensoring);
                     summary = summary.addCategories(censoredItemCount(rawCategories.size(), categories.size(), applyCategoryCensoring));
                     saveVodOrSeriesCategories(account, categories);
+                } catch (SkipAccountReloadException e) {
+                    throw e;
                 } catch (Exception e) {
                     log(logger, "Global " + mode.name().toUpperCase() + " category list failed: " + shortReason(e));
                 }
