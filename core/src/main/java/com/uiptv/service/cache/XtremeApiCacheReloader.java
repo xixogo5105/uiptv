@@ -329,6 +329,8 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
                 log(logger, "Global Xtreme channel lookup returned no channels. Falling back to category fetch.");
             }
             return allChannels;
+        } catch (SkipAccountReloadException e) {
+            throw e;
         } catch (Exception _) {
             log(logger, "Global Xtreme channel lookup failed. Falling back to category fetch.");
             return List.of();

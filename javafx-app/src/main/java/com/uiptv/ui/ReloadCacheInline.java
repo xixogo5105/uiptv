@@ -9,6 +9,7 @@ import com.uiptv.service.AccountService;
 import com.uiptv.service.AccountInfoService;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
+import com.uiptv.service.cache.SkipAccountReloadException;
 import com.uiptv.util.AccountType;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.SegmentedProgressBar;
@@ -1040,6 +1041,7 @@ public class ReloadCacheInline extends VBox {
         int fetchedChannelCount = 0;
         List<String> accountIssues = new ArrayList<>();
         final boolean[] globalFailurePrompted = {false};
+        Account.AccountAction savedAction = account.getAction();
         try {
             cacheService.reloadCache(account, message -> handleReloadLogMessage(account, message, accountIssues, globalFailurePrompted));
             fetchedChannelCount = runOutcomeTracker.getFetchedChannels(account.getDbId());
@@ -1059,6 +1061,7 @@ public class ReloadCacheInline extends VBox {
             logMessage(account, LOG_RELOAD_FAILED_PREFIX + " " + shortFailure(e.getMessage()));
             addIssue(accountIssues, I18n.tr("reloadFailedReason", shortFailure(e.getMessage())));
         } finally {
+            account.setAction(savedAction);
             refreshAccountInfoTitle(account);
         }
         boolean criticalFailure = runOutcomeTracker.hasCriticalFailure(account.getDbId());
@@ -2677,8 +2680,5 @@ public class ReloadCacheInline extends VBox {
                 runStatusLabel.getStyleClass().add(statusStyleClass);
             }
         }
-    }
-
-    private static final class SkipAccountReloadException extends RuntimeException {
     }
 }
