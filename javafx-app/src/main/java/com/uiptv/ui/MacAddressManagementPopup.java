@@ -6,6 +6,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.AccountInfo;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.util.AccountCopyUtil;
+import com.uiptv.widget.SwitchButton;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
@@ -47,7 +48,7 @@ public class MacAddressManagementPopup extends VBox {
     private final Button verifyInfoButton = new Button(I18n.tr("autoVerify"));
     private final Button saveButton = new Button(I18n.tr("autoSaveClose"));
     private final Button closeButton = new Button(I18n.tr("autoCancel"));
-    private final CheckBox selectAllCheckBox = new CheckBox(I18n.tr("autoSelectAll"));
+    private final SwitchButton selectAllSwitch = new SwitchButton(I18n.tr("autoSelectAll"));
 
     private ObservableList<MacItem> macItems;
     private String defaultMac;
@@ -87,8 +88,8 @@ public class MacAddressManagementPopup extends VBox {
     }
 
     private void configureSelectionHandling() {
-        selectAllCheckBox.setOnAction(e -> {
-            boolean selected = selectAllCheckBox.isSelected();
+        selectAllSwitch.setOnAction(e -> {
+            boolean selected = selectAllSwitch.isSelected();
             for (MacItem item : macItems) {
                 item.setSelected(selected);
             }
@@ -118,7 +119,7 @@ public class MacAddressManagementPopup extends VBox {
         HBox actionBox = new HBox(10, removeButton, setDefaultButton, verifyInfoButton);
         HBox bottomBox = new HBox(10, saveButton, closeButton);
         bottomBox.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
-        getChildren().addAll(selectAllCheckBox, macListView, actionBox, new Separator(), new Label(I18n.tr("autoAddNew")), addBox, new Separator(), bottomBox);
+        getChildren().addAll(selectAllSwitch, macListView, actionBox, new Separator(), new Label(I18n.tr("autoAddNew")), addBox, new Separator(), bottomBox);
     }
 
     private Scene createScene(Stage owner) {
@@ -184,7 +185,7 @@ public class MacAddressManagementPopup extends VBox {
         }
         
         // Uncheck select all if items removed
-        selectAllCheckBox.setSelected(false);
+        selectAllSwitch.setSelected(false);
 
         macListView.refresh();
         updateActionButtons();
@@ -205,7 +206,7 @@ public class MacAddressManagementPopup extends VBox {
         boolean singleOrLess = macItems.size() <= 1;
         removeButton.setDisable(singleOrLess);
         setDefaultButton.setDisable(singleOrLess);
-        selectAllCheckBox.setDisable(singleOrLess);
+        selectAllSwitch.setDisable(singleOrLess);
     }
 
     private void saveAndClose() {
@@ -337,7 +338,7 @@ public class MacAddressManagementPopup extends VBox {
     }
 
     private class MacListCell extends ListCell<MacItem> {
-        private final CheckBox checkBox = new CheckBox();
+        private final SwitchButton switchButton = new SwitchButton();
         private final TextFlow textFlow = new TextFlow();
         private final Label statusLabel = new Label();
         private final Label expiryLabel = new Label();
@@ -360,14 +361,14 @@ public class MacAddressManagementPopup extends VBox {
 
         private void unbindCurrentProperty() {
             if (currentBoundProperty != null) {
-                checkBox.selectedProperty().unbindBidirectional(currentBoundProperty);
+                switchButton.selectedProperty().unbindBidirectional(currentBoundProperty);
                 currentBoundProperty = null;
             }
         }
 
         private void bindSelection(MacItem item) {
             currentBoundProperty = item.selectedProperty();
-            checkBox.selectedProperty().bindBidirectional(currentBoundProperty);
+            switchButton.selectedProperty().bindBidirectional(currentBoundProperty);
         }
 
         private HBox buildGraphic(MacItem item) {
@@ -406,7 +407,7 @@ public class MacAddressManagementPopup extends VBox {
             infoBox.setVisible(hasStatus || hasExpiry);
             infoBox.setManaged(hasStatus || hasExpiry);
 
-            HBox topRow = new HBox(10, checkBox, textFlow);
+            HBox topRow = new HBox(10, switchButton, textFlow);
             topRow.setAlignment(Pos.CENTER_LEFT);
             VBox container = new VBox(4, topRow, infoBox);
             return new HBox(container);

@@ -13,6 +13,7 @@ import com.uiptv.service.HandshakeService;
 import com.uiptv.util.AccountType;
 import com.uiptv.util.AccountCopyUtil;
 import com.uiptv.widget.*;
+import com.uiptv.widget.SwitchButton;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -65,9 +66,9 @@ public class ManageAccountUI extends VBox {
     private final UIptvText deviceId1 = new UIptvText("deviceId1", "manageDeviceId1Prompt", 5);
     private final UIptvText deviceId2 = new UIptvText("deviceId2", "manageDeviceId2Prompt", 5);
     private final UIptvText signature = new UIptvText("signature", "manageSignaturePrompt", 5);
-    private final CheckBox pinToTopCheckBox = new CheckBox(I18n.tr("autoPinAccountOnTop"));
-    private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox(I18n.tr("manageResolveChainAndDeepRedirects"));
-    private final CheckBox parentalLockCheckBox = new CheckBox(I18n.tr("filterLockStateToggleLabel"));
+    private final SwitchButton pinToTopSwitch = new SwitchButton(I18n.tr("autoPinAccountOnTop"));
+    private final SwitchButton resolveChainAndDeepRedirectsSwitch = new SwitchButton(I18n.tr("manageResolveChainAndDeepRedirects"));
+    private final SwitchButton parentalLockSwitch = new SwitchButton(I18n.tr("filterLockStateToggleLabel"));
     private final UIptvCombo httpMethodCombo = new UIptvCombo("httpMethod", "manageHttpMethodPrompt", 150);
     private final UIptvCombo timezoneCombo = new UIptvCombo("timezone", "manageTimezonePrompt", 250);
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
@@ -202,16 +203,16 @@ public class ManageAccountUI extends VBox {
         formContainer.getChildren().clear();
         switch (type) {
             case STALKER_PORTAL:
-                formContainer.getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox, parentalLockCheckBox);
+                formContainer.getChildren().addAll(accountType, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopSwitch, resolveChainAndDeepRedirectsSwitch, parentalLockSwitch);
                 break;
             case M3U8_LOCAL:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox, parentalLockCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, browserButtonM3u8Path, pinToTopSwitch, resolveChainAndDeepRedirectsSwitch, parentalLockSwitch);
                 break;
             case M3U8_URL:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox, parentalLockCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, epg, pinToTopSwitch, resolveChainAndDeepRedirectsSwitch, parentalLockSwitch);
                 break;
             case XTREME_API:
-                formContainer.getChildren().addAll(accountType, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopCheckBox, resolveChainAndDeepRedirectsCheckBox, parentalLockCheckBox);
+                formContainer.getChildren().addAll(accountType, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopSwitch, resolveChainAndDeepRedirectsSwitch, parentalLockSwitch);
                 break;
         }
 
@@ -459,11 +460,11 @@ public class ManageAccountUI extends VBox {
     }
 
     private void addParentalLockToggleHandler() {
-        parentalLockCheckBox.selectedProperty().addListener((observable, oldVal, newVal) -> {
+        parentalLockSwitch.selectedProperty().addListener((observable, oldVal, newVal) -> {
             if (oldVal && !newVal) {
                 boolean allowed = FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockManageFiltersReason");
                 if (!allowed) {
-                    Platform.runLater(() -> parentalLockCheckBox.setSelected(true));
+                    Platform.runLater(() -> parentalLockSwitch.setSelected(true));
                 }
             }
         });
@@ -501,8 +502,8 @@ public class ManageAccountUI extends VBox {
         macAddress.setValue(null);
         macAddress.setPromptText(I18n.tr(PRIMARY_MAC_ADDRESS_HINT_KEY));
         accountType.setValue(STALKER_PORTAL.getDisplay());
-        pinToTopCheckBox.setSelected(false);
-        resolveChainAndDeepRedirectsCheckBox.setSelected(false);
+        pinToTopSwitch.setSelected(false);
+        resolveChainAndDeepRedirectsSwitch.setSelected(false);
         httpMethodCombo.setValue("GET");
         timezoneCombo.setValue(DEFAULT_TIMEZONE);
         verifyMacsLink.setVisible(false);
@@ -532,12 +533,12 @@ public class ManageAccountUI extends VBox {
         }
         Account account = new Account(name.getText(), resolvedUsername, password.getText(), url.getText(),
                 macAddress.getValue() != null ? macAddress.getValue() : "", macAddressList.getText(), serialNumber.getText(), deviceId1.getText(), deviceId2.getText(), signature.getText(),
-                resolvedType, epg.getText(), m3u8Path.getText(), pinToTopCheckBox.isSelected());
+                resolvedType, epg.getText(), m3u8Path.getText(), pinToTopSwitch.isSelected());
         if (accountId != null) {
             account.setDbId(accountId);
         }
-        account.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
-        account.setParentalLock(parentalLockCheckBox.isSelected());
+        account.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsSwitch.isSelected());
+        account.setParentalLock(parentalLockSwitch.isSelected());
         account.setHttpMethod(httpMethodCombo.getValue() != null ? httpMethodCombo.getValue() : "GET");
         account.setTimezone(timezoneCombo.getValue() != null ? timezoneCombo.getValue() : DEFAULT_TIMEZONE);
         return account;
@@ -660,9 +661,9 @@ public class ManageAccountUI extends VBox {
         signature.setText(account.getSignature());
         epg.setText(account.getEpg());
         m3u8Path.setText(account.getM3u8Path());
-        pinToTopCheckBox.setSelected(account.isPinToTop());
-        resolveChainAndDeepRedirectsCheckBox.setSelected(account.isResolveChainAndDeepRedirects());
-        parentalLockCheckBox.setSelected(account.isParentalLock());
+        pinToTopSwitch.setSelected(account.isPinToTop());
+        resolveChainAndDeepRedirectsSwitch.setSelected(account.isResolveChainAndDeepRedirects());
+        parentalLockSwitch.setSelected(account.isParentalLock());
         httpMethodCombo.setValue(isNotBlank(account.getHttpMethod()) ? account.getHttpMethod() : "GET");
         timezoneCombo.setValue(isNotBlank(account.getTimezone()) ? account.getTimezone() : DEFAULT_TIMEZONE);
         accountType.setValue(account.getType().getDisplay());

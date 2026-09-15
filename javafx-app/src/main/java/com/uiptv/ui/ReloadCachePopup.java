@@ -12,6 +12,7 @@ import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.util.AccountType;
 import com.uiptv.widget.ProminentButton;
+import com.uiptv.widget.SwitchButton;
 import com.uiptv.widget.SegmentedProgressBar;
 import javafx.application.Platform;
 import javafx.geometry.Bounds;
@@ -125,7 +126,7 @@ public class ReloadCachePopup extends VBox {
     private final CacheService cacheService = new CacheServiceImpl();
     private final AccountService accountService = AccountService.getInstance();
     private final AccountInfoService accountInfoService = AccountInfoService.getInstance();
-    private final List<CheckBox> checkBoxes = new ArrayList<>();
+    private final List<SwitchButton> checkBoxes = new ArrayList<>();
     private final Map<String, AccountLogPanel> accountLogPanels = new LinkedHashMap<>();
     private final List<String> runAccountOrder = new ArrayList<>();
     private final List<String> latestSummaryLines = new ArrayList<>();
@@ -191,7 +192,7 @@ public class ReloadCachePopup extends VBox {
 
         if (preselectedAccounts != null && !preselectedAccounts.isEmpty()) {
             preselectAccounts(preselectedAccounts);
-            if (checkBoxes.stream().anyMatch(CheckBox::isSelected)) {
+            if (checkBoxes.stream().anyMatch(cb -> cb.isSelected())) {
                 hideAccountSelectionColumn();
                 Platform.runLater(this::startReloadInBackground);
             }
@@ -227,14 +228,14 @@ public class ReloadCachePopup extends VBox {
     private void populateAccountCheckboxes(List<Account> supportedAccounts) {
         for (int i = 0; i < supportedAccounts.size(); i++) {
             Account account = supportedAccounts.get(i);
-            CheckBox accountCheckBox = createAccountCheckBox(account, i);
+            SwitchButton accountCheckBox = createAccountCheckBox(account, i);
             accountsVBox.getChildren().add(accountCheckBox);
             checkBoxes.add(accountCheckBox);
         }
     }
 
-    private CheckBox createAccountCheckBox(Account account, int index) {
-        CheckBox accountCheckBox = new CheckBox(account.getAccountName());
+    private SwitchButton createAccountCheckBox(Account account, int index) {
+        SwitchButton accountCheckBox = new SwitchButton(account.getAccountName());
         accountCheckBox.setUserData(account);
         accountCheckBox.setMaxWidth(Double.MAX_VALUE);
         accountCheckBox.setPadding(new Insets(5));
@@ -442,7 +443,7 @@ public class ReloadCachePopup extends VBox {
     }
 
     private void updateCheckboxes(AccountType type, boolean selected) {
-        for (CheckBox cb : checkBoxes) {
+        for (SwitchButton cb : checkBoxes) {
             Account acc = (Account) cb.getUserData();
             if (acc.getType() == type) {
                 cb.setSelected(selected);
@@ -533,7 +534,7 @@ public class ReloadCachePopup extends VBox {
     private List<Account> selectedAccountsSnapshot() {
         AtomicReference<List<Account>> selectedAccounts = new AtomicReference<>(List.of());
         runOnFxThreadAndWait(() -> selectedAccounts.set(checkBoxes.stream()
-                .filter(CheckBox::isSelected)
+                .filter(SwitchButton::isSelected)
                 .map(checkBox -> (Account) checkBox.getUserData())
                 .toList()));
         return selectedAccounts.get();
@@ -555,7 +556,7 @@ public class ReloadCachePopup extends VBox {
             }
         }
 
-        for (CheckBox checkBox : checkBoxes) {
+        for (SwitchButton checkBox : checkBoxes) {
             Account listedAccount = (Account) checkBox.getUserData();
             if (listedAccount == null) {
                 continue;
@@ -848,10 +849,10 @@ public class ReloadCachePopup extends VBox {
         return warningLabel;
     }
 
-    private CheckBox createSelectAllCheckBox(VBox accountsBox) {
-        CheckBox selectAll = new CheckBox(I18n.tr("autoSelectAll"));
+    private SwitchButton createSelectAllCheckBox(VBox accountsBox) {
+        SwitchButton selectAll = new SwitchButton(I18n.tr("autoSelectAll"));
         selectAll.setOnAction(e -> accountsBox.getChildren().forEach(node -> {
-            if (node instanceof CheckBox checkBox) {
+            if (node instanceof SwitchButton checkBox) {
                 checkBox.setSelected(selectAll.isSelected());
             }
         }));
@@ -924,7 +925,7 @@ public class ReloadCachePopup extends VBox {
 
     private List<Account> selectedProblemAccounts(VBox accountsBox) {
         return accountsBox.getChildren().stream()
-                .filter(n -> n instanceof CheckBox checkbox && checkbox.isSelected())
+                .filter(n -> n instanceof SwitchButton switchBtn && switchBtn.isSelected())
                 .map(n -> (Account) n.getUserData())
                 .toList();
     }
@@ -967,7 +968,7 @@ public class ReloadCachePopup extends VBox {
             String reasons = status == null || status.reasons.isEmpty()
                     ? I18n.tr("reloadNoReasonCaptured")
                     : String.join(" | ", status.reasons);
-            CheckBox cb = new CheckBox(account.getAccountName() + " (" + account.getType().getDisplay() + ") - " + reasons);
+            SwitchButton cb = new SwitchButton(account.getAccountName() + " (" + account.getType().getDisplay() + ") - " + reasons);
             cb.setWrapText(true);
             cb.setUserData(account);
             accountsBox.getChildren().add(cb);

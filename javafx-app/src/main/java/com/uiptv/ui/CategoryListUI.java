@@ -181,10 +181,11 @@ public class CategoryListUI extends HBox {
         }
     }
 
-    private void initWidgets() {
+private void initWidgets() {
         setSpacing(5);
         setMaxHeight(Double.MAX_VALUE);
         setMinHeight(0);
+        setFillHeight(true);
         table.setEditable(true);
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         table.getColumns().add(categoryTitle);
@@ -197,10 +198,14 @@ public class CategoryListUI extends HBox {
         setupModeTabs();
         table.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(table, Priority.ALWAYS);
+        table.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(table, Priority.ALWAYS);
         leftPane.getChildren().addAll(modeTabs, table.getSearchTextField(), table);
         leftPane.setMaxHeight(Double.MAX_VALUE);
         leftPane.setMinHeight(0);
         VBox.setVgrow(leftPane, Priority.ALWAYS);
+        leftPane.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(leftPane, Priority.ALWAYS);
         table.getSelectionModel().selectedItemProperty().addListener((obs, oldItem, newItem) -> {
             if (newItem != null) {
                 String key = resolveCategoryKey(newItem);

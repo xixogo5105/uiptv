@@ -826,7 +826,33 @@
 .uiptv-text-field {}
 .uiptv-text-area {}
 .uiptv-password-field {}
-.uiptv-check-box {}
+.uiptv-switch-button {
+    -fx-background-color: transparent;
+}
+
+.uiptv-switch-button .track {
+    -fx-fill: #555555;
+}
+
+.uiptv-switch-button .thumb {
+    -fx-fill: #ffffff;
+}
+
+.uiptv-switch-button.selected .track {
+    -fx-fill: #4CAF50;
+}
+
+.uiptv-switch-button.selected .thumb {
+    -fx-fill: #ffffff;
+}
+
+.uiptv-switch-button:disabled .track {
+    -fx-fill: #404040;
+}
+
+.uiptv-switch-button:disabled .thumb {
+    -fx-fill: #808080;
+}
 .published-m3u-customized-checkbox {
     -fx-opacity: 0.72;
 }

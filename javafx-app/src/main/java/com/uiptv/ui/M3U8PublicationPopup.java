@@ -9,6 +9,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import com.uiptv.widget.SwitchButton;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
@@ -125,7 +126,7 @@ public class M3U8PublicationPopup extends VBox {
 
     private final class AccountNode {
         private final M3U8PublicationService.PlaylistAccountSummary account;
-        private final CheckBox checkBox;
+        private final SwitchButton checkBox;
         private final Label loadingLabel = new Label(I18n.tr("commonLoading"));
         private final VBox childrenBox;
         private final VBox container;
@@ -142,7 +143,7 @@ public class M3U8PublicationPopup extends VBox {
                     && !service.isWatchingNowSeriesPlaylistAccountId(account.accountId())
                     && !service.isWatchingNowVodPlaylistAccountId(account.accountId());
             this.baseSelection = savedSelections.accountIds().contains(account.accountId());
-            this.checkBox = new CheckBox(account.accountName());
+            this.checkBox = new SwitchButton(account.accountName());
             this.childrenBox = new VBox(6);
             this.container = new VBox(6);
             this.toggleLink = detailsSupported ? new Hyperlink(I18n.tr(SHOW_TRANSLATION_KEY)) : null;
@@ -267,7 +268,7 @@ public class M3U8PublicationPopup extends VBox {
     private final class CategoryNode {
         private final AccountNode parent;
         private final M3U8PublicationService.PlaylistCategory category;
-        private final CheckBox checkBox;
+        private final SwitchButton checkBox;
         private final VBox childrenBox;
         private final VBox container;
         private final List<ChannelNode> channels = new ArrayList<>();
@@ -276,7 +277,7 @@ public class M3U8PublicationPopup extends VBox {
         private CategoryNode(AccountNode parent, M3U8PublicationService.PlaylistCategory category) {
             this.parent = parent;
             this.category = category;
-            this.checkBox = new CheckBox(category.categoryName());
+            this.checkBox = new SwitchButton(category.categoryName());
             this.childrenBox = new VBox(4);
             this.container = new VBox(4);
             this.toggleLink = new Hyperlink(I18n.tr(SHOW_TRANSLATION_KEY));
@@ -410,13 +411,13 @@ public class M3U8PublicationPopup extends VBox {
     private final class ChannelNode {
         private final CategoryNode parent;
         private final M3U8PublicationService.PlaylistChannel channel;
-        private final CheckBox checkBox;
+        private final SwitchButton checkBox;
         private final HBox row;
 
         private ChannelNode(CategoryNode parent, M3U8PublicationService.PlaylistChannel channel) {
             this.parent = parent;
             this.channel = channel;
-            this.checkBox = new CheckBox(channel.title());
+            this.checkBox = new SwitchButton(channel.title());
             this.row = new HBox(checkBox);
             row.setAlignment(Pos.CENTER_LEFT);
 
@@ -454,7 +455,7 @@ public class M3U8PublicationPopup extends VBox {
         }
     }
 
-    private HBox createRow(CheckBox checkBox, Hyperlink toggleLink, Runnable onToggle) {
+    private HBox createRow(SwitchButton checkBox, Hyperlink toggleLink, Runnable onToggle) {
         checkBox.setMaxWidth(Double.MAX_VALUE);
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -501,7 +502,7 @@ public class M3U8PublicationPopup extends VBox {
         return categoryModeComboBox.getValue();
     }
 
-    private void applyCheckboxState(CheckBox checkBox, boolean anySelected, boolean allSelected, boolean customized) {
+    private void applyCheckboxState(SwitchButton checkBox, boolean anySelected, boolean allSelected, boolean customized) {
         checkBox.getStyleClass().remove(CUSTOMIZED_CHECKBOX_STYLE_CLASS);
         if (!anySelected) {
             checkBox.setAllowIndeterminate(false);

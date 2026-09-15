@@ -132,6 +132,7 @@ public abstract class BaseMainApplicationUI {
 
         VBox rootLayout = new VBox(menuBar, mainContent);
         VBox.setVgrow(mainContent, Priority.ALWAYS);
+        HBox.setHgrow(mainContent, Priority.ALWAYS);
 
         Scene scene = new Scene(rootLayout, guidedMaxWidthPixels, guidedMaxHeightPixels);
         UiI18n.applySceneOrientation(scene);
@@ -161,17 +162,24 @@ public abstract class BaseMainApplicationUI {
         embeddedPlayer.setMaxHeight(Double.MAX_VALUE);
         HBox.setHgrow(embeddedPlayer, Priority.ALWAYS);
 
+        // Enforce minimum width for tab pane to prevent excessive shrinking
         tabPane.setMinWidth(445);
         tabPane.setPrefWidth(445);
         tabPane.setMaxWidth(445);
         tabPane.setMaxHeight(Double.MAX_VALUE);
         tabPane.setMinHeight(0);
 
+        // Enforce minimum width for account list
         accountListUI.setMaxHeight(Double.MAX_VALUE);
         accountListUI.setMinHeight(0);
+        accountListUI.setMinWidth(300);
+        accountListUI.setPrefWidth(300);
+
         embeddedPlayer.setMinHeight(0);
 
-        return new HBox(tabPane, embeddedPlayer);
+        HBox content = new HBox(tabPane, embeddedPlayer);
+        HBox.setHgrow(embeddedPlayer, Priority.ALWAYS);
+        return content;
     }
 
     protected HBox createMainContent(TabPane tabPane, AccountListUI accountListUI) {
@@ -180,15 +188,31 @@ public abstract class BaseMainApplicationUI {
         VBox.setVgrow(tabPane, Priority.ALWAYS);
         leftContainer.getChildren().add(tabPane);
 
+        // Enforce minimum width to prevent excessive shrinking
         leftContainer.setMinWidth(480);
         leftContainer.setPrefWidth(480);
-        leftContainer.setMaxWidth(480);
+        leftContainer.setMaxWidth(Double.MAX_VALUE);
+        leftContainer.setMinHeight(0);
+        leftContainer.setPrefHeight(Double.MAX_VALUE);
+        leftContainer.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(leftContainer, Priority.ALWAYS);
+
         tabPane.setMinWidth(480);
         tabPane.setPrefWidth(480);
-        tabPane.setMaxWidth(480);
+        tabPane.setMaxWidth(Double.MAX_VALUE);
+        tabPane.setMaxHeight(Double.MAX_VALUE);
+        tabPane.setMinHeight(0);
+
+        // Enforce minimum width for account list
+        accountListUI.setMinWidth(300);
+        accountListUI.setPrefWidth(300);
+        accountListUI.setMaxWidth(Double.MAX_VALUE);
+        accountListUI.setMaxHeight(Double.MAX_VALUE);
+        accountListUI.setMinHeight(0);
 
         HBox mainContent = new HBox(leftContainer, accountListUI);
-        HBox.setHgrow(tabPane, Priority.ALWAYS);
+        HBox.setHgrow(leftContainer, Priority.ALWAYS);
+        HBox.setHgrow(accountListUI, Priority.ALWAYS);
         return mainContent;
     }
 

@@ -17,6 +17,7 @@ import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.ProminentButton;
+import com.uiptv.widget.SwitchButton;
 import com.uiptv.widget.UIptvAlert;
 import com.uiptv.widget.UIptvText;
 import com.uiptv.widget.UIptvTextArea;
@@ -91,7 +92,7 @@ public class ConfigurationUI extends VBox {
     private final UIptvText playerPath3 = new UIptvText("playerPath3", "configPlayerPath3Prompt", 5);
     private final UIptvTextArea filterCategoriesWithTextContains = new UIptvTextArea("filterCategoriesWithTextContains", CONFIG_FILTER_CATEGORIES_PROMPT, 5);
     private final UIptvTextArea filterChannelWithTextContains = new UIptvTextArea("filterChannelWithTextContains", CONFIG_FILTER_CHANNELS_PROMPT, 5);
-    private final CheckBox filterPausedCheckBox = new CheckBox(I18n.tr("configPauseFiltering"));
+    private final SwitchButton filterPausedSwitch = new SwitchButton(I18n.tr("configPauseFiltering"));
     private final Label filterLockStatusLabel = new Label();
     private final Label filtersGroupTitleLabel = new Label();
     private final StatusIcon filtersGroupStatusIcon = new StatusIcon();
@@ -100,18 +101,19 @@ public class ConfigurationUI extends VBox {
     private final Button filterLockPasswordButton = new Button();
     private final Button filterUnlockButton = new Button(I18n.tr("filterLockUnlockAction"));
     private final Button filterRelockButton = new Button(I18n.tr("filterLockLockNowAction"));
-    private final CheckBox filterDisablePasswordCheckBox = new CheckBox(I18n.tr("filterLockDisablePasswordAction"));
-    private final CheckBox filterLockStateToggle = new CheckBox(I18n.tr("filterLockStateToggle"));
+    private final SwitchButton filterDisablePasswordSwitch = new SwitchButton(I18n.tr("filterLockDisablePasswordAction"));
+    private final SwitchButton filterLockStateSwitch = new SwitchButton(I18n.tr("filterLockStateSwitch"));
     private final ComboBox<Integer> filterLockUnlockDurationComboBox = new ComboBox<>();
     private HBox filterLockDurationRow;
     private final VBox filterAdminControls = new VBox(10);
-    private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
-    private final CheckBox autoRunServerOnStartupCheckBox = new CheckBox(I18n.tr("configAutoRunServerOnStartup"));
-    private final CheckBox httpsServerEnabledCheckBox = new CheckBox(I18n.tr("configEnableHttpsServer"));
-    private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
-    private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
+    private final SwitchButton darkThemeSwitch = new SwitchButton(I18n.tr("configUseDarkTheme"));
+    private final SwitchButton autoRunServerOnStartupSwitch = new SwitchButton(I18n.tr("configAutoRunServerOnStartup"));
+    private final SwitchButton httpsServerEnabledSwitch = new SwitchButton(I18n.tr("configEnableHttpsServer"));
+    private final SwitchButton enableThumbnailsSwitch = new SwitchButton(I18n.tr("configEnableThumbnails"));
+    private final SwitchButton wideViewSwitch = new SwitchButton(I18n.tr("configWideView"));
     private final Hyperlink wideViewHelpLink = new Hyperlink("(?)");
-    private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox(I18n.tr("configResolveChainAndDeepRedirects"));
+    private boolean updatingFilterLockSwitch = false;
+    private final SwitchButton resolveChainAndDeepRedirectsSwitch = new SwitchButton(I18n.tr("configResolveChainAndDeepRedirects"));
     private final Hyperlink resolveChainAndDeepRedirectsHelpLink = new Hyperlink("(?)");
     private final Hyperlink videoPlayersHelpLink = new Hyperlink("(?)");
     private final Hyperlink filtersHelpLink = new Hyperlink("(?)");
@@ -246,7 +248,7 @@ public class ConfigurationUI extends VBox {
         filterChannelWithTextContains.setPrefRowCount(6);
         registerConfigurationChangeListener();
 
-        filterPausedCheckBox.setMinWidth(250);
+        filterPausedSwitch.setMinWidth(250);
         filterLockStatusLabel.setWrapText(true);
         filterLockStatusLabel.getStyleClass().add(STYLE_CLASS_DIM_LABEL);
         cacheExpiryDays.setPrefColumnCount(4);
@@ -269,8 +271,8 @@ public class ConfigurationUI extends VBox {
         HBox.setHgrow(box4Spacer, Priority.ALWAYS);
         HBox box4 = new HBox(6, defaultEmbedPlayer, box4Spacer, vlcOptionsLink);
         HBox box5 = new HBox(6, defaultWebBrowserPlayer);
-        HBox wideViewRow = new HBox(4, wideViewCheckBox, wideViewHelpLink);
-        HBox resolveChainRow = new HBox(4, resolveChainAndDeepRedirectsCheckBox, resolveChainAndDeepRedirectsHelpLink);
+        HBox wideViewRow = new HBox(4, wideViewSwitch, wideViewHelpLink);
+        HBox resolveChainRow = new HBox(4, resolveChainAndDeepRedirectsSwitch, resolveChainAndDeepRedirectsHelpLink);
         box1.setAlignment(Pos.CENTER_LEFT);
         box2.setAlignment(Pos.CENTER_LEFT);
         box3.setAlignment(Pos.CENTER_LEFT);
@@ -278,8 +280,8 @@ public class ConfigurationUI extends VBox {
         box5.setAlignment(Pos.CENTER_LEFT);
         wideViewRow.setAlignment(Pos.CENTER_LEFT);
         resolveChainRow.setAlignment(Pos.CENTER_LEFT);
-        wideViewCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
-        resolveChainAndDeepRedirectsCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
+        wideViewSwitch.setMaxWidth(Region.USE_PREF_SIZE);
+        resolveChainAndDeepRedirectsSwitch.setMaxWidth(Region.USE_PREF_SIZE);
         Label tmdbTokenLabel = new Label(I18n.tr("configTmdbReadAccessToken"));
         HBox tmdbLinksRow = new HBox(10, tmdbApiGuideLink, tmdbApiKeyPageLink);
         VBox tmdbConfigSection = new VBox(6, tmdbTokenLabel, tmdbReadAccessToken, tmdbLinksRow);
@@ -292,13 +294,18 @@ public class ConfigurationUI extends VBox {
         HBox filterLockActions = new HBox(8, filterLockPasswordButton, filterUnlockButton, filterRelockButton);
         filterLockActions.setAlignment(Pos.CENTER_LEFT);
         filterLockDurationRow = createFilterLockDurationRow();
-        VBox filtersGroup = new VBox(10, filterLockStatusLabel, filterLockStateToggle, filterLockActions, filterDisablePasswordCheckBox, filterLockDurationRow, filterAdminControls);
+        // Simplified parental control panel: single switch + dynamic status message
+        VBox simplifiedParentalPanel = buildSimplifiedParentalControlPanel();
+        VBox filtersGroup = new VBox(10, simplifiedParentalPanel, filterLockActions, filterDisablePasswordSwitch, filterLockDurationRow, filterAdminControls);
 
         VBox themeOverridesGroup = buildThemeOverrideGroup();
 
         HBox clearButtons = new HBox(10, clearCacheButton, clearWatchingNowButton);
         reloadCacheButton.setMaxWidth(Double.MAX_VALUE);
-        VBox cacheGroup = new VBox(10, filterPausedCheckBox, cacheExpiryRow, clearButtons, reloadCacheButton);
+        // Wrap pause filter switch with label to display text (SwitchButton doesn't render text)
+        HBox pauseFilterRow = new HBox(6, filterPausedSwitch, new Label(I18n.tr("configPauseFiltering")));
+        pauseFilterRow.setAlignment(Pos.CENTER_LEFT);
+        VBox cacheGroup = new VBox(10, pauseFilterRow, cacheExpiryRow, clearButtons, reloadCacheButton);
         refreshConfigurationBlockTitles();
 
         openServerLink.setVisible(false);
@@ -308,14 +315,14 @@ public class ConfigurationUI extends VBox {
         HBox serverButtonWrapper = new HBox(10, serverPort, startServerButton, openServerLink);
         publishM3u8Button.setMaxWidth(Double.MAX_VALUE);
         publishM3u8Button.setPrefWidth(440);
-        HBox autoRunServerOnStartupRow = new HBox(6, autoRunServerOnStartupCheckBox);
+        HBox autoRunServerOnStartupRow = new HBox(6, autoRunServerOnStartupSwitch);
         autoRunServerOnStartupRow.setAlignment(Pos.CENTER_LEFT);
-        autoRunServerOnStartupCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
-        HBox httpsServerRow = new HBox(10, httpsServerEnabledCheckBox, httpsServerPort, openSecureServerLink);
+        autoRunServerOnStartupSwitch.setMaxWidth(Region.USE_PREF_SIZE);
+        HBox httpsServerRow = new HBox(10, httpsServerEnabledSwitch, httpsServerPort, openSecureServerLink);
         httpsServerRow.setAlignment(Pos.CENTER_LEFT);
-        httpsServerEnabledCheckBox.setMaxWidth(Region.USE_PREF_SIZE);
-        httpsServerPort.disableProperty().bind(httpsServerEnabledCheckBox.selectedProperty().not());
-        httpsServerEnabledCheckBox.selectedProperty().addListener((_, _, _) -> refreshServerStatusUI());
+        httpsServerEnabledSwitch.setMaxWidth(Region.USE_PREF_SIZE);
+        httpsServerPort.disableProperty().bind(httpsServerEnabledSwitch.selectedProperty().not());
+        httpsServerEnabledSwitch.selectedProperty().addListener((_, _, _) -> refreshServerStatusUI());
         VBox serverGroup = new VBox(10, serverButtonWrapper, httpsServerRow, publishM3u8Button, autoRunServerOnStartupRow);
         serverGroup.setFillWidth(true);
         VBox databaseSyncGroup = buildDatabaseSyncGroup();
@@ -476,7 +483,7 @@ public class ConfigurationUI extends VBox {
         languageAndZoomSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         languageAndZoomSection.setMaxWidth(Double.MAX_VALUE);
 
-        return new VBox(10, darkThemeCheckBox, enableThumbnailsCheckBox, languageAndZoomSection);
+        return new VBox(10, darkThemeSwitch, enableThumbnailsSwitch, languageAndZoomSection);
     }
 
     private void initializeLanguageSelection(Configuration configuration) {
@@ -534,7 +541,7 @@ public class ConfigurationUI extends VBox {
         RootApplication.applyTheme(
                 scene,
                 getClass(),
-                darkThemeCheckBox.isSelected(),
+                darkThemeSwitch.isSelected(),
                 getSelectedThemeZoomPercent()
         );
     }
@@ -681,7 +688,7 @@ public class ConfigurationUI extends VBox {
         startServerButton.setText(running ? I18n.tr("configStopServer") : I18n.tr("configStartServer"));
         openServerLink.setVisible(running);
         openServerLink.setManaged(running);
-        boolean secureLinkVisible = running && httpsServerEnabledCheckBox.isSelected();
+        boolean secureLinkVisible = running && httpsServerEnabledSwitch.isSelected();
         openSecureServerLink.setVisible(secureLinkVisible);
         openSecureServerLink.setManaged(secureLinkVisible);
     }
@@ -738,8 +745,12 @@ public class ConfigurationUI extends VBox {
             FilterLockDialogs.openPasswordChangeDialog(this);
             refreshConfigurationForm();
         });
-        filterLockStateToggle.selectedProperty().addListener((_, _, restrictionsActiveRequested) ->
-                handleFilterLockStateToggleChanged(restrictionsActiveRequested));
+        filterLockStateSwitch.selectedProperty().addListener((_, _, restrictionsActiveRequested) -> {
+            if (updatingFilterLockSwitch) {
+                return;
+            }
+            handleFilterLockStateToggleChanged(restrictionsActiveRequested);
+        });
         filterUnlockButton.setOnAction(event -> {
             if (FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
                 refreshFilterLockUi();
@@ -749,43 +760,72 @@ public class ConfigurationUI extends VBox {
             FilterLockService.getInstance().clearUnlockSession();
             refreshFilterLockUi();
         });
-        filterDisablePasswordCheckBox.setOnAction(event -> {
-            if (!filterDisablePasswordCheckBox.isSelected()) {
+        filterDisablePasswordSwitch.setOnAction(event -> {
+            if (!filterDisablePasswordSwitch.isSelected()) {
                 return;
             }
             boolean disabled = FilterLockDialogs.openDisablePasswordDialog(this);
-            filterDisablePasswordCheckBox.setSelected(false);
+            filterDisablePasswordSwitch.setSelected(false);
             if (disabled) {
                 refreshConfigurationForm();
             }
         });
-        filterPausedCheckBox.setOnAction(event -> {
+        filterPausedSwitch.setOnAction(event -> {
             FilterLockService filterLockService = FilterLockService.getInstance();
             if (!filterLockService.hasPasswordConfigured() || filterLockService.isUnlocked()) {
                 return;
             }
             if (!FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
-                filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+                filterPausedSwitch.setSelected(persistedPauseFilteringValue);
                 return;
             }
             refreshFilterLockUi();
-            filterPausedCheckBox.setSelected(!persistedPauseFilteringValue);
+            filterPausedSwitch.setSelected(!persistedPauseFilteringValue);
         });
     }
 
     private void handleFilterLockStateToggleChanged(boolean restrictionsActiveRequested) {
         FilterLockService filterLockService = FilterLockService.getInstance();
-        if (filterLockService.hasPasswordConfigured() && !filterLockService.isUnlocked()) {
-            if (!FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
-                filterLockStateToggle.setSelected(!persistedPauseFilteringValue);
-                return;
-            }
-            refreshFilterLockUi();
-            filterLockStateToggle.setSelected(restrictionsActiveRequested);
+        boolean passwordSet = filterLockService.hasPasswordConfigured();
+        boolean unlocked = filterLockService.isUnlocked();
+
+        // If no password is set, ignore toggle and revert
+        if (!passwordSet) {
+            updatingFilterLockSwitch = true;
+            filterLockStateSwitch.setSelected(false);
+            updatingFilterLockSwitch = false;
+            return;
         }
-        if (restrictionsActiveRequested) {
+
+        // If user wants to activate restrictions (switch ON) and is currently unlocked
+        if (restrictionsActiveRequested && unlocked) {
+            // Lock the content
             filterLockService.clearUnlockSession();
+            updatingFilterLockSwitch = true;
+            filterLockStateSwitch.setSelected(true);
+            updatingFilterLockSwitch = false;
+            refreshFilterLockUi();
+            return;
         }
+
+        // If user wants to deactivate restrictions (switch OFF) and is currently locked
+        if (!restrictionsActiveRequested && !unlocked) {
+            // Prompt for password to unlock
+            if (FilterLockDialogs.ensureUnlocked(this, FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON)) {
+                updatingFilterLockSwitch = true;
+                filterLockStateSwitch.setSelected(false);
+                updatingFilterLockSwitch = false;
+                refreshFilterLockUi();
+            } else {
+                // User cancelled - revert switch to ON (locked)
+                updatingFilterLockSwitch = true;
+                filterLockStateSwitch.setSelected(true);
+                updatingFilterLockSwitch = false;
+            }
+            return;
+        }
+
+        // State already matches request - update UI
         refreshFilterLockUi();
     }
 
@@ -902,47 +942,51 @@ public class ConfigurationUI extends VBox {
         boolean unlocked = filterLockService.isUnlocked();
 
         filterLockPasswordButton.setText(I18n.tr(passwordSet ? "filterLockChangePasswordAction" : "filterLockSetPasswordAction"));
-        // Simplify parental lock controls on main: hide unlock/relock buttons; single control via checkbox manages state
+        // Simplify parental lock controls on main: hide unlock/relock buttons; single control via switch manages state
         filterUnlockButton.setManaged(false);
         filterUnlockButton.setVisible(false);
         filterRelockButton.setManaged(false);
         filterRelockButton.setVisible(false);
-        filterDisablePasswordCheckBox.setManaged(passwordSet);
-        filterDisablePasswordCheckBox.setVisible(passwordSet);
-        filterDisablePasswordCheckBox.setSelected(false);
+        filterDisablePasswordSwitch.setManaged(passwordSet);
+        filterDisablePasswordSwitch.setVisible(passwordSet);
+        filterDisablePasswordSwitch.setSelected(false);
+
+        // Set switch state: ON when locked (restrictions active), OFF when unlocked or no password
+        boolean restrictionsActive = passwordSet && !unlocked;
+        updatingFilterLockSwitch = true;
+        filterLockStateSwitch.setSelected(restrictionsActive);
+        updatingFilterLockSwitch = false;
 
         if (!passwordSet) {
-            filterLockStatusLabel.setText(I18n.tr("filterLockStatusNotSet"));
             filterCategoriesWithTextContains.setEditable(true);
             filterChannelWithTextContains.setEditable(true);
             filterCategoriesWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CATEGORIES_PROMPT));
             filterChannelWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CHANNELS_PROMPT));
             filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
             filterChannelWithTextContains.setText(persistedFilterChannelsValue);
-            filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+            filterPausedSwitch.setSelected(persistedPauseFilteringValue);
             updateFilterLockDurationRowVisibility(false);
             return;
         }
 
         if (unlocked) {
-            filterLockStatusLabel.setText(I18n.tr("filterLockStatusUnlocked", filterLockService.getUnlockWindowMinutes()));
             filterCategoriesWithTextContains.setEditable(true);
             filterChannelWithTextContains.setEditable(true);
             filterCategoriesWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CATEGORIES_PROMPT));
             filterChannelWithTextContains.setPromptText(I18n.tr(CONFIG_FILTER_CHANNELS_PROMPT));
             filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
             filterChannelWithTextContains.setText(persistedFilterChannelsValue);
-            filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+            filterPausedSwitch.setSelected(persistedPauseFilteringValue);
             updateFilterLockDurationRowVisibility(true);
             return;
         }
 
-        filterLockStatusLabel.setText(I18n.tr("filterLockStatusLocked", filterLockService.getUnlockWindowMinutes()));
+        // Locked
         filterCategoriesWithTextContains.clear();
         filterChannelWithTextContains.clear();
         filterCategoriesWithTextContains.setEditable(false);
         filterChannelWithTextContains.setEditable(false);
-        filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
+        filterPausedSwitch.setSelected(persistedPauseFilteringValue);
         filterCategoriesWithTextContains.setPromptText(I18n.tr("filterLockHiddenCategoriesPrompt"));
         filterChannelWithTextContains.setPromptText(I18n.tr("filterLockHiddenChannelsPrompt"));
         updateFilterLockDurationRowVisibility(false);
@@ -952,6 +996,52 @@ public class ConfigurationUI extends VBox {
         if (filterLockDurationRow != null) {
             filterLockDurationRow.setVisible(visible);
             filterLockDurationRow.setManaged(visible);
+        }
+    }
+
+    /**
+     * Builds the simplified parental control panel with a single switch that controls
+     * parental lock, censorship, and hidden content visibility.
+     * Shows dynamic status messages ("Enabled" or "Disabled") upon toggling.
+     */
+    private VBox buildSimplifiedParentalControlPanel() {
+        VBox panel = new VBox(8);
+        panel.getStyleClass().add("uiptv-card");
+        panel.setPadding(new Insets(10));
+
+        Label groupTitle = new Label(I18n.tr("filterLockSimplifiedGroupTitle"));
+        groupTitle.getStyleClass().add("strong-label");
+
+        HBox switchRow = new HBox(10, filterLockStateSwitch);
+        switchRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label statusLabel = new Label();
+        statusLabel.setWrapText(true);
+        statusLabel.getStyleClass().add("dim-label");
+
+        // Update status label when switch state changes
+        filterLockStateSwitch.selectedProperty().addListener(_ -> updateSimplifiedParentalStatus(statusLabel));
+
+        panel.getChildren().addAll(groupTitle, switchRow, statusLabel);
+
+        // Initial status update
+        updateSimplifiedParentalStatus(statusLabel);
+
+        return panel;
+    }
+
+    private void updateSimplifiedParentalStatus(Label statusLabel) {
+        FilterLockService filterLockService = FilterLockService.getInstance();
+        boolean passwordSet = filterLockService.hasPasswordConfigured();
+        boolean unlocked = filterLockService.isUnlocked();
+        boolean restrictionsActive = filterLockStateSwitch.isSelected();
+
+        if (!passwordSet) {
+            statusLabel.setText(I18n.tr("filterLockSimplifiedStatusNotSet"));
+        } else if (restrictionsActive) {
+            statusLabel.setText(I18n.tr("filterLockSimplifiedStatusEnabled"));
+        } else {
+            statusLabel.setText(I18n.tr("filterLockSimplifiedStatusDisabled"));
         }
     }
 
@@ -968,15 +1058,15 @@ public class ConfigurationUI extends VBox {
         persistedPauseFilteringValue = configuration.isPauseFiltering();
         filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
         filterChannelWithTextContains.setText(persistedFilterChannelsValue);
-        filterPausedCheckBox.setSelected(persistedPauseFilteringValue);
-        darkThemeCheckBox.setSelected(configuration.isDarkTheme());
-        enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
-        wideViewCheckBox.setSelected(configuration.isWideView());
+        filterPausedSwitch.setSelected(persistedPauseFilteringValue);
+        darkThemeSwitch.setSelected(configuration.isDarkTheme());
+        enableThumbnailsSwitch.setSelected(configuration.isEnableThumbnails());
+        wideViewSwitch.setSelected(configuration.isWideView());
         serverPort.setText(configuration.getServerPort());
-        httpsServerEnabledCheckBox.setSelected(configuration.isHttpsServerEnabled());
+        httpsServerEnabledSwitch.setSelected(configuration.isHttpsServerEnabled());
         httpsServerPort.setText(defaultHttpsServerPort(configuration.getHttpsServerPort()));
-        autoRunServerOnStartupCheckBox.setSelected(configuration.isAutoRunServerOnStartup());
-        resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
+        autoRunServerOnStartupSwitch.setSelected(configuration.isAutoRunServerOnStartup());
+        resolveChainAndDeepRedirectsSwitch.setSelected(configuration.isResolveChainAndDeepRedirects());
         cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
         tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
         Integer duration = configuration.getFilterLockUnlockDurationMinutes() != null && !configuration.getFilterLockUnlockDurationMinutes().isEmpty()
@@ -1042,23 +1132,23 @@ public class ConfigurationUI extends VBox {
                 playerPath1.getText(), playerPath2.getText(), playerPath3.getText(), resolveDefaultPlayerPath(),
                 resolveFilterCategoriesValueForSave(), resolveFilterChannelsValueForSave(),
                 resolvePauseFilteringValueForSave(),
-                darkThemeCheckBox.isSelected(), serverPort.getText(),
+                darkThemeSwitch.isSelected(), serverPort.getText(),
                 defaultEmbedPlayer.isSelected(),
                 sanitizeCacheExpiryDaysText(),
-                enableThumbnailsCheckBox.isSelected()
+                enableThumbnailsSwitch.isSelected()
         );
         configuration.setDbId(dbId);
-        configuration.setWideView(wideViewCheckBox.isSelected());
+        configuration.setWideView(wideViewSwitch.isSelected());
         configuration.setLanguageLocale(getSelectedLanguageTag());
         configuration.setTmdbReadAccessToken(tmdbReadAccessToken.getText() == null ? "" : tmdbReadAccessToken.getText().trim());
         configuration.setFilterLockHash(service.read().getFilterLockHash());
         Integer saveDuration = filterLockUnlockDurationComboBox.getValue();
         configuration.setFilterLockUnlockDurationMinutes(saveDuration != null ? String.valueOf(saveDuration) : "15");
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
-        configuration.setAutoRunServerOnStartup(autoRunServerOnStartupCheckBox.isSelected());
-        configuration.setHttpsServerEnabled(httpsServerEnabledCheckBox.isSelected());
+        configuration.setAutoRunServerOnStartup(autoRunServerOnStartupSwitch.isSelected());
+        configuration.setHttpsServerEnabled(httpsServerEnabledSwitch.isSelected());
         configuration.setHttpsServerPort(httpsServerPort.getText());
-        configuration.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
+        configuration.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsSwitch.isSelected());
         configuration.setVlcNetworkCachingMs(vlcNetworkCachingMs);
         configuration.setVlcLiveCachingMs(vlcLiveCachingMs);
         configuration.setEnableVlcHttpUserAgent(vlcHttpUserAgentEnabled);
@@ -1090,7 +1180,7 @@ public class ConfigurationUI extends VBox {
         // Any edits to filter fields will be ignored on save via resolve*ValueForSave() methods.
         boolean filterValuesChanged = !java.util.Objects.equals(filterCategoriesWithTextContains.getText(), persistedFilterCategoriesValue)
                 || !java.util.Objects.equals(filterChannelWithTextContains.getText(), persistedFilterChannelsValue)
-                || filterPausedCheckBox.isSelected() != persistedPauseFilteringValue;
+                || filterPausedSwitch.isSelected() != persistedPauseFilteringValue;
         // If filter-related values didn't change, proceed; if they did change, still proceed without prompt
         // because locked state ensures we won't persist those changes.
         if (filterValuesChanged) {
@@ -1118,7 +1208,7 @@ public class ConfigurationUI extends VBox {
         if (FilterLockService.getInstance().hasPasswordConfigured() && !FilterLockService.getInstance().isUnlocked()) {
             return persistedPauseFilteringValue;
         }
-        return filterPausedCheckBox.isSelected();
+        return filterPausedSwitch.isSelected();
     }
 
     private String resolveDefaultPlayerPath() {
@@ -1182,10 +1272,10 @@ public class ConfigurationUI extends VBox {
 
     private void updateWideViewVisibility() {
         boolean isEmbedded = defaultEmbedPlayer.isSelected();
-        wideViewCheckBox.setVisible(isEmbedded);
-        wideViewCheckBox.setManaged(isEmbedded);
+        wideViewSwitch.setVisible(isEmbedded);
+        wideViewSwitch.setManaged(isEmbedded);
         if (!isEmbedded) {
-            wideViewCheckBox.setSelected(false);
+            wideViewSwitch.setSelected(false);
         }
     }
 
@@ -1202,26 +1292,26 @@ public class ConfigurationUI extends VBox {
 
         ComboBox<VlcCachingOption> networkCachingComboBox = createVlcCachingComboBox();
         ComboBox<VlcCachingOption> liveCachingComboBox = createVlcCachingComboBox();
-        CheckBox userAgentCheckBox = new CheckBox(I18n.tr("configVlcEnableUserAgent"));
-        CheckBox forwardCookiesCheckBox = new CheckBox(I18n.tr("configVlcForwardCookies"));
-         CheckBox noVideoTitleShowCheckBox = new CheckBox(I18n.tr("configVlcNoVideoTitleShow"));
-         CheckBox quietCheckBox = new CheckBox(I18n.tr("configVlcQuiet"));
-         CheckBox httpReconnectCheckBox = new CheckBox(I18n.tr("configVlcHttpReconnect"));
-         CheckBox adaptiveUseAccessCheckBox = new CheckBox(I18n.tr("configVlcAdaptiveUseAccess"));
-         CheckBox voutCheckBox = new CheckBox(I18n.tr("configVlcVout"));
-         CheckBox avcodecHwCheckBox = new CheckBox(I18n.tr("configVlcAvcodecHw"));
+        SwitchButton userAgentSwitch = new SwitchButton(I18n.tr("configVlcEnableUserAgent"));
+        SwitchButton forwardCookiesSwitch = new SwitchButton(I18n.tr("configVlcForwardCookies"));
+         SwitchButton noVideoTitleShowSwitch = new SwitchButton(I18n.tr("configVlcNoVideoTitleShow"));
+         SwitchButton quietSwitch = new SwitchButton(I18n.tr("configVlcQuiet"));
+         SwitchButton httpReconnectSwitch = new SwitchButton(I18n.tr("configVlcHttpReconnect"));
+         SwitchButton adaptiveUseAccessSwitch = new SwitchButton(I18n.tr("configVlcAdaptiveUseAccess"));
+         SwitchButton voutSwitch = new SwitchButton(I18n.tr("configVlcVout"));
+         SwitchButton avcodecHwSwitch = new SwitchButton(I18n.tr("configVlcAvcodecHw"));
 
         Runnable loadCurrentValues = () -> {
             networkCachingComboBox.getSelectionModel().select(VlcCachingOption.fromValue(vlcNetworkCachingMs));
             liveCachingComboBox.getSelectionModel().select(VlcCachingOption.fromValue(vlcLiveCachingMs));
-            userAgentCheckBox.setSelected(vlcHttpUserAgentEnabled);
-            forwardCookiesCheckBox.setSelected(vlcHttpForwardCookiesEnabled);
-             noVideoTitleShowCheckBox.setSelected(vlcNoVideoTitleShow);
-             quietCheckBox.setSelected(vlcQuiet);
-             httpReconnectCheckBox.setSelected(vlcHttpReconnect);
-             adaptiveUseAccessCheckBox.setSelected(vlcAdaptiveUseAccess);
-             voutCheckBox.setSelected(vlcVoutEnabled);
-             avcodecHwCheckBox.setSelected(vlcAvcodecHwEnabled);
+            userAgentSwitch.setSelected(vlcHttpUserAgentEnabled);
+            forwardCookiesSwitch.setSelected(vlcHttpForwardCookiesEnabled);
+             noVideoTitleShowSwitch.setSelected(vlcNoVideoTitleShow);
+             quietSwitch.setSelected(vlcQuiet);
+             httpReconnectSwitch.setSelected(vlcHttpReconnect);
+             adaptiveUseAccessSwitch.setSelected(vlcAdaptiveUseAccess);
+             voutSwitch.setSelected(vlcVoutEnabled);
+             avcodecHwSwitch.setSelected(vlcAvcodecHwEnabled);
         };
         loadCurrentValues.run();
 
@@ -1232,14 +1322,14 @@ public class ConfigurationUI extends VBox {
         saveVlcOptionsButton.setOnAction(event -> {
             vlcNetworkCachingMs = selectedCachingValue(networkCachingComboBox);
             vlcLiveCachingMs = selectedCachingValue(liveCachingComboBox);
-            vlcHttpUserAgentEnabled = userAgentCheckBox.isSelected();
-            vlcHttpForwardCookiesEnabled = forwardCookiesCheckBox.isSelected();
-             vlcNoVideoTitleShow = noVideoTitleShowCheckBox.isSelected();
-             vlcQuiet = quietCheckBox.isSelected();
-             vlcHttpReconnect = httpReconnectCheckBox.isSelected();
-             vlcAdaptiveUseAccess = adaptiveUseAccessCheckBox.isSelected();
-             vlcVoutEnabled = voutCheckBox.isSelected();
-             vlcAvcodecHwEnabled = avcodecHwCheckBox.isSelected();
+            vlcHttpUserAgentEnabled = userAgentSwitch.isSelected();
+            vlcHttpForwardCookiesEnabled = forwardCookiesSwitch.isSelected();
+             vlcNoVideoTitleShow = noVideoTitleShowSwitch.isSelected();
+             vlcQuiet = quietSwitch.isSelected();
+             vlcHttpReconnect = httpReconnectSwitch.isSelected();
+             vlcAdaptiveUseAccess = adaptiveUseAccessSwitch.isSelected();
+             vlcVoutEnabled = voutSwitch.isSelected();
+             vlcAvcodecHwEnabled = avcodecHwSwitch.isSelected();
             saveVlcOptionsConfiguration(true);
             popupStage.close();
         });
@@ -1266,20 +1356,20 @@ public class ConfigurationUI extends VBox {
         gridPane.add(networkCachingComboBox, 1, 0);
         gridPane.add(new Label(I18n.tr("configVlcLiveCaching")), 0, 1);
         gridPane.add(liveCachingComboBox, 1, 1);
-        gridPane.add(userAgentCheckBox, 1, 2);
-        gridPane.add(forwardCookiesCheckBox, 1, 3);
+        gridPane.add(userAgentSwitch, 1, 2);
+        gridPane.add(forwardCookiesSwitch, 1, 3);
          gridPane.add(new Label(I18n.tr("configVlcNoVideoTitleShow")), 0, 4);
          gridPane.add(new Label(I18n.tr("configVlcQuiet")), 0, 5);
          gridPane.add(new Label(I18n.tr("configVlcHttpReconnect")), 0, 6);
          gridPane.add(new Label(I18n.tr("configVlcAdaptiveUseAccess")), 0, 7);
          gridPane.add(new Label(I18n.tr("configVlcVout")), 0, 8);
          gridPane.add(new Label(I18n.tr("configVlcAvcodecHw")), 0, 9);
-         gridPane.add(noVideoTitleShowCheckBox, 1, 4);
-         gridPane.add(quietCheckBox, 1, 5);
-         gridPane.add(httpReconnectCheckBox, 1, 6);
-         gridPane.add(adaptiveUseAccessCheckBox, 1, 7);
-         gridPane.add(voutCheckBox, 1, 8);
-         gridPane.add(avcodecHwCheckBox, 1, 9);
+         gridPane.add(noVideoTitleShowSwitch, 1, 4);
+         gridPane.add(quietSwitch, 1, 5);
+         gridPane.add(httpReconnectSwitch, 1, 6);
+         gridPane.add(adaptiveUseAccessSwitch, 1, 7);
+         gridPane.add(voutSwitch, 1, 8);
+         gridPane.add(avcodecHwSwitch, 1, 9);
         GridPane.setHgrow(networkCachingComboBox, Priority.ALWAYS);
         GridPane.setHgrow(liveCachingComboBox, Priority.ALWAYS);
 
@@ -1380,11 +1470,11 @@ public class ConfigurationUI extends VBox {
         remotePortField.setPrefWidth(90);
         Button testConnectionButton = new Button(I18n.tr("configDatabaseSyncTestConnection"));
         Button browseButton = new Button("...");
-        CheckBox syncConfigurationCheckBox = new CheckBox(I18n.tr("configSyncConfiguration"));
-        CheckBox syncExternalPlayerPathsCheckBox = new CheckBox(I18n.tr("configSyncExternalPlayerPaths"));
-        syncExternalPlayerPathsCheckBox.disableProperty().bind(
-                syncConfigurationCheckBox.selectedProperty().not()
-                        .or(syncConfigurationCheckBox.disabledProperty())
+        SwitchButton syncConfigurationSwitch = new SwitchButton(I18n.tr("configSyncConfiguration"));
+        SwitchButton syncExternalPlayerPathsSwitch = new SwitchButton(I18n.tr("configSyncExternalPlayerPaths"));
+        syncExternalPlayerPathsSwitch.selectedProperty().bind(
+                syncConfigurationSwitch.selectedProperty().not()
+                        .or(syncConfigurationSwitch.disabledProperty())
         );
         Button runButton = new Button(I18n.tr(databaseSyncActionKey(importMode)));
         Button cancelButton = new Button(I18n.tr("commonClose"));
@@ -1411,8 +1501,8 @@ public class ConfigurationUI extends VBox {
         bindManagedVisibility(remoteHostField, remoteModeButton.selectedProperty());
         bindManagedVisibility(remotePortField, remoteModeButton.selectedProperty());
         bindManagedVisibility(testConnectionButton, remoteModeButton.selectedProperty());
-        bindManagedVisibility(syncConfigurationCheckBox, remoteModeButton.selectedProperty());
-        bindManagedVisibility(syncExternalPlayerPathsCheckBox, remoteModeButton.selectedProperty());
+        bindManagedVisibility(syncConfigurationSwitch, remoteModeButton.selectedProperty());
+        bindManagedVisibility(syncExternalPlayerPathsSwitch, remoteModeButton.selectedProperty());
 
         browseButton.setOnAction(event -> {
             configureDatabaseBackupFileChooser(importMode);
@@ -1431,8 +1521,8 @@ public class ConfigurationUI extends VBox {
                 remotePortField,
                 browseButton,
                 testConnectionButton,
-                syncConfigurationCheckBox,
-                syncExternalPlayerPathsCheckBox,
+                syncConfigurationSwitch,
+                syncExternalPlayerPathsSwitch,
                 runButton,
                 cancelButton,
                 progressBar,
@@ -1448,8 +1538,8 @@ public class ConfigurationUI extends VBox {
                 databasePathField.getText(),
                 remoteHostField.getText(),
                 remotePortField.getText(),
-                syncConfigurationCheckBox.isSelected(),
-                syncExternalPlayerPathsCheckBox.isSelected(),
+                syncConfigurationSwitch.isSelected(),
+                syncExternalPlayerPathsSwitch.isSelected(),
                 controls
         )));
         cancelButton.setOnAction(event -> popupStage.close());
@@ -1501,8 +1591,8 @@ public class ConfigurationUI extends VBox {
                 modeRow,
                 pathRow,
                 remoteRow,
-                syncConfigurationCheckBox,
-                syncExternalPlayerPathsCheckBox,
+                syncConfigurationSwitch,
+                syncExternalPlayerPathsSwitch,
                 progressBar,
                 progressLabel,
                 resultTextArea,
@@ -1752,7 +1842,7 @@ public class ConfigurationUI extends VBox {
         controls.remotePortField().setDisable(disabled);
         controls.browseButton().setDisable(disabled);
         controls.testConnectionButton().setDisable(disabled);
-        controls.syncConfigurationCheckBox().setDisable(disabled);
+        controls.syncConfigurationSwitch().setDisable(disabled);
         controls.runButton().setDisable(disabled);
     }
 
@@ -1802,19 +1892,19 @@ public class ConfigurationUI extends VBox {
         }
     }
 
-    private record DatabaseSyncDialogControls(TextField databasePathField,
-                                              TextField remoteHostField,
-                                              TextField remotePortField,
-                                              Button browseButton,
-                                              Button testConnectionButton,
-                                              CheckBox syncConfigurationCheckBox,
-                                              CheckBox syncExternalPlayerPathsCheckBox,
-                                              Button runButton,
-                                              Button cancelButton,
-                                              ProgressBar progressBar,
-                                              Label progressLabel,
-                                              TextArea resultTextArea,
-                                              AtomicBoolean syncRunning) {
+private record DatabaseSyncDialogControls(TextField databasePathField,
+                                               TextField remoteHostField,
+                                               TextField remotePortField,
+                                               Button browseButton,
+                                               Button testConnectionButton,
+                                               SwitchButton syncConfigurationSwitch,
+                                               SwitchButton syncExternalPlayerPathsSwitch,
+                                               Button runButton,
+                                               Button cancelButton,
+                                               ProgressBar progressBar,
+                                               Label progressLabel,
+                                               TextArea resultTextArea,
+                                               AtomicBoolean syncRunning) {
     }
 
     private record DatabaseSyncRunRequest(Stage popupStage,

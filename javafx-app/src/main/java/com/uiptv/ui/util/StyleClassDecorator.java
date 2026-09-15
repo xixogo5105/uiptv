@@ -38,6 +38,10 @@ public final class StyleClassDecorator {
             addStyleClass(node.getStyleClass(), "uiptv-control");
         }
         addStyleClass(node.getStyleClass(), toStyleClass(node.getClass().getSimpleName()));
+        // SwitchButton extends Region, so we need to add the switch-button style class
+        if (node.getClass().getSimpleName().equals("SwitchButton")) {
+            addStyleClass(node.getStyleClass(), "uiptv-switch-button");
+        }
         if (node.getId() != null && !node.getId().isBlank()) {
             addStyleClass(node.getStyleClass(), "uiptv-id-" + sanitize(node.getId()));
         }

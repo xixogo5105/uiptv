@@ -740,7 +740,54 @@
 .uiptv-text-field {}
 .uiptv-text-area {}
 .uiptv-password-field {}
-.uiptv-check-box {}
+.transparent-scroll-pane {
+    -fx-background-color: transparent;
+}
+
+.transparent-scroll-pane .viewport {
+    -fx-background-color: transparent;
+}
+
+.transparent-scroll-pane .corner {
+    -fx-background-color: transparent;
+}
+
+.transparent-scroll-pane .horizontal-bar {
+    -fx-background-color: #c0c0c0;
+}
+
+.transparent-scroll-pane .vertical-bar {
+    -fx-background-color: transparent;
+}
+
+.uiptv-switch-button {
+    -fx-background-color: transparent;
+}
+
+.uiptv-switch-button .track {
+    -fx-fill: #cccccc;
+}
+
+.uiptv-switch-button .thumb {
+    -fx-fill: #ffffff;
+}
+
+.uiptv-switch-button.selected .track {
+    -fx-fill: #4CAF50;
+}
+
+.uiptv-switch-button.selected .thumb {
+    -fx-fill: #ffffff;
+}
+
+.uiptv-switch-button:disabled .track {
+    -fx-fill: #b0b0b0;
+}
+
+.uiptv-switch-button:disabled .thumb {
+    -fx-fill: #f0f0f0;
+}
+
 .published-m3u-customized-checkbox {
     -fx-opacity: 0.72;
 }

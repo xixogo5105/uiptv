@@ -6,10 +6,10 @@ import com.uiptv.api.Callback;
 import com.uiptv.model.Account;
 import com.uiptv.util.TextParserService;
 import com.uiptv.widget.ProminentButton;
+import com.uiptv.widget.SwitchButton;
 import com.uiptv.widget.UIptvTextArea;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.HBox;
@@ -50,9 +50,9 @@ public class ParseMultipleAccountUI extends VBox {
     private final ComboBox<String> parseModeComboBox = new ComboBox<>();
     private static final String GROUP_BY_MAC_LABEL = "autoGroupAccountsByMACAddress";
     private static final String GROUP_BY_XTREME_LABEL = "autoGroupAccountsByUsernamePassword";
-    private final CheckBox groupAccountsCheckBox = new CheckBox(I18n.tr(GROUP_BY_MAC_LABEL));
-    private final CheckBox convertM3uToXtremeCheckBox = new CheckBox(I18n.tr("autoWherePossibleConvertM3UToXtreme"));
-    private final CheckBox startVerificationAfterParsingCheckBox = new CheckBox(I18n.tr("autoStartVerificationAfterParsing"));
+    private final SwitchButton groupAccountsSwitch = new SwitchButton(I18n.tr(GROUP_BY_MAC_LABEL));
+    private final SwitchButton convertM3uToXtremeSwitch = new SwitchButton(I18n.tr("autoWherePossibleConvertM3UToXtreme"));
+    private final SwitchButton startVerificationAfterParsingSwitch = new SwitchButton(I18n.tr("autoStartVerificationAfterParsing"));
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("parseAndSave"));
     private final Button clearButton = new Button(I18n.tr("autoClear"));
     private final VBox contentContainer = new VBox();
@@ -90,12 +90,12 @@ public class ParseMultipleAccountUI extends VBox {
         parseModeComboBox.getItems().addAll(TextParserService.MODE_STALKER, TextParserService.MODE_XTREME, TextParserService.MODE_M3U);
         parseModeComboBox.setValue(TextParserService.MODE_STALKER);
 
-        groupAccountsCheckBox.setSelected(true);
-        convertM3uToXtremeCheckBox.setSelected(true);
-        startVerificationAfterParsingCheckBox.setSelected(true);
+        groupAccountsSwitch.setSelected(true);
+        convertM3uToXtremeSwitch.setSelected(true);
+        startVerificationAfterParsingSwitch.setSelected(true);
 
-        groupAccountsCheckBox.managedProperty().bind(groupAccountsCheckBox.visibleProperty());
-        convertM3uToXtremeCheckBox.managedProperty().bind(convertM3uToXtremeCheckBox.visibleProperty());
+        groupAccountsSwitch.managedProperty().bind(groupAccountsSwitch.visibleProperty());
+        convertM3uToXtremeSwitch.managedProperty().bind(convertM3uToXtremeSwitch.visibleProperty());
 
         Region spacer = new Region();
         spacer.setPrefHeight(10);
@@ -106,15 +106,15 @@ public class ParseMultipleAccountUI extends VBox {
                 multipleSPAccounts,
                 parseModeComboBox,
                 spacer,
-                groupAccountsCheckBox,
-                convertM3uToXtremeCheckBox,
-                startVerificationAfterParsingCheckBox,
+                groupAccountsSwitch,
+                convertM3uToXtremeSwitch,
+                startVerificationAfterParsingSwitch,
                 parseSaveRow,
                 clearRow
         );
         addSubmitButtonClickHandler();
         addClearButtonClickHandler();
-        addCheckBoxListeners();
+        addSwitchListeners();
         registerSceneCleanupListener();
 
         // Initial state
@@ -135,7 +135,7 @@ public class ParseMultipleAccountUI extends VBox {
         multipleSPAccounts.clear();
     }
 
-    private void addCheckBoxListeners() {
+    private void addSwitchListeners() {
         parseModeComboBox.valueProperty().addListener((obs, oldV, newV) -> {
             if (newV != null) {
                 updateCheckboxesVisibility(newV);
@@ -145,13 +145,13 @@ public class ParseMultipleAccountUI extends VBox {
 
     private void updateCheckboxesVisibility(String mode) {
         boolean showGroup = TextParserService.MODE_STALKER.equals(mode) || TextParserService.MODE_XTREME.equals(mode);
-        groupAccountsCheckBox.setVisible(showGroup);
+        groupAccountsSwitch.setVisible(showGroup);
         if (TextParserService.MODE_XTREME.equals(mode)) {
-            groupAccountsCheckBox.setText(I18n.tr(GROUP_BY_XTREME_LABEL));
+            groupAccountsSwitch.setText(I18n.tr(GROUP_BY_XTREME_LABEL));
         } else {
-            groupAccountsCheckBox.setText(I18n.tr(GROUP_BY_MAC_LABEL));
+            groupAccountsSwitch.setText(I18n.tr(GROUP_BY_MAC_LABEL));
         }
-        convertM3uToXtremeCheckBox.setVisible(TextParserService.MODE_M3U.equals(mode));
+        convertM3uToXtremeSwitch.setVisible(TextParserService.MODE_M3U.equals(mode));
     }
 
     private void addClearButtonClickHandler() {
@@ -161,9 +161,9 @@ public class ParseMultipleAccountUI extends VBox {
     private void clearAll() {
         multipleSPAccounts.clear();
         parseModeComboBox.setValue(TextParserService.MODE_STALKER);
-        groupAccountsCheckBox.setSelected(true);
-        convertM3uToXtremeCheckBox.setSelected(true);
-        startVerificationAfterParsingCheckBox.setSelected(true);
+        groupAccountsSwitch.setSelected(true);
+        convertM3uToXtremeSwitch.setSelected(true);
+        startVerificationAfterParsingSwitch.setSelected(true);
     }
 
     private void addSubmitButtonClickHandler() {
@@ -174,8 +174,8 @@ public class ParseMultipleAccountUI extends VBox {
                     return;
                 }
                 String selectedMode = parseModeComboBox.getValue();
-                boolean startVerificationAfterParsing = startVerificationAfterParsingCheckBox.isSelected();
-                List<Account> createdAccounts = TextParserService.saveBulkAccounts(multipleSPAccounts.getText(), selectedMode, groupAccountsCheckBox.isSelected(), convertM3uToXtremeCheckBox.isSelected());
+                boolean startVerificationAfterParsing = startVerificationAfterParsingSwitch.isSelected();
+                List<Account> createdAccounts = TextParserService.saveBulkAccounts(multipleSPAccounts.getText(), selectedMode, groupAccountsSwitch.isSelected(), convertM3uToXtremeSwitch.isSelected());
                 clearAll();
                 if (onSaveCallback != null) {
                     onSaveCallback.call(null);

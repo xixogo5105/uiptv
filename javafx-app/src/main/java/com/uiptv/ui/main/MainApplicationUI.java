@@ -98,6 +98,8 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         tabPane.setMinWidth(480);
         tabPane.setPrefWidth(480);
         tabPane.setMaxWidth(480);
+
+
         return mainContent;
     }
 
@@ -106,4 +108,3 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         return false;
     }
 }
-

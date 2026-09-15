@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.XtremeCredentialsJson;
+import com.uiptv.widget.SwitchButton;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -14,7 +15,6 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
@@ -46,7 +46,7 @@ public class XtremeCredentialsManagementPopup extends VBox {
     private final Button setDefaultButton = new Button(I18n.tr("autoSetAsDefault"));
     private final Button saveButton = new Button(I18n.tr("autoSaveClose"));
     private final Button closeButton = new Button(I18n.tr("autoCancel"));
-    private final CheckBox selectAllCheckBox = new CheckBox(I18n.tr("autoSelectAll"));
+    private final SwitchButton selectAllSwitch = new SwitchButton(I18n.tr("autoSelectAll"));
 
     private ObservableList<CredentialItem> credentialItems;
     private String defaultUsername;
@@ -99,8 +99,8 @@ public class XtremeCredentialsManagementPopup extends VBox {
     }
 
     private void configureSelectionHandling() {
-        selectAllCheckBox.setOnAction(e -> {
-            boolean selected = selectAllCheckBox.isSelected();
+        selectAllSwitch.setOnAction(e -> {
+            boolean selected = selectAllSwitch.isSelected();
             for (CredentialItem item : credentialItems) {
                 item.setSelected(selected);
             }
@@ -144,7 +144,7 @@ public class XtremeCredentialsManagementPopup extends VBox {
         HBox inputActions = new HBox(10, addButton, updateButton);
 
         getChildren().addAll(
-                selectAllCheckBox,
+                selectAllSwitch,
                 credentialListView,
                 actionBox,
                 new Separator(),
@@ -237,7 +237,7 @@ public class XtremeCredentialsManagementPopup extends VBox {
             }
         }
 
-        selectAllCheckBox.setSelected(false);
+        selectAllSwitch.setSelected(false);
         credentialListView.refresh();
         updateActionButtons();
     }
@@ -257,7 +257,7 @@ public class XtremeCredentialsManagementPopup extends VBox {
         boolean singleOrLess = credentialItems.size() <= 1;
         removeButton.setDisable(singleOrLess);
         setDefaultButton.setDisable(singleOrLess);
-        selectAllCheckBox.setDisable(singleOrLess);
+        selectAllSwitch.setDisable(singleOrLess);
     }
 
     private void saveAndClose() {
@@ -317,7 +317,7 @@ public class XtremeCredentialsManagementPopup extends VBox {
     }
 
     private class CredentialListCell extends ListCell<CredentialItem> {
-        private final CheckBox checkBox = new CheckBox();
+        private final SwitchButton switchButton = new SwitchButton();
         private final TextFlow textFlow = new TextFlow();
         private BooleanProperty currentBoundProperty;
 
@@ -336,14 +336,14 @@ public class XtremeCredentialsManagementPopup extends VBox {
 
         private void unbindCurrentProperty() {
             if (currentBoundProperty != null) {
-                checkBox.selectedProperty().unbindBidirectional(currentBoundProperty);
+                switchButton.selectedProperty().unbindBidirectional(currentBoundProperty);
                 currentBoundProperty = null;
             }
         }
 
         private void bindSelection(CredentialItem item) {
             currentBoundProperty = item.selectedProperty();
-            checkBox.selectedProperty().bindBidirectional(currentBoundProperty);
+            switchButton.selectedProperty().bindBidirectional(currentBoundProperty);
         }
 
         private HBox buildGraphic(CredentialItem item) {
@@ -351,7 +351,7 @@ public class XtremeCredentialsManagementPopup extends VBox {
             if (item.getUsername().equals(defaultUsername)) {
                 textFlow.getChildren().addAll(new Text(" ("), defaultTextNode(), new Text(")"));
             }
-            HBox topRow = new HBox(10, checkBox, textFlow);
+            HBox topRow = new HBox(10, switchButton, textFlow);
             topRow.setAlignment(Pos.CENTER_LEFT);
             VBox container = new VBox(4, topRow);
             return new HBox(container);
@@ -389,8 +389,8 @@ public class XtremeCredentialsManagementPopup extends VBox {
     }
 
     void selectAllForTest(boolean selected) {
-        selectAllCheckBox.setSelected(selected);
-        selectAllCheckBox.fire();
+        selectAllSwitch.setSelected(selected);
+        selectAllSwitch.fire();
     }
 
     void removeSelectedForTest() {
