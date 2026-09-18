@@ -31,6 +31,7 @@ import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static com.uiptv.testsupport.FxTestSupport.waitForFxEvents;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -494,6 +495,47 @@ class ResponsiveCardGridTest {
         assertEquals(36.0, runOnFxThread(() -> cardAt(grid, 0).getMinHeight()));
         assertEquals(5.0, runOnFxThread(() -> cardPane(grid).getHgap()));
         assertEquals(7.0, runOnFxThread(() -> cardPane(grid).getVgap()));
+    }
+
+    @Test
+    void switchingFromSingleColumnRepositionsCardsInMultiColumnLayout() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(Label::new);
+            cardGrid.setItems(FXCollections.observableArrayList(
+                    "one", "two", "three", "four", "five", "six"));
+            cardGrid.setCardWidthRange(120, 160);
+            cardGrid.setGaps(5, 7);
+            cardGrid.setMinHeight(0);
+            cardGrid.setMaxHeight(Double.MAX_VALUE);
+            return cardGrid;
+        });
+
+        runOnFxThread(() -> {
+            grid.resize(500, 300);
+            grid.setSingleColumn(true);
+            grid.layout();
+            return null;
+        });
+
+        runOnFxThread(() -> {
+            grid.setSingleColumn(false);
+            grid.layout();
+            return null;
+        });
+
+        runOnFxThread(() -> {
+            GridPane pane = cardPane(grid);
+            for (int i = 0; i < 6; i++) {
+                Region card = cardAt(grid, i);
+                Integer col = GridPane.getColumnIndex(card);
+                Integer row = GridPane.getRowIndex(card);
+                assertNotNull(col);
+                assertNotNull(row);
+                assertTrue(col >= 0 && col < 3,
+                        "Card " + i + " should be in a multi-column layout but was at column " + col);
+            }
+            return null;
+        });
     }
 
     @Test

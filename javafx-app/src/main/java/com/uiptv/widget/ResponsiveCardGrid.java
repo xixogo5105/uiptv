@@ -1216,6 +1216,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 applyComputedCardWidth(card);
             }
             updateVirtualLayoutAfterWidthChange(previousColumnCount, previousCardWidth);
+            if (previousColumnCount != columnCount) {
+                repositionCards();
+            }
             return;
         }
 
@@ -1231,6 +1234,30 @@ public class ResponsiveCardGrid<T> extends StackPane {
             applyComputedCardWidth(card);
         }
         updateVirtualLayoutAfterWidthChange(previousColumnCount, previousCardWidth);
+        if (previousColumnCount != columnCount) {
+            repositionCards();
+        }
+    }
+
+    private void repositionCards() {
+        if (virtualizedActive || cardsByItem.isEmpty()) {
+            return;
+        }
+        int gridCol = 0;
+        int gridRow = 0;
+        for (T item : items) {
+            Region card = cardsByItem.get(item);
+            if (card == null) {
+                continue;
+            }
+            GridPane.setColumnIndex(card, gridCol);
+            GridPane.setRowIndex(card, gridRow);
+            gridCol++;
+            if (gridCol >= columnCount) {
+                gridCol = 0;
+                gridRow++;
+            }
+        }
     }
 
     private void applyComputedCardWidth(Region card) {
