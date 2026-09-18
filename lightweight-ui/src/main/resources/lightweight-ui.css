@@ -1,71 +1,32 @@
+/* Lightweight UI CSS - native button styling */
+
+/* Card sections - minimal styling */
 .settings-section-card {
     -fx-background-color: #ffffff;
     -fx-border-color: rgba(17, 19, 24, 0.08);
     -fx-border-width: 1;
     -fx-background-radius: 8;
     -fx-border-radius: 8;
-    -fx-padding: 13 15 14 15;
-    -fx-spacing: 12;
+    -fx-padding: 10 12;
+    -fx-spacing: 8;
     -fx-cursor: default;
-    -fx-translate-y: 0;
-    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
 }
 
-.settings-section-card-header {
-    -fx-padding: 0 0 2 0;
-}
-
+/* Section title */
 .settings-section-title {
     -fx-font-size: 1.12em;
     -fx-font-weight: bold;
     -fx-text-fill: #1e1e1e;
 }
 
-.settings-section-card:hover,
-.settings-section-card:focused {
-    -fx-background-color: #ffffff;
-    -fx-border-color: rgba(17, 19, 24, 0.14);
-    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.11), 18, 0.14, 0, 6);
-    -fx-translate-y: -1;
-    -fx-cursor: default;
-}
-
-.setting-label {
-    -fx-font-size: 0.92em;
-    -fx-font-weight: 600;
-    -fx-text-fill: #374151;
-}
-
-.pill-toggle {
-    -fx-font-size: 0.88em;
-    -fx-font-weight: 600;
-    -fx-padding: 6 14 6 14;
-    -fx-background-radius: 8;
-    -fx-border-radius: 8;
-    -fx-cursor: hand;
-    -fx-min-width: 70;
-    -fx-pref-width: 90;
-    -fx-max-width: 120;
-}
-
-.pill-toggle-unselected {
-    -fx-background-color: #e5e5e5;
-    -fx-text-fill: #374151;
-}
-
-.pill-toggle-selected {
-    -fx-background-color: #2563eb;
-    -fx-text-fill: #ffffff;
-}
-
+/* Status labels */
 .server-status-label {
     -fx-font-size: 0.88em;
     -fx-font-weight: 600;
-    -fx-padding: 4 10 4 10;
-    -fx-background-radius: 6;
-    -fx-border-radius: 6;
+    -fx-padding: 4 10;
 }
 
+/* Status colours */
 .status-running {
     -fx-text-fill: #22c55e;
 }
@@ -74,19 +35,18 @@
     -fx-text-fill: #ef4444;
 }
 
+/* Port labels */
 .server-port-label {
     -fx-font-size: 0.82em;
     -fx-text-fill: #1e1e1e;
-    -fx-padding: 2 8 2 8;
-    -fx-background-color: #e5e5e5;
-    -fx-background-radius: 4;
-    -fx-border-radius: 4;
+    -fx-padding: 2 8;
 }
 
-.clear-logs-button {
+/* Clear button - only visible when needed */
+.clear-button {
     -fx-font-size: 0.88em;
     -fx-font-weight: 600;
-    -fx-padding: 6 12 6 12;
+    -fx-padding: 6 12;
     -fx-background-color: #e5e5e5;
     -fx-text-fill: #374151;
     -fx-background-radius: 8;
@@ -94,10 +54,11 @@
     -fx-cursor: hand;
 }
 
-.clear-logs-button:hover {
+.clear-button:hover {
     -fx-background-color: #d4d4d4;
 }
 
+/* Terminal */
 .terminal-label {
     -fx-font-size: 0.88em;
     -fx-font-weight: 600;
@@ -114,47 +75,44 @@
     -fx-border-radius: 6;
 }
 
-.root-pane {
-    -fx-background-color: #f5f5f5;
+/* Red colour coding for Stop Server button */
+.pill-toggle-dangerous {
+    -fx-background-color: #ef4444;
+    -fx-text-fill: #ffffff;
 }
 
+/* Dark theme overrides */
 .dark-theme .settings-section-card {
     -fx-background-color: #2d2d2d;
     -fx-border-color: rgba(255, 255, 255, 0.08);
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.30), 16, 0.12, 0, 5);
-}
-
-.dark-theme .settings-section-card:hover,
-.dark-theme .settings-section-card:focused {
-    -fx-background-color: #353535;
-    -fx-border-color: rgba(255, 255, 255, 0.14);
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.42), 18, 0.14, 0, 6);
 }
 
 .dark-theme .settings-section-title {
     -fx-text-fill: #d4d4d4;
 }
 
-.dark-theme .setting-label {
+.dark-theme .server-status-label {
     -fx-text-fill: #d4d4d4;
 }
 
-.dark-theme .pill-toggle-unselected {
-    -fx-background-color: #404040;
-    -fx-text-fill: #d4d4d4;
+.dark-theme .status-running {
+    -fx-text-fill: #22c55e;
+}
+
+.dark-theme .status-stopped {
+    -fx-text-fill: #ef4444;
 }
 
 .dark-theme .server-port-label {
     -fx-text-fill: #d4d4d4;
-    -fx-background-color: #404040;
 }
 
-.dark-theme .clear-logs-button {
+.dark-theme .clear-button {
     -fx-background-color: #404040;
     -fx-text-fill: #d4d4d4;
 }
 
-.dark-theme .clear-logs-button:hover {
+.dark-theme .clear-button:hover {
     -fx-background-color: #505050;
 }
 
@@ -167,8 +125,4 @@
     -fx-text-fill: #d4d4d4;
     -fx-background-color: #1e1e1e;
     -fx-border-color: #404040;
-}
-
-.dark-theme .root-pane {
-    -fx-background-color: #1e1e1e;
 }
