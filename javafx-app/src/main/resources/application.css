@@ -2529,6 +2529,10 @@
     -fx-fill: #dc2626;
 }
 
+.theme-menu-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
 .filter-lock-state-row {
     -fx-padding: 2 0 2 0;
 }

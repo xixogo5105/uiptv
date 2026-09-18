@@ -83,7 +83,7 @@ class AppHeaderActionsTest extends DbBackedUiTest {
                 I18n.tr("autoLogs"),
                 "Disable parental lock access",
                 I18n.tr("autoEnablePlainTextMode"),
-                I18n.tr("configUseDarkTheme"),
+                I18n.tr("autoEnableDarkTheme"),
                 I18n.tr("autoStayOnTop"),
                 I18n.tr("autoHelp"),
                 I18n.tr("autoAbout")
