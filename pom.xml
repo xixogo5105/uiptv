@@ -15,6 +15,7 @@
         <module>core</module>
         <module>api-server</module>
         <module>javafx-app</module>
+        <module>lightweight-ui</module>
         <module>coverage-aggregate</module>
     </modules>
 

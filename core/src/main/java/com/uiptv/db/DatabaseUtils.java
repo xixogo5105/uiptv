@@ -84,7 +84,8 @@ public class DatabaseUtils {
                 new DataColumn("vlcHttpReconnect", "TEXT"),
                 new DataColumn("vlcAdaptiveUseAccess", "TEXT"),
                 new DataColumn("vlcVout", "TEXT"),
-                new DataColumn("vlcAvcodecHw", "TEXT")
+                new DataColumn("vlcAvcodecHw", "TEXT"),
+                new DataColumn("lightweightModeEnabled", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),

@@ -26,6 +26,7 @@ import javafx.scene.shape.SVGPath;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 
+import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
 
 public class AppHeaderActions extends HBox {
@@ -109,6 +110,8 @@ public class AppHeaderActions extends HBox {
                 createPlainTextModeMenuItem(),
                 createThemeMenuItem(),
                 createStayOnTopMenuItem(),
+                new SeparatorMenuItem(),
+                createMenuItem(I18n.tr("configLightweightModeSwitchTitle"), ICON_GEAR, this::switchToLightweightMode),
                 new SeparatorMenuItem(),
                 createMenuItem(I18n.tr("autoHelp"), ICON_HELP, () -> openExternalUrl(GUIDE_URL)),
                 createMenuItem(I18n.tr("autoAbout"), ICON_ABOUT, this::showAbout)
@@ -277,6 +280,19 @@ public class AppHeaderActions extends HBox {
             themeToggleHandler.run();
         }
         refreshState();
+    }
+
+    private void switchToLightweightMode() {
+        if (!showConfirmationAlert("configLightweightModeSwitchConfirm")) {
+            return;
+        }
+        Configuration configuration = ConfigurationService.getInstance().read();
+        if (configuration != null) {
+            configuration.setLightweightModeEnabled(true);
+            ConfigurationService.getInstance().save(configuration);
+        }
+        Platform.exit();
+        System.exit(0);
     }
 
     private Stage ownerStage() {

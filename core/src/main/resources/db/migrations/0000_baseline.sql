@@ -89,7 +89,11 @@ CREATE TABLE IF NOT EXISTS Configuration
     vlcVout
     TEXT,
     vlcAvcodecHw
+    TEXT,
+    lightweightModeEnabled
     TEXT
+    default
+    '0'
 );
 
 CREATE TABLE IF NOT EXISTS Account

@@ -42,6 +42,7 @@ public class Configuration extends BaseJson {
     private boolean vlcQuiet = true;
     private boolean vlcHttpReconnect = true;
     private boolean vlcAdaptiveUseAccess = true;
+    private boolean lightweightModeEnabled = false;
     private String vlcVout;
     private String vlcAvcodecHw;
 
