@@ -14,6 +14,7 @@ module com.uiptv.gui {
 
     requires com.uiptv.core;
     requires com.uiptv.api.server;
+    requires com.uiptv.lightweight;
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.httpcomponents.httpcore;
 

@@ -6,7 +6,6 @@ import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
-import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -26,7 +25,9 @@ import javafx.scene.layout.VBox;
 import javafx.scene.control.ButtonBar;
 import javafx.stage.Stage;
 
-public class LightweightApp extends Application {
+import java.util.concurrent.CopyOnWriteArrayList;
+
+public class LightweightApp {
     private ConfigurationService configurationService;
     private ConfigurationApplicationService configurationApplicationService;
     private ToggleButton serverToggleButton;
@@ -36,8 +37,15 @@ public class LightweightApp extends Application {
     private boolean logsVisible = false;
     private ConfigurationChangeListener configurationChangeListener;
 
-    @Override
-    public void start(Stage primaryStage) {
+    public static void launch(String[] args) {
+        Platform.startup(() -> {
+            LightweightApp app = new LightweightApp();
+            Stage primaryStage = new Stage();
+            app.start(primaryStage);
+        });
+    }
+
+    private void start(Stage primaryStage) {
         configurationService = ConfigurationService.getInstance();
         configurationApplicationService = ConfigurationApplicationService.getInstance();
 
@@ -73,8 +81,7 @@ public class LightweightApp extends Application {
         AppLog.registerListener(this::appendLog);
     }
 
-    @Override
-    public void stop() {
+    private void stop() {
         if (configurationChangeListener != null) {
             configurationService.removeChangeListener(configurationChangeListener);
         }
