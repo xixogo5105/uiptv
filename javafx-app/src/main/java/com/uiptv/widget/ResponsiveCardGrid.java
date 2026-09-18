@@ -752,7 +752,6 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (!card.getStyleClass().contains("uiptv-responsive-card")) {
             card.getStyleClass().add("uiptv-responsive-card");
         }
-        card.setCursor(Cursor.HAND);
         UiRenderQuality.optimizeLayout(card);
         card.setFocusTraversable(false);
         card.setMinHeight(cardMinHeight);

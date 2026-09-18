@@ -1249,7 +1249,7 @@
 }
 
 .account-category-card {
-    -fx-cursor: hand;
+    -fx-cursor: default;
 }
 
 .account-category-card-title {
@@ -2002,7 +2002,7 @@
     -fx-border-width: 1;
     -fx-background-radius: 16;
     -fx-border-radius: 16;
-    -fx-cursor: hand;
+    -fx-cursor: default;
 }
 
 .watching-now-series-card,
@@ -2680,7 +2680,7 @@
     -fx-background-radius: 16;
     -fx-border-radius: 16;
     -fx-padding: 11 13 11 13;
-    -fx-cursor: hand;
+    -fx-cursor: default;
 }
 
 .bookmark-card {
