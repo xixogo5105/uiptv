@@ -80,6 +80,7 @@ dependencies {
     implementation(compose.material3)
     implementation(compose.runtime)
     implementation(compose.ui)
+    implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayer.dash)
     implementation(libs.androidx.media3.exoplayer.hls)

@@ -173,7 +173,10 @@ class MainActivity : ComponentActivity() {
                     load = filterRepository::load,
                     save = filterRepository::save,
                     setPaused = filterRepository::setPaused,
-                    setEnableThumbnails = filterRepository::setEnableThumbnails
+                    setEnableThumbnails = { enabled ->
+                        filterRepository.setEnableThumbnails(enabled)
+                        ThumbnailCache.clearAll(this@MainActivity)
+                    }
                 ),
                 panelVisibilityActions = PanelVisibilityUiActions(
                     load = { preferences.load().panelVisibilityPreference },

@@ -2,6 +2,7 @@ package com.uiptv.ui.util;
 
 import com.uiptv.model.Account;
 import com.uiptv.ui.ThumbnailAwareUI;
+import com.uiptv.util.ConfigFileReader;
 import com.uiptv.util.ImageUrlNormalizer;
 import javafx.scene.image.Image;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
@@ -52,7 +53,7 @@ public class ImageCacheManager {
     private static final long NEGATIVE_CACHE_MS_404 = 5L * 60L * 1000L;
     private static final long NEGATIVE_CACHE_MS_ERROR = 15L * 1000L;
     private static final long NEGATIVE_CACHE_MS_429_DEFAULT = 90L * 1000L;
-    private static final int MAX_MEMORY_IMAGES = Integer.getInteger("uiptv.image.cache.max.entries", 120);
+    private static final int MAX_MEMORY_IMAGES = Integer.getInteger("uiptv.image.cache.max.entries", 512);
     private static final int MAX_IMAGE_DECODE_WIDTH = Integer.getInteger("uiptv.image.decode.max.width", 640);
     private static final int MAX_IMAGE_DECODE_HEIGHT = Integer.getInteger("uiptv.image.decode.max.height", 640);
     private static final int MAX_IMAGE_DOWNLOAD_BYTES = Math.max(64 * 1024,
@@ -63,6 +64,7 @@ public class ImageCacheManager {
     private static final long DISK_CACHE_MAX_BYTES = Long.getLong("uiptv.image.cache.disk.max.bytes", 512L * 1024L * 1024L);
     private static final long DISK_CACHE_TRIM_TO_BYTES = Long.getLong("uiptv.image.cache.disk.trim.bytes", 384L * 1024L * 1024L);
     private static final long DISK_CACHE_TRIM_INTERVAL_MS = Long.getLong("uiptv.image.cache.disk.trim.interval.ms", 5L * 60L * 1000L);
+    private static final long DISK_CACHE_TTL_MS = Long.getLong("uiptv.image.cache.disk.ttl.ms", 7L * 24L * 60L * 60L * 1000L);
     private static final long TRANSIENT_CACHE_TRIM_INTERVAL_MS = Long.getLong("uiptv.image.cache.transient.trim.interval.ms", 60_000L);
     private static final int NEGATIVE_CACHE_MAX_ENTRIES = Integer.getInteger("uiptv.image.cache.negative.max.entries", 20_000);
     private static final int HOST_STATE_MAX_ENTRIES = Integer.getInteger("uiptv.image.cache.host.max.entries", 2_048);
@@ -364,7 +366,7 @@ public class ImageCacheManager {
 
     private static Image tryFetchCandidateImage(String candidate, String cacheKey, String caller, boolean lastCandidate) {
         try {
-            ImagePayload payload = fetchSingleImage(candidate);
+            ImagePayload payload = fetchSingleImage(candidate, lastCandidate);
             if (payload == null || payload.image == null) {
                 return null;
             }
@@ -417,7 +419,7 @@ public class ImageCacheManager {
         logImageIssue(candidate, "Image HTTP status: " + e.statusCode);
     }
 
-    private static ImagePayload fetchSingleImage(String url) throws IOException, InterruptedException, HttpStatusException {
+    private static ImagePayload fetchSingleImage(String url, boolean lastCandidate) throws IOException, InterruptedException, HttpStatusException {
         if (isHostBackedOff(url)) {
             return null;
         }
@@ -427,6 +429,9 @@ public class ImageCacheManager {
         // stall every later thumbnail request and leave the UI with blank cards even after the host
         // has recovered.
         if (!semaphore.tryAcquire(2, TimeUnit.SECONDS)) {
+            if (lastCandidate) {
+                throw new HttpStatusException(503, NEGATIVE_CACHE_MS_429_DEFAULT);
+            }
             return null;
         }
         HttpGet request = new HttpGet(url);
@@ -490,13 +495,13 @@ public class ImageCacheManager {
 
     private static Path resolveDiskCacheDir() {
         List<Path> candidates = new ArrayList<>();
+        String iniDir = ConfigFileReader.getThumbnailTmpCacheDir();
+        if (iniDir != null) {
+            candidates.add(Path.of(iniDir));
+        }
         String tmpDir = System.getProperty("java.io.tmpdir");
         if (tmpDir != null && !tmpDir.isBlank()) {
             candidates.add(Path.of(tmpDir, "uiptv-image-cache"));
-        }
-        String userHome = System.getProperty("user.home");
-        if (userHome != null && !userHome.isBlank()) {
-            candidates.add(Path.of(userHome, ".uiptv", "cache", "images"));
         }
         for (Path candidate : candidates) {
             try {
@@ -505,8 +510,12 @@ public class ImageCacheManager {
                     return candidate;
                 }
             } catch (Exception _) {
-                // Cache directory is optional; keep disk caching disabled when no writable path is available.
+                // try next candidate
             }
+        }
+        for (Path c : candidates) {
+            com.uiptv.util.AppLog.addWarningLog(ImageCacheManager.class,
+                    "Image disk cache candidate not writable, disk caching disabled: " + c);
         }
         return null;
     }
@@ -533,6 +542,12 @@ public class ImageCacheManager {
             if (!Files.exists(path)) {
                 return null;
             }
+            long ttlMs = thumbnailDiskTtlMs();
+            long ageMs = System.currentTimeMillis() - Files.getLastModifiedTime(path).toMillis();
+            if (ttlMs > 0 && ageMs > ttlMs) {
+                Files.deleteIfExists(path);
+                return null;
+            }
             byte[] bytes = Files.readAllBytes(path);
             if (bytes.length == 0) {
                 Files.deleteIfExists(path);
@@ -554,6 +569,14 @@ public class ImageCacheManager {
             // Ignore corrupt or partially written cache entries and refetch them on demand.
             return null;
         }
+    }
+
+    private static long thumbnailDiskTtlMs() {
+        int hours = ConfigFileReader.getThumbnailCacheTtlHours();
+        if (hours <= 0) {
+            return 0L;
+        }
+        return TimeUnit.HOURS.toMillis(hours);
     }
 
     @SuppressWarnings("java:S1141")

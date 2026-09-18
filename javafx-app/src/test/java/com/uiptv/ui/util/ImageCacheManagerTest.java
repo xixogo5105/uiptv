@@ -37,7 +37,7 @@ class ImageCacheManagerTest {
     void inMemoryImageCacheIsBounded() throws Exception {
         Map<String, Image> cache = imageCache();
         ImageCacheManager.clearCache();
-        int maxEntries = Integer.getInteger("uiptv.image.cache.max.entries", 120);
+        int maxEntries = Integer.getInteger("uiptv.image.cache.max.entries", 512);
 
         for (int i = 0; i < maxEntries + 10; i++) {
             cache.put("watching-now:http://image.test/" + i + ".png", mock(Image.class));
