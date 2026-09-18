@@ -173,15 +173,9 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private void reloadBookmarks(long generation) {
         try {
             long revisionBeforeRead = BookmarkService.getInstance().getChangeRevision();
-            long t0 = System.nanoTime();
             List<Bookmark> bookmarks = BookmarkService.getInstance().read();
-            long t1 = System.nanoTime();
-            System.out.println("[bookmark-profiling] BookmarkService.read() took " + ((t1 - t0) / 1_000_000) + " ms; rows=" + (bookmarks == null ? 0 : bookmarks.size()));
             BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(bookmarks);
-            long t2 = System.nanoTime();
             List<BookmarkItem> loadedItems = buildLoadedBookmarkItems(generation, bookmarks, context);
-            long t3 = System.nanoTime();
-            System.out.println("[bookmark-profiling] buildLoadedBookmarkItems took " + ((t3 - t2) / 1_000_000) + " ms; totalProcessing=" + ((t3 - t0) / 1_000_000) + " ms");
             if (generation != reloadGeneration.get()) {
                 return;
             }
