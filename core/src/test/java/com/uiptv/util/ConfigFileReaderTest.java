@@ -54,11 +54,11 @@ class ConfigFileReaderTest {
 
     @Test
     void getThumbnailTmpCacheDirReturnsAbsolutePath(@TempDir Path tempDir) throws Exception {
-        File ini = writeIni(tempDir.resolve("uiptv.ini"), """
-                thumbnail.tmp.cache.dir=/Volumes/ExternalSSD/thumbnails
-                """);
+        // Use a platform-appropriate absolute path
+        String absolutePath = tempDir.resolve("thumbnails").toAbsolutePath().toString();
+        File ini = writeIni(tempDir.resolve("uiptv.ini"), "thumbnail.tmp.cache.dir=" + absolutePath + "\n");
         setConfigFilePath(ini.getAbsolutePath());
-        assertEquals("/Volumes/ExternalSSD/thumbnails", ConfigFileReader.getThumbnailTmpCacheDir());
+        assertEquals(absolutePath, ConfigFileReader.getThumbnailTmpCacheDir());
     }
 
     @Test
