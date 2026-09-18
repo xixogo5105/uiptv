@@ -7,6 +7,9 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -16,6 +19,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -34,6 +38,11 @@ public class LightweightApp {
     private final ObservableList<String> logEntries = FXCollections.observableArrayList();
     private boolean logsVisible = false;
     private ConfigurationChangeListener configurationChangeListener;
+
+    private VBox section1Content;
+    private VBox section2Content;
+    private BorderPane section1Pane;
+    private BorderPane section2Pane;
 
     public static void launch(String[] args) {
         Platform.startup(() -> {
@@ -79,6 +88,15 @@ public class LightweightApp {
         applyTheme(scene, root);
 
         AppLog.registerListener(this::appendLog);
+
+        // Start server status monitor
+        startServerStatusMonitor();
+    }
+
+    private void startServerStatusMonitor() {
+        Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(1), event -> refreshServerStatus()));
+        timeline.setCycleCount(Animation.INDEFINITE);
+        timeline.play();
     }
 
     private BorderPane buildRoot() {
@@ -88,10 +106,10 @@ public class LightweightApp {
         VBox sections = new VBox(12);
         sections.setMaxWidth(Double.MAX_VALUE);
 
-        VBox section1 = buildSection1();
-        VBox section2 = buildSection2();
+        section1Pane = createCollapsibleSection("configLightweightMode", buildSection1Content());
+        section2Pane = createCollapsibleSection("configWebServer", buildSection2Content());
 
-        sections.getChildren().addAll(section1, section2);
+        sections.getChildren().addAll(section1Pane, section2Pane);
         root.setTop(sections);
 
         terminalLabel = new Label("Terminal");
@@ -116,12 +134,8 @@ public class LightweightApp {
         return root;
     }
 
-    private VBox buildSection1() {
-        VBox card = new VBox(12);
-        card.getStyleClass().add("settings-section-card");
-
-        Label titleLabel = new Label(I18n.tr("configLightweightMode"));
-        titleLabel.getStyleClass().add("settings-section-title");
+    private VBox buildSection1Content() {
+        section1Content = new VBox(12);
 
         // Native button for "Switch to Full Application" - no CSS styling, fixed width
         fullAppButton = new Button(I18n.tr("configLightweightModeRevertTitle"));
@@ -144,16 +158,12 @@ public class LightweightApp {
         buttonRow.setAlignment(Pos.CENTER_LEFT);
         buttonRow.setMaxWidth(Double.MAX_VALUE);
 
-        card.getChildren().setAll(titleLabel, buttonRow);
-        return card;
+        section1Content.getChildren().add(buttonRow);
+        return section1Content;
     }
 
-    private VBox buildSection2() {
-        VBox card = new VBox(8);
-        card.getStyleClass().add("settings-section-card");
-
-        Label titleLabel = new Label(I18n.tr("configWebServer"));
-        titleLabel.getStyleClass().add("settings-section-title");
+    private VBox buildSection2Content() {
+        section2Content = new VBox(8);
 
         serverStatusLabel = new Label();
         serverStatusLabel.getStyleClass().add("server-status-label");
@@ -171,8 +181,48 @@ public class LightweightApp {
         serverToggleButton.getStyleClass().addAll("pill-toggle", "pill-toggle-unselected");
         serverToggleButton.setOnAction(_ -> toggleServerAction());
 
-        card.getChildren().setAll(titleLabel, statusRow, serverToggleButton);
-        return card;
+        section2Content.getChildren().addAll(statusRow, serverToggleButton);
+        return section2Content;
+    }
+
+    private BorderPane createCollapsibleSection(String titleKey, VBox content) {
+        BorderPane pane = new BorderPane(content);
+        pane.getStyleClass().add("settings-section-card");
+
+        Label titleLabel = new Label(I18n.tr(titleKey));
+        titleLabel.getStyleClass().add("settings-section-title");
+        titleLabel.setMinWidth(0);
+        titleLabel.setMaxWidth(Double.MAX_VALUE);
+        titleLabel.setWrapText(true);
+
+        Hyperlink toggleLink = new Hyperlink();
+        toggleLink.setMinWidth(Region.USE_PREF_SIZE);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox header = new HBox(8, titleLabel, spacer, toggleLink);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        final Runnable refreshToggleLabel = () -> {
+            boolean expanded = content.isVisible() && content.isManaged();
+            toggleLink.setText(expanded ? I18n.tr("commonHide") : I18n.tr("commonShow"));
+        };
+
+        content.setVisible(true);
+        content.setManaged(true);
+        refreshToggleLabel.run();
+
+        toggleLink.setOnAction(event -> {
+            boolean expand = !(content.isVisible() && content.isManaged());
+            content.setVisible(expand);
+            content.setManaged(expand);
+            refreshToggleLabel.run();
+        });
+
+        BorderPane.setMargin(header, new Insets(0, 0, 8, 0));
+        pane.setTop(header);
+
+        return pane;
     }
 
     private void toggleServerAction() {
