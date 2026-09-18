@@ -36,3 +36,4 @@ Native playback uses Media3 and can handle HLS/DASH plus license-URL Widevine/Cl
 - Android-to-desktop export is not part of v1.
 - True resume position is not stored yet because the shared desktop-compatible watch-state tables do not have position/duration columns.
 - Inline ClearKey JSON and Kodi inputstream metadata are detected but not opened by the native player yet.
+- Thumbnail caching on Android uses the app-managed cache directory automatically. No `uiptv.ini` configuration is required or used on mobile.

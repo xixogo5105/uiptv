@@ -164,6 +164,18 @@ UIPTV uses a local SQLite database to cache account, category, channel, bookmark
 - **Cache Expiry**: Configure cache lifetime in days in the Configuration tab.
 - **Clear Watching Now**: Clear stored watched-progress data.
 
+#### Thumbnail Cache
+Channel logos and series posters are cached to disk to reduce repeated network requests and speed up browsing.
+- By default, thumbnails are stored in the OS temp folder and expire after 7 days.
+- For a potential performance boost, you can redirect the thumbnail cache to an external SSD or faster drive and extend the expiry period. This avoids writing to your main SSD and reduces the frequency of re-downloads.
+- To configure this, create or edit `~/uiptv/uiptv.ini` (Linux: `~/.config/uiptv/uiptv.ini`) and add:
+  ```ini
+  thumbnail.tmp.cache.dir=/Volumes/ExternalSSD/uiptv-thumbnails
+  thumbnail.cache.ttl=14d
+  ```
+- The `thumbnail.cache.ttl` value accepts a bare number for days (e.g., `14` = 14 days) or an `h`/`H` suffix for hours (e.g., `12h` = 12 hours). The minimum is 1 day for bare numbers and 1 hour for hour values. Comments start with `#`.
+- If the configured folder is missing, offline, or unwritable, the app silently falls back to the OS temp folder.
+
 ### Web Server Settings
 - **Server Port**: Configure the listening port.
 - **Start/Stop/Open**: Manage server lifecycle from the Configuration tab.
