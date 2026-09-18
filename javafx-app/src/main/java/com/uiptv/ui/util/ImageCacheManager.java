@@ -151,10 +151,9 @@ public class ImageCacheManager {
             IMAGE_LOADER_FACTORY,
             (runnable, executor) -> {
                 if (!executor.isShutdown()) {
-                    try {
-                        executor.getQueue().offer(runnable, 250, TimeUnit.MILLISECONDS);
-                    } catch (InterruptedException interrupted) {
-                        Thread.currentThread().interrupt();
+                    boolean added = executor.getQueue().offer(runnable);
+                    if (!added) {
+                        throw new RejectedExecutionException("Image loader queue full");
                     }
                 }
             }
@@ -179,6 +178,10 @@ public class ImageCacheManager {
 
     public static CompletableFuture<Image> loadImageAsync(String url, String caller) {
         return loadImageAsync(url, caller, null);
+    }
+
+    public static Image getCachedImage(String cacheKey) {
+        return IMAGE_CACHE.get(cacheKey);
     }
 
     public static CompletableFuture<Image> loadImageAsync(String url, String caller, Account account) {

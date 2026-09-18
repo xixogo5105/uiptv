@@ -158,4 +158,8 @@ public class BookmarkCard extends HBox {
             region.setMaxWidth(Region.USE_PREF_SIZE);
         }
     }
+
+    public void dispose() {
+        imageView.clearImage();
+    }
 }

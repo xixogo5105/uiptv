@@ -1,6 +1,7 @@
 package com.uiptv.widget;
 
 import com.uiptv.ui.util.UiI18n;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
@@ -57,8 +58,13 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private final ObservableList<T> selectedItems = FXCollections.observableArrayList();
     private final ObservableList<T> readonlySelectedItems = FXCollections.unmodifiableObservableList(selectedItems);
     private final ListChangeListener<T> itemChangeListener = this::handleItemsChanged;
-    private final ChangeListener<Number> virtualScrollValueListener = (_, _, _) -> updateVirtualWindowImmediately();
-    private final ChangeListener<Bounds> virtualViewportBoundsListener = (_, _, _) -> updateVirtualWindowImmediately();
+    private final ChangeListener<Number> virtualScrollValueListener = (_, _, _) -> {
+        onScrollActive();
+        scheduleVirtualWindowUpdate();
+    };
+    private final ChangeListener<Bounds> virtualViewportBoundsListener = (_, _, _) -> {
+        scheduleVirtualWindowUpdate();
+    };
     private ObservableList<T> items = FXCollections.observableArrayList();
     private ContextMenuFactory<T> contextMenuFactory;
     private Consumer<T> itemActivatedHandler;
@@ -92,6 +98,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private double renderedTranslateY = -1;
     private ScrollPane virtualScrollPane;
     private int scrollRestoreGeneration;
+    private final PauseTransition scrollSettleTimer = new PauseTransition(javafx.util.Duration.millis(150));
+    private Consumer<Region> cardDisposer;
 
     public ResponsiveCardGrid(Function<T, Region> cardFactory) {
         this.cardFactory = Objects.requireNonNull(cardFactory, "cardFactory");
@@ -132,6 +140,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 scheduleInitialItemFocus();
             }
         });
+        scrollSettleTimer.setOnFinished(_ -> onScrollSettled());
         addEventFilter(KeyEvent.KEY_PRESSED, this::handleGridTabTraversalKeyPressed);
         addEventHandler(KeyEvent.KEY_PRESSED, this::handleNavigationKeyPressed);
         rebuildCards();
@@ -271,6 +280,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
         updateCardWidths();
     }
 
+    public void setCardDisposer(Consumer<Region> cardDisposer) {
+        this.cardDisposer = cardDisposer;
+    }
+
     public void refresh() {
         rebuildCards();
     }
@@ -320,8 +333,17 @@ public class ResponsiveCardGrid<T> extends StackPane {
         updateSelectionStyles();
     }
 
+    private void disposeAllCards() {
+        if (cardDisposer != null) {
+            for (Region card : cardsByItem.values()) {
+                cardDisposer.accept(card);
+            }
+        }
+    }
+
     private void rebuildCards() {
         pruneSelection();
+        disposeAllCards();
         cardsByItem.clear();
         cardPane.getChildren().clear();
         firstRenderedIndex = -1;
@@ -421,6 +443,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
         int colCount = Math.max(1, columnCount);
         for (int index = start; index < end; index++) {
             T item = items.get(index);
+            Node oldCardNode = cardPane.getChildren().get(index);
+            if (oldCardNode instanceof Region oldCard && cardDisposer != null) {
+                cardDisposer.accept(oldCard);
+            }
             Region card = cardFactory.apply(item);
             configureCard(item, card);
             cardsByItem.put(item, card);
@@ -474,6 +500,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (virtualScrollPane == null) {
             return;
         }
+        scrollSettleTimer.stop();
+        AsyncImageView.setScrolling(false);
         virtualScrollPane.vvalueProperty().removeListener(virtualScrollValueListener);
         virtualScrollPane.viewportBoundsProperty().removeListener(virtualViewportBoundsListener);
         virtualScrollPane = null;
@@ -488,6 +516,16 @@ public class ResponsiveCardGrid<T> extends StackPane {
             virtualWindowUpdateQueued = false;
             updateVirtualWindowGuarded();
         });
+    }
+
+    private void onScrollActive() {
+        scrollSettleTimer.stop();
+        AsyncImageView.setScrolling(true);
+        scrollSettleTimer.playFromStart();
+    }
+
+    private void onScrollSettled() {
+        AsyncImageView.setScrolling(false);
     }
 
     private void updateVirtualWindowImmediately() {
@@ -558,7 +596,18 @@ public class ResponsiveCardGrid<T> extends StackPane {
         for (int index = safeFirst; index < safeLast; index++) {
             retainedItems.add(items.get(index));
         }
+        List<Region> cardsToDispose = new ArrayList<>();
+        for (Map.Entry<T, Region> entry : cardsByItem.entrySet()) {
+            if (!retainedItems.contains(entry.getKey())) {
+                cardsToDispose.add(entry.getValue());
+            }
+        }
         cardsByItem.entrySet().removeIf(entry -> !retainedItems.contains(entry.getKey()));
+        if (cardDisposer != null) {
+            for (Region card : cardsToDispose) {
+                cardDisposer.accept(card);
+            }
+        }
 
         List<Node> renderedCards = new ArrayList<>(safeLast - safeFirst);
         for (int index = safeFirst; index < safeLast; index++) {
@@ -608,9 +657,6 @@ public class ResponsiveCardGrid<T> extends StackPane {
             return;
         }
         measuredVirtualCardHeight = measured;
-        updateVirtualContentHeight();
-        firstRenderedIndex = -1;
-        scheduleVirtualWindowUpdate();
     }
 
     private void updateVirtualContentHeight() {

@@ -136,6 +136,35 @@ class ImageCacheManagerTest {
     }
 
     @Test
+    void rapidRepeatedLoadsOfSameUrlAreDeduplicated() throws Exception {
+        Path imageFile = Files.createTempFile("uiptv-image-cache-manager", ".png");
+        Files.write(imageFile, PNG_1X1_BYTES);
+        String url = imageFile.toUri().toString();
+
+        try (MockedStatic<ThumbnailAwareUI> thumbnails = mockStatic(ThumbnailAwareUI.class)) {
+            thumbnails.when(ThumbnailAwareUI::areThumbnailsEnabled).thenReturn(true);
+
+            int iterations = 200;
+            CompletableFuture<?>[] futures = new CompletableFuture<?>[iterations];
+            for (int i = 0; i < iterations; i++) {
+                futures[i] = ImageCacheManager.loadImageAsync(url, "Stress");
+            }
+
+            CompletableFuture.allOf(futures).get(3, TimeUnit.SECONDS);
+
+            String normalizedUrl = ImageCacheManager.normalizeLoadUrl(url);
+            String actualCacheKey = "stress:" + normalizedUrl;
+            Map<String, CompletableFuture<Image>> loadingTasks = loadingTasks();
+            Map<String, Image> cache = imageCache();
+
+            assertFalse(loadingTasks.containsKey(actualCacheKey),
+                    "Expected no loading task after completion for " + actualCacheKey);
+        } finally {
+            Files.deleteIfExists(imageFile);
+        }
+    }
+
+    @Test
     void supportedImageUrlsAreMatchedCaseInsensitively() throws Exception {
         assertTrue((Boolean) invoke("isSupportedImageUrl", new Class[]{String.class}, "HTTPS://image.test/logo.png"));
         assertTrue((Boolean) invoke("isSupportedImageUrl", new Class[]{String.class}, "FILE:/tmp/logo.png"));

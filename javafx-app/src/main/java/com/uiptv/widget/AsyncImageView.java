@@ -3,11 +3,14 @@ package com.uiptv.widget;
 import com.uiptv.ui.util.ImageCacheManager;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
+import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 
+import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class AsyncImageView extends StackPane {
     private static final int IMAGE_VIEW_WIDTH = 48;
@@ -22,23 +25,34 @@ public class AsyncImageView extends StackPane {
     private final Region defaultIcon = new Region();
     @SuppressWarnings("java:S1450")
     private String currentUrl;
+    private volatile javafx.animation.PauseTransition loadDebounce;
+    private static volatile boolean scrolling = false;
+    private static final ConcurrentLinkedQueue<AsyncImageView> PENDING_UI_UPDATES = new ConcurrentLinkedQueue<>();
+    private static volatile boolean uiUpdateScheduled = false;
+    private static final Object UI_UPDATE_LOCK = new Object();
+    private volatile javafx.scene.image.Image pendingImage;
+    private volatile String pendingUrl;
+
+    public static void setScrolling(boolean active) {
+        scrolling = active;
+    }
+
+    private static long scrollDebounceMillis() {
+        return scrolling ? 400 : 300;
+    }
 
     public AsyncImageView() {
-        // Style the StackPane itself to provide a background
         getStyleClass().add(IMAGE_VIEW_STYLE_CSS);
         setAlignment(Pos.CENTER);
         setPrefSize(IMAGE_VIEW_WIDTH, IMAGE_VIEW_HEIGHT);
         setMinSize(IMAGE_VIEW_WIDTH, IMAGE_VIEW_HEIGHT);
         setMaxSize(IMAGE_VIEW_WIDTH, IMAGE_VIEW_HEIGHT);
 
-        // Configure the internal ImageView
-        // Make image slightly smaller than the container to ensure background border is visible
         imageView.setFitWidth(IMAGE_VIEW_WIDTH - IMAGE_PADDING);
         imageView.setFitHeight(IMAGE_VIEW_HEIGHT - IMAGE_PADDING);
         imageView.setPreserveRatio(true);
         imageView.setVisible(false);
 
-        // Configure default icon
         defaultIcon.setShape(new javafx.scene.shape.SVGPath());
         ((javafx.scene.shape.SVGPath) defaultIcon.getShape()).setContent(SVG_PATH);
         defaultIcon.getStyleClass().add("default-channel-icon");
@@ -61,26 +75,93 @@ public class AsyncImageView extends StackPane {
 
         this.currentUrl = url;
 
+        String cacheKey = type.toLowerCase(Locale.ROOT) + ":" + ImageCacheManager.normalizeLoadUrl(url);
+        Image cached = ImageCacheManager.getCachedImage(cacheKey);
+        if (cached != null) {
+            applyImage(cached);
+            return;
+        }
+
+        if (loadDebounce == null) {
+            loadDebounce = new javafx.animation.PauseTransition(javafx.util.Duration.millis(scrollDebounceMillis()));
+        } else {
+            loadDebounce.setDuration(javafx.util.Duration.millis(scrollDebounceMillis()));
+        }
+        loadDebounce.setOnFinished(_ -> scheduleLoad(url, type));
+        loadDebounce.playFromStart();
+    }
+
+    private void applyImage(Image image) {
+        imageView.setImage(image);
+        imageView.setVisible(true);
+        defaultIcon.setVisible(false);
+        if (!getStyleClass().contains(HAS_IMAGE_STYLE_CSS)) {
+            getStyleClass().add(HAS_IMAGE_STYLE_CSS);
+        }
+    }
+
+    private void scheduleLoad(String url, String type) {
+        if (!Objects.equals(url, this.currentUrl)) {
+            return;
+        }
+        if (scrolling) {
+            if (loadDebounce == null) {
+                loadDebounce = new javafx.animation.PauseTransition(javafx.util.Duration.millis(scrollDebounceMillis()));
+            } else {
+                loadDebounce.setDuration(javafx.util.Duration.millis(scrollDebounceMillis()));
+            }
+            loadDebounce.setOnFinished(_ -> scheduleLoad(url, type));
+            loadDebounce.playFromStart();
+            return;
+        }
         ImageCacheManager.loadImageAsync(url, type)
                 .thenAccept(image -> {
                     if (image != null && Objects.equals(url, this.currentUrl)) {
-                        Platform.runLater(() -> {
-                            // Final check inside the UI thread to prevent race conditions
-                            if (Objects.equals(url, this.currentUrl)) {
-                                imageView.setImage(image);
-                                imageView.setVisible(true);
-                                defaultIcon.setVisible(false);
-                                if (!getStyleClass().contains(HAS_IMAGE_STYLE_CSS)) {
-                                    getStyleClass().add(HAS_IMAGE_STYLE_CSS);
-                                }
+                        pendingImage = image;
+                        pendingUrl = url;
+                        synchronized (UI_UPDATE_LOCK) {
+                            PENDING_UI_UPDATES.add(this);
+                            if (!uiUpdateScheduled) {
+                                uiUpdateScheduled = true;
+                                Platform.runLater(() -> {
+                                    synchronized (UI_UPDATE_LOCK) {
+                                        uiUpdateScheduled = false;
+                                        AsyncImageView view;
+                                        while ((view = PENDING_UI_UPDATES.poll()) != null) {
+                                            view.applyLoadedImage();
+                                        }
+                                    }
+                                });
                             }
-                        });
+                        }
                     }
                 });
     }
 
+    private void applyLoadedImage() {
+        if (pendingImage == null || !Objects.equals(pendingUrl, currentUrl)) {
+            pendingImage = null;
+            pendingUrl = null;
+            return;
+        }
+        Image image = pendingImage;
+        pendingImage = null;
+        pendingUrl = null;
+        imageView.setImage(image);
+        imageView.setVisible(true);
+        defaultIcon.setVisible(false);
+        if (!getStyleClass().contains(HAS_IMAGE_STYLE_CSS)) {
+            getStyleClass().add(HAS_IMAGE_STYLE_CSS);
+        }
+    }
+
     public void clearImage() {
+        if (loadDebounce != null) {
+            loadDebounce.stop();
+        }
         this.currentUrl = null;
+        this.pendingImage = null;
+        this.pendingUrl = null;
         imageView.setImage(null);
         imageView.setVisible(false);
         defaultIcon.setVisible(true);

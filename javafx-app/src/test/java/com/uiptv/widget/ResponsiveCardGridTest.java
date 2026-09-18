@@ -718,8 +718,8 @@ class ResponsiveCardGridTest {
 
     @Test
     void virtualizedWindowTracksScrollValueImmediately() throws Exception {
-        List<String> rendered = runOnFxThread(() -> {
-            ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> {
+        ResponsiveCardGrid<String> cardGrid = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(item -> {
                 Label label = new Label(item);
                 label.setMinHeight(40);
                 label.setPrefHeight(40);
@@ -729,13 +729,13 @@ class ResponsiveCardGridTest {
             for (int index = 0; index < 10_000; index++) {
                 manyItems.add("item-" + index);
             }
-            cardGrid.setVirtualizationThreshold(1);
-            cardGrid.setVirtualRowBuffer(1);
-            cardGrid.setItems(manyItems);
-            cardGrid.setSingleColumn(true);
-            cardGrid.setGaps(0, 4);
+            grid.setVirtualizationThreshold(1);
+            grid.setVirtualRowBuffer(1);
+            grid.setItems(manyItems);
+            grid.setSingleColumn(true);
+            grid.setGaps(0, 4);
 
-            ScrollPane scrollPane = new ScrollPane(cardGrid);
+            ScrollPane scrollPane = new ScrollPane(grid);
             scrollPane.setFitToWidth(true);
             scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
             StackPane root = new StackPane(scrollPane);
@@ -744,10 +744,14 @@ class ResponsiveCardGridTest {
             root.applyCss();
             root.layout();
 
-            invokeInstallVirtualScrollPane(cardGrid);
+            invokeInstallVirtualScrollPane(grid);
             scrollPane.setVvalue(1.0);
-            return renderedLabelTexts(cardGrid);
+            return grid;
         });
+
+        waitForFxEvents();
+
+        List<String> rendered = runOnFxThread(() -> renderedLabelTexts(cardGrid));
 
         assertTrue(rendered.contains("item-9999"));
     }

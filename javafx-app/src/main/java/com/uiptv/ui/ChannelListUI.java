@@ -117,6 +117,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private final AtomicReference<ScheduledFuture<?>> refreshFuture = new AtomicReference<>();
     private static final long REFRESH_THROTTLE_MS = 300;
     private long lastRefreshMs = 0;
+    private static final long REFRESH_BOOKMARK_STATES_THROTTLE_MS = 300;
+    private long lastRefreshBookmarkStatesMs = 0;
 
     private final ThumbnailAwareUI.ThumbnailModeListener thumbnailModeListener = this::onThumbnailModeChanged;
     private Consumer<List<Node>> detailHeaderActionsHandler;
@@ -530,6 +532,11 @@ public class ChannelListUI extends HBox implements SearchTarget {
         channelGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle)));
         channelGrid.setOnItemActivated(this::playOrShowSeries);
         channelGrid.setContextMenuFactory((item, selectedItems, owner) -> createChannelContextMenu(item, selectedItems, owner));
+        channelGrid.setCardDisposer(card -> {
+            if (card instanceof BookmarkCard bookmarkCard) {
+                bookmarkCard.dispose();
+            }
+        });
         channelGrid.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
                 playOrShowSeries(channelGrid.getFocusedItem());
@@ -1472,6 +1479,11 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void refreshBookmarkStatesAsync() {
+        long now = System.currentTimeMillis();
+        if (now - lastRefreshBookmarkStatesMs < REFRESH_BOOKMARK_STATES_THROTTLE_MS) {
+            return;
+        }
+        lastRefreshBookmarkStatesMs = now;
         if (disposed.get() || channelItems == null || channelItems.isEmpty()) {
             return;
         }
