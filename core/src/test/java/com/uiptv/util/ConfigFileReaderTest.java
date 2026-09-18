@@ -54,11 +54,13 @@ class ConfigFileReaderTest {
 
     @Test
     void getThumbnailTmpCacheDirReturnsAbsolutePath(@TempDir Path tempDir) throws Exception {
-        // Use a platform-appropriate absolute path
-        String absolutePath = tempDir.resolve("thumbnails").toAbsolutePath().toString();
+        // Use forward slashes to avoid Properties.load() interpreting backslashes as escapes on Windows
+        String absolutePath = tempDir.resolve("thumbnails").toAbsolutePath().toString().replace('\\', '/');
         File ini = writeIni(tempDir.resolve("uiptv.ini"), "thumbnail.tmp.cache.dir=" + absolutePath + "\n");
         setConfigFilePath(ini.getAbsolutePath());
-        assertEquals(absolutePath, ConfigFileReader.getThumbnailTmpCacheDir());
+        // On Windows, getAbsolutePath() normalizes to backslashes; compare normalized
+        String expected = new File(absolutePath).getAbsolutePath();
+        assertEquals(expected, ConfigFileReader.getThumbnailTmpCacheDir());
     }
 
     @Test
