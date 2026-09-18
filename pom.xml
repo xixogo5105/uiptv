@@ -23,7 +23,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <sqlite.arch>x86_64</sqlite.arch>
-        <javafx.version>26.0.2</javafx.version>
+        <javafx.version>27</javafx.version>
         <undertow.version>2.4.3.Final</undertow.version>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
