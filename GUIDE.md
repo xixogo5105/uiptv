@@ -332,6 +332,16 @@ If you want to run UIPTV on a server without a graphical interface:
 - Use the command-line argument `--headless` (if supported by your launcher script) or simply start the application and minimize it to the tray.
 - This is ideal for dedicated media servers.
 
+### Lightweight Mode
+UIPTV includes a **Lightweight Mode** for minimal-resource scenarios (e.g., headless servers, low-end devices):
+- Launch with the `--lightweight` flag or select "Lightweight Mode" from the launcher.
+- Provides a minimal UI: server start/stop, log viewing, and cache clearing.
+- **Collapsible panels**: Both the "Lightweight Mode" and "Web Server" sections can be collapsed via the Show/Hide links, allowing the terminal/log area to expand and claim the full window height.
+- **Native buttons**: All controls use standard JavaFX buttons (no custom pill styling) for consistent native look across platforms.
+- **Red "Stop Server"**: The server toggle shows a red background when the server is running (Stop), and no colour when stopped (Start).
+- **Logs toggle**: Toggle "Logs" to show/hide the terminal output; "Clear" button appears next to it only when logs are visible.
+- The lightweight mode is ideal for running UIPTV as a background service on a server.
+
 ---
 
 ## 7. Advanced Features & Tips

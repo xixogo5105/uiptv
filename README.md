@@ -62,6 +62,7 @@ Build from the repository root. Maven resolves the module graph automatically.
   - **Extra Endpoints**: Includes playlist exports (`/iptv.m3u`, `/iptv.m3u8`) and bookmarks playlist (`/bookmarks.m3u8`).
 - **DRM-aware Web Playback**: Playback payloads now include DRM fields (type/license/clear keys/manifest hints) where available.
 - **Web Server Headless Support**: Run UIPTV in headless mode if you only intend to access channels through a browser.
+- **Lightweight Mode**: Minimal UI for headless/low-resource use with collapsible panels, native buttons, and focusable terminal/log view.
 - **Multiple IPTV Protocols**: The player supports the following protocols and formats:
   - **Stalker Portal**: Live Channels, Video On Demand, and Series.
   - **M3U Playlists**: Supports local and remote M3U files (EPG is not yet supported).
