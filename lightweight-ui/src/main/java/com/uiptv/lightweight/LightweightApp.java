@@ -6,6 +6,7 @@ import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
+import com.uiptv.util.ServerUrlUtil;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -18,6 +19,7 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -30,9 +32,16 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class LightweightApp {
     private ConfigurationService configurationService;
     private ConfigurationApplicationService configurationApplicationService;
-    private ToggleButton serverToggleButton;
-    private ToggleButton logsToggleButton;
+    private ToggleButton fullAppToggleButton;
+    private ToggleButton logsOnButton;
+    private ToggleButton logsOffButton;
+    private ToggleButton startServerButton;
+    private ToggleButton stopServerButton;
+    private Label serverStatusLabel;
+    private Label httpPortLabel;
+    private Label httpsPortLabel;
     private ListView<String> logListView;
+    private Label terminalLabel;
     private final ObservableList<String> logEntries = FXCollections.observableArrayList();
     private boolean logsVisible = false;
     private ConfigurationChangeListener configurationChangeListener;
@@ -51,7 +60,8 @@ public class LightweightApp {
 
         primaryStage.setTitle("UIPTV - Lightweight Mode");
         BorderPane root = buildRoot();
-        Scene scene = new Scene(root, 600, 500);
+        Scene scene = new Scene(root, 620, 540);
+        scene.getStylesheets().add(getClass().getResource("/lightweight-ui.css").toExternalForm());
         applyTheme(scene, root);
         primaryStage.setScene(scene);
         primaryStage.show();
@@ -60,7 +70,8 @@ public class LightweightApp {
         if (configuration != null && configuration.isAutoRunServerOnStartup()) {
             Platform.runLater(() -> {
                 try {
-                    configurationApplicationService.ensureServerStarted();
+                    boolean started = configurationApplicationService.ensureServerStarted();
+                    refreshServerStatus();
                 } catch (Exception e) {
                     AppLog.addErrorLog(LightweightApp.class, "Auto-start server failed: " + e.getMessage());
                 }
@@ -68,90 +79,246 @@ public class LightweightApp {
         }
 
         configurationChangeListener = _ -> Platform.runLater(() -> {
-            if (serverToggleButton != null) {
-                serverToggleButton.setSelected(configurationApplicationService.isServerRunning());
-            }
+            refreshServerStatus();
             applyTheme(scene, root);
         });
         configurationService.addChangeListener(configurationChangeListener);
-        if (serverToggleButton != null) {
-            serverToggleButton.setSelected(configurationApplicationService.isServerRunning());
-        }
+
+        boolean dark = configuration != null && configuration.isDarkTheme();
+        applyTheme(scene, root);
 
         AppLog.registerListener(this::appendLog);
     }
 
-    private void stop() {
-        if (configurationChangeListener != null) {
-            configurationService.removeChangeListener(configurationChangeListener);
-        }
-        AppLog.unregisterListener(this::appendLog);
-    }
-
     private BorderPane buildRoot() {
         BorderPane root = new BorderPane();
-        root.setPadding(new Insets(12));
+        root.setPadding(new Insets(16));
 
-        VBox controlPanel = new VBox(10);
-        controlPanel.setPadding(new Insets(0, 0, 12, 0));
+        VBox sections = new VBox(12);
+        sections.setMaxWidth(Double.MAX_VALUE);
 
-        serverToggleButton = new ToggleButton("Web Server");
-        serverToggleButton.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(serverToggleButton, Priority.ALWAYS);
-        serverToggleButton.setSelected(configurationApplicationService.isServerRunning());
-        serverToggleButton.setOnAction(_ -> toggleServer());
+        VBox section1 = buildSection1();
+        VBox section2 = buildSection2();
+        VBox section3 = buildSection3();
 
-        Button revertButton = new Button("Switch to Full Application");
-        revertButton.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(revertButton, Priority.ALWAYS);
-        revertButton.setOnAction(_ -> revertToFullMode());
+        sections.getChildren().addAll(section1, section2, section3);
+        root.setTop(sections);
 
-        logsToggleButton = new ToggleButton("Logs");
-        logsToggleButton.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(logsToggleButton, Priority.ALWAYS);
-        logsToggleButton.setOnAction(_ -> toggleLogs());
+        Button clearLogsButton = new Button(I18n.tr("configClearCache"));
+        clearLogsButton.getStyleClass().add("clear-logs-button");
+        clearLogsButton.setOnAction(_ -> {
+            logEntries.clear();
+            AppLog.addInfoLog(LightweightApp.class, "Logs cleared");
+        });
 
-        HBox buttonRow1 = new HBox(10, serverToggleButton, revertButton);
-        buttonRow1.setAlignment(Pos.CENTER_LEFT);
-        buttonRow1.setMaxWidth(Double.MAX_VALUE);
+        HBox logToolbar = new HBox(clearLogsButton);
+        logToolbar.setAlignment(Pos.CENTER_RIGHT);
+        logToolbar.setPadding(new Insets(0, 0, 8, 0));
+        root.setBottom(logToolbar);
 
-        HBox buttonRow2 = new HBox(10, logsToggleButton);
-        buttonRow2.setAlignment(Pos.CENTER_LEFT);
-        buttonRow2.setMaxWidth(Double.MAX_VALUE);
-
-        controlPanel.getChildren().addAll(buttonRow1, buttonRow2);
-        root.setTop(controlPanel);
+        terminalLabel = new Label("Terminal");
+        terminalLabel.getStyleClass().add("terminal-label");
+        terminalLabel.setVisible(logsVisible);
+        terminalLabel.setManaged(logsVisible);
 
         logListView = new ListView<>();
         logListView.setItems(logEntries);
-        logListView.setStyle("-fx-font-family: 'Courier New', 'Monaco', 'Consolas', monospace; -fx-font-size: 12;");
+        logListView.getStyleClass().add("terminal-log-list");
         logListView.setCellFactory(_ -> new LogCell());
         logListView.setVisible(logsVisible);
         logListView.setManaged(logsVisible);
 
-        VBox logContainer = new VBox(10, new Label("Terminal"), logListView);
+        VBox logContainer = new VBox(6, terminalLabel, logListView);
         logContainer.setVgrow(logListView, Priority.ALWAYS);
         VBox.setVgrow(logListView, Priority.ALWAYS);
         root.setCenter(logContainer);
 
+        refreshServerStatus();
+
         return root;
     }
 
-    private void toggleServer() {
+    private VBox buildSection1() {
+        VBox card = new VBox(12);
+        card.getStyleClass().add("settings-section-card");
+
+        Label titleLabel = new Label(I18n.tr("configLightweightMode"));
+        titleLabel.getStyleClass().add("settings-section-title");
+
+        ToggleGroup revertGroup = new ToggleGroup();
+        fullAppToggleButton = new ToggleButton(I18n.tr("configLightweightModeRevertTitle"));
+        fullAppToggleButton.setToggleGroup(revertGroup);
+        fullAppToggleButton.getStyleClass().addAll("pill-toggle", "pill-toggle-unselected");
+        fullAppToggleButton.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(fullAppToggleButton, Priority.ALWAYS);
+        fullAppToggleButton.setOnAction(_ -> revertToFullMode());
+
+        ToggleGroup logsGroup = new ToggleGroup();
+        logsOnButton = new ToggleButton(I18n.tr("commonOn"));
+        logsOffButton = new ToggleButton(I18n.tr("commonOff"));
+        logsOnButton.setToggleGroup(logsGroup);
+        logsOffButton.setToggleGroup(logsGroup);
+        logsOnButton.getStyleClass().addAll("pill-toggle", "pill-toggle-unselected");
+        logsOffButton.getStyleClass().addAll("pill-toggle", "pill-toggle-unselected");
+        logsOnButton.setMaxWidth(Double.MAX_VALUE);
+        logsOffButton.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(logsOnButton, Priority.ALWAYS);
+        HBox.setHgrow(logsOffButton, Priority.ALWAYS);
+        HBox logsRow = new HBox(8, logsOnButton, logsOffButton);
+        logsRow.setAlignment(Pos.CENTER_LEFT);
+        logsRow.setMaxWidth(Double.MAX_VALUE);
+
+        Label logToggleLabel = new Label(I18n.tr("autoLogs"));
+        logToggleLabel.getStyleClass().add("setting-label");
+
+        HBox.setHgrow(logToggleLabel, Priority.ALWAYS);
+        VBox.setMargin(logToggleLabel, new Insets(0, 0, 4, 0));
+
+        card.getChildren().setAll(titleLabel, fullAppToggleButton, logToggleLabel, logsRow);
+        updatePillToggleStyle(logsOnButton, logsOffButton, logsVisible);
+        logsOnButton.setOnAction(_ -> setLogsVisible(true));
+        logsOffButton.setOnAction(_ -> setLogsVisible(false));
+
+        return card;
+    }
+
+    private VBox buildSection2() {
+        VBox card = new VBox(8);
+        card.getStyleClass().add("settings-section-card");
+
+        Label titleLabel = new Label(I18n.tr("configWebServer"));
+        titleLabel.getStyleClass().add("settings-section-title");
+
+        serverStatusLabel = new Label();
+        serverStatusLabel.getStyleClass().add("server-status-label");
+        httpPortLabel = new Label();
+        httpPortLabel.getStyleClass().add("server-port-label");
+        httpsPortLabel = new Label();
+        httpsPortLabel.getStyleClass().add("server-port-label");
+        HBox statusRow = new HBox(12, serverStatusLabel, httpPortLabel, httpsPortLabel);
+        statusRow.setAlignment(Pos.CENTER_LEFT);
+        statusRow.setMaxWidth(Double.MAX_VALUE);
+
+        card.getChildren().setAll(titleLabel, statusRow);
+        return card;
+    }
+
+    private VBox buildSection3() {
+        VBox card = new VBox(8);
+        card.getStyleClass().add("settings-section-card");
+
+        ToggleGroup serverGroup = new ToggleGroup();
+        startServerButton = new ToggleButton(I18n.tr("configStartServer"));
+        stopServerButton = new ToggleButton(I18n.tr("configStopServer"));
+        startServerButton.setToggleGroup(serverGroup);
+        stopServerButton.setToggleGroup(serverGroup);
+        startServerButton.getStyleClass().addAll("pill-toggle", "pill-toggle-unselected");
+        stopServerButton.getStyleClass().addAll("pill-toggle", "pill-toggle-unselected");
+        startServerButton.setMaxWidth(Double.MAX_VALUE);
+        stopServerButton.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(startServerButton, Priority.ALWAYS);
+        HBox.setHgrow(stopServerButton, Priority.ALWAYS);
+        HBox serverRow = new HBox(8, startServerButton, stopServerButton);
+        serverRow.setAlignment(Pos.CENTER_LEFT);
+        serverRow.setMaxWidth(Double.MAX_VALUE);
+
+        card.getChildren().add(serverRow);
+
+        boolean running = configurationApplicationService.isServerRunning();
+        startServerButton.setSelected(running);
+        stopServerButton.setSelected(!running);
+        updatePillToggleStyle(startServerButton, stopServerButton, running);
+
+        startServerButton.setOnAction(_ -> toggleServer(true));
+        stopServerButton.setOnAction(_ -> toggleServer(false));
+
+        return card;
+    }
+
+    private void setLogsVisible(boolean visible) {
+        logsVisible = visible;
+        updatePillToggleStyle(logsOnButton, logsOffButton, visible);
+        logListView.setVisible(visible);
+        logListView.setManaged(visible);
+        terminalLabel.setVisible(visible);
+        terminalLabel.setManaged(visible);
+        if (visible) {
+            scrollToBottom();
+        }
+    }
+
+    private void toggleServer(boolean start) {
         try {
-            if (serverToggleButton.isSelected()) {
+            if (start) {
                 configurationApplicationService.startServer();
             } else {
                 configurationApplicationService.stopServer();
             }
+            boolean running = configurationApplicationService.isServerRunning();
+            startServerButton.setSelected(running);
+            stopServerButton.setSelected(!running);
+            updatePillToggleStyle(startServerButton, stopServerButton, running);
+            refreshServerStatus();
         } catch (Exception e) {
             AppLog.addErrorLog(LightweightApp.class, "Server toggle failed: " + e.getMessage());
-            Platform.runLater(() -> serverToggleButton.setSelected(!serverToggleButton.isSelected()));
+            Platform.runLater(() -> {
+                startServerButton.setSelected(!start);
+                stopServerButton.setSelected(start);
+                updatePillToggleStyle(startServerButton, stopServerButton, !start);
+            });
+        }
+    }
+
+    private void updatePillToggleStyle(ToggleButton onButton, ToggleButton offButton, boolean on) {
+        if (on) {
+            onButton.getStyleClass().remove("pill-toggle-unselected");
+            onButton.getStyleClass().add("pill-toggle-selected");
+            offButton.getStyleClass().remove("pill-toggle-selected");
+            offButton.getStyleClass().add("pill-toggle-unselected");
+        } else {
+            offButton.getStyleClass().remove("pill-toggle-unselected");
+            offButton.getStyleClass().add("pill-toggle-selected");
+            onButton.getStyleClass().remove("pill-toggle-selected");
+            onButton.getStyleClass().add("pill-toggle-unselected");
+        }
+    }
+
+    private void refreshServerStatus() {
+        boolean running = configurationApplicationService.isServerRunning();
+        if (startServerButton != null && stopServerButton != null) {
+            startServerButton.setSelected(running);
+            stopServerButton.setSelected(!running);
+            updatePillToggleStyle(startServerButton, stopServerButton, running);
+        }
+        if (serverStatusLabel != null) {
+            if (running) {
+                serverStatusLabel.setText("Webserver Running");
+                serverStatusLabel.getStyleClass().removeAll("status-stopped");
+                serverStatusLabel.getStyleClass().add("status-running");
+            } else {
+                serverStatusLabel.setText("Webserver Stopped");
+                serverStatusLabel.getStyleClass().removeAll("status-running");
+                serverStatusLabel.getStyleClass().add("status-stopped");
+            }
+        }
+        if (httpPortLabel != null) {
+            httpPortLabel.setText("HTTP: " + ServerUrlUtil.getConfiguredServerPort());
+        }
+        if (httpsPortLabel != null) {
+            if (ServerUrlUtil.isHttpsServerEnabled()) {
+                httpsPortLabel.setText("HTTPS: " + ServerUrlUtil.getConfiguredHttpsServerPort());
+                httpsPortLabel.setVisible(true);
+                httpsPortLabel.setManaged(true);
+            } else {
+                httpsPortLabel.setVisible(false);
+                httpsPortLabel.setManaged(false);
+            }
         }
     }
 
     private void revertToFullMode() {
         if (!showConfirmation("configLightweightModeRevertConfirm")) {
+            Platform.runLater(() -> fullAppToggleButton.setSelected(false));
             return;
         }
         Configuration configuration = configurationService.read();
@@ -161,15 +328,6 @@ public class LightweightApp {
         }
         Platform.exit();
         System.exit(0);
-    }
-
-    private void toggleLogs() {
-        logsVisible = logsToggleButton.isSelected();
-        logListView.setVisible(logsVisible);
-        logListView.setManaged(logsVisible);
-        if (logsVisible) {
-            scrollToBottom();
-        }
     }
 
     private void appendLog(String message) {
@@ -188,14 +346,10 @@ public class LightweightApp {
     private void applyTheme(Scene scene, BorderPane root) {
         Configuration configuration = configurationService.read();
         boolean dark = configuration != null && configuration.isDarkTheme();
-        String bg = dark ? "#1e1e1e" : "#ffffff";
-        String fg = dark ? "#d4d4d4" : "#1e1e1e";
-        root.setStyle("-fx-background-color: " + bg + ";");
-        if (scene != null) {
-            scene.getRoot().setStyle("-fx-background-color: " + bg + ";");
-        }
-        if (logListView != null) {
-            logListView.setStyle("-fx-font-family: 'Courier New', 'Monaco', 'Consolas', monospace; -fx-font-size: 12; -fx-control-inner-background: " + bg + "; -fx-text-fill: " + fg + ";");
+        if (dark) {
+            root.getStyleClass().add("dark-theme");
+        } else {
+            root.getStyleClass().remove("dark-theme");
         }
     }
 
