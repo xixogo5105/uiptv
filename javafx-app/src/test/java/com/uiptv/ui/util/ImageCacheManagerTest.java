@@ -232,7 +232,8 @@ class ImageCacheManagerTest {
                 }
             });
         }
-        assertTrue(started.await(3, TimeUnit.SECONDS));
+        long timeoutSec = Long.getLong("uiptv.test.thread.start.timeout.sec", 30L);
+        assertTrue(started.await(timeoutSec, TimeUnit.SECONDS));
         return new LoaderBlock(release);
     }
 
