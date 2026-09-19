@@ -21,6 +21,7 @@ public class StalkerPortalParser implements AccountParser {
             new SerialCutAttributeParser(),
             new SerialAttributeParser(),
             new SignatureAttributeParser(),
+            new DeviceIdAttributeParser(),
             new DeviceId1AttributeParser(),
             new DeviceId2AttributeParser()
     );
@@ -174,8 +175,10 @@ public class StalkerPortalParser implements AccountParser {
             if (value != null) {
                 StalkerAttributeType type = parser.getAttributeType();
                 applyValueToAccount(account, value, type);
-                // If a combined device id (e.g., "1/2") is provided, apply the same value to device id 2 as well
-                if (type == StalkerAttributeType.DEVICE_ID_1) {
+                if (type == StalkerAttributeType.DEVICE_ID) {
+                    applyValueToAccount(account, value, StalkerAttributeType.DEVICE_ID_1);
+                    applyValueToAccount(account, value, StalkerAttributeType.DEVICE_ID_2);
+                } else if (type == StalkerAttributeType.DEVICE_ID_1) {
                     String lower = line.toLowerCase();
                     if (lower.matches(".*1\\s*/\\s*2.*")) {
                         applyValueToAccount(account, value, StalkerAttributeType.DEVICE_ID_2);

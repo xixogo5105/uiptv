@@ -5,6 +5,7 @@ public enum StalkerAttributeType {
     MAC,
     SERIAL,
     SERIAL_CUT,
+    DEVICE_ID,
     DEVICE_ID_1,
     DEVICE_ID_2,
     SIGNATURE
