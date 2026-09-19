@@ -18,12 +18,12 @@ public class HttpImageServer implements HttpHandler {
     private static final String GIF_CONTENT_TYPE = "image/gif";
     private static final String ICO_CONTENT_TYPE = "image/x-icon";
     private static final String CLASSPATH_RESOURCE_PREFIX = "/web";
+    private static final String PATH_SEPARATOR = "/";
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
-        if (!"GET".equalsIgnoreCase(ex.getRequestMethod())) {
-            ex.getResponseHeaders().set("Allow", "GET");
-            ex.sendResponseHeaders(405, -1);
+        if (!isGetRequest(ex)) {
+            sendMethodNotAllowed(ex);
             return;
         }
 
@@ -34,26 +34,9 @@ public class HttpImageServer implements HttpHandler {
             return;
         }
 
-        byte[] bytes = null;
-        try {
-            Path filePath = StaticWebFileResolver.resolve(ex);
-            bytes = Files.readAllBytes(filePath);
-        } catch (IOException _) {
-            // Fall through to classpath resource loading
-        }
-
+        byte[] bytes = loadFromFileSystem(ex);
         if (bytes == null) {
-            String safePath = sanitizeClasspathPath(requestPath);
-            if (safePath != null) {
-                String resourcePath = CLASSPATH_RESOURCE_PREFIX + (safePath.startsWith("/") ? safePath : "/" + safePath);
-                try (InputStream is = HttpImageServer.class.getResourceAsStream(resourcePath)) {
-                    if (is != null) {
-                        bytes = IOUtils.toByteArray(is);
-                    }
-                } catch (IOException _) {
-                    // Ignore and handle 404 below
-                }
-            }
+            bytes = loadFromClasspath(requestPath);
         }
 
         if (bytes == null) {
@@ -61,6 +44,44 @@ public class HttpImageServer implements HttpHandler {
             return;
         }
 
+        sendResponse(ex, contentType, bytes);
+    }
+
+    private static boolean isGetRequest(HttpExchange ex) {
+        return "GET".equalsIgnoreCase(ex.getRequestMethod());
+    }
+
+    private static void sendMethodNotAllowed(HttpExchange ex) throws IOException {
+        ex.getResponseHeaders().set("Allow", "GET");
+        ex.sendResponseHeaders(405, -1);
+    }
+
+    private static byte[] loadFromFileSystem(HttpExchange ex) {
+        try {
+            Path filePath = StaticWebFileResolver.resolve(ex);
+            return Files.readAllBytes(filePath);
+        } catch (IOException _) {
+            return null;
+        }
+    }
+
+    private static byte[] loadFromClasspath(String requestPath) {
+        String safePath = sanitizeClasspathPath(requestPath);
+        if (safePath == null) {
+            return null;
+        }
+        String resourcePath = CLASSPATH_RESOURCE_PREFIX + (safePath.startsWith(PATH_SEPARATOR) ? safePath : PATH_SEPARATOR + safePath);
+        try (InputStream is = HttpImageServer.class.getResourceAsStream(resourcePath)) {
+            if (is != null) {
+                return IOUtils.toByteArray(is);
+            }
+        } catch (IOException _) {
+            // Ignore
+        }
+        return null;
+    }
+
+    private static void sendResponse(HttpExchange ex, String contentType, byte[] bytes) throws IOException {
         ex.getResponseHeaders().set("Content-Type", contentType);
         ex.getResponseHeaders().set("Cache-Control", "public, max-age=86400");
         ex.sendResponseHeaders(200, bytes.length);

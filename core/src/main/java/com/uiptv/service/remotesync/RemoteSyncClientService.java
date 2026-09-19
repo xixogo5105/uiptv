@@ -16,8 +16,10 @@ public class RemoteSyncClientService {
     private static final Duration STATUS_TIMEOUT = Duration.ofMinutes(3);
     private static final String REMOTE_SYNC_COMPLETED_MESSAGE = "Remote database sync completed.";
     private static final String REMOTE_SYNC_FAILED_MESSAGE = "Remote database sync failed.";
-    private static final String PREFIX_HTTP = "http://";
-    private static final String PREFIX_HTTPS = "https://";
+    private static final String PROTOCOL_HTTP = "http://";
+    private static final String PROTOCOL_HTTPS = "https://";
+    private static final String PREFIX_HTTP = PROTOCOL_HTTP;
+    private static final String PREFIX_HTTPS = PROTOCOL_HTTPS;
 
     private final RemoteSyncHttpClient httpClient;
     private final DatabaseSnapshotService snapshotService;
@@ -224,19 +226,19 @@ public class RemoteSyncClientService {
         }
     }
 
-    private String buildBaseUrl(String host, int port) {
+private String buildBaseUrl(String host, int port) {
         if (host == null || host.isBlank()) {
             return PREFIX_HTTP + "localhost:" + port;
            }
         String lowerHost = host.toLowerCase();
         String prefix;
         int prefixLen;
-        if (lowerHost.startsWith("https://")) {
+        if (lowerHost.startsWith(PROTOCOL_HTTPS)) {
             prefix = PREFIX_HTTPS;
-            prefixLen = 8;
-         } else if (lowerHost.startsWith("http://")) {
+            prefixLen = PROTOCOL_HTTPS.length();
+         } else if (lowerHost.startsWith(PROTOCOL_HTTP)) {
              prefix = PREFIX_HTTP;
-             prefixLen = 7;
+             prefixLen = PROTOCOL_HTTP.length();
          } else {
              prefix = PREFIX_HTTP;
              prefixLen = 0;

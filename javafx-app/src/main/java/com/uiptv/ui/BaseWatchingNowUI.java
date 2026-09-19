@@ -3025,33 +3025,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         private final Map<String, JSONObject> byEpisodeOnly = new HashMap<>();
     }
 
-    /**
-     * Simple data class for series list table view
-     */
-    private static final class SeriesListItem {
-        private final javafx.beans.property.SimpleStringProperty seriesTitle;
-        private final javafx.beans.property.SimpleStringProperty accountName;
-        private final String panelKey;
-
-        SeriesListItem(String seriesTitle, String accountName, String panelKey) {
-            this.seriesTitle = new javafx.beans.property.SimpleStringProperty(seriesTitle);
-            this.accountName = new javafx.beans.property.SimpleStringProperty(accountName);
-            this.panelKey = panelKey;
-        }
-
-        javafx.beans.property.StringProperty seriesTitleProperty() {
-            return seriesTitle;
-        }
-
-        javafx.beans.property.StringProperty accountNameProperty() {
-            return accountName;
-        }
-
-        String getPanelKey() {
-            return panelKey;
-        }
-    }
-
     private static final class SeriesCacheInfo {
         private final String seriesTitle;
         private final String seriesPoster;

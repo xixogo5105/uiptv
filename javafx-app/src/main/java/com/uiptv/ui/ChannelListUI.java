@@ -1010,40 +1010,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 ? SeriesCardUiSupport.createFitPoster(posterUrl, 136, 204, IMAGE_CACHE_KEY_CHANNEL)
                 : null;
 
-        Button actionButton = new PlayMenuButton(I18n.tr("autoPlay2"));
-        actionButton.setOnAction(event -> {
-            event.consume();
-            if (item == null) {
-                return;
-            }
-            channelGrid.selectItems(List.of(item));
-            ContextMenu menu = createChannelContextMenu(item, List.of(item), actionButton);
-            if (menu != null && !menu.getItems().isEmpty()) {
-                UiI18n.preparePopupControl(menu, actionButton);
-                menu.show(actionButton, Side.BOTTOM, 0, 0);
-                return;
-            }
-            playOrShowSeries(item);
-        });
-
+        Button actionButton = createActionButton(item);
         List<Label> metadataNodes = createMediaMetadataNodes(item, vodMetadata);
         Label plot = createMediaPlotLabel(item, vodMetadata);
-
-        Button openHint = null;
-        if (listAction == series) {
-            openHint = new Button(I18n.tr("autoViewEpisodes"));
-            openHint.getStyleClass().add("watching-now-open-hint");
-            openHint.setFocusTraversable(true);
-            openHint.setMinHeight(Region.USE_PREF_SIZE);
-            openHint.setOnAction(event -> {
-                event.consume();
-                if (item == null) {
-                    return;
-                }
-                channelGrid.selectItems(List.of(item));
-                playOrShowSeries(item);
-            });
-        }
+        Button openHint = createOpenHint(item);
 
         return WatchingNowMediaCardFactory.builder(listAction == vod
                         ? WatchingNowMediaCardFactory.CardType.VOD
@@ -1059,6 +1029,44 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 .footer(openHint)
                 .build()
                 .card();
+    }
+
+    private Button createActionButton(ChannelItem item) {
+        Button actionButton = new PlayMenuButton(I18n.tr("autoPlay2"));
+        actionButton.setOnAction(event -> {
+            event.consume();
+            if (item == null) {
+                return;
+            }
+            channelGrid.selectItems(List.of(item));
+            ContextMenu menu = createChannelContextMenu(item, List.of(item), actionButton);
+            if (menu != null && !menu.getItems().isEmpty()) {
+                UiI18n.preparePopupControl(menu, actionButton);
+                menu.show(actionButton, Side.BOTTOM, 0, 0);
+                return;
+            }
+            playOrShowSeries(item);
+        });
+        return actionButton;
+    }
+
+    private Button createOpenHint(ChannelItem item) {
+        if (listAction != series) {
+            return null;
+        }
+        Button openHint = new Button(I18n.tr("autoViewEpisodes"));
+        openHint.getStyleClass().add("watching-now-open-hint");
+        openHint.setFocusTraversable(true);
+        openHint.setMinHeight(Region.USE_PREF_SIZE);
+        openHint.setOnAction(event -> {
+            event.consume();
+            if (item == null) {
+                return;
+            }
+            channelGrid.selectItems(List.of(item));
+            playOrShowSeries(item);
+        });
+        return openHint;
     }
 
     private List<Label> createMediaMetadataNodes(ChannelItem item, WatchingNowVodResolver.VodMetadata vodMetadata) {
