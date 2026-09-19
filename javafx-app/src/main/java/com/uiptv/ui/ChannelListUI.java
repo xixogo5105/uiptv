@@ -1496,37 +1496,49 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void refreshBookmarkStatesAsync() {
+        if (shouldSkipBookmarkRefresh()) {
+            return;
+        }
+        lastRefreshBookmarkStatesMs = System.currentTimeMillis();
+        new Thread(this::performBookmarkRefresh).start();
+    }
+
+    private boolean shouldSkipBookmarkRefresh() {
         long now = System.currentTimeMillis();
         if (now - lastRefreshBookmarkStatesMs < REFRESH_BOOKMARK_STATES_THROTTLE_MS) {
+            return true;
+        }
+        return disposed.get() || channelItems == null || channelItems.isEmpty();
+    }
+
+    private void performBookmarkRefresh() {
+        if (disposed.get()) {
             return;
         }
-        lastRefreshBookmarkStatesMs = now;
-        if (disposed.get() || channelItems == null || channelItems.isEmpty()) {
+        List<Bookmark> accountBookmarks = loadBookmarksForAccount();
+        Set<String> savedVodKeys = loadVodWatchStateKeys();
+        runLater(() -> applyBookmarkStates(accountBookmarks, savedVodKeys));
+    }
+
+    private void applyBookmarkStates(List<Bookmark> accountBookmarks, Set<String> savedVodKeys) {
+        if (disposed.get()) {
             return;
         }
-        new Thread(() -> {
-            if (disposed.get()) {
-                return;
-            }
-            List<Bookmark> accountBookmarks = loadBookmarksForAccount();
-            Set<String> savedVodKeys = loadVodWatchStateKeys();
-            runLater(() -> {
-                if (disposed.get()) {
-                    return;
-                }
-                for (ChannelItem item : channelItems) {
-                    BookmarkContext context = resolveBookmarkContext(item.getChannel());
-                    boolean isBookmarked = false;
-                    if (listAction == vod) {
-                        isBookmarked = isVodSaved(item.getChannel(), context, savedVodKeys);
-                    } else if (listAction != series) {
-                        isBookmarked = isChannelBookmarked(item.getChannel(), context, accountBookmarks);
-                    }
-                    item.setBookmarked(isBookmarked);
-                }
-                refreshChannelViews();
-            });
-        }).start();
+        for (ChannelItem item : channelItems) {
+            BookmarkContext context = resolveBookmarkContext(item.getChannel());
+            boolean isBookmarked = computeBookmarkState(item.getChannel(), context, accountBookmarks, savedVodKeys);
+            item.setBookmarked(isBookmarked);
+        }
+        refreshChannelViews();
+    }
+
+    private boolean computeBookmarkState(Channel channel, BookmarkContext context, List<Bookmark> accountBookmarks, Set<String> savedVodKeys) {
+        if (listAction == vod) {
+            return isVodSaved(channel, context, savedVodKeys);
+        } else if (listAction != series) {
+            return isChannelBookmarked(channel, context, accountBookmarks);
+        }
+        return false;
     }
 
     private List<Bookmark> loadBookmarksForAccount() {
@@ -1559,33 +1571,41 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void refreshSeriesWatchStatesAsync(String changedSeriesId) {
-        if (disposed.get() || channelItems == null || channelItems.isEmpty()) {
+        if (shouldSkipSeriesWatchStateRefresh()) {
             return;
         }
-        new Thread(() -> {
-            if (disposed.get()) {
-                return;
+        new Thread(() -> performSeriesWatchStateRefresh(changedSeriesId), "series-watch-state-refresh").start();
+    }
+
+    private boolean shouldSkipSeriesWatchStateRefresh() {
+        return disposed.get() || channelItems == null || channelItems.isEmpty();
+    }
+
+    private void performSeriesWatchStateRefresh(String changedSeriesId) {
+        if (disposed.get()) {
+            return;
+        }
+        Map<String, SeriesWatchState> seriesWatchStates = loadSeriesWatchStates();
+        currentSeriesWatchStates.set(seriesWatchStates);
+        String normalizedChangedSeriesId = normalizeSeriesWatchKey(changedSeriesId);
+        runLater(() -> applySeriesWatchStates(seriesWatchStates, normalizedChangedSeriesId));
+    }
+
+    private void applySeriesWatchStates(Map<String, SeriesWatchState> seriesWatchStates, String normalizedChangedSeriesId) {
+        if (disposed.get()) {
+            return;
+        }
+        for (ChannelItem item : channelItems) {
+            Channel channel = item == null ? null : item.getChannel();
+            if (channel == null) {
+                continue;
             }
-            Map<String, SeriesWatchState> seriesWatchStates = loadSeriesWatchStates();
-            currentSeriesWatchStates.set(seriesWatchStates);
-            String normalizedChangedSeriesId = normalizeSeriesWatchKey(changedSeriesId);
-            runLater(() -> {
-                if (disposed.get()) {
-                    return;
-                }
-                for (ChannelItem item : channelItems) {
-                    Channel channel = item == null ? null : item.getChannel();
-                    if (channel == null) {
-                        continue;
-                    }
-                    String normalizedItemSeriesId = normalizeSeriesWatchKey(channel.getChannelId());
-                    if (isBlank(normalizedChangedSeriesId) || Objects.equals(normalizedItemSeriesId, normalizedChangedSeriesId)) {
-                        channel.setWatched(seriesWatchStates.containsKey(normalizedItemSeriesId));
-                    }
-                }
-                refreshChannelViews();
-            });
-        }, "series-watch-state-refresh").start();
+            String normalizedItemSeriesId = normalizeSeriesWatchKey(channel.getChannelId());
+            if (isBlank(normalizedChangedSeriesId) || Objects.equals(normalizedItemSeriesId, normalizedChangedSeriesId)) {
+                channel.setWatched(seriesWatchStates.containsKey(normalizedItemSeriesId));
+            }
+        }
+        refreshChannelViews();
     }
 
     private Map<String, SeriesWatchState> loadSeriesWatchStates() {

@@ -69,9 +69,26 @@ public class HttpImageServer implements HttpHandler {
         if (path == null || path.isEmpty()) {
             return false;
         }
+        // Normalize path: resolve . and .. and remove duplicate separators
         String normalized = path.replace('\\', '/');
-        if (normalized.contains("..") || normalized.contains("//")) {
+        // Reject any path traversal attempts
+        if (normalized.contains("..")) {
             return false;
+        }
+        // Reject absolute paths
+        if (normalized.startsWith("/")) {
+            return false;
+        }
+        // Reject empty segments (//)
+        if (normalized.contains("//")) {
+            return false;
+        }
+        // Only allow alphanumeric, dash, underscore, dot for each segment
+        String[] segments = normalized.split("/");
+        for (String segment : segments) {
+            if (segment.isEmpty() || !segment.matches("[a-zA-Z0-9._-]+")) {
+                return false;
+            }
         }
         return true;
     }

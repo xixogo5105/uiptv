@@ -574,6 +574,12 @@ public class PillBar<T> extends StackPane {
         getChildren().addAll(content, compactDropdown);
         StackPane.setAlignment(content, Pos.CENTER_LEFT);
         StackPane.setAlignment(compactDropdown, Pos.CENTER_LEFT);
+        initializeWidthListener();
+        initializeToggleGroupListener();
+        initializeCompactToggleGroupListener();
+    }
+
+    private void initializeWidthListener() {
         widthProperty().addListener((_, _, width) -> {
             updateContentWrapLength(width.doubleValue());
             if (syncReservedHeight(width.doubleValue())) {
@@ -582,31 +588,43 @@ public class PillBar<T> extends StackPane {
                 requestLayout();
             }
         });
+    }
 
+    private void initializeToggleGroupListener() {
         toggleGroup.selectedToggleProperty().addListener((_, oldValue, newValue) -> {
             if (rebuilding) {
                 return;
             }
-            if (newValue == null && oldValue != null) {
-                oldValue.setSelected(true);
-                return;
-            }
-            selectedItem.set(newValue == null ? null : itemFromToggle(newValue));
-            syncCompactSelection(itemFromToggle(newValue));
-            if (syncReservedHeight(getWidth())) {
-                requestAncestorLayout();
-            }
+            handleToggleSelectionChange(oldValue, newValue);
         });
+    }
 
+    private void handleToggleSelectionChange(Toggle oldValue, Toggle newValue) {
+        if (newValue == null && oldValue != null) {
+            oldValue.setSelected(true);
+            return;
+        }
+        selectedItem.set(newValue == null ? null : itemFromToggle(newValue));
+        syncCompactSelection(itemFromToggle(newValue));
+        if (syncReservedHeight(getWidth())) {
+            requestAncestorLayout();
+        }
+    }
+
+    private void initializeCompactToggleGroupListener() {
         compactToggleGroup.selectedToggleProperty().addListener((_, oldValue, newValue) -> {
             if (rebuilding || syncingCompactSelection) {
                 return;
             }
-            if (newValue == null && oldValue != null) {
-                oldValue.setSelected(true);
-                return;
-            }
-            setSelectedItem(itemFromToggle(newValue));
+            handleCompactToggleSelectionChange(oldValue, newValue);
         });
+    }
+
+    private void handleCompactToggleSelectionChange(Toggle oldValue, Toggle newValue) {
+        if (newValue == null && oldValue != null) {
+            oldValue.setSelected(true);
+            return;
+        }
+        setSelectedItem(itemFromToggle(newValue));
     }
 }

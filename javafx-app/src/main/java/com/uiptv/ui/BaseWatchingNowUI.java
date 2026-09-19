@@ -1299,28 +1299,36 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     }
 
     private void restoreEpisodeSelection(SeriesPanelData data, WatchingEpisode episode) {
-        if (data == null || episode == null) {
+        if (data == null || episode == null || data.episodeCardsContainer == null) {
             return;
         }
-        // Find the card for this episode in the new container
         for (Node child : data.episodeCardsContainer.getChildren()) {
-            if (child instanceof VBox card) {
-                Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
-                if (labelsObj instanceof List<?> labels) {
-                    for (Object labelObj : labels) {
-                        if (labelObj instanceof Label label && label.getStyleClass().contains(STRONG_LABEL)) {
-                            // Check if this card corresponds to the selected episode
-                            if (episode.title != null && episode.title.equals(label.getText())) {
-                                data.selectedEpisodeCard = card;
-                                data.selectedEpisode = episode;
-                                applyCardSelection(card, true);
-                                return;
-                            }
-                        }
-                    }
+            VBox card = findMatchingCard(child, episode);
+            if (card != null) {
+                data.selectedEpisodeCard = card;
+                data.selectedEpisode = episode;
+                applyCardSelection(card, true);
+                return;
+            }
+        }
+    }
+
+    private VBox findMatchingCard(Node child, WatchingEpisode episode) {
+        if (!(child instanceof VBox card)) {
+            return null;
+        }
+        Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
+        if (!(labelsObj instanceof List<?> labels)) {
+            return null;
+        }
+        for (Object labelObj : labels) {
+            if (labelObj instanceof Label label && label.getStyleClass().contains(STRONG_LABEL)) {
+                if (episode.title != null && episode.title.equals(label.getText())) {
+                    return card;
                 }
             }
         }
+        return null;
     }
 
     private List<WatchingEpisode> filterSeasonEpisodes(List<WatchingEpisode> episodes) {
@@ -1789,17 +1797,33 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (data == null || card == null) {
             return null;
         }
+        String episodeTitle = extractTitleFromCard(card);
+        if (episodeTitle == null) {
+            return null;
+        }
+        return findEpisodeByTitle(data, episodeTitle);
+    }
+
+    private String extractTitleFromCard(VBox card) {
         Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
-        if (labelsObj instanceof List<?> labels) {
-            for (Object labelObj : labels) {
-                if (labelObj instanceof Label label && label.getStyleClass().contains(STRONG_LABEL)) {
-                    // Find the episode with this title
-                    for (WatchingEpisode episode : data.episodes) {
-                        if (episode.title != null && episode.title.equals(label.getText())) {
-                            return episode;
-                        }
-                    }
-                }
+        if (!(labelsObj instanceof List<?> labels)) {
+            return null;
+        }
+        for (Object labelObj : labels) {
+            if (labelObj instanceof Label label && label.getStyleClass().contains(STRONG_LABEL)) {
+                return label.getText();
+            }
+        }
+        return null;
+    }
+
+    private WatchingEpisode findEpisodeByTitle(SeriesPanelData data, String title) {
+        if (data == null || data.episodes == null || title == null) {
+            return null;
+        }
+        for (WatchingEpisode episode : data.episodes) {
+            if (title.equals(episode.title)) {
+                return episode;
             }
         }
         return null;
