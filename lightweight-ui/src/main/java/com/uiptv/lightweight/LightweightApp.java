@@ -24,7 +24,6 @@ import javafx.util.Duration;
 public class LightweightApp {
     private ConfigurationService configurationService;
     private ConfigurationApplicationService configurationApplicationService;
-    private Button fullAppButton;
     private ToggleButton logsButton;
     private Label serverStatusLabel;
     private Label httpPortLabel;
@@ -36,7 +35,7 @@ public class LightweightApp {
     private final ObservableList<String> logEntries = FXCollections.observableArrayList();
     private boolean logsVisible = false;
 
-    public static void launch(String[] args) {
+    public static void launch() {
         Platform.startup(() -> {
             LightweightApp app = new LightweightApp();
             Stage primaryStage = new Stage();
@@ -48,21 +47,21 @@ public class LightweightApp {
         configurationService = ConfigurationService.getInstance();
         configurationApplicationService = ConfigurationApplicationService.getInstance();
 
-        primaryStage.setTitle("UIPTV - Lightweight Mode");
+primaryStage.setTitle("UIPTV - Lightweight Mode");
         BorderPane root = buildRoot();
         Scene scene = new Scene(root, 620, 540);
         scene.getStylesheets().add(getClass().getResource("/lightweight-ui.css").toExternalForm());
-        applyTheme(scene, root);
+        applyTheme(root);
         primaryStage.setScene(scene);
         primaryStage.show();
 
         Configuration configuration = configurationService.read();
         if (configuration != null && configuration.isAutoRunServerOnStartup()) {
             Platform.runLater(() -> {
-try {
-                        configurationApplicationService.ensureServerStarted();
-                        refreshServerStatus();
-                        updateClearButtonVisibility();
+                try {
+                    configurationApplicationService.ensureServerStarted();
+                    refreshServerStatus();
+                    updateClearButtonVisibility();
                 } catch (Exception e) {
                     AppLog.addErrorLog(LightweightApp.class, "Auto-start server failed: " + e.getMessage());
                 }
@@ -71,12 +70,12 @@ try {
 
         ConfigurationChangeListener configurationChangeListener = _ -> Platform.runLater(() -> {
             refreshServerStatus();
-            applyTheme(scene, root);
+            applyTheme(root);
             updateClearButtonVisibility();
         });
         configurationService.addChangeListener(configurationChangeListener);
 
-        applyTheme(scene, root);
+        applyTheme(root);
 
         AppLog.registerListener(this::appendLog);
 
@@ -118,7 +117,7 @@ try {
         logListView.setManaged(logsVisible);
 
         VBox logContainer = new VBox(6, terminalLabel, logListView);
-        logContainer.setVgrow(logListView, Priority.ALWAYS);
+        VBox.setVgrow(logListView, Priority.ALWAYS);
         VBox.setVgrow(logListView, Priority.ALWAYS);
         root.setCenter(logContainer);
 
@@ -131,7 +130,7 @@ try {
         VBox section1Content = new VBox(12);
 
         // Native button for "Switch to Full Application" - no CSS styling, fixed width
-        fullAppButton = new Button(I18n.tr("configLightweightModeRevertTitle"));
+        Button fullAppButton = new Button(I18n.tr("configLightweightModeRevertTitle"));
         fullAppButton.setOnAction(_ -> revertToFullMode());
 
         // Native toggle button for "Logs" - use i18n key "autoLogs"
@@ -229,7 +228,7 @@ try {
             refreshServerStatus();
         } catch (Exception e) {
             AppLog.addErrorLog(LightweightApp.class, "Server toggle failed: " + e.getMessage());
-            Platform.runLater(() -> refreshServerStatus());
+            Platform.runLater(this::refreshServerStatus);
         }
     }
 
@@ -316,7 +315,7 @@ try {
         clearButton.setManaged(visible);
     }
 
-    private void applyTheme(Scene scene, BorderPane root) {
+    private void applyTheme(BorderPane root) {
         Configuration configuration = configurationService.read();
         boolean dark = configuration != null && configuration.isDarkTheme();
         if (dark) {
