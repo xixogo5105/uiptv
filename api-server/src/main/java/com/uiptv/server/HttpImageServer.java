@@ -17,6 +17,7 @@ public class HttpImageServer implements HttpHandler {
     private static final String WEBP_CONTENT_TYPE = "image/webp";
     private static final String GIF_CONTENT_TYPE = "image/gif";
     private static final String ICO_CONTENT_TYPE = "image/x-icon";
+    private static final String CLASSPATH_RESOURCE_PREFIX = "/web";
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
@@ -41,14 +42,17 @@ public class HttpImageServer implements HttpHandler {
             // Fall through to classpath resource loading
         }
 
-        if (bytes == null && isSafeClasspathPath(requestPath)) {
-            String resourcePath = "/web" + (requestPath.startsWith("/") ? requestPath : "/" + requestPath);
-            try (InputStream is = HttpImageServer.class.getResourceAsStream(resourcePath)) {
-                if (is != null) {
-                    bytes = IOUtils.toByteArray(is);
+        if (bytes == null) {
+            String safePath = sanitizeClasspathPath(requestPath);
+            if (safePath != null) {
+                String resourcePath = CLASSPATH_RESOURCE_PREFIX + (safePath.startsWith("/") ? safePath : "/" + safePath);
+                try (InputStream is = HttpImageServer.class.getResourceAsStream(resourcePath)) {
+                    if (is != null) {
+                        bytes = IOUtils.toByteArray(is);
+                    }
+                } catch (IOException _) {
+                    // Ignore and handle 404 below
                 }
-            } catch (IOException _) {
-                // Ignore and handle 404 below
             }
         }
 
@@ -65,32 +69,24 @@ public class HttpImageServer implements HttpHandler {
         }
     }
 
-    private static boolean isSafeClasspathPath(String path) {
+    private static String sanitizeClasspathPath(String path) {
         if (path == null || path.isEmpty()) {
-            return false;
+            return null;
         }
         // Normalize path: resolve . and .. and remove duplicate separators
         String normalized = path.replace('\\', '/');
-        // Reject any path traversal attempts
-        if (normalized.contains("..")) {
-            return false;
-        }
-        // Reject absolute paths
-        if (normalized.startsWith("/")) {
-            return false;
-        }
-        // Reject empty segments (//)
-        if (normalized.contains("//")) {
-            return false;
+        // Reject any path traversal attempts, absolute paths, empty segments
+        if (normalized.contains("..") || normalized.startsWith("/") || normalized.contains("//")) {
+            return null;
         }
         // Only allow alphanumeric, dash, underscore, dot for each segment
         String[] segments = normalized.split("/");
         for (String segment : segments) {
             if (segment.isEmpty() || !segment.matches("[a-zA-Z0-9._-]+")) {
-                return false;
+                return null;
             }
         }
-        return true;
+        return normalized;
     }
 
     static String contentTypeFor(String path) {
