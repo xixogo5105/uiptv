@@ -167,7 +167,6 @@ When providing an external video player, you can also use the flatpak. Just use 
 For example, a standard VLC flatpak address is `_ /var/lib/flatpak/app/org.videolan.VLC/current/active/export/bin/org.videolan.VLC_` which can be provided to run IPTV streams directly.
 
 For advanced configuration options including thumbnail cache location and expiry, database path, and other tuning, see [GUIDE.md](GUIDE.md#3-configuration).
-For example, a standard VLC flatpak address is `_ /var/lib/flatpak/app/org.videolan.VLC/current/active/export/bin/org.videolan.VLC_` which can be provided to run IPTV streams directly.
 
 If you are using native MPV (e.g. `_ /usr/bin/mpv_`) and the streams stop/freeze after a little while then
 create an executable sh file with the contents below and point the executable sh file (e.g. `_ ~/apps/mpv/mpv.sh_`) as an external player.

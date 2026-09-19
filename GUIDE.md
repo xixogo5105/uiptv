@@ -333,14 +333,38 @@ If you want to run UIPTV on a server without a graphical interface:
 - This is ideal for dedicated media servers.
 
 ### Lightweight Mode
-UIPTV includes a **Lightweight Mode** for minimal-resource scenarios (e.g., headless servers, low-end devices):
-- Launch with the `--lightweight` flag or select "Lightweight Mode" from the launcher.
-- Provides a minimal UI: server start/stop, log viewing, and cache clearing.
-- **Collapsible panels**: Both the "Lightweight Mode" and "Web Server" sections can be collapsed via the Show/Hide links, allowing the terminal/log area to expand and claim the full window height.
-- **Native buttons**: All controls use standard JavaFX buttons (no custom pill styling) for consistent native look across platforms.
-- **Red "Stop Server"**: The server toggle shows a red background when the server is running (Stop), and no colour when stopped (Start).
-- **Logs toggle**: Toggle "Logs" to show/hide the terminal output; "Clear" button appears next to it only when logs are visible.
-- The lightweight mode is ideal for running UIPTV as a background service on a server.
+UIPTV includes a **Lightweight Mode** designed for minimal-resource scenarios — headless servers, low-end devices, and background service deployments where RAM and CPU headroom are critical.
+
+**Launch it with:**
+```bash
+uiptv --lightweight
+```
+Or select "Lightweight Mode" from the launcher.
+
+**What it does (features):**
+- **Web server control** — Start/stop the built-in HTTP server that serves the web SPA/PWA and playlist exports (`/iptv.m3u`, `/iptv.m3u8`, `/bookmarks.m3u8`) to remote devices on your LAN.
+- **Live log viewer** — Real-time terminal output so you can monitor cache reloads, playback requests, and errors without attaching a debugger.
+- **Cache management** — One-click "Clear Cache" to reset the local SQLite database when channels go stale or accounts change.
+- **Collapsible sections** — Hide the server controls or log panel to reclaim vertical space; the log area expands to fill the window.
+- **Zero JavaFX scene-graph overhead** — No channel browser, no video player, no thumbnails, no animations. The UI is a thin control panel only.
+
+**Why it exists (utility):**
+- **Ultra-low memory footprint** — No JavaFX media pipeline, no image decoders, no CSS theme engine loaded.
+- **Instant startup** — No FXML loading, no skin initialization, no VLC library probing. Ready to serve HTTP requests in under a second on modest hardware.
+- **Responsive under load** — The event loop only handles server I/O and log append; no UI layout passes or rendering work to contend with.
+- **Headless-friendly** — Runs cleanly on servers without a display server (X11/Wayland) when launched with `--headless` or via systemd/service managers.
+- **Battery-friendly on laptops** — No GPU-accelerated scene graph means near-zero idle CPU/GPU usage.
+
+**Ideal for:**
+- Dedicated media servers (NAS, Raspberry Pi, always-on Linux box)
+- CI/CD or test environments that need a running IPTV HTTP endpoint
+- Users who only use the web UI from other devices (phone, tablet, smart TV)
+- Any deployment where the full JavaFX desktop is unnecessary overhead
+
+**UI notes (for reference):**
+- Standard native JavaFX buttons (no custom pill styling) for consistent cross-platform look.
+- Server toggle shows **red background = Stop** (running), plain = Start (stopped).
+- "Logs" toggle shows/hides terminal output; "Clear" button appears only when logs are visible.
 
 ---
 
