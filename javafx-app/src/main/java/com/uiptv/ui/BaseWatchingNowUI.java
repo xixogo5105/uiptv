@@ -249,13 +249,13 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             return null;
         }
         EpisodeList list = loadEpisodeList(account, scopedState);
-        list = ensureSeasonInfo(list, cacheInfo.seriesTitle);
+        ensureSeasonInfo(list, cacheInfo.seriesTitle);
         saveEpisodeSnapshot(account, scopedState, row.getCategoryDbId(), cacheInfo, list);
         List<WatchingEpisode> episodes = mapEpisodesFromCache(account, scopedState, list);
         boolean episodesEmpty = episodes.isEmpty();
 
         JSONObject seasonInfo = buildSeasonInfo(cacheInfo, episodes, account);
-        cacheInfo = updateCacheInfoWithPoster(cacheInfo, episodes, seasonInfo, account);
+        cacheInfo = updateCacheInfoWithPoster(cacheInfo, episodes, account);
 
         SeriesPanelData panel = new SeriesPanelData(account, scopedState, cacheInfo.seriesTitle, seasonInfo, episodes, list);
         if (episodesEmpty) {
@@ -305,7 +305,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         return seasonInfo;
     }
 
-    private SeriesCacheInfo updateCacheInfoWithPoster(SeriesCacheInfo cacheInfo, List<WatchingEpisode> episodes, JSONObject seasonInfo, Account account) {
+    private SeriesCacheInfo updateCacheInfoWithPoster(SeriesCacheInfo cacheInfo, List<WatchingEpisode> episodes, Account account) {
         String normalizedPoster = normalizeImageUrl(cacheInfo.seriesPoster, account);
         if (isBlank(normalizedPoster)) {
             String firstEpisodePoster = episodes.stream()
