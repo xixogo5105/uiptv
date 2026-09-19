@@ -21,8 +21,6 @@ import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
-import java.util.concurrent.CopyOnWriteArrayList;
-
 public class LightweightApp {
     private ConfigurationService configurationService;
     private ConfigurationApplicationService configurationApplicationService;
@@ -37,12 +35,6 @@ public class LightweightApp {
     private Button clearButton;
     private final ObservableList<String> logEntries = FXCollections.observableArrayList();
     private boolean logsVisible = false;
-    private ConfigurationChangeListener configurationChangeListener;
-
-    private VBox section1Content;
-    private VBox section2Content;
-    private BorderPane section1Pane;
-    private BorderPane section2Pane;
 
     public static void launch(String[] args) {
         Platform.startup(() -> {
@@ -67,24 +59,23 @@ public class LightweightApp {
         Configuration configuration = configurationService.read();
         if (configuration != null && configuration.isAutoRunServerOnStartup()) {
             Platform.runLater(() -> {
-                try {
-                    boolean started = configurationApplicationService.ensureServerStarted();
-                    refreshServerStatus();
-                    updateClearButtonVisibility();
+try {
+                        configurationApplicationService.ensureServerStarted();
+                        refreshServerStatus();
+                        updateClearButtonVisibility();
                 } catch (Exception e) {
                     AppLog.addErrorLog(LightweightApp.class, "Auto-start server failed: " + e.getMessage());
                 }
             });
         }
 
-        configurationChangeListener = _ -> Platform.runLater(() -> {
+        ConfigurationChangeListener configurationChangeListener = _ -> Platform.runLater(() -> {
             refreshServerStatus();
             applyTheme(scene, root);
             updateClearButtonVisibility();
         });
         configurationService.addChangeListener(configurationChangeListener);
 
-        boolean dark = configuration != null && configuration.isDarkTheme();
         applyTheme(scene, root);
 
         AppLog.registerListener(this::appendLog);
@@ -94,7 +85,7 @@ public class LightweightApp {
     }
 
     private void startServerStatusMonitor() {
-        Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(1), event -> refreshServerStatus()));
+        Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(1), _ -> refreshServerStatus()));
         timeline.setCycleCount(Animation.INDEFINITE);
         timeline.play();
     }
@@ -106,8 +97,10 @@ public class LightweightApp {
         VBox sections = new VBox(12);
         sections.setMaxWidth(Double.MAX_VALUE);
 
-        section1Pane = createCollapsibleSection("configLightweightMode", buildSection1Content());
-        section2Pane = createCollapsibleSection("configWebServer", buildSection2Content());
+        VBox section1Content = buildSection1Content();
+        VBox section2Content = buildSection2Content();
+        BorderPane section1Pane = createCollapsibleSection("configLightweightMode", section1Content);
+        BorderPane section2Pane = createCollapsibleSection("configWebServer", section2Content);
 
         sections.getChildren().addAll(section1Pane, section2Pane);
         root.setTop(sections);
@@ -135,7 +128,7 @@ public class LightweightApp {
     }
 
     private VBox buildSection1Content() {
-        section1Content = new VBox(12);
+        VBox section1Content = new VBox(12);
 
         // Native button for "Switch to Full Application" - no CSS styling, fixed width
         fullAppButton = new Button(I18n.tr("configLightweightModeRevertTitle"));
@@ -163,7 +156,7 @@ public class LightweightApp {
     }
 
     private VBox buildSection2Content() {
-        section2Content = new VBox(8);
+        VBox section2Content = new VBox(8);
 
         serverStatusLabel = new Label();
         serverStatusLabel.getStyleClass().add("server-status-label");
@@ -204,8 +197,8 @@ public class LightweightApp {
         header.setAlignment(Pos.CENTER_LEFT);
 
         final Runnable refreshToggleLabel = () -> {
-            boolean expanded = content.isVisible() && content.isManaged();
-            toggleLink.setText(expanded ? I18n.tr("commonHide") : I18n.tr("commonShow"));
+            toggleLink.setText(
+                    (content.isVisible() && content.isManaged()) ? I18n.tr("commonHide") : I18n.tr("commonShow"));
         };
 
         content.setVisible(true);
@@ -268,10 +261,9 @@ public class LightweightApp {
         }
         if (serverToggleButton != null) {
             serverToggleButton.setText(running ? I18n.tr("configStopServer") : I18n.tr("configStartServer"));
+            serverToggleButton.getStyleClass().remove("pill-toggle-dangerous");
             if (running) {
                 serverToggleButton.getStyleClass().add("pill-toggle-dangerous");
-            } else {
-                serverToggleButton.getStyleClass().remove("pill-toggle-dangerous");
             }
         }
     }

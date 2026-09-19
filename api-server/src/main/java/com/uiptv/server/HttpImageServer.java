@@ -35,11 +35,11 @@ public class HttpImageServer implements HttpHandler {
         }
 
         byte[] bytes = loadFromFileSystem(ex);
-        if (bytes == null) {
+        if (bytes.length == 0) {
             bytes = loadFromClasspath(requestPath);
         }
 
-        if (bytes == null) {
+        if (bytes.length == 0) {
             ex.sendResponseHeaders(404, -1);
             return;
         }
@@ -61,14 +61,14 @@ public class HttpImageServer implements HttpHandler {
             Path filePath = StaticWebFileResolver.resolve(ex);
             return Files.readAllBytes(filePath);
         } catch (IOException _) {
-            return null;
+            return new byte[0];
         }
     }
 
     private static byte[] loadFromClasspath(String requestPath) {
         String safePath = sanitizeClasspathPath(requestPath);
         if (safePath == null) {
-            return null;
+            return new byte[0];
         }
         String resourcePath = CLASSPATH_RESOURCE_PREFIX + (safePath.startsWith(PATH_SEPARATOR) ? safePath : PATH_SEPARATOR + safePath);
         try (InputStream is = HttpImageServer.class.getResourceAsStream(resourcePath)) {
@@ -78,7 +78,7 @@ public class HttpImageServer implements HttpHandler {
         } catch (IOException _) {
             // Ignore
         }
-        return null;
+        return new byte[0];
     }
 
     private static void sendResponse(HttpExchange ex, String contentType, byte[] bytes) throws IOException {
