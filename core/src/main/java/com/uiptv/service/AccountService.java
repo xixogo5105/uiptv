@@ -34,7 +34,7 @@ public class AccountService {
 
     public void save(Account account) {
         sanitizeAccountFields(account);
-        if ((account.getType() == STALKER_PORTAL) && !account.getUrl().endsWith("/")) {
+        if ((account.getType() == STALKER_PORTAL) && !isBlank(account.getUrl()) && !account.getUrl().endsWith("/")) {
             account.setUrl(account.getUrl() + "/");
         }
         sessionTokenByAccountKey.remove(getSessionAccountKey(account));

@@ -29,6 +29,9 @@ public class CategoryDb extends BaseDb {
     }
 
     public List<Category> getCategories(Account account) {
+        if (account == null || account.getAction() == null || account.getDbId() == null) {
+            return List.of();
+        }
         return getAll(" WHERE accountType=? AND accountId=?", new String[]{account.getAction().name(), account.getDbId()});
     }
 
@@ -37,6 +40,9 @@ public class CategoryDb extends BaseDb {
     }
 
     public Category getCategoryByDbId(String dbId, Account account) {
+        if (account == null || account.getAction() == null || account.getDbId() == null) {
+            return null;
+        }
         List<Category> categories = getAll(
                 " WHERE id=? AND accountType=? AND accountId=?",
                 new String[]{dbId, account.getAction().name(), account.getDbId()}
@@ -45,11 +51,17 @@ public class CategoryDb extends BaseDb {
     }
 
     public void saveAll(List<Category> categories, Account account) {
+        if (account == null || account.getAction() == null || account.getDbId() == null) {
+            return;
+        }
         deleteByAccount(account);
         categories.forEach(c -> insert(c, account));
     }
 
     public void deleteByAccount(Account account) {
+        if (account == null || account.getAction() == null || account.getDbId() == null) {
+            return;
+        }
         String sql = "DELETE FROM " + CATEGORY_TABLE.getTableName() + " WHERE accountId=? AND accountType=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
             statement.setString(1, account.getDbId());
@@ -61,6 +73,9 @@ public class CategoryDb extends BaseDb {
     }
 
     public void insert(Category category, Account account) {
+        if (account == null || account.getAction() == null || account.getDbId() == null) {
+            return;
+        }
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(insertTableSql(CATEGORY_TABLE))) {
             statement.setString(1, category.getCategoryId());
             statement.setString(2, account.getDbId());

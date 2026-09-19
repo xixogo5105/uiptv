@@ -30,7 +30,7 @@ public class XtremePlayerService implements AccountPlayerService {
     }
 
     private String constructXtremeUrl(Account account, Channel channel, String parentSeriesId) {
-        if (channel == null) return "";
+        if (account == null || channel == null) return "";
         String fallbackCmd = PlayerUrlUtils.resolveBestChannelCmd(account, channel);
         if (isNotBlank(fallbackCmd)) {
             com.uiptv.util.AppLog.addInfoLog(XtremePlayerService.class, "Found channel cmd: " + fallbackCmd);

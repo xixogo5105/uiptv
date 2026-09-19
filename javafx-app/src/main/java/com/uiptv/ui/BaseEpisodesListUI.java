@@ -724,7 +724,7 @@ public abstract class BaseEpisodesListUI extends HBox {
     }
 
     protected String normalizeNumber(String value) {
-        if (isBlank(value)) return "";
+        if (value == null || isBlank(value)) return "";
         String parsed = value.replaceAll("\\D", "");
         if (isBlank(parsed)) return "";
         try {

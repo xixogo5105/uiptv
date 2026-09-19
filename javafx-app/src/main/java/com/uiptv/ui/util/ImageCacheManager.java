@@ -64,7 +64,6 @@ public class ImageCacheManager {
     private static final long DISK_CACHE_MAX_BYTES = Long.getLong("uiptv.image.cache.disk.max.bytes", 512L * 1024L * 1024L);
     private static final long DISK_CACHE_TRIM_TO_BYTES = Long.getLong("uiptv.image.cache.disk.trim.bytes", 384L * 1024L * 1024L);
     private static final long DISK_CACHE_TRIM_INTERVAL_MS = Long.getLong("uiptv.image.cache.disk.trim.interval.ms", 5L * 60L * 1000L);
-    private static final long DISK_CACHE_TTL_MS = Long.getLong("uiptv.image.cache.disk.ttl.ms", 7L * 24L * 60L * 60L * 1000L);
     private static final long TRANSIENT_CACHE_TRIM_INTERVAL_MS = Long.getLong("uiptv.image.cache.transient.trim.interval.ms", 60_000L);
     private static final int NEGATIVE_CACHE_MAX_ENTRIES = Integer.getInteger("uiptv.image.cache.negative.max.entries", 20_000);
     private static final int HOST_STATE_MAX_ENTRIES = Integer.getInteger("uiptv.image.cache.host.max.entries", 2_048);
@@ -170,8 +169,11 @@ public class ImageCacheManager {
             (runnable, executor) -> {
                 if (!executor.isShutdown()) {
                     try {
-                        executor.getQueue().offer(runnable, 100, TimeUnit.MILLISECONDS);
-                    } catch (InterruptedException interrupted) {
+                        boolean added = executor.getQueue().offer(runnable, 100, TimeUnit.MILLISECONDS);
+                        if (!added) {
+                            throw new RejectedExecutionException("Overflow queue full");
+                        }
+                    } catch (InterruptedException _) {
                         Thread.currentThread().interrupt();
                     }
                 }
@@ -255,7 +257,7 @@ public class ImageCacheManager {
         } catch (RejectedExecutionException _) {
             try {
                 IMAGE_LOADER_OVERFLOW.execute(imageTask);
-            } catch (RejectedExecutionException overflowRejected) {
+            } catch (RejectedExecutionException _) {
                 LOADING_TASKS.remove(cacheKey, future);
                 future.complete(null);
             }

@@ -254,7 +254,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         List<WatchingEpisode> episodes = mapEpisodesFromCache(account, scopedState, list);
         boolean episodesEmpty = episodes.isEmpty();
 
-        JSONObject seasonInfo = buildSeasonInfo(cacheInfo, episodes, account);
+        JSONObject seasonInfo = buildSeasonInfo(cacheInfo, account);
         cacheInfo = updateCacheInfoWithPoster(cacheInfo, episodes, account);
 
         SeriesPanelData panel = new SeriesPanelData(account, scopedState, cacheInfo.seriesTitle, seasonInfo, episodes, list);
@@ -295,7 +295,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         }
     }
 
-    private JSONObject buildSeasonInfo(SeriesCacheInfo cacheInfo, List<WatchingEpisode> episodes, Account account) {
+    private JSONObject buildSeasonInfo(SeriesCacheInfo cacheInfo, Account account) {
         JSONObject seasonInfo = new JSONObject();
         seasonInfo.put("name", cacheInfo.seriesTitle);
         String cover = normalizeImageUrl(cacheInfo.seriesPoster, account);
@@ -1602,6 +1602,9 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
 
     private void attachCardEventHandlers(VBox root, SeriesPanelData data, WatchingEpisode row) {
         ContextMenu episodeMenu = addEpisodeContextMenu(data, row, root);
+        if (episodeMenu == null) {
+            return;
+        }
         root.setOnMouseClicked(event -> handleCardMouseClick(event, data, root, row, episodeMenu));
         root.focusedProperty().addListener((_, _, focused) -> {
             if (Boolean.TRUE.equals(focused)) {

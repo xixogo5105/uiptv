@@ -196,8 +196,8 @@ primaryStage.setTitle("UIPTV - Lightweight Mode");
         header.setAlignment(Pos.CENTER_LEFT);
 
         final Runnable refreshToggleLabel = () -> {
-            toggleLink.setText(
-                    (content.isVisible() && content.isManaged()) ? I18n.tr("commonHide") : I18n.tr("commonShow"));
+            boolean expanded = content.isVisible() && content.isManaged();
+            toggleLink.setText(expanded ? I18n.tr("commonHide") : I18n.tr("commonShow"));
         };
 
         content.setVisible(true);
@@ -259,7 +259,8 @@ primaryStage.setTitle("UIPTV - Lightweight Mode");
             }
         }
         if (serverToggleButton != null) {
-            serverToggleButton.setText(running ? I18n.tr("configStopServer") : I18n.tr("configStartServer"));
+            String buttonText = running ? I18n.tr("configStopServer") : I18n.tr("configStartServer");
+            serverToggleButton.setText(buttonText);
             serverToggleButton.getStyleClass().remove("pill-toggle-dangerous");
             if (running) {
                 serverToggleButton.getStyleClass().add("pill-toggle-dangerous");

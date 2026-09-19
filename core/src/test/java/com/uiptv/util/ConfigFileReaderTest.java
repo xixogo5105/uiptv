@@ -3,11 +3,15 @@ package com.uiptv.util;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 
 import static com.uiptv.util.Platform.getUserHomeDirPath;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -69,60 +73,25 @@ class ConfigFileReaderTest {
         assertEquals(7 * 24, ConfigFileReader.getThumbnailCacheTtlHours());
     }
 
-    @Test
-    void getThumbnailCacheTtlInterpretsBareNumberAsDays(@TempDir Path tempDir) throws Exception {
-        File ini = writeIni(tempDir.resolve("uiptv.ini"), "thumbnail.cache.ttl=14\n");
+    @ParameterizedTest
+    @MethodSource("ttlTestCases")
+    void getThumbnailCacheTtlParsesVariousFormats(String input, int expectedHours, @TempDir Path tempDir) throws Exception {
+        File ini = writeIni(tempDir.resolve("uiptv.ini"), "thumbnail.cache.ttl=" + input + "\n");
         setConfigFilePath(ini.getAbsolutePath());
-        assertEquals(14 * 24, ConfigFileReader.getThumbnailCacheTtlHours());
+        assertEquals(expectedHours, ConfigFileReader.getThumbnailCacheTtlHours());
     }
 
-    @Test
-    void getThumbnailCacheTtlInterpretsLowercaseHAsHours(@TempDir Path tempDir) throws Exception {
-        File ini = writeIni(tempDir.resolve("uiptv.ini"), "thumbnail.cache.ttl=12h\n");
-        setConfigFilePath(ini.getAbsolutePath());
-        assertEquals(12, ConfigFileReader.getThumbnailCacheTtlHours());
-    }
-
-    @Test
-    void getThumbnailCacheTtlInterpretsUppercaseHAsHours(@TempDir Path tempDir) throws Exception {
-        File ini = writeIni(tempDir.resolve("uiptv.ini"), "thumbnail.cache.ttl=6H\n");
-        setConfigFilePath(ini.getAbsolutePath());
-        assertEquals(6, ConfigFileReader.getThumbnailCacheTtlHours());
-    }
-
-    @Test
-    void getThumbnailCacheTtlSanitizesWordsAfterNumberAsDays(@TempDir Path tempDir) throws Exception {
-        File ini = writeIni(tempDir.resolve("uiptv.ini"), "thumbnail.cache.ttl=14 days\n");
-        setConfigFilePath(ini.getAbsolutePath());
-        assertEquals(14 * 24, ConfigFileReader.getThumbnailCacheTtlHours());
-    }
-
-    @Test
-    void getThumbnailCacheTtlSanitizesSuffixDAsDays(@TempDir Path tempDir) throws Exception {
-        File ini = writeIni(tempDir.resolve("uiptv.ini"), "thumbnail.cache.ttl=14D\n");
-        setConfigFilePath(ini.getAbsolutePath());
-        assertEquals(14 * 24, ConfigFileReader.getThumbnailCacheTtlHours());
-    }
-
-    @Test
-    void getThumbnailCacheTtlSanitizesSpaceBeforeDAsDays(@TempDir Path tempDir) throws Exception {
-        File ini = writeIni(tempDir.resolve("uiptv.ini"), "thumbnail.cache.ttl=14 d\n");
-        setConfigFilePath(ini.getAbsolutePath());
-        assertEquals(14 * 24, ConfigFileReader.getThumbnailCacheTtlHours());
-    }
-
-    @Test
-    void getThumbnailCacheTtlClampsDaysToMinimum(@TempDir Path tempDir) throws Exception {
-        File ini = writeIni(tempDir.resolve("uiptv.ini"), "thumbnail.cache.ttl=0\n");
-        setConfigFilePath(ini.getAbsolutePath());
-        assertEquals(24, ConfigFileReader.getThumbnailCacheTtlHours());
-    }
-
-    @Test
-    void getThumbnailCacheTtlClampsHoursToMinimum(@TempDir Path tempDir) throws Exception {
-        File ini = writeIni(tempDir.resolve("uiptv.ini"), "thumbnail.cache.ttl=0h\n");
-        setConfigFilePath(ini.getAbsolutePath());
-        assertEquals(1, ConfigFileReader.getThumbnailCacheTtlHours());
+    static Stream<Arguments> ttlTestCases() {
+        return Stream.of(
+                Arguments.of("14", 14 * 24),
+                Arguments.of("12h", 12),
+                Arguments.of("6H", 6),
+                Arguments.of("14 days", 14 * 24),
+                Arguments.of("14D", 14 * 24),
+                Arguments.of("14 d", 14 * 24),
+                Arguments.of("0", 24),
+                Arguments.of("0h", 1)
+        );
     }
 
     @Test
