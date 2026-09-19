@@ -44,6 +44,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final String BOOKMARK_CACHE = "bookmark";
     private static final String I18N_AUTO_LOADING_BOOKMARKS = "autoLoadingBookmarks";
     private static final String I18N_AUTO_NO_BOOKMARKS_FOUND = "autoNoBookmarksFound";
+    private static final String I18N_SEARCHABLE_TABLE_MANAGE_TABS = "searchableTableManageTabs";
     private static final double GRID_NORMAL_VERTICAL_GAP = 14;
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
@@ -563,12 +564,12 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private Button createManageTabsToolbarButton() {
-        Button button = new Button(I18n.tr("searchableTableManageTabs"));
+        Button button = new Button(I18n.tr(I18N_SEARCHABLE_TABLE_MANAGE_TABS));
         button.getStyleClass().add("list-toolbar-action-button");
         button.setFocusTraversable(false);
         button.setMinWidth(Region.USE_PREF_SIZE);
-        button.setAccessibleText(I18n.tr("searchableTableManageTabs"));
-        button.setTooltip(new Tooltip(I18n.tr("searchableTableManageTabs")));
+        button.setAccessibleText(I18n.tr(I18N_SEARCHABLE_TABLE_MANAGE_TABS));
+        button.setTooltip(new Tooltip(I18n.tr(I18N_SEARCHABLE_TABLE_MANAGE_TABS)));
         button.setOnAction(_ -> openCategoryManagementPopup());
         return button;
     }
@@ -1176,36 +1177,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         Account lookupAccount = mediaContext.toAccount();
         Bookmark bookmark = BookmarkService.getInstance().getBookmark(item.getBookmarkId());
 
-        Channel channel = null;
-        if (bookmark != null && isNotBlank(bookmark.getSeriesJson())) {
-            Episode episode = Episode.fromJson(bookmark.getSeriesJson());
-            if (episode != null) {
-                channel = new Channel();
-                channel.setCmd(episode.getCmd());
-                channel.setName(episode.getTitle());
-                channel.setChannelId(episode.getId());
-                if (episode.getInfo() != null) {
-                    channel.setLogo(episode.getInfo().getMovieImage());
-                }
-            }
-        } else if (bookmark != null && isNotBlank(bookmark.getChannelJson())) {
-            channel = Channel.fromJson(bookmark.getChannelJson());
-        } else if (bookmark != null && isNotBlank(bookmark.getVodJson())) {
-            channel = Channel.fromJson(bookmark.getVodJson());
-        }
-
-        if (channel == null) {
-            channel = new Channel();
-            channel.setCmd(item.getCmd());
-            channel.setChannelId(item.getChannelId());
-            channel.setName(item.getChannelName());
-            channel.setDrmType(item.getDrmType());
-            channel.setDrmLicenseUrl(item.getDrmLicenseUrl());
-            channel.setClearKeysJson(item.getClearKeysJson());
-            channel.setInputstreamaddon(item.getInputstreamaddon());
-            channel.setManifestType(item.getManifestType());
-        }
-
+        Channel channel = buildChannelFromBookmark(bookmark, item);
         Channel latestCachedChannel = findLatestCachedChannel(lookupAccount, item);
         if (latestCachedChannel != null) {
             mergeLatestChannel(channel, latestCachedChannel);
@@ -1213,6 +1185,56 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
         String sourceCategoryDbId = resolveSourceCategoryDbId(lookupAccount, item, bookmark);
         return new PlaybackContext(mediaContext, channel, sourceCategoryDbId);
+    }
+
+    private Channel buildChannelFromBookmark(Bookmark bookmark, BookmarkItem item) {
+        Channel channel = extractChannelFromBookmark(bookmark);
+        if (channel == null) {
+            channel = createFallbackChannel(item);
+        }
+        return channel;
+    }
+
+    private Channel extractChannelFromBookmark(Bookmark bookmark) {
+        if (bookmark == null) {
+            return null;
+        }
+        if (isNotBlank(bookmark.getSeriesJson())) {
+            return channelFromSeriesJson(bookmark.getSeriesJson());
+        } else if (isNotBlank(bookmark.getChannelJson())) {
+            return Channel.fromJson(bookmark.getChannelJson());
+        } else if (isNotBlank(bookmark.getVodJson())) {
+            return Channel.fromJson(bookmark.getVodJson());
+        }
+        return null;
+    }
+
+    private Channel channelFromSeriesJson(String seriesJson) {
+        Episode episode = Episode.fromJson(seriesJson);
+        if (episode == null) {
+            return null;
+        }
+        Channel channel = new Channel();
+        channel.setCmd(episode.getCmd());
+        channel.setName(episode.getTitle());
+        channel.setChannelId(episode.getId());
+        if (episode.getInfo() != null) {
+            channel.setLogo(episode.getInfo().getMovieImage());
+        }
+        return channel;
+    }
+
+    private Channel createFallbackChannel(BookmarkItem item) {
+        Channel channel = new Channel();
+        channel.setCmd(item.getCmd());
+        channel.setChannelId(item.getChannelId());
+        channel.setName(item.getChannelName());
+        channel.setDrmType(item.getDrmType());
+        channel.setDrmLicenseUrl(item.getDrmLicenseUrl());
+        channel.setClearKeysJson(item.getClearKeysJson());
+        channel.setInputstreamaddon(item.getInputstreamaddon());
+        channel.setManifestType(item.getManifestType());
+        return channel;
     }
 
     private Channel findLatestCachedChannel(Account account, BookmarkItem item) {

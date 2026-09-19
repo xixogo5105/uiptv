@@ -105,37 +105,51 @@ public class AsyncImageView extends StackPane {
             return;
         }
         if (scrolling) {
-            if (loadDebounce == null) {
-                loadDebounce = new javafx.animation.PauseTransition(javafx.util.Duration.millis(scrollDebounceMillis()));
-            } else {
-                loadDebounce.setDuration(javafx.util.Duration.millis(scrollDebounceMillis()));
-            }
-            loadDebounce.setOnFinished(_ -> scheduleLoad(url, type));
-            loadDebounce.playFromStart();
+            rescheduleDebouncedLoad(url, type);
             return;
         }
+        loadImageAsync(url, type);
+    }
+
+    private void rescheduleDebouncedLoad(String url, String type) {
+        if (loadDebounce == null) {
+            loadDebounce = new javafx.animation.PauseTransition(javafx.util.Duration.millis(scrollDebounceMillis()));
+        } else {
+            loadDebounce.setDuration(javafx.util.Duration.millis(scrollDebounceMillis()));
+        }
+        loadDebounce.setOnFinished(_ -> scheduleLoad(url, type));
+        loadDebounce.playFromStart();
+    }
+
+    private void loadImageAsync(String url, String type) {
         ImageCacheManager.loadImageAsync(url, type)
                 .thenAccept(image -> {
                     if (image != null && Objects.equals(url, this.currentUrl)) {
                         pendingImage = image;
                         pendingUrl = url;
-                        synchronized (UI_UPDATE_LOCK) {
-                            PENDING_UI_UPDATES.add(this);
-                            if (!uiUpdateScheduled) {
-                                uiUpdateScheduled = true;
-                                Platform.runLater(() -> {
-                                    synchronized (UI_UPDATE_LOCK) {
-                                        uiUpdateScheduled = false;
-                                        AsyncImageView view;
-                                        while ((view = PENDING_UI_UPDATES.poll()) != null) {
-                                            view.applyLoadedImage();
-                                        }
-                                    }
-                                });
-                            }
-                        }
+                        queueUiUpdate();
                     }
                 });
+    }
+
+    private void queueUiUpdate() {
+        synchronized (UI_UPDATE_LOCK) {
+            PENDING_UI_UPDATES.add(this);
+            if (!uiUpdateScheduled) {
+                uiUpdateScheduled = true;
+                Platform.runLater(this::processPendingUiUpdates);
+            }
+        }
+    }
+
+    private void processPendingUiUpdates() {
+        synchronized (UI_UPDATE_LOCK) {
+            uiUpdateScheduled = false;
+            AsyncImageView view;
+            while ((view = PENDING_UI_UPDATES.poll()) != null) {
+                view.applyLoadedImage();
+            }
+        }
     }
 
     private void applyLoadedImage() {

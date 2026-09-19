@@ -13,7 +13,7 @@ import javafx.scene.layout.StackPane;
 public class SwitchToggle extends StackPane {
     private static final PseudoClass SELECTED = PseudoClass.getPseudoClass("selected");
 
-    private final BooleanProperty selected = new SimpleBooleanProperty(false);
+    private final BooleanProperty selectedProperty = new SimpleBooleanProperty(false);
     private final StackPane track = new StackPane();
     private final Region thumb = new Region();
 
@@ -31,7 +31,7 @@ public class SwitchToggle extends StackPane {
         UiRenderQuality.optimizeLayout(track);
         UiRenderQuality.optimizeLayout(thumb);
 
-        selected.addListener((_, _, _) -> refreshState());
+        selectedProperty.addListener((_, _, _) -> refreshState());
         setOnMouseClicked(event -> {
             if (!isDisabled()) {
                 setSelected(!isSelected());
@@ -48,15 +48,15 @@ public class SwitchToggle extends StackPane {
     }
 
     public BooleanProperty selectedProperty() {
-        return selected;
+        return selectedProperty;
     }
 
     public boolean isSelected() {
-        return selected.get();
+        return selectedProperty.get();
     }
 
     public void setSelected(boolean selected) {
-        this.selected.set(selected);
+        this.selectedProperty.set(selected);
     }
 
     private void refreshState() {

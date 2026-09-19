@@ -48,6 +48,8 @@ public class ImdbMetadataService {
     private static final String USER_AGENT_BROWSER = "Mozilla/5.0";
     private static final int MAX_SEARCH_QUERIES = Math.max(1, Integer.getInteger("uiptv.imdb.search.maxQueries", 8));
     private static final int MAX_QUERY_CHARS = Math.max(32, Integer.getInteger("uiptv.imdb.search.maxQueryChars", 160));
+    private static final String TMDB_TYPE_MOVIE = "movie";
+    private static final String TMDB_TYPE_TV = "tv";
     private static final int MAX_EPISODE_META_ROWS = Math.max(1, Integer.getInteger("uiptv.imdb.episodeMeta.maxRows", 500));
     private static final int MAX_TMDB_SEASONS = Math.max(1, Integer.getInteger("uiptv.imdb.tmdb.maxSeasons", 24));
     private static final int MAX_METADATA_BODY_CHARS = Math.max(64 * 1024,
@@ -154,7 +156,7 @@ public class ImdbMetadataService {
     }
 
     private String metadataCacheKey(boolean moviePreferred, String preferredImdbId, List<String> searchQueries) {
-        StringBuilder key = new StringBuilder(moviePreferred ? "movie" : "series")
+        StringBuilder key = new StringBuilder(moviePreferred ? TMDB_TYPE_MOVIE : "series")
                 .append('|')
                 .append(I18n.getCurrentLanguageTag())
                 .append('|')
@@ -693,11 +695,11 @@ public class ImdbMetadataService {
     }
 
     private JSONObject fetchPrimaryLocalizedTmdbDetails(String tmdbId, String localeTag, boolean moviePreferred) {
-        return fetchTmdbLocalizedDetails(tmdbId, moviePreferred ? "movie" : "tv", localeTag);
+        return fetchTmdbLocalizedDetails(tmdbId, moviePreferred ? TMDB_TYPE_MOVIE : TMDB_TYPE_TV, localeTag);
     }
 
     private JSONObject fetchSecondaryLocalizedTmdbDetails(String tmdbId, String localeTag, boolean moviePreferred) {
-        return fetchTmdbLocalizedDetails(tmdbId, moviePreferred ? "tv" : "movie", localeTag);
+        return fetchTmdbLocalizedDetails(tmdbId, moviePreferred ? TMDB_TYPE_TV : TMDB_TYPE_MOVIE, localeTag);
     }
 
     private void applyLocalizedTmdbFields(JSONObject details, JSONObject localized) {

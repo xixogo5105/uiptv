@@ -77,6 +77,7 @@ public class ConfigurationUI extends VBox {
     private static final double STATUS_ICON_SIZE = 18;
     private static final String STYLE_CLASS_SETTINGS_FILTER_MODE_LABEL = "settings-filter-mode-label";
     private static final String I18N_COMMON_CLOSE = "commonClose";
+    private static final String I18N_COMMON_SAVE = "commonSave";
     private static final Duration STATUS_TITLE_REFRESH_INTERVAL = Duration.seconds(30);
     private static final double DATABASE_SYNC_INLINE_WIDTH = 672;
     private static final double SETTINGS_CARD_WIDTH = 440;
@@ -503,7 +504,7 @@ public class ConfigurationUI extends VBox {
             titleRow.getChildren().add(section.helpLink());
         }
 
-        Button saveButton = new Button(I18n.tr("commonSave"));
+        Button saveButton = new Button(I18n.tr(I18N_COMMON_SAVE));
         Button resetButton = new Button(I18n.tr("autoRestore"));
         HBox actions = new HBox(8);
         Region spacer = new Region();
@@ -520,7 +521,7 @@ public class ConfigurationUI extends VBox {
                 saveButton.getStyleClass().add(STYLE_CLASS_CONFIGURATION_STATUS_ICON_ON);
                 PauseTransition pt = new PauseTransition(Duration.seconds(5));
                 pt.setOnFinished(evt -> {
-                    saveButton.setText(I18n.tr("commonSave"));
+                    saveButton.setText(I18n.tr(I18N_COMMON_SAVE));
                     saveButton.getStyleClass().remove(STYLE_CLASS_CONFIGURATION_STATUS_ICON_ON);
                     saveButton.setDisable(false);
                 });
@@ -1914,7 +1915,7 @@ public class ConfigurationUI extends VBox {
 
         Runnable closeAction = popupStage::close;
 
-        Button saveButton = new Button(I18n.tr("commonSave"));
+        Button saveButton = new Button(I18n.tr(I18N_COMMON_SAVE));
         saveButton.getStyleClass().add("uiptv-inline-primary-button");
         saveButton.setDefaultButton(true);
         saveButton.setOnAction(event -> {

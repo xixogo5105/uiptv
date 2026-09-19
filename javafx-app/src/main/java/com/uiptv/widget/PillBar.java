@@ -83,69 +83,10 @@ public class PillBar<T> extends StackPane {
         setMaxWidth(Double.MAX_VALUE);
         applyFixedHeight(scaledLength(MIN_SINGLE_ROW_HEIGHT));
 
-        Rectangle clip = new Rectangle();
-        clip.setX(-6);
-        clip.setY(-6);
-        clip.widthProperty().bind(widthProperty().add(12));
-        clip.heightProperty().bind(heightProperty().add(12));
-        setClip(clip);
-
-        content.getStyleClass().add("uiptv-pill-bar-content");
-        content.setAlignment(Pos.CENTER_LEFT);
-        content.setHgap(5);
-        content.setVgap(5);
-        content.setMinWidth(0);
-        content.setMaxWidth(Double.MAX_VALUE);
-        content.setMaxHeight(Double.MAX_VALUE);
-        content.setPrefWrapLength(4096);
-
-        compactDropdown.getStyleClass().add("uiptv-pill-bar-dropdown");
-        compactDropdown.setAlignment(Pos.CENTER_LEFT);
-        compactDropdown.setContentDisplay(ContentDisplay.LEFT);
-        applyCompactDropdownMetrics();
-        compactDropdown.setMaxWidth(Double.MAX_VALUE);
-        compactDropdown.setTextOverrun(OverrunStyle.ELLIPSIS);
-        compactDropdown.setVisible(false);
-        compactDropdown.setManaged(false);
-        compactDropdown.fontProperty().addListener((_, _, _) -> handleCompactDropdownFontChanged());
-
-        getChildren().addAll(content, compactDropdown);
-        StackPane.setAlignment(content, Pos.CENTER_LEFT);
-        StackPane.setAlignment(compactDropdown, Pos.CENTER_LEFT);
-        widthProperty().addListener((_, _, width) -> {
-            updateContentWrapLength(width.doubleValue());
-            if (syncReservedHeight(width.doubleValue())) {
-                requestAncestorLayout();
-            } else {
-                requestLayout();
-            }
-        });
-
-        toggleGroup.selectedToggleProperty().addListener((_, oldValue, newValue) -> {
-            if (rebuilding) {
-                return;
-            }
-            if (newValue == null && oldValue != null) {
-                oldValue.setSelected(true);
-                return;
-            }
-            selectedItem.set(newValue == null ? null : itemFromToggle(newValue));
-            syncCompactSelection(itemFromToggle(newValue));
-            if (syncReservedHeight(getWidth())) {
-                requestAncestorLayout();
-            }
-        });
-
-        compactToggleGroup.selectedToggleProperty().addListener((_, oldValue, newValue) -> {
-            if (rebuilding || syncingCompactSelection) {
-                return;
-            }
-            if (newValue == null && oldValue != null) {
-                oldValue.setSelected(true);
-                return;
-            }
-            setSelectedItem(itemFromToggle(newValue));
-        });
+        initializeClipping();
+        initializeContent();
+        initializeCompactDropdown();
+        initializeListeners();
     }
 
     public ObjectProperty<T> selectedItemProperty() {
@@ -595,5 +536,77 @@ public class PillBar<T> extends StackPane {
 
     private Object keyOf(T item) {
         return item == null ? null : keyFactory.apply(item);
+    }
+
+    private void initializeClipping() {
+        Rectangle clip = new Rectangle();
+        clip.setX(-6);
+        clip.setY(-6);
+        clip.widthProperty().bind(widthProperty().add(12));
+        clip.heightProperty().bind(heightProperty().add(12));
+        setClip(clip);
+    }
+
+    private void initializeContent() {
+        content.getStyleClass().add("uiptv-pill-bar-content");
+        content.setAlignment(Pos.CENTER_LEFT);
+        content.setHgap(5);
+        content.setVgap(5);
+        content.setMinWidth(0);
+        content.setMaxWidth(Double.MAX_VALUE);
+        content.setMaxHeight(Double.MAX_VALUE);
+        content.setPrefWrapLength(4096);
+    }
+
+    private void initializeCompactDropdown() {
+        compactDropdown.getStyleClass().add("uiptv-pill-bar-dropdown");
+        compactDropdown.setAlignment(Pos.CENTER_LEFT);
+        compactDropdown.setContentDisplay(ContentDisplay.LEFT);
+        applyCompactDropdownMetrics();
+        compactDropdown.setMaxWidth(Double.MAX_VALUE);
+        compactDropdown.setTextOverrun(OverrunStyle.ELLIPSIS);
+        compactDropdown.setVisible(false);
+        compactDropdown.setManaged(false);
+        compactDropdown.fontProperty().addListener((_, _, _) -> handleCompactDropdownFontChanged());
+    }
+
+    private void initializeListeners() {
+        getChildren().addAll(content, compactDropdown);
+        StackPane.setAlignment(content, Pos.CENTER_LEFT);
+        StackPane.setAlignment(compactDropdown, Pos.CENTER_LEFT);
+        widthProperty().addListener((_, _, width) -> {
+            updateContentWrapLength(width.doubleValue());
+            if (syncReservedHeight(width.doubleValue())) {
+                requestAncestorLayout();
+            } else {
+                requestLayout();
+            }
+        });
+
+        toggleGroup.selectedToggleProperty().addListener((_, oldValue, newValue) -> {
+            if (rebuilding) {
+                return;
+            }
+            if (newValue == null && oldValue != null) {
+                oldValue.setSelected(true);
+                return;
+            }
+            selectedItem.set(newValue == null ? null : itemFromToggle(newValue));
+            syncCompactSelection(itemFromToggle(newValue));
+            if (syncReservedHeight(getWidth())) {
+                requestAncestorLayout();
+            }
+        });
+
+        compactToggleGroup.selectedToggleProperty().addListener((_, oldValue, newValue) -> {
+            if (rebuilding || syncingCompactSelection) {
+                return;
+            }
+            if (newValue == null && oldValue != null) {
+                oldValue.setSelected(true);
+                return;
+            }
+            setSelectedItem(itemFromToggle(newValue));
+        });
     }
 }

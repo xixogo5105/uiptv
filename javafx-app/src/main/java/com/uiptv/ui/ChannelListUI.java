@@ -226,39 +226,56 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void publishChannelChanges(List<ChannelItem> pendingItems, List<LogoUpdate> pendingLogoUpdates) {
-        if ((pendingItems == null || pendingItems.isEmpty())
-                && (pendingLogoUpdates == null || pendingLogoUpdates.isEmpty())) {
+        if (isEmpty(pendingItems) && isEmpty(pendingLogoUpdates)) {
             return;
         }
-        List<ChannelItem> itemBatch = pendingItems == null || pendingItems.isEmpty()
-                ? List.of()
-                : new ArrayList<>(pendingItems);
-        List<LogoUpdate> logoBatch = pendingLogoUpdates == null || pendingLogoUpdates.isEmpty()
-                ? List.of()
-                : new ArrayList<>(pendingLogoUpdates);
+        List<ChannelItem> itemBatch = toMutableItemList(pendingItems);
+        List<LogoUpdate> logoBatch = toMutableLogoList(pendingLogoUpdates);
+        clearLists(pendingItems, pendingLogoUpdates);
+        runLater(() -> applyChannelChanges(itemBatch, logoBatch));
+    }
+
+    private static boolean isEmpty(List<?> list) {
+        return list == null || list.isEmpty();
+    }
+
+    private static List<ChannelItem> toMutableItemList(List<ChannelItem> list) {
+        return list == null || list.isEmpty() ? List.of() : new ArrayList<>(list);
+    }
+
+    private static List<LogoUpdate> toMutableLogoList(List<LogoUpdate> list) {
+        return list == null || list.isEmpty() ? List.of() : new ArrayList<>(list);
+    }
+
+    private void clearLists(List<ChannelItem> pendingItems, List<LogoUpdate> pendingLogoUpdates) {
         if (pendingItems != null) {
             pendingItems.clear();
         }
         if (pendingLogoUpdates != null) {
             pendingLogoUpdates.clear();
         }
-        runLater(() -> {
-            if (disposed.get()) {
-                return;
-            }
-            if (!itemBatch.isEmpty()) {
-                channelItems.addAll(itemBatch);
-                table.setPlaceholder(null);
-                channelGrid.setPlaceholderText("");
-            }
-            if (!logoBatch.isEmpty()) {
-                for (LogoUpdate update : logoBatch) {
-                    update.item().setLogo(update.normalizedLogo());
-                    update.item().getChannel().setLogo(update.sourceChannel().getLogo());
-                }
-                refreshChannelViews();
-            }
-        });
+    }
+
+    private void applyChannelChanges(List<ChannelItem> itemBatch, List<LogoUpdate> logoBatch) {
+        if (disposed.get()) {
+            return;
+        }
+        if (!itemBatch.isEmpty()) {
+            channelItems.addAll(itemBatch);
+            table.setPlaceholder(null);
+            channelGrid.setPlaceholderText("");
+        }
+        if (!logoBatch.isEmpty()) {
+            applyLogoUpdates(logoBatch);
+            refreshChannelViews();
+        }
+    }
+
+    private void applyLogoUpdates(List<LogoUpdate> logoBatch) {
+        for (LogoUpdate update : logoBatch) {
+            update.item().setLogo(update.normalizedLogo());
+            update.item().getChannel().setLogo(update.sourceChannel().getLogo());
+        }
     }
 
     private void processIncomingChannel(Channel channel,
@@ -956,7 +973,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private Label createDrawerBadge(String text) {
         Label badge = new Label(text == null ? "" : text);
-        badge.getStyleClass().add("drm-badge");
+        badge.getStyleClass().add(DRM_BADGE_STYLE_CLASS);
         badge.setMinWidth(Region.USE_PREF_SIZE);
         badge.setMaxWidth(Region.USE_PREF_SIZE);
         return badge;

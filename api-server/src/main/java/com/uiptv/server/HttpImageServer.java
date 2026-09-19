@@ -41,7 +41,7 @@ public class HttpImageServer implements HttpHandler {
             // Fall through to classpath resource loading
         }
 
-        if (bytes == null) {
+        if (bytes == null && isSafeClasspathPath(requestPath)) {
             String resourcePath = "/web" + (requestPath.startsWith("/") ? requestPath : "/" + requestPath);
             try (InputStream is = HttpImageServer.class.getResourceAsStream(resourcePath)) {
                 if (is != null) {
@@ -63,6 +63,17 @@ public class HttpImageServer implements HttpHandler {
         try (OutputStream os = ex.getResponseBody()) {
             os.write(bytes);
         }
+    }
+
+    private static boolean isSafeClasspathPath(String path) {
+        if (path == null || path.isEmpty()) {
+            return false;
+        }
+        String normalized = path.replace('\\', '/');
+        if (normalized.contains("..") || normalized.contains("//")) {
+            return false;
+        }
+        return true;
     }
 
     static String contentTypeFor(String path) {

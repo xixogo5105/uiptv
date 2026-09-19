@@ -673,45 +673,50 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
     }
 
     private void triggerImdbLoad(VodPanelData data) {
-        if (data == null) {
-            return;
-        }
-        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
-            data.imdbLoading = false;
-            return;
-        }
-        if (data.imdbLoaded && !data.thumbnailMetadataAttempted && isBlank(data.metadata.coverUrl)) {
-            data.imdbLoaded = false;
-        }
-        if (data.imdbLoaded || data.imdbLoading) {
+        if (data == null || shouldSkipImdbLoad(data)) {
             return;
         }
         data.imdbLoading = true;
         long generation = lifecycleGeneration.get();
-        boolean submitted = WatchingNowMetadataExecutor.submit(() -> {
-            try {
-                if (!isPanelCurrent(data, generation)) {
-                    return;
-                }
-                JSONObject imdb = ImdbMetadataService.getInstance().findBestEffortMovieDetails(data.displayTitle, "");
-                if (imdb != null && isPanelCurrent(data, generation)) {
-                    mergeImdb(data, imdb);
-                    imdbCacheByPanelKey.put(panelKey(data), VodImdbCacheEntry.from(data));
-                }
-            } finally {
-                Platform.runLater(() -> {
-                    if (isPanelCurrent(data, generation)) {
-                        data.imdbLoaded = true;
-                        data.imdbLoading = false;
-                        data.thumbnailMetadataAttempted = true;
-                        refreshRenderedCards();
-                    }
-                });
-            }
-        });
+        boolean submitted = WatchingNowMetadataExecutor.submit(() -> loadImdbForPanel(data, generation));
         if (!submitted) {
             data.imdbLoading = false;
         } else {
+            refreshRenderedCards();
+        }
+    }
+
+    private boolean shouldSkipImdbLoad(VodPanelData data) {
+        if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
+            data.imdbLoading = false;
+            return true;
+        }
+        if (data.imdbLoaded && !data.thumbnailMetadataAttempted && isBlank(data.metadata.coverUrl)) {
+            data.imdbLoaded = false;
+        }
+        return data.imdbLoaded || data.imdbLoading;
+    }
+
+    private void loadImdbForPanel(VodPanelData data, long generation) {
+        try {
+            if (!isPanelCurrent(data, generation)) {
+                return;
+            }
+            JSONObject imdb = ImdbMetadataService.getInstance().findBestEffortMovieDetails(data.displayTitle, "");
+            if (imdb != null && isPanelCurrent(data, generation)) {
+                mergeImdb(data, imdb);
+                imdbCacheByPanelKey.put(panelKey(data), VodImdbCacheEntry.from(data));
+            }
+        } finally {
+            Platform.runLater(() -> finalizeImdbLoad(data, generation));
+        }
+    }
+
+    private void finalizeImdbLoad(VodPanelData data, long generation) {
+        if (isPanelCurrent(data, generation)) {
+            data.imdbLoaded = true;
+            data.imdbLoading = false;
+            data.thumbnailMetadataAttempted = true;
             refreshRenderedCards();
         }
     }

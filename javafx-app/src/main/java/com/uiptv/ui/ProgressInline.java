@@ -367,17 +367,21 @@ public class ProgressInline extends BorderPane {
             Text part1 = new Text(parts[0]);
             part1.getStyleClass().add(LOG_TEXT_STYLE_CLASS);
             texts.add(part1);
-            Text validText = new Text(parts[1]);
-            validText.getStyleClass().add("valid-text");
-            texts.add(validText);
+            if (parts.length > 1) {
+                Text validText = new Text(parts[1]);
+                validText.getStyleClass().add("valid-text");
+                texts.add(validText);
+            }
         } else if (safeText.contains("[INVALID]")) {
             String[] parts = safeText.split("\\[INVALID\\]", 2);
             Text part1 = new Text(parts[0]);
             part1.getStyleClass().add(LOG_TEXT_STYLE_CLASS);
             texts.add(part1);
-            Text invalidText = new Text(parts[1]);
-            invalidText.getStyleClass().add("invalid-text");
-            texts.add(invalidText);
+            if (parts.length > 1) {
+                Text invalidText = new Text(parts[1]);
+                invalidText.getStyleClass().add("invalid-text");
+                texts.add(invalidText);
+            }
         } else {
             Text part1 = new Text(safeText);
             part1.getStyleClass().add(LOG_TEXT_STYLE_CLASS);

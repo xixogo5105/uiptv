@@ -127,7 +127,7 @@ public class RemoteSyncSessionService {
             synchronized (session.monitor) {
                 session.fail(REMOTE_SYNC_FAILED_MESSAGE);
             }
-            notifier.get().showError("remoteSyncRemoteFailedMessage");
+            notifier.get().showError(I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE);
             throw ex;
         } finally {
             deleteIfExists(uploadedTransfer);

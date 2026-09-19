@@ -17,6 +17,7 @@ public class RemoteSyncClientService {
     private static final String REMOTE_SYNC_COMPLETED_MESSAGE = "Remote database sync completed.";
     private static final String REMOTE_SYNC_FAILED_MESSAGE = "Remote database sync failed.";
     private static final String PREFIX_HTTP = "http://";
+    private static final String PREFIX_HTTPS = "https://";
 
     private final RemoteSyncHttpClient httpClient;
     private final DatabaseSnapshotService snapshotService;
@@ -231,7 +232,7 @@ public class RemoteSyncClientService {
         String prefix;
         int prefixLen;
         if (lowerHost.startsWith("https://")) {
-            prefix = "https://";
+            prefix = PREFIX_HTTPS;
             prefixLen = 8;
          } else if (lowerHost.startsWith("http://")) {
              prefix = PREFIX_HTTP;

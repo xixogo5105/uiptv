@@ -18,6 +18,7 @@ import java.lang.reflect.Method;
 
 import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -54,6 +55,8 @@ class SimpleWidgetSupportTest {
             loadFont.invoke(null, "/fonts/roboto/not-present.ttf");
             return null;
         });
+
+        assertDoesNotThrow(() -> loadFont.invoke(null, "/fonts/roboto/not-present.ttf"));
     }
 
     @Test

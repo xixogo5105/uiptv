@@ -529,7 +529,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
             }
         }
         showListView(true);
-        return true;
+        return false;
     }
 
     private void setDetailHeaderActions(List<Node> actions) {

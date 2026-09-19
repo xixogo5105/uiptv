@@ -36,7 +36,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
 
     private static final String SELECTED_STYLE_CLASS = "selected";
     private static final DataFormat CARD_INDEX_FORMAT = new DataFormat("application/x-uiptv-responsive-card-index");
-    private static final PseudoClass SELECTED_PSEUDO_CLASS = PseudoClass.getPseudoClass("selected");
+    private static final PseudoClass SELECTED_PSEUDO_CLASS = PseudoClass.getPseudoClass(SELECTED_STYLE_CLASS);
     private static final double DEFAULT_MIN_CARD_WIDTH = 220;
     private static final double DEFAULT_MAX_CARD_WIDTH = 320;
     private static final double DEFAULT_HORIZONTAL_GAP = 14;
@@ -55,8 +55,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private final StackPane placeholder = new StackPane();
     private final Label placeholderLabel = new Label();
     private final Map<T, Region> cardsByItem = new LinkedHashMap<>();
-    private final ObservableList<T> selectedItems = FXCollections.observableArrayList();
-    private final ObservableList<T> readonlySelectedItems = FXCollections.unmodifiableObservableList(selectedItems);
+    private final ObservableList<T> selectedItemsInternal = FXCollections.observableArrayList();
+    private final ObservableList<T> selectedItems = FXCollections.unmodifiableObservableList(selectedItemsInternal);
     private final ListChangeListener<T> itemChangeListener = this::handleItemsChanged;
     private final ChangeListener<Number> virtualScrollValueListener = (_, _, _) -> {
         onScrollActive();
@@ -159,7 +159,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     public ObservableList<T> getSelectedItems() {
-        return readonlySelectedItems;
+        return selectedItems;
     }
 
     public T getFocusedItem() {
@@ -311,7 +311,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     public void clearSelection() {
-        selectedItems.clear();
+        selectedItemsInternal.clear();
         anchorItem = null;
         focusedItem = null;
         focusedItemIndex = -1;
@@ -319,11 +319,11 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     public void selectItems(Collection<T> itemsToSelect) {
-        selectedItems.clear();
+        selectedItemsInternal.clear();
         if (itemsToSelect != null) {
             for (T item : itemsToSelect) {
                 if (items.contains(item) && !selectedItems.contains(item)) {
-                    selectedItems.add(item);
+                    selectedItemsInternal.add(item);
                 }
             }
         }
@@ -969,9 +969,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
 
     private void toggleSelection(T item) {
         if (selectedItems.contains(item)) {
-            selectedItems.remove(item);
+            selectedItemsInternal.remove(item);
         } else {
-            selectedItems.add(item);
+selectedItemsInternal.add(item);
         }
     }
 
@@ -984,7 +984,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         int start = Math.min(from, to);
         int end = Math.max(from, to);
-        selectedItems.setAll(items.subList(start, end + 1));
+        selectedItemsInternal.setAll(items.subList(start, end + 1));
     }
 
     private void showContextMenu(T item, Region card, ContextMenuEvent event) {
@@ -1527,7 +1527,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     private void pruneSelection() {
-        selectedItems.removeIf(item -> !items.contains(item));
+        selectedItemsInternal.removeIf(item -> !items.contains(item));
         if (focusedItem != null && !items.contains(focusedItem)) {
             if (selectedItems.isEmpty()) {
                 focusedItem = null;
@@ -1555,8 +1555,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     private void selectOnly(T item) {
-        selectedItems.clear();
-        selectedItems.add(item);
+        selectedItemsInternal.clear();
+        selectedItemsInternal.add(item);
     }
 
     private void rememberFocusedIndex(T item) {
