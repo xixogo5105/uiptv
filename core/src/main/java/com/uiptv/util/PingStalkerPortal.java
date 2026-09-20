@@ -258,8 +258,8 @@ public class PingStalkerPortal {
                 return "";
             }
             String pattern = getPattern(jsFileContents);
-            // Use replaceFirst with anchored patterns instead of replaceAll to avoid potential backtracking
-            String regex = pattern.replaceFirst("^/+", "").replaceFirst("/+$", "");
+            // Use simple string operations instead of regex to avoid potential backtracking
+            String regex = stripLeadingAndTrailingSlashes(pattern);
             String result = ajaxLoader
                     .replace("'", "")
                     .replace("+", "")
@@ -274,6 +274,19 @@ public class PingStalkerPortal {
             // Fall back to the default endpoint discovery path when script parsing fails.
         }
         return "";
+    }
+
+    private static String stripLeadingAndTrailingSlashes(String s) {
+        if (s == null) return "";
+        int start = 0;
+        while (start < s.length() && s.charAt(start) == '/') {
+            start++;
+        }
+        int end = s.length();
+        while (end > start && s.charAt(end - 1) == '/') {
+            end--;
+        }
+        return s.substring(start, end);
     }
 
     private static String getPattern(String jsFileContents) {

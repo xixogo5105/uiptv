@@ -184,7 +184,7 @@ applyValueToAccount(account, value, type);
                 } else if (type == StalkerAttributeType.DEVICE_ID_1) {
                     String lower = line.toLowerCase();
                     // Check for "1/2" pattern without regex backtracking
-                    if (lower.contains("1/2") || lower.matches(".*1\\s*/\\s*2.*")) {
+                    if (lower.contains("1/2") || java.util.regex.Pattern.compile("1\\s*/\\s*2").matcher(lower).find()) {
                         applyValueToAccount(account, value, StalkerAttributeType.DEVICE_ID_2);
                     }
                 }

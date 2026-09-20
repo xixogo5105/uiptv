@@ -1962,7 +1962,7 @@ public class ReloadCacheInline extends VBox {
     }
 
     private String translatePageFetchLog(String trimmed) {
-        Matcher fetching = Pattern.compile("Fetching page\\s+(\\d+)\\s+for category\\s+(.+?)\\.\\.\\.").matcher(trimmed);
+        Matcher fetching = Pattern.compile("Fetching page\\s+(\\d+)\\s+for category\\s+([^.]+)\\.\\.\\.").matcher(trimmed);
         if (fetching.matches()) {
             return I18n.tr("reloadPageCategory", I18n.formatNumber(fetching.group(1)), fetching.group(2).trim());
         }

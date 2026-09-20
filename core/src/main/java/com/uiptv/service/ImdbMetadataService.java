@@ -1040,7 +1040,14 @@ public class ImdbMetadataService {
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)^(episode\\s+\\d+|ep\\.?\\s+\\d+|e\\d+)").matcher(title);
         if (m.find()) {
             String rest = title.substring(m.end());
-            return rest.matches("\\s*[:\\-]?\\s*");
+            // Use a more efficient check for the rest
+            for (int i = 0; i < rest.length(); i++) {
+                char c = rest.charAt(i);
+                if (c != ' ' && c != '\t' && c != '\n' && c != '\r' && c != ':' && c != '-') {
+                    return false;
+                }
+            }
+            return true;
         }
         return false;
     }

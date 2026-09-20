@@ -1626,6 +1626,9 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     }
 
     private void handleCardMouseClick(MouseEvent event, SeriesPanelData data, VBox root, WatchingEpisode row, ContextMenu episodeMenu) {
+        if (episodeMenu == null) {
+            return;
+        }
         if (event.getButton() == MouseButton.PRIMARY) {
             if (event.getClickCount() == 2) {
                 setSelectedEpisodeCard(data, root);
@@ -2765,8 +2768,21 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (before.isEmpty()) {
             return title;
         }
-        before = before.replaceAll("[-:|]++\\s*$", "").trim();
+        before = stripTrailingSeparators(before);
         return before.isEmpty() ? title : before;
+    }
+
+    private String stripTrailingSeparators(String s) {
+        int end = s.length();
+        while (end > 0) {
+            char c = s.charAt(end - 1);
+            if (c == '-' || c == ':' || c == '|' || Character.isWhitespace(c)) {
+                end--;
+            } else {
+                break;
+            }
+        }
+        return s.substring(0, end).trim();
     }
 
     private int indexOfIgnoreCase(String text, String needle) {
