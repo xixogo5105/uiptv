@@ -364,6 +364,7 @@ public class ProgressInline extends BorderPane {
 
         if (safeText.contains("[VALID]")) {
             String[] parts = safeText.split("\\[VALID\\]", 2);
+            // split with limit 2 guarantees at least 1 element
             Text part1 = new Text(parts[0]);
             part1.getStyleClass().add(LOG_TEXT_STYLE_CLASS);
             texts.add(part1);
@@ -374,6 +375,7 @@ public class ProgressInline extends BorderPane {
             }
         } else if (safeText.contains("[INVALID]")) {
             String[] parts = safeText.split("\\[INVALID\\]", 2);
+            // split with limit 2 guarantees at least 1 element
             Text part1 = new Text(parts[0]);
             part1.getStyleClass().add(LOG_TEXT_STYLE_CLASS);
             texts.add(part1);

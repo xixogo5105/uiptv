@@ -6,9 +6,6 @@ import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
-import com.uiptv.api.LoggerCallback;
-import com.uiptv.db.CategoryDb;
-import com.uiptv.db.ChannelDb;
 import com.uiptv.model.Account;
 import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
@@ -47,15 +44,9 @@ class SkipAccountReloadExceptionTest extends DbBackedTest {
                     .thenReturn(List.of(channel("c1", "10", "News One")));
             xtremeStatic.when(() -> XtremeApiParser.parseChannels("10", account))
                     .thenReturn(List.of(channel("news-1", "10", "News A")));
-
-            assertThrows(SkipAccountReloadException.class, () ->
-                    new XtremeApiCacheReloader().reloadCache(account, msg -> {
-                        throw new SkipAccountReloadException();
-                    })
-            );
         }
 
-        // Action must be restored after exception propagates from cacheVodAndSeriesCategoriesOnly
+        assertThrows(SkipAccountReloadException.class, () -> reloadCacheAndThrow(account));
         assertEquals(Account.AccountAction.itv, account.getAction());
     }
 
@@ -74,13 +65,7 @@ class SkipAccountReloadExceptionTest extends DbBackedTest {
                     .thenReturn(List.of());
         }
 
-        assertThrows(SkipAccountReloadException.class, () ->
-                new XtremeApiCacheReloader().reloadCache(account, msg -> {
-                    throw new SkipAccountReloadException();
-                })
-        );
-
-        // Action must be restored even when VOD mode throws
+        assertThrows(SkipAccountReloadException.class, () -> reloadCacheAndThrow(account));
         assertEquals(Account.AccountAction.itv, account.getAction());
     }
 
@@ -99,13 +84,7 @@ class SkipAccountReloadExceptionTest extends DbBackedTest {
                     .thenThrow(new SkipAccountReloadException());
         }
 
-        assertThrows(SkipAccountReloadException.class, () ->
-                new XtremeApiCacheReloader().reloadCache(account, msg -> {
-                    throw new SkipAccountReloadException();
-                })
-        );
-
-        // Action must be restored even when SERIES mode throws
+        assertThrows(SkipAccountReloadException.class, () -> reloadCacheAndThrow(account));
         assertEquals(Account.AccountAction.itv, account.getAction());
     }
 
@@ -118,11 +97,13 @@ class SkipAccountReloadExceptionTest extends DbBackedTest {
                     .thenThrow(new SkipAccountReloadException());
         }
 
-        assertThrows(SkipAccountReloadException.class, () ->
-                new XtremeApiCacheReloader().reloadCache(account, msg -> {
-                    throw new SkipAccountReloadException();
-                })
-        );
+        assertThrows(SkipAccountReloadException.class, () -> reloadCacheAndThrow(account));
+    }
+
+    private void reloadCacheAndThrow(Account account) {
+        new XtremeApiCacheReloader().reloadCache(account, msg -> {
+            throw new SkipAccountReloadException();
+        });
     }
 
     private Account createAndPersistXtremeAccount(String name, Account.AccountAction action) {

@@ -1329,6 +1329,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private ContextMenu addRightClickContextMenu(EpisodeItem item, Pane target) {
+        if (target == null) {
+            return new ContextMenu();
+        }
         final ContextMenu rowMenu = new ContextMenu();
         UiI18n.preparePopupControl(rowMenu, target);
         rowMenu.setHideOnEscape(true);

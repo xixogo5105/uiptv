@@ -439,11 +439,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         try {
             URIBuilder b = new URIBuilder(uri);
             return b.build().toString();
-        } catch (URISyntaxException | IllegalArgumentException e) {
+        } catch (URISyntaxException | IllegalArgumentException _) {
             // Fallback to conservative replacements if parsing/encoding fails
             try {
                 return uri.replace("{", "%7B").replace("}", "%7D").replace(" ", "%20").replace("`", "%60");
-            } catch (Exception ex) {
+            } catch (Exception _) {
                 return uri;
             }
         }

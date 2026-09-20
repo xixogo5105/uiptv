@@ -112,6 +112,7 @@ public class CategoryService {
 
     private boolean usesVodSeriesCategoryCache(Account account) {
         AccountType type = account.getType();
+        // account.getType() has default STALKER_PORTAL but could be null. Explicit null check.
         return type != null
                 && (account.getAction() == vod || account.getAction() == series)
                 && (type == STALKER_PORTAL || type == XTREME_API);

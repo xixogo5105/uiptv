@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.Thread;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -53,7 +54,7 @@ public abstract class DbBackedUiTest {
     private void waitForPendingFxWork() {
         try {
             FxTestSupport.waitForFxEvents();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // Some tests initialize only the DB fixture; cleanup should still proceed.
         }
     }
@@ -78,7 +79,7 @@ public abstract class DbBackedUiTest {
             try {
                 Files.deleteIfExists(path);
                 return;
-            } catch (IOException ignored) {
+            } catch (IOException _) {
                 sleepBeforeRetry();
             }
         }

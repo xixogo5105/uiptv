@@ -557,6 +557,9 @@ private void appendSelectedWatchingNowVodPlaylist(StringBuilder result,
     }
 
     private String parseEntryTitle(String line) {
+        if (line == null) {
+            return "";
+        }
         int lastCommaIndex = line.lastIndexOf(',');
         if (lastCommaIndex < 0 || lastCommaIndex >= line.length() - 1) {
             return "";

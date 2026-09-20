@@ -666,6 +666,9 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private ContextMenu addRightClickContextMenu(EpisodeItem item, Node owner) {
+        if (owner == null) {
+            return new ContextMenu();
+        }
         final ContextMenu rowMenu = new ContextMenu();
         UiI18n.preparePopupControl(rowMenu, owner);
         rowMenu.setHideOnEscape(true);

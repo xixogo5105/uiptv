@@ -563,9 +563,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void applyChannelGridSizing() {
-        if (channelGrid == null) {
-            return;
-        }
         channelGrid.setSingleColumn(mediaDrawerMode || !thumbnailsEnabled);
         if (!thumbnailsEnabled) {
             channelGrid.setCardMinHeight(42);

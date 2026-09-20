@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.model.Account;
 import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
+import com.uiptv.model.Configuration;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.service.*;
 import com.uiptv.shared.Episode;
@@ -328,7 +329,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                         state.getSeriesId(),
                         () -> false
                 );
-            } catch (Exception ignored) {
+            } catch (Exception _) {
+                // Ignore fetch errors; the UI will show an empty list or cached data.
             }
             EpisodeList safeList = fetched == null ? new EpisodeList() : fetched;
             Platform.runLater(() -> {
@@ -1602,9 +1604,6 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
 
     private void attachCardEventHandlers(VBox root, SeriesPanelData data, WatchingEpisode row) {
         ContextMenu episodeMenu = addEpisodeContextMenu(data, row, root);
-        if (episodeMenu == null) {
-            return;
-        }
         root.setOnMouseClicked(event -> handleCardMouseClick(event, data, root, row, episodeMenu));
         root.focusedProperty().addListener((_, _, focused) -> {
             if (Boolean.TRUE.equals(focused)) {
@@ -1614,7 +1613,10 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         root.setOnKeyPressed(event -> {
             switch (event.getCode()) {
                 case ENTER, SPACE -> {
-                    playEpisode(data, row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+                    Configuration config = ConfigurationService.getInstance().read();
+                    if (config != null) {
+                        playEpisode(data, row, config.getDefaultPlayerPath());
+                    }
                     event.consume();
                 }
                 default -> { /* ignore other keys */ }
@@ -1627,7 +1629,10 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             if (event.getClickCount() == 2) {
                 setSelectedEpisodeCard(data, root);
                 root.requestFocus();
-                playEpisode(data, row, ConfigurationService.getInstance().read().getDefaultPlayerPath());
+                Configuration config = ConfigurationService.getInstance().read();
+                if (config != null) {
+                    playEpisode(data, row, config.getDefaultPlayerPath());
+                }
             } else if (event.getClickCount() == 1) {
                 setSelectedEpisodeCard(data, root);
                 root.requestFocus();

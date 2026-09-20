@@ -42,6 +42,9 @@ public class AccountService {
         touchChange();
     }
 
+    // Account.getType() has a default value of STALKER_PORTAL but could be explicitly set to null.
+    // The comparison with STALKER_PORTAL is safe because null == STALKER_PORTAL is false.
+
     public void delete(final String accountId) {
         Account account = AccountDb.get().getAccountById(accountId);
         deleteAccountData(accountId, account);

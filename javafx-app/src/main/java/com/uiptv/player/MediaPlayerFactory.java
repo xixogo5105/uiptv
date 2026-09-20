@@ -149,13 +149,13 @@ public class MediaPlayerFactory {
 
         // Show a user-visible notification so users understand why embedded playback is disabled.
         String message = I18n.tr("autoVlcNativeMissing");
-        if (message == null || message.isBlank() || message.startsWith("autoVlcNativeMissing")) {
+        if (message.isBlank() || message.startsWith("autoVlcNativeMissing")) {
             message = "VLC native libraries not found. Embedded playback is disabled. Install VLC or select a different player in Settings.";
         }
         // Best-effort show notification (may be false if notification host not installed yet)
         try {
             AppNotificationCenter.showError(message, null);
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // Do not let notification failures break startup.
         }
     }
