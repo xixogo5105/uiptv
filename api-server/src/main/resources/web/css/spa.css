@@ -1048,30 +1048,44 @@ a[href] {
     overflow: hidden;
 }
 
-#player-placeholder,
-.player-frame {
+#player-placeholder {
     width: 100%;
     height: 100%;
     min-height: 0;
     display: grid;
     place-items: center;
+    align-content: center;
     position: absolute;
     inset: 0;
     background: #050607;
     color: #f4f7fa;
-}
-
-#player-placeholder {
-    align-content: center;
     gap: 10px;
     text-align: center;
     padding: 20px;
     z-index: 2;
 }
 
+.player-frame,
+#player {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    inset: 0 !important;
+    background: #050607;
+    color: #f4f7fa;
+    overflow: hidden !important;
+}
+
 .player-frame-hidden {
-    opacity: 0;
-    pointer-events: none;
+    opacity: 0 !important;
+    pointer-events: none !important;
 }
 
 #player-placeholder h2 {
@@ -1113,12 +1127,49 @@ a[href] {
 }
 
 .player-frame video,
-.player-frame .video-js {
+.player-frame .video-js,
+.player-frame .video-js .vjs-tech,
+.player-frame .video-js video,
+#player video,
+#player .video-js,
+#player .vjs-tech {
     width: 100% !important;
     height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
     display: block !important;
-    position: relative !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    object-fit: contain !important;
+    object-position: center !important;
+    transform: none !important;
     background: #050607;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.player-frame[data-aspect="cover"] video,
+.player-frame[data-aspect="cover"] .vjs-tech,
+#player[data-aspect="cover"] video,
+#player[data-aspect="cover"] .vjs-tech {
+    object-fit: cover !important;
+}
+
+.player-frame[data-aspect="fill"] video,
+.player-frame[data-aspect="fill"] .vjs-tech,
+#player[data-aspect="fill"] video,
+#player[data-aspect="fill"] .vjs-tech {
+    object-fit: fill !important;
+}
+
+.player-frame[data-aspect="contain"] video,
+.player-frame[data-aspect="contain"] .vjs-tech,
+#player[data-aspect="contain"] video,
+#player[data-aspect="contain"] .vjs-tech {
+    object-fit: contain !important;
 }
 
 /* Ensure Video.js inline controls (Play/Pause, Volume, PIP, Progress, Fullscreen) show on hover and user interaction */

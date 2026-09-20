@@ -14,6 +14,9 @@
         <button id="pip-btn" class="uiptv-control-btn" type="button" title="Picture in Picture" data-action="pip" data-label="Picture in Picture">
             <i class="bi bi-pip"></i>
         </button>
+        <button id="aspect-btn" class="uiptv-control-btn" type="button" title="Aspect ratio (Contain)" data-action="aspect" data-label="Aspect ratio">
+            <i class="bi bi-aspect-ratio"></i>
+        </button>
         <button id="mute-btn" class="uiptv-control-btn" type="button" title="Mute" data-action="mute" data-label="Mute">
             <i class="bi bi-volume-up"></i>
         </button>

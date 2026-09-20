@@ -103,6 +103,7 @@ createApp({
         const textTracks = ref([]);
         const selectedTextTrackId = ref('off');
         const repeatEnabled = ref(false);
+        const playerAspectMode = ref('contain');
         let repeatReloadInFlight = false;
         const isMuted = ref(false);
         const controlsVisible = ref(false);
@@ -4493,6 +4494,16 @@ createApp({
             await window.UIPTVControls.onControlClick(event, action, ensurePlaybackNotPaused, ...args);
         };
 
+        const toggleAspectMode = () => {
+            const modes = ['contain', 'cover', 'fill'];
+            const nextIdx = (modes.indexOf(playerAspectMode.value) + 1) % modes.length;
+            playerAspectMode.value = modes[nextIdx];
+            const playerEl = document.getElementById('player');
+            if (playerEl) {
+                playerEl.dataset.aspect = playerAspectMode.value;
+            }
+        };
+
         const mountSharedHeader = () => {
             const root = document.querySelector('[data-uiptv-shared-player]');
             if (!root || !window.UIPTVSharedPlayer) return;
@@ -4503,6 +4514,7 @@ createApp({
                 reload: (event) => onPlayerControlClick(event, reloadPlayback),
                 repeat: (event) => onPlayerControlClick(event, toggleRepeat),
                 pip: (event) => onPlayerControlClick(event, togglePictureInPicture),
+                aspect: (event) => onPlayerControlClick(event, toggleAspectMode),
                 mute: (event) => onPlayerControlClick(event, toggleMute),
                 fullscreen: (event) => onPlayerControlClick(event, requestFullscreenPlayer),
                 'hide-panel': hidePlayerPanel,
