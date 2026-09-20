@@ -1114,56 +1114,74 @@ a[href] {
 
 .player-frame video,
 .player-frame .video-js {
-    width: 100%;
-    height: 100%;
-    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+    position: relative !important;
     background: #050607;
 }
 
-/* Ensure Video.js inline controls (Play/Pause, Volume, PIP, Progress, Fullscreen) are always displayed */
+/* Ensure Video.js inline controls (Play/Pause, Volume, PIP, Progress, Fullscreen) show on hover and user interaction */
 .video-js {
     font-size: 14px !important;
 }
 
 .video-js .vjs-control-bar {
     display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    background: linear-gradient(180deg, transparent 0%, rgba(5, 6, 7, 0.88) 100%) !important;
-    height: 3.5em !important;
-    padding: 0 10px !important;
+    background: linear-gradient(180deg, transparent 0%, rgba(5, 6, 7, 0.92) 100%) !important;
+    height: 3.6em !important;
+    padding: 0 8px !important;
     align-items: center !important;
-    z-index: 10 !important;
-    transition: opacity 0.25s ease, visibility 0.25s ease !important;
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 100 !important;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease !important;
 }
 
-.video-js.vjs-has-started.vjs-user-inactive.vjs-playing .vjs-control-bar {
-    opacity: 0 !important;
-    visibility: hidden !important;
+/* Disable Video.js responsive layout hiding rules so inline controls stay visible regardless of player width */
+.video-js.vjs-layout-tiny .vjs-control-bar,
+.video-js.vjs-layout-small .vjs-control-bar,
+.video-js.vjs-layout-x-small .vjs-control-bar {
+    display: flex !important;
 }
 
-.video-js.vjs-has-started.vjs-user-inactive.vjs-playing:hover .vjs-control-bar,
-.video-js.vjs-has-started.vjs-user-active .vjs-control-bar,
-.video-js.vjs-paused .vjs-control-bar {
+/* Show control bar on hover, focus, when paused, when user is active, or in fullscreen */
+.video-js:hover .vjs-control-bar,
+.video-js:focus-within .vjs-control-bar,
+.video-js.vjs-user-active .vjs-control-bar,
+.video-js.vjs-paused .vjs-control-bar,
+.video-js.vjs-fullscreen .vjs-control-bar,
+.video-js.vjs-layout-tiny:hover .vjs-control-bar,
+.video-js.vjs-layout-small:hover .vjs-control-bar,
+.video-js.vjs-layout-x-small:hover .vjs-control-bar,
+.player-frame:hover .vjs-control-bar,
+#player:hover .vjs-control-bar {
     opacity: 1 !important;
     visibility: visible !important;
+    display: flex !important;
 }
 
-.video-js .vjs-play-control,
-.video-js .vjs-volume-panel,
-.video-js .vjs-mute-control,
-.video-js .vjs-picture-in-picture-control,
-.video-js .vjs-fullscreen-control,
-.video-js .vjs-progress-control,
-.video-js .vjs-subs-caps-button,
-.video-js .vjs-audio-button {
+/* Force all inline control buttons (Play, Volume, Mute, PIP, Fullscreen, Seekbar) to be visible inside control bar */
+.video-js .vjs-control-bar > * {
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
 }
 
-.video-js .vjs-volume-panel {
+/* Ensure volume panel is flex and doesn't get hidden by Video.js small layout rules */
+.video-js .vjs-volume-panel,
+.video-js.vjs-layout-tiny .vjs-volume-panel,
+.video-js.vjs-layout-small .vjs-volume-panel,
+.video-js.vjs-layout-x-small .vjs-volume-panel {
     align-items: center !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: auto !important;
 }
 
 .video-js .vjs-volume-panel .vjs-volume-control {

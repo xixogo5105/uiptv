@@ -43,30 +43,43 @@ createApp({
         const playbackGestureRequired = ref(false);
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
-        const defaultWideView = ref(localStorage.getItem('uiptv_default_wide_view') === '1');
-        const wideViewActive = ref(!!defaultWideView.value);
+        const WIDE_VIEW_COOKIE_NAME = 'uiptv_wide_view_mode';
+        const WIDE_VIEW_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
+        const readCookieValue = (name) => {
+            const prefix = `${encodeURIComponent(name)}=`;
+            return (document.cookie || '')
+                .split(';')
+                .map(value => value.trim())
+                .find(value => value.startsWith(prefix))
+                ?.slice(prefix.length) || '';
+        };
+        const readWideViewPreference = () => readCookieValue(WIDE_VIEW_COOKIE_NAME) === 'wide';
+        const persistWideViewPreference = (enabled) => {
+            document.cookie = `${encodeURIComponent(WIDE_VIEW_COOKIE_NAME)}=${enabled ? 'wide' : 'narrow'}; Max-Age=${WIDE_VIEW_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
+        };
+        const wideViewActive = ref(readWideViewPreference());
+        if (!readCookieValue(WIDE_VIEW_COOKIE_NAME)) {
+            persistWideViewPreference(wideViewActive.value);
+        }
         const wideDrilldownPanel = ref('categories');
-        const showSettingsModal = ref(false);
-        const playerEnginePref = ref(localStorage.getItem('uiptv_player_engine_pref') || 'auto');
-
-        const openSettings = () => { showSettingsModal.value = true; };
-        const closeSettings = () => { showSettingsModal.value = false; };
-        const applySettings = () => {
-            try {
-                localStorage.setItem('uiptv_default_wide_view', defaultWideView.value ? '1' : '0');
-                localStorage.setItem('uiptv_player_engine_pref', playerEnginePref.value || 'auto');
-            } catch (e) {
-                console.warn('Failed to persist settings', e);
+        const updateWideDrilldownPanel = () => {
+            if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
+                wideDrilldownPanel.value = viewState.value;
+            } else {
+                wideDrilldownPanel.value = 'categories';
             }
-            wideViewActive.value = !!defaultWideView.value;
+        };
+        const setWideViewActive = (enabled, {persist = false} = {}) => {
+            wideViewActive.value = !!enabled;
+            if (persist) {
+                persistWideViewPreference(wideViewActive.value);
+            }
             if (wideViewActive.value) {
-                if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
-                    wideDrilldownPanel.value = viewState.value;
-                } else {
-                    wideDrilldownPanel.value = 'categories';
-                }
+                updateWideDrilldownPanel();
             }
-            closeSettings();
+        };
+        const restoreWideViewPreference = () => {
+            setWideViewActive(readWideViewPreference());
         };
         const playerManuallyHidden = ref(false);
         const listLoading = ref(false);
@@ -584,11 +597,7 @@ createApp({
             currentContext.value.categoryId = state.categoryId || null;
             viewState.value = state.viewState === 'accounts' ? 'categories' : state.viewState;
             if (wideViewActive.value) {
-                if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
-                    wideDrilldownPanel.value = viewState.value;
-                } else {
-                    wideDrilldownPanel.value = 'categories';
-                }
+                updateWideDrilldownPanel();
             }
             if (mode === 'series') {
                 selectedSeriesSeason.value = state.selectedSeason || '';
@@ -1025,8 +1034,7 @@ createApp({
         };
         const resetPlaybackDefaults = () => {
             strategyOverrideKey = '';
-            const pref = String(playerEnginePref.value || 'auto').toLowerCase();
-            strategyOverride.value = pref && pref !== 'auto' ? pref : 'auto';
+            strategyOverride.value = 'auto';
             syncSharedHeader();
             syncSharedMenus();
         };
@@ -1283,11 +1291,6 @@ createApp({
                 thumbnailsEnabled.value = config?.enableThumbnails !== false;
             } catch (e) {
                 thumbnailsEnabled.value = true;
-            }
-            // Apply persisted player engine preference
-            const pref = String(playerEnginePref.value || 'auto').toLowerCase();
-            if (pref && pref !== 'auto') {
-                strategyOverride.value = pref;
             }
         };
 
@@ -2111,20 +2114,7 @@ createApp({
 
         const toggleWideView = () => {
             if (!playerPanelVisible.value) return;
-            wideViewActive.value = !wideViewActive.value;
-            defaultWideView.value = wideViewActive.value;
-            try {
-                localStorage.setItem('uiptv_default_wide_view', defaultWideView.value ? '1' : '0');
-            } catch (e) {
-                console.warn('Failed to persist wide view setting', e);
-            }
-            if (wideViewActive.value) {
-                if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
-                    wideDrilldownPanel.value = viewState.value;
-                } else {
-                    wideDrilldownPanel.value = 'categories';
-                }
-            }
+            setWideViewActive(!wideViewActive.value, {persist: true});
             nextTick(() => {
                 const video = ensureVideoElement();
                 if (video && typeof video.play === 'function' && isPlaying.value && video.paused && !video.ended) {
@@ -3012,6 +3002,15 @@ createApp({
                 || text.includes('autoplay');
         };
 
+        const isInterruptedPlaybackError = (error) => {
+            const text = `${error?.name || ''} ${error?.message || error || ''}`.toLowerCase();
+            return text.includes('aborterror')
+                || text.includes('interrupted by a call to pause')
+                || text.includes('interrupted by a new load request')
+                || text.includes('interrupted because media was removed')
+                || text.includes('the play() request was interrupted');
+        };
+
         const clearPlaybackGestureRequirement = () => {
             playbackGestureRequired.value = false;
             playbackGestureResume = null;
@@ -3027,16 +3026,14 @@ createApp({
 
         const playWithGestureFallback = async (playAction) => {
             if (typeof playAction !== 'function') return true;
-            const myRequestId = playbackRequestId;
             try {
                 await playAction();
                 clearPlaybackGestureRequirement();
                 return true;
             } catch (e) {
-                // If a newer playback request started meanwhile and the play() was interrupted by pause,
-                // treat this as a benign cancellation instead of surfacing an error to the user.
-                const errText = String(e?.message || e || '').toLowerCase();
-                if (playbackRequestId !== myRequestId && errText.includes('interrupted by a call to pause')) {
+                // Chrome rejects pending play() promises when normal cleanup pauses, reloads, or removes
+                // the media element. Treat those as benign cancellations instead of playback failures.
+                if (isInterruptedPlaybackError(e)) {
                     return false;
                 }
 
@@ -3050,8 +3047,7 @@ createApp({
                         clearPlaybackGestureRequirement();
                         return true;
                     } catch (mutedError) {
-                        const mutedText = String(mutedError?.message || mutedError || '').toLowerCase();
-                        if (playbackRequestId !== myRequestId && mutedText.includes('interrupted by a call to pause')) {
+                        if (isInterruptedPlaybackError(mutedError)) {
                             return false;
                         }
                         if (!isPlaybackGestureError(mutedError)) {
@@ -3080,6 +3076,9 @@ createApp({
                 clearPlaybackGestureRequirement();
                 isPlaying.value = true;
             } catch (e) {
+                if (isInterruptedPlaybackError(e)) {
+                    return;
+                }
                 if (isPlaybackGestureError(e)) {
                     playbackGestureRequired.value = true;
                     playbackError.value = PLAYBACK_GESTURE_REQUIRED_MESSAGE;
@@ -3122,12 +3121,7 @@ createApp({
                 await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true, hideControls: false});
             }
             if (options.wideView === true) {
-                wideViewActive.value = true;
-                if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
-                    wideDrilldownPanel.value = viewState.value;
-                } else {
-                    wideDrilldownPanel.value = 'categories';
-                }
+                setWideViewActive(true);
             }
             if (playbackFetchController) {
                 try {
@@ -3142,11 +3136,6 @@ createApp({
             if (channelKey && channelKey !== strategyOverrideKey) {
                 strategyOverride.value = 'auto';
                 strategyOverrideKey = channelKey;
-            }
-            // Apply persisted player engine preference (if not 'auto')
-            const pref = String(playerEnginePref.value || 'auto').toLowerCase();
-            if (pref && pref !== 'auto') {
-                strategyOverride.value = pref;
             }
             pendingPlaybackKey.value = buildPlaybackTargetKey({
                 id: targetChannel?.channelId || targetChannel?.id || '',
@@ -3181,6 +3170,7 @@ createApp({
                 }
             } catch (e) {
                 if (e?.name === 'AbortError') return;
+                if (isInterruptedPlaybackError(e)) return;
                 if (isBrowserUnsupportedMediaError(e)) {
                     console.warn(`Failed to start playback: ${e?.message || e}`);
                 } else {
@@ -3289,7 +3279,7 @@ createApp({
                 currentChannel.value = null;
                 playbackError.value = '';
                 clearPlaybackGestureRequirement();
-                wideViewActive.value = !!defaultWideView.value;
+                restoreWideViewPreference();
                 playerManuallyHidden.value = false;
                 clearActiveBingeWatch();
             }
@@ -3324,7 +3314,7 @@ createApp({
             if (hideControls) {
                 controlsVisible.value = false;
             }
-            wideViewActive.value = !!defaultWideView.value;
+            restoreWideViewPreference();
             playerManuallyHidden.value = false;
             await stopPlayback(false);
         };
@@ -3389,9 +3379,13 @@ createApp({
                 await loadNative(channel);
                 return;
             }
-            // Legacy 'hls' override — hls.js was removed, route to Video.js
+            // 'hls' override — route to Native or Shaka (with native inline video controls)
             if (override === 'hls') {
-                await loadVideoJs(channel);
+                if (prefersNativeHls) {
+                    await loadNative(channel);
+                } else {
+                    await loadShaka(channel);
+                }
                 return;
             }
 
@@ -3404,12 +3398,17 @@ createApp({
                 } else if (isHls && prefersNativeHls) {
                     await loadNative(channel);
                 } else if (isHls) {
-                    // Prefer Video.js (VHS) for non-native HLS playback; Shaka remains the DRM-capable fallback.
-                    await loadVideoJs(channel);
+                    // Prefer Shaka for HLS to preserve the browser's native inline player controls
+                    try {
+                        await loadShaka(channel);
+                    } catch (shakaErr) {
+                        console.warn('Shaka HLS playback failed, trying Video.js fallback', shakaErr);
+                        await loadVideoJs(channel);
+                    }
                 } else if (canNative) {
                     await loadNative(channel);
                 } else {
-                    await loadVideoJs(channel);
+                    await loadShaka(channel);
                 }
             } catch (e) {
                 if (!hasDRM && !isTs && await tryProxyPlaybackFallback(channel, preferHlsFallback, e)) {
@@ -3665,24 +3664,7 @@ createApp({
                     autoplay: true,
                     preload: 'auto',
                     playsinline: true,
-                    responsive: true,
-                    controlBar: {
-                        children: [
-                            'playToggle',
-                            'volumePanel',
-                            'currentTimeDisplay',
-                            'timeDivider',
-                            'durationDisplay',
-                            'progressControl',
-                            'liveDisplay',
-                            'remainingTimeDisplay',
-                            'customControlSpacer',
-                            'subsCapsButton',
-                            'audioTrackButton',
-                            'pictureInPictureToggle',
-                            'fullscreenToggle'
-                        ]
-                    },
+                    fill: true,
                     html5: {
                         hls: {
                             enableWorker: true,
@@ -4883,7 +4865,6 @@ createApp({
             showBookmarkModal,
             wideViewActive,
             wideDrilldownPanel,
-            showSettingsModal,
             hasPlayerContent,
             playerPanelVisible,
             bingeWatchLoading,
@@ -4953,11 +4934,6 @@ createApp({
             hidePlayerPanel,
             togglePlayerPanel,
             toggleWideView,
-            openSettings,
-            closeSettings,
-            defaultWideView,
-            playerEnginePref,
-            applySettings,
             broadcastIndicatorSrc,
             formatPlaybackTime,
             seekPlayback,
