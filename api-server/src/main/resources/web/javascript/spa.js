@@ -2126,7 +2126,7 @@ createApp({
                 }
             }
             nextTick(() => {
-                const video = videoPlayer.value;
+                const video = ensureVideoElement();
                 if (video && typeof video.play === 'function' && isPlaying.value && video.paused && !video.ended) {
                     video.play().catch(() => {});
                 }
@@ -2782,7 +2782,7 @@ createApp({
         };
 
         const syncPlaybackProgress = () => {
-            const video = videoPlayer.value;
+            const video = ensureVideoElement();
             if (!video) {
                 resetPlaybackProgress();
                 return;
@@ -2806,7 +2806,7 @@ createApp({
         };
 
         const seekPlayback = (event) => {
-            const video = videoPlayer.value;
+            const video = ensureVideoElement();
             if (!video || !playbackSeekable.value) return;
             const requestedTime = Number(event?.target?.value || 0);
             if (!Number.isFinite(requestedTime)) return;
@@ -2950,6 +2950,24 @@ createApp({
             return [accountId, id, url].join('|');
         };
 
+        const ensureVideoElement = () => {
+            const container = document.getElementById('player');
+            if (!container) return videoPlayer.value;
+            let video = container.querySelector('video');
+            if (!video || !video.isConnected) {
+                container.innerHTML = '';
+                video = document.createElement('video');
+                video.autoplay = true;
+                video.controls = true;
+                video.setAttribute('playsinline', '');
+                container.appendChild(video);
+            }
+            video.controls = true;
+            video.setAttribute('controls', '');
+            videoPlayer.value = video;
+            return video;
+        };
+
         const clearVideoElement = (video) => {
             if (!video) return;
             video.onended = null;
@@ -3000,7 +3018,7 @@ createApp({
         };
 
         const enableMutedAutoplayFallback = () => {
-            const video = videoPlayer.value;
+            const video = ensureVideoElement();
             if (!video) return false;
             video.muted = true;
             isMuted.value = true;
@@ -3082,7 +3100,7 @@ createApp({
                     playbackFetchController = null;
                 }
                 // Fully reset video element to prevent blank screen on rapid stream switch
-                const video = videoPlayer.value;
+                const video = ensureVideoElement();
                 if (video) {
                     video.pause();
                     video.removeAttribute('src');
@@ -3203,7 +3221,7 @@ createApp({
                     console.warn('Error destroying Shaka player', e);
                 }
                 playerInstance.value = null;
-                const video = videoPlayer.value;
+                const video = ensureVideoElement();
                 if (video) {
                     video.pause();
                     video.removeAttribute('src');
@@ -3221,7 +3239,7 @@ createApp({
                     console.warn('Error destroying MPEGTS player', e);
                 }
                 mpegtsPlayer.value = null;
-                const video = videoPlayer.value;
+                const video = ensureVideoElement();
                 if (video) {
                     video.pause();
                     video.removeAttribute('src');
@@ -3240,7 +3258,7 @@ createApp({
                     console.warn('Error destroying hls.js player', e);
                 }
                 hlsPlayer.value = null;
-                const video = videoPlayer.value;
+                const video = ensureVideoElement();
                 if (video) {
                     video.pause();
                     video.removeAttribute('src');
@@ -3259,17 +3277,10 @@ createApp({
                     console.warn('Error destroying Video.js player', e);
                 }
                 videoJsPlayer.value = null;
-                // Ensure video element is fully reset after Video.js disposal
-                const video = videoPlayer.value;
-                if (video) {
-                    video.pause();
-                    video.removeAttribute('src');
-                    video.src = '';
-                    video.load();
-                }
             }
 
-            clearVideoElement(videoPlayer.value);
+            const video = ensureVideoElement();
+            clearVideoElement(video);
 
             if (!preserveUi) {
                 playbackLoading.value = false;
@@ -3283,7 +3294,6 @@ createApp({
                 clearActiveBingeWatch();
             }
 
-            const video = videoPlayer.value;
             if (video) {
                 video.setAttribute('controls', '');
             }
@@ -3330,7 +3340,7 @@ createApp({
 
             await nextTick();
 
-            const video = videoPlayer.value;
+            const video = ensureVideoElement();
             if (!video) {
                 console.error('Video element not found.');
                 playbackError.value = 'Playback failed: video element not available.';
@@ -3470,8 +3480,10 @@ createApp({
 
         const loadMpegTs = async (channel) => {
             await nextTick();
-            const video = videoPlayer.value;
+            const video = ensureVideoElement();
             if (!video) return;
+            video.controls = true;
+            video.setAttribute('controls', '');
 
             if (mpegtsPlayer.value) {
                 try {
@@ -3557,8 +3569,10 @@ createApp({
 
         const loadNative = async (channel) => {
             await nextTick();
-            const video = videoPlayer.value;
+            const video = ensureVideoElement();
             if (!video) return;
+            video.controls = true;
+            video.setAttribute('controls', '');
 
             bindPlaybackEvents(video);
             let sourceUrl = normalizeWebPlaybackUrl(channel.url);
@@ -3618,7 +3632,7 @@ createApp({
 
         const loadVideoJs = async (channel) => {
             await nextTick();
-            const video = videoPlayer.value;
+            let video = ensureVideoElement();
             if (!video) return;
 
             bindPlaybackEvents(video);
@@ -3633,12 +3647,8 @@ createApp({
             if (videoJsPlayer.value) {
                 try { videoJsPlayer.value.dispose(); } catch (_) {}
                 videoJsPlayer.value = null;
-                // Force full video element reset to prevent blank screen on rapid stream switch
-                video.pause();
-                video.removeAttribute('src');
-                video.src = '';
-                video.load();
                 await new Promise(resolve => setTimeout(resolve, 30));
+                video = ensureVideoElement();
             }
 
             const normalizedUri = String(channel.url || '').toLowerCase();
@@ -3655,6 +3665,24 @@ createApp({
                     autoplay: true,
                     preload: 'auto',
                     playsinline: true,
+                    responsive: true,
+                    controlBar: {
+                        children: [
+                            'playToggle',
+                            'volumePanel',
+                            'currentTimeDisplay',
+                            'timeDivider',
+                            'durationDisplay',
+                            'progressControl',
+                            'liveDisplay',
+                            'remainingTimeDisplay',
+                            'customControlSpacer',
+                            'subsCapsButton',
+                            'audioTrackButton',
+                            'pictureInPictureToggle',
+                            'fullscreenToggle'
+                        ]
+                    },
                     html5: {
                         hls: {
                             enableWorker: true,
@@ -3691,7 +3719,8 @@ createApp({
                     } catch (disposeErr) {
                         console.warn('Error disposing Video.js player after error', disposeErr);
                     }
-                    clearVideoElement(video);
+                    const cleanVideo = ensureVideoElement();
+                    clearVideoElement(cleanVideo);
                 });
 
                 player.on('loadedmetadata', () => {
@@ -3797,8 +3826,10 @@ createApp({
 
         const loadShaka = async (channel) => {
             await nextTick();
-            const video = videoPlayer.value;
+            const video = ensureVideoElement();
             if (!video) return;
+            video.controls = true;
+            video.setAttribute('controls', '');
 
             if (playerInstance.value) {
                 try {
@@ -3829,7 +3860,7 @@ createApp({
                     return;
                 }
                 playerInstance.value = null;
-                const video = videoPlayer.value;
+                const video = ensureVideoElement();
                 if (video) {
                     video.pause();
                     video.removeAttribute('src');
@@ -4247,7 +4278,7 @@ createApp({
             }
 
             // HLS / native path using video.textTracks
-            const video = videoPlayer.value;
+            const video = ensureVideoElement();
             if (!video) return;
             const texts = Array.from(video.textTracks || []);
             if (trackId === 'off') {
@@ -4414,7 +4445,7 @@ createApp({
         };
 
         const togglePictureInPicture = async () => {
-            const video = videoPlayer.value;
+            const video = ensureVideoElement();
             if (!video || !document.pictureInPictureEnabled) return;
             try {
                 if (document.pictureInPictureElement === video) {
@@ -4430,7 +4461,7 @@ createApp({
         const toggleMute = () => {
             const nextMuted = !isMuted.value;
             isMuted.value = nextMuted;
-            const video = videoPlayer.value;
+            const video = ensureVideoElement();
             if (!video) return;
             if (!nextMuted && video.volume === 0) {
                 video.volume = 1;
@@ -4438,8 +4469,19 @@ createApp({
             video.muted = nextMuted;
         };
 
+        const setPlaybackVolume = (val) => {
+            const video = ensureVideoElement();
+            const vol = parseFloat(val);
+            if (!Number.isFinite(vol)) return;
+            if (video) {
+                video.volume = Math.max(0, Math.min(1, vol));
+                video.muted = (vol === 0);
+            }
+            isMuted.value = (vol === 0);
+        };
+
         const requestFullscreenPlayer = async () => {
-            const video = videoPlayer.value;
+            const video = ensureVideoElement();
             if (!video || !document.fullscreenEnabled) return;
             try {
                 if (document.fullscreenElement) {
@@ -4454,7 +4496,7 @@ createApp({
 
         const ensurePlaybackNotPaused = async () => {
             if (!isPlaying.value) return;
-            const video = videoPlayer.value;
+            const video = ensureVideoElement();
             if (!video) return;
             if (video.paused && !video.ended) {
                 try {
