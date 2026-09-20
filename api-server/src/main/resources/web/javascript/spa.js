@@ -3508,10 +3508,12 @@ createApp({
                 player.on(engine.Events.ERROR, async (_, detail) => {
                     const message = detail?.msg || detail?.message || 'MPEGTS error';
                     playbackError.value = `Playback error: ${message}`;
-                    const currentPlayer = mpegtsPlayer.value;
-                    if (currentPlayer === player) {
-                        mpegtsPlayer.value = null;
+                    // If this player was already destroyed by stopPlayback (e.g. user switched channels),
+                    // do NOT reset the video element — it may now belong to a newer stream.
+                    if (mpegtsPlayer.value !== player) {
+                        return;
                     }
+                    mpegtsPlayer.value = null;
                     try {
                         player.destroy();
                     } catch (destroyErr) {
@@ -3678,10 +3680,12 @@ createApp({
                     const msg = (err && err.message) ? err.message : 'Video.js error';
                     console.error('Video.js error:', err, e);
                     playbackError.value = `Playback error: ${msg}`;
-                    const currentPlayer = videoJsPlayer.value;
-                    if (currentPlayer === player) {
-                        videoJsPlayer.value = null;
+                    // If this player was already disposed by stopPlayback (e.g. user switched channels),
+                    // do NOT reset the video element — it may now belong to a newer stream.
+                    if (videoJsPlayer.value !== player) {
+                        return;
                     }
+                    videoJsPlayer.value = null;
                     try {
                         player.dispose();
                     } catch (disposeErr) {
@@ -3819,10 +3823,12 @@ createApp({
             player.addEventListener('error', (event) => {
                 console.error('Shaka Player Error:', event.detail);
                 playbackError.value = `Playback error: ${event?.detail?.message || 'Shaka error'}`;
-                const currentPlayer = playerInstance.value;
-                if (currentPlayer === player) {
-                    playerInstance.value = null;
+                // If this player was already destroyed by stopPlayback (e.g. user switched channels),
+                // do NOT reset the video element — it may now belong to a newer stream.
+                if (playerInstance.value !== player) {
+                    return;
                 }
+                playerInstance.value = null;
                 const video = videoPlayer.value;
                 if (video) {
                     video.pause();
