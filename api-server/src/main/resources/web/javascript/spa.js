@@ -3422,6 +3422,7 @@ createApp({
             let lastError = previousError;
             for (const attempt of attempts) {
                 await stopPlayback(true);
+                await new Promise(resolve => setTimeout(resolve, 80));
                 try {
                     await attempt({...channel, url: proxyUrl});
                     return true;
@@ -3472,6 +3473,15 @@ createApp({
             const video = videoPlayer.value;
             if (!video) return;
 
+            if (mpegtsPlayer.value) {
+                try {
+                    mpegtsPlayer.value.destroy();
+                } catch (e) {
+                    console.warn('Error destroying previous MPEGTS player', e);
+                }
+                mpegtsPlayer.value = null;
+            }
+
             bindPlaybackEvents(video);
             const sourceUrl = normalizeWebPlaybackUrl(channel.url);
             const engine = window.mpegts;
@@ -3506,6 +3516,15 @@ createApp({
                 playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'mpegts');
             } catch (e) {
                 const message = describeMpegTsFailure(e);
+                if (mpegtsPlayer.value) {
+                    try {
+                        mpegtsPlayer.value.destroy();
+                    } catch (destroyErr) {
+                        console.warn('Error destroying MPEGTS player after failure', destroyErr);
+                    }
+                    mpegtsPlayer.value = null;
+                }
+                clearVideoElement(video);
                 if (isBrowserUnsupportedMediaError(e)) {
                     console.warn(message);
                 } else {
@@ -3531,6 +3550,7 @@ createApp({
                 if (String(strategyOverride.value || 'auto') !== 'auto') {
                     playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
                     console.warn('Native playback failed.', e);
+                    clearVideoElement(video);
                     throw e;
                 }
                 // If backend proxy fails transiently, retry once with cache-busting query.
@@ -3567,6 +3587,7 @@ createApp({
 
                 playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
                 console.warn('Native playback failed.', e);
+                clearVideoElement(video);
                 throw e;
             }
         };
@@ -3746,6 +3767,15 @@ createApp({
             const video = videoPlayer.value;
             if (!video) return;
 
+            if (playerInstance.value) {
+                try {
+                    await playerInstance.value.destroy();
+                } catch (e) {
+                    console.warn('Error destroying previous Shaka player', e);
+                }
+                playerInstance.value = null;
+            }
+
             bindPlaybackEvents(video);
             shaka.polyfill.installAll();
 
@@ -3785,6 +3815,15 @@ createApp({
             } catch (e) {
                 console.error('Shaka: Error loading video:', e);
                 playbackError.value = `Playback failed: ${e?.message || 'Unable to load stream'}`;
+                if (playerInstance.value) {
+                    try {
+                        await playerInstance.value.destroy();
+                    } catch (destroyErr) {
+                        console.warn('Error destroying Shaka player after failure', destroyErr);
+                    }
+                    playerInstance.value = null;
+                }
+                clearVideoElement(video);
                 throw e;
             }
         };
