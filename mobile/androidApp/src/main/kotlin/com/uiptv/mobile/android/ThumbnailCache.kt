@@ -19,8 +19,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.time.Duration.Companion.days
-import kotlin.time.toJavaDuration
+import java.util.concurrent.TimeUnit
 
 private const val DISK_CACHE_DIR_NAME = "thumbnails"
 private const val DISK_CACHE_TTL_DAYS = 7L
@@ -58,7 +57,7 @@ class ThumbnailCache private constructor(private val context: Context) {
         if (!file.exists()) return null
 
         val ageMs = System.currentTimeMillis() - file.lastModified()
-        val ttlMs = DISK_CACHE_TTL_DAYS.days.toJavaDuration().toMillis()
+        val ttlMs = TimeUnit.DAYS.toMillis(DISK_CACHE_TTL_DAYS)
         if (ageMs > ttlMs) {
             file.delete()
             return null
