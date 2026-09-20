@@ -2,6 +2,7 @@ package com.uiptv.service;
 
 import com.uiptv.db.*;
 import com.uiptv.model.Account;
+import com.uiptv.util.AccountType;
 import com.uiptv.util.PingStalkerPortal;
 import com.uiptv.util.ServerUtils;
 import com.uiptv.util.XtremeCredentialsJson;
@@ -34,7 +35,8 @@ public class AccountService {
 
     public void save(Account account) {
         sanitizeAccountFields(account);
-        if (account.getType() == STALKER_PORTAL && !isBlank(account.getUrl()) && !account.getUrl().endsWith("/")) {
+        AccountType type = account.getType();
+        if (type == STALKER_PORTAL && !isBlank(account.getUrl()) && !account.getUrl().endsWith("/")) {
             account.setUrl(account.getUrl() + "/");
         }
         sessionTokenByAccountKey.remove(getSessionAccountKey(account));
