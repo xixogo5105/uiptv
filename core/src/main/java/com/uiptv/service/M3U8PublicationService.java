@@ -1,9 +1,6 @@
 package com.uiptv.service;
 
 import com.uiptv.application.BookmarkApplicationService;
-import com.uiptv.application.WatchingNowApplicationService;
-import com.uiptv.application.WatchingNowSeriesRow;
-import com.uiptv.application.WatchingNowVodRow;
 import com.uiptv.db.PublishedM3uCategorySelectionDb;
 import com.uiptv.db.PublishedM3uChannelSelectionDb;
 import com.uiptv.db.PublishedM3uSelectionDb;
@@ -35,10 +32,6 @@ public class M3U8PublicationService {
     private static final String EXTINF = "#EXTINF";
     public static final String BOOKMARKS_PLAYLIST_ACCOUNT_ID = "__bookmarks__";
     public static final String BOOKMARKS_PLAYLIST_NAME = "Bookmarks";
-    public static final String WATCHING_NOW_SERIES_PLAYLIST_ACCOUNT_ID = "__watching_now_series__";
-    public static final String WATCHING_NOW_SERIES_PLAYLIST_NAME = "Watching Now - Series";
-    public static final String WATCHING_NOW_VOD_PLAYLIST_ACCOUNT_ID = "__watching_now_vod__";
-    public static final String WATCHING_NOW_VOD_PLAYLIST_NAME = "Watching Now - VOD";
     private static final String GROUP_TITLE_ATTR = "group-title";
     private static final String PLAYLIST_LINE_SPLIT_REGEX = "\\r?\\n";
 
@@ -92,8 +85,6 @@ public class M3U8PublicationService {
     public List<PlaylistAccountSummary> getAvailableAccounts() {
         List<PlaylistAccountSummary> availableAccounts = new ArrayList<>();
         availableAccounts.add(new PlaylistAccountSummary(BOOKMARKS_PLAYLIST_ACCOUNT_ID, BOOKMARKS_PLAYLIST_NAME));
-        availableAccounts.add(new PlaylistAccountSummary(WATCHING_NOW_SERIES_PLAYLIST_ACCOUNT_ID, WATCHING_NOW_SERIES_PLAYLIST_NAME));
-        availableAccounts.add(new PlaylistAccountSummary(WATCHING_NOW_VOD_PLAYLIST_ACCOUNT_ID, WATCHING_NOW_VOD_PLAYLIST_NAME));
         availableAccounts.addAll(getPublishableAccounts().stream()
                 .map(account -> new PlaylistAccountSummary(account.getDbId(), account.getAccountName()))
                 .toList());
@@ -106,12 +97,6 @@ public class M3U8PublicationService {
         }
         if (isBookmarksPlaylistAccountId(accountId)) {
             return new PlaylistAccount(BOOKMARKS_PLAYLIST_ACCOUNT_ID, BOOKMARKS_PLAYLIST_NAME, List.of());
-        }
-        if (isWatchingNowSeriesPlaylistAccountId(accountId)) {
-            return new PlaylistAccount(WATCHING_NOW_SERIES_PLAYLIST_ACCOUNT_ID, WATCHING_NOW_SERIES_PLAYLIST_NAME, List.of());
-        }
-        if (isWatchingNowVodPlaylistAccountId(accountId)) {
-            return new PlaylistAccount(WATCHING_NOW_VOD_PLAYLIST_ACCOUNT_ID, WATCHING_NOW_VOD_PLAYLIST_NAME, List.of());
         }
         Account account = AccountService.getInstance().getById(accountId);
         if (!isPublishableAccount(account)) {
@@ -132,17 +117,22 @@ public class M3U8PublicationService {
 
     public String getPublishedM3u8(String requestHost) {
         PublicationSelections selections = getSelections();
-        if (selections.accountIds().isEmpty()) {
+        Set<String> effectiveAccountIds = new LinkedHashSet<>(selections.accountIds());
+        for (CategorySelectionKey key : selections.categorySelections().keySet()) {
+            effectiveAccountIds.add(key.accountId());
+        }
+        for (ChannelSelectionKey key : selections.channelSelections().keySet()) {
+            effectiveAccountIds.add(key.accountId());
+        }
+        if (effectiveAccountIds.isEmpty()) {
             return "";
         }
         PublishedCategoryMode categoryMode = ConfigurationService.getInstance().getPublishedM3uCategoryMode();
 
         StringBuilder result = new StringBuilder();
         result.append(EXTM3U).append("\n");
-        appendSelectedBookmarkPlaylist(result, selections.accountIds(), requestHost, categoryMode);
-        appendSelectedWatchingNowSeriesPlaylist(result, selections.accountIds(), requestHost);
-        appendSelectedWatchingNowVodPlaylist(result, selections.accountIds(), requestHost);
-        for (Account account : getSelectedAccounts(selections.accountIds())) {
+        appendSelectedBookmarkPlaylist(result, effectiveAccountIds, requestHost, categoryMode);
+        for (Account account : getAccountsToPublish(effectiveAccountIds)) {
             appendSelectedAccountPlaylist(result, account, selections, categoryMode);
         }
         return result.toString();
@@ -152,25 +142,15 @@ public class M3U8PublicationService {
         return BOOKMARKS_PLAYLIST_ACCOUNT_ID.equals(accountId);
     }
 
-    public boolean isWatchingNowSeriesPlaylistAccountId(String accountId) {
-        return WATCHING_NOW_SERIES_PLAYLIST_ACCOUNT_ID.equals(accountId);
-    }
-
-    public boolean isWatchingNowVodPlaylistAccountId(String accountId) {
-        return WATCHING_NOW_VOD_PLAYLIST_ACCOUNT_ID.equals(accountId);
-    }
-
     private List<Account> getPublishableAccounts() {
         return AccountService.getInstance().getAll().values().stream()
                 .filter(this::isPublishableAccount)
                 .toList();
     }
 
-    private List<Account> getSelectedAccounts(Set<String> accountIds) {
+    private List<Account> getAccountsToPublish(Set<String> accountIds) {
         return accountIds.stream()
-                .filter(accountId -> !isBookmarksPlaylistAccountId(accountId)
-                        && !isWatchingNowSeriesPlaylistAccountId(accountId)
-                        && !isWatchingNowVodPlaylistAccountId(accountId))
+                .filter(accountId -> !isBookmarksPlaylistAccountId(accountId))
                 .map(AccountService.getInstance()::getById)
                 .filter(this::isPublishableAccount)
                 .toList();
@@ -211,7 +191,7 @@ public class M3U8PublicationService {
         if (!accountIds.contains(BOOKMARKS_PLAYLIST_ACCOUNT_ID)) {
             return;
         }
-        String host = resolveWatchingNowHost(requestHost);
+        String host = resolveHost(requestHost);
         String bookmarkPlaylist = BookmarkApplicationService.getInstance().buildPlaylist(host);
         List<String> bookmarkPlaylistLines = splitPlaylistLines(bookmarkPlaylist);
         boolean singleCategorySource = hasSingleEffectiveCategory(bookmarkPlaylistLines, null);
@@ -224,65 +204,7 @@ public class M3U8PublicationService {
                 false);
     }
 
-private void appendSelectedWatchingNowSeriesPlaylist(StringBuilder result,
-                                                          Set<String> accountIds,
-                                                          String requestHost) {
-        if (!accountIds.contains(WATCHING_NOW_SERIES_PLAYLIST_ACCOUNT_ID)) {
-            return;
-        }
-        String host = resolveWatchingNowHost(requestHost);
-        List<WatchingNowSeriesRow> rows = WatchingNowApplicationService.getInstance().listSeriesRows();
-        if (rows.isEmpty()) {
-            return;
-        }
-        for (WatchingNowSeriesRow row : rows) {
-            String entryUrl = "http://" + host + "/watchingNowSeriesEntry?accountId=" + row.accountId()
-                    + "&categoryId=" + row.categoryId() + "&seriesId=" + row.seriesId();
-            String title = sanitizeTitle(row.seriesTitle());
-            result.append("#EXTINF:-1 tvg-id=\"")
-                    .append(escapeAttributeValue(row.seriesId()))
-                    .append("\" tvg-name=\"")
-                    .append(escapeAttributeValue(title))
-                    .append("\" group-title=\"")
-                    .append(escapeAttributeValue(WATCHING_NOW_SERIES_PLAYLIST_NAME))
-                    .append("\",")
-                    .append(title)
-                    .append("\n")
-                    .append(entryUrl)
-                    .append("\n");
-        }
-    }
-
-private void appendSelectedWatchingNowVodPlaylist(StringBuilder result,
-                                                        Set<String> accountIds,
-                                                        String requestHost) {
-        if (!accountIds.contains(WATCHING_NOW_VOD_PLAYLIST_ACCOUNT_ID)) {
-            return;
-        }
-        String host = resolveWatchingNowHost(requestHost);
-        List<WatchingNowVodRow> rows = WatchingNowApplicationService.getInstance().listVodRows();
-        if (rows.isEmpty()) {
-            return;
-        }
-        for (WatchingNowVodRow row : rows) {
-            String entryUrl = "http://" + host + "/watchingNowVodEntry?accountId=" + row.accountId()
-                    + "&categoryId=" + row.categoryId() + "&vodId=" + row.vodId();
-            String title = sanitizeTitle(row.vodName());
-            result.append("#EXTINF:-1 tvg-id=\"")
-                    .append(escapeAttributeValue(row.vodId()))
-                    .append("\" tvg-name=\"")
-                    .append(escapeAttributeValue(title))
-                    .append("\" group-title=\"")
-                    .append(escapeAttributeValue(WATCHING_NOW_VOD_PLAYLIST_NAME))
-                    .append("\",")
-                    .append(title)
-                    .append("\n")
-                    .append(entryUrl)
-                    .append("\n");
-        }
-    }
-
-    private String resolveWatchingNowHost(String requestHost) {
+    private String resolveHost(String requestHost) {
         if (isNotBlank(requestHost)) {
             return requestHost.trim();
         }

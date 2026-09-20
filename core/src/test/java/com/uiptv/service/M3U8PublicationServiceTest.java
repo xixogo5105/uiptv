@@ -377,4 +377,32 @@ class M3U8PublicationServiceTest extends DbBackedTest {
         assertTrue(multiGroup.contains("group-title=\"Provider Three\""));
         assertFalse(multiGroup.contains("group-title=\"Provider Three;Sports\""));
     }
+
+    @Test
+    void getPublishedM3u8_includesPartialAccountSelectionWithoutAccountId() throws Exception {
+        java.io.File playlistFile = tempDir.resolve("partial-account.m3u8").toFile();
+        Files.writeString(playlistFile.toPath(), """
+                #EXTM3U
+                #EXTINF:-1 group-title="News",News One
+                http://example.com/news-1.ts
+                #EXTINF:-1 group-title="Sports",Sports One
+                http://example.com/sports-1.ts
+                """, StandardCharsets.UTF_8);
+
+        Account account = new Account("PartialAccount", "user", "pass", "http://unused", "00:11:22:33:44:67", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
+        AccountService.getInstance().save(account);
+        Account savedAccount = AccountService.getInstance().getByName("PartialAccount");
+
+        M3U8PublicationService publicationService = M3U8PublicationService.getInstance();
+        publicationService.saveSelections(new M3U8PublicationService.PublicationSelections(
+                Set.of(),
+                Map.of(new M3U8PublicationService.CategorySelectionKey(savedAccount.getDbId(), "News"), true),
+                Map.of()
+        ));
+
+        String result = publicationService.getPublishedM3u8();
+
+        assertTrue(result.contains("News One"));
+        assertFalse(result.contains("Sports One"));
+    }
 }

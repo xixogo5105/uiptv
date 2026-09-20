@@ -495,19 +495,4 @@ class HttpM3u8ServersTest extends DbBackedTest {
             return null;
         }
     }
-
-    @Test
-    void getAvailableAccounts_includesWatchingNowVirtualAccounts() {
-        List<M3U8PublicationService.PlaylistAccountSummary> accounts = M3U8PublicationService.getInstance().getAvailableAccounts();
-        List<String> ids = accounts.stream()
-                .map(M3U8PublicationService.PlaylistAccountSummary::accountId)
-                .toList();
-        assertTrue(ids.contains(M3U8PublicationService.WATCHING_NOW_SERIES_PLAYLIST_ACCOUNT_ID));
-        assertTrue(ids.contains(M3U8PublicationService.WATCHING_NOW_VOD_PLAYLIST_ACCOUNT_ID));
-        List<String> names = accounts.stream()
-                .map(M3U8PublicationService.PlaylistAccountSummary::accountName)
-                .toList();
-        assertTrue(names.contains(M3U8PublicationService.WATCHING_NOW_SERIES_PLAYLIST_NAME));
-        assertTrue(names.contains(M3U8PublicationService.WATCHING_NOW_VOD_PLAYLIST_NAME));
-    }
 }

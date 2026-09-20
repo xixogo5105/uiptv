@@ -78,8 +78,6 @@ public class UIptvServer {
         routes.addPrefixPath("/proxy-stream", adapt(new HttpProxyStreamServer()));
         routes.addExactPath("/bingewatch.m3u8", adapt(new HttpBingeWatchPlaylistServer()));
         routes.addPrefixPath("/bingwatch", adapt(new HttpBingeWatchEntryServer()));
-        routes.addExactPath("/watchingNowSeriesEntry", adapt(new HttpWatchingNowSeriesM3u8EntryServer()));
-        routes.addExactPath("/watchingNowVodEntry", adapt(new HttpWatchingNowVodM3u8EntryServer()));
 
         // API JSON servers
         routes.addExactPath("/accounts", adapt(new HttpAccountJsonServer()));

@@ -157,9 +157,7 @@ public class M3U8PublicationInline extends VBox {
 
         private AccountNode(M3U8PublicationService.PlaylistAccountSummary account) {
             this.account = account;
-            this.detailsSupported = !service.isBookmarksPlaylistAccountId(account.accountId())
-                    && !service.isWatchingNowSeriesPlaylistAccountId(account.accountId())
-                    && !service.isWatchingNowVodPlaylistAccountId(account.accountId());
+            this.detailsSupported = !service.isBookmarksPlaylistAccountId(account.accountId());
             this.baseSelection = savedSelections.accountIds().contains(account.accountId());
             this.checkBox = new CheckBox(account.accountName());
             this.childrenBox = new VBox(6);
@@ -239,7 +237,19 @@ public class M3U8PublicationInline extends VBox {
 
         private void refreshSummaryState() {
             if (!loaded || categories.isEmpty()) {
-                applyCheckboxState(checkBox, baseSelection, baseSelection, hasAccountCustomization());
+                boolean customized = hasAccountCustomization();
+                if (customized) {
+                    checkBox.setAllowIndeterminate(true);
+                    checkBox.setIndeterminate(true);
+                    checkBox.setSelected(true);
+                    checkBox.getStyleClass().add(CUSTOMIZED_CHECKBOX_STYLE_CLASS);
+                    checkBox.setUserData(Boolean.TRUE);
+                } else {
+                    checkBox.setAllowIndeterminate(false);
+                    checkBox.setIndeterminate(false);
+                    checkBox.setSelected(baseSelection);
+                    checkBox.setUserData(baseSelection ? Boolean.FALSE : Boolean.FALSE);
+                }
                 return;
             }
             boolean anySelected = false;
@@ -254,7 +264,7 @@ public class M3U8PublicationInline extends VBox {
         }
 
         private boolean isDimmed() {
-            return checkBox.getStyleClass().contains(CUSTOMIZED_CHECKBOX_STYLE_CLASS);
+            return Boolean.TRUE.equals(checkBox.getUserData());
         }
 
         private void clearAccountCustomizations() {
@@ -336,7 +346,7 @@ public class M3U8PublicationInline extends VBox {
         private void refreshState() {
             boolean anySelected = false;
             boolean allSelected = !channels.isEmpty();
-            boolean customized = false;
+            boolean customized = currentCategorySelections.containsKey(selectionKey());
             for (ChannelNode channel : channels) {
                 boolean effective = channel.isSelected();
                 anySelected = anySelected || effective;
@@ -422,7 +432,7 @@ public class M3U8PublicationInline extends VBox {
         }
 
         private boolean isDimmed() {
-            return checkBox.getStyleClass().contains(CUSTOMIZED_CHECKBOX_STYLE_CLASS);
+            return Boolean.TRUE.equals(checkBox.getUserData());
         }
     }
 
@@ -520,17 +530,64 @@ public class M3U8PublicationInline extends VBox {
         return categoryModeComboBox.getValue();
     }
 
+    void expandAccountForTest(String accountId) {
+        accountNodes.stream()
+                .filter(node -> node.account.accountId().equals(accountId))
+                .findFirst()
+                .ifPresent(AccountNode::toggleExpanded);
+    }
+
+    boolean isAccountLoadedForTest(String accountId) {
+        return accountNodes.stream()
+                .filter(node -> node.account.accountId().equals(accountId))
+                .findFirst()
+                .map(node -> node.loaded)
+                .orElse(false);
+    }
+
+    boolean isAccountIndeterminateForTest(String accountId) {
+        return accountNodes.stream()
+                .filter(node -> node.account.accountId().equals(accountId))
+                .findFirst()
+                .map(node -> node.checkBox.isIndeterminate())
+                .orElse(false);
+    }
+
+    void selectCategoryForTest(String accountId, String categoryName) {
+        accountNodes.stream()
+                .filter(node -> node.account.accountId().equals(accountId))
+                .findFirst()
+                .ifPresent(node -> node.categories.stream()
+                        .filter(category -> categoryName.equals(category.category.categoryName()))
+                        .findFirst()
+                        .ifPresent(category -> {
+                            category.checkBox.setSelected(true);
+                            if (category.checkBox.getOnAction() != null) {
+                                category.checkBox.getOnAction().handle(null);
+                            }
+                        }));
+    }
+
     private void applyCheckboxState(CheckBox checkBox, boolean anySelected, boolean allSelected, boolean customized) {
         checkBox.getStyleClass().remove(CUSTOMIZED_CHECKBOX_STYLE_CLASS);
         if (!anySelected) {
             checkBox.setAllowIndeterminate(false);
             checkBox.setIndeterminate(false);
             checkBox.setSelected(false);
+            checkBox.setUserData(Boolean.FALSE);
             return;
         }
-        if (customized || !allSelected) {
+        if (!allSelected) {
+            checkBox.setAllowIndeterminate(true);
+            checkBox.setIndeterminate(true);
+            checkBox.setSelected(true);
             checkBox.getStyleClass().add(CUSTOMIZED_CHECKBOX_STYLE_CLASS);
+            checkBox.setUserData(Boolean.TRUE);
+            return;
         }
+        checkBox.setAllowIndeterminate(false);
+        checkBox.setIndeterminate(false);
         checkBox.setSelected(true);
+        checkBox.setUserData(Boolean.FALSE);
     }
 }
