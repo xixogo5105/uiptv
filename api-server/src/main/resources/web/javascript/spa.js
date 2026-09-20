@@ -43,9 +43,10 @@ createApp({
         const playbackGestureRequired = ref(false);
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
-        const wideViewActive = ref(false);
-        const showSettingsModal = ref(false);
         const defaultWideView = ref(localStorage.getItem('uiptv_default_wide_view') === '1');
+        const wideViewActive = ref(!!defaultWideView.value);
+        const wideDrilldownPanel = ref('categories');
+        const showSettingsModal = ref(false);
         const playerEnginePref = ref(localStorage.getItem('uiptv_player_engine_pref') || 'auto');
 
         const openSettings = () => { showSettingsModal.value = true; };
@@ -57,8 +58,14 @@ createApp({
             } catch (e) {
                 console.warn('Failed to persist settings', e);
             }
-            // Apply to runtime - if wide view preference changed, adapt current layout
             wideViewActive.value = !!defaultWideView.value;
+            if (wideViewActive.value) {
+                if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
+                    wideDrilldownPanel.value = viewState.value;
+                } else {
+                    wideDrilldownPanel.value = 'categories';
+                }
+            }
             closeSettings();
         };
         const playerManuallyHidden = ref(false);
@@ -576,6 +583,13 @@ createApp({
             episodes.value = [...(state.episodes || [])];
             currentContext.value.categoryId = state.categoryId || null;
             viewState.value = state.viewState === 'accounts' ? 'categories' : state.viewState;
+            if (wideViewActive.value) {
+                if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
+                    wideDrilldownPanel.value = viewState.value;
+                } else {
+                    wideDrilldownPanel.value = 'categories';
+                }
+            }
             if (mode === 'series') {
                 selectedSeriesSeason.value = state.selectedSeason || '';
                 seriesDetail.value = state.detail || null;
@@ -1431,6 +1445,9 @@ createApp({
                     vodDetail.value = null;
                     vodDetailLoading.value = false;
                 }
+                if (wideViewActive.value) {
+                    wideDrilldownPanel.value = 'categories';
+                }
                 clearSearch();
                 if (categories.value.length === 1 && isAllCategory(categories.value[0])) {
                     await loadChannels(categories.value[0].dbId || categories.value[0].categoryId || 'all', true);
@@ -1452,6 +1469,9 @@ createApp({
                 episodes.value = [];
                 viewState.value = 'channels';
                 modeState.viewState = 'channels';
+                if (wideViewActive.value) {
+                    wideDrilldownPanel.value = 'channels';
+                }
                 clearSearch();
                 return;
             }
@@ -1482,6 +1502,9 @@ createApp({
                     vodDetail.value = null;
                     vodDetailLoading.value = false;
                 }
+                if (wideViewActive.value) {
+                    wideDrilldownPanel.value = 'channels';
+                }
                 clearSearch();
             } catch (e) {
                 console.error('Failed to load channels', e);
@@ -1506,6 +1529,9 @@ createApp({
                 episodes.value = enrichEpisodesFromMeta(episodes.value, modeState.detail || null);
                 modeState.episodes = [...episodes.value];
                 modeState.viewState = 'episodes';
+                if (wideViewActive.value) {
+                    wideDrilldownPanel.value = 'episodes';
+                }
                 clearSearch();
                 selectedSeriesSeason.value = resolvePreferredSeriesSeason(episodes.value, modeState.selectedSeason || '', {
                     season: modeState.selectedSeason,
@@ -1537,6 +1563,9 @@ createApp({
                 episodes.value = enrichEpisodesFromMeta(episodes.value, modeState.detail || null);
                 modeState.episodes = [...episodes.value];
                 modeState.viewState = 'episodes';
+                if (wideViewActive.value) {
+                    wideDrilldownPanel.value = 'episodes';
+                }
                 clearSearch();
                 selectedSeriesSeason.value = resolvePreferredSeriesSeason(episodes.value, modeState.selectedSeason || '', {
                     season: modeState.selectedSeason,
@@ -1637,6 +1666,9 @@ createApp({
             modeState.viewState = 'vodDetail';
             vodDetail.value = detail;
             viewState.value = 'vodDetail';
+            if (wideViewActive.value) {
+                wideDrilldownPanel.value = 'vodDetail';
+            }
             clearSearch();
             vodDetailLoading.value = true;
 
@@ -1936,7 +1968,6 @@ createApp({
                 suppressNextBookmarkClick.value = false;
             }, 0);
         };
-
         const switchTab = (tab) => {
             const wasWatchingNowDrilldown = watchingNowDrilldown.value;
             if (activeTab.value === tab && tab === 'accounts') {
@@ -1949,6 +1980,15 @@ createApp({
             }
             if (tab !== 'watchingNow') {
                 watchingNowDrilldown.value = false;
+            }
+            if (wideViewActive.value) {
+                if (viewState.value === 'accounts') {
+                    wideDrilldownPanel.value = 'categories';
+                } else if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
+                    wideDrilldownPanel.value = viewState.value;
+                } else {
+                    wideDrilldownPanel.value = 'categories';
+                }
             }
             clearSearch();
             if (tab === 'watchingNow') {
@@ -2072,6 +2112,19 @@ createApp({
         const toggleWideView = () => {
             if (!playerPanelVisible.value) return;
             wideViewActive.value = !wideViewActive.value;
+            defaultWideView.value = wideViewActive.value;
+            try {
+                localStorage.setItem('uiptv_default_wide_view', defaultWideView.value ? '1' : '0');
+            } catch (e) {
+                console.warn('Failed to persist wide view setting', e);
+            }
+            if (wideViewActive.value) {
+                if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
+                    wideDrilldownPanel.value = viewState.value;
+                } else {
+                    wideDrilldownPanel.value = 'categories';
+                }
+            }
             nextTick(() => {
                 const video = videoPlayer.value;
                 if (video && typeof video.play === 'function' && isPlaying.value && video.paused && !video.ended) {
@@ -2136,6 +2189,9 @@ createApp({
                 return;
             }
             viewState.value = 'accounts';
+            if (wideViewActive.value) {
+                wideDrilldownPanel.value = 'categories';
+            }
             clearSearch();
         };
 
@@ -2160,6 +2216,9 @@ createApp({
             seriesDetailLoading.value = false;
             vodDetail.value = null;
             vodDetailLoading.value = false;
+            if (wideViewActive.value) {
+                wideDrilldownPanel.value = 'categories';
+            }
             clearSearch();
         };
 
@@ -2173,6 +2232,9 @@ createApp({
             const modeState = getModeState(contentMode.value);
             viewState.value = 'channels';
             modeState.viewState = viewState.value;
+            if (wideViewActive.value) {
+                wideDrilldownPanel.value = 'channels';
+            }
             clearSearch();
         };
 
@@ -3040,6 +3102,11 @@ createApp({
             }
             if (options.wideView === true) {
                 wideViewActive.value = true;
+                if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
+                    wideDrilldownPanel.value = viewState.value;
+                } else {
+                    wideDrilldownPanel.value = 'categories';
+                }
             }
             if (playbackFetchController) {
                 try {
@@ -3177,9 +3244,14 @@ createApp({
                 currentChannel.value = null;
                 playbackError.value = '';
                 clearPlaybackGestureRequirement();
-                wideViewActive.value = false;
+                wideViewActive.value = !!defaultWideView.value;
                 playerManuallyHidden.value = false;
                 clearActiveBingeWatch();
+            }
+
+            const video = videoPlayer.value;
+            if (video) {
+                video.setAttribute('controls', '');
             }
             videoTracks.value = [];
             audioTracks.value = [];
@@ -3208,7 +3280,7 @@ createApp({
             if (hideControls) {
                 controlsVisible.value = false;
             }
-            wideViewActive.value = false;
+            wideViewActive.value = !!defaultWideView.value;
             playerManuallyHidden.value = false;
             await stopPlayback(false);
         };
@@ -3502,7 +3574,7 @@ createApp({
 
             try {
                 const player = window.videojs(video, {
-                    controls: false,
+                    controls: true,
                     autoplay: true,
                     preload: 'auto',
                     playsinline: true,
@@ -4640,6 +4712,7 @@ createApp({
             showOverlay,
             showBookmarkModal,
             wideViewActive,
+            wideDrilldownPanel,
             showSettingsModal,
             hasPlayerContent,
             playerPanelVisible,

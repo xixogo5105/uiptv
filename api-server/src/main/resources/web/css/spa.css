@@ -443,9 +443,9 @@ a[href] {
     display: none;
 }
 
-.bookmark-dropdown select,
-.account-type-dropdown select,
-.content-mode-dropdown select {
+.bookmark-dropdown,
+.account-type-dropdown,
+.content-mode-dropdown {
     width: 100%;
     max-width: 280px;
     padding: 6px 12px;
@@ -1248,6 +1248,18 @@ a[href] {
 
 .content-shell.wide-view.player-hidden {
     grid-template-columns: minmax(0, 1fr);
+}
+
+.content-shell.wide-view .accounts-drilldown {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.content-shell.wide-view .watching-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.content-shell.wide-view .player-progress-strip {
+    display: none;
 }
 
 .content-shell.wide-view .player-panel {
