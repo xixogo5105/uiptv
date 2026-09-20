@@ -51,6 +51,17 @@ public class BookmarkDb extends BaseDb {
         return getBookmarksOrdered(categoryId);
     }
 
+    public List<Bookmark> getBookmarksByAccountName(String accountName) {
+        return getBookmarksOrderedByAccount(accountName, -1, -1);
+    }
+
+    public List<Bookmark> getBookmarksByAccountName(String accountName, int offset, int limit) {
+        if (limit <= 0) {
+            return getBookmarksOrderedByAccount(accountName, -1, -1);
+        }
+        return getBookmarksOrderedByAccount(accountName, Math.max(0, offset), limit);
+    }
+
     private List<Bookmark> getBookmarksOrdered(String categoryId) {
         return getBookmarksOrdered(categoryId, -1, -1);
     }
@@ -88,6 +99,36 @@ public class BookmarkDb extends BaseDb {
             }
         } catch (SQLException e) {
             throw new DatabaseAccessException("Unable to execute query for ordered bookmarks", e);
+        }
+        return bookmarks;
+    }
+
+    private List<Bookmark> getBookmarksOrderedByAccount(String accountName, int offset, int limit) {
+        List<Bookmark> bookmarks = new ArrayList<>();
+        StringBuilder sql = new StringBuilder("SELECT b.*, bo.display_order FROM ")
+                .append(BOOKMARK_TABLE.getTableName()).append(" b ")
+                .append("LEFT JOIN (SELECT bookmark_db_id, MIN(display_order) AS display_order FROM ")
+                .append(BOOKMARK_ORDER_TABLE.getTableName())
+                .append(" GROUP BY bookmark_db_id) bo ON b.id = bo.bookmark_db_id ")
+                .append("WHERE b.accountName = ? ")
+                .append("ORDER BY CASE WHEN bo.display_order IS NULL THEN 1 ELSE 0 END, bo.display_order ASC, b.id ASC");
+        if (limit > 0) {
+            sql.append(" LIMIT ? OFFSET ? ");
+        }
+
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql.toString())) {
+            statement.setString(1, accountName);
+            if (limit > 0) {
+                statement.setInt(2, Math.max(0, limit));
+                statement.setInt(3, Math.max(0, offset));
+            }
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    bookmarks.add(populate(resultSet));
+                }
+            }
+        } catch (SQLException e) {
+            throw new DatabaseAccessException("Unable to execute query for ordered bookmarks by account", e);
         }
         return bookmarks;
     }

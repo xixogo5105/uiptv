@@ -56,8 +56,16 @@ public class BookmarkService {
         return BookmarkDb.get().getBookmarks();
     }
 
+    public List<Bookmark> readPage(int offset, int limit) {
+        return BookmarkDb.get().getBookmarksPage(offset, limit);
+    }
+
     public List<Bookmark> getBookmarksByCategory(String categoryId) {
         return BookmarkDb.get().getBookmarksByCategory(categoryId);
+    }
+
+    public List<Bookmark> getBookmarksByAccountName(String accountName) {
+        return BookmarkDb.get().getBookmarksByAccountName(accountName);
     }
 
     public void remove(String id) {

@@ -2454,6 +2454,21 @@
     -fx-background-color: -uiptv-action-bg;
     -fx-border-color: -uiptv-action-bg;
     -fx-text-fill: -uiptv-action-fg;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-border-width: 1;
+}
+
+.settings-server-publish-button:hover,
+.settings-server-publish-button:focused {
+    -fx-background-color: -uiptv-action-hover-bg;
+    -fx-border-color: -uiptv-action-hover-bg;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.16), 8, 0.12, 0, 1);
+}
+
+.settings-server-publish-button:pressed {
+    -fx-background-color: -uiptv-action-pressed-bg;
+    -fx-border-color: -uiptv-action-pressed-bg;
 }
 
 .settings-filter-mode-row {

@@ -1550,9 +1550,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (listAction == vod || listAction == series) {
             return List.of();
         }
-        return BookmarkService.getInstance().read().stream()
-                .filter(b -> account.getAccountName().equals(b.getAccountName()))
-                .toList();
+        return BookmarkService.getInstance().getBookmarksByAccountName(account.getAccountName());
     }
 
     private Set<String> loadVodWatchStateKeys() {

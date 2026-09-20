@@ -51,6 +51,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 46;
     private static final int BOOKMARK_STREAM_BATCH_SIZE = 25;
     private static final int BOOKMARK_INITIAL_STREAM_SIZE = 5;
+    private static final int BOOKMARK_DB_FETCH_BATCH_SIZE = 50;
     private static final double FILTER_TOOLBAR_GAP = 8;
     private static final String ICON_SORT = "M3 18H9V16H3V18ZM3 6V8H21V6H3ZM3 13H15V11H3V13Z";
     private static final Comparator<BookmarkItem> BOOKMARK_NAME_COMPARATOR =
@@ -174,22 +175,45 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private void reloadBookmarks(long generation) {
         try {
             long revisionBeforeRead = BookmarkService.getInstance().getChangeRevision();
-            List<Bookmark> bookmarks = BookmarkService.getInstance().read();
-            BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(bookmarks);
-            List<BookmarkItem> loadedItems = buildLoadedBookmarkItems(generation, bookmarks, context);
-            if (generation != reloadGeneration.get()) {
-                return;
-            }
 
             List<BookmarkCategory> categories = new ArrayList<>();
             categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
             categories.addAll(BookmarkService.getInstance().getAllCategories());
+
+            int offset = 0;
+            List<BookmarkItem> allLoadedItems = new ArrayList<>();
+
+            while (true) {
+                if (generation != reloadGeneration.get()) {
+                    return;
+                }
+
+                List<Bookmark> batch = BookmarkService.getInstance().readPage(offset, BOOKMARK_DB_FETCH_BATCH_SIZE);
+                if (batch.isEmpty()) {
+                    break;
+                }
+
+                BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(batch);
+                List<BookmarkItem> batchItems = buildLoadedBookmarkItems(generation, batch, context);
+                if (generation != reloadGeneration.get()) {
+                    return;
+                }
+                if (batchItems.isEmpty()) {
+                    break;
+                }
+
+                allLoadedItems.addAll(batchItems);
+                maybeStreamPartialReload(generation, allLoadedItems);
+
+                offset += BOOKMARK_DB_FETCH_BATCH_SIZE;
+            }
+
             long revisionAfterRead = BookmarkService.getInstance().getChangeRevision();
             if (revisionAfterRead != revisionBeforeRead) {
                 reloadRequestedWhileReloading = true;
             }
 
-            runLater(() -> applyReloadResult(generation, loadedItems, categories, revisionAfterRead));
+            runLater(() -> applyReloadResult(generation, allLoadedItems, categories, revisionAfterRead));
         } catch (Exception _) {
             // Keep the bookmark pane usable and show the existing placeholder on reload failure.
             runLater(() -> handleReloadFailure(generation));
@@ -205,7 +229,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 return List.of();
             }
             loadedItems.add(createBookmarkItem(bookmarkResolver.resolveBookmark(bookmark, context)));
-            maybeStreamPartialReload(generation, loadedItems);
         }
         return loadedItems;
     }
