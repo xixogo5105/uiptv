@@ -2960,8 +2960,11 @@ createApp({
             video.onloadedmetadata = null;
             video.onprogress = null;
             video.pause();
-            video.src = '';
             video.removeAttribute('src');
+            if ('srcObject' in video) {
+                video.srcObject = null;
+            }
+            video.src = '';
             video.load();
             resetPlaybackProgress();
         };
@@ -3143,6 +3146,7 @@ createApp({
             const channelDataPromise = fetch(url, {signal: controller.signal}).then(response => response.json());
             if (!switching) {
                 await stopPlayback(true);
+                await new Promise(resolve => setTimeout(resolve, 80));
             }
             if (requestId !== playbackRequestId) return;
             currentChannel.value = targetChannel;
@@ -3199,6 +3203,16 @@ createApp({
                     console.warn('Error destroying Shaka player', e);
                 }
                 playerInstance.value = null;
+                const video = videoPlayer.value;
+                if (video) {
+                    video.pause();
+                    video.removeAttribute('src');
+                    if ('srcObject' in video) {
+                        video.srcObject = null;
+                    }
+                    video.src = '';
+                    video.load();
+                }
             }
             if (mpegtsPlayer.value) {
                 try {
@@ -3207,6 +3221,16 @@ createApp({
                     console.warn('Error destroying MPEGTS player', e);
                 }
                 mpegtsPlayer.value = null;
+                const video = videoPlayer.value;
+                if (video) {
+                    video.pause();
+                    video.removeAttribute('src');
+                    if ('srcObject' in video) {
+                        video.srcObject = null;
+                    }
+                    video.src = '';
+                    video.load();
+                }
             }
 
             if (hlsPlayer.value) {
@@ -3216,6 +3240,16 @@ createApp({
                     console.warn('Error destroying hls.js player', e);
                 }
                 hlsPlayer.value = null;
+                const video = videoPlayer.value;
+                if (video) {
+                    video.pause();
+                    video.removeAttribute('src');
+                    if ('srcObject' in video) {
+                        video.srcObject = null;
+                    }
+                    video.src = '';
+                    video.load();
+                }
             }
 
             if (videoJsPlayer.value) {
