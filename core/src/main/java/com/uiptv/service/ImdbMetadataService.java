@@ -1036,22 +1036,26 @@ public class ImdbMetadataService {
         }
         // Use more efficient patterns that avoid catastrophic backtracking
         // Match "episode N", "ep N", or "eN" at start of string with optional separator
-        return title.matches("(?i)^episode\\s+\\d+\\s*[:\\-]?\\s*$")
-                || title.matches("(?i)^ep\\.?\\s+\\d+\\s*[:\\-]?\\s*$")
-                || title.matches("(?i)^e\\d+\\s*[:\\-]?\\s*$");
+        // Use find() with anchored start to avoid full-string matching issues
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)^(episode\\s+\\d+|ep\\.?\\s+\\d+|e\\d+)").matcher(title);
+        if (m.find()) {
+            String rest = title.substring(m.end());
+            return rest.matches("\\s*[:\\-]?\\s*");
+        }
+        return false;
     }
 
     private List<String> buildSearchQueries(String rawTitle, List<String> fuzzyHints) {
         LinkedHashSet<String> queries = new LinkedHashSet<>();
         addQueryVariant(queries, rawTitle);
         addQueryVariant(queries, normalizeTitle(rawTitle));
-        addQueryVariant(queries, normalizeTitle(rawTitle).replaceAll("\\b(19|20)\\d{2}\\b", " ").replaceAll("\\s+", " ").trim());
-        addQueryVariant(queries, normalizeTitle(rawTitle).replaceAll("(?i)\\bseason\\s*\\d+\\b.*$", "").trim());
+        addQueryVariant(queries, normalizeTitle(rawTitle).replaceAll("\\b(?:19|20)\\d{2}\\b", " ").replaceAll("\\s+", " ").trim());
+        addQueryVariant(queries, normalizeTitle(rawTitle).replaceAll("(?i)\\bseason\\s*\\d+\\b", "").trim());
         if (fuzzyHints != null) {
             for (String hint : fuzzyHints) {
                 addQueryVariant(queries, hint);
                 addQueryVariant(queries, normalizeTitle(hint));
-                addQueryVariant(queries, normalizeTitle(hint).replaceAll("\\b(19|20)\\d{2}\\b", " ").replaceAll("\\s+", " ").trim());
+                addQueryVariant(queries, normalizeTitle(hint).replaceAll("\\b(?:19|20)\\d{2}\\b", " ").replaceAll("\\s+", " ").trim());
             }
         }
         if (queries.isEmpty()) {

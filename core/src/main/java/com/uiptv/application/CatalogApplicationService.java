@@ -810,8 +810,8 @@ public class CatalogApplicationService {
         }
         String trimmed = rawSeriesName.trim();
         // Use a more efficient pattern: match year in parentheses at end of string
-        // Avoid catastrophic backtracking by using a more specific pattern
-        String inferredName = trimmed.replaceAll("\\s*\\((?:19|20)\\d{2}\\)\\s*$", "").trim();
+        // Avoid catastrophic backtracking by using a specific pattern without leading \s*
+        String inferredName = trimmed.replaceAll("\\((?:19|20)\\d{2}\\)\\s*$", "").trim();
         String inferredYear = "";
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\((?:19|20)\\d{2}\\)\\s*$").matcher(trimmed);
         if (m.find()) {
