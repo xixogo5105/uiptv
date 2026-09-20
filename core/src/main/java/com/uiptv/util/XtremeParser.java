@@ -24,8 +24,8 @@ import static com.uiptv.util.UiptUtils.replaceAllNonPrintableChars;
  */
 public class XtremeParser implements AccountParser {
     private static final Pattern URL_PATTERN = Pattern.compile("(https?://\\S+)");
-    private static final Pattern LABELED_USER = Pattern.compile("(?i)\\b(user|username|u|name|id)\\b\\s*[:=]?\\s*(\\S+)");
-    private static final Pattern LABELED_PASS = Pattern.compile("(?i)\\b(pass(word)?|p|pw)\\b\\s*[:=]?\\s*(\\S+)");
+    private static final Pattern LABELED_USER = Pattern.compile("(?i)\\b(?:user|username|u|name|id)\\b\\s*[:=]?\\s*(\\S+)");
+    private static final Pattern LABELED_PASS = Pattern.compile("(?i)\\b(?:pass(?:word)?|p|pw)\\b\\s*[:=]?\\s*(\\S+)");
 
     private final Function<String, Account> accountProvider;
     private final Consumer<Account> accountSaver;
@@ -82,8 +82,8 @@ public class XtremeParser implements AccountParser {
     }
 
     private Credentials extractCredentials(String joinedBlock, String url) {
-        String username = extractFirstMatch(LABELED_USER, joinedBlock, 2);
-        String password = extractFirstMatch(LABELED_PASS, joinedBlock, 3);
+        String username = extractFirstMatch(LABELED_USER, joinedBlock, 1);
+        String password = extractFirstMatch(LABELED_PASS, joinedBlock, 1);
         if (username != null && password != null) {
             return new Credentials(username, password);
         }

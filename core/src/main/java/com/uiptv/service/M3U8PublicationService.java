@@ -535,7 +535,7 @@ private void appendSelectedWatchingNowVodPlaylist(StringBuilder result,
                 || trimmed.matches("^[a-zA-Z]:\\\\.*")) {
             return true;
         }
-        return trimmed.matches("(?i)^.+\\.(m3u8|mpd|ts|aac|mp3|mp4|m4s)(\\?.*)?$");
+        return trimmed.matches("(?i)^[^.]+\\.(m3u8|mpd|ts|aac|mp3|mp4|m4s)(\\?.*)?$");
     }
 
     private String normalizeCategoryName(String categoryName) {
