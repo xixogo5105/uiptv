@@ -3442,6 +3442,7 @@ createApp({
             const sourceUrl = normalizeWebPlaybackUrl(channel.url);
             const engine = window.mpegts;
             if (!canUseMpegts()) {
+                console.warn('MPEG-TS playback requires mpegts.js, which is not available or not supported. Falling back to native playback, which will likely fail for MPEG-TS streams.');
                 const fallbackUrl = buildProxyStreamUrl(channel.url) || sourceUrl;
                 await loadNative({...channel, url: fallbackUrl});
                 return;

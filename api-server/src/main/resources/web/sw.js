@@ -21,7 +21,7 @@ const urlsToCache = [
   'https://cdn.jsdelivr.net/npm/video.js@8.24.0/dist/video-js.css',
   'https://unpkg.com/vue@3/dist/vue.global.prod.js',
   'https://cdn.jsdelivr.net/npm/shaka-player@5/dist/shaka-player.compiled.js',
-  'https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js',
+  'https://cdn.jsdelivr.net/npm/mpegts.js@1.8.2/dist/mpegts.min.js',
   'https://cdn.jsdelivr.net/npm/video.js@8.24.0/dist/video.min.js'
 ];
 

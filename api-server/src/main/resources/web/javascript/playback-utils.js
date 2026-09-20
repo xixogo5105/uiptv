@@ -16,7 +16,19 @@
 
     const canUseMpegts = () => {
         const engine = window.mpegts;
-        return !!engine && typeof engine.isSupported === 'function' && engine.isSupported();
+        if (!engine) {
+            console.warn('mpegts.js is not loaded. MPEG-TS playback requires mpegts.js.');
+            return false;
+        }
+        if (typeof engine.isSupported !== 'function') {
+            console.warn('mpegts.js is loaded but isSupported() is not available.');
+            return false;
+        }
+        const supported = engine.isSupported();
+        if (!supported) {
+            console.warn('mpegts.js reports that MPEG-TS is not supported in this browser.');
+        }
+        return supported;
     };
 
         const resolvePlaybackModeLabel = (url, engine = '') => {
@@ -158,11 +170,12 @@
     };
 
     const describeMpegTsFailure = (error) => {
-        if (isBrowserUnsupportedMediaError(error)) {
+        const message = String(error?.message || error || '').trim();
+        if (!message) return 'MPEGTS playback failed.';
+        if (message.includes('notsupportederror') || message.includes('no supported source') || message.includes('src_not_supported')) {
             return 'This MPEG-TS stream is not browser-compatible. Use VLC/external playback; web transcoding is no longer available.';
         }
-        const message = String(error?.message || error || '').trim();
-        return message ? `MPEGTS playback failed: ${message}` : 'MPEGTS playback failed.';
+        return `MPEGTS playback failed: ${message}`;
     };
 
     const normalizeDisplayText = (value) => {
