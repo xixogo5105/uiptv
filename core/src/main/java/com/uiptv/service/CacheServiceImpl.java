@@ -9,7 +9,6 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.FetchAPI;
 
 import java.io.IOException;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,7 +19,7 @@ public class CacheServiceImpl implements CacheService {
 
     private static Map<String, String> getCategoryParams(Account.AccountAction accountAction) {
         final Map<String, String> params = new HashMap<>();
-        params.put("JsHttpRequest", new Date().getTime() + "-xml");
+        params.put("JsHttpRequest", System.currentTimeMillis() + "-xml");
         params.put("type", accountAction.name());
         params.put("action", accountAction == itv ? "get_genres" : "get_categories");
         return params;

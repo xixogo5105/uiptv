@@ -1563,10 +1563,6 @@ public class AccountListUI extends HBox implements SearchTarget {
         }
     }
 
-    private void handleReloadCache(AccountItem contextItem) {
-        handleReloadCache(contextItem, null);
-    }
-
     private void handleReloadCache(AccountItem contextItem, List<AccountItem> selectedItems) {
         List<Account> accounts = resolveAccountsForReload(contextItem, selectedItems);
         if (accounts.isEmpty()) {
@@ -1583,20 +1579,12 @@ public class AccountListUI extends HBox implements SearchTarget {
         return RootApplication.getPrimaryStage();
     }
 
-    private void runSingleSelectionAction(Runnable action) {
-        runSingleSelectionAction(selectedAccountsForAction(null), action);
-    }
-
     private void runSingleSelectionAction(List<AccountItem> selectedItems, Runnable action) {
         if (selectedItems != null && selectedItems.size() > 1) {
             showErrorAlert(I18n.tr(MULTI_SELECTION_DISABLED_KEY));
             return;
         }
         action.run();
-    }
-
-    private List<Account> resolveAccountsForReload(AccountItem contextItem) {
-        return resolveAccountsForReload(contextItem, null);
     }
 
     private List<Account> resolveAccountsForReload(AccountItem contextItem, List<AccountItem> selectedItems) {

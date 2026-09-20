@@ -13,9 +13,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Objects;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AppHeaderActionsTest extends DbBackedUiTest {
@@ -73,7 +75,7 @@ class AppHeaderActionsTest extends DbBackedUiTest {
             ContextMenu menu = actions.createGearMenu();
             return menu.getItems().stream()
                     .map(MenuItem::getText)
-                    .filter(text -> text != null)
+                    .filter(Objects::nonNull)
                     .toList();
         });
 

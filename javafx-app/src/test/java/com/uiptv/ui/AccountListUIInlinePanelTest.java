@@ -61,7 +61,7 @@ class AccountListUIInlinePanelTest extends DbBackedUiTest {
         InlinePanelService.InlinePanelHandle handle = runOnFxThread(() ->
                 InlinePanelService.open("Manage MAC addresses", new Label("MAC inline")).orElseThrow());
 
-        assertTrue(runOnFxThread(() -> InlinePanelService.hasOpenPanel()));
+        assertTrue(runOnFxThread(InlinePanelService::hasOpenPanel));
         assertTrue(runOnFxThread(() -> detailContent(accountListUI).getChildren().contains(manageAccountContent)));
 
         runOnFxThread(() -> {

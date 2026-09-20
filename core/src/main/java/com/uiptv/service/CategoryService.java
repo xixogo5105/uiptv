@@ -45,7 +45,7 @@ public class CategoryService {
 
     private static Map<String, String> getCategoryParams(Account.AccountAction accountAction) {
         final Map<String, String> params = new HashMap<>();
-        params.put("JsHttpRequest", new Date().getTime() + "-xml");
+        params.put("JsHttpRequest", System.currentTimeMillis() + "-xml");
         params.put("type", accountAction.name());
         params.put("action", accountAction == itv ? "get_genres" : "get_categories");
         return params;
@@ -111,8 +111,10 @@ public class CategoryService {
     }
 
     private boolean usesVodSeriesCategoryCache(Account account) {
-        return (account.getAction() == vod || account.getAction() == series)
-                && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API);
+        AccountType type = account.getType();
+        return type != null
+                && (account.getAction() == vod || account.getAction() == series)
+                && (type == STALKER_PORTAL || type == XTREME_API);
     }
 
     private List<Category> getVodSeriesCategories(Account account, boolean censor, LoggerCallback logger) {

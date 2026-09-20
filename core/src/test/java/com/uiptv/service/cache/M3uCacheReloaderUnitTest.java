@@ -1,5 +1,6 @@
 package com.uiptv.service.cache;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.isNull;
@@ -56,11 +57,7 @@ class M3uCacheReloaderUnitTest {
 
             Method method = M3uCacheReloader.class.getDeclaredMethod("forEachM3uEntry", Account.class, Consumer.class);
             method.setAccessible(true);
-            try {
-                method.invoke(reloader, account, (Consumer<PlaylistEntry>) entries::add);
-            } catch (InvocationTargetException e) {
-                fail(e.getCause());
-            }
+            assertDoesNotThrow(() -> method.invoke(reloader, account, (Consumer<PlaylistEntry>) entries::add));
         }
 
         assertEquals(1, entries.size());

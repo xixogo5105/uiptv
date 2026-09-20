@@ -17,7 +17,6 @@ import com.uiptv.util.AccountType;
 import com.uiptv.util.M3U8Parser;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -97,7 +96,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
 
     protected static Map<String, String> getCategoryParams(Account.AccountAction accountAction) {
         final Map<String, String> params = new HashMap<>();
-        params.put("JsHttpRequest", new Date().getTime() + "-xml");
+        params.put("JsHttpRequest", System.currentTimeMillis() + "-xml");
         params.put("type", accountAction.name());
         params.put("action", accountAction == itv ? "get_genres" : "get_categories");
         return params;
@@ -113,7 +112,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         if (perPage != null) {
             params.put("per_page", String.valueOf(perPage));
         }
-        params.put("JsHttpRequest", new Date().getTime() + "-xml");
+        params.put("JsHttpRequest", System.currentTimeMillis() + "-xml");
         return params;
     }
 

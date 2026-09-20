@@ -211,7 +211,7 @@ public class M3U8PublicationService {
         if (!accountIds.contains(BOOKMARKS_PLAYLIST_ACCOUNT_ID)) {
             return;
         }
-        String host = resolveBookmarkPlaylistHost(requestHost);
+        String host = resolveWatchingNowHost(requestHost);
         String bookmarkPlaylist = BookmarkApplicationService.getInstance().buildPlaylist(host);
         List<String> bookmarkPlaylistLines = splitPlaylistLines(bookmarkPlaylist);
         boolean singleCategorySource = hasSingleEffectiveCategory(bookmarkPlaylistLines, null);
@@ -224,9 +224,9 @@ public class M3U8PublicationService {
                 false);
     }
 
-    private void appendSelectedWatchingNowSeriesPlaylist(StringBuilder result,
-                                                         Set<String> accountIds,
-                                                         String requestHost) {
+private void appendSelectedWatchingNowSeriesPlaylist(StringBuilder result,
+                                                          Set<String> accountIds,
+                                                          String requestHost) {
         if (!accountIds.contains(WATCHING_NOW_SERIES_PLAYLIST_ACCOUNT_ID)) {
             return;
         }
@@ -235,7 +235,6 @@ public class M3U8PublicationService {
         if (rows.isEmpty()) {
             return;
         }
-        boolean singleCategorySource = rows.size() == 1;
         for (WatchingNowSeriesRow row : rows) {
             String entryUrl = "http://" + host + "/watchingNowSeriesEntry?accountId=" + row.accountId()
                     + "&categoryId=" + row.categoryId() + "&seriesId=" + row.seriesId();
@@ -254,9 +253,9 @@ public class M3U8PublicationService {
         }
     }
 
-    private void appendSelectedWatchingNowVodPlaylist(StringBuilder result,
-                                                       Set<String> accountIds,
-                                                       String requestHost) {
+private void appendSelectedWatchingNowVodPlaylist(StringBuilder result,
+                                                        Set<String> accountIds,
+                                                        String requestHost) {
         if (!accountIds.contains(WATCHING_NOW_VOD_PLAYLIST_ACCOUNT_ID)) {
             return;
         }
@@ -265,7 +264,6 @@ public class M3U8PublicationService {
         if (rows.isEmpty()) {
             return;
         }
-        boolean singleCategorySource = rows.size() == 1;
         for (WatchingNowVodRow row : rows) {
             String entryUrl = "http://" + host + "/watchingNowVodEntry?accountId=" + row.accountId()
                     + "&categoryId=" + row.categoryId() + "&vodId=" + row.vodId();
@@ -285,13 +283,6 @@ public class M3U8PublicationService {
     }
 
     private String resolveWatchingNowHost(String requestHost) {
-        if (isNotBlank(requestHost)) {
-            return requestHost.trim();
-        }
-        return ServerUrlUtil.getLocalServerUrl().replaceFirst("^https?://", "");
-    }
-
-    private String resolveBookmarkPlaylistHost(String requestHost) {
         if (isNotBlank(requestHost)) {
             return requestHost.trim();
         }

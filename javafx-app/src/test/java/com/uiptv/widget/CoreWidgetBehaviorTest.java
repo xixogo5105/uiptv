@@ -84,7 +84,8 @@ class CoreWidgetBehaviorTest {
         assertEquals(1, actionCount.get());
         assertEquals("Open guide", runOnFxThread(button::getAccessibleText));
         assertEquals("Open guide", runOnFxThread(() -> button.getTooltip().getText()));
-        assertEquals("M1 1H2V2Z", runOnFxThread(() -> ((SVGPath) button.getGraphic()).getContent()));
+        SVGPath graphic = (SVGPath) button.getGraphic();
+        assertEquals("M1 1H2V2Z", runOnFxThread(graphic::getContent));
     }
 
     @Test

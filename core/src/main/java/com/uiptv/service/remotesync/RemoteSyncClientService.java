@@ -87,7 +87,7 @@ public class RemoteSyncClientService {
     private RemoteSyncSessionState readRemoteStateAfterUploadFailure(String baseUrl, String sessionId) {
         try {
             return httpClient.getSessionState(baseUrl, sessionId);
-        } catch (IOException ignored) {
+        } catch (IOException _) {
             return null;
         }
     }

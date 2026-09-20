@@ -155,7 +155,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
         params.put("forced_storage", "undefined");
         params.put("disable_ad", "0");
         params.put("download", "0");
-        params.put("JsHttpRequest", new Date().getTime() + "-xml");
+        params.put("JsHttpRequest", System.currentTimeMillis() + "-xml");
         return params;
     }
 

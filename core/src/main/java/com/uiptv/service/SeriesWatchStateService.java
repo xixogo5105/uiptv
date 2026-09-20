@@ -573,7 +573,10 @@ public class SeriesWatchStateService {
         }
         Matcher episodeMatcher = EPISODE_PATTERN.matcher(title);
         if (episodeMatcher.find()) {
-            String parsed = !isBlank(episodeMatcher.group(1)) ? episodeMatcher.group(1) : episodeMatcher.group(2);
+            String parsed = episodeMatcher.group(1);
+            if (isBlank(parsed)) {
+                parsed = episodeMatcher.group(2);
+            }
             if (!isBlank(parsed)) {
                 return Integer.parseInt(parsed);
             }

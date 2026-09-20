@@ -8,14 +8,14 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 
-import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class SearchableTableView<T> extends TableView<T> {
-    private final UIptvText searchTextField = new UIptvText("search" + new Date().getTime(), "commonSearch", 10);
+    private final UIptvText searchTextField = new UIptvText("search" + UUID.randomUUID().toString().substring(0, 8), "commonSearch", 10);
 
     public SearchableTableView() {
         this.setPrefWidth((double) GUIDED_MAX_WIDTH_PIXELS / 3);

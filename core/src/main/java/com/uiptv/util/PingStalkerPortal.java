@@ -257,7 +257,9 @@ public class PingStalkerPortal {
             if (isBlank(ajaxLoader)) {
                 return "";
             }
-            String regex = getPattern(jsFileContents).replaceAll("^/+", "").replaceAll("/+$", "");
+            String pattern = getPattern(jsFileContents);
+            // Use replaceFirst with anchored patterns instead of replaceAll to avoid potential backtracking
+            String regex = pattern.replaceFirst("^/+", "").replaceFirst("/+$", "");
             String result = ajaxLoader
                     .replace("'", "")
                     .replace("+", "")

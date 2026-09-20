@@ -809,9 +809,11 @@ public class CatalogApplicationService {
             return;
         }
         String trimmed = rawSeriesName.trim();
-        String inferredName = trimmed.replaceAll("\\s*\\((19|20)\\d{2}\\)\\s*$", "").trim();
+        // Use a more efficient pattern: match year in parentheses at end of string
+        // Avoid catastrophic backtracking by using a more specific pattern
+        String inferredName = trimmed.replaceAll("\\s*\\((?:19|20)\\d{2}\\)\\s*$", "").trim();
         String inferredYear = "";
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\((19|20)\\d{2}\\)\\s*$").matcher(trimmed);
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\((?:19|20)\\d{2}\\)\\s*$").matcher(trimmed);
         if (m.find()) {
             inferredYear = m.group().replaceAll("\\D", "");
         }

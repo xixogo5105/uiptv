@@ -1034,8 +1034,10 @@ public class ImdbMetadataService {
         if (isBlank(title)) {
             return true;
         }
-        return title.matches("(?i)^episode\\s*\\d+\\s*[:\\-]?\\s*$")
-                || title.matches("(?i)^ep\\.?\\s*\\d+\\s*[:\\-]?\\s*$")
+        // Use more efficient patterns that avoid catastrophic backtracking
+        // Match "episode N", "ep N", or "eN" at start of string with optional separator
+        return title.matches("(?i)^episode\\s+\\d+\\s*[:\\-]?\\s*$")
+                || title.matches("(?i)^ep\\.?\\s+\\d+\\s*[:\\-]?\\s*$")
                 || title.matches("(?i)^e\\d+\\s*[:\\-]?\\s*$");
     }
 

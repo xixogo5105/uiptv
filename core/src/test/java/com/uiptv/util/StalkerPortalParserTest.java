@@ -2,6 +2,8 @@ package com.uiptv.util;
 
 import com.uiptv.model.Account;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -110,69 +112,6 @@ class StalkerPortalParserTest {
     }
 
     @Test
-    void testGenericDeviceIdPopulatesBothDeviceIds() {
-        String deviceIdValue = "E18F48B48882B72D1CDD92530D8E1F7AEB0C6378B1C1FBEDC169F9A4D4CECA53";
-
-        List<Account> savedAccounts = new ArrayList<>();
-        StalkerPortalParser parser = new StalkerPortalParser(name -> null, savedAccounts::add);
-
-        String input = """
-                http://portal.example/c
-                00:1A:79:AA:BB:CC
-                Device ID: %s
-                """.formatted(deviceIdValue);
-
-        parser.parseAndSave(input, false, false);
-
-        assertEquals(1, savedAccounts.size());
-        Account account = savedAccounts.get(0);
-        assertEquals(deviceIdValue, account.getDeviceId1(), "Device ID 1 should be populated from generic Device ID");
-        assertEquals(deviceIdValue, account.getDeviceId2(), "Device ID 2 should be populated from generic Device ID");
-    }
-
-    @Test
-    void testGenericDeviceIdWithDeviceKeyword() {
-        String deviceIdValue = "E18F48B48882B72D1CDD92530D8E1F7AEB0C6378B1C1FBEDC169F9A4D4CECA53";
-
-        List<Account> savedAccounts = new ArrayList<>();
-        StalkerPortalParser parser = new StalkerPortalParser(name -> null, savedAccounts::add);
-
-        String input = """
-                http://portal.example/c
-                00:1A:79:AA:BB:CC
-                Device: %s
-                """.formatted(deviceIdValue);
-
-        parser.parseAndSave(input, false, false);
-
-        assertEquals(1, savedAccounts.size());
-        Account account = savedAccounts.get(0);
-        assertEquals(deviceIdValue, account.getDeviceId1(), "Device ID 1 should be populated from Device keyword");
-        assertEquals(deviceIdValue, account.getDeviceId2(), "Device ID 2 should be populated from Device keyword");
-    }
-
-    @Test
-    void testGenericDeviceIdWithIdKeyword() {
-        String deviceIdValue = "E18F48B48882B72D1CDD92530D8E1F7AEB0C6378B1C1FBEDC169F9A4D4CECA53";
-
-        List<Account> savedAccounts = new ArrayList<>();
-        StalkerPortalParser parser = new StalkerPortalParser(name -> null, savedAccounts::add);
-
-        String input = """
-                http://portal.example/c
-                00:1A:79:AA:BB:CC
-                ID: %s
-                """.formatted(deviceIdValue);
-
-        parser.parseAndSave(input, false, false);
-
-        assertEquals(1, savedAccounts.size());
-        Account account = savedAccounts.get(0);
-        assertEquals(deviceIdValue, account.getDeviceId1(), "Device ID 1 should be populated from ID keyword");
-        assertEquals(deviceIdValue, account.getDeviceId2(), "Device ID 2 should be populated from ID keyword");
-    }
-
-    @Test
     void testGenericDeviceIdDoesNotMatchDeviceId1Or2() {
         String deviceId1Value = "11111111111111111111111111111111";
         String deviceId2Value = "22222222222222222222222222222222";
@@ -193,6 +132,28 @@ class StalkerPortalParserTest {
         Account account = savedAccounts.get(0);
         assertEquals(deviceId1Value, account.getDeviceId1(), "Device ID 1 should be parsed from specific Device ID 1");
         assertEquals(deviceId2Value, account.getDeviceId2(), "Device ID 2 should be parsed from specific Device ID 2");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Device ID", "Device", "ID"})
+    void testGenericDeviceIdKeywordPopulatesBothDeviceIds(String keyword) {
+        String deviceIdValue = "E18F48B48882B72D1CDD92530D8E1F7AEB0C6378B1C1FBEDC169F9A4D4CECA53";
+
+        List<Account> savedAccounts = new ArrayList<>();
+        StalkerPortalParser parser = new StalkerPortalParser(name -> null, savedAccounts::add);
+
+        String input = """
+                http://portal.example/c
+                00:1A:79:AA:BB:CC
+                %s: %s
+                """.formatted(keyword, deviceIdValue);
+
+        parser.parseAndSave(input, false, false);
+
+        assertEquals(1, savedAccounts.size());
+        Account account = savedAccounts.get(0);
+        assertEquals(deviceIdValue, account.getDeviceId1(), "Device ID 1 should be populated from " + keyword + " keyword");
+        assertEquals(deviceIdValue, account.getDeviceId2(), "Device ID 2 should be populated from " + keyword + " keyword");
     }
 
     @Test

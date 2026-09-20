@@ -85,6 +85,7 @@ public class StalkerPortalParser implements AccountParser {
             case SERIAL_CUT:
                 account.setSerialNumber(value);
                 break;
+            case DEVICE_ID:
             case DEVICE_ID_1:
                 account.setDeviceId1(value);
                 break;
@@ -95,6 +96,8 @@ public class StalkerPortalParser implements AccountParser {
                 if (!isNotBlank(account.getSignature())) {
                     account.setSignature(value);
                 }
+                break;
+            default:
                 break;
         }
     }
@@ -174,13 +177,14 @@ public class StalkerPortalParser implements AccountParser {
             String value = parser.parse(line);
             if (value != null) {
                 StalkerAttributeType type = parser.getAttributeType();
-                applyValueToAccount(account, value, type);
+applyValueToAccount(account, value, type);
                 if (type == StalkerAttributeType.DEVICE_ID) {
                     applyValueToAccount(account, value, StalkerAttributeType.DEVICE_ID_1);
                     applyValueToAccount(account, value, StalkerAttributeType.DEVICE_ID_2);
                 } else if (type == StalkerAttributeType.DEVICE_ID_1) {
                     String lower = line.toLowerCase();
-                    if (lower.matches(".*1\\s*/\\s*2.*")) {
+                    // Check for "1/2" pattern without regex backtracking
+                    if (lower.contains("1/2") || lower.matches(".*1\\s*/\\s*2.*")) {
                         applyValueToAccount(account, value, StalkerAttributeType.DEVICE_ID_2);
                     }
                 }

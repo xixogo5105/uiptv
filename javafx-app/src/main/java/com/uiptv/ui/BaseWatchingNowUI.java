@@ -2759,7 +2759,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (before.isEmpty()) {
             return title;
         }
-        before = before.replaceAll("[-:|]+\\s*$", "").trim();
+        before = before.replaceAll("[-:|]++\\s*$", "").trim();
         return before.isEmpty() ? title : before;
     }
 

@@ -1334,7 +1334,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
         target.setOnContextMenuRequested(event -> {
-            focusEpisodeCard(target instanceof VBox vbox ? vbox : selectedEpisodeCard);
+            VBox cardToFocus = target instanceof VBox vbox ? vbox : selectedEpisodeCard;
+            if (cardToFocus != null) {
+                focusEpisodeCard(cardToFocus);
+            }
             populateEpisodeContextMenu(rowMenu, item);
             if (!rowMenu.getItems().isEmpty()) {
                 rowMenu.show(target, event.getScreenX(), event.getScreenY());
@@ -1577,6 +1580,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private JSONObject findEpisodeMeta(EpisodeMetaIndex index, EpisodeItem episode) {
+        if (episode == null) {
+            return null;
+        }
         String sourceTitle = episodeMetadataTitle(episode);
         String normalizedSeason = normalizeNumber(episode.getSeason());
         String normalizedEpisode = normalizeNumber(firstNonBlank(episode.getEpisodeNumber(), inferEpisodeNumberFromTitle(sourceTitle)));

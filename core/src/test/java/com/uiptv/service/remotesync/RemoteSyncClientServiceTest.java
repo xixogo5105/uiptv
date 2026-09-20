@@ -131,7 +131,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
     }
 
     @Test
-    void exportToRemote_reportsRemoteFailureMessageWhenUploadPipeBreaks() throws Exception {
+    void exportToRemote_reportsRemoteFailureMessageWhenUploadPipeBreaks() {
         saveLocalAccount("local-account");
         FakeRemoteSyncHttpClient httpClient = new FakeRemoteSyncHttpClient();
         httpClient.nextCreatedState = new RemoteSyncSessionState(

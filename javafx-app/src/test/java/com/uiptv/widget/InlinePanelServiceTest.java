@@ -21,6 +21,7 @@ import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -48,7 +49,7 @@ class InlinePanelServiceTest {
         Node frame = runOnFxThread(() -> host.getChildren().get(0));
         assertTrue(runOnFxThread(() -> frame.getStyleClass().contains("uiptv-inline-panel")));
         Button closeButton = runOnFxThread(() -> findButtonByStyle(frame, "uiptv-inline-close-button"));
-        assertTrue(closeButton != null);
+        assertNotNull(closeButton);
         assertEquals("", runOnFxThread(closeButton::getText));
         assertEquals("Close", runOnFxThread(closeButton::getAccessibleText));
         assertTrue(runOnFxThread(() -> closeButton.getGraphic() != null));

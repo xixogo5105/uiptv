@@ -76,7 +76,7 @@ public class ChannelService {
         params.put("p", String.valueOf(pageNumber));
         params.put("per_page", "999");
         params.put("max_count", "0");
-        params.put("JsHttpRequest", new Date().getTime() + "-xml");
+        params.put("JsHttpRequest", System.currentTimeMillis() + "-xml");
         return params;
     }
 

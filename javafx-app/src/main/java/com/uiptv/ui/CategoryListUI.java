@@ -1060,7 +1060,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
 
             try {
                 channelListUI.startLoadingProgressIfNeeded();
-                loadChannelsIntoUi(item, noCachingNeeded, isCancelled, selectedCategoryKey, channelListUI, allItems, mode, modeAccount);
+                loadChannelsIntoUi(new LoadChannelsParams(item, noCachingNeeded, isCancelled, selectedCategoryKey, channelListUI, allItems, mode, modeAccount));
             } finally {
                 if (!isLoadingCancelled(isCancelled)) {
                     channelListUI.setLoadingComplete();
@@ -1102,22 +1102,31 @@ public class CategoryListUI extends HBox implements SearchTarget {
         latch.countDown();
     }
 
-    private void loadChannelsIntoUi(CategoryItem item, boolean noCachingNeeded, BooleanSupplier isCancelled,
-                                    String selectedCategoryKey, ChannelListUI channelListUI, List<CategoryItem> allItems,
-                                    Account.AccountAction mode, Account modeAccount) throws IOException {
-        boolean cachingNeeded = !noCachingNeeded;
-        if (cachingNeeded && isAllCategory(item)) {
-            loadAllCategoryChannels(item, isCancelled, channelListUI, allItems, mode, modeAccount);
+    private void loadChannelsIntoUi(LoadChannelsParams params) throws IOException {
+        boolean cachingNeeded = !params.noCachingNeeded;
+        if (cachingNeeded && isAllCategory(params.item)) {
+            loadAllCategoryChannels(params.item, params.isCancelled, params.channelListUI, params.allItems, params.mode, params.modeAccount);
             return;
         }
-        if (isLoadingCancelled(isCancelled)) {
+        if (isLoadingCancelled(params.isCancelled)) {
             return;
         }
-        ChannelService.getInstance().get(selectedCategoryKey, modeAccount, item.getId(),
-                message -> logChannelFetch(item, mode, message),
-                channelListUI::addItems, isCancelled::getAsBoolean,
-                progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
+        ChannelService.getInstance().get(params.selectedCategoryKey, params.modeAccount, params.item.getId(),
+                message -> logChannelFetch(params.item, params.mode, message),
+                params.channelListUI::addItems, params.isCancelled::getAsBoolean,
+                progress -> params.channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
     }
+
+    private record LoadChannelsParams(
+            CategoryItem item,
+            boolean noCachingNeeded,
+            BooleanSupplier isCancelled,
+            String selectedCategoryKey,
+            ChannelListUI channelListUI,
+            List<CategoryItem> allItems,
+            Account.AccountAction mode,
+            Account modeAccount
+    ) {}
 
     private void loadAllCategoryChannels(CategoryItem item, BooleanSupplier isCancelled,
                                          ChannelListUI channelListUI, List<CategoryItem> allItems,

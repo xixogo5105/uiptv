@@ -702,7 +702,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (before.isEmpty()) {
             return title;
         }
-        before = before.replaceAll("[-:|]+\\s*$", "").trim();
+        before = before.replaceAll("[-:|]++\\s*$", "").trim();
         return before.isEmpty() ? title : before;
     }
 

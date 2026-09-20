@@ -608,10 +608,6 @@ public class ConfigurationUI extends VBox {
         applyThemePreview();
     }
 
-    private BorderPane createCollapsibleGroupPane(String title, Node content, boolean collapsedByDefault, Hyperlink helpLink) {
-        return createCollapsibleGroupPane(new Label(title), content, collapsedByDefault, helpLink);
-    }
-
     private BorderPane createCollapsibleGroupPane(Label titleLabel, Node content, boolean collapsedByDefault, Hyperlink helpLink) {
         return createCollapsibleGroupPane(titleLabel, null, content, collapsedByDefault, helpLink);
     }
@@ -638,18 +634,14 @@ public class ConfigurationUI extends VBox {
         HBox.setHgrow(spacer, Priority.ALWAYS);
         HBox header = new HBox(8, titleContainer, spacer, toggleLink);
 
-        final Runnable refreshToggleLabel = () -> {
-            boolean expanded = content.isVisible() && content.isManaged();
-            toggleLink.setText(expanded ? I18n.tr("commonHide") : I18n.tr("commonShow"));
-        };
         content.setVisible(!collapsedByDefault);
         content.setManaged(!collapsedByDefault);
-        refreshToggleLabel.run();
+        toggleLink.setText((content.isVisible() && content.isManaged()) ? I18n.tr("commonHide") : I18n.tr("commonShow"));
         toggleLink.setOnAction(event -> {
             boolean expand = !(content.isVisible() && content.isManaged());
             content.setVisible(expand);
             content.setManaged(expand);
-            refreshToggleLabel.run();
+            toggleLink.setText(expand ? I18n.tr("commonHide") : I18n.tr("commonShow"));
         });
 
         BorderPane.setMargin(header, new Insets(0, 0, 8, 0));
@@ -1223,9 +1215,8 @@ public class ConfigurationUI extends VBox {
         startServerButton.setText(running ? I18n.tr("configStopServer") : I18n.tr("configStartServer"));
         openServerLink.setVisible(running);
         openServerLink.setManaged(running);
-        boolean secureLinkVisible = running && isHttpsServerConfigured();
-        openSecureServerLink.setVisible(secureLinkVisible);
-        openSecureServerLink.setManaged(secureLinkVisible);
+        openSecureServerLink.setVisible(running && isHttpsServerConfigured());
+        openSecureServerLink.setManaged(running && isHttpsServerConfigured());
     }
 
     private boolean isHttpsServerConfigured() {

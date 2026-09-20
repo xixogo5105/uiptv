@@ -106,12 +106,8 @@ class HttpWatchingNowJsonServerTest extends DbBackedTest {
         JSONArray response = new JSONArray(exchange.getResponseBodyText());
         assertEquals(2, response.length());
 
-        JSONObject numericRow = response.getJSONObject(0).getString("seriesId").equals("12345")
-                ? response.getJSONObject(0)
-                : response.getJSONObject(1);
-        JSONObject slugRow = response.getJSONObject(0).getString("seriesId").equals("series-slug")
-                ? response.getJSONObject(0)
-                : response.getJSONObject(1);
+        JSONObject numericRow = findRowBySeriesId(response, "12345");
+        JSONObject slugRow = findRowBySeriesId(response, "series-slug");
 
         assertEquals("12345", numericRow.getString("seriesId"));
         assertEquals("Snapshot Numeric Series", numericRow.getString("seriesTitle"));
@@ -120,6 +116,16 @@ class HttpWatchingNowJsonServerTest extends DbBackedTest {
 
         assertEquals("series-slug", slugRow.getString("seriesId"));
         assertEquals("series-slug", slugRow.getString("seriesTitle"));
+    }
+
+    private JSONObject findRowBySeriesId(JSONArray array, String seriesId) {
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject obj = array.getJSONObject(i);
+            if (seriesId.equals(obj.getString("seriesId"))) {
+                return obj;
+            }
+        }
+        throw new AssertionError("Row with seriesId " + seriesId + " not found");
     }
 
     @Test

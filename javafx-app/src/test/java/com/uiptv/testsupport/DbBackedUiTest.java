@@ -92,7 +92,7 @@ public abstract class DbBackedUiTest {
             try {
                 deleteTree(tempDir);
                 return;
-            } catch (IOException ignored) {
+            } catch (IOException _) {
                 sleepBeforeRetry();
             }
         }
@@ -114,15 +114,16 @@ public abstract class DbBackedUiTest {
         try {
             SQLConnection.setDatabasePath(idleDb.toString());
             SQLConnection.releaseMemory();
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException _) {
             // Cleanup must not fail the test after assertions have already passed.
         }
     }
 
     private void sleepBeforeRetry() {
         try {
+            Thread.onSpinWait();
             Thread.sleep(DELETE_RETRY_DELAY_MS);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }
     }

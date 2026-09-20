@@ -19,7 +19,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.util.Base64;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -97,7 +96,7 @@ public class HandshakeService {
         params.put("type", "stb");
         params.put(PARAM_ACTION, "handshake");
         params.put(PARAM_TOKEN, "");
-        params.put(PARAM_JS_HTTP_REQUEST, new Date().getTime() + "-xml");
+        params.put(PARAM_JS_HTTP_REQUEST, System.currentTimeMillis() + "-xml");
         return params;
     }
 
@@ -124,7 +123,7 @@ public class HandshakeService {
         params.put("hw_version_2", generateRandom());
         params.put("api_signature", "262");
         params.put("prehash", "");
-        params.put(PARAM_JS_HTTP_REQUEST, new Date().getTime() + "-xml");
+        params.put(PARAM_JS_HTTP_REQUEST, System.currentTimeMillis() + "-xml");
 
 
         return params;
@@ -134,7 +133,7 @@ public class HandshakeService {
         final Map<String, String> params = new HashMap<>();
         params.put("type", KEY_ACCOUNT_INFO);
         params.put(PARAM_ACTION, "get_main_info");
-        params.put(PARAM_JS_HTTP_REQUEST, new Date().getTime() + "-xml");
+        params.put(PARAM_JS_HTTP_REQUEST, System.currentTimeMillis() + "-xml");
         return params;
     }
 

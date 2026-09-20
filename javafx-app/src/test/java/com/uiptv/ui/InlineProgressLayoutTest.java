@@ -37,6 +37,7 @@ import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static com.uiptv.testsupport.FxTestSupport.waitForFxEvents;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -86,7 +87,7 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
 
         ReloadCacheInline inline = runOnFxThread(() -> new ReloadCacheInline(List.of()));
 
-        assertTrue(findDescendantByStyle(inline, Region.class, "reload-failure-policy-card") != null);
+        assertNotNull(findDescendantByStyle(inline, Region.class, "reload-failure-policy-card"));
         assertFalse(inline.shouldPromptAutomaticGlobalFailureDecision(List.of(first, second)));
     }
 

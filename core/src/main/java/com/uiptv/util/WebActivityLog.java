@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -57,7 +58,7 @@ public final class WebActivityLog {
             return;
         }
 
-        String entry = TIMESTAMP_FORMATTER.format(LocalDateTime.now())
+        String entry = TIMESTAMP_FORMATTER.format(LocalDateTime.now(ZoneId.systemDefault()))
                 + " | IP " + safeValue(isBlank(requestIp) ? "unknown" : requestIp)
                 + " | " + action
                 + " | Result: " + describeResult(statusCode)

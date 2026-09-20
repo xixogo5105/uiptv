@@ -142,7 +142,8 @@ class I18nTest {
 
         assertFalse(formatted.contains(","), "Urdu date should not contain ASCII comma.");
         assertFalse(formatted.contains("،"), "Urdu date should not contain Arabic comma.");
-        assertFalse(formatted.matches(".*[0-9].*"), "Urdu date should use localized numerals.");
+        // Use a more efficient pattern: check for any digit without leading .*
+        assertFalse(formatted.matches("[^0-9]*[0-9].*"), "Urdu date should use localized numerals.");
         assertTrue(formatted.contains("جنوری"), "Urdu date should use localized month name.");
         assertEquals("۱۹۹۶", I18n.formatNumber("1996"), "Urdu numbers should use localized numerals.");
     }

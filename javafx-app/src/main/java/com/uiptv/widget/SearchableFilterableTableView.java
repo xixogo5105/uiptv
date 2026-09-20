@@ -10,8 +10,8 @@ import javafx.collections.transformation.FilteredList;
 import javafx.scene.control.*;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static com.uiptv.ui.RootApplication.GUIDED_MAX_WIDTH_PIXELS;
@@ -19,7 +19,7 @@ import static com.uiptv.util.AccountType.getAccountTypeByDisplay;
 
 public class SearchableFilterableTableView extends TableView<AccountListUI.AccountItem> {
     private static final String COMMON_ALL = "commonAll";
-    private final UIptvText textField = new UIptvText("search" + new Date().getTime(), "commonSearch", 10);
+    private final UIptvText textField = new UIptvText("search" + UUID.randomUUID().toString().substring(0, 8), "commonSearch", 10);
     private final MenuButton menuButton = new MenuButton(I18n.tr(COMMON_ALL));
     private final List<CheckMenuItem> typeCheckMenuItems = new ArrayList<>();
     private final CheckMenuItem allMenuItem;

@@ -445,7 +445,7 @@ public class M3U8Parser {
             if (candidate.contains("/")) {
                 return true;
             }
-            return candidate.matches("(?i)^.+\\.(m3u8|mpd|ts|aac|mp3|mp4|m4s)(\\?.*)?$");
+            return candidate.matches("(?i)^[^.]+\\.(m3u8|mpd|ts|aac|mp3|mp4|m4s)(\\?.*)?$");
         }
     }
 
@@ -470,10 +470,13 @@ public class M3U8Parser {
     }
 
     private static BufferedReader openUriReader(URI source) throws IOException {
-        if (source != null && "file".equalsIgnoreCase(source.getScheme())) {
+        if (source == null) {
+            throw new IllegalArgumentException("Source URI cannot be null");
+        }
+        if ("file".equalsIgnoreCase(source.getScheme())) {
             return Files.newBufferedReader(Path.of(source), StandardCharsets.UTF_8);
         }
-        if (source != null && source.getScheme() == null) {
+        if (source.getScheme() == null) {
             return Files.newBufferedReader(Path.of(source.toString()), StandardCharsets.UTF_8);
         }
         InputStream inputStream = source.toURL().openStream();
