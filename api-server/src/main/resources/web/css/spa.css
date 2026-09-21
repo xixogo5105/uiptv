@@ -1389,6 +1389,27 @@ a[href] {
     }
 }
 
+/* Wide view content stage single column rules (hard coded for this flow) */
+.content-shell.wide-view:not(.player-hidden) .bookmark-tabs,
+.content-shell.wide-view:not(.player-hidden) .account-type-tabs,
+.content-shell.wide-view:not(.player-hidden) .content-mode-tabs {
+    display: none;
+}
+
+.content-shell.wide-view:not(.player-hidden) .bookmark-dropdown,
+.content-shell.wide-view:not(.player-hidden) .account-type-dropdown,
+.content-shell.wide-view:not(.player-hidden) .content-mode-dropdown {
+    display: flex;
+}
+
+.content-shell.wide-view:not(.player-hidden) .bookmark-grid,
+.content-shell.wide-view:not(.player-hidden) .account-grid,
+.content-shell.wide-view:not(.player-hidden) .accounts-drilldown,
+.content-shell.wide-view:not(.player-hidden) .watching-layout,
+.content-shell.wide-view:not(.player-hidden) .watching-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 /* Ensure drilldown panels never exceed their container */
 .accounts-drilldown,
 .watching-detail-layout {
@@ -1433,22 +1454,22 @@ a[href] {
 
 /* When content area has moderate space (520-800px), 2-column grids */
 @container content-stage (min-width: 520px) {
-    .bookmark-grid {
+    .content-shell:not(.wide-view) .bookmark-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .account-grid {
+    .content-shell:not(.wide-view) .account-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 }
 
 /* When content area has plenty of space (>800px), full 3-column grids */
 @container content-stage (min-width: 800px) {
-    .bookmark-grid {
+    .content-shell:not(.wide-view) .bookmark-grid {
         grid-template-columns: repeat(3, 1fr);
     }
 
-    .account-grid {
+    .content-shell:not(.wide-view) .account-grid {
         grid-template-columns: repeat(3, 1fr);
     }
 }
@@ -1487,9 +1508,10 @@ a[href] {
         grid-template-rows: auto minmax(0, 1fr);
     }
 
-     .content-shell.wide-view .player-panel {
+    .content-shell.wide-view .player-panel {
         max-height: min(42vh, 420px);
         height: auto;
+        overflow-y: hidden;
     }
 
     /* Mobile single-column view: collapse button groups into dropdowns */
@@ -1516,6 +1538,18 @@ a[href] {
     .player-panel {
         grid-row: 1;
         max-height: min(42vh, 420px);
+        overflow: hidden;
+        overflow-y: hidden;
+        scrollbar-gutter: auto;
+    }
+
+    .player-panel #player-wrapper {
+        min-height: 0;
+    }
+
+    .player-panel .uiptv-shared-player,
+    .player-panel .player-progress-strip {
+        display: none !important;
     }
 }
 
@@ -1579,6 +1613,18 @@ a[href] {
     .player-panel {
         grid-row: 1;
         max-height: min(46vh, 380px);
+        overflow: hidden;
+        overflow-y: hidden;
+        scrollbar-gutter: auto;
+    }
+
+    .player-panel #player-wrapper {
+        min-height: 0;
+    }
+
+    .player-panel .uiptv-shared-player,
+    .player-panel .player-progress-strip {
+        display: none !important;
     }
 }
 

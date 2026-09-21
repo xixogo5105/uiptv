@@ -62,6 +62,7 @@ createApp({
             persistWideViewPreference(wideViewActive.value);
         }
         const contentStageNarrow = ref(false);
+        const isCompactDrilldown = computed(() => wideViewActive.value || contentStageNarrow.value);
         const wideDrilldownPanel = ref('categories');
         const updateWideDrilldownPanel = () => {
             if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
@@ -75,7 +76,7 @@ createApp({
             if (persist) {
                 persistWideViewPreference(wideViewActive.value);
             }
-            if (contentStageNarrow.value) {
+            if (isCompactDrilldown.value) {
                 updateWideDrilldownPanel();
             }
         };
@@ -596,7 +597,7 @@ createApp({
             episodes.value = [...(state.episodes || [])];
             currentContext.value.categoryId = state.categoryId || null;
             viewState.value = state.viewState === 'accounts' ? 'categories' : state.viewState;
-            if (contentStageNarrow.value) {
+            if (isCompactDrilldown.value) {
                 updateWideDrilldownPanel();
             }
             if (mode === 'series') {
@@ -1425,7 +1426,7 @@ createApp({
                     vodDetail.value = null;
                     vodDetailLoading.value = false;
                 }
-                if (contentStageNarrow.value) {
+                if (isCompactDrilldown.value) {
                     wideDrilldownPanel.value = 'categories';
                 }
                 clearSearch();
@@ -1449,7 +1450,7 @@ createApp({
                 episodes.value = [];
                 viewState.value = 'channels';
                 modeState.viewState = 'channels';
-                if (contentStageNarrow.value) {
+                if (isCompactDrilldown.value) {
                     wideDrilldownPanel.value = 'channels';
                 }
                 clearSearch();
@@ -1482,7 +1483,7 @@ createApp({
                     vodDetail.value = null;
                     vodDetailLoading.value = false;
                 }
-                if (contentStageNarrow.value) {
+                if (isCompactDrilldown.value) {
                     wideDrilldownPanel.value = 'channels';
                 }
                 clearSearch();
@@ -1509,7 +1510,7 @@ createApp({
                 episodes.value = enrichEpisodesFromMeta(episodes.value, modeState.detail || null);
                 modeState.episodes = [...episodes.value];
                 modeState.viewState = 'episodes';
-                if (contentStageNarrow.value) {
+                if (isCompactDrilldown.value) {
                     wideDrilldownPanel.value = 'episodes';
                 }
                 clearSearch();
@@ -1543,7 +1544,7 @@ createApp({
                 episodes.value = enrichEpisodesFromMeta(episodes.value, modeState.detail || null);
                 modeState.episodes = [...episodes.value];
                 modeState.viewState = 'episodes';
-                if (contentStageNarrow.value) {
+                if (isCompactDrilldown.value) {
                     wideDrilldownPanel.value = 'episodes';
                 }
                 clearSearch();
@@ -1646,7 +1647,7 @@ createApp({
             modeState.viewState = 'vodDetail';
             vodDetail.value = detail;
             viewState.value = 'vodDetail';
-            if (contentStageNarrow.value) {
+            if (isCompactDrilldown.value) {
                 wideDrilldownPanel.value = 'vodDetail';
             }
             clearSearch();
@@ -1955,7 +1956,7 @@ createApp({
             if (tab !== 'watchingNow') {
                 watchingNowDrilldown.value = false;
             }
-            if (contentStageNarrow.value) {
+            if (isCompactDrilldown.value) {
                 if (viewState.value === 'accounts') {
                     wideDrilldownPanel.value = 'categories';
                 } else if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
@@ -2150,7 +2151,7 @@ createApp({
                 return;
             }
             viewState.value = 'accounts';
-            if (contentStageNarrow.value) {
+            if (isCompactDrilldown.value) {
                 wideDrilldownPanel.value = 'categories';
             }
             clearSearch();
@@ -2177,7 +2178,7 @@ createApp({
             seriesDetailLoading.value = false;
             vodDetail.value = null;
             vodDetailLoading.value = false;
-            if (contentStageNarrow.value) {
+            if (isCompactDrilldown.value) {
                 wideDrilldownPanel.value = 'categories';
             }
             clearSearch();
@@ -2193,7 +2194,7 @@ createApp({
             const modeState = getModeState(contentMode.value);
             viewState.value = 'channels';
             modeState.viewState = viewState.value;
-            if (contentStageNarrow.value) {
+            if (isCompactDrilldown.value) {
                 wideDrilldownPanel.value = 'channels';
             }
             clearSearch();
@@ -4769,7 +4770,7 @@ createApp({
                     for (const entry of entries) {
                         const isNarrow = entry.contentRect.width < 600;
                         contentStageNarrow.value = isNarrow;
-                        if (isNarrow) {
+                        if (isCompactDrilldown.value) {
                             updateWideDrilldownPanel();
                         }
                     }
@@ -4854,6 +4855,7 @@ createApp({
             showBookmarkModal,
             wideViewActive,
             contentStageNarrow,
+            isCompactDrilldown,
             wideDrilldownPanel,
             hasPlayerContent,
             playerPanelVisible,

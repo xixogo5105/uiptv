@@ -251,7 +251,7 @@
                     </div>
 
                     <div class="accounts-drilldown" v-else>
-                        <section aria-label="Categories" class="browser-panel account-category-panel" v-show="!contentStageNarrow || wideDrilldownPanel === 'categories'">
+                        <section aria-label="Categories" class="browser-panel account-category-panel" v-show="!isCompactDrilldown || wideDrilldownPanel === 'categories'">
                             <header class="panel-heading">
                                 <strong>Categories</strong>
                                 <span>{{ contentModeLabels[contentMode] }}</span>
@@ -284,7 +284,7 @@
                             </div>
                         </section>
 
-                        <section aria-label="Content" class="browser-panel account-content-panel content-panel" v-show="!contentStageNarrow || wideDrilldownPanel !== 'categories'">
+                        <section aria-label="Content" class="browser-panel account-content-panel content-panel" v-show="!isCompactDrilldown || wideDrilldownPanel !== 'categories'">
                             <header class="panel-heading">
                                 <strong>{{ contentPanelTitle }}</strong>
                                 <span>{{ currentCategoryTitle }}</span>
