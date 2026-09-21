@@ -40,9 +40,11 @@ android {
         applicationId = "com.uiptv.mobile"
         minSdk = libs.versions.android.min.sdk.get().toInt()
         targetSdk = libs.versions.android.target.sdk.get().toInt()
-        versionCode = 1
+        val buildNumber = nextBuildNumber()
+        versionCode = buildNumber
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "BUILD_NUMBER", "\"$buildNumber\"")
     }
 
     signingConfigs {
@@ -71,6 +73,9 @@ android {
             assets.srcDir("../../core/src/main/resources")
         }
     }
+    buildFeatures {
+        buildConfig = true
+    }
 }
 
 dependencies {
@@ -89,4 +94,16 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.kotlinx.coroutines.core)
+}
+
+fun nextBuildNumber(): Int {
+    val buildNumberFile = file("build/build-number.txt")
+    val next = if (buildNumberFile.isFile) {
+        buildNumberFile.readText().trim().toIntOrNull()?.inc() ?: 1
+    } else {
+        1
+    }
+    buildNumberFile.parentFile?.mkdirs()
+    buildNumberFile.writeText(next.toString())
+    return next
 }

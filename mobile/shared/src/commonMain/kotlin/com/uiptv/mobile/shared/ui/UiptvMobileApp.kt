@@ -198,6 +198,19 @@ private val LightUiptvPalette = UiptvPalette(
 
 private val LocalUiptvPalette = staticCompositionLocalOf { DarkUiptvPalette }
 private val LocalWidePhoneLayout = staticCompositionLocalOf { false }
+val LocalAppVersion = staticCompositionLocalOf<AppVersionInfo> { AppVersionInfo.EMPTY }
+
+data class AppVersionInfo(
+    val versionName: String,
+    val buildNumber: String,
+    val androidSdkVersion: Int
+) {
+    companion object {
+        val EMPTY = AppVersionInfo("", "", 0)
+    }
+}
+
+expect fun formatEpochSeconds(epochSeconds: Long): String
 
 private enum class UiptvLayoutMode {
     Compact,
@@ -4366,7 +4379,7 @@ private fun RemoteSyncScreen(
             snapshot.remoteEndpoint.port.toString()
         }
         lastSyncText = snapshot.remoteEndpoint.lastSuccessfulSyncEpochSeconds
-            ?.let { "Last sync: $it" }
+            ?.let { "Last sync: ${formatEpochSeconds(it)}" }
             ?: "Never synced"
         selectedPlayer = snapshot.playerPreference.selectedPlayer
         playerText = "Player: ${snapshot.playerPreference.selectedPlayer.playerLabel()}"
@@ -4868,6 +4881,11 @@ private fun RemoteSyncScreen(
         ) {
             Text("Reset Local Data")
         }
+        val appVersion = LocalAppVersion.current
+        if (appVersion != AppVersionInfo.EMPTY) {
+            Spacer(Modifier.height(8.dp))
+            AboutSection(versionInfo = appVersion)
+        }
     }
     }
 
@@ -5186,6 +5204,11 @@ private fun WideRemoteSyncContent(
                 ) {
                     Text("Reset Local Data")
                 }
+                val appVersionWide = LocalAppVersion.current
+                if (appVersionWide != AppVersionInfo.EMPTY) {
+                    Spacer(Modifier.height(8.dp))
+                    AboutSection(versionInfo = appVersionWide)
+                }
             }
         }
         Surface(
@@ -5286,6 +5309,50 @@ private fun ConfigurationIntro(
             color = DeepNightMutedText,
             style = MaterialTheme.typography.bodySmall
         )
+    }
+}
+
+@Composable
+private fun AboutSection(versionInfo: AppVersionInfo) {
+    val uriHandler = LocalUriHandler.current
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = DeepNightSurfaceHigh,
+        contentColor = DeepNightText
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Outlined.Android,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = DeepNightAccent
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "UIPTV",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Text(
+                "Version ${versionInfo.versionName} · Build ${versionInfo.buildNumber}",
+                color = DeepNightMutedText,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(
+                text = "GitHub",
+                color = DeepNightAccent,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.clickable {
+                    uriHandler.openUri("https://github.com/xixogo5105/uiptv")
+                }
+            )
+        }
     }
 }
 

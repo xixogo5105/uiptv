@@ -19,6 +19,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,14 +45,16 @@ import com.uiptv.mobile.shared.settings.MobileBackupArchive
 import com.uiptv.mobile.shared.sync.AndroidRemoteSyncClient
 import com.uiptv.mobile.shared.sync.AndroidRemoteSyncPullService
 import com.uiptv.mobile.shared.ui.AccountUiActions
+import com.uiptv.mobile.shared.ui.AppVersionInfo
 import com.uiptv.mobile.shared.ui.BackupRestoreUiActions
 import com.uiptv.mobile.shared.ui.BrowseUiActions
 import com.uiptv.mobile.shared.ui.DefaultPlayerIcon
 import com.uiptv.mobile.shared.ui.FilterUiActions
+import com.uiptv.mobile.shared.ui.LocalAppVersion
 import com.uiptv.mobile.shared.ui.PanelVisibilityUiActions
 import com.uiptv.mobile.shared.ui.PlaybackUiActions
-import com.uiptv.mobile.shared.ui.UiptvMobileApp
 import com.uiptv.mobile.shared.ui.RemoteSyncUiActions
+import com.uiptv.mobile.shared.ui.UiptvMobileApp
 
 class MainActivity : ComponentActivity() {
     private var appResumeSignal by mutableIntStateOf(0)
@@ -109,123 +112,131 @@ class MainActivity : ComponentActivity() {
                 pendingRestoreSelection = null
             }
 
-            UiptvMobileApp(
-                resumeSignal = appResumeSignal,
-                syncActions = RemoteSyncUiActions(
-                    loadPreferences = preferences::load,
-                    checkConnection = syncService::checkConnection,
-                    pullFromDesktop = { host, port, onProgress ->
-                        syncService.pullFromDesktop(host, port, onProgress)
-                            .also { notifyLocalDatabaseChanged() }
+            CompositionLocalProvider(
+                LocalAppVersion provides AppVersionInfo(
+                    versionName = BuildConfig.VERSION_NAME,
+                    buildNumber = BuildConfig.BUILD_NUMBER,
+                    androidSdkVersion = Build.VERSION.SDK_INT
+                )
+            ) {
+                UiptvMobileApp(
+                    resumeSignal = appResumeSignal,
+                    syncActions = RemoteSyncUiActions(
+                        loadPreferences = preferences::load,
+                        checkConnection = syncService::checkConnection,
+                        pullFromDesktop = { host, port, onProgress ->
+                            syncService.pullFromDesktop(host, port, onProgress)
+                                .also { notifyLocalDatabaseChanged() }
+                        },
+                        resetLocalData = {
+                            localDataResetter.resetAndVacuum()
+                            notifyLocalDatabaseChanged()
+                        }
+                    ),
+                    accountActions = AccountUiActions(
+                        loadAccounts = accountRepository::listAccounts,
+                        saveAccount = accountRepository::saveAccount,
+                        deleteAccount = accountRepository::deleteAccount,
+                        clearCache = accountRepository::clearAccountCache,
+                        clearAllCache = accountRepository::clearAllCache,
+                        enqueueCacheJob = cacheScheduler::enqueue,
+                        loadCacheJobState = cacheScheduler::state,
+                        loadRecentCacheJobs = { cacheScheduler.recentStates() },
+                        stopCacheJob = cacheScheduler::cancel
+                    ),
+                    browseActions = BrowseUiActions(
+                        loadBrowse = browseRepository::loadBrowse,
+                        listBookmarkCategories = browseRepository::listBookmarkCategories,
+                        listBookmarks = browseRepository::listBookmarks,
+                        toggleBookmark = browseRepository::toggleBookmark,
+                        removeCachedCategories = browseRepository::removeCachedCategories,
+                        removeBookmark = browseRepository::removeBookmark,
+                        clearRecentlyPlayedBookmarks = {
+                            browseRepository.clearRecentlyPlayedBookmarks()
+                            notifyLocalDatabaseChanged()
+                        },
+                        removeRecentlyPlayedBookmark = { bookmark ->
+                            browseRepository.removeRecentlyPlayedBookmark(bookmark)
+                            notifyLocalDatabaseChanged()
+                        },
+                        listWatchingNow = browseRepository::listWatchingNow,
+                        listWatchingNowEpisodes = browseRepository::listWatchingNowEpisodes,
+                        enrichWatchingNowItem = browseRepository::enrichWatchingNowItem,
+                        enrichSeriesDetails = browseRepository::enrichSeriesDetails,
+                        markWatchingNowEpisode = browseRepository::markWatchingNowEpisode,
+                        clearWatchingNowEpisode = browseRepository::clearWatchingNowEpisode,
+                        removeWatchingNow = browseRepository::removeWatchingNow
+                    ),
+                    playbackActions = PlaybackUiActions(
+                        loadPlayerPreference = playbackCoordinator::loadPlayerPreference,
+                        playerChoices = playbackCoordinator::playerChoices,
+                        playBrowseItem = playbackCoordinator::playBrowseItem,
+                        playBookmark = playbackCoordinator::playBookmark,
+                        playWatchingNow = playbackCoordinator::playWatchingNow,
+                        playWatchingNowEpisode = playbackCoordinator::playWatchingNowEpisode,
+                        playBingeWatchSeason = playbackCoordinator::playBingeWatchSeason,
+                        openPlayerInstall = playbackCoordinator::openPlayerInstall,
+                        savePlayerPreference = playbackCoordinator::savePlayerPreference,
+                        clearPlayerPreference = playbackCoordinator::clearPlayerPreference
+                    ),
+                    filterActions = FilterUiActions(
+                        load = filterRepository::load,
+                        save = filterRepository::save,
+                        setPaused = filterRepository::setPaused,
+                        setEnableThumbnails = { enabled ->
+                            filterRepository.setEnableThumbnails(enabled)
+                            ThumbnailCache.clearAll(this@MainActivity)
+                        }
+                    ),
+                    panelVisibilityActions = PanelVisibilityUiActions(
+                        load = { preferences.load().panelVisibilityPreference },
+                        save = preferences::savePanelVisibilityPreference
+                    ),
+                    backupRestoreActions = BackupRestoreUiActions(
+                        backupToUri = backupManager::backupToUri,
+                        restoreFromUri = { uri ->
+                            backupManager.restoreFromUri(uri)
+                                .also { notifyLocalDatabaseChanged() }
+                        }
+                    ),
+                    logoRenderer = { logoUrl, description, modifier ->
+                        RemoteLogoImage(logoUrl, description, modifier)
                     },
-                    resetLocalData = {
-                        localDataResetter.resetAndVacuum()
-                        notifyLocalDatabaseChanged()
-                    }
-                ),
-                accountActions = AccountUiActions(
-                    loadAccounts = accountRepository::listAccounts,
-                    saveAccount = accountRepository::saveAccount,
-                    deleteAccount = accountRepository::deleteAccount,
-                    clearCache = accountRepository::clearAccountCache,
-                    clearAllCache = accountRepository::clearAllCache,
-                    enqueueCacheJob = cacheScheduler::enqueue,
-                    loadCacheJobState = cacheScheduler::state,
-                    loadRecentCacheJobs = { cacheScheduler.recentStates() },
-                    stopCacheJob = cacheScheduler::cancel
-                ),
-                browseActions = BrowseUiActions(
-                    loadBrowse = browseRepository::loadBrowse,
-                    listBookmarkCategories = browseRepository::listBookmarkCategories,
-                    listBookmarks = browseRepository::listBookmarks,
-                    toggleBookmark = browseRepository::toggleBookmark,
-                    removeCachedCategories = browseRepository::removeCachedCategories,
-                    removeBookmark = browseRepository::removeBookmark,
-                    clearRecentlyPlayedBookmarks = {
-                        browseRepository.clearRecentlyPlayedBookmarks()
-                        notifyLocalDatabaseChanged()
+                    playerIconRenderer = { choice, modifier ->
+                        AndroidPlayerIcon(choice, modifier)
                     },
-                    removeRecentlyPlayedBookmark = { bookmark ->
-                        browseRepository.removeRecentlyPlayedBookmark(bookmark)
-                        notifyLocalDatabaseChanged()
-                    },
-                    listWatchingNow = browseRepository::listWatchingNow,
-                    listWatchingNowEpisodes = browseRepository::listWatchingNowEpisodes,
-                    enrichWatchingNowItem = browseRepository::enrichWatchingNowItem,
-                    enrichSeriesDetails = browseRepository::enrichSeriesDetails,
-                    markWatchingNowEpisode = browseRepository::markWatchingNowEpisode,
-                    clearWatchingNowEpisode = browseRepository::clearWatchingNowEpisode,
-                    removeWatchingNow = browseRepository::removeWatchingNow
-                ),
-                playbackActions = PlaybackUiActions(
-                    loadPlayerPreference = playbackCoordinator::loadPlayerPreference,
-                    playerChoices = playbackCoordinator::playerChoices,
-                    playBrowseItem = playbackCoordinator::playBrowseItem,
-                    playBookmark = playbackCoordinator::playBookmark,
-                    playWatchingNow = playbackCoordinator::playWatchingNow,
-                    playWatchingNowEpisode = playbackCoordinator::playWatchingNowEpisode,
-                    playBingeWatchSeason = playbackCoordinator::playBingeWatchSeason,
-                    openPlayerInstall = playbackCoordinator::openPlayerInstall,
-                    savePlayerPreference = playbackCoordinator::savePlayerPreference,
-                    clearPlayerPreference = playbackCoordinator::clearPlayerPreference
-                ),
-                filterActions = FilterUiActions(
-                    load = filterRepository::load,
-                    save = filterRepository::save,
-                    setPaused = filterRepository::setPaused,
-                    setEnableThumbnails = { enabled ->
-                        filterRepository.setEnableThumbnails(enabled)
-                        ThumbnailCache.clearAll(this@MainActivity)
-                    }
-                ),
-                panelVisibilityActions = PanelVisibilityUiActions(
-                    load = { preferences.load().panelVisibilityPreference },
-                    save = preferences::savePanelVisibilityPreference
-                ),
-                backupRestoreActions = BackupRestoreUiActions(
-                    backupToUri = backupManager::backupToUri,
-                    restoreFromUri = { uri ->
-                        backupManager.restoreFromUri(uri)
-                            .also { notifyLocalDatabaseChanged() }
-                    }
-                ),
-                logoRenderer = { logoUrl, description, modifier ->
-                    RemoteLogoImage(logoUrl, description, modifier)
-                },
-                playerIconRenderer = { choice, modifier ->
-                    AndroidPlayerIcon(choice, modifier)
-                },
-                localPlaylistPicker = { onSelected ->
-                    pendingLocalPlaylistSelection = onSelected
-                    localPlaylistLauncher.launch(
-                        arrayOf(
-                            "application/vnd.apple.mpegurl",
-                            "application/x-mpegurl",
-                            "audio/mpegurl",
-                            "audio/x-mpegurl",
-                            "text/plain",
-                            "*/*"
+                    localPlaylistPicker = { onSelected ->
+                        pendingLocalPlaylistSelection = onSelected
+                        localPlaylistLauncher.launch(
+                            arrayOf(
+                                "application/vnd.apple.mpegurl",
+                                "application/x-mpegurl",
+                                "audio/mpegurl",
+                                "audio/x-mpegurl",
+                                "text/plain",
+                                "*/*"
+                            )
                         )
-                    )
-                },
-                backupFileCreator = { suggestedName, onSelected ->
-                    pendingBackupSelection = onSelected
-                    backupLauncher.launch(suggestedName)
-                },
-                restoreFilePicker = { onSelected ->
-                    pendingRestoreSelection = onSelected
-                    restoreLauncher.launch(
-                        arrayOf(
-                            MobileBackupArchive.MIME_TYPE,
-                            "application/octet-stream",
-                            "*/*"
+                    },
+                    backupFileCreator = { suggestedName, onSelected ->
+                        pendingBackupSelection = onSelected
+                        backupLauncher.launch(suggestedName)
+                    },
+                    restoreFilePicker = { onSelected ->
+                        pendingRestoreSelection = onSelected
+                        restoreLauncher.launch(
+                            arrayOf(
+                                MobileBackupArchive.MIME_TYPE,
+                                "application/octet-stream",
+                                "*/*"
+                            )
                         )
-                    )
-                },
-                backHandler = { enabled, onBack ->
-                    BackHandler(enabled = enabled, onBack = onBack)
-                }
-            )
+                    },
+                    backHandler = { enabled, onBack ->
+                        BackHandler(enabled = enabled, onBack = onBack)
+                    }
+                )
+            }
         }
     }
 
