@@ -179,6 +179,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             List<BookmarkCategory> categories = new ArrayList<>();
             categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
             categories.addAll(BookmarkService.getInstance().getAllCategories());
+            runLater(() -> populateCategoryPills(categories));
 
             int offset = 0;
             List<BookmarkItem> allLoadedItems = new ArrayList<>();
