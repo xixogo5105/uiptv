@@ -61,6 +61,7 @@ createApp({
         if (!readCookieValue(WIDE_VIEW_COOKIE_NAME)) {
             persistWideViewPreference(wideViewActive.value);
         }
+        const contentStageNarrow = ref(false);
         const wideDrilldownPanel = ref('categories');
         const updateWideDrilldownPanel = () => {
             if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
@@ -74,7 +75,7 @@ createApp({
             if (persist) {
                 persistWideViewPreference(wideViewActive.value);
             }
-            if (wideViewActive.value) {
+            if (contentStageNarrow.value) {
                 updateWideDrilldownPanel();
             }
         };
@@ -87,8 +88,6 @@ createApp({
         const draggedBookmarkId = ref('');
         const dragOverBookmarkId = ref('');
         const suppressNextBookmarkClick = ref(false);
-        const bookmarkOverflowToggleRef = ref(null);
-        const isBookmarkOverflowDropdownOpen = ref(false);
         const recentBookmarkHistory = ref([]);
         const bingeWatchLoading = ref(false);
         const activeBingeWatch = ref({token: '', currentEpisodeId: '', items: []});
@@ -597,7 +596,7 @@ createApp({
             episodes.value = [...(state.episodes || [])];
             currentContext.value.categoryId = state.categoryId || null;
             viewState.value = state.viewState === 'accounts' ? 'categories' : state.viewState;
-            if (wideViewActive.value) {
+            if (contentStageNarrow.value) {
                 updateWideDrilldownPanel();
             }
             if (mode === 'series') {
@@ -897,29 +896,6 @@ createApp({
             }
             return tabs;
         });
-        const bookmarkPrimaryTabs = computed(() => bookmarkCategoryTabs.value.slice(0, 7));
-        const bookmarkOverflowTabs = computed(() => bookmarkCategoryTabs.value.slice(7));
-        const isBookmarkOverflowActive = computed(() => {
-            const selected = String(selectedBookmarkCategoryId.value || '');
-            return bookmarkOverflowTabs.value.some(tab => String(tab?.id || '') === selected);
-        });
-        const selectedBookmarkCategoryLabel = computed(() => {
-            const selectedId = String(selectedBookmarkCategoryId.value || '');
-            const found = bookmarkCategoryTabs.value.find(tab => String(tab?.id || '') === selectedId);
-            return found ? String(found.name || '') : 'More';
-        });
-
-        const toggleBookmarkOverflowDropdown = () => {
-            isBookmarkOverflowDropdownOpen.value = !isBookmarkOverflowDropdownOpen.value;
-        };
-
-        const hideBookmarkOverflowDropdown = () => {
-            isBookmarkOverflowDropdownOpen.value = false;
-            const toggle = bookmarkOverflowToggleRef.value;
-            if (!toggle || typeof bootstrap === 'undefined' || !bootstrap?.Dropdown) return;
-            const instance = bootstrap.Dropdown.getOrCreateInstance(toggle);
-            instance.hide();
-        };
 
         const canReorderBookmarks = computed(() => {
             return activeTab.value === 'bookmarks'
@@ -1449,7 +1425,7 @@ createApp({
                     vodDetail.value = null;
                     vodDetailLoading.value = false;
                 }
-                if (wideViewActive.value) {
+                if (contentStageNarrow.value) {
                     wideDrilldownPanel.value = 'categories';
                 }
                 clearSearch();
@@ -1473,7 +1449,7 @@ createApp({
                 episodes.value = [];
                 viewState.value = 'channels';
                 modeState.viewState = 'channels';
-                if (wideViewActive.value) {
+                if (contentStageNarrow.value) {
                     wideDrilldownPanel.value = 'channels';
                 }
                 clearSearch();
@@ -1506,7 +1482,7 @@ createApp({
                     vodDetail.value = null;
                     vodDetailLoading.value = false;
                 }
-                if (wideViewActive.value) {
+                if (contentStageNarrow.value) {
                     wideDrilldownPanel.value = 'channels';
                 }
                 clearSearch();
@@ -1533,7 +1509,7 @@ createApp({
                 episodes.value = enrichEpisodesFromMeta(episodes.value, modeState.detail || null);
                 modeState.episodes = [...episodes.value];
                 modeState.viewState = 'episodes';
-                if (wideViewActive.value) {
+                if (contentStageNarrow.value) {
                     wideDrilldownPanel.value = 'episodes';
                 }
                 clearSearch();
@@ -1567,7 +1543,7 @@ createApp({
                 episodes.value = enrichEpisodesFromMeta(episodes.value, modeState.detail || null);
                 modeState.episodes = [...episodes.value];
                 modeState.viewState = 'episodes';
-                if (wideViewActive.value) {
+                if (contentStageNarrow.value) {
                     wideDrilldownPanel.value = 'episodes';
                 }
                 clearSearch();
@@ -1670,7 +1646,7 @@ createApp({
             modeState.viewState = 'vodDetail';
             vodDetail.value = detail;
             viewState.value = 'vodDetail';
-            if (wideViewActive.value) {
+            if (contentStageNarrow.value) {
                 wideDrilldownPanel.value = 'vodDetail';
             }
             clearSearch();
@@ -1864,12 +1840,6 @@ createApp({
         const selectBookmarkCategory = (categoryId) => {
             selectedBookmarkCategoryId.value = String(categoryId || '');
             clearSearch();
-            hideBookmarkOverflowDropdown();
-        };
-
-        const onBookmarkOverflowSelect = (categoryId) => {
-            selectBookmarkCategory(categoryId);
-            hideBookmarkOverflowDropdown();
         };
 
         const onBookmarkCardClick = (bookmark) => {
@@ -1985,7 +1955,7 @@ createApp({
             if (tab !== 'watchingNow') {
                 watchingNowDrilldown.value = false;
             }
-            if (wideViewActive.value) {
+            if (contentStageNarrow.value) {
                 if (viewState.value === 'accounts') {
                     wideDrilldownPanel.value = 'categories';
                 } else if (viewState.value === 'channels' || viewState.value === 'episodes' || viewState.value === 'vodDetail') {
@@ -2180,7 +2150,7 @@ createApp({
                 return;
             }
             viewState.value = 'accounts';
-            if (wideViewActive.value) {
+            if (contentStageNarrow.value) {
                 wideDrilldownPanel.value = 'categories';
             }
             clearSearch();
@@ -2207,7 +2177,7 @@ createApp({
             seriesDetailLoading.value = false;
             vodDetail.value = null;
             vodDetailLoading.value = false;
-            if (wideViewActive.value) {
+            if (contentStageNarrow.value) {
                 wideDrilldownPanel.value = 'categories';
             }
             clearSearch();
@@ -2223,7 +2193,7 @@ createApp({
             const modeState = getModeState(contentMode.value);
             viewState.value = 'channels';
             modeState.viewState = viewState.value;
-            if (wideViewActive.value) {
+            if (contentStageNarrow.value) {
                 wideDrilldownPanel.value = 'channels';
             }
             clearSearch();
@@ -4792,6 +4762,20 @@ createApp({
             } else {
                 await launchPlaybackFromQueryParams();
             }
+
+            const stage = document.querySelector('.content-stage');
+            if (stage && typeof ResizeObserver !== 'undefined') {
+                const ro = new ResizeObserver(entries => {
+                    for (const entry of entries) {
+                        const isNarrow = entry.contentRect.width < 600;
+                        contentStageNarrow.value = isNarrow;
+                        if (isNarrow) {
+                            updateWideDrilldownPanel();
+                        }
+                    }
+                });
+                ro.observe(stage);
+            }
         });
 
         watch(currentChannelDebugTitle, () => {
@@ -4838,13 +4822,6 @@ createApp({
             watchingNowLoadingMessage,
             watchingNowVodRows,
             bookmarkCategoryTabs,
-            bookmarkPrimaryTabs,
-            bookmarkOverflowTabs,
-            isBookmarkOverflowActive,
-            isBookmarkOverflowDropdownOpen,
-            selectedBookmarkCategoryLabel,
-            toggleBookmarkOverflowDropdown,
-            bookmarkOverflowToggleRef,
             seriesSeasonTabs,
             selectedSeriesSeason,
             selectedBookmarkCategoryId,
@@ -4876,6 +4853,7 @@ createApp({
             showOverlay,
             showBookmarkModal,
             wideViewActive,
+            contentStageNarrow,
             wideDrilldownPanel,
             hasPlayerContent,
             playerPanelVisible,
@@ -4933,7 +4911,6 @@ createApp({
             playVodFromDetail,
             startBingeWatchSeason,
             selectBookmarkCategory,
-            onBookmarkOverflowSelect,
             playChannel,
             handleChannelSelection,
             playBookmark,

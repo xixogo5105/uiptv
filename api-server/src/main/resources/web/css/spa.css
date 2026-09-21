@@ -249,9 +249,7 @@ a[href] {
 
 .theme-toggle,
 .soft-button,
-.primary-button,
-.filter-chip,
-.segmented button {
+.primary-button {
     border: 1px solid color-mix(in srgb, var(--outline) 38%, transparent);
     background: var(--surface-high);
     color: var(--text);
@@ -301,58 +299,27 @@ a[href] {
 
 .filter-chip,
 .segmented button {
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
     color: var(--muted);
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 12px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    line-height: 1.1;
     white-space: nowrap;
+    cursor: pointer;
 }
 
 .filter-chip.active,
 .segmented button.active {
-    border-color: transparent;
     background: var(--primary-container);
     color: var(--on-primary-container);
-}
-
-.bookmark-overflow-dropdown {
-    position: relative;
-    flex: 1 1 100%;
-}
-
-.bookmark-overflow-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    z-index: 20;
-    display: flex;
-    flex-direction: column;
-    background: var(--surface);
-    border: 1px solid color-mix(in srgb, var(--outline) 28%, transparent);
-    border-radius: 10px;
-    box-shadow: 0 12px 28px var(--shadow);
-    min-width: 100%;
-    max-height: 240px;
-    overflow-y: auto;
-}
-
-.dropdown-item {
-    width: 100%;
-    min-width: 0;
-    text-align: left;
-    padding: 10px 14px;
-    font-size: 0.88rem;
-    background: transparent;
-    color: var(--text);
-    border: none;
-    border-radius: 0;
-    white-space: nowrap;
-    cursor: pointer;
-    transition: background 120ms ease, color 120ms ease;
-}
-
-.dropdown-item:hover,
-.dropdown-item.active {
-    background: color-mix(in srgb, var(--primary-container) 24%, transparent);
-    color: var(--on-primary-container);
+    border-color: transparent;
 }
 
 .content-shell {
@@ -390,6 +357,8 @@ a[href] {
     display: block;
     height: 100%;
     overflow-y: auto;
+    container-type: inline-size;
+    container-name: content-stage;
 }
 
 .content-screen {
@@ -426,15 +395,26 @@ a[href] {
     line-height: 1.35;
 }
 
-.chip-row,
 .account-actions,
-.drilldown-actions,
-.segmented {
+.drilldown-actions {
     min-width: 0;
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     align-items: center;
+}
+
+.chip-row,
+.segmented {
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    background: var(--surface-high);
+    border: 1px solid color-mix(in srgb, var(--outline) 28%, transparent);
+    border-radius: 8px;
+    padding: 4px;
+    gap: 2px;
 }
 
 .bookmark-dropdown,
@@ -1382,14 +1362,6 @@ a[href] {
     grid-template-columns: minmax(0, 1fr);
 }
 
-.content-shell.wide-view .accounts-drilldown {
-    grid-template-columns: minmax(0, 1fr);
-}
-
-.content-shell.wide-view .watching-detail-layout {
-    grid-template-columns: minmax(0, 1fr);
-}
-
 .content-shell.wide-view .player-progress-strip {
     display: none;
 }
@@ -1405,42 +1377,79 @@ a[href] {
     min-height: 0;
 }
 
+.content-shell.wide-view .uiptv-player-header {
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 8px;
+}
+
 @media (max-width: 1300px) {
     .content-shell.wide-view {
         grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
     }
 }
 
-    .content-shell.wide-view .uiptv-player-header {
-        background: var(--surface);
-        border-radius: 8px;
-        padding: 8px;
-    }
+/* Ensure drilldown panels never exceed their container */
+.accounts-drilldown,
+.watching-detail-layout {
+    overflow: hidden;
+}
 
-    /* In wide view, list items are displayed one per line (matches desktop app) */
-    .content-shell.wide-view .content-grid,
-    .content-shell.wide-view .bookmark-grid,
-    .content-shell.wide-view .account-grid {
-        grid-template-columns: 1fr;
-    }
-
-    /* In wide view, allow the content panel to scroll */
-    .content-shell.wide-view .content-stage {
-        overflow-y: auto;
-    }
-
-    /* In wide view, collapse nav button groups into dropdowns */
-    .content-shell.wide-view .bookmark-tabs,
-    .content-shell.wide-view .bookmark-overflow,
-    .content-shell.wide-view .account-type-tabs,
-    .content-shell.wide-view .content-mode-tabs {
+/* When content area is narrow (<520px), collapse to compact layout */
+@container content-stage (max-width: 520px) {
+    .bookmark-tabs,
+    .account-type-tabs,
+    .content-mode-tabs {
         display: none;
     }
 
-    .content-shell.wide-view .bookmark-dropdown,
-    .content-shell.wide-view .account-type-dropdown,
-    .content-shell.wide-view .content-mode-dropdown {
+    .bookmark-dropdown,
+    .account-type-dropdown,
+    .content-mode-dropdown {
         display: flex;
+    }
+
+    .bookmark-grid,
+    .account-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .accounts-drilldown {
+        grid-template-columns: 1fr;
+    }
+
+    .watching-detail-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Inside container queries, collapse drilldown to single column */
+@container content-stage (max-width: 600px) {
+    .accounts-drilldown,
+    .watching-detail-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* When content area has moderate space (520-800px), 2-column grids */
+@container content-stage (min-width: 520px) {
+    .bookmark-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .account-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* When content area has plenty of space (>800px), full 3-column grids */
+@container content-stage (min-width: 800px) {
+    .bookmark-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .account-grid {
+        grid-template-columns: repeat(3, 1fr);
     }
 }
 
@@ -1485,7 +1494,6 @@ a[href] {
 
     /* Mobile single-column view: collapse button groups into dropdowns */
     .bookmark-tabs,
-    .bookmark-overflow,
     .account-type-tabs,
     .content-mode-tabs {
         display: none;
