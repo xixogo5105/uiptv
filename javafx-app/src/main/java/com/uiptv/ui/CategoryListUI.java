@@ -44,8 +44,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -1089,7 +1092,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
                                            ChannelListUI[] channelListUIHolder, List<CategoryItem> allItems,
                                            CountDownLatch latch, Account.AccountAction mode) {
         String title = item.getCategoryTitle() != null ? item.getCategoryTitle() : "";
-        ChannelListUI ui = new ChannelListUI(contextForMode(mode), title, selectedCategoryKey, mode);
+        ChannelListUI ui = new ChannelListUI(contextForMode(mode), title, selectedCategoryKey, mode, isAllCategory(item));
         ui.setMediaDrawerMode(mediaDrawerMode);
         disposeChannelListState(state);
         channelListUIHolder[0] = ui;
@@ -1136,21 +1139,40 @@ public class CategoryListUI extends HBox implements SearchTarget {
             return;
         }
         if (allItems.size() == 1 && isAllCategory(allItems.getFirst())) {
+            boolean itvMode = mode == Account.AccountAction.itv;
             ChannelService.getInstance().get(selectedCategoryKey(item), modeAccount, item.getId(),
                     message -> logChannelFetch(item, mode, message),
                     channelListUI::addItems, isCancelled::getAsBoolean,
-                    progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
+                    itvMode ? null : progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
+            if (itvMode) {
+                channelListUI.updateLoadingProgress(1, 1, 1, 1);
+            }
             return;
         }
-        for (CategoryItem categoryItem : allItems) {
+        List<CategoryItem> categoriesToFetch = allItems.stream()
+                .filter(categoryItem -> categoryItem != null && !isAllCategory(categoryItem))
+                .toList();
+        int totalCategories = categoriesToFetch.size();
+        if (totalCategories == 0) {
+            return;
+        }
+        AtomicInteger completedCategories = new AtomicInteger(0);
+        boolean itvMode = mode == Account.AccountAction.itv;
+        for (CategoryItem categoryItem : categoriesToFetch) {
             if (isLoadingCancelled(isCancelled)) {
                 return;
             }
-            if (categoryItem != null && !isAllCategory(categoryItem)) {
+            try {
                 ChannelService.getInstance().get(selectedCategoryKey(categoryItem), modeAccount, categoryItem.getId(),
                         message -> logChannelFetch(categoryItem, mode, message),
                         channelListUI::addItems, isCancelled::getAsBoolean,
-                        progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
+                        itvMode ? null : progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
+            } catch (Exception e) {
+                logChannelFetch(categoryItem, mode, "Error: " + e.getMessage());
+            }
+            if (itvMode) {
+                int completed = completedCategories.incrementAndGet();
+                channelListUI.updateLoadingProgress(completed, totalCategories, completed, totalCategories);
             }
         }
     }

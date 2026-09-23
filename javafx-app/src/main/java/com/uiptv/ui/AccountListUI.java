@@ -442,10 +442,10 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     private void configureAccountTypePillBar() {
         List<AccountTypeFilter> filters = new ArrayList<>();
-        filters.add(new AccountTypeFilter("all", I18n.tr("commonAll"), null));
-        for (AccountType type : AccountType.values()) {
-            filters.add(new AccountTypeFilter(type.name(), type.getDisplay(), type));
-        }
+        filters.add(new AccountTypeFilter("all", I18n.tr("commonAll"), Set.of()));
+        filters.add(new AccountTypeFilter(AccountType.STALKER_PORTAL.name(), AccountType.STALKER_PORTAL.getDisplay(), Set.of(AccountType.STALKER_PORTAL)));
+        filters.add(new AccountTypeFilter("m3u8", "M3U8", Set.of(AccountType.M3U8_LOCAL, AccountType.M3U8_URL)));
+        filters.add(new AccountTypeFilter(AccountType.XTREME_API.name(), "Xtreme", Set.of(AccountType.XTREME_API)));
         accountTypePillBar.setItems(filters);
         accountTypePillBar.selectedItemProperty().addListener((_, _, _) -> applyAccountOrdering());
         accountTypePillBar.setNarrowReservedRowCount(2);
@@ -455,7 +455,9 @@ public class AccountListUI extends HBox implements SearchTarget {
     private void configureAccountGrid() {
         accountGrid.getStyleClass().add("account-card-grid");
         accountGrid.setCardWidthRange(GRID_NORMAL_CARD_MIN_WIDTH, GRID_NORMAL_CARD_MAX_WIDTH);
+        accountGrid.setCardMinHeight(100);
         accountGrid.setLowVirtualizationThreshold();
+        accountGrid.setVirtualizationThreshold(Integer.MAX_VALUE);
         applyAccountGridDisplayMode(ThumbnailAwareUI.areThumbnailsEnabled());
         accountGrid.setPlaceholderText(I18n.tr("autoNothingFoundFor", I18n.tr("autoAccount")));
         accountGrid.setOnItemActivated(item -> retrieveThreadedAccountCategories(item, itv));
@@ -966,6 +968,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         card.getStyleClass().add(STYLE_ACCOUNT_CARD);
         card.setMinWidth(0);
         card.setMaxWidth(Double.MAX_VALUE);
+        card.setFillWidth(true);
 
         Label title = new Label(item == null ? "" : item.getAccountName());
         title.getStyleClass().add(STYLE_ACCOUNT_CARD_TITLE);
@@ -1432,11 +1435,27 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     private void applyAccountOrdering() {
         List<AccountItem> orderedItems = new ArrayList<>(masterAccountItems);
+        AccountTypeFilter selectedType = accountTypePillBar.getSelectedItem();
+        boolean m3u8FilterActive = selectedType != null && selectedType.types() != null && selectedType.types().contains(AccountType.M3U8_LOCAL);
+        Comparator<AccountItem> typeOrder = m3u8FilterActive ? (left, right) -> {
+            boolean leftLocal = AccountType.M3U8_LOCAL.name().equals(left.getAccountType());
+            boolean rightLocal = AccountType.M3U8_LOCAL.name().equals(right.getAccountType());
+            if (leftLocal && !rightLocal) {
+                return -1;
+            }
+            if (!leftLocal && rightLocal) {
+                return 1;
+            }
+            return 0;
+        } : (left, right) -> 0;
         switch (accountSortMode) {
             case DEFAULT -> orderedItems.sort(Comparator.comparing(AccountItem::isPinToTop).reversed()
-                    .thenComparingInt(AccountItem::getOriginalOrder));
-            case DESCENDING -> orderedItems.sort(ACCOUNT_NAME_COMPARATOR.reversed());
-            default -> orderedItems.sort(ACCOUNT_NAME_COMPARATOR);
+                    .thenComparingInt(AccountItem::getOriginalOrder)
+                    .thenComparing(typeOrder));
+            case DESCENDING -> orderedItems.sort(ACCOUNT_NAME_COMPARATOR.reversed()
+                    .thenComparing(typeOrder));
+            default -> orderedItems.sort(ACCOUNT_NAME_COMPARATOR
+                    .thenComparing(typeOrder));
         }
         table.setItems(FXCollections.observableArrayList(orderedItems));
         accountGrid.setItems(FXCollections.observableArrayList(orderedItems.stream()
@@ -1455,8 +1474,9 @@ public class AccountListUI extends HBox implements SearchTarget {
                 || accountNameValue.toLowerCase(Locale.ROOT).contains(normalizedSearch);
         AccountTypeFilter selectedType = accountTypePillBar.getSelectedItem();
         boolean matchesType = selectedType == null
-                || selectedType.type() == null
-                || selectedType.type().name().equals(item.getAccountType());
+                || selectedType.types() == null
+                || selectedType.types().isEmpty()
+                || selectedType.types().stream().anyMatch(type -> type.name().equals(item.getAccountType()));
         return matchesSearch && matchesType;
     }
 
@@ -1826,16 +1846,20 @@ public class AccountListUI extends HBox implements SearchTarget {
     private record AccountExpiry(String text, AccountInfoUiUtil.ExpiryState state) {
     }
 
-    private record AccountTypeFilter(String key, String label, AccountType type) {
+    private record AccountTypeFilter(String key, String label, Set<AccountType> types) {
         private String compactLabel() {
-            if (type == null) {
+            if (types == null || types.isEmpty()) {
                 return label;
             }
-            return switch (type) {
-                case STALKER_PORTAL -> "Stalker";
-                case XTREME_API -> "Xtreme";
-                default -> label;
-            };
+            if (types.size() == 1) {
+                AccountType type = types.iterator().next();
+                return switch (type) {
+                    case STALKER_PORTAL -> "Stalker";
+                    case XTREME_API -> "Xtreme";
+                    default -> label;
+                };
+            }
+            return label;
         }
     }
 }

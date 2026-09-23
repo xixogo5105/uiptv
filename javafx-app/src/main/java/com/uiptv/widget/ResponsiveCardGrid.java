@@ -657,6 +657,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
             return;
         }
         measuredVirtualCardHeight = measured;
+        updateVirtualContentHeight();
+        scheduleVirtualWindowUpdate();
     }
 
     private void updateVirtualContentHeight() {

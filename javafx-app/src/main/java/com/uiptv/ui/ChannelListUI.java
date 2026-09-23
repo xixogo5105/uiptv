@@ -25,10 +25,13 @@ import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
+import javafx.event.Event;
+import javafx.event.EventHandler;
 import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
@@ -90,6 +93,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     private final AtomicBoolean disposed = new AtomicBoolean(false);
     private final WatchingNowVodResolver vodMetadataResolver = new WatchingNowVodResolver();
+    private boolean allCategory = false;
+    private final EventHandler<ScrollEvent> scrollEventFilter = Event::consume;
     private static final String LOG_ACCOUNT = " account=";
     private static final String LOG_CHANNEL_ID = " channelId=";
     private static final String LOG_NAME = " name=";
@@ -139,10 +144,15 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private PauseTransition loadingProgressHideTimer;
 
     public ChannelListUI(Account account, String categoryTitle, String categoryId, Account.AccountAction listAction) {
-        this(AccountMediaContext.from(account, listAction), categoryTitle, categoryId, listAction);
+        this(AccountMediaContext.from(account, listAction), categoryTitle, categoryId, listAction, false);
     }
 
     public ChannelListUI(AccountMediaContext mediaContext, String categoryTitle, String categoryId, Account.AccountAction listAction) {
+        this(mediaContext, categoryTitle, categoryId, listAction, false);
+    }
+
+    public ChannelListUI(AccountMediaContext mediaContext, String categoryTitle, String categoryId, Account.AccountAction listAction, boolean allCategory) {
+        this.allCategory = allCategory;
         this.categoryId = categoryId;
         this.channelList = new ArrayList<>();
         this.listAction = listAction == null ? Account.AccountAction.itv : listAction;
@@ -368,6 +378,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             if (disposed.get()) {
                 return;
             }
+            setScrollingEnabled(true);
             if (!itemsLoaded.get()) {
                 String emptyText = I18n.tr("autoNothingFoundFor", categoryTitle);
                 table.setPlaceholder(new Label(emptyText));
@@ -377,22 +388,39 @@ public class ChannelListUI extends HBox implements SearchTarget {
         });
     }
 
+    private void setScrollingEnabled(boolean enabled) {
+        if (channelGridScroll == null) {
+            return;
+        }
+        channelGridScroll.setPannable(enabled);
+        if (enabled) {
+            channelGridScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+            channelGridScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+            channelGridScroll.removeEventFilter(ScrollEvent.ANY, scrollEventFilter);
+        } else {
+            channelGridScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            channelGridScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            channelGridScroll.addEventFilter(ScrollEvent.ANY, scrollEventFilter);
+        }
+    }
+
     public void startLoadingProgressIfNeeded() {
-        if (disposed.get() || (listAction != vod && listAction != series)) {
+        if (disposed.get() || (!isProgressBarMode())) {
             return;
         }
         runLater(() -> {
             if (disposed.get()) {
                 return;
             }
-            loadingProgress.setProgress(ProgressIndicator.INDETERMINATE_PROGRESS);
-            updateLoadingProgressValue(ProgressIndicator.INDETERMINATE_PROGRESS);
+            setScrollingEnabled(false);
+            loadingProgress.setProgress(0);
+            updateLoadingProgressValue(0);
             showLoadingProgress();
         });
     }
 
     public void updateLoadingProgress(int fetchedItems, int totalItems, int pageNumber, int pageCount) {
-        if (disposed.get() || (listAction != vod && listAction != series)) {
+        if (disposed.get() || (!isProgressBarMode())) {
             return;
         }
         runLater(() -> {
@@ -442,8 +470,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
         loadingProgressBox.getStyleClass().remove(COMPLETE);
     }
 
+    private boolean isProgressBarMode() {
+        return listAction == vod || listAction == series || (listAction == Account.AccountAction.itv && allCategory);
+    }
+
     private void finalizeLoadingProgress() {
-        if (listAction != vod && listAction != series) {
+        if (!isProgressBarMode()) {
             return;
         }
         if (!loadingProgressBox.isVisible()) {
@@ -1461,6 +1493,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             loadingThread.interrupt();
         }
         cancelLoadingProgressHide();
+        setScrollingEnabled(true);
         seriesEpisodesCache.clear();
         // Clear channel items and metadata to allow garbage collection
         if (channelItems != null) {
