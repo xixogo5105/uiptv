@@ -52,6 +52,7 @@ public class ParseMultipleAccountUI extends VBox {
     private final UIptvTextArea multipleSPAccounts = new UIptvTextArea("multipleSPAccounts", "parseMultipleAccountsInputHint", 5);
     private static final String GROUP_BY_MAC_LABEL = "autoGroupAccountsByMACAddress";
     private static final String GROUP_BY_XTREME_LABEL = "autoGroupAccountsByUsernamePassword";
+    private static final String GROUP_CONVERTED_M3U_XTREME_LABEL = "autoGroupConvertedM3UAccountsByUrl";
     private final PillBar<String> parseModePillBar = new PillBar<>(mode -> mode, mode -> mode);
     private final SwitchToggle groupAccountsSwitch = new SwitchToggle();
     private final SwitchToggle convertM3uToXtremeSwitch = new SwitchToggle();
@@ -126,6 +127,8 @@ public class ParseMultipleAccountUI extends VBox {
         HBox verificationRow = createSwitchRow(startVerificationAfterParsingLabel, startVerificationAfterParsingSwitch);
         groupAccountsRow.managedProperty().bind(groupAccountsRow.visibleProperty());
         convertM3uToXtremeRow.managedProperty().bind(convertM3uToXtremeRow.visibleProperty());
+        convertM3uToXtremeSwitch.selectedProperty().addListener((_, _, _) ->
+                updateCheckboxesVisibility(parseModePillBar.getSelectedItem()));
 
         AppPageHeader pageHeader = new AppPageHeader(
                 I18n.tr("autoImportBulkAccounts"),
@@ -134,7 +137,7 @@ public class ParseMultipleAccountUI extends VBox {
         pageHeader.setHeaderTitleVisible(false);
         pageHeader.setNavigationSelectionEnabled(false);
 
-        VBox modeCard = createModeCard(groupAccountsRow, convertM3uToXtremeRow, verificationRow);
+        VBox modeCard = createModeCard(convertM3uToXtremeRow, groupAccountsRow, verificationRow);
         VBox editorCard = createEditorCard();
         HBox actionRow = createActionRow();
         contentContainer.getChildren().setAll(pageHeader, modeCard, editorCard, actionRow);
@@ -247,15 +250,20 @@ public class ParseMultipleAccountUI extends VBox {
     }
 
     private void updateCheckboxesVisibility(String mode) {
-        boolean showGroup = TextParserService.MODE_STALKER.equals(mode) || TextParserService.MODE_XTREME.equals(mode);
+        boolean isM3uMode = TextParserService.MODE_M3U.equals(mode);
+        boolean showGroup = TextParserService.MODE_STALKER.equals(mode)
+                || TextParserService.MODE_XTREME.equals(mode)
+                || (isM3uMode && convertM3uToXtremeSwitch.isSelected());
         groupAccountsRow.setVisible(showGroup);
         if (TextParserService.MODE_XTREME.equals(mode)) {
             groupAccountsLabel.setText(I18n.tr(GROUP_BY_XTREME_LABEL));
+        } else if (isM3uMode) {
+            groupAccountsLabel.setText(I18n.tr(GROUP_CONVERTED_M3U_XTREME_LABEL));
         } else {
             groupAccountsLabel.setText(I18n.tr(GROUP_BY_MAC_LABEL));
         }
         groupAccountsSwitch.setAccessibleText(groupAccountsLabel.getText());
-        convertM3uToXtremeRow.setVisible(TextParserService.MODE_M3U.equals(mode));
+        convertM3uToXtremeRow.setVisible(isM3uMode);
     }
 
     private void addClearButtonClickHandler() {
