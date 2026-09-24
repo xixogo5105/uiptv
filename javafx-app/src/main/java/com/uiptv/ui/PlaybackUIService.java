@@ -253,6 +253,7 @@ public final class PlaybackUIService {
         return ServerUrlUtil.getLoopbackServerUrl()
                 + "/index.html?launch="
                 + URLEncoder.encode(encoded, StandardCharsets.UTF_8)
+                + "&playerOnly=1"
                 + "&v=" + PlayerService.WEB_PLAYER_VERSION;
     }
 

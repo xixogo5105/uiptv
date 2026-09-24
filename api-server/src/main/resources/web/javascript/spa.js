@@ -43,6 +43,11 @@ createApp({
         const playbackGestureRequired = ref(false);
         const showOverlay = ref(false);
         const showBookmarkModal = ref(false);
+        const playerExpanded = ref(false);
+        const isStandalonePlayerRoute = () => {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('playerOnly') === '1';
+        };
         const WIDE_VIEW_COOKIE_NAME = 'uiptv_wide_view_mode';
         const WIDE_VIEW_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
         const readCookieValue = (name) => {
@@ -72,6 +77,9 @@ createApp({
             }
         };
         const setWideViewActive = (enabled, {persist = false} = {}) => {
+            if (playerExpanded.value) {
+                enabled = false;
+            }
             wideViewActive.value = !!enabled;
             if (persist) {
                 persistWideViewPreference(wideViewActive.value);
@@ -980,7 +988,6 @@ createApp({
         );
         const playerPanelVisible = computed(() => hasPlayerContent.value && !playerManuallyHidden.value);
         const playbackSeekable = computed(() => Number.isFinite(playbackDuration.value) && playbackDuration.value > 0);
-        const widePlayerProgressVisible = computed(() => wideViewActive.value && isPlaying.value);
 
         const setBrowserTitle = () => {
             const channelTitle = String(currentChannelDebugTitle.value || '').trim();
@@ -2045,6 +2052,11 @@ createApp({
             startPlayback(playbackUrl, nextChannel);
         };
 
+        const goToMainWebsite = async () => {
+            resetApp();
+            window.location.assign('/index.html');
+        };
+
         const goBackToWatchingNow = () => {
             watchingNowDrilldown.value = false;
             activeTab.value = 'watchingNow';
@@ -2073,15 +2085,33 @@ createApp({
         const hidePlayerPanel = () => {
             if (!hasPlayerContent.value) return;
             playerManuallyHidden.value = true;
-            wideViewActive.value = false;
+            playerExpanded.value = false;
         };
 
         const togglePlayerPanel = () => {
             if (!hasPlayerContent.value) return;
             playerManuallyHidden.value = !playerManuallyHidden.value;
             if (playerManuallyHidden.value) {
-                wideViewActive.value = false;
+                playerExpanded.value = false;
             }
+        };
+
+        const togglePlayerExpanded = () => {
+            if (!playerPanelVisible.value) return;
+            playerExpanded.value = !playerExpanded.value;
+            nextTick(() => {
+                const video = videoPlayer.value;
+                if (video && typeof video.play === 'function' && isPlaying.value && video.paused && !video.ended) {
+                    video.play().catch(() => {});
+                }
+            });
+        };
+
+        const syncPlayerExpandedClass = () => {
+            const root = document.querySelector('.app-shell');
+            if (!root) return;
+            root.classList.toggle('player-expanded', !!playerExpanded.value);
+            root.classList.toggle('standalone-player', isStandalonePlayerRoute());
         };
 
         const toggleWideView = () => {
@@ -2384,8 +2414,10 @@ createApp({
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
             };
-            await startPlayback(playbackUrl, nextChannel, {wideView: true});
-            window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
+            await startPlayback(playbackUrl, nextChannel, {expandPlayer: true});
+            if (!isStandalonePlayerRoute()) {
+                window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
+            }
             return true;
         };
 
@@ -2462,10 +2494,11 @@ createApp({
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
             };
-            await startPlayback(playbackUrl, nextChannel, {wideView: true});
-
+            await startPlayback(playbackUrl, nextChannel, {expandPlayer: true});
             const cleanUrl = `${window.location.origin}${window.location.pathname}`;
-            window.history.replaceState({}, document.title, cleanUrl);
+            if (!isStandalonePlayerRoute()) {
+                window.history.replaceState({}, document.title, cleanUrl);
+            }
         };
 
         const launchDirectPlaybackFromPayload = async (payload) => {
@@ -2502,8 +2535,10 @@ createApp({
                 type: 'channel',
                 mode: contentMode.value,
                 playRequestUrl: playbackUrl
-            }, {wideView: true});
-            window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
+            }, {expandPlayer: true});
+            if (!isStandalonePlayerRoute()) {
+                window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
+            }
             return true;
         };
 
@@ -3092,8 +3127,8 @@ createApp({
             if (switching) {
                 await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true, hideControls: false});
             }
-            if (options.wideView === true) {
-                setWideViewActive(true);
+            if (options.expandPlayer === true) {
+                playerExpanded.value = true;
             }
             if (playbackFetchController) {
                 try {
@@ -3251,7 +3286,7 @@ createApp({
                 currentChannel.value = null;
                 playbackError.value = '';
                 clearPlaybackGestureRequirement();
-                restoreWideViewPreference();
+                playerExpanded.value = false;
                 playerManuallyHidden.value = false;
                 clearActiveBingeWatch();
             }
@@ -3286,7 +3321,7 @@ createApp({
             if (hideControls) {
                 controlsVisible.value = false;
             }
-            restoreWideViewPreference();
+            playerExpanded.value = false;
             playerManuallyHidden.value = false;
             await stopPlayback(false);
         };
@@ -4489,7 +4524,11 @@ createApp({
                 mute: (event) => onPlayerControlClick(event, toggleMute),
                 fullscreen: (event) => onPlayerControlClick(event, requestFullscreenPlayer),
                 'hide-panel': hidePlayerPanel,
-                 'toggle-layout': toggleWideView,
+                'toggle-layout': () => {
+                    if (!playerExpanded.value) {
+                        toggleWideView();
+                    }
+                },
                 stop: (event) => onPlayerControlClick(event, stopPlaybackAndHide),
                 'quality-menu': () => {},
                 'audio-menu': () => {},
@@ -4510,7 +4549,7 @@ createApp({
                 isFullscreen: isFullscreen.value,
                 isFavorite: isCurrentFavorite.value,
                 isPlaying: headerVisible,
-                isPanelExpanded: wideViewActive.value
+                isPanelExpanded: playerExpanded.value ? false : wideViewActive.value
             });
             sharedHeader.setTitle({
                 title: baseTitle,
@@ -4791,6 +4830,18 @@ createApp({
             syncSharedMenus();
         }, {deep: true});
 
+        watch(playerExpanded, () => {
+            if (playerExpanded.value && wideViewActive.value) {
+                wideViewActive.value = false;
+            }
+            syncPlayerExpandedClass();
+            nextTick(() => {
+                mountSharedHeader();
+                syncSharedHeader();
+                syncSharedMenus();
+            });
+        }, {immediate: true});
+
         return {
             activeTab,
             viewState,
@@ -4840,7 +4891,6 @@ createApp({
             playbackCurrentTime,
             playbackDuration,
             playbackSeekable,
-            widePlayerProgressVisible,
             isActiveChannel,
             isActiveBookmark,
             isActiveWatchingNowRow,
@@ -4853,6 +4903,7 @@ createApp({
             playbackGestureRequired,
             showOverlay,
             showBookmarkModal,
+            playerExpanded,
             wideViewActive,
             contentStageNarrow,
             isCompactDrilldown,
@@ -4919,6 +4970,7 @@ createApp({
             playWatchingNowVodRow,
             openWatchingNowSeriesDetail,
             goBackToWatchingNow,
+            goToMainWebsite,
             setWatchingNowTab,
             toggleSearch,
             focusSearch,

@@ -1070,10 +1070,11 @@ public class ConfigurationUI extends VBox {
     private Scene createPopupScene(Parent root, double width, double height) {
         Scene scene = new Scene(root, width, height);
         UiI18n.applySceneOrientation(scene);
-        if (getScene() != null) {
+        String currentTheme = RootApplication.getCurrentTheme();
+        if (currentTheme != null && !scene.getStylesheets().contains(currentTheme)) {
+            scene.getStylesheets().add(currentTheme);
+        } else if (getScene() != null) {
             scene.getStylesheets().addAll(getScene().getStylesheets());
-        } else if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
         }
         return scene;
     }
@@ -1898,6 +1899,7 @@ public class ConfigurationUI extends VBox {
         UiRenderQuality.optimizeLayout(optionPanel);
 
         VBox root = new VBox(14, title, description, optionPanel);
+        root.getStyleClass().add("uiptv-vlc-options-dialog");
         root.getStyleClass().add("uiptv-vlc-dialog-content");
         root.setPadding(new Insets(15));
         root.setMinWidth(0);

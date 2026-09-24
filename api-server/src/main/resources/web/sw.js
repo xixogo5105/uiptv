@@ -1,4 +1,4 @@
-const CACHE_NAME = 'uiptv-cache-v34';
+const CACHE_NAME = 'uiptv-cache-v37';
 const urlsToCache = [
   '/',
   '/index.html',

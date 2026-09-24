@@ -178,6 +178,7 @@ public class PlayerService {
                 .withoutPadding()
                 .encodeToString(payload.toString().getBytes(StandardCharsets.UTF_8));
         return localServerOrigin() + "/index.html?launch=" + URLEncoder.encode(encoded, StandardCharsets.UTF_8)
+                + "&playerOnly=1"
                 + "&v=" + WEB_PLAYER_VERSION;
     }
 
