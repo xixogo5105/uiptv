@@ -26,6 +26,9 @@ class M3U8PublicationServiceTest extends DbBackedTest {
     protected void afterDatabaseSetup() {
         AccountService.getInstance().deleteAll();
         M3U8PublicationService.getInstance().setSelectedAccountIds(Set.of());
+        Configuration configuration = ConfigurationService.getInstance().read();
+        configuration.setResolveChainAndDeepRedirects(false);
+        ConfigurationService.getInstance().save(configuration);
     }
 
     @BeforeEach
@@ -63,6 +66,61 @@ class M3U8PublicationServiceTest extends DbBackedTest {
         assertTrue(result.contains("#EXTM3U"));
         assertTrue(result.contains("#EXTINF:-1 group-title=\"M3U8Account\",Test Channel"));
         assertTrue(result.contains("http://test.com/stream.ts"));
+    }
+
+    @Test
+    void getPublishedM3u8_proxiesAbsoluteMediaUrlsWhenAccountFlagIsEnabled() {
+        saveAndSelectAccount("ProxyAccount", m3u8File, true);
+
+        String result = M3U8PublicationService.getInstance().getPublishedM3u8("127.0.0.1:8888");
+
+        assertTrue(result.contains("#EXTINF:-1 group-title=\"ProxyAccount\",Test Channel"));
+        assertTrue(result.contains("http://127.0.0.1:8888/proxy-stream?src=http%3A%2F%2Ftest.com%2Fstream.ts"));
+        assertFalse(result.contains("\nhttp://test.com/stream.ts\n"));
+    }
+
+    @Test
+    void getPublishedM3u8_proxiesAbsoluteMediaUrlsWhenGlobalFlagIsEnabled() {
+        saveAndSelectAccount("GlobalProxyAccount", m3u8File, false);
+        Configuration configuration = ConfigurationService.getInstance().read();
+        configuration.setResolveChainAndDeepRedirects(true);
+        ConfigurationService.getInstance().save(configuration);
+
+        String result = M3U8PublicationService.getInstance().getPublishedM3u8("127.0.0.1:8888");
+
+        assertTrue(result.contains("http://127.0.0.1:8888/proxy-stream?src=http%3A%2F%2Ftest.com%2Fstream.ts"));
+        assertFalse(result.contains("\nhttp://test.com/stream.ts\n"));
+    }
+
+    @Test
+    void getPublishedM3u8_doesNotDoubleWrapExistingProxyUrl() throws Exception {
+        java.io.File playlistFile = tempDir.resolve("already-proxied.m3u8").toFile();
+        String proxiedUrl = "http://127.0.0.1:8888/proxy-stream?src=http%3A%2F%2Ftest.com%2Fstream.ts";
+        Files.writeString(playlistFile.toPath(), "#EXTM3U\n#EXTINF:-1,Test Channel\n" + proxiedUrl + "\n", StandardCharsets.UTF_8);
+        saveAndSelectAccount("AlreadyProxied", playlistFile, true);
+
+        String result = M3U8PublicationService.getInstance().getPublishedM3u8("127.0.0.1:8888");
+
+        assertEquals(1, result.split(java.util.regex.Pattern.quote(proxiedUrl), -1).length - 1);
+    }
+
+    @Test
+    void getPublishedM3u8_leavesRelativeMediaUrlsUntouchedWhenProxying() throws Exception {
+        java.io.File playlistFile = tempDir.resolve("relative-media.m3u8").toFile();
+        Files.writeString(playlistFile.toPath(), "#EXTM3U\n#EXTINF:-1,Test Channel\n../sub/stream.m3u8\n", StandardCharsets.UTF_8);
+        saveAndSelectAccount("RelativeMedia", playlistFile, true);
+
+        String result = M3U8PublicationService.getInstance().getPublishedM3u8("127.0.0.1:8888");
+
+        assertTrue(result.contains("\n../sub/stream.m3u8\n"));
+    }
+
+    private void saveAndSelectAccount(String name, java.io.File playlistFile, boolean resolveChainAndDeepRedirects) {
+        Account account = new Account(name, "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
+        account.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirects);
+        AccountService.getInstance().save(account);
+        Account savedAccount = AccountService.getInstance().getByName(name);
+        M3U8PublicationService.getInstance().setSelectedAccountIds(Set.of(savedAccount.getDbId()));
     }
 
     @Test

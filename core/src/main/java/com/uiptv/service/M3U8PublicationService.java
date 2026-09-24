@@ -13,6 +13,7 @@ import com.uiptv.util.ServerUrlUtil;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -34,6 +35,8 @@ public class M3U8PublicationService {
     public static final String BOOKMARKS_PLAYLIST_NAME = "Bookmarks";
     private static final String GROUP_TITLE_ATTR = "group-title";
     private static final String PLAYLIST_LINE_SPLIT_REGEX = "\\r?\\n";
+    private static final String PROXY_STREAM_FRAGMENT = "/proxy-stream?src=";
+    private static final String ABSOLUTE_MEDIA_URL_REGEX = "^[a-zA-Z][a-zA-Z0-9+.-]*://.*";
 
     private M3U8PublicationService() {
     }
@@ -128,12 +131,13 @@ public class M3U8PublicationService {
             return "";
         }
         PublishedCategoryMode categoryMode = ConfigurationService.getInstance().getPublishedM3uCategoryMode();
+        String host = resolveHost(requestHost);
 
         StringBuilder result = new StringBuilder();
         result.append(EXTM3U).append("\n");
-        appendSelectedBookmarkPlaylist(result, effectiveAccountIds, requestHost, categoryMode);
+        appendSelectedBookmarkPlaylist(result, effectiveAccountIds, host, categoryMode);
         for (Account account : getAccountsToPublish(effectiveAccountIds)) {
-            appendSelectedAccountPlaylist(result, account, selections, categoryMode);
+            appendSelectedAccountPlaylist(result, account, selections, categoryMode, host);
         }
         return result.toString();
     }
@@ -163,7 +167,8 @@ public class M3U8PublicationService {
     private void appendSelectedAccountPlaylist(StringBuilder result,
                                                Account account,
                                                PublicationSelections selections,
-                                               PublishedCategoryMode categoryMode) {
+                                               PublishedCategoryMode categoryMode,
+                                               String host) {
         try {
             List<PlaylistChannelEntry> selectedEntries = new ArrayList<>();
             for (PlaylistChannelEntry entry : parsePlaylistEntries(account)) {
@@ -175,8 +180,12 @@ public class M3U8PublicationService {
                     selectedEntries.stream().flatMap(entry -> entry.lines().stream()).toList(),
                     null
             );
+            boolean proxyUrls = ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled(account);
             for (PlaylistChannelEntry entry : selectedEntries) {
-                appendPlaylistBlock(result, entry.lines(), account.getAccountName(), entry.categoryName(), categoryMode, singleCategorySource, entry.splitFromMultiCategory());
+                List<String> linesToWrite = proxyUrls
+                        ? rewriteMediaUrlsWithLocalProxy(entry.lines(), host)
+                        : entry.lines();
+                appendPlaylistBlock(result, linesToWrite, account.getAccountName(), entry.categoryName(), categoryMode, singleCategorySource, entry.splitFromMultiCategory());
             }
         } catch (IOException e) {
             AppLog.addErrorLog(M3U8PublicationService.class, "Failed to append playlist for account '" + account.getAccountName() + "'");
@@ -186,12 +195,11 @@ public class M3U8PublicationService {
 
     private void appendSelectedBookmarkPlaylist(StringBuilder result,
                                                 Set<String> accountIds,
-                                                String requestHost,
+                                                String host,
                                                 PublishedCategoryMode categoryMode) {
         if (!accountIds.contains(BOOKMARKS_PLAYLIST_ACCOUNT_ID)) {
             return;
         }
-        String host = resolveHost(requestHost);
         String bookmarkPlaylist = BookmarkApplicationService.getInstance().buildPlaylist(host);
         List<String> bookmarkPlaylistLines = splitPlaylistLines(bookmarkPlaylist);
         boolean singleCategorySource = hasSingleEffectiveCategory(bookmarkPlaylistLines, null);
@@ -250,6 +258,36 @@ public class M3U8PublicationService {
         String originalCategory = normalizePublishedCategory(parseQuotedAttribute(line, GROUP_TITLE_ATTR), fallbackCategoryName);
         String rewrittenCategory = categoryMode.format(sourceName, originalCategory);
         return replaceOrAppendQuotedAttribute(line, GROUP_TITLE_ATTR, rewrittenCategory);
+    }
+
+    /**
+     * Wraps channel media lines in the local /proxy-stream endpoint so that remote
+     * players which cannot follow redirect chains or resolve relative HLS URIs can
+     * still play the stream. The proxy follows redirects and rewrites playlist URIs
+     * against the final post-redirect URL.
+     *
+     * <p>Returns a new list and never mutates the input because entry lines may be
+     * shared with other entries of multi-category channels.</p>
+     */
+    private List<String> rewriteMediaUrlsWithLocalProxy(List<String> lines, String host) {
+        List<String> rewritten = new ArrayList<>(lines.size());
+        for (String line : lines) {
+            String trimmed = line == null ? "" : line.trim();
+            if (isAbsoluteMediaUrl(trimmed) && !trimmed.contains(PROXY_STREAM_FRAGMENT)) {
+                rewritten.add(buildProxiedMediaUrl(trimmed, host));
+            } else {
+                rewritten.add(line);
+            }
+        }
+        return rewritten;
+    }
+
+    private boolean isAbsoluteMediaUrl(String line) {
+        return isNotBlank(line) && line.matches(ABSOLUTE_MEDIA_URL_REGEX) && isPlaylistMediaLine(line);
+    }
+
+    private String buildProxiedMediaUrl(String url, String host) {
+        return "http://" + host + PROXY_STREAM_FRAGMENT + URLEncoder.encode(url, StandardCharsets.UTF_8);
     }
 
     private boolean hasSingleEffectiveCategory(List<String> lines, String fallbackCategoryName) {
