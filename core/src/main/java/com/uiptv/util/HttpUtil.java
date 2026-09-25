@@ -56,6 +56,11 @@ public class HttpUtil {
             PoolingHttpClientConnectionManagerBuilder.create()
                     .setMaxConnTotal(MAX_CONNECTIONS_TOTAL)
                     .setMaxConnPerRoute(MAX_CONNECTIONS_PER_ROUTE)
+                    // Portals commonly close keep-alive sockets while a bulk cache
+                    // refresh is processing another account. Validate pooled sockets
+                    // before reusing them so the next handshake does not inherit a
+                    // stale connection and fail until manually retried.
+                    .setValidateAfterInactivity(TimeValue.ofSeconds(5))
                     .build();
     private static final CloseableHttpClient HTTP_CLIENT = HttpClients.custom()
             .setConnectionManager(CONNECTION_MANAGER)
