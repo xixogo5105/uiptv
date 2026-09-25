@@ -415,11 +415,19 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
             render(new ArrayList<>(panelDataByKey.values()));
             return;
         }
+        if (getScene() != null) {
+            getScene().setCursor(javafx.scene.Cursor.WAIT);
+        }
         selectedVodKey = panelKey(data);
         renderedDetailKey = selectedVodKey;
         contentBox.getChildren().clear();
         contentBox.setPadding(new Insets(2));
         contentBox.setSpacing(12);
+        Platform.runLater(() -> {
+            if (getScene() != null) {
+                getScene().setCursor(null);
+            }
+        });
 
         Button back = new Button(I18n.tr("autoBack"));
         back.getStyleClass().add("watching-now-back-button");

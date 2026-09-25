@@ -578,6 +578,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         applyChannelGridSizing();
         channelGrid.setItems(table.getItems());
         channelGrid.setLowVirtualizationThreshold();
+        channelGrid.setDetachedCardCachingEnabled(true);
         channelGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle)));
         channelGrid.setOnItemActivated(this::playOrShowSeries);
         channelGrid.setContextMenuFactory((item, selectedItems, owner) -> createChannelContextMenu(item, selectedItems, owner));
@@ -1876,10 +1877,15 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private void playOrShowSeries(ChannelItem item) {
         if (item == null) return;
+        if (getScene() != null) {
+            getScene().setCursor(Cursor.WAIT);
+        }
         if (!ensureCensoredAccess(item)) {
+            clearWaitCursor();
             return;
         }
         if (showCachedEpisodesIfPresent(item)) {
+            clearWaitCursor();
             return;
         }
         AtomicBoolean isCancelled = preparePlaybackLoad();
@@ -1896,7 +1902,9 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void loadSeriesEpisodesAsync(ChannelItem item, AtomicBoolean isCancelled) {
-        getScene().setCursor(Cursor.WAIT);
+        if (getScene() != null) {
+            getScene().setCursor(Cursor.WAIT);
+        }
         Thread loadingThread = new Thread(() -> {
             try {
                 EpisodesListUI ui = buildEpisodesListUi(item);
@@ -1909,12 +1917,19 @@ public class ChannelListUI extends HBox implements SearchTarget {
             } catch (Exception e) {
                 runLater(() -> showErrorAlert(I18n.tr("autoErrorLoadingSeries", e.getMessage())));
             } finally {
-                runLater(() -> getScene().setCursor(null));
-                currentLoadingThread.compareAndSet(Thread.currentThread(), null);
+                if (currentLoadingThread.compareAndSet(Thread.currentThread(), null)) {
+                    runLater(this::clearWaitCursor);
+                }
             }
         });
         currentLoadingThread.set(loadingThread);
         loadingThread.start();
+    }
+
+    private void clearWaitCursor() {
+        if (getScene() != null) {
+            getScene().setCursor(null);
+        }
     }
 
     private EpisodesListUI buildEpisodesListUi(ChannelItem item) {
@@ -1974,13 +1989,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (runningThread == null || !runningThread.isAlive()) {
             return;
         }
-        getScene().setCursor(Cursor.WAIT);
-        runningThread.interrupt();
-        try {
-            runningThread.join(2000);
-        } catch (InterruptedException _) {
-            Thread.currentThread().interrupt();
+        if (getScene() != null) {
+            getScene().setCursor(Cursor.WAIT);
         }
+        runningThread.interrupt();
     }
 
     private static final class ChannelBookmarkIdentity {

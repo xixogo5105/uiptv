@@ -2755,6 +2755,15 @@
     -fx-cursor: default;
 }
 
+/* Must apply to descendants too: a hovered child can otherwise override the
+   card's cursor while an activation is starting. */
+.uiptv-responsive-card:loading,
+.uiptv-responsive-card:loading *,
+.bookmark-card:loading,
+.bookmark-card:loading * {
+    -fx-cursor: wait;
+}
+
 .bookmark-card {
     -fx-padding: 14 10 14 10;
 }

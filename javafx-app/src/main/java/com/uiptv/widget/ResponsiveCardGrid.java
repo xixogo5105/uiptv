@@ -12,6 +12,7 @@ import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.control.ButtonBase;
 import javafx.scene.control.ComboBoxBase;
@@ -37,6 +38,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private static final String SELECTED_STYLE_CLASS = "selected";
     private static final DataFormat CARD_INDEX_FORMAT = new DataFormat("application/x-uiptv-responsive-card-index");
     private static final PseudoClass SELECTED_PSEUDO_CLASS = PseudoClass.getPseudoClass(SELECTED_STYLE_CLASS);
+    private static final PseudoClass LOADING_PSEUDO_CLASS = PseudoClass.getPseudoClass("loading");
     private static final double DEFAULT_MIN_CARD_WIDTH = 220;
     private static final double DEFAULT_MAX_CARD_WIDTH = 320;
     private static final double DEFAULT_HORIZONTAL_GAP = 14;
@@ -55,6 +57,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private final StackPane placeholder = new StackPane();
     private final Label placeholderLabel = new Label();
     private final Map<T, Region> cardsByItem = new LinkedHashMap<>();
+    // Cards capture item-specific click handlers, so they cannot safely be reused
+    // for another item. Retain a small LRU for nearby rows instead of recreating
+    // them on every scroll tick; the cap keeps long catalogues memory-bounded.
+    private final LinkedHashMap<T, Region> detachedCardsByItem = new LinkedHashMap<>(64, 0.75f, true);
     private final ObservableList<T> selectedItemsInternal = FXCollections.observableArrayList();
     private final ObservableList<T> selectedItems = FXCollections.unmodifiableObservableList(selectedItemsInternal);
     private final ListChangeListener<T> itemChangeListener = this::handleItemsChanged;
@@ -78,6 +84,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private boolean suppressFocusSelection;
     private boolean singleColumn;
     private boolean virtualizationEnabled = true;
+    private boolean detachedCardCachingEnabled;
     private boolean virtualizedActive;
     private boolean virtualWindowUpdateQueued;
     private boolean virtualWindowUpdateInProgress;
@@ -100,6 +107,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private int scrollRestoreGeneration;
     private final PauseTransition scrollSettleTimer = new PauseTransition(javafx.util.Duration.millis(150));
     private Consumer<Region> cardDisposer;
+    private static final int MAX_DETACHED_CARD_CACHE =
+            Integer.getInteger("uiptv.cardGrid.detachedCardCache", 160);
 
     public ResponsiveCardGrid(Function<T, Region> cardFactory) {
         this.cardFactory = Objects.requireNonNull(cardFactory, "cardFactory");
@@ -211,6 +220,21 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         this.virtualizationEnabled = virtualizationEnabled;
         rebuildCards();
+    }
+
+    /**
+     * Retain recently off-screen cards for item-specific card factories. Disabled
+     * by default to preserve the lightweight grid behaviour outside long media
+     * catalogues.
+     */
+    public void setDetachedCardCachingEnabled(boolean enabled) {
+        if (detachedCardCachingEnabled == enabled) {
+            return;
+        }
+        detachedCardCachingEnabled = enabled;
+        if (!enabled) {
+            disposeDetachedCards();
+        }
     }
 
     public void setVirtualizationThreshold(int virtualizationThreshold) {
@@ -339,6 +363,16 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 cardDisposer.accept(card);
             }
         }
+        disposeDetachedCards();
+    }
+
+    private void disposeDetachedCards() {
+        if (cardDisposer != null) {
+            for (Region card : detachedCardsByItem.values()) {
+                cardDisposer.accept(card);
+            }
+        }
+        detachedCardsByItem.clear();
     }
 
     private void rebuildCards() {
@@ -596,27 +630,36 @@ public class ResponsiveCardGrid<T> extends StackPane {
         for (int index = safeFirst; index < safeLast; index++) {
             retainedItems.add(items.get(index));
         }
-        List<Region> cardsToDispose = new ArrayList<>();
+        List<Map.Entry<T, Region>> cardsToCache = new ArrayList<>();
         for (Map.Entry<T, Region> entry : cardsByItem.entrySet()) {
             if (!retainedItems.contains(entry.getKey())) {
-                cardsToDispose.add(entry.getValue());
+                cardsToCache.add(entry);
             }
         }
         cardsByItem.entrySet().removeIf(entry -> !retainedItems.contains(entry.getKey()));
-        if (cardDisposer != null) {
-            for (Region card : cardsToDispose) {
-                cardDisposer.accept(card);
+        if (detachedCardCachingEnabled) {
+            for (Map.Entry<T, Region> entry : cardsToCache) {
+                detachedCardsByItem.put(entry.getKey(), entry.getValue());
+            }
+            trimDetachedCardCache();
+        } else if (cardDisposer != null) {
+            for (Map.Entry<T, Region> entry : cardsToCache) {
+                cardDisposer.accept(entry.getValue());
             }
         }
 
         List<Node> renderedCards = new ArrayList<>(safeLast - safeFirst);
         for (int index = safeFirst; index < safeLast; index++) {
             T item = items.get(index);
-            Region card = cardsByItem.computeIfAbsent(item, k -> {
-                Region c = cardFactory.apply(k);
-                configureCard(k, c);
-                return c;
-            });
+            Region card = cardsByItem.get(item);
+            if (card == null) {
+                card = detachedCardCachingEnabled ? detachedCardsByItem.remove(item) : null;
+                if (card == null) {
+                    card = cardFactory.apply(item);
+                    configureCard(item, card);
+                }
+                cardsByItem.put(item, card);
+            }
             applyComputedCardWidth(card);
             int gridIndex = index - safeFirst;
             GridPane.setColumnIndex(card, gridIndex % columnCount);
@@ -631,6 +674,20 @@ public class ResponsiveCardGrid<T> extends StackPane {
         cardPane.setTranslateY(translateY);
         updateSelectionStyles();
         scheduleVirtualCardHeightMeasurement();
+    }
+
+    private void trimDetachedCardCache() {
+        while (detachedCardsByItem.size() > MAX_DETACHED_CARD_CACHE) {
+            Iterator<Map.Entry<T, Region>> iterator = detachedCardsByItem.entrySet().iterator();
+            if (!iterator.hasNext()) {
+                return;
+            }
+            Region card = iterator.next().getValue();
+            iterator.remove();
+            if (cardDisposer != null) {
+                cardDisposer.accept(card);
+            }
+        }
     }
 
     private void scheduleVirtualCardHeightMeasurement() {
@@ -769,6 +826,14 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 updateSelectionForClick(item, event);
                 mousePressedSelectionItem = item;
             }
+            if (event.getButton() == MouseButton.PRIMARY
+                    && event.getClickCount() >= 2
+                    && !isInteractiveChildEvent(card, event)) {
+                // Apply directly to the hovered card on the second press. This
+                // is early enough to be painted before potentially slow action
+                // handlers begin resolving a stream or catalogue.
+                showActivationCursor(card);
+            }
             Platform.runLater(() -> mouseSelectionInProgress = false);
         });
         card.focusedProperty().addListener((_, _, focused) -> {
@@ -801,9 +866,35 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 && !isSelectionModifierDown(event)
                 && event.getClickCount() == 2;
         if (shouldActivate) {
+            showActivationCursor(card);
             itemActivatedHandler.accept(item);
         }
         event.consume();
+    }
+
+    private void showActivationCursor(Region card) {
+        card.pseudoClassStateChanged(LOADING_PSEUDO_CLASS, true);
+        setCursorRecursively(card, Cursor.WAIT);
+        PauseTransition reset = new PauseTransition(javafx.util.Duration.millis(300));
+        reset.setOnFinished(_ -> {
+            card.pseudoClassStateChanged(LOADING_PSEUDO_CLASS, false);
+            setCursorRecursively(card, null);
+        });
+        reset.play();
+    }
+
+    /**
+     * Card content frequently has a CSS hand cursor. Cursor lookup starts at the
+     * deepest node below the pointer, so setting only the card or scene does not
+     * override that rule. Apply the transient state to the complete subtree.
+     */
+    private void setCursorRecursively(Node root, Cursor cursor) {
+        root.setCursor(cursor);
+        if (root instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                setCursorRecursively(child, cursor);
+            }
+        }
     }
 
     private boolean isInteractiveChildEvent(Region card, MouseEvent event) {

@@ -11,7 +11,7 @@ import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import javafx.scene.Node;
-import javafx.scene.Scene;
+import javafx.scene.Cursor;
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -20,6 +20,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.player.MediaPlayerFactory.getPlayerType;
@@ -34,6 +35,8 @@ public final class PlaybackUIService {
     static final String EMBEDDED_PLAYER_PATH = "__embedded_player__";
     private static final String PLAYLIST_RESOLUTION_FAILURE = "Playback failed: unable to resolve playlist URL.";
     private static final String DEFAULT_MODE = "series";
+    /** Prevent out-of-order URL resolution from repeatedly resetting the embedded player. */
+    private static final AtomicLong PLAYBACK_REQUEST_SEQUENCE = new AtomicLong();
 
     private PlaybackUIService() {
     }
@@ -58,30 +61,43 @@ public final class PlaybackUIService {
             return;
         }
 
+        long requestSequence = PLAYBACK_REQUEST_SEQUENCE.incrementAndGet();
         Configuration configuration = ConfigurationService.getInstance().read();
         PlaybackModeContext context = buildPlaybackModeContext(configuration, request, playbackAccount);
 
-        if (handleBrowserPlayback(context, request, playbackAccount)) return;
-        if (handleDrmBrowserFallback(context, request, playbackAccount)) return;
-
-        Scene scene = source.getScene();
-        if (scene != null) {
-            scene.setCursor(javafx.scene.Cursor.WAIT);
+        // Set this on the originating view, rather than only on its Scene. A
+        // hovered card can otherwise resolve its cursor before the scene-level
+        // value is painted, making a double-click appear to have done nothing.
+        source.setCursor(Cursor.WAIT);
+        if (handleBrowserPlayback(context, request, playbackAccount)
+                || handleDrmBrowserFallback(context, request, playbackAccount)) {
+            source.setCursor(null);
+            return;
         }
 
         new Thread(() -> {
             try {
                 PlayerResponse response = resolvePlayerResponse(request, playbackAccount);
                 response.setFromChannel(request.channel, playbackAccount);
-                runLater(() -> launchResolvedPlayback(context, request, response));
+                runLater(() -> {
+                    if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) {
+                        launchResolvedPlayback(context, request, response);
+                    }
+                });
             } catch (Exception e) {
-                runLater(() -> showErrorAlert(request.errorPrefix + e.getMessage()));
+                runLater(() -> {
+                    if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) {
+                        showErrorAlert(request.errorPrefix + e.getMessage());
+                    }
+                });
             } finally {
-                if (scene != null) {
-                    runLater(() -> scene.setCursor(null));
-                }
+                runLater(() -> {
+                    if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) {
+                        source.setCursor(null);
+                    }
+                });
             }
-        }).start();
+        }, "uiptv-playback-resolver").start();
     }
 
     public static void playDirectUrl(String playerPath, String url, String errorPrefix) {

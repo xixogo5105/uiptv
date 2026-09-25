@@ -22,6 +22,7 @@ import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
@@ -1169,14 +1170,19 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         if (item == null) {
             return;
         }
+        // This happens in the double-click handler, before account/channel
+        // resolution, so the acknowledgement is visible immediately.
+        setCursor(Cursor.WAIT);
         PlaybackContext playbackContext;
         try {
             playbackContext = resolvePlaybackContext(item);
         } catch (Exception e) {
+            setCursor(null);
             showErrorAlert(I18n.tr("autoErrorPreparingBookmark", e.getMessage()));
             return;
         }
         if (playbackContext == null || playbackContext.mediaContext == null || playbackContext.channel == null) {
+            setCursor(null);
             showErrorAlert(I18n.tr("autoUnableToLoadAccountChannelForThisBookmark"));
             return;
         }

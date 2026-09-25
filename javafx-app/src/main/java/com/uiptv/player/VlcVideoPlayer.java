@@ -48,6 +48,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private int videoSourceHeight;
     private String lastStreamInfoLabel = "";
     private final AtomicLong audioStateRequestVersion = new AtomicLong();
+    private final AtomicLong mediaRequestVersion = new AtomicLong();
 
     public VlcVideoPlayer() {
         super(); // Must be the first call
@@ -401,12 +402,13 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     @Override
     protected void playMedia(String uri) {
         loadingSpinner.setVisible(true);
+        long playbackRequestVersion = mediaRequestVersion.incrementAndGet();
         playExecutor.submit(() -> {
-            if (isDisposed.get()) {
+            if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
                 return;
             }
             ensurePlayerInitialized();
-            if (isDisposed.get()) {
+            if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
                 return;
             }
             videoSourceWidth = 0;
@@ -415,19 +417,19 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             String playUri = resolveHlsPlaylistChain(uri);
             // Sanitize URL for libvlc: encode raw braces and other problematic characters that some CDNs reject
             playUri = sanitizeUriForLibVlc(playUri);
-            if (isDisposed.get()) {
+            if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
                 return;
             }
-            long requestVersion = markAudioStateSyncRequested();
+            long audioRequestVersion = markAudioStateSyncRequested();
             synchronized (playerLock) {
                 EmbeddedMediaPlayer player = mediaPlayer;
-                if (player != null && !isDisposed.get()) {
+                if (player != null && !isDisposed.get() && playbackRequestVersion == mediaRequestVersion.get()) {
                     if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
                         player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
                     } else {
                         player.media().play(playUri);
                     }
-                    scheduleAudioStateStartupSync(requestVersion);
+                    scheduleAudioStateStartupSync(audioRequestVersion);
                 }
             }
         });
@@ -456,6 +458,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void disposeMedia() {
+        mediaRequestVersion.incrementAndGet();
         EmbeddedMediaPlayer playerToCleanup;
         MediaPlayerFactory factoryToCleanup;
         synchronized (playerLock) {
@@ -465,6 +468,18 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             mediaPlayerEvents = null;
             mediaPlayerFactory = null;
         }
+        // Native VLC calls can block for an unreachable stream. Serializing cleanup
+        // with playback avoids both JavaFX freezes and play/release races.
+        if (playerToCleanup != null || factoryToCleanup != null) {
+            playExecutor.submit(() -> releaseNativePlayer(playerToCleanup, factoryToCleanup));
+        }
+        clearVideoImage();
+        videoSourceWidth = 0;
+        videoSourceHeight = 0;
+        lastStreamInfoLabel = "";
+    }
+
+    private void releaseNativePlayer(EmbeddedMediaPlayer playerToCleanup, MediaPlayerFactory factoryToCleanup) {
         if (playerToCleanup != null) {
             try {
                 playerToCleanup.controls().stop();
@@ -489,10 +504,14 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 // Best-effort: factory cleanup should not block UI disposal.
             }
         }
-        videoImageView.setImage(null);
-        videoSourceWidth = 0;
-        videoSourceHeight = 0;
-        lastStreamInfoLabel = "";
+    }
+
+    private void clearVideoImage() {
+        if (Platform.isFxApplicationThread()) {
+            videoImageView.setImage(null);
+        } else {
+            Platform.runLater(() -> videoImageView.setImage(null));
+        }
     }
 
     @Override

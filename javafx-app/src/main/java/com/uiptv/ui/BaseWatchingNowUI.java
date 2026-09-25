@@ -728,9 +728,17 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (data == null) {
             return;
         }
+        if (getScene() != null) {
+            getScene().setCursor(javafx.scene.Cursor.WAIT);
+        }
         seriesGrid.selectItems(List.of(data));
         selectedSeriesKey = seriesPaneKey(data);
         showSeriesDetail(data);
+        Platform.runLater(() -> {
+            if (getScene() != null) {
+                getScene().setCursor(null);
+            }
+        });
     }
 
     private void removeSeriesFromWatchingNow(SeriesPanelData data) {
