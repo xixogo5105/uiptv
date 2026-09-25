@@ -10,9 +10,7 @@ import javafx.collections.ObservableList;
 import javafx.css.PseudoClass;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
-import javafx.scene.Cursor;
 import javafx.scene.Node;
-import javafx.scene.Parent;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.control.ButtonBase;
 import javafx.scene.control.ComboBoxBase;
@@ -38,7 +36,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private static final String SELECTED_STYLE_CLASS = "selected";
     private static final DataFormat CARD_INDEX_FORMAT = new DataFormat("application/x-uiptv-responsive-card-index");
     private static final PseudoClass SELECTED_PSEUDO_CLASS = PseudoClass.getPseudoClass(SELECTED_STYLE_CLASS);
-    private static final PseudoClass LOADING_PSEUDO_CLASS = PseudoClass.getPseudoClass("loading");
+    private static final PseudoClass ACTIVATED_PSEUDO_CLASS = PseudoClass.getPseudoClass("activated");
     private static final double DEFAULT_MIN_CARD_WIDTH = 220;
     private static final double DEFAULT_MAX_CARD_WIDTH = 320;
     private static final double DEFAULT_HORIZONTAL_GAP = 14;
@@ -76,6 +74,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private Consumer<T> itemActivatedHandler;
     private Consumer<List<T>> itemsReorderedHandler;
     private T focusedItem;
+    private T activatedItem;
     private T anchorItem;
     private T mousePressedSelectionItem;
     private int focusedItemIndex = -1;
@@ -159,6 +158,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
         this.items.removeListener(itemChangeListener);
         this.items = items == null ? FXCollections.observableArrayList() : items;
         this.items.addListener(itemChangeListener);
+        if (activatedItem != null && !this.items.contains(activatedItem)) {
+            activatedItem = null;
+        }
         measuredVirtualCardHeight = 0;
         rebuildCards();
     }
@@ -393,6 +395,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
             installVirtualScrollPane();
             updateVirtualWindow();
             updateSelectionStyles();
+            applyActivatedStyles(cardsByItem);
+            applyActivatedStyles(detachedCardsByItem);
             scheduleInitialItemFocus();
             return;
         }
@@ -416,6 +420,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         updatePlaceholderVisibility();
         updateCardWidths();
         updateSelectionStyles();
+        applyActivatedStyles(cardsByItem);
         ensureInitialSelection();
         scheduleInitialItemFocus();
     }
@@ -657,6 +662,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 if (card == null) {
                     card = cardFactory.apply(item);
                     configureCard(item, card);
+                } else {
+                    // Card reused from detached cache - ensure activated state is correct
+card.pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS, Objects.equals(item, activatedItem));
                 }
                 cardsByItem.put(item, card);
             }
@@ -673,6 +681,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
         renderedTranslateY = translateY;
         cardPane.setTranslateY(translateY);
         updateSelectionStyles();
+        applyActivatedStyles(cardsByItem);
+        applyActivatedStyles(detachedCardsByItem);
         scheduleVirtualCardHeightMeasurement();
     }
 
@@ -811,6 +821,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (!card.getStyleClass().contains("uiptv-responsive-card")) {
             card.getStyleClass().add("uiptv-responsive-card");
         }
+        card.pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS, Objects.equals(item, activatedItem));
         UiRenderQuality.optimizeLayout(card);
         card.setFocusTraversable(false);
         card.setMinHeight(cardMinHeight);
@@ -825,14 +836,6 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 requestGridFocusPreservingScroll();
                 updateSelectionForClick(item, event);
                 mousePressedSelectionItem = item;
-            }
-            if (event.getButton() == MouseButton.PRIMARY
-                    && event.getClickCount() >= 2
-                    && !isInteractiveChildEvent(card, event)) {
-                // Apply directly to the hovered card on the second press. This
-                // is early enough to be painted before potentially slow action
-                // handlers begin resolving a stream or catalogue.
-                showActivationCursor(card);
             }
             Platform.runLater(() -> mouseSelectionInProgress = false);
         });
@@ -858,42 +861,35 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         boolean selectionHandledOnPress = Objects.equals(mousePressedSelectionItem, item);
         mousePressedSelectionItem = null;
-        if (!selectionHandledOnPress) {
-            updateSelectionForClick(item, event);
-        }
-        requestGridFocusPreservingScroll();
         boolean shouldActivate = itemActivatedHandler != null
                 && !isSelectionModifierDown(event)
                 && event.getClickCount() == 2;
         if (shouldActivate) {
-            showActivationCursor(card);
+            setActivatedItem(item);
             itemActivatedHandler.accept(item);
         }
+        if (!selectionHandledOnPress) {
+            updateSelectionForClick(item, event);
+        }
+        requestGridFocusPreservingScroll();
         event.consume();
     }
 
-    private void showActivationCursor(Region card) {
-        card.pseudoClassStateChanged(LOADING_PSEUDO_CLASS, true);
-        setCursorRecursively(card, Cursor.WAIT);
-        PauseTransition reset = new PauseTransition(javafx.util.Duration.millis(300));
-        reset.setOnFinished(_ -> {
-            card.pseudoClassStateChanged(LOADING_PSEUDO_CLASS, false);
-            setCursorRecursively(card, null);
-        });
-        reset.play();
+    private void setActivatedItem(T item) {
+        activatedItem = item;
+        applyActivatedStyles(cardsByItem);
+        applyActivatedStyles(detachedCardsByItem);
+        // Ensure the activated item does not retain :selected pseudo-class or
+        // .selected style class, which were applied during MOUSE_PRESSED.
+        // Without this, the card carries both :activated and :selected, and the
+        // background repaint can stall until the next interaction.
+        updateSelectionStyles();
     }
 
-    /**
-     * Card content frequently has a CSS hand cursor. Cursor lookup starts at the
-     * deepest node below the pointer, so setting only the card or scene does not
-     * override that rule. Apply the transient state to the complete subtree.
-     */
-    private void setCursorRecursively(Node root, Cursor cursor) {
-        root.setCursor(cursor);
-        if (root instanceof Parent parent) {
-            for (Node child : parent.getChildrenUnmodifiable()) {
-                setCursorRecursively(child, cursor);
-            }
+    private void applyActivatedStyles(Map<T, Region> cards) {
+        for (Map.Entry<T, Region> entry : cards.entrySet()) {
+            entry.getValue().pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS,
+                    Objects.equals(entry.getKey(), activatedItem));
         }
     }
 
@@ -1636,12 +1632,14 @@ selectedItemsInternal.add(item);
 
     private void updateSelectionStyles() {
         for (Map.Entry<T, Region> entry : cardsByItem.entrySet()) {
-            boolean selected = selectedItems.contains(entry.getKey());
+            T item = entry.getKey();
+            boolean selected = selectedItems.contains(item);
+            boolean isActivated = Objects.equals(item, activatedItem);
             Region card = entry.getValue();
-            card.pseudoClassStateChanged(SELECTED_PSEUDO_CLASS, selected);
-            if (selected && !card.getStyleClass().contains(SELECTED_STYLE_CLASS)) {
+            card.pseudoClassStateChanged(SELECTED_PSEUDO_CLASS, selected && !isActivated);
+            if (selected && !isActivated && !card.getStyleClass().contains(SELECTED_STYLE_CLASS)) {
                 card.getStyleClass().add(SELECTED_STYLE_CLASS);
-            } else if (!selected) {
+            } else if (!selected || isActivated) {
                 card.getStyleClass().remove(SELECTED_STYLE_CLASS);
             }
         }

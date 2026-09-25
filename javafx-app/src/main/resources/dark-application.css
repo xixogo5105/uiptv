@@ -2834,6 +2834,55 @@
     -fx-translate-y: 0;
 }
 
+/* The item last activated by a double-click. This intentionally differs from
+   ordinary single-click selection, which retains the dark neutral treatment. */
+.uiptv-responsive-card:activated,
+.bookmark-card:activated {
+    -fx-background-color: #1e40af;
+    -fx-border-color: #60a5fa;
+}
+
+.uiptv-responsive-card:activated .label,
+.bookmark-card:activated .label {
+    -fx-text-fill: #eff6ff;
+}
+
+.uiptv-responsive-card:activated .text,
+.bookmark-card:activated .text {
+    -fx-fill: #eff6ff;
+}
+
+.uiptv-responsive-card:activated .bookmark-channel-title,
+.uiptv-responsive-card:activated .bookmark-channel-title-text,
+.uiptv-responsive-card:activated .account-card-title,
+.uiptv-responsive-card:activated .account-category-card-title,
+.uiptv-responsive-card:activated .account-drawer-channel-title,
+.uiptv-responsive-card:activated .watching-now-episode-drawer-title {
+    -fx-text-fill: #eff6ff;
+    -fx-fill: #eff6ff;
+}
+
+.uiptv-responsive-card:activated .bookmark-channel-account,
+.uiptv-responsive-card:activated .account-card-type,
+.uiptv-responsive-card:activated .account-card-metrics,
+.uiptv-responsive-card:activated .account-drawer-channel-meta,
+.uiptv-responsive-card:activated .watching-now-episode-drawer-meta {
+    -fx-text-fill: rgba(239, 246, 255, 0.72);
+}
+
+.uiptv-responsive-card:activated .bookmark-account-suffix-text {
+    -fx-fill: rgba(239, 246, 255, 0.72);
+}
+
+.uiptv-responsive-card:activated .channel-bookmark-icon {
+    -fx-fill: #eff6ff;
+}
+
+.uiptv-responsive-card:activated .channel-logo-view {
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-border-color: #3b82f6;
+}
+
 .uiptv-responsive-card:selected .bookmark-channel-title,
 .uiptv-responsive-card.selected .bookmark-channel-title,
 .uiptv-responsive-card:selected .bookmark-channel-title-text,
