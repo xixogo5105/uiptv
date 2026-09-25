@@ -82,6 +82,7 @@ class AppHeaderActionsTest extends DbBackedUiTest {
         assertEquals(List.of(
                 I18n.tr("autoSettings"),
                 I18n.tr("autoImportBulkAccounts"),
+                I18n.tr("autoReloadAccountsCache"),
                 I18n.tr("autoLogs"),
                 "Disable parental lock access",
                 I18n.tr("autoEnablePlainTextMode"),
