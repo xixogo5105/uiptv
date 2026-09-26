@@ -19,6 +19,12 @@
     -uiptv-text-primary: #f2f2f2;
     -uiptv-text-secondary: #b8b8b8;
     -uiptv-text-muted: #8a8a8a;
+    /* JavaFX ships Color.BLACK as the hardcoded initial value of every CSS
+       settable text colour, and modena derives -fx-text-base-color into
+       -fx-dark-text-color. Left undefined the dark theme leaks black text onto
+       dark surfaces, so pin both base text colours to the light palette. */
+    -fx-text-base-color: -uiptv-text-primary;
+    -fx-text-background-color: -uiptv-text-primary;
     -uiptv-nav-bg: #1c1c1c;
     -uiptv-nav-selected-bg: #303030;
     -uiptv-action-bg: #e6e6e6;
@@ -2847,8 +2853,13 @@
     -fx-text-fill: #eff6ff;
 }
 
-.uiptv-responsive-card:activated .text,
-.bookmark-card:activated .text {
+/* Target only genuine Text nodes. A bare ".text" selector also matches the
+   internal Text of every Label skin, and once :activated is dropped JavaFX
+   restores that skin node to its hardcoded Color.BLACK instead of re-reading
+   the Label's -fx-text-fill - which is unreadable on a dark card. Every real
+   Text used inside a card is listed by its own style class. */
+.uiptv-responsive-card:activated .account-card-type-text,
+.bookmark-card:activated .account-card-type-text {
     -fx-fill: #eff6ff;
 }
 

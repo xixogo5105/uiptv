@@ -2794,8 +2794,13 @@
     -fx-text-fill: #ffffff;
 }
 
-.uiptv-responsive-card:activated .text,
-.bookmark-card:activated .text {
+/* Target only genuine Text nodes. A bare ".text" selector also matches the
+   internal Text of every Label skin, and once :activated is dropped JavaFX
+   restores that skin node to its hardcoded Color.BLACK instead of re-reading
+   the Label's -fx-text-fill. Every real Text used inside a card is listed by
+   its own style class. */
+.uiptv-responsive-card:activated .account-card-type-text,
+.bookmark-card:activated .account-card-type-text {
     -fx-fill: #ffffff;
 }
 
