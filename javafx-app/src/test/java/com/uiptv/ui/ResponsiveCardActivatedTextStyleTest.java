@@ -1,12 +1,16 @@
 package com.uiptv.ui;
 
+import com.uiptv.widget.PlayMenuButton;
 import javafx.css.PseudoClass;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.Paint;
+import javafx.scene.shape.Circle;
 import javafx.scene.text.Text;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -73,6 +77,58 @@ class ResponsiveCardActivatedTextStyleTest {
             }
             return null;
         });
+    }
+
+    /**
+     * The "..." affordance of a bookmark card must stay legible on the dark blue
+     * background of the item that was last opened by a double click.
+     */
+    @Test
+    void playMenuAffordanceStaysLightOnAnActivatedCard() throws Exception {
+        for (String theme : THEMES) {
+            IconColours plain = runOnFxThread(() -> iconColours(theme, State.PLAIN));
+            IconColours activated = runOnFxThread(() -> iconColours(theme, State.ACTIVATED));
+
+            assertTrue(isLight(activated.ringStroke),
+                    theme + ": activated \"...\" ring must be light, was " + activated.ringStroke);
+            assertTrue(isLight(activated.dotFill),
+                    theme + ": activated \"...\" dots must be light, was " + activated.dotFill);
+            assertNotEquals(plain.ringStroke, activated.ringStroke,
+                    theme + ": :activated must restyle the \"...\" ring");
+            assertNotEquals(plain.dotFill, activated.dotFill,
+                    theme + ": :activated must restyle the \"...\" dots");
+        }
+    }
+
+    private IconColours iconColours(String theme, State state) throws Exception {
+        return runOnFxThread(() -> {
+            PlayMenuButton playMenu = new PlayMenuButton("menu");
+            playMenu.getStyleClass().add("bookmark-play-menu-button");
+            VBox card = new VBox(playMenu);
+            card.getStyleClass().addAll("uiptv-responsive-card", "bookmark-card");
+            Scene scene = new Scene(new StackPane(card), 400, 300);
+            scene.getStylesheets().add(url(theme));
+            StackPane root = (StackPane) scene.getRoot();
+            root.applyCss();
+            if (state == State.ACTIVATED) {
+                card.pseudoClassStateChanged(ACTIVATED, true);
+                root.applyCss();
+            }
+            Circle ring = (Circle) iconChild(playMenu, "play-menu-icon-ring");
+            Circle dot = (Circle) iconChild(playMenu, "play-menu-icon-dot");
+            return new IconColours(ring.getStroke(), dot.getFill());
+        });
+    }
+
+    private static Node iconChild(PlayMenuButton playMenu, String styleClass) {
+        Pane icon = (Pane) playMenu.getGraphic();
+        return icon.getChildren().stream()
+                .filter(node -> node.getStyleClass().contains(styleClass))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private record IconColours(Paint ringStroke, Paint dotFill) {
     }
 
     private enum State {
