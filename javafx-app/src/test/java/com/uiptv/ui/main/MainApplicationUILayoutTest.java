@@ -16,8 +16,6 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.MenuBar;
-import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.ColumnConstraints;
@@ -27,7 +25,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -149,27 +146,6 @@ MainApplicationUI ui = new MainApplicationUI(null, null, configurationService, n
         assertTrue(shouldUseAccountMediaDrawerMode(899));
         assertFalse(shouldUseAccountMediaDrawerMode(900));
         assertFalse(shouldUseAccountMediaDrawerMode(1200));
-    }
-
-    @Test
-    void topMenuContainsHelpActionsOnly() throws Exception {
-        runOnFxThread(() -> {
-            Stage stage = mock(Stage.class);
-            ConfigurationService configurationService = mock(ConfigurationService.class);
-            when(configurationService.read()).thenReturn(new Configuration());
-            MainApplicationUI ui = new MainApplicationUI(stage, null, configurationService, _ -> {
-            }, 1368, 720, false);
-
-            MenuBar menuBar = createMenuBar(ui);
-            List<String> labels = menuBar.getMenus().getFirst().getItems().stream()
-                    .map(MenuItem::getText)
-                    .toList();
-            assertEquals(List.of(
-                    I18n.tr("autoAbout"),
-                    I18n.tr("autoCheckForUpdates2")
-            ), labels);
-            return null;
-        });
     }
 
     @Test
@@ -398,12 +374,6 @@ MainApplicationUI ui = new MainApplicationUI(null, null, configurationService, n
         Method method = MainApplicationUI.class.getDeclaredMethod("shouldUseAccountMediaDrawerMode");
         method.setAccessible(true);
         return (boolean) method.invoke(ui);
-    }
-
-    private static MenuBar createMenuBar(MainApplicationUI ui) throws Exception {
-        Method method = BaseMainApplicationUI.class.getDeclaredMethod("createMenuBar");
-        method.setAccessible(true);
-        return (MenuBar) method.invoke(ui);
     }
 
     private static HBox buildAppContent(MainApplicationUI ui,

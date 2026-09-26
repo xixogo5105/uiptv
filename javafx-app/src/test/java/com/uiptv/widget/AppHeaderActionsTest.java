@@ -90,6 +90,7 @@ class AppHeaderActionsTest extends DbBackedUiTest {
                 I18n.tr("autoStayOnTop"),
                 I18n.tr("configLightweightModeSwitchTitle"),
                 I18n.tr("autoHelp"),
+                I18n.tr("autoCheckForUpdates2"),
                 I18n.tr("autoAbout")
         ), labels);
     }

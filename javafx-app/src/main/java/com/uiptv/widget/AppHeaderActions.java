@@ -7,6 +7,7 @@ import com.uiptv.ui.AboutUI;
 import com.uiptv.ui.FilterLockDialogs;
 import com.uiptv.ui.ReloadCachePopup;
 import com.uiptv.ui.ThumbnailAwareUI;
+import com.uiptv.ui.UpdateChecker;
 import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.ui.util.UiServerUrlUtil;
@@ -42,6 +43,7 @@ public class AppHeaderActions extends HBox {
     private static final String ICON_THUMBNAIL_CARD = "M4 5H20V19H4V5ZM6 7V13H18V7H6ZM6 15V17H12V15H6ZM14 15V17H18V15H14Z";
     private static final String ICON_DISABLED_SLASH = "M5.64 4.22L19.78 18.36L18.36 19.78L4.22 5.64Z";
     private static final String ICON_RELOAD = "M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z";
+    private static final String ICON_UPDATE = "M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z";
     private static final String ICON_SUN = "M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41.39.39 1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41.39.39 1.03.39 1.41 0l1.06-1.06z";
     private static final String ICON_MOON = "M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z";
 
@@ -117,6 +119,7 @@ public class AppHeaderActions extends HBox {
                 createMenuItem(I18n.tr("configLightweightModeSwitchTitle"), ICON_GEAR, this::switchToLightweightMode),
                 new SeparatorMenuItem(),
                 createMenuItem(I18n.tr("autoHelp"), ICON_HELP, () -> openExternalUrl(GUIDE_URL)),
+                createMenuItem(I18n.tr("autoCheckForUpdates2"), ICON_UPDATE, () -> UpdateChecker.checkForUpdates(hostServices)),
                 createMenuItem(I18n.tr("autoAbout"), ICON_ABOUT, this::showAbout)
         );
     }

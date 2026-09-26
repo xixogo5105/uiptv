@@ -6,7 +6,6 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.*;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
-import com.uiptv.util.SystemUtils;
 import com.uiptv.widget.AppNavigationController;
 import com.uiptv.widget.AppNotificationCenter;
 import com.uiptv.widget.AppNavigationPane;
@@ -130,14 +129,12 @@ public abstract class BaseMainApplicationUI {
         accountListUI.setLeadingBodyContent(manageAccountColumn.node());
         HBox appContent = buildAppContent(manageAccountColumn, mainContent, accountListUI);
 
-        MenuBar menuBar = createMenuBar();
-
         VBox notificationHost = AppNotificationCenter.createHost();
         AppNotificationCenter.install(notificationHost);
         StackPane inlineHost = InlinePanelService.createHost(appContent);
         InlinePanelService.install(inlineHost);
 
-        VBox rootLayout = new VBox(notificationHost, menuBar, inlineHost);
+        VBox rootLayout = new VBox(notificationHost, inlineHost);
         rootLayout.getStyleClass().add("uiptv-app-root");
         VBox.setVgrow(inlineHost, Priority.ALWAYS);
 
@@ -369,23 +366,6 @@ public abstract class BaseMainApplicationUI {
         embeddedPlayer.setMinSize(0, 0);
         embeddedPlayer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         return embeddedPlayer;
-    }
-
-    private MenuBar createMenuBar() {
-        MenuBar menuBar = new MenuBar();
-        boolean useNativeSystemMenuBar = SystemUtils.IS_OS_MAC_OSX || !configurationService.read().isDarkTheme();
-        menuBar.setUseSystemMenuBar(useNativeSystemMenuBar);
-
-        Menu helpMenu = new Menu(I18n.tr("autoHelp"));
-        MenuItem aboutItem = new MenuItem(I18n.tr("autoAbout"));
-        aboutItem.setOnAction(e -> AboutUI.show(hostServices));
-
-        MenuItem updateItem = new MenuItem(I18n.tr("autoCheckForUpdates2"));
-        updateItem.setOnAction(e -> UpdateChecker.checkForUpdates(hostServices));
-
-        helpMenu.getItems().addAll(aboutItem, updateItem);
-        menuBar.getMenus().add(helpMenu);
-        return menuBar;
     }
 
     private void initializeDeferredTabs(DeferredTabsContext context) {
