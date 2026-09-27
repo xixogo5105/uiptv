@@ -1,6 +1,10 @@
 module com.uiptv.api.server {
     requires com.uiptv.core;
-    requires undertow.core;
+    requires org.eclipse.jetty.server;
+    requires org.eclipse.jetty.servlet;
+    requires org.eclipse.jetty.http;
+    requires org.eclipse.jetty.io;
+    requires org.eclipse.jetty.util;
     requires org.json;
     requires org.apache.commons.io;
     requires jdk.httpserver;
