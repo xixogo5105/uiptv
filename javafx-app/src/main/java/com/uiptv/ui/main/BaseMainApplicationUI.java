@@ -141,7 +141,7 @@ public abstract class BaseMainApplicationUI {
         Scene scene = new Scene(rootLayout, guidedMaxWidthPixels, guidedMaxHeightPixels);
         UiI18n.applySceneOrientation(scene);
         fontStyleConfigurer.accept(scene);
-        bookmarkChannelListUI.forceReload();
+        bookmarkChannelListUI.scheduleInitialLoadAfterFirstRender();
         Supplier<WatchingNowUI> watchingNowSupplier = watchingNowRef::get;
         configureAccountListUI(
                 accountListUI,

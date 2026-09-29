@@ -23,7 +23,14 @@ public class BookmarkResolver {
     }
 
     public ResolutionContext prepareFast(List<Bookmark> bookmarks) {
-        Map<String, Account> accountByName = AccountService.getInstance().getAll();
+        return prepareFast(bookmarks, AccountService.getInstance().getAll());
+    }
+
+    /**
+     * Same as {@link #prepareFast(List)} but reuses a caller-supplied account lookup.
+     * Paged callers should fetch the accounts once per reload instead of once per page.
+     */
+    public ResolutionContext prepareFast(List<Bookmark> bookmarks, Map<String, Account> accountByName) {
         Map<String, BookmarkRenderData> renderDataByBookmarkId = preloadRenderData(bookmarks);
         return new ResolutionContext(accountByName, Map.of(), renderDataByBookmarkId, false);
     }

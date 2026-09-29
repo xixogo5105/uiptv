@@ -8,7 +8,6 @@ import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.BookmarkCard;
-import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
@@ -43,7 +42,6 @@ import static javafx.application.Platform.runLater;
 
 public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final String BOOKMARK_CACHE = "bookmark";
-    private static final String I18N_AUTO_LOADING_BOOKMARKS = "autoLoadingBookmarks";
     private static final String I18N_AUTO_NO_BOOKMARKS_FOUND = "autoNoBookmarksFound";
     private static final String I18N_SEARCHABLE_TABLE_MANAGE_TABS = "searchableTableManageTabs";
     private static final double GRID_NORMAL_VERTICAL_GAP = 14;
@@ -67,7 +65,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private final TextField searchTextField = new TextField();
     private final ResponsiveCardGrid<BookmarkItem> bookmarkGrid = new ResponsiveCardGrid<>(this::createBookmarkCard);
     private final StackPane bookmarkGridFrame = new StackPane();
-    private final LoadingStateView bookmarkLoadingOverlay = new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS));
     private final PillBar<BookmarkCategory> categoryPillBar =
             new PillBar<>(BookmarkCategory::getName, BookmarkCategory::getId);
     private final VBox listPanel = new VBox(8);
@@ -150,27 +147,23 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         reloadRequestedWhileReloading = false;
         long generation = reloadGeneration.incrementAndGet();
         reloadInProgress = true;
-        showLoadingState(generation);
         startReloadThread(generation);
     }
 
-    private void showLoadingState(long generation) {
-        Runnable update = () -> {
-            if (generation != reloadGeneration.get()) {
-                return;
-            }
-            bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS)));
-            setBookmarkLoadingOverlayVisible(!filteredItems.isEmpty());
-        };
-        if (Platform.isFxApplicationThread()) {
-            update.run();
-        } else {
-            runLater(update);
-        }
+    /**
+     * Defers the first load until the stage has been shown, so window painting is not
+     * competing with the bookmark query during startup. Marks the view as requested so
+     * the scene/visibility listeners do not kick off a second concurrent reload.
+     */
+    public void scheduleInitialLoadAfterFirstRender() {
+        loadedOnce = true;
+        runLater(() -> runLater(this::forceReload));
     }
 
     private void startReloadThread(long generation) {
-        new Thread(() -> reloadBookmarks(generation)).start();
+        Thread thread = new Thread(() -> reloadBookmarks(generation), "bookmark-reload");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private void reloadBookmarks(long generation) {
@@ -184,6 +177,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
             int offset = 0;
             List<BookmarkItem> allLoadedItems = new ArrayList<>();
+            Map<String, Account> accountByName = AccountService.getInstance().getAll();
 
             while (true) {
                 if (generation != reloadGeneration.get()) {
@@ -195,7 +189,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                     break;
                 }
 
-                BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(batch);
+                BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(batch, accountByName);
                 List<BookmarkItem> batchItems = buildLoadedBookmarkItems(generation, batch, context);
                 if (generation != reloadGeneration.get()) {
                     return;
@@ -252,7 +246,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             return;
         }
         reloadInProgress = false;
-        setBookmarkLoadingOverlayVisible(false);
         bookmarkGrid.setPlaceholderText(I18n.tr("autoUnableToLoadBookmarks"));
         triggerDeferredReloadIfNeeded();
     }
@@ -276,7 +269,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         }
         lastKnownBookmarkRevision = revision;
         reloadInProgress = false;
-        setBookmarkLoadingOverlayVisible(false);
         requestContentFocus();
         triggerDeferredReloadIfNeeded();
     }
@@ -293,9 +285,38 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         }
         allBookmarkItems.clear();
         allBookmarkItems.addAll(partialItems);
-        filterView();
-        setBookmarkLoadingOverlayVisible(reloadInProgress && !filteredItems.isEmpty());
+        if (!appendFilteredTail(partialItems)) {
+            filterView();
+        }
         requestContentFocus();
+    }
+
+    /**
+     * Appends only the newly streamed tail to the visible list so ResponsiveCardGrid can
+     * create just the new cards through {@code insertCards} instead of disposing and
+     * rebuilding every card. Returns false when the active filter or sort means the
+     * visible list is not a plain prefix of the freshly loaded snapshot.
+     */
+    private boolean appendFilteredTail(List<BookmarkItem> partialItems) {
+        if (bookmarkSortMode != BookmarkSortMode.DEFAULT
+                || !searchTextField.getText().isBlank()
+                || selectedCategoryId() != null) {
+            return false;
+        }
+        int existingSize = filteredItems.size();
+        if (existingSize > partialItems.size()) {
+            return false;
+        }
+        for (int i = 0; i < existingSize; i++) {
+            if (!Objects.equals(filteredItems.get(i).getBookmarkId(), partialItems.get(i).getBookmarkId())) {
+                return false;
+            }
+        }
+        if (existingSize == partialItems.size()) {
+            return true;
+        }
+        filteredItems.addAll(new ArrayList<>(partialItems.subList(existingSize, partialItems.size())));
+        return true;
     }
 
     public void requestContentFocus() {
@@ -384,7 +405,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         reloadRequestedWhileReloading = false;
         allBookmarkItems.clear();
         filteredItems.clear();
-        setBookmarkLoadingOverlayVisible(false);
     }
 
     private void triggerDeferredReloadIfNeeded() {
@@ -547,7 +567,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         bookmarkGrid.setCardWidthRange(255, 345);
         bookmarkGrid.setGaps(16, 14);
         bookmarkGrid.setReorderEnabled(true);
-        bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS)));
         bookmarkGrid.setLowVirtualizationThreshold();
         bookmarkGrid.setCardDisposer(card -> {
             if (card instanceof BookmarkCard bookmarkCard) {
@@ -560,12 +579,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         UiRenderQuality.optimizeLayout(bookmarkGridFrame);
         bookmarkGridFrame.setMinSize(0, 0);
         bookmarkGridFrame.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        bookmarkLoadingOverlay.getStyleClass().add("bookmark-loading-overlay");
-        bookmarkLoadingOverlay.setMouseTransparent(true);
-        setBookmarkLoadingOverlayVisible(false);
-        StackPane.setAlignment(bookmarkLoadingOverlay, Pos.TOP_CENTER);
-        StackPane.setMargin(bookmarkLoadingOverlay, new Insets(10, 0, 0, 0));
-        bookmarkGridFrame.getChildren().setAll(bookmarkGrid, bookmarkLoadingOverlay);
+        bookmarkGridFrame.getChildren().setAll(bookmarkGrid);
     }
 
     private MenuButton createBookmarkSortButton() {
@@ -673,14 +687,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             case ACCOUNT_ASCENDING -> I18n.tr("autoSortAccountNameAscendingCompact");
             case ACCOUNT_DESCENDING -> I18n.tr("autoSortAccountNameDescendingCompact");
         };
-    }
-
-    private void setBookmarkLoadingOverlayVisible(boolean visible) {
-        bookmarkLoadingOverlay.setVisible(visible);
-        bookmarkLoadingOverlay.setManaged(visible);
-        if (visible) {
-            bookmarkLoadingOverlay.toFront();
-        }
     }
 
     private Region createBookmarkCard(BookmarkItem item) {
@@ -868,7 +874,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         }
         if (filteredList.isEmpty()) {
             if (reloadInProgress && allBookmarkItems.isEmpty()) {
-                bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS)));
+                // Loading is deliberately silent: no placeholder, no overlay, no allocated spinner.
+                bookmarkGrid.setPlaceholderText("");
             } else {
                 bookmarkGrid.setPlaceholderText(searchText.isBlank()
                         ? I18n.tr(I18N_AUTO_NO_BOOKMARKS_FOUND)
