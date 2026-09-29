@@ -64,6 +64,26 @@ class AccountListUILayoutTest extends DbBackedUiTest {
     }
 
     @Test
+    void plainTextAccountGridKeepsResponsiveMultiColumnLayout() throws Exception {
+        double cardWidth = runOnFxThread(() -> {
+            setThumbnailsEnabled(false);
+            AccountListUI ui = new AccountListUI(null, null);
+            ResponsiveCardGrid<AccountListUI.AccountItem> grid = accountGrid(ui);
+            grid.setItems(FXCollections.observableArrayList(IntStream.range(0, 10)
+                    .mapToObj(AccountListUILayoutTest::accountItem)
+                    .toList()));
+            grid.resize(1810, 500);
+            grid.layout();
+            return firstCard(grid).getPrefWidth();
+        });
+
+        assertTrue(cardWidth >= 300,
+                "Expected plain-text account cards to respect the configured minimum card width");
+        assertTrue(cardWidth <= 430,
+                "Expected plain-text account cards to respect the configured maximum card width");
+    }
+
+    @Test
     void accountCardShowsCompactExpiryAfterAccountTypeWithExpiryColor() throws Exception {
         AccountExpiryCardSnapshot snapshot = runOnFxThread(() -> {
             setThumbnailsEnabled(true);

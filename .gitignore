@@ -3,6 +3,9 @@
 .idea/compiler.xml
 *.iml
 
+# Local agent workspace
+.kilo/
+
 # macOS files
 .DS_Store
 

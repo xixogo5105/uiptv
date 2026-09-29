@@ -20,7 +20,7 @@ This records the Phase 0 split for Android reuse.
 
 ## Desktop-Only For Mobile V1
 
-- Undertow API server and web/PWA assets.
+- Jetty API server and web/PWA assets.
 - JavaFX UI, desktop dialogs, desktop tray/window behavior, and VLC desktop player settings.
 - Desktop external player paths and FFmpeg desktop settings.
 - Public web server configuration, server startup preferences, theme CSS overrides, parental/filter lock UI.

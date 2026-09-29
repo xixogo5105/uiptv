@@ -199,7 +199,7 @@ public class AccountListUI extends HBox implements SearchTarget {
             scrollFocusedContentIntoView();
             return;
         }
-        boolean wasSingleLine = useSingleLineAccountRows();
+        boolean wasSingleLine = usePlainTextAccountRows();
         mediaDrawerMode = enabled;
         setMinWidth(0);
         updateMediaDrawerStyle();
@@ -833,7 +833,7 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void setAccountBrowserCompact(boolean compact) {
-        boolean wasSingleLine = useSingleLineAccountRows();
+        boolean wasSingleLine = usePlainTextAccountRows();
         if (mediaDrawerMode) {
             accountBrowserCompact = false;
             listView.getStyleClass().remove(STYLE_ACCOUNT_LIST_PANEL_COMPACT);
@@ -1336,23 +1336,25 @@ public class AccountListUI extends HBox implements SearchTarget {
     }
 
     private void applyAccountGridDisplayMode(boolean thumbnailsEnabled) {
-        boolean singleLine = !thumbnailsEnabled || accountBrowserCompact || mediaDrawerMode;
-        accountGrid.setSingleColumn(singleLine);
-        accountGrid.setCardMinHeight(singleLine
+        boolean plainTextRows = !thumbnailsEnabled || accountBrowserCompact || mediaDrawerMode;
+        // Only the narrow media drawer pins one card per row. Everywhere else the grid
+        // uses the same responsive column strategy in both thumbnail and plain-text modes.
+        accountGrid.setSingleColumn(mediaDrawerMode);
+        accountGrid.setCardMinHeight(plainTextRows
                 ? GRID_PLAIN_TEXT_CARD_MIN_HEIGHT
                 : GRID_NORMAL_CARD_MIN_HEIGHT);
-        accountGrid.setGaps(16, singleLine
+        accountGrid.setGaps(16, plainTextRows
                 ? GRID_PLAIN_TEXT_VERTICAL_GAP
                 : GRID_NORMAL_VERTICAL_GAP);
     }
 
-    private boolean useSingleLineAccountRows() {
+    private boolean usePlainTextAccountRows() {
         return !ThumbnailAwareUI.areThumbnailsEnabled() || accountBrowserCompact || mediaDrawerMode;
     }
 
-    private void refreshAccountGridIfRowModeChanged(boolean wasSingleLine) {
+    private void refreshAccountGridIfRowModeChanged(boolean wasPlainTextRow) {
         applyAccountGridDisplayMode(ThumbnailAwareUI.areThumbnailsEnabled());
-        if (wasSingleLine != useSingleLineAccountRows()) {
+        if (wasPlainTextRow != usePlainTextAccountRows()) {
             accountGrid.refresh();
         }
     }

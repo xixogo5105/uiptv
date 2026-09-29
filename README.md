@@ -21,15 +21,18 @@ Release assets are currently published for Windows (x86_64), Linux (x86_64 and a
 
 - User guide: [GUIDE.md](GUIDE.md)
 - Import format reference: [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md)
-- Release notes: [release_notes.md](release_notes.md)
+- Release notes: [GitHub Releases](https://github.com/xixogo5105/uiptv/releases)
 
 ## Project Layout
 
 UIPTV now builds as a Maven reactor with separated runtime modules:
 
+- `uiptv-shared/`: shared DTOs, contracts, and models exchanged between modules.
 - `core/`: shared domain models, SQLite/database layer, application services, cache reloaders, import parsers, migrations, i18n bundles, and release/version resources.
-- `api-server/`: Undertow-based local web server, JSON/playlist endpoints, and bundled SPA/PWA assets under `api-server/src/main/resources/web/`.
+- `api-server/`: Jetty-based local web server, JSON/playlist endpoints, and bundled SPA/PWA assets under `api-server/src/main/resources/web/`.
 - `javafx-app/`: JavaFX desktop application, players, widgets, dialogs, desktop CSS, icons, and native packaging configuration.
+- `lightweight-ui/`: server-only control window for the lightweight (no-desktop-browsing) mode.
+- `coverage-aggregate/`: JaCoCo/Kover report aggregation across modules.
 - `website/`: static project website published separately to GitHub Pages.
 
 Build from the repository root. Maven resolves the module graph automatically.
@@ -118,7 +121,7 @@ Here are some examples of how to build the application for different targets.
   mvn clean package -P windows-aarch64
   ```
   <img alt="WARNING" src="https://img.shields.io/badge/WARNING-Windows%20ARM64%20build%20fails-red" />
-  **JavaFX does not publish `win-aarch64` artifacts on Maven Central (as of 25.0.2), so this profile fails dependency resolution. On Windows ARM devices, use the x86_64 build under emulation instead.**
+  **JavaFX does not publish `win-aarch64` artifacts on Maven Central (as of JavaFX 27), so this profile fails dependency resolution. On Windows ARM devices, use the x86_64 build under emulation instead.**
 
 #### macOS
 - **macOS (Intel/x86_64):**
