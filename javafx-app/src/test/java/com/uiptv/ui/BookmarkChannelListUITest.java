@@ -5,7 +5,9 @@ import com.uiptv.model.BookmarkCategory;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
+import com.uiptv.widget.ResponsiveCardGrid;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.ObservableList;
 import javafx.scene.Node;
@@ -460,6 +462,44 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     }
 
     private record BadgeSnapshot(String text, boolean visible, boolean managed) {
+    }
+
+    @Test
+    void loadingStateIsPresentBeforeAnyBookmarksAreLoaded() throws Exception {
+        boolean[] hasLoadingIndicator = runOnFxThread(() -> {
+            BookmarkChannelListUI ui = new BookmarkChannelListUI(null, () -> {
+            });
+            // Before any data arrives the grid must carry a loading placeholder, so the user
+            // does not read the empty grid as "you have no bookmarks".
+            return new boolean[]{
+                    findByType(bookmarkGridOf(ui), LoadingStateView.class) != null
+            };
+        });
+
+        assertTrue(hasLoadingIndicator[0],
+                "A loading indicator must be present so users do not read an empty pane as 'no bookmarks'");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ResponsiveCardGrid<?> bookmarkGridOf(BookmarkChannelListUI ui) throws Exception {
+        Field field = BookmarkChannelListUI.class.getDeclaredField("bookmarkGrid");
+        field.setAccessible(true);
+        return (ResponsiveCardGrid<?>) field.get(ui);
+    }
+
+    private static <T> T findByType(Node root, Class<T> type) {
+        if (type.isInstance(root)) {
+            return type.cast(root);
+        }
+        if (root instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                T found = findByType(child, type);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private record ListenerSnapshot(boolean registered, boolean unregistered) {

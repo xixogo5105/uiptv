@@ -996,6 +996,55 @@ class ResponsiveCardGridTest {
         method.invoke(grid);
     }
 
+    @Test
+    void incrementalLoadAppendsKeepEveryStreamedItemAndSelectionIntact() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+            ObservableList<String> items = FXCollections.observableArrayList("one", "two", "three");
+            ResponsiveCardGrid<String> created = new ResponsiveCardGrid<>(Label::new);
+            created.setItems(items);
+            created.resize(600, 400);
+            created.layout();
+            return created;
+        });
+
+        runOnFxThread(() -> {
+            grid.selectItems(List.of("two"));
+            grid.beginIncrementalLoad();
+            grid.getItems().addAll(List.of("four", "five"));
+            grid.endIncrementalLoad();
+            return null;
+        });
+
+        assertEquals(List.of("one", "two", "three", "four", "five"),
+                runOnFxThread(() -> List.copyOf(grid.getItems())),
+                "All streamed items must be present, in order");
+        assertEquals(List.of("two"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())),
+                "Streaming appends must not disturb the current selection");
+    }
+
+    @Test
+    void selectionRestyleStillAppliesAfterIncrementalLoadFinishes() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+            ObservableList<String> items = FXCollections.observableArrayList("one", "two", "three");
+            ResponsiveCardGrid<String> created = new ResponsiveCardGrid<>(Label::new);
+            created.setItems(items);
+            created.resize(600, 400);
+            created.layout();
+            return created;
+        });
+
+        runOnFxThread(() -> {
+            grid.beginIncrementalLoad();
+            grid.getItems().addAll(List.of("four", "five"));
+            grid.endIncrementalLoad();
+            grid.selectItems(List.of("five"));
+            return null;
+        });
+
+        assertEquals(List.of("five"), runOnFxThread(() -> List.copyOf(grid.getSelectedItems())),
+                "A selection made after loading must still be recorded so it can be styled");
+    }
+
     private record VirtualWindowSnapshot(int createdCards, List<String> renderedLabels) {
     }
 }

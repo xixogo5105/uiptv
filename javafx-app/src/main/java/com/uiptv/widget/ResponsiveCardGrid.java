@@ -45,6 +45,13 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private static final double SCROLL_VALUE_TOLERANCE = 0.001;
     private static final int DEFAULT_VIRTUALIZATION_THRESHOLD =
             Integer.getInteger("uiptv.cardGrid.virtualizationThreshold", 100);
+    /**
+     * Max time spent constructing cards within a single FX pulse during an incremental
+     * append. Beyond this the remaining cards are deferred to the next pulse so the UI
+     * keeps processing input (and repainting the mouse) instead of blocking.
+     */
+    private static final long CARD_BUILD_PULSE_BUDGET_NANOS =
+            Long.getLong("uiptv.cardGrid.cardBuildPulseBudgetNanos", 8_000_000L);
     private static final int DEFAULT_VIRTUAL_ROW_BUFFER =
             Integer.getInteger("uiptv.cardGrid.virtualRowBuffer", 6);
     private static final double DEFAULT_VIRTUAL_VIEWPORT_HEIGHT = 900;
@@ -81,6 +88,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private boolean reorderEnabled;
     private boolean mouseSelectionInProgress;
     private boolean suppressFocusSelection;
+    /** True while a caller streams items in incrementally, to skip costly full-card restyles. */
+    private boolean appendInProgress;
     private boolean singleColumn;
     private boolean virtualizationEnabled = true;
     private boolean detachedCardCachingEnabled;
@@ -319,6 +328,30 @@ public class ResponsiveCardGrid<T> extends StackPane {
         scheduleInitialItemFocus();
     }
 
+    /**
+     * Marks the start of an incremental (streamed) item load. While active, appending
+     * items skips the per-card selection restyle and placeholder churn, which would
+     * otherwise repaint every existing card once per batch. Callers must pair this with
+     * {@link #endIncrementalLoad()}.
+     */
+    public void beginIncrementalLoad() {
+        appendInProgress = true;
+    }
+
+    public void endIncrementalLoad() {
+        appendInProgress = false;
+    }
+
+    /** Runs {@code action} with incremental-load optimizations enabled. */
+    public void duringIncrementalLoad(Runnable action) {
+        beginIncrementalLoad();
+        try {
+            action.run();
+        } finally {
+            endIncrementalLoad();
+        }
+    }
+
     public void scrollFocusedItemIntoView() {
         T target = getFocusedItem();
         if (target == null) {
@@ -402,35 +435,39 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         clearVirtualContentLayout();
         updateCardWidths();
-        int gridCol = 0;
-        int gridRow = 0;
-        for (T item : items) {
-            Region card = cardFactory.apply(item);
-            configureCard(item, card);
-            cardsByItem.put(item, card);
-            GridPane.setColumnIndex(card, gridCol);
-            GridPane.setRowIndex(card, gridRow);
-            cardPane.getChildren().add(card);
-            gridCol++;
-            if (gridCol >= columnCount) {
-                gridCol = 0;
-                gridRow++;
-            }
-        }
-        updatePlaceholderVisibility();
-        updateCardWidths();
-        updateSelectionStyles();
-        applyActivatedStyles(cardsByItem);
-        ensureInitialSelection();
-        scheduleInitialItemFocus();
+        // Same time-sliced build as the append path: a full rebuild during a large load
+        // would otherwise block input in one burst.
+        rebuildCardsTimeSliced(new ArrayList<>(items));
+    }
+
+    private void rebuildCardsTimeSliced(List<T> pending) {
+        buildCardsChunked(0, pending, 0, () -> {
+            updatePlaceholderVisibility();
+            updateCardWidths();
+            updateSelectionStyles();
+            applyActivatedStyles(cardsByItem);
+            ensureInitialSelection();
+            scheduleInitialItemFocus();
+        });
     }
 
     private void handleItemsChanged(ListChangeListener.Change<? extends T> change) {
+        if (appendInProgress && change.wasAdded()) {
+            // Appending during a load must never tear down and rebuild the grid: disposeAllCards()
+            // destroys every rendered card, so a full rebuild per batch repaints the whole
+            // viewport repeatedly (visible mouse jerk). Create just the new cards instead.
+            List<T> added = new ArrayList<>(change.getAddedSubList());
+            if (!change.wasPermutated() && !change.wasRemoved() && !change.wasUpdated()) {
+                appendCardsDuringLoad(change.getFrom(), added);
+                return;
+            }
+        }
         if (virtualizedActive || shouldUseVirtualization()) {
             rebuildCards();
             return;
         }
         boolean changed = false;
+        boolean appendedAsync = false;
         while (change.next()) {
             if (change.wasPermutated() || change.wasRemoved()) {
                 rebuildCards();
@@ -442,12 +479,94 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 continue;
             }
             if (change.wasAdded()) {
-                insertCards(change.getFrom(), new ArrayList<>(change.getAddedSubList()));
+                // Copy eagerly: getAddedSubList() is a live view that is invalid once this
+                // listener returns, so deferred pulses would otherwise see an empty list.
+                List<T> added = new ArrayList<>(change.getAddedSubList());
+                // Finalisation is deferred to the completion callback so it runs once,
+                // after every card exists (the build may span several FX pulses).
+                insertCardsTimeSliced(change.getFrom(), added, this::onIncrementalAppendFinished);
                 changed = true;
+                appendedAsync = true;
             }
         }
         if (!changed) {
             updatePlaceholderVisibility();
+            return;
+        }
+        if (appendedAsync) {
+            return;
+        }
+        pruneSelection();
+        updatePlaceholderVisibility();
+        updateCardWidths();
+        // During a streaming/append load, skip the full-card selection sweep. Newly inserted
+        // cards start unselected, so nothing needs restyling; the sweep only matters for
+        // pre-existing cards. Repeated per-batch selection sweeps were causing visible
+        // repaint churn (pseudoClassStateChanged on every card) and mouse jerk.
+        if (!appendInProgress) {
+            updateSelectionStyles();
+        }
+        ensureInitialSelection();
+        scheduleInitialItemFocus();
+    }
+
+    /**
+     * Builds cards for a batch, spreading the work over multiple FX pulses once the batch
+     * is large. Constructing cards is the dominant cost of a bookmark load; doing it in one
+     * blocking burst stops the window from processing input, which the user perceives as
+     * mouse jerk. We cap time per pulse and yield in between.
+     *
+     * <p>{@code onComplete} runs exactly once, after every card has been created, so
+     * layout/selection work is not applied against a half-built grid.</p>
+     */
+    private void insertCardsTimeSliced(int index, List<T> newItems, Runnable onComplete) {
+        int start = Math.clamp(index, 0, cardPane.getChildren().size());
+        buildCardsChunked(start, new ArrayList<>(newItems), 0, onComplete);
+    }
+
+    private void buildCardsChunked(int start, List<T> pending, int offset, Runnable onComplete) {
+        long deadline = System.nanoTime() + CARD_BUILD_PULSE_BUDGET_NANOS;
+        while (offset < pending.size()) {
+            if (offset > 0 && System.nanoTime() > deadline) {
+                final int resumeAt = offset;
+                Platform.runLater(() -> buildCardsChunked(start, pending, resumeAt, onComplete));
+                return;
+            }
+            T item = pending.get(offset);
+            Region card = cardFactory.apply(item);
+            configureCard(item, card);
+            cardsByItem.put(item, card);
+            int cardIndex = start + offset;
+            GridPane.setColumnIndex(card, cardIndex % Math.max(1, columnCount));
+            GridPane.setRowIndex(card, cardIndex / Math.max(1, columnCount));
+            cardPane.getChildren().add(cardIndex, card);
+            offset++;
+        }
+        onComplete.run();
+    }
+
+    /**
+     * Appends newly streamed cards without tearing down the cards already on screen.
+     *
+     * <p>Card construction is left to the normal virtual-window render path, which creates
+     * only what is visible and culls the rest. What this avoids is the full
+     * {@link #rebuildCards()} per batch, whose {@code disposeAllCards()} destroys every
+     * rendered card and forces a complete viewport repaint each time - the source of the
+     * visible mouse jerk while a bookmark load streams in. Here we just refresh the
+     * virtual window, which the scheduler already coalesces into a single pass.</p>
+     */
+    private void appendCardsDuringLoad(int fromIndex, List<T> added) {
+        if (added.isEmpty()) {
+            return;
+        }
+        // Drop focus/selection indices that pointed past the previous end of the list.
+        pruneSelection();
+        scheduleVirtualWindowUpdate();
+    }
+
+    /** Finalises an incremental append once all its cards exist. */
+    private void onIncrementalAppendFinished() {
+        if (appendInProgress) {
             return;
         }
         pruneSelection();
@@ -455,25 +574,6 @@ public class ResponsiveCardGrid<T> extends StackPane {
         updateCardWidths();
         updateSelectionStyles();
         ensureInitialSelection();
-        scheduleInitialItemFocus();
-    }
-
-    private void insertCards(int index, List<T> newItems) {
-        if (newItems.isEmpty()) {
-            return;
-        }
-        int insertIndex = Math.clamp(index, 0, cardPane.getChildren().size());
-        for (T item : newItems) {
-            Region card = cardFactory.apply(item);
-            configureCard(item, card);
-            cardsByItem.put(item, card);
-            int gridCol = insertIndex % Math.max(1, columnCount);
-            int gridRow = insertIndex / Math.max(1, columnCount);
-            GridPane.setColumnIndex(card, gridCol);
-            GridPane.setRowIndex(card, gridRow);
-            cardPane.getChildren().add(insertIndex, card);
-            insertIndex++;
-        }
     }
 
     private void updateCards(int from, int to) {

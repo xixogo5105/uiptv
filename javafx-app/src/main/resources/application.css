@@ -949,6 +949,16 @@
     -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.07), 16, 0.12, 0, 5);
 }
 
+.bookmark-loading-overlay {
+    -fx-padding: 8 14 8 14;
+    -fx-background-color: rgba(255, 255, 255, 0.94);
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.16), 14, 0.16, 0, 4);
+}
+
 .bookmarks-header-area {
     -fx-padding: 0 0 6 0;
 }
