@@ -188,7 +188,21 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         showLoadingPlaceholderIfEmpty();
         long generation = lifecycleGeneration.get();
         new Thread(() -> {
-            List<SeriesPanelData> rows = buildPanelsFromCache();
+            List<SeriesPanelData> rows;
+            try {
+                rows = buildPanelsFromCache();
+            } catch (Throwable t) {
+                // reloadInProgress must be cleared even when the cache read fails, otherwise it
+                // stays true for the lifetime of this object and every later refreshIfNeeded()
+                // short-circuits at the guard above, wedging the tab on "Loading..." with no way
+                // out short of restarting the app.
+                com.uiptv.util.AppLog.addErrorLog(BaseWatchingNowUI.class,
+                        "Watching Now: failed to build panels from cache", t);
+                // Marshal the completion: finishReload touches JavaFX state and must not run on
+                // this background thread.
+                Platform.runLater(() -> finishReload(generation));
+                return;
+            }
             Platform.runLater(() -> {
                 try {
                     if (lifecycleGeneration.get() != generation || !isDisplayable()) {
@@ -196,14 +210,32 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                         return;
                     }
                     render(rows);
+                } catch (Throwable t) {
+                    com.uiptv.util.AppLog.addErrorLog(BaseWatchingNowUI.class,
+                            "Watching Now: failed to render panels", t);
                 } finally {
-                    reloadInProgress.set(false);
-                    if (reloadQueued.getAndSet(false) || dirty) {
-                        refreshIfNeeded();
-                    }
+                    finishReload(generation);
                 }
             });
         }, "watching-now-loader").start();
+    }
+
+    /**
+     * Releases the in-progress guard and schedules a follow-up reload when one was requested or
+     * the view was marked dirty while this reload was running. Must be called exactly once per
+     * reload, including on failure.
+     */
+    private void finishReload(long generation) {
+        boolean superseded = lifecycleGeneration.get() != generation;
+        if (superseded) {
+            // The view this reload belonged to is gone; do not schedule anything for it.
+            reloadInProgress.set(false);
+            return;
+        }
+        reloadInProgress.set(false);
+        if (reloadQueued.getAndSet(false) || dirty) {
+            refreshIfNeeded();
+        }
     }
 
     private List<SeriesPanelData> buildPanelsFromCache() {
