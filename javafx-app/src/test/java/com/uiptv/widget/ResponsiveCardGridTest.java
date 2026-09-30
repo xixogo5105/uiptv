@@ -18,6 +18,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -495,6 +496,93 @@ class ResponsiveCardGridTest {
         assertEquals(36.0, runOnFxThread(() -> cardAt(grid, 0).getMinHeight()));
         assertEquals(5.0, runOnFxThread(() -> cardPane(grid).getHgap()));
         assertEquals(7.0, runOnFxThread(() -> cardPane(grid).getVgap()));
+    }
+
+    @Test
+    void cardsAreClampedToOneColumn_beforeTheGridIsMeasured() throws Exception {
+        // A card factory that reports a very wide content-driven pref width, like an account card
+        // holding a long, non-wrapping title. If the grid leaves cards at their factory bounds
+        // before it has been sized, the GridPane sizes the column to that width and the overflow
+        // spills into the pane on the right, overlapping neighbouring content.
+        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> {
+                Label label = new Label(item);
+                label.setMinWidth(0);
+                label.setMaxWidth(Double.MAX_VALUE);
+                VBox card = new VBox(label) {
+                    @Override
+                    protected double computePrefWidth(double height) {
+                        return 1400;
+                    }
+                };
+                return card;
+            });
+            cardGrid.setItems(FXCollections.observableArrayList("a", "b"));
+            cardGrid.setCardWidthRange(200, 300);
+            cardGrid.setGaps(10, 10);
+            cardGrid.setMinWidth(0);
+            cardGrid.setMaxWidth(Double.MAX_VALUE);
+            return cardGrid;
+        });
+
+        // No resize/layout: this is the pre-measurement window.
+        runOnFxThread(() -> {
+            grid.layout();
+            return null;
+        });
+
+        runOnFxThread(() -> {
+            Region card = cardAt(grid, 0);
+            assertEquals(200.0, card.getMinWidth(),
+                    "Card must be clamped to the configured minimum, not sized by its content");
+            assertEquals(200.0, card.getPrefWidth());
+            assertEquals(200.0, card.getMaxWidth(),
+                    "Card must be exactly one column wide so it cannot overlap a neighbour");
+            return null;
+        });
+    }
+
+    @Test
+    void measuredGridKeepsEveryCardWithinOneColumnWidth() throws Exception {
+        ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> {
+                Label label = new Label(item);
+                label.setMinWidth(0);
+                label.setMaxWidth(Double.MAX_VALUE);
+                return new VBox(label) {
+                    @Override
+                    protected double computePrefWidth(double height) {
+                        return 1400;
+                    }
+                };
+            });
+            cardGrid.setItems(FXCollections.observableArrayList("a", "b", "c"));
+            cardGrid.setCardWidthRange(200, 300);
+            cardGrid.setGaps(10, 10);
+            cardGrid.setMinWidth(0);
+            cardGrid.setMaxWidth(Double.MAX_VALUE);
+            return cardGrid;
+        });
+
+        runOnFxThread(() -> {
+            grid.resize(660, 300);
+            grid.layout();
+            return null;
+        });
+
+        double available = 660.0;
+        runOnFxThread(() -> {
+            for (int i = 0; i < 3; i++) {
+                Region card = cardAt(grid, i);
+                assertTrue(card.getMaxWidth() <= available,
+                        "Card " + i + " must not exceed the grid width: " + card.getMaxWidth());
+                assertTrue(card.getMinWidth() >= 200.0,
+                        "Card " + i + " must respect the configured minimum width");
+                assertEquals(card.getMinWidth(), card.getMaxWidth(),
+                        "Card " + i + " must be a fixed one-column width");
+            }
+            return null;
+        });
     }
 
     @Test

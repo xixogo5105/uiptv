@@ -70,6 +70,13 @@ public class AccountListUI extends HBox implements SearchTarget {
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
     private static final double GRID_PLAIN_TEXT_CARD_MIN_HEIGHT = 42;
+    /**
+     * Floor for a single account card before the grid has measured its column. A card must never
+     * collapse to nothing, and it must never be wider than one grid column; the grid enforces the
+     * exact width via {@code applyComputedCardWidth} once it has a width, and this constant keeps
+     * the pre-measurement layout sane instead of content-driven.
+     */
+    private static final double ACCOUNT_CARD_FLOOR_WIDTH = 160;
     private static final double FILTER_TOOLBAR_GAP = 8;
     private static final double ACCOUNT_BROWSER_SINGLE_PANE_WIDTH = 720;
     private static final double ACCOUNT_BROWSER_COLUMN_GAP = 4;
@@ -122,6 +129,13 @@ public class AccountListUI extends HBox implements SearchTarget {
     private final AtomicLong refreshGeneration = new AtomicLong();
     private boolean refreshPending = true;
     private boolean mediaDrawerMode;
+    /**
+     * True while the account list is shown side by side with the category/channel browser.
+     * The account pane is a narrow column in that layout, so the card grid must stay on a single
+     * column; a second column would render at roughly 50% width and spill over the browser pane.
+     */
+    private boolean twoPaneAccountBrowser;
+
     private boolean leadingBodyContentExclusive;
     private boolean thumbnailListenerRegistered;
     private boolean accountBrowserCompact;
@@ -756,6 +770,7 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     public void showAccountListView() {
         activeCategoryBrowserRetainedForDetailView = false;
+        twoPaneAccountBrowser = false;
         disposeActiveCategoryList();
         setAccountBrowserCompact(false);
         viewStack.clear();
@@ -779,6 +794,7 @@ public class AccountListUI extends HBox implements SearchTarget {
         categoryListUI.setMediaDrawerMode(mediaDrawerMode);
         switchHeaderSearchMode(HeaderSearchMode.ACTIVE_BROWSER, newBrowser);
         if (mediaDrawerMode || shouldUseSinglePaneAccountBrowser()) {
+            twoPaneAccountBrowser = false;
             setAccountBrowserCompact(false);
             setCurrentContent(categoryListUI);
             updateNavButtons();
@@ -791,6 +807,7 @@ public class AccountListUI extends HBox implements SearchTarget {
             syncActiveCategoryBrowserRetention();
             return;
         }
+        twoPaneAccountBrowser = true;
         setAccountBrowserCompact(true);
         detachFromParent(listView);
         detachFromParent(categoryListUI);
@@ -966,7 +983,8 @@ public class AccountListUI extends HBox implements SearchTarget {
 
         VBox card = new VBox(7);
         card.getStyleClass().add(STYLE_ACCOUNT_CARD);
-        card.setMinWidth(0);
+        card.setMinWidth(ACCOUNT_CARD_FLOOR_WIDTH);
+        card.setPrefWidth(ACCOUNT_CARD_FLOOR_WIDTH);
         card.setMaxWidth(Double.MAX_VALUE);
         card.setFillWidth(true);
 
@@ -1041,7 +1059,8 @@ public class AccountListUI extends HBox implements SearchTarget {
         HBox card = new HBox(7);
         card.getStyleClass().addAll(STYLE_ACCOUNT_CARD, "plain-text-row-card");
         card.setAlignment(Pos.CENTER_LEFT);
-        card.setMinWidth(0);
+        card.setMinWidth(ACCOUNT_CARD_FLOOR_WIDTH);
+        card.setPrefWidth(ACCOUNT_CARD_FLOOR_WIDTH);
         card.setMaxWidth(Double.MAX_VALUE);
 
         Label title = new Label(item == null ? "" : item.getAccountName());
@@ -1095,7 +1114,8 @@ public class AccountListUI extends HBox implements SearchTarget {
         HBox card = new HBox();
         card.getStyleClass().addAll(STYLE_ACCOUNT_CARD, "plain-text-row-card");
         card.setAlignment(Pos.CENTER_LEFT);
-        card.setMinWidth(0);
+        card.setMinWidth(ACCOUNT_CARD_FLOOR_WIDTH);
+        card.setPrefWidth(ACCOUNT_CARD_FLOOR_WIDTH);
         card.setMaxWidth(Double.MAX_VALUE);
 
         Label title = new Label(item == null ? "" : item.getAccountName());
@@ -1106,6 +1126,11 @@ public class AccountListUI extends HBox implements SearchTarget {
         title.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(title, Priority.ALWAYS);
 
+        // The pin marker must be visible in every card style, not only the compact and
+        // thumbnail ones - otherwise a pinned account is indistinguishable in plain-text mode.
+        if (item != null && item.isPinToTop()) {
+            card.getChildren().add(createAccountPinIcon());
+        }
         card.getChildren().add(title);
         return card;
     }
@@ -1337,9 +1362,11 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     private void applyAccountGridDisplayMode(boolean thumbnailsEnabled) {
         boolean plainTextRows = !thumbnailsEnabled || accountBrowserCompact || mediaDrawerMode;
-        // Only the narrow media drawer pins one card per row. Everywhere else the grid
-        // uses the same responsive column strategy in both thumbnail and plain-text modes.
-        accountGrid.setSingleColumn(mediaDrawerMode);
+        // Whenever the account list shares horizontal space with the category/channel browser it
+        // must stay single column. A second column renders at about half the pane width and
+        // overlaps the browser pane on the right, which is what made pinned cards look like they
+        // were wrapping over each other.
+        accountGrid.setSingleColumn(mediaDrawerMode || twoPaneAccountBrowser);
         accountGrid.setCardMinHeight(plainTextRows
                 ? GRID_PLAIN_TEXT_CARD_MIN_HEIGHT
                 : GRID_NORMAL_CARD_MIN_HEIGHT);

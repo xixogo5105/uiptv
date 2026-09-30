@@ -1389,6 +1389,18 @@ selectedItemsInternal.add(item);
         Insets padding = cardPane.getPadding();
         available = Math.max(0, available - padding.getLeft() - padding.getRight() - 2);
         if (available <= 0) {
+            // The grid has not been sized yet (first layout pass, or detached). Cards must never
+            // be left at their factory width in that window: a GridPane sizes each column to its
+            // widest member, so a card with an unbounded max width is sized by its content. For
+            // account cards that means a pinned card (which carries an extra 24px pin wrapper)
+            // widens its column, every other card in it shifts, and the overflow spills into the
+            // pane on the right. Clamp to the configured minimum so a card is always exactly one
+            // column wide and can never overlap a neighbour.
+            columnCount = 1;
+            computedCardWidth = minCardWidth;
+            for (Region card : cardsByItem.values()) {
+                applyComputedCardWidth(card);
+            }
             if (virtualizedActive) {
                 updateVirtualContentHeight();
                 scheduleVirtualWindowUpdate();
