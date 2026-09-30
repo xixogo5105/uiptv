@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -93,6 +94,16 @@ class CoreWidgetBehaviorTest {
         PlayMenuButton button = runOnFxThread(() -> new PlayMenuButton("More playback options"));
 
         assertEquals("More playback options", runOnFxThread(button::getAccessibleText));
+        // The button starts hollow so a catalogue does not build a tooltip and four shapes per
+        // card; the content is built on the first reveal.
+        assertNull(runOnFxThread(button::getGraphic), "graphic must be deferred until revealed");
+        assertNull(runOnFxThread(button::getTooltip), "tooltip must be deferred until revealed");
+
+        runOnFxThread(() -> {
+            button.reveal();
+            return null;
+        });
+
         assertEquals("More playback options", runOnFxThread(() -> button.getTooltip().getText()));
         Pane icon = runOnFxThread(() -> (Pane) button.getGraphic());
         assertEquals(4, runOnFxThread(() -> icon.getChildren().size()));

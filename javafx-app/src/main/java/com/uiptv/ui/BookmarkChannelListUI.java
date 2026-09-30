@@ -751,6 +751,22 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             return createPlainTextBookmarkCard(item);
         }
 
+        return new BookmarkCard(
+                item == null ? "" : item.getChannelName(),
+                bookmarkAccountName(item),
+                item == null ? "" : item.getLogo(),
+                thumbnailsEnabled,
+                BOOKMARK_CACHE,
+                isDrmProtected(item),
+                createBookmarkPlayMenuButton(item)
+        );
+    }
+
+    /**
+     * Built lazily and shown on card hover by {@link ResponsiveCardGrid}, so the cost is paid for
+     * the card the pointer is actually on rather than for the whole catalogue.
+     */
+    private Button createBookmarkPlayMenuButton(BookmarkItem item) {
         Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
         playButton.getStyleClass().add("bookmark-play-menu-button");
         playButton.setOnAction(event -> {
@@ -760,15 +776,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             UiI18n.preparePopupControl(menu, playButton);
             menu.show(playButton, Side.BOTTOM, 0, 0);
         });
-        return new BookmarkCard(
-                item == null ? "" : item.getChannelName(),
-                bookmarkAccountName(item),
-                item == null ? "" : item.getLogo(),
-                thumbnailsEnabled,
-                BOOKMARK_CACHE,
-                isDrmProtected(item),
-                playButton
-        );
+        return playButton;
     }
 
     private Region createPlainTextBookmarkCard(BookmarkItem item) {
@@ -793,6 +801,10 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         if (isDrmProtected(item)) {
             titleRow.getChildren().add(createPlainTextDrmBadge());
         }
+        // Plain-text rows get the same "..." affordance as the thumbnail cards. It is created here
+        // but stays hollow until the row is hovered, so adding it here does not reintroduce the
+        // per-row cost this avoids in the catalogue.
+        titleRow.getChildren().add(createBookmarkPlayMenuButton(item));
 
         card.getChildren().add(titleRow);
         String accountName = bookmarkAccountName(item);

@@ -925,6 +925,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (item != null && item.getChannel() != null && listAction == series && item.getChannel().isWatched()) {
             card.getChildren().add(createDrawerBadge(I18n.tr(I18N_AUTO_IN_PROGRESS)));
         }
+        // Plain-text rows get the same "..." affordance as the thumbnail cards. It is created here
+        // but stays hollow until the row is hovered, so adding it here does not reintroduce the
+        // per-row cost this avoids in the catalogue.
+        card.getChildren().add(createActionButton(item));
         return card;
     }
 

@@ -104,6 +104,9 @@ class ResponsiveCardActivatedTextStyleTest {
         return runOnFxThread(() -> {
             PlayMenuButton playMenu = new PlayMenuButton("menu");
             playMenu.getStyleClass().add("bookmark-play-menu-button");
+            // The affordance is hollow until a card is hovered, so reveal it before inspecting the
+            // icon shapes the stylesheet is expected to restyle.
+            playMenu.reveal();
             VBox card = new VBox(playMenu);
             card.getStyleClass().addAll("uiptv-responsive-card", "bookmark-card");
             Scene scene = new Scene(new StackPane(card), 400, 300);

@@ -1132,6 +1132,10 @@ public class AccountListUI extends HBox implements SearchTarget {
             card.getChildren().add(createAccountPinIcon());
         }
         card.getChildren().add(title);
+        // Same "..." affordance as the compact and thumbnail cards. It is created here but stays
+        // hollow until the row is hovered, so adding it here does not reintroduce the per-row cost
+        // this avoids in the catalogue.
+        card.getChildren().add(createAccountCardMenuButton(item));
         return card;
     }
 

@@ -742,6 +742,12 @@ public class ResponsiveCardGrid<T> extends StackPane {
             }
         }
         cardsByItem.entrySet().removeIf(entry -> !retainedItems.contains(entry.getKey()));
+        for (Map.Entry<T, Region> entry : cardsToCache) {
+            // A card scrolled out from under the pointer never gets MOUSE_EXITED, so hide its
+            // hover affordances here. Without this a card retained by the detached cache can come
+            // back already revealed, and the "..." would linger on every such card.
+            concealHoverActionsIn(entry.getValue());
+        }
         if (detachedCardCachingEnabled) {
             for (Map.Entry<T, Region> entry : cardsToCache) {
                 detachedCardsByItem.put(entry.getKey(), entry.getValue());
@@ -764,7 +770,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
                     configureCard(item, card);
                 } else {
                     // Card reused from detached cache - ensure activated state is correct
-card.pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS, Objects.equals(item, activatedItem));
+                    card.pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS, Objects.equals(item, activatedItem));
+                    concealHoverActionsIn(card);
                 }
                 cardsByItem.put(item, card);
             }
@@ -946,10 +953,70 @@ card.pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS, Objects.equals(item, activa
         });
         card.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> handleCardClicked(item, card, event));
         card.setOnContextMenuRequested(event -> showContextMenu(item, card, event));
+        configureHoverRevealActions(card);
         if (reorderEnabled) {
             configureDragHandlers(item, card);
         }
         registerInteractiveChildFocusListeners(item, card);
+    }
+
+    /**
+     * Wires the card's hover state to the {@link HoverRevealAction} controls inside it, so the
+     * "..." affordance is only built and shown on the card under the pointer rather than on every
+     * card in the catalogue.
+     * <p>
+     * Discovery is a one-off walk when the card is configured, not something repeated per hover
+     * event. Cards start concealed because a card can be recycled from the detached-card cache
+     * without {@code configureCard} running again.
+     */
+    private void configureHoverRevealActions(Region card) {
+        List<HoverRevealAction> actions = hoverRevealActionsIn(card);
+        if (actions.isEmpty()) {
+            return;
+        }
+        for (HoverRevealAction action : actions) {
+            action.conceal();
+        }
+        card.addEventHandler(MouseEvent.MOUSE_ENTERED, event -> revealHoverActions(actions));
+        card.addEventHandler(MouseEvent.MOUSE_EXITED, event -> concealHoverActions(actions));
+    }
+
+    private void revealHoverActions(List<HoverRevealAction> actions) {
+        for (HoverRevealAction action : actions) {
+            action.reveal();
+        }
+    }
+
+    private void concealHoverActions(List<HoverRevealAction> actions) {
+        for (HoverRevealAction action : actions) {
+            action.conceal();
+        }
+    }
+
+    private List<HoverRevealAction> hoverRevealActionsIn(Node root) {
+        List<HoverRevealAction> actions = new ArrayList<>();
+        collectHoverRevealActions(root, actions);
+        return actions;
+    }
+
+    private void concealHoverActionsIn(Node node) {
+        for (HoverRevealAction action : hoverRevealActionsIn(node)) {
+            action.conceal();
+        }
+    }
+
+    private void collectHoverRevealActions(Node node, List<HoverRevealAction> actions) {
+        if (node == null) {
+            return;
+        }
+        if (node instanceof HoverRevealAction action) {
+            actions.add(action);
+        }
+        if (node instanceof javafx.scene.Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                collectHoverRevealActions(child, actions);
+            }
+        }
     }
 
     private void handleCardClicked(T item, Region card, MouseEvent event) {
