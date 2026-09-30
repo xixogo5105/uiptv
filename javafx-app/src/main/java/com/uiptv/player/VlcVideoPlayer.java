@@ -422,34 +422,60 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         loadingSpinner.setVisible(true);
         long playbackRequestVersion = mediaRequestVersion.incrementAndGet();
         playExecutor.submit(() -> {
-            if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
-                return;
-            }
-            ensurePlayerInitialized();
-            if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
-                return;
-            }
-            videoSourceWidth = 0;
-            videoSourceHeight = 0;
-            lastStreamInfoLabel = "";
-            String playUri = resolveHlsPlaylistChain(uri);
-            // Sanitize URL for libvlc: encode raw braces and other problematic characters that some CDNs reject
-            playUri = sanitizeUriForLibVlc(playUri);
-            if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
-                return;
-            }
-            long audioRequestVersion = markAudioStateSyncRequested();
-            synchronized (playerLock) {
-                EmbeddedMediaPlayer player = mediaPlayer;
-                if (player != null && !isDisposed.get() && playbackRequestVersion == mediaRequestVersion.get()) {
-                    if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
-                        player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
-                    } else {
-                        player.media().play(playUri);
-                    }
-                    scheduleAudioStateStartupSync(audioRequestVersion);
+            try {
+                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
+                    return;
                 }
+                ensurePlayerInitialized();
+                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
+                    return;
+                }
+                videoSourceWidth = 0;
+                videoSourceHeight = 0;
+                lastStreamInfoLabel = "";
+                String playUri = resolveHlsPlaylistChain(uri);
+                // Sanitize URL for libvlc: encode raw braces and other problematic characters that some CDNs reject
+                playUri = sanitizeUriForLibVlc(playUri);
+                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
+                    return;
+                }
+                long audioRequestVersion = markAudioStateSyncRequested();
+                synchronized (playerLock) {
+                    EmbeddedMediaPlayer player = mediaPlayer;
+                    if (player != null && !isDisposed.get() && playbackRequestVersion == mediaRequestVersion.get()) {
+                        if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
+                            player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
+                        } else {
+                            player.media().play(playUri);
+                        }
+                        scheduleAudioStateStartupSync(audioRequestVersion);
+                    }
+                }
+            } catch (Throwable t) {
+                // submit() captures the failure in a Future nobody reads, so without this the task
+                // dies silently: no libVLC error event ever arrives (the URL never reached the
+                // player), so handleError cannot run, and the spinner shown above stays up forever
+                // with no message. Catch Throwable because libVLC init failures surface as
+                // UnsatisfiedLinkError, which is an Error, not an Exception.
+                reportPlaybackFailure(uri, t);
             }
+        });
+    }
+
+    /**
+     * Surfaces a failure that happened before libVLC ever saw the media, mirroring
+     * {@link #handleError()} so the user gets the same message and a logged cause.
+     */
+    private void reportPlaybackFailure(String uri, Throwable t) {
+        com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class,
+                "VlcVideoPlayer: playback could not be started for " + uri, t);
+        Platform.runLater(() -> {
+            if (isDisposed.get()) {
+                return;
+            }
+            loadingSpinner.setVisible(false);
+            errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
+            errorLabel.setVisible(true);
         });
     }
 
