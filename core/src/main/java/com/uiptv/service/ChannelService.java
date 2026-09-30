@@ -128,7 +128,8 @@ public class ChannelService {
         if (cacheService.getChannelCountForAccount(account.getDbId()) != 0) {
             return channels;
         }
-        cacheService.reloadCache(account, logger != null ? logger : log::info);
+        LoggerCallback reloadLogger = logger != null ? logger : log::info;
+        cacheService.reloadCache(account, reloadLogger);
         return resolveCachedLiveChannels(categoryId, dbId, account);
     }
 

@@ -208,7 +208,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
 
     private List<SeriesPanelData> buildPanelsFromCache() {
         List<SeriesPanelData> rows = new ArrayList<>();
-        for (Account account : AccountService.getInstance().getAll().values()) {
+        for (Account account : AccountService.getInstance().getAllById().values()) {
             rows.addAll(buildPanelsForAccount(account));
         }
         rows.sort(Comparator.comparing((SeriesPanelData d) -> safe(d.seriesTitle), String.CASE_INSENSITIVE_ORDER));

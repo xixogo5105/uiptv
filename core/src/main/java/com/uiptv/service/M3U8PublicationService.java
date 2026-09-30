@@ -147,7 +147,7 @@ public class M3U8PublicationService {
     }
 
     private List<Account> getPublishableAccounts() {
-        return AccountService.getInstance().getAll().values().stream()
+        return AccountService.getInstance().getAllById().values().stream()
                 .filter(this::isPublishableAccount)
                 .toList();
     }

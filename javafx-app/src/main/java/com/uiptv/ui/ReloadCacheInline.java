@@ -10,6 +10,7 @@ import com.uiptv.service.AccountInfoService;
 import com.uiptv.service.CacheService;
 import com.uiptv.service.CacheServiceImpl;
 import com.uiptv.service.cache.SkipAccountReloadException;
+import com.uiptv.util.AccountCopyUtil;
 import com.uiptv.util.AccountType;
 import com.uiptv.widget.ProminentButton;
 import com.uiptv.widget.SegmentedProgressBar;
@@ -363,7 +364,7 @@ public class ReloadCacheInline extends VBox {
     }
 
     private List<Account> loadSupportedAccounts() {
-        List<Account> supportedAccounts = new ArrayList<>(accountService.getAll().values().stream()
+        List<Account> supportedAccounts = new ArrayList<>(accountService.getAllById().values().stream()
                 .filter(account -> CACHE_SUPPORTED.contains(account.getType()))
                 .toList());
         supportedAccounts.sort(Comparator.comparing(account -> accountTypeOrder().getOrDefault(account.getType(), Integer.MAX_VALUE)));
@@ -1043,7 +1044,8 @@ public class ReloadCacheInline extends VBox {
         final boolean[] globalFailurePrompted = {false};
         Account.AccountAction savedAction = account.getAction();
         try {
-            cacheService.reloadCache(account, message -> handleReloadLogMessage(account, message, accountIssues, globalFailurePrompted));
+            cacheService.reloadCacheWithPhases(account,
+                    (message, phase) -> handleReloadLogMessage(account, message, phase, accountIssues, globalFailurePrompted));
             fetchedChannelCount = runOutcomeTracker.getFetchedChannels(account.getDbId());
             boolean fullCensoringZeroResult = runOutcomeTracker.hasFullCensoringZeroResult(account.getDbId());
             if (fetchedChannelCount <= 0 && !fullCensoringZeroResult) {
@@ -1073,17 +1075,22 @@ public class ReloadCacheInline extends VBox {
                 accountIssues, fullCensoringZeroResult);
     }
 
-    private void handleReloadLogMessage(Account account, String message, List<String> accountIssues, boolean[] globalFailurePrompted) {
-        logMessage(account, message);
+    private void handleReloadLogMessage(Account account, String message, Account.AccountAction phase,
+                                        List<String> accountIssues, boolean[] globalFailurePrompted) {
+        // Label the message with the phase the reload reported. The account instance belongs to
+        // the caller and is deliberately never mutated during a reload, so its own action is
+        // always the starting phase and cannot be used to label VOD/series progress.
+        Account phaseView = phaseView(account, phase);
+        logMessage(phaseView, message);
         refreshAccountInfoTitle(account);
-        String issue = extractIssueReason(account, message);
+        String issue = extractIssueReason(phaseView, message);
         if (issue != null) {
             addIssue(accountIssues, issue);
         }
         if (globalFailurePrompted[0]) {
             return;
         }
-        String failureReason = extractGlobalFailureReason(account, message);
+        String failureReason = extractGlobalFailureReason(phaseView, message);
         if (failureReason == null) {
             return;
         }
@@ -1633,6 +1640,20 @@ public class ReloadCacheInline extends VBox {
                 panel.setStatus(status, channelCount);
             }
         });
+    }
+
+    /**
+     * Builds a read-only view of the account carrying the reload phase that produced a log line.
+     * Only the action differs from the real account; the identity (dbId) is preserved so log lines
+     * still land in the right per-account panel.
+     */
+    private Account phaseView(Account account, Account.AccountAction phase) {
+        if (account == null || phase == null || phase == account.getAction()) {
+            return account;
+        }
+        Account view = AccountCopyUtil.detachedCopy(account);
+        view.setAction(phase);
+        return view;
     }
 
     private void logMessage(Account account, String message) {

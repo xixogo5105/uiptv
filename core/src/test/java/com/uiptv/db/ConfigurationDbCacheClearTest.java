@@ -111,6 +111,68 @@ class ConfigurationDbCacheClearTest extends DbBackedTest {
         assertEquals(1, countChannelsForCategory(newCategory.getDbId()));
     }
 
+    @Test
+    void clearCache_isAtomic_doesNotLeavePartiallyClearedAccount_whenLaterStepFails() throws Exception {
+        Account account = createAccount("clear-cache-atomic");
+        seedAllCacheTables(account, "atomic");
+
+        // Force a failure part-way through the clear sequence by making a cacheable table
+        // unreadable, so the delete for that table throws. Without a transaction the earlier
+        // deletes would already be committed, leaving a half-cleared account whose non-zero row
+        // count suppresses any later re-fetch.
+        dropTable(DatabaseUtils.DbTable.SERIES_EPISODE_TABLE);
+        assertFalse(tableExists(DatabaseUtils.DbTable.SERIES_EPISODE_TABLE),
+                "Test precondition: the cacheable table must be missing so clearCache hits a failure mid-sequence");
+
+        ConfigurationDb.get().clearCache(account);
+
+        restoreTable(DatabaseUtils.DbTable.SERIES_EPISODE_TABLE);
+
+        assertEquals(1, countRowsForAccount(DatabaseUtils.DbTable.CATEGORY_TABLE, account.getDbId()),
+                "A failed clear must roll back instead of leaving categories deleted");
+        assertEquals(1, countRowsForAccount(DatabaseUtils.DbTable.CHANNEL_TABLE, account.getDbId()),
+                "A failed clear must roll back instead of leaving channels deleted");
+        assertEquals(1, countRowsForAccount(DatabaseUtils.DbTable.VOD_CATEGORY_TABLE, account.getDbId()));
+        assertEquals("http://portal.example/server",
+                AccountService.getInstance().getById(account.getDbId()).getServerPortalUrl(),
+                "A failed clear must not blank the persisted portal endpoint");
+    }
+
+    private void dropTable(DatabaseUtils.DbTable table) throws SQLException {
+        try (Connection conn = SQLConnection.connect();
+             PreparedStatement statement = conn.prepareStatement(
+                     "DROP TABLE IF EXISTS " + table.getTableName() + "_tmp_" + System.nanoTime())) {
+            statement.execute();
+        }
+        execute("ALTER TABLE " + table.getTableName() + " RENAME TO " + renamedName(table));
+    }
+
+    private void restoreTable(DatabaseUtils.DbTable table) throws SQLException {
+        execute("ALTER TABLE " + renamedName(table) + " RENAME TO " + table.getTableName());
+    }
+
+    private String renamedName(DatabaseUtils.DbTable table) {
+        return table.getTableName() + "_hidden";
+    }
+
+    private boolean tableExists(DatabaseUtils.DbTable table) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?";
+        try (Connection conn = SQLConnection.connect();
+             PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, table.getTableName());
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+
+    private void execute(String sql) throws SQLException {
+        try (Connection conn = SQLConnection.connect();
+             PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.execute();
+        }
+    }
+
     private Account createAccount(String name) {
         Account account = new Account(
                 name,

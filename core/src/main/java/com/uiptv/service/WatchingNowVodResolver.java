@@ -14,7 +14,7 @@ public class WatchingNowVodResolver {
 
     public List<VodRow> resolveAll() {
         List<VodRow> rows = new ArrayList<>();
-        for (Account account : AccountService.getInstance().getAll().values()) {
+        for (Account account : AccountService.getInstance().getAllById().values()) {
             rows.addAll(resolveForAccount(account));
         }
         return rows;

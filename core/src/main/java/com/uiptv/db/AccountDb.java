@@ -12,6 +12,7 @@ import java.util.List;
 import static com.uiptv.db.DatabaseUtils.DbTable.ACCOUNT_TABLE;
 import static com.uiptv.db.DatabaseUtils.insertTableSql;
 import static com.uiptv.db.DatabaseUtils.updateTableSql;
+import static com.uiptv.db.DatabaseUtils.validatedTableName;
 import static com.uiptv.db.SQLConnection.connect;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
@@ -94,9 +95,21 @@ public class AccountDb extends BaseDb {
     }
 
     public void saveServerPortalUrl(Account account) {
-        if (isBlank(account.getDbId())) {
+        if (account == null || isBlank(account.getDbId())) {
             return;
         }
-        save(account);
+        // Deliberately a single-column UPDATE scoped by primary key. The previous implementation
+        // delegated to save(), a full 20-column upsert resolved by accountName. That made a cache
+        // reload persist every field from its in-memory account object, silently reverting any
+        // concurrent edit (account dialog, web API, sync) made after that object was materialised.
+        String sql = "UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE)
+                + " SET serverPortalUrl=? WHERE id = ?";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, account.getServerPortalUrl() == null ? "" : account.getServerPortalUrl());
+            statement.setString(2, account.getDbId());
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new DatabaseAccessException("Unable to update serverPortalUrl", e);
+        }
     }
 }

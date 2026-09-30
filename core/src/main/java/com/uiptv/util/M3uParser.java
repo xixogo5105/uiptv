@@ -59,7 +59,7 @@ public class M3uParser implements AccountParser {
     }
 
     private Account findExistingXtremeAccount(String endpoint) {
-        return AccountService.getInstance().getAll().values().stream()
+        return AccountService.getInstance().getAllById().values().stream()
                 .filter(account -> account.getType() == AccountType.XTREME_API)
                 .filter(account -> endpoint.equals(account.getUrl()))
                 .findFirst()

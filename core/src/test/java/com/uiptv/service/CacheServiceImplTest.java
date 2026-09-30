@@ -3,6 +3,7 @@ package com.uiptv.service;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
@@ -80,8 +81,7 @@ class CacheServiceImplTest extends DbBackedTest {
         try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
              MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {
             mockSuccessfulHandshake(handshakeMock);
-            fetchMock.when(() -> FetchAPI.fetch(anyMap(), eq(account)))
-                    .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), false, orderedListCalls));
+            stubStalkerFetch(fetchMock, account, false, orderedListCalls);
 
             new CacheServiceImpl().reloadCache(account, logs::add);
         }
@@ -148,8 +148,7 @@ class CacheServiceImplTest extends DbBackedTest {
         try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
              MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {
             mockSuccessfulHandshake(handshakeMock);
-            fetchMock.when(() -> FetchAPI.fetch(anyMap(), eq(account)))
-                    .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), true, orderedListCalls));
+            stubStalkerFetch(fetchMock, account, true, orderedListCalls);
 
             new CacheServiceImpl().reloadCache(account, logs::add);
         }
@@ -171,8 +170,7 @@ class CacheServiceImplTest extends DbBackedTest {
         try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
              MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {
             mockSuccessfulHandshake(handshakeMock);
-            fetchMock.when(() -> FetchAPI.fetch(anyMap(), eq(account)))
-                    .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), false, orderedListCalls));
+            stubStalkerFetch(fetchMock, account, false, orderedListCalls);
 
             new CacheServiceImpl().reloadCache(account, logs::add);
         }
@@ -194,8 +192,7 @@ class CacheServiceImplTest extends DbBackedTest {
         try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
              MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {
             mockSuccessfulHandshake(handshakeMock);
-            fetchMock.when(() -> FetchAPI.fetch(anyMap(), eq(account)))
-                    .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), false, orderedListCalls));
+            stubStalkerFetch(fetchMock, account, false, orderedListCalls);
 
             new CacheServiceImpl().reloadCache(account, logs::add);
         }
@@ -218,8 +215,7 @@ class CacheServiceImplTest extends DbBackedTest {
         try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
              MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {
             mockSuccessfulHandshake(handshakeMock, resolvedPortalUrl);
-            fetchMock.when(() -> FetchAPI.fetch(anyMap(), eq(account)))
-                    .thenAnswer(invocation -> mockStalkerApiResponse(invocation.getArgument(0), false, orderedListCalls));
+            stubStalkerFetch(fetchMock, account, false, orderedListCalls);
 
             new CacheServiceImpl().reloadCache(account, logs::add);
         }
@@ -228,6 +224,303 @@ class CacheServiceImplTest extends DbBackedTest {
         assertEquals(resolvedPortalUrl, persisted.getServerPortalUrl());
         assertEquals(resolvedPortalUrl, account.getServerPortalUrl());
         assertEquals(0, orderedListCalls.get(), "get_all_channels path should still be used");
+    }
+
+    @Test
+    void reloadCache_stalkerPortal_doesNotMutateCallerAccount_duringVodAndSeriesPhases() throws IOException {
+        Account account = createStalkerAccount("acc-stalker-detached");
+        account.setAction(Account.AccountAction.itv);
+        List<String> logs = new ArrayList<>();
+        AtomicInteger orderedListCalls = new AtomicInteger();
+
+        // Observe the caller's account from inside every provider request. A bulk refresh used to
+        // flip the shared instance to vod/series here, which any concurrent reader (web server,
+        // account list, change listener) could observe mid-reload.
+        List<Account.AccountAction> observedActions = new ArrayList<>();
+        List<String> observedTokens = new ArrayList<>();
+
+        try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {
+            mockSuccessfulHandshake(handshakeMock);
+            stubStalkerFetch(fetchMock, account, false, orderedListCalls);
+            fetchMock.when(() -> FetchAPI.fetch(anyMap(), forAccount(account)))
+                    .thenAnswer(invocation -> {
+                        observedActions.add(account.getAction());
+                        observedTokens.add(account.getToken() == null ? "" : account.getToken());
+                        return mockStalkerApiResponse(invocation.getArgument(0), false, orderedListCalls);
+                    });
+
+            new CacheServiceImpl().reloadCache(account, logs::add);
+        }
+
+        assertFalse(observedActions.isEmpty(), "At least one provider request should have been issued");
+        assertTrue(observedActions.stream().allMatch(action -> action == Account.AccountAction.itv),
+                "Caller account action must stay 'itv' for the whole reload, observed: " + observedActions);
+        assertTrue(observedTokens.stream().allMatch(String::isEmpty),
+                "Caller account must not have its token cleared/rotated mid-reload, observed: " + observedTokens);
+        assertEquals(Account.AccountAction.itv, account.getAction(), "Caller action must be unchanged after reload");
+    }
+
+    @Test
+    void reloadCache_reportsVodAndSeriesPhases_toPhaseAwareLogger() throws IOException {
+        Account account = createStalkerAccount("acc-phase-report");
+        account.setAction(Account.AccountAction.itv);
+        AtomicInteger orderedListCalls = new AtomicInteger();
+
+        List<Account.AccountAction> phases = new ArrayList<>();
+        List<String> messages = new ArrayList<>();
+
+        try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {
+            mockSuccessfulHandshake(handshakeMock);
+            stubStalkerFetch(fetchMock, account, false, orderedListCalls);
+
+            new CacheServiceImpl().reloadCacheWithPhases(account, (message, phase) -> {
+                messages.add(message);
+                phases.add(phase);
+            });
+        }
+
+        assertFalse(messages.isEmpty(), "Reload should emit progress messages");
+        assertTrue(phases.contains(Account.AccountAction.itv), "Live phase should be reported: " + phases);
+        assertTrue(phases.contains(Account.AccountAction.vod),
+                "VOD phase must be reported so the UI can label it, observed: " + phases);
+        assertTrue(phases.contains(Account.AccountAction.series),
+                "Series phase must be reported so the UI can label it, observed: " + phases);
+
+        // The phase must be reported from the reload copy, not read back off the caller's account.
+        assertEquals(Account.AccountAction.itv, account.getAction(),
+                "Caller account action stays at the starting phase; phase is delivered via the callback");
+
+        int vodMessageIndex = indexOfMessageContaining(messages, "Saved", "VOD/Series");
+        if (vodMessageIndex >= 0) {
+            assertTrue(phases.get(vodMessageIndex) == Account.AccountAction.vod
+                            || phases.get(vodMessageIndex) == Account.AccountAction.series,
+                    "VOD/Series save message must carry a VOD/series phase, got: " + phases.get(vodMessageIndex));
+        }
+    }
+
+    private int indexOfMessageContaining(List<String> messages, String prefix, String contains) {
+        for (int i = 0; i < messages.size(); i++) {
+            String message = messages.get(i);
+            if (message != null && message.startsWith(prefix) && message.contains(contains)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    @Test
+    void reloadCache_stalkerPortal_derivesCategoriesFromChannels_whenGetGenresIsEmpty() throws IOException {
+        Account account = createStalkerAccount("acc-derive-categories");
+        account.setAction(Account.AccountAction.itv);
+        List<String> logs = new ArrayList<>();
+        AtomicInteger orderedListCalls = new AtomicInteger();
+        AtomicInteger getAllChannelsCalls = new AtomicInteger();
+
+        try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {
+            mockSuccessfulHandshake(handshakeMock);
+
+            // get_genres returns nothing usable; get_all_channels still carries tv_genre_id.
+            stubRealNullSafeString(fetchMock);
+            fetchMock.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), forAccount(account), any()))
+                    .thenAnswer(invocation -> {
+                        Map<String, String> params = invocation.getArgument(0);
+                        String action = params.get("action");
+                        if ("get_genres".equals(action)) {
+                            return FetchAPI.FetchResult.success("{\"js\":[]}", 200);
+                        }
+                        if ("get_all_channels".equals(action)) {
+                            getAllChannelsCalls.incrementAndGet();
+                            return FetchAPI.FetchResult.success("""
+                                    {
+                                      "js": {
+                                        "data": [
+                                          {"id":"101","name":"News 1","number":"1","cmd":"ffmpeg http://stream/news1","cmd_1":"","cmd_2":"","cmd_3":"","logo":"","censored":0,"status":1,"hd":0,"tv_genre_id":"10","category":"News HD"},
+                                          {"id":"102","name":"News 2","number":"2","cmd":"ffmpeg http://stream/news2","cmd_1":"","cmd_2":"","cmd_3":"","logo":"","censored":0,"status":1,"hd":0,"tv_genre_id":"10","category":"News HD"},
+                                          {"id":"201","name":"Sports 1","number":"3","cmd":"ffmpeg http://stream/sports1","cmd_1":"","cmd_2":"","cmd_3":"","logo":"","censored":0,"status":1,"hd":0,"tv_genre_id":"20","category":"Sports"}
+                                        ]
+                                      }
+                                    }
+                                    """, 200);
+                        }
+                        return FetchAPI.FetchResult.success("", 200);
+                    });
+
+            new CacheServiceImpl().reloadCache(account, logs::add);
+        }
+
+        assertEquals(2, CategoryDb.get().getCategories(account).size(),
+                "Two distinct tv_genre_id values should become two categories; logs=" + logs);
+        assertEquals(3, ChannelDb.get().getChannelCountForAccount(account.getDbId()),
+                "All channels should be saved once categories are derived");
+        assertEquals(1, getAllChannelsCalls.get(), "The derived path should reuse the channels it already fetched");
+        assertTrue(logs.stream().anyMatch(m -> m.contains("Deriving categories from get_all_channels")),
+                "Derivation should be reported: " + logs);
+        assertTrue(logs.stream().anyMatch(m -> m.contains("Derived 2 categories from 3 channels")),
+                "Derived counts should be reported: " + logs);
+
+        List<String> titles = CategoryDb.get().getCategories(account).stream().map(Category::getTitle).sorted().toList();
+        assertEquals(List.of("News HD", "Sports"), titles,
+                "Category titles should come from the portal's channel category field when present");
+    }
+
+    @Test
+    void reloadCache_stalkerPortal_doesNotPublishUnnamedGenreIds_whenPortalOmitsCategoryNames() throws IOException {
+        Account account = createStalkerAccount("acc-derive-categories-untitled");
+        account.setAction(Account.AccountAction.itv);
+        List<String> logs = new ArrayList<>();
+
+        try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {
+            mockSuccessfulHandshake(handshakeMock);
+            stubRealNullSafeString(fetchMock);
+            fetchMock.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), forAccount(account), any()))
+                    .thenAnswer(invocation -> {
+                        Map<String, String> params = invocation.getArgument(0);
+                        String action = params.get("action");
+                        if ("get_genres".equals(action)) {
+                            return FetchAPI.FetchResult.success("", 200);
+                        }
+                        if ("get_all_channels".equals(action)) {
+                            return FetchAPI.FetchResult.success("""
+                                    {
+                                      "js": {
+                                        "data": [
+                                          {"id":"101","name":"News 1","number":"1","cmd":"ffmpeg http://stream/news1","cmd_1":"","cmd_2":"","cmd_3":"","logo":"","censored":0,"status":1,"hd":0,"tv_genre_id":"10"},
+                                          {"id":"201","name":"Sports 1","number":"2","cmd":"ffmpeg http://stream/sports1","cmd_1":"","cmd_2":"","cmd_3":"","logo":"","censored":0,"status":1,"hd":0,"tv_genre_id":"20"}
+                                        ]
+                                      }
+                                    }
+                                    """, 200);
+                        }
+                        return FetchAPI.FetchResult.success("", 200);
+                    });
+
+            new CacheServiceImpl().reloadCache(account, logs::add);
+        }
+
+        // The portal names no genre, so no category can be derived. Channels must not be lost:
+        // they fall through the orphan path into Uncategorized.
+        List<Category> categories = CategoryDb.get().getCategories(account);
+        assertEquals(1, categories.size(), "No named categories should be published: " + titles(categories));
+        assertEquals(CategoryType.UNCATEGORIZED.displayName(), categories.getFirst().getTitle(),
+                "Unnamed genre ids must not surface as provider ids");
+        assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()),
+                "Channels from unnamed genres must still be cached under Uncategorized");
+        assertTrue(logs.stream().anyMatch(m -> m.contains("Portal returned no category names")),
+                "Skipping unnamed genres should be reported: " + logs);
+        assertTrue(logs.stream().anyMatch(m -> m.contains("Grouping 2 channels under")),
+                "Channels must be kept rather than discarded: " + logs);
+        assertTrue(categories.stream().noneMatch(c -> "10".equals(c.getTitle()) || "20".equals(c.getTitle())),
+                "Provider ids must never be used as category titles");
+    }
+
+    @Test
+    void reloadCache_stalkerPortal_stopsRetryingAfterOneTransportFailure() throws IOException {
+        Account account = createStalkerAccount("acc-transport-failure");
+        account.setAction(Account.AccountAction.itv);
+        List<String> logs = new ArrayList<>();
+        AtomicInteger getAllChannelsCalls = new AtomicInteger();
+        AtomicInteger orderedListCalls = new AtomicInteger();
+
+        try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {
+            mockSuccessfulHandshake(handshakeMock);
+            stubRealNullSafeString(fetchMock);
+            fetchMock.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), forAccount(account), any()))
+                    .thenAnswer(invocation -> {
+                        Map<String, String> params = invocation.getArgument(0);
+                        if ("get_genres".equals(params.get("action"))) {
+                            return FetchAPI.FetchResult.success("""
+                                    {"js":[{"id":"10","title":"News","alias":"news","active_sub":true,"censored":0}]}
+                                    """, 200);
+                        }
+                        if ("get_all_channels".equals(params.get("action"))) {
+                            getAllChannelsCalls.incrementAndGet();
+                            return FetchAPI.FetchResult.transportFailure("http://portal.test/server/load.php", -1, "Read timed out");
+                        }
+                        return FetchAPI.FetchResult.success("", 200);
+                    });
+            fetchMock.when(() -> FetchAPI.fetch(anyMap(), forAccount(account)))
+                    .thenAnswer(invocation -> {
+                        Map<String, String> params = invocation.getArgument(0);
+                        if ("get_ordered_list".equals(params.get("action"))) {
+                            orderedListCalls.incrementAndGet();
+                        }
+                        return "";
+                    });
+
+            new CacheServiceImpl().reloadCache(account, logs::add);
+        }
+
+        assertEquals(1, getAllChannelsCalls.get(),
+                "A transport failure must not be retried with the other parameter shapes; "
+                        + "each retry pays the full response timeout again");
+        assertEquals(0, orderedListCalls.get(),
+                "The per-category last-resort fan-out must be skipped when the endpoint is not serving");
+        assertTrue(logs.stream().anyMatch(m -> m.contains("Stalker get_all_channels request failed")),
+                "The transport failure should be surfaced: " + logs);
+    }
+
+    private List<String> titles(List<Category> categories) {
+        return categories.stream().map(Category::getTitle).toList();
+    }
+
+    @Test
+    void reloadCache_stalkerPortal_keepsExistingCache_whenGenresAndChannelsAreBothEmpty() throws IOException {
+        Account account = createStalkerAccount("acc-derive-nothing");
+        account.setAction(Account.AccountAction.itv);
+        List<String> logs = new ArrayList<>();
+        AtomicInteger orderedListCalls = new AtomicInteger();
+
+        try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {
+            mockSuccessfulHandshake(handshakeMock);
+            stubRealNullSafeString(fetchMock);
+            fetchMock.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), forAccount(account), any()))
+                    .thenReturn(FetchAPI.FetchResult.success("", 200));
+            fetchMock.when(() -> FetchAPI.fetch(anyMap(), forAccount(account)))
+                    .thenReturn("");
+
+            new CacheServiceImpl().reloadCache(account, logs::add);
+        }
+
+        assertEquals(0, ChannelDb.get().getChannelCountForAccount(account.getDbId()),
+                "Nothing should be written when both sources are empty");
+        assertTrue(logs.stream().anyMatch(m -> m.contains("No categories found. Keeping existing cache.")),
+                "Existing behaviour must be preserved when derivation is impossible: " + logs);
+    }
+
+    @Test
+    void reloadCache_sequentialReloads_doNotContaminateEachOther() throws IOException {
+        Account first = createStalkerAccount("acc-bulk-first");
+        Account second = createStalkerAccount("acc-bulk-second");
+        List<String> logs = new ArrayList<>();
+        AtomicInteger firstRequests = new AtomicInteger();
+        AtomicInteger secondRequests = new AtomicInteger();
+        AtomicInteger firstCalls = new AtomicInteger();
+        AtomicInteger secondCalls = new AtomicInteger();
+
+        try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
+             MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {
+            mockSuccessfulHandshake(handshakeMock);
+            stubStalkerFetch(fetchMock, first, false, firstCalls, firstRequests);
+            stubStalkerFetch(fetchMock, second, false, secondCalls, secondRequests);
+
+            CacheService cacheService = new CacheServiceImpl();
+            cacheService.reloadCache(first, logs::add);
+            cacheService.reloadCache(second, logs::add);
+        }
+
+        assertTrue(firstRequests.get() > 0, "First account should have been fetched");
+        assertTrue(secondRequests.get() > 0, "Second account should have been fetched");
+        assertEquals(2, ChannelDb.get().getChannelCountForAccount(first.getDbId()),
+                "First account cache must survive the second account's reload");
+        assertEquals(2, ChannelDb.get().getChannelCountForAccount(second.getDbId()));
+        assertEquals(Account.AccountAction.itv, first.getAction());
+        assertEquals(Account.AccountAction.itv, second.getAction());
     }
 
     @Test
@@ -350,6 +643,65 @@ class CacheServiceImplTest extends DbBackedTest {
             assertEquals(List.of("get_categories"), actions, "VOD verification must query get_categories");
             assertEquals(originalMac, account.getMacAddress(), "MAC must be restored after exception");
         }
+    }
+
+    /**
+     * Stubs both {@link FetchAPI#fetch} and {@link FetchAPI#fetchWithDiagnostics} for the given
+     * account. The reloader uses the diagnostics variant so it can log why a request produced no
+     * payload; keeping both stubs in one place stops the two call sites from drifting.
+     */
+    /**
+     * {@link FetchAPI} is mocked statically in these tests, which also stubs
+     * {@code FetchAPI.nullSafeString} - the helper {@code ChannelService.parseItvChannels} uses to
+     * read {@code tv_genre_id}. Without this, every parsed channel would arrive with a null
+     * category id. Restore the real behaviour.
+     */
+    private void stubRealNullSafeString(MockedStatic<FetchAPI> fetchMock) {
+        fetchMock.when(() -> FetchAPI.nullSafeString(any(org.json.JSONObject.class), anyString()))
+                .thenAnswer(invocation -> {
+                    try {
+                        return ((org.json.JSONObject) invocation.getArgument(0)).getString(invocation.getArgument(1));
+                    } catch (Exception _) {
+                        return "";
+                    }
+                });
+    }
+
+    private void stubStalkerFetch(MockedStatic<FetchAPI> fetchMock, Account account,
+                                  boolean blankGetAllChannels, AtomicInteger orderedListCalls) {
+        stubStalkerFetch(fetchMock, account, blankGetAllChannels, orderedListCalls, null);
+    }
+
+    private void stubStalkerFetch(MockedStatic<FetchAPI> fetchMock, Account account,
+                                  boolean blankGetAllChannels, AtomicInteger orderedListCalls,
+                                  AtomicInteger requestCounter) {
+        fetchMock.when(() -> FetchAPI.fetch(anyMap(), forAccount(account)))
+                .thenAnswer(invocation -> {
+                    if (requestCounter != null) {
+                        requestCounter.incrementAndGet();
+                    }
+                    return mockStalkerApiResponse(invocation.getArgument(0), blankGetAllChannels, orderedListCalls);
+                });
+        fetchMock.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), forAccount(account), any()))
+                .thenAnswer(invocation -> {
+                    if (requestCounter != null) {
+                        requestCounter.incrementAndGet();
+                    }
+                    return FetchAPI.FetchResult.success(
+                            mockStalkerApiResponse(invocation.getArgument(0), blankGetAllChannels, orderedListCalls), 200);
+                });
+    }
+
+    /**
+     * Matches any {@link Account} carrying the same {@code dbId} as {@code expected}.
+     * <p>
+     * {@code CacheServiceImpl.reloadCache} hands the reloader a detached copy, so matching on
+     * object equality or reference no longer works once the copy has been mutated (token,
+     * action). The primary key is stable across the copy.
+     */
+    private static Account forAccount(Account expected) {
+        return argThat(candidate -> candidate != null
+                && java.util.Objects.equals(expected.getDbId(), candidate.getDbId()));
     }
 
     private List<Channel> getAllCachedChannels(Account account) {

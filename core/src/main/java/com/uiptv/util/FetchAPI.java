@@ -17,10 +17,24 @@ public class FetchAPI {
     private static final String PORTAL_PHP = "portal.php";
 
     public static String fetch(Map<String, String> params, final Account account) {
-        return fetch(params, account, HttpUtil.RequestOptions.defaults());
+        return fetchWithDiagnostics(params, account, HttpUtil.RequestOptions.defaults()).body();
     }
 
     public static String fetch(Map<String, String> params, final Account account, HttpUtil.RequestOptions options) {
+        return fetchWithDiagnostics(params, account, options).body();
+    }
+
+    /**
+     * Performs a portal request and reports *why* it produced no payload.
+     * <p>
+     * The previous implementation collapsed every failure mode - DNS/connect/timeout errors,
+     * non-200 responses and genuinely empty bodies - into the same empty string. Callers could
+     * therefore not distinguish "the provider is unreachable" from "the provider returned no
+     * data", which is what made intermittent multi-account bulk reload failures hard to attribute.
+     */
+    public static FetchResult fetchWithDiagnostics(Map<String, String> params, final Account account,
+                                                   HttpUtil.RequestOptions options) {
+        String requestUrl = "";
         try {
             String baseUrl = resolveBaseUrl(account);
             if (isBlank(baseUrl)) {
@@ -30,7 +44,7 @@ public class FetchAPI {
             String httpMethod = account.getHttpMethod() != null ? account.getHttpMethod() : "GET";
             boolean isPost = "POST".equalsIgnoreCase(httpMethod);
 
-            String requestUrl = baseUrl;
+            requestUrl = baseUrl;
             if (!isPost && !payload.isEmpty()) {
                 requestUrl += "?" + payload;
             }
@@ -40,13 +54,43 @@ public class FetchAPI {
 
             httpLog(requestUrl, response, params);
             if (response.statusCode() == HttpUtil.STATUS_OK) {
-                return response.body();
+                String body = response.body();
+                if (isBlank(body)) {
+                    return FetchResult.transportFailure(requestUrl, HttpUtil.STATUS_OK, "Empty response body with HTTP 200");
+                }
+                return FetchResult.success(body, HttpUtil.STATUS_OK);
             }
+            return FetchResult.transportFailure(requestUrl, response.statusCode(),
+                    "Unexpected HTTP status " + response.statusCode());
         } catch (Exception ex) {
-            com.uiptv.util.AppLog.addWarningLog(FetchAPI.class, "Network Error: " + ex.getMessage());
+            String reason = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+            AppLog.addWarningLog(FetchAPI.class, "Network Error: " + reason);
+            return FetchResult.transportFailure(requestUrl, -1, reason);
         }
-        return StringUtils.EMPTY;
     }
+
+    /**
+     * Outcome of a portal request. {@code transportFailure} is true when no usable payload was
+     * received, so callers can log the real cause instead of silently treating it as "no data".
+     *
+     * @param body           payload on success, empty otherwise
+     * @param transportFailure true when no usable payload was received
+     * @param statusCode     HTTP status, or -1 when the request never completed
+     * @param endpoint       the URL that was contacted, for diagnostics
+     * @param failureReason  human-readable cause, empty on success
+     */
+    public record FetchResult(String body, boolean transportFailure, int statusCode,
+                              String endpoint, String failureReason) {
+        public static FetchResult success(String body, int statusCode) {
+            return new FetchResult(body == null ? StringUtils.EMPTY : body, false, statusCode, "", "");
+        }
+
+        public static FetchResult transportFailure(String requestUrl, int statusCode, String reason) {
+            return new FetchResult(StringUtils.EMPTY, true, statusCode,
+                    requestUrl == null ? "" : requestUrl, reason == null ? "" : reason);
+        }
+    }
+
 
     private static String resolveBaseUrl(Account account) {
         if (account == null) {

@@ -75,12 +75,38 @@ public class AccountService {
         }
     }
 
+    /**
+     * Returns every account keyed by account name.
+     * <p>
+     * Name-keyed lookup is genuinely required here: bookmarks and playback requests persist
+     * {@code accountName} rather than the primary key, so this map is the join they resolve
+     * through. {@code accountName} carries a {@code UNIQUE} constraint, so entries cannot collide.
+     * <p>
+     * Prefer {@link #getAllById()} for enumeration and bulk work: it is keyed by the primary key
+     * and states the account's identity directly, instead of relying on a display name.
+     */
     public Map<String, Account> getAll() {
         LinkedHashMap<String, Account> accounts = new LinkedHashMap<>();
-        AccountDb.get().getAccounts().forEach(a -> {
-            applySessionToken(a);
-            accounts.put(a.getAccountName(), a);
-        });
+        for (Account account : AccountDb.get().getAccounts()) {
+            applySessionToken(account);
+            accounts.put(account.getAccountName(), account);
+        }
+        return accounts;
+    }
+
+    /**
+     * Returns every account keyed by its primary key. This is the lossless view and is what bulk
+     * enumeration (cache refresh, resolvers, exports) should use, so a batch never has to reason
+     * about display-name identity.
+     */
+    public Map<String, Account> getAllById() {
+        LinkedHashMap<String, Account> accounts = new LinkedHashMap<>();
+        for (Account account : AccountDb.get().getAccounts()) {
+            applySessionToken(account);
+            if (isNotBlank(account.getDbId())) {
+                accounts.put(account.getDbId(), account);
+            }
+        }
         return accounts;
     }
 

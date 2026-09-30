@@ -16,7 +16,7 @@ public class AccountResolver {
 
     public List<AccountRow> resolveAccounts() {
         List<AccountRow> rows = new ArrayList<>();
-        for (Account account : AccountService.getInstance().getAll().values()) {
+        for (Account account : AccountService.getInstance().getAllById().values()) {
             rows.add(fromAccount(account));
         }
         return rows;

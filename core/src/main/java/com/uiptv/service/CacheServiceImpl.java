@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static com.uiptv.model.Account.AccountAction.itv;
+import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class CacheServiceImpl implements CacheService {
     private final AccountCacheReloaderFactory reloaderFactory = new AccountCacheReloaderFactory();
@@ -27,7 +28,49 @@ public class CacheServiceImpl implements CacheService {
 
     @Override
     public void reloadCache(Account account, LoggerCallback logger) throws IOException {
-        reloaderFactory.get(account.getType()).reloadCache(account, logger);
+        reloadCacheWithPhases(account, (message, phase) -> logger.log(message));
+    }
+
+    @Override
+    public void reloadCacheWithPhases(Account account, ReloadPhaseLoggerCallback logger) throws IOException {
+        if (account == null) {
+            return;
+        }
+        // Reloaders mutate the account in place (action, token, serverPortalUrl, macAddress).
+        // The caller-supplied instance is shared by reference with the desktop UI, the embedded
+        // HTTP server and account change listeners, so a bulk refresh would publish transient
+        // state to unrelated threads - and, for Stalker portals, a concurrent reader observing a
+        // nulled token starts a second handshake that invalidates the in-flight session.
+        // Operate on a detached copy and publish only durable results back to the caller.
+        Account reloadAccount = AccountCopyUtil.detachedCopy(account);
+        // The reload copy is the authority on the current phase: reloaders flip its action as
+        // they walk live -> VOD -> series. Reporting it here keeps callers from having to infer
+        // the phase by reading a shared, mutable account.
+        LoggerCallback phaseAwareAdapter = message -> logger.log(message, reloadAccount.getAction());
+        reloaderFactory.get(reloadAccount.getType()).reloadCache(reloadAccount, phaseAwareAdapter);
+        publishReloadOutcome(account, reloadAccount);
+    }
+
+    /**
+     * Copies back the fields a reload is allowed to change. {@code action} is deliberately
+     * excluded: it is transient reload state, not a durable account change.
+     */
+    private void publishReloadOutcome(Account target, Account reloadAccount) {
+        if (target == null || reloadAccount == null) {
+            return;
+        }
+        String resolvedPortalUrl = reloadAccount.getServerPortalUrl();
+        if (isNotBlank(resolvedPortalUrl) && !resolvedPortalUrl.equals(target.getServerPortalUrl())) {
+            target.setServerPortalUrl(resolvedPortalUrl);
+        }
+        String resolvedToken = reloadAccount.getToken();
+        if (isNotBlank(resolvedToken) && !resolvedToken.equals(target.getToken())) {
+            target.setToken(resolvedToken);
+        }
+        String resolvedMac = reloadAccount.getMacAddress();
+        if (isNotBlank(resolvedMac) && !resolvedMac.equals(target.getMacAddress())) {
+            target.setMacAddress(resolvedMac);
+        }
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.uiptv.db;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
+import com.uiptv.util.AppLog;
 
 import java.sql.*;
 import java.util.List;
@@ -45,24 +46,54 @@ public class ConfigurationDb extends BaseDb {
             return;
         }
 
-        try (Connection conn = connect()) {
-            // Live channels reference live category row ids, so they must be deleted
-            // before the live categories themselves are removed.
-            deleteAccountLiveChannels(conn, account.getDbId());
-            for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
-                if (table != DatabaseUtils.DbTable.CHANNEL_TABLE) {
-                    deleteAccountCacheForTable(conn, table, account.getDbId());
+        Connection conn = null;
+        try {
+            conn = connect();
+            boolean previousAutoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            try {
+                // Live channels reference live category row ids, so they must be deleted
+                // before the live categories themselves are removed.
+                deleteAccountLiveChannels(conn, account.getDbId());
+                for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
+                    if (table != DatabaseUtils.DbTable.CHANNEL_TABLE) {
+                        deleteAccountCacheForTable(conn, table, account.getDbId());
+                    }
                 }
-            }
 
-            String updateAccountSql = "UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE)
-                    + " SET serverPortalUrl='' WHERE id = ?";
-            try (PreparedStatement pstmt = conn.prepareStatement(updateAccountSql)) {
-                pstmt.setString(1, account.getDbId());
-                pstmt.executeUpdate();
+                String updateAccountSql = "UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE)
+                        + " SET serverPortalUrl='' WHERE id = ?";
+                try (PreparedStatement pstmt = conn.prepareStatement(updateAccountSql)) {
+                    pstmt.setString(1, account.getDbId());
+                    pstmt.executeUpdate();
+                }
+                // Commit as a single unit: a partially applied clear leaves the account with
+                // channels deleted but categories intact (or vice versa), which suppresses
+                // subsequent re-fetches because the cached row count is still non-zero.
+                conn.commit();
+            } catch (Exception e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(previousAutoCommit);
             }
-        } catch (Exception _) {
-            // Cache clearing is best-effort; preserve current app flow even if one table cannot be cleared.
+        } catch (Exception e) {
+            // Surface the failure instead of silently leaving a half-cleared cache behind.
+            AppLog.addErrorLog(ConfigurationDb.class,
+                    "Failed to clear cache for account " + account.getAccountName() + " (" + account.getDbId() + "): " + e);
+        } finally {
+            closeQuietly(conn);
+        }
+    }
+
+    private void closeQuietly(Connection conn) {
+        if (conn == null) {
+            return;
+        }
+        try {
+            conn.close();
+        } catch (SQLException e) {
+            AppLog.addWarningLog(ConfigurationDb.class, "Failed to close cache-clear connection: " + e.getMessage());
         }
     }
 
