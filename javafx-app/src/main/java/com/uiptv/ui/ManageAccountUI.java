@@ -485,7 +485,15 @@ public class ManageAccountUI extends VBox {
             progressDialog.markCompleted();
         });
 
-        new Thread(task).start();
+        // Daemon: this task performs a network handshake per MAC address and can run for
+        // minutes, so a non-daemon thread here would keep the JVM alive after the window closes.
+        startTaskThread(task, "account-mac-verification");
+    }
+
+    private void startTaskThread(Task<?> task, String name) {
+        Thread thread = new Thread(task, name);
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private List<String> parseMacAddressesForVerification() {
@@ -816,7 +824,7 @@ public class ManageAccountUI extends VBox {
 
             task.setOnFailed(event -> showErrorAlert(I18n.tr("autoFailed")));
 
-            new Thread(task).start();
+            startTaskThread(task, "account-bulk-operation");
         }
     }
 

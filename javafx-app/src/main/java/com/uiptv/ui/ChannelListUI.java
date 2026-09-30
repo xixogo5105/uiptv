@@ -1539,7 +1539,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             return;
         }
         lastRefreshBookmarkStatesMs = System.currentTimeMillis();
-        new Thread(this::performBookmarkRefresh).start();
+        startBackgroundTask(this::performBookmarkRefresh, "channel-bookmark-refresh");
     }
 
     private boolean shouldSkipBookmarkRefresh() {
@@ -1611,7 +1611,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (shouldSkipSeriesWatchStateRefresh()) {
             return;
         }
-        new Thread(() -> performSeriesWatchStateRefresh(changedSeriesId), "series-watch-state-refresh").start();
+        startBackgroundTask(() -> performSeriesWatchStateRefresh(changedSeriesId), "series-watch-state-refresh");
     }
 
     private boolean shouldSkipSeriesWatchStateRefresh() {
@@ -2093,8 +2093,21 @@ public class ChannelListUI extends HBox implements SearchTarget {
         return unbookmarkItem;
     }
 
+    /**
+     * Starts a short-lived background task on a daemon thread.
+     * <p>
+     * These tasks reach the database, so they must not keep the JVM alive after the window is
+     * closed. Every other background worker in this class already sets the daemon flag; the
+     * bookmark and watch-state writers did not, so closing the app could hang on one of them.
+     */
+    private void startBackgroundTask(Runnable task, String name) {
+        Thread thread = new Thread(task, name);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
     private void removeBookmarksAsync(Map<ChannelItem, Bookmark> existingBookmarks) {
-        new Thread(() -> {
+        startBackgroundTask(() -> {
             for (Map.Entry<ChannelItem, Bookmark> entry : existingBookmarks.entrySet()) {
                 Bookmark bookmark = entry.getValue();
                 if (bookmark != null && !isBlank(bookmark.getDbId())) {
@@ -2108,7 +2121,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 refreshChannelViews();
                 refreshBookmarkStatesAsync();
             });
-        }).start();
+        }, "channel-bookmark-remove");
     }
 
     private void populateVodContextMenu(ContextMenu rowMenu, ChannelItem item) {
@@ -2146,7 +2159,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void saveBookmarks(List<ChannelItem> items, String bookmarkCategoryId) {
-        new Thread(() -> {
+        startBackgroundTask(() -> {
             for (ChannelItem item : items) {
                 BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
                 Bookmark bookmark = new Bookmark(account.getAccountName(), ctx.categoryTitle, item.getChannelId(), item.getChannelName(), item.getCmd(), account.getServerPortalUrl(), ctx.categoryId);
@@ -2174,14 +2187,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 refreshChannelViews();
                 refreshBookmarkStatesAsync();
             });
-        }).start();
+        }, "channel-bookmark-save");
     }
 
     private void saveVodWatchingNow(ChannelItem item) {
         if (item == null || item.getChannel() == null) {
             return;
         }
-        new Thread(() -> {
+        startBackgroundTask(() -> {
             BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
             VodWatchStateService.getInstance().save(account, ctx == null ? categoryId : ctx.categoryId, item.getChannel());
             Platform.runLater(() -> {
@@ -2189,14 +2202,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 refreshChannelViews();
                 refreshBookmarkStatesAsync();
             });
-        }).start();
+        }, "vod-watching-now-save");
     }
 
     private void removeVodWatchingNow(ChannelItem item) {
         if (item == null || item.getChannel() == null || isBlank(account.getDbId())) {
             return;
         }
-        new Thread(() -> {
+        startBackgroundTask(() -> {
             BookmarkContext ctx = resolveBookmarkContext(item.getChannel());
             VodWatchStateService.getInstance().remove(account.getDbId(), ctx == null ? categoryId : ctx.categoryId, item.getChannelId());
             Platform.runLater(() -> {
@@ -2204,7 +2217,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 refreshChannelViews();
                 refreshBookmarkStatesAsync();
             });
-        }).start();
+        }, "vod-watching-now-remove");
     }
 
     private void saveSeriesWatchingNow(ChannelItem item) {
@@ -2212,7 +2225,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             return;
         }
         Channel channel = item.getChannel();
-        new Thread(() -> {
+        startBackgroundTask(() -> {
             SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
                 account, categoryId, channel.getChannelId(), channel.getChannelId(),
                 channel.getName(), channel.getSeason(), channel.getEpisodeNum()
@@ -2222,7 +2235,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 refreshChannelViews();
                 refreshSeriesWatchStatesAsync(channel.getChannelId());
             });
-        }).start();
+        }, "series-watching-now-save");
     }
 
     private void removeSeriesWatchingNow(ChannelItem item) {
@@ -2234,14 +2247,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
             return;
         }
         Channel channel = item.getChannel();
-        new Thread(() -> {
+        startBackgroundTask(() -> {
             SeriesWatchStateService.getInstance().clearSeriesLastWatched(account.getDbId(), categoryId, channel.getChannelId());
             Platform.runLater(() -> {
                 channel.setWatched(false);
                 refreshChannelViews();
                 refreshSeriesWatchStatesAsync(channel.getChannelId());
             });
-        }).start();
+        }, "series-watching-now-remove");
     }
 
     private void play(ChannelItem item, String playerPath) {
