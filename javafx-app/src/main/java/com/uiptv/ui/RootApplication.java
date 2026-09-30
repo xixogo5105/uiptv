@@ -67,13 +67,16 @@ public class RootApplication extends Application {
 
     public static void main(String[] args) {
         System.setProperty("apple.awt.application.name", PRODUCT_TITLE);
-        ServerUrlUtil.installServerShutdownHook();
-        boolean showLogsEnabled = hasShowLogsArg(args);
+        boolean showLogsEnabled = AppLog.isShowLogsRequested(args);
         String[] filteredArgs = removeShowLogsArg(args);
         boolean syncMode = filteredArgs != null && filteredArgs.length > 0 && "sync".equalsIgnoreCase(filteredArgs[0]);
         boolean headlessMode = filteredArgs != null && Arrays.stream(filteredArgs).anyMatch(s -> s.toLowerCase().contains("headless"));
-        System.setProperty("uiptv.headless", Boolean.toString(headlessMode));
+        // Decided before anything else runs: slf4j-simple resolves its level when the first logger
+        // is created and caches it, so this has to be set before Jetty, the database layer or any
+        // other library can obtain one. Otherwise the level is fixed at INFO for the whole run.
         AppLog.setTerminalLoggingEnabled(showLogsEnabled || headlessMode || syncMode);
+        System.setProperty("uiptv.headless", Boolean.toString(headlessMode));
+        ServerUrlUtil.installServerShutdownHook();
 
         if (syncMode) {
             handleSync(filteredArgs);
@@ -129,32 +132,10 @@ public class RootApplication extends Application {
         return value;
     }
 
-    private static boolean hasShowLogsArg(String[] args) {
-        if (args == null) {
-            return false;
-        }
-        for (String arg : args) {
-            if (isShowLogsArg(arg)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static String[] removeShowLogsArg(String[] args) {
-        if (args == null || args.length == 0) {
-            return args;
-        }
-        return Arrays.stream(args)
-                .filter(arg -> !isShowLogsArg(arg))
-                .toArray(String[]::new);
-    }
-
-    private static boolean isShowLogsArg(String arg) {
-        if (arg == null) {
-            return false;
-        }
-        return "show-logs".equalsIgnoreCase(arg) || "--show-logs".equalsIgnoreCase(arg);
+        // Defined once, in AppLog, alongside isShowLogsRequested, so the flag that enables logging
+        // and the argument stripped before the remaining parsers see it cannot drift apart.
+        return AppLog.removeShowLogsArg(args);
     }
 
     public static Stage getPrimaryStage() {
