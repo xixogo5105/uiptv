@@ -452,15 +452,22 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     private void handleItemsChanged(ListChangeListener.Change<? extends T> change) {
-        if (appendInProgress && change.wasAdded()) {
+        // A ListChangeListener.Change is a single-pass cursor: next() must be called before any
+        // wasXxx() inspection, and the several wasXxx() methods may then be read in any order
+        // until the cursor moves on. Inspecting it before the first next() throws
+        // IllegalStateException("next() must be called before inspecting the Change") from
+        // SingleChange.getPermutation()'s checkState(). Advance once up front so the append fast
+        // path can inspect the change, and let the loop below carry on from the same position.
+        boolean hasChange = change.next();
+        if (hasChange && appendInProgress && change.wasAdded()
+                && !change.wasPermutated() && !change.wasRemoved() && !change.wasUpdated()) {
             // Appending during a load must never tear down and rebuild the grid: disposeAllCards()
             // destroys every rendered card, so a full rebuild per batch repaints the whole
             // viewport repeatedly (visible mouse jerk). Create just the new cards instead.
+            // getAddedSubList() is a live view that is invalid once this listener returns.
             List<T> added = new ArrayList<>(change.getAddedSubList());
-            if (!change.wasPermutated() && !change.wasRemoved() && !change.wasUpdated()) {
-                appendCardsDuringLoad(change.getFrom(), added);
-                return;
-            }
+            appendCardsDuringLoad(change.getFrom(), added);
+            return;
         }
         if (virtualizedActive || shouldUseVirtualization()) {
             rebuildCards();
@@ -468,7 +475,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         }
         boolean changed = false;
         boolean appendedAsync = false;
-        while (change.next()) {
+        while (hasChange) {
             if (change.wasPermutated() || change.wasRemoved()) {
                 rebuildCards();
                 return;
@@ -476,9 +483,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             if (change.wasUpdated()) {
                 updateCards(change.getFrom(), change.getTo());
                 changed = true;
-                continue;
-            }
-            if (change.wasAdded()) {
+            } else if (change.wasAdded()) {
                 // Copy eagerly: getAddedSubList() is a live view that is invalid once this
                 // listener returns, so deferred pulses would otherwise see an empty list.
                 List<T> added = new ArrayList<>(change.getAddedSubList());
@@ -488,6 +493,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 changed = true;
                 appendedAsync = true;
             }
+            hasChange = change.next();
         }
         if (!changed) {
             updatePlaceholderVisibility();
