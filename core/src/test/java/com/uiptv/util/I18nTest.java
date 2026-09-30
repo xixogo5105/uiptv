@@ -12,10 +12,17 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -66,6 +73,90 @@ class I18nTest {
                 assertTrue(missingKeys.isEmpty(), "Missing keys in " + bundleName + ": " + missingKeys);
             }
         }
+    }
+
+    @Test
+    void everyTranslationKeyUsedInCodeExistsInTheBundles() throws IOException {
+        // allMessageBundlesHaveSameKeysAsBaseBundle only proves the bundles agree with each other.
+        // A key that every bundle spells the same wrong way still passes that check while rendering
+        // as its own raw name, because I18n.lookupOrFallback returns the key when it cannot
+        // resolve it. This test closes the other half: code against bundles.
+        //
+        // The bar is the en-US bundle, not messages.properties. I18n.lookupOrFallback resolves the
+        // display locale first and then falls back to DEFAULT_LANGUAGE_TAG (en-US), so a key
+        // present in en-US is renderable in every locale. messages.properties is only the
+        // locale-less base of the ResourceBundle chain and legitimately holds fewer keys.
+        Set<String> bundleKeys = loadBundle("messages_en_US.properties").stringPropertyNames();
+        Set<String> lowerCasedKeys = new HashSet<>();
+        for (String key : bundleKeys) {
+            lowerCasedKeys.add(key.toLowerCase(Locale.ROOT));
+        }
+
+        Set<String> unresolved = new TreeSet<>();
+        Set<String> caseMismatches = new TreeSet<>();
+        for (Path javaFile : productionSourceFiles()) {
+            String source = Files.readString(javaFile, StandardCharsets.UTF_8);
+            // Resolve string constants declared in the same file, so I18n.tr(SOME_CONST) is
+            // checked against the literal it actually refers to.
+            Map<String, String> constants = new HashMap<>();
+            Matcher constMatcher = CONSTANT_PATTERN.matcher(source);
+            while (constMatcher.find()) {
+                constants.put(constMatcher.group(1), constMatcher.group(2));
+            }
+            Matcher usageMatcher = TR_CALL_PATTERN.matcher(source);
+            while (usageMatcher.find()) {
+                String literal = usageMatcher.group(1);
+                String constant = usageMatcher.group(2);
+                String key = literal != null ? literal : constants.get(constant);
+                if (key == null || key.isBlank()) {
+                    // A computed key cannot be checked statically; nothing to assert.
+                    continue;
+                }
+                if (bundleKeys.contains(key)) {
+                    continue;
+                }
+                if (lowerCasedKeys.contains(key.toLowerCase(Locale.ROOT))) {
+                    caseMismatches.add(key + "  (" + javaFile + ")");
+                } else {
+                    unresolved.add(key + "  (" + javaFile + ")");
+                }
+            }
+        }
+
+        assertTrue(caseMismatches.isEmpty(),
+                "Translation keys used in code differ from the bundles only by case, so I18n.tr "
+                        + "renders the raw key name. Rename the key in every bundle: " + caseMismatches);
+        assertTrue(unresolved.isEmpty(),
+                "Translation keys used in code are missing from every bundle, so I18n.tr renders "
+                        + "the raw key name: " + unresolved);
+    }
+
+    private static final Pattern CONSTANT_PATTERN =
+            Pattern.compile("String\\s+([A-Z][A-Z0-9_]+)\\s*=\\s*\"([^\"]+)\"");
+    private static final Pattern TR_CALL_PATTERN = Pattern.compile(
+            "\\b(?:I18n|UiI18n)\\.tr(?:English)?\\(\\s*(?:\"([^\"]+)\"|([A-Z][A-Z0-9_]+))\\s*[,)]");
+
+    /**
+     * Java sources of every module that resolves translations through {@link I18n}. Paths are
+     * relative to this module's basedir, which is where surefire runs.
+     */
+    private static List<Path> productionSourceFiles() throws IOException {
+        List<Path> roots = List.of(
+                Path.of("src/main/java"),
+                Path.of("..", "javafx-app", "src/main/java"),
+                Path.of("..", "api-server", "src/main/java"),
+                Path.of("..", "lightweight-ui", "src/main/java"));
+        List<Path> files = new ArrayList<>();
+        for (Path root : roots) {
+            if (!Files.isDirectory(root)) {
+                continue;
+            }
+            try (Stream<Path> found = Files.walk(root)) {
+                found.filter(path -> path.toString().endsWith(".java")).sorted().forEach(files::add);
+            }
+        }
+        assertFalse(files.isEmpty(), "Expected to find production sources to audit.");
+        return files;
     }
 
     @Test
