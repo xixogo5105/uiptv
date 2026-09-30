@@ -40,6 +40,24 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         t.setDaemon(true);
         return t;
     });
+    /**
+     * Native teardown runs on its own thread rather than on {@link #playExecutor}.
+     * <p>
+     * Playback tasks block for as long as {@code resolveHlsPlaylistChain} needs, which is a
+     * chain of HTTP requests. Sharing one single-thread executor therefore made every channel
+     * switch wait behind the previous switch's playlist resolution, delaying the moment libVLC
+     * first touches the stream. That delay is not harmless: Stalker {@code create_link} hands out
+     * a short-lived token, so by the time playback actually started the token could be expired
+     * and libVLC failed with an error that carries no reason.
+     * <p>
+     * A separate executor keeps the original intent - never block the JavaFX thread on native
+     * calls - without making teardown compete with playback for the same thread.
+     */
+    private final ExecutorService teardownExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "vlc-teardown-media");
+        t.setDaemon(true);
+        return t;
+    });
     private MediaPlayerFactory mediaPlayerFactory;
     private EmbeddedMediaPlayer mediaPlayer;
     private MediaPlayerEventAdapter mediaPlayerEvents;
@@ -469,9 +487,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             mediaPlayerFactory = null;
         }
         // Native VLC calls can block for an unreachable stream. Serializing cleanup
-        // with playback avoids both JavaFX freezes and play/release races.
+        // with playback avoids both JavaFX freezes and play/release races, but it must not
+        // queue behind playback: a pending playlist resolution would then delay the next
+        // stream's first request enough to outlive its create_link token.
         if (playerToCleanup != null || factoryToCleanup != null) {
-            playExecutor.submit(() -> releaseNativePlayer(playerToCleanup, factoryToCleanup));
+            teardownExecutor.submit(() -> releaseNativePlayer(playerToCleanup, factoryToCleanup));
         }
         clearVideoImage();
         videoSourceWidth = 0;
