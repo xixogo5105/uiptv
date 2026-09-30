@@ -381,6 +381,11 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             return;
         }
         mergeMissingSeasonInfo(data.seasonInfo, cached.seasonInfo);
+        // The panel's WatchingEpisode objects were just rebuilt from the local cache, so they need
+        // the same per-episode IMDb enrichment the fresh load applies. Without it a panel that is
+        // rebuilt from the memory cache - after a full refresh, or for a series added to the list
+        // since the last one - renders its episode cards with no artwork or plot.
+        enrichEpisodesFromMeta(data.episodes, cached.episodesMeta);
         data.imdbLoaded = true;
         data.imdbLoading = false;
         data.thumbnailMetadataAttempted = true;
@@ -2174,8 +2179,17 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         mergeMissing(data.seasonInfo, imdb, "tmdb");
         mergeMissing(data.seasonInfo, imdb, "imdbUrl");
         enrichEpisodesFromMeta(data.episodes, imdb.optJSONArray("episodesMeta"));
+        // episodesMeta has to be cached alongside seasonInfo. The per-episode enrichment it carries
+        // (IMDb artwork, plot, release date) is applied by mutating the WatchingEpisode objects, and
+        // those objects are thrown away and rebuilt by every delta merge, so without a copy here
+        // the episode cards lose their IMDb detail the first time the watch state changes - which
+        // is what playing an episode does.
         imdbCacheByPanelKey.put(panelCacheKey(data.account, data.state),
-                new ImdbCacheEntry(new JSONObject(data.seasonInfo.toString())));
+                new ImdbCacheEntry(
+                        new JSONObject(data.seasonInfo.toString()),
+                        new JSONArray(imdb.optJSONArray("episodesMeta") == null
+                                ? "[]"
+                                : imdb.optJSONArray("episodesMeta").toString())));
     }
 
     private void applyLoadedImdbToUi(SeriesPanelData data, TitledPane pane) {
@@ -2626,6 +2640,23 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                 && isBlank(resolveSeriesPosterUrl(target))) {
             target.imdbLoaded = false;
         }
+        // The rebuilt WatchingEpisode objects only carry what the local cache and the provider's
+        // episode list hold - the IMDb artwork, plot and release date that enrichEpisodesFromMeta
+        // put on them are gone. imdbLoaded is still true, so nothing else would ever re-apply them
+        // and every episode card in the open detail view would stay stripped. Re-apply from cache.
+        reapplyCachedEpisodeEnrichment(target);
+    }
+
+    private void reapplyCachedEpisodeEnrichment(SeriesPanelData target) {
+        if (target == null || target.episodes.isEmpty() || !thumbnailsEnabled()) {
+            return;
+        }
+        ImdbCacheEntry cached = imdbCacheByPanelKey.get(panelCacheKey(target.account, target.state));
+        if (cached == null) {
+            return;
+        }
+        mergeMissingSeasonInfo(target.seasonInfo, cached.seasonInfo);
+        enrichEpisodesFromMeta(target.episodes, cached.episodesMeta);
     }
 
     private void replaceJson(JSONObject target, JSONObject source) {
@@ -3104,9 +3135,11 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
 
     private static final class ImdbCacheEntry {
         private final JSONObject seasonInfo;
+        private final JSONArray episodesMeta;
 
-        private ImdbCacheEntry(JSONObject seasonInfo) {
+        private ImdbCacheEntry(JSONObject seasonInfo, JSONArray episodesMeta) {
             this.seasonInfo = seasonInfo == null ? new JSONObject() : seasonInfo;
+            this.episodesMeta = episodesMeta == null ? new JSONArray() : episodesMeta;
         }
     }
 
