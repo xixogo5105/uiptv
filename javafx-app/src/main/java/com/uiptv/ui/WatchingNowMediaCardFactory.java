@@ -5,7 +5,6 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.Labeled;
 import javafx.scene.control.OverrunStyle;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.FlowPane;
@@ -214,16 +213,25 @@ final class WatchingNowMediaCardFactory {
 
             Label title = createTitle();
             Label account = createAccount();
-            Region titleSpacer = new Region();
-            titleSpacer.setMinWidth(0);
-            HBox.setHgrow(titleSpacer, Priority.ALWAYS);
             HBox titleRow = new HBox(TITLE_ROW_GAP);
             titleRow.setAlignment(Pos.TOP_LEFT);
             titleRow.setMinWidth(0);
             titleRow.setMaxWidth(Double.MAX_VALUE);
+            if (actionButton != null) {
+                titleRow.getChildren().addAll(title, actionButton);
+            } else {
+                titleRow.getChildren().add(title);
+            }
 
             details.getChildren().add(titleRow);
-            installAdaptiveAccountPlacement(details, titleRow, title, account, titleSpacer, actionButton);
+            // The account name always gets its own line, left aligned under the title. It used to
+            // be moved into the title row whenever the combined preferred widths happened to fit,
+            // which in plain mode was always: plain cards have no poster column and the grid is
+            // single-column, so the row is wide. Worse, the inline title row was
+            // [title, account, spacer, actionButton] with both title and spacer growable, and
+            // HBox hands leftover width to growable children in equal shares - so the account name
+            // rendered in the middle of the line instead of after the title.
+            details.getChildren().add(account);
             FlowPane metadataRow = createMetadataRow();
             if (!metadataRow.getChildren().isEmpty()) {
                 details.getChildren().add(metadataRow);
@@ -262,72 +270,6 @@ final class WatchingNowMediaCardFactory {
 
             card.getChildren().add(cardBody);
             return new CardNodes(card, details, title, account, metadataRow, posterWrap);
-        }
-
-        private void installAdaptiveAccountPlacement(VBox details,
-                                                     HBox titleRow,
-                                                     Label title,
-                                                     Label account,
-                                                     Region titleSpacer,
-                                                     Button actionButton) {
-            Runnable update = () -> updateAccountPlacement(details, titleRow, title, account, titleSpacer, actionButton);
-            titleRow.widthProperty().addListener((_, _, _) -> update.run());
-            update.run();
-        }
-
-        private void updateAccountPlacement(VBox details,
-                                            HBox titleRow,
-                                            Label title,
-                                            Label account,
-                                            Region titleSpacer,
-                                            Button actionButton) {
-            boolean accountVisible = account.isManaged();
-            boolean inlineAccount = accountVisible && accountFitsInline(titleRow, title, account, actionButton);
-
-            details.getChildren().remove(account);
-            account.setWrapText(!inlineAccount);
-            account.setMaxWidth(inlineAccount ? Region.USE_PREF_SIZE : Double.MAX_VALUE);
-
-            if (inlineAccount) {
-                if (actionButton == null) {
-                    titleRow.getChildren().setAll(title, account);
-                } else {
-                    titleRow.getChildren().setAll(title, account, titleSpacer, actionButton);
-                }
-                return;
-            }
-
-            if (actionButton == null) {
-                titleRow.getChildren().setAll(title);
-            } else {
-                titleRow.getChildren().setAll(title, titleSpacer, actionButton);
-            }
-            if (accountVisible && !details.getChildren().contains(account)) {
-                details.getChildren().add(Math.min(1, details.getChildren().size()), account);
-            }
-        }
-
-        private boolean accountFitsInline(HBox titleRow, Label title, Label account, Button actionButton) {
-            double availableWidth = titleRow.getWidth();
-            if (availableWidth <= 0) {
-                return false;
-            }
-            int childCount = actionButton == null ? 2 : 4;
-            double actionWidth = actionButton == null ? 0 : actionButton.prefWidth(-1);
-            double requiredWidth = preferredTextWidth(title)
-                    + preferredTextWidth(account)
-                    + actionWidth
-                    + ((childCount - 1) * TITLE_ROW_GAP);
-            return requiredWidth <= availableWidth;
-        }
-
-        private double preferredTextWidth(Labeled labeled) {
-            double preferredWidth = labeled.prefWidth(-1);
-            if (preferredWidth > 0) {
-                return preferredWidth;
-            }
-            String text = labeled.getText();
-            return text == null ? 0 : (text.length() * 7.0) + 16.0;
         }
 
         private Label createAccount() {
