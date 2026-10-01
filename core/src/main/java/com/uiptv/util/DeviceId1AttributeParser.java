@@ -5,7 +5,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class DeviceId1AttributeParser implements StalkerAttributeParser {
-    private static final Pattern DEVICE_ID1_PATTERN = Pattern.compile("(?:id\\s*1|device\\s*id\\s*1).*?([A-F0-9]{32,64})\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DEVICE_ID1_PATTERN = Pattern.compile(
+            "(?:id\\s*1|device\\s*id\\s*1|device\\s*1).*?([A-F0-9]{32,64})\\b",
+            Pattern.CASE_INSENSITIVE);
 
     @Override
     public String parse(String line) {

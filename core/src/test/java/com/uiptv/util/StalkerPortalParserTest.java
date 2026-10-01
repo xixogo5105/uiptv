@@ -134,6 +134,29 @@ class StalkerPortalParserTest {
         assertEquals(deviceId2Value, account.getDeviceId2(), "Device ID 2 should be parsed from specific Device ID 2");
     }
 
+    @Test
+    void testDevice1AndDevice2ShortFormatWithoutIdWord() {
+        String device1Value = "F6B39683C6851BCD12536C8EB878F5EB11DF87CE3AAB52B27992793B54A82AFE";
+        String device2Value = "24C9B55F6DDDB5305A7DD81F8DCF1335FF578357BA2775E58994DAFA2E1F609A";
+
+        List<Account> savedAccounts = new ArrayList<>();
+        StalkerPortalParser parser = new StalkerPortalParser(name -> null, savedAccounts::add);
+
+        String input = """
+                http://portal.example/c
+                00:1A:79:AA:BB:CC
+                Device1 = %s
+                Device2 = %s
+                """.formatted(device1Value, device2Value);
+
+        parser.parseAndSave(input, false, false);
+
+        assertEquals(1, savedAccounts.size());
+        Account account = savedAccounts.get(0);
+        assertEquals(device1Value, account.getDeviceId1(), "Device1 (without 'ID' word) should be parsed as deviceId1");
+        assertEquals(device2Value, account.getDeviceId2(), "Device2 (without 'ID' word) should be parsed as deviceId2");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"Device ID", "Device", "ID"})
     void testGenericDeviceIdKeywordPopulatesBothDeviceIds(String keyword) {
