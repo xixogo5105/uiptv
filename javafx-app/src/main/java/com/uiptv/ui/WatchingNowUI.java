@@ -33,6 +33,7 @@ public class WatchingNowUI extends VBox {
     private final PauseTransition searchDebounce = new PauseTransition(SEARCH_DEBOUNCE_DELAY);
     private final HostServices hostServices;
     private final Runnable themeToggleHandler;
+    private final AppPageHeader header;
     private boolean thumbnailListenerRegistered = false;
     private String pendingSearchQuery = "";
     private final AtomicBoolean activationRefreshScheduled = new AtomicBoolean(false);
@@ -45,6 +46,11 @@ public class WatchingNowUI extends VBox {
     public WatchingNowUI(HostServices hostServices, Runnable themeToggleHandler) {
         this.hostServices = hostServices;
         this.themeToggleHandler = themeToggleHandler;
+        this.header = new AppPageHeader(
+                I18n.tr("autoWatchingNow"),
+                new AppHeaderActions(hostServices, themeToggleHandler, null)
+        );
+        this.header.getStyleClass().add("watching-now-header");
         searchTextField.setPromptText(I18n.tr("commonSearch"));
         searchDebounce.setOnFinished(_ -> applyPendingSearchQuery());
         searchTextField.textProperty().addListener((_, _, query) -> scheduleSearchQuery(query));
@@ -111,11 +117,6 @@ public class WatchingNowUI extends VBox {
         searchRow.setMinWidth(0);
         searchRow.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(searchTextField, Priority.ALWAYS);
-        AppPageHeader header = new AppPageHeader(
-                I18n.tr("autoWatchingNow"),
-                new AppHeaderActions(hostServices, themeToggleHandler, null)
-        );
-        header.getStyleClass().add("watching-now-header");
 
         if (!getStyleClass().contains("watching-now-page")) {
             getStyleClass().add("watching-now-page");
