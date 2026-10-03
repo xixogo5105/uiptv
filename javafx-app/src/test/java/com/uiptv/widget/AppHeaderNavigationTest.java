@@ -28,6 +28,7 @@ class AppHeaderNavigationTest {
     @AfterEach
     void resetSharedControllers() {
         AppNavigationController.reset();
+        AppHeaderNavigation.setCachedBadgeCountsForTest(-1, -1);
     }
 
     @Test
@@ -141,6 +142,81 @@ class AppHeaderNavigationTest {
         assertEquals(List.of(0L, 1L, 0L), runOnFxThread(() -> navigationButtons(navigation).stream()
                 .map(AppHeaderNavigationTest::activeStyleCount)
                 .toList()));
+    }
+
+    @Test
+    void notificationBadgesReflectCountsAndVisibility() throws Exception {
+        AppHeaderNavigation navigation = runOnFxThread(() -> new AppHeaderNavigation(new Label("UIPTV")));
+
+        NavigationSnapshot snapshot = applyBadgeCounts(navigation, 12, 3, false);
+        assertTrue(snapshot.bookmarksBadgeVisible());
+        assertEquals("12", snapshot.bookmarksBadgeText());
+        assertTrue(snapshot.accountsBadgeVisible());
+        assertEquals("3", snapshot.accountsBadgeText());
+
+        snapshot = applyBadgeCounts(navigation, 1250, 15, false);
+        assertTrue(snapshot.bookmarksBadgeVisible());
+        assertEquals("1250", snapshot.bookmarksBadgeText());
+        assertTrue(snapshot.accountsBadgeVisible());
+        assertEquals("15", snapshot.accountsBadgeText());
+
+        snapshot = applyBadgeCounts(navigation, 0, 0, false);
+        assertFalse(snapshot.bookmarksBadgeVisible());
+        assertEquals("", snapshot.bookmarksBadgeText());
+        assertFalse(snapshot.accountsBadgeVisible());
+        assertEquals("", snapshot.accountsBadgeText());
+    }
+
+    @Test
+    void compactModePreservesNotificationBadgesOnIcons() throws Exception {
+        AppHeaderNavigation navigation = runOnFxThread(() -> new AppHeaderNavigation(new Label("UIPTV")));
+
+        NavigationSnapshot snapshot = applyBadgeCounts(navigation, 5, 1, true);
+
+        assertEquals(List.of("", "", ""), snapshot.buttonTexts());
+        assertTrue(snapshot.allButtonsIconOnly());
+
+        assertTrue(snapshot.bookmarksBadgeVisible());
+        assertEquals("5", snapshot.bookmarksBadgeText());
+        assertTrue(snapshot.accountsBadgeVisible());
+        assertEquals("1", snapshot.accountsBadgeText());
+    }
+
+    /**
+     * Applies badge counts (and compact mode) and reads the resulting header state inside a single
+     * FX task. The widget also refreshes badge counts asynchronously from
+     * {@code BookmarkService}/{@code AccountService} and publishes them with {@code Platform.runLater},
+     * so splitting the mutation from the assertions would let that refresh overwrite the values
+     * under test depending on whether the database layer is already warm.
+     */
+    private static NavigationSnapshot applyBadgeCounts(AppHeaderNavigation navigation,
+                                                       int bookmarkCount,
+                                                       int accountCount,
+                                                       boolean compact) throws Exception {
+        return runOnFxThread(() -> {
+            navigation.updateBadgeCounts(bookmarkCount, accountCount);
+            navigation.setCompact(compact);
+            List<Button> buttons = navigationButtons(navigation);
+            return new NavigationSnapshot(
+                    navigation.getBookmarksBadge().isVisible(),
+                    navigation.getBookmarksBadge().getText(),
+                    navigation.getAccountsBadge().isVisible(),
+                    navigation.getAccountsBadge().getText(),
+                    buttons.stream().map(Button::getText).toList(),
+                    !buttons.isEmpty() && buttons.stream()
+                            .allMatch(button -> button.getStyleClass().contains("app-header-nav-button-icon-only"))
+            );
+        });
+    }
+
+    private record NavigationSnapshot(
+            boolean bookmarksBadgeVisible,
+            String bookmarksBadgeText,
+            boolean accountsBadgeVisible,
+            String accountsBadgeText,
+            List<String> buttonTexts,
+            boolean allButtonsIconOnly
+    ) {
     }
 
     private static List<Button> navigationButtons(AppHeaderNavigation navigation) {

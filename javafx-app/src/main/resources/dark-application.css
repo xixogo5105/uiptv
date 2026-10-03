@@ -1435,6 +1435,19 @@
     -fx-fill: -uiptv-header-action-hover-fg;
 }
 
+.app-header-nav-badge {
+    -fx-background-color: #ef4444;
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 9px;
+    -fx-font-weight: 800;
+    -fx-alignment: center;
+    -fx-padding: 1 4 1 4;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-min-width: 14px;
+    -fx-min-height: 14px;
+}
+
 .uiptv-page-actions {
     -fx-spacing: 6;
 }
