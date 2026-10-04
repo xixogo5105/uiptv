@@ -93,7 +93,11 @@ CREATE TABLE IF NOT EXISTS Configuration
     lightweightModeEnabled
     TEXT
     default
-    '0'
+    '0',
+    showBookmarkAndAccountCounts
+    TEXT
+    default
+    '1'
 );
 
 CREATE TABLE IF NOT EXISTS Account

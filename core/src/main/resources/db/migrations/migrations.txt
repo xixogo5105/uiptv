@@ -82,3 +82,4 @@
 0202_add_configuration_vlc_options.sql
 0203_add_account_parental_lock.sql
 0204_add_configuration_lightweight_mode.sql
+0205_add_configuration_show_bookmark_account_counts.sql

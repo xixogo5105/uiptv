@@ -4,6 +4,9 @@ import com.uiptv.service.AccountChangeListener;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.BookmarkChangeListener;
 import com.uiptv.service.BookmarkService;
+import com.uiptv.service.ConfigurationChangeListener;
+import com.uiptv.service.ConfigurationService;
+import com.uiptv.model.Configuration;
 import com.uiptv.util.I18n;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -33,6 +36,7 @@ public class AppHeaderNavigation extends HBox {
 
     private final BookmarkChangeListener bookmarkChangeListener = (_, _) -> refreshBadgeCounts();
     private final AccountChangeListener accountChangeListener = _ -> refreshBadgeCounts();
+    private final ConfigurationChangeListener configurationChangeListener = _ -> Platform.runLater(this::refreshBadgeCounts);
     private final ChangeListener<AppNavigationController.Target> navigationTargetListener =
             (_, _, _) -> Platform.runLater(this::updateNavigationButtons);
     private Node trailingAction;
@@ -166,6 +170,15 @@ public class AppHeaderNavigation extends HBox {
     }
 
     public void refreshBadgeCounts() {
+        // Check if badge counts should be shown based on configuration
+        ConfigurationService configurationService = ConfigurationService.getInstance();
+        Configuration configuration = configurationService.read();
+        if (configuration != null && !configuration.isShowBookmarkAndAccountCounts()) {
+            // Hide badges if setting is disabled
+            updateBadgeCounts(0, 0);
+            return;
+        }
+        
         if (cachedBookmarkCount >= 0 || cachedAccountCount >= 0) {
             updateBadgeCounts(cachedBookmarkCount, cachedAccountCount);
         }
@@ -335,6 +348,7 @@ public class AppHeaderNavigation extends HBox {
         try {
             BookmarkService.getInstance().addChangeListener(bookmarkChangeListener);
             AccountService.getInstance().addChangeListener(accountChangeListener);
+            ConfigurationService.getInstance().addChangeListener(configurationChangeListener);
         } catch (Exception _) {
         }
         navigationListenerRegistered = true;
@@ -348,6 +362,7 @@ public class AppHeaderNavigation extends HBox {
         try {
             BookmarkService.getInstance().removeChangeListener(bookmarkChangeListener);
             AccountService.getInstance().removeChangeListener(accountChangeListener);
+            ConfigurationService.getInstance().removeChangeListener(configurationChangeListener);
         } catch (Exception _) {
         }
         navigationListenerRegistered = false;

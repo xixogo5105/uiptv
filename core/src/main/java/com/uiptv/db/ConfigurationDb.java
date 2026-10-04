@@ -154,6 +154,7 @@ public class ConfigurationDb extends BaseDb {
         c.setVlcVout(nullSafeString(resultSet, "vlcVout"));
         c.setVlcAvcodecHw(nullSafeString(resultSet, "vlcAvcodecHw"));
         c.setLightweightModeEnabled(safeBoolean(resultSet, "lightweightModeEnabled"));
+        c.setShowBookmarkAndAccountCounts(safeBoolean(resultSet, "showBookmarkAndAccountCounts"));
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
     }
@@ -172,7 +173,8 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(35, current.getDbId());
+                statement.setString(35, configuration.isShowBookmarkAndAccountCounts() ? "1" : "0");
+            statement.setString(36, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -224,6 +226,7 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(32, configuration.getVlcVout());
         statement.setString(33, configuration.getVlcAvcodecHw());
         statement.setString(34, configuration.isLightweightModeEnabled() ? "1" : "0");
+        statement.setString(35, configuration.isShowBookmarkAndAccountCounts() ? "1" : "0");
      }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {

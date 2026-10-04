@@ -101,6 +101,7 @@ public class ConfigurationUI extends VBox {
     private final PillBar<ThemeModeOption> themeModePillBar =
             new PillBar<>(ThemeModeOption::title, ThemeModeOption::id);
     private final SwitchToggle thumbnailModeSwitch = new SwitchToggle();
+    private final SwitchToggle showBookmarkAndAccountCountsSwitch = new SwitchToggle();
     private final SwitchToggle filterPasswordProtectionSwitch = new SwitchToggle();
     private final SwitchToggle wideViewSwitch = new SwitchToggle();
     private final SwitchToggle resolveChainAndDeepRedirectsSwitch = new SwitchToggle();
@@ -188,6 +189,7 @@ public class ConfigurationUI extends VBox {
     private boolean vlcAvcodecHwEnabled = false;
     private boolean syncingThemeModeSelector;
     private boolean syncingThumbnailModeSelector;
+    private boolean syncingShowBookmarkAndAccountCountsSelector;
     private boolean syncingPasswordProtectionSelector;
     private boolean syncingFilterLockStateSwitch;
     private boolean syncingConfigurationToForm;
@@ -843,6 +845,7 @@ public class ConfigurationUI extends VBox {
     private VBox buildThemeOverrideGroup() {
         configureThemeModeSelector();
         configureThumbnailModeSelector();
+        configureShowBookmarkAndAccountCountsSelector();
         Node themeModeRow = createSettingPillRow("configDarkTheme", themeModePillBar);
 
         languageComboBox.setMaxWidth(Double.MAX_VALUE);
@@ -860,7 +863,7 @@ public class ConfigurationUI extends VBox {
         languageAndZoomSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         languageAndZoomSection.setMaxWidth(Double.MAX_VALUE);
 
-        return new VBox(10, themeModeRow, createSettingSwitchRow("configPlainTextMode", thumbnailModeSwitch), languageAndZoomSection);
+        return new VBox(10, themeModeRow, createSettingSwitchRow("configPlainTextMode", thumbnailModeSwitch), createSettingSwitchRow("configShowBookmarkAndAccountCounts", showBookmarkAndAccountCountsSwitch), languageAndZoomSection);
     }
 
     private Node createStackedSettingControlRow(String labelKey, Region control) {
@@ -889,6 +892,25 @@ public class ConfigurationUI extends VBox {
             enableThumbnailsCheckBox.setSelected(!selected);
         });
         syncThumbnailModeSelector();
+    }
+
+    private void configureShowBookmarkAndAccountCountsSelector() {
+        showBookmarkAndAccountCountsSwitch.selectedProperty().addListener((_, _, selected) -> {
+            if (syncingShowBookmarkAndAccountCountsSelector) {
+                return;
+            }
+            // Switch is directly bound to the configuration field
+        });
+        syncShowBookmarkAndAccountCountsSelector();
+    }
+
+    private void syncShowBookmarkAndAccountCountsSelector() {
+        syncingShowBookmarkAndAccountCountsSelector = true;
+        try {
+            // Will be set from configuration in applyConfigurationToForm
+        } finally {
+            syncingShowBookmarkAndAccountCountsSelector = false;
+        }
     }
 
     private void configureFilterPasswordProtectionSelector() {
@@ -1586,6 +1608,8 @@ public class ConfigurationUI extends VBox {
             syncThemeModeSelector();
             enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
             syncThumbnailModeSelector();
+            showBookmarkAndAccountCountsSwitch.setSelected(configuration.isShowBookmarkAndAccountCounts());
+            syncShowBookmarkAndAccountCountsSelector();
             wideViewCheckBox.setSelected(configuration.isWideView());
             serverPort.setText(configuration.getServerPort());
             httpsServerPort.setText(configuration.isHttpsServerEnabled()
@@ -1715,6 +1739,7 @@ public class ConfigurationUI extends VBox {
         configuration.setVlcAdaptiveUseAccess(vlcAdaptiveUseAccess);
         configuration.setVlcVout(vlcVoutEnabled ? "true" : null);
         configuration.setVlcAvcodecHw(vlcAvcodecHwEnabled ? "true" : null);
+        configuration.setShowBookmarkAndAccountCounts(showBookmarkAndAccountCountsSwitch.isSelected());
         return configuration;
     }
 

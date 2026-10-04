@@ -1,0 +1,1 @@
+ALTER TABLE Configuration ADD COLUMN showBookmarkAndAccountCounts TEXT DEFAULT '1';

@@ -45,6 +45,7 @@ public class Configuration extends BaseJson {
     private boolean lightweightModeEnabled = false;
     private String vlcVout;
     private String vlcAvcodecHw;
+    private boolean showBookmarkAndAccountCounts = true;
 
 
     @SuppressWarnings("java:S107")
