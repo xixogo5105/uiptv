@@ -779,9 +779,9 @@ public class ManageAccountUI extends VBox {
             saveSuccessTimeline.stop();
         }
 
-        // Reset button after 3 seconds
+        // Reset button after 1 second
         saveSuccessTimeline = new Timeline(new KeyFrame(
-                Duration.seconds(3),
+                Duration.seconds(1),
                 event -> {
                     saveButton.setText(originalText);
                     saveButton.setDisable(false);
