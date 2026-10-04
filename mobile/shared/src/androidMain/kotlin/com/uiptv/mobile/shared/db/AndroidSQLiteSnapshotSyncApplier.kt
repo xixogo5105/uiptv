@@ -56,8 +56,31 @@ class AndroidSQLiteSnapshotSyncApplier(
             databaseHelper.applyMigrations(db)
             requireIntegrity(db)
             db.version = UiptvSchemaInfo.SCHEMA_VERSION_CODE
+            requireDeclaredConfigurationColumns(db)
         } finally {
             db.close()
+        }
+    }
+
+    /**
+     * Rejects a snapshot whose Configuration table does not satisfy the declared cross-platform contract.
+     *
+     * The desktop can restore a database produced here, so a column this build expects but the snapshot lacks
+     * would otherwise be discovered later as missing settings rather than as a sync failure. This runs on the
+     * staged snapshot before it replaces the live database, so a rejected sync leaves the device untouched.
+     */
+    private fun requireDeclaredConfigurationColumns(db: SQLiteDatabase) {
+        val actual = mutableSetOf<String>()
+        db.rawQuery("PRAGMA table_info(Configuration)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            while (cursor.moveToNext()) {
+                actual += cursor.getString(nameIndex)
+            }
+        }
+        val missing = UiptvSyncSchema.configurationColumns - actual
+        require(missing.isEmpty()) {
+            "Synced database is missing Configuration columns declared by the schema contract: " +
+                missing.joinToString()
         }
     }
 

@@ -40,13 +40,147 @@ kotlin {
     jvmToolchain(17)
 
     // The baseline SQL is the single schema artifact both platforms already share: core loads it from the
-    // classpath and androidApp repackages it as an asset. Exposing it to the shared module's tests lets
-    // UiptvSyncSchemaBaselineContractTest derive its expectation from that file instead of a second
-    // hand-maintained column list, so schema drift fails the build rather than surfacing at restore time.
+    // classpath and androidApp repackages it as an asset. It drives both the generated mirror below and
+    // UiptvSyncSchemaBaselineContractTest, so schema drift fails the build instead of surfacing at restore time.
     sourceSets {
         commonTest {
             resources.srcDir("../../core/src/main/resources")
         }
+    }
+
+    // Generates UiptvGeneratedSchema.kt from 0000_baseline.sql. Keeping the Android column list derived
+    // rather than hand-written means adding a column to the baseline propagates to the cross-platform
+    // contract on its own; the contract test still re-derives the list and fails if this output is stale.
+    // rootProject is mobile/, so the repository root (which owns core/) is two levels up.
+val repoRoot = layout.projectDirectory.dir("../../").asFile
+val baselineFile = file("$repoRoot/core/src/main/resources/db/migrations/0000_baseline.sql")
+val migrationsList = file("$repoRoot/core/src/main/resources/db/migrations/migrations.txt")
+val generatedSchemaFile =
+    layout.projectDirectory.file("src/commonMain/kotlin/com/uiptv/mobile/shared/db/UiptvGeneratedSchema.kt")
+
+val generateUiptvSchemaMirror by tasks.registering {
+    description = "Generates UiptvGeneratedSchema.kt from core/src/main/resources/db/migrations/0000_baseline.sql"
+    group = "build"
+
+    inputs.file(baselineFile)
+    inputs.file(migrationsList)
+    outputs.file(generatedSchemaFile)
+
+    doLast {
+        val sql = baselineFile.readText()
+            val tables = LinkedHashMap<String, String>()
+            val header = Regex(
+                """CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`\[]?(\w+)["`\]]?\s*\(""",
+                RegexOption.IGNORE_CASE
+            )
+            var cursor = 0
+            while (cursor < sql.length) {
+                val match = header.find(sql, cursor) ?: break
+                val open = match.range.last
+                var depth = 0
+                var quote: Char? = null
+                var i = open
+                while (i < sql.length) {
+                    val ch = sql[i]
+                    when {
+                        quote != null -> if (ch == quote) quote = null
+                        ch == '\'' || ch == '"' || ch == '`' -> quote = ch
+                        ch == '(' -> depth++
+                        ch == ')' -> {
+                            depth--
+                            if (depth == 0) break
+                        }
+                    }
+                    i++
+                }
+                require(i < sql.length) { "Unbalanced parentheses in $baselineFile at $open" }
+                tables[match.groupValues[1]] = sql.substring(open + 1, i)
+                cursor = i + 1
+            }
+
+            fun columnsOf(table: String): List<String> {
+                val entries = mutableListOf<String>()
+                val current = StringBuilder()
+                var depth = 0
+                var quote: Char? = null
+                for (ch in tables.getValue(table)) {
+                    when {
+                        quote != null -> {
+                            current.append(ch)
+                            if (ch == quote) quote = null
+                        }
+                        ch == '\'' || ch == '"' || ch == '`' -> {
+                            quote = ch
+                            current.append(ch)
+                        }
+                        ch == '(' -> { depth++; current.append(ch) }
+                        ch == ')' -> { depth--; current.append(ch) }
+                        ch == ',' && depth == 0 -> { entries.add(current.toString()); current.setLength(0) }
+                        else -> current.append(ch)
+                    }
+                }
+                if (current.isNotBlank()) entries.add(current.toString())
+                return entries.mapNotNull { entry ->
+                    val first = entry.trim().split(Regex("\\s+")).firstOrNull { it.isNotEmpty() }
+                        ?: return@mapNotNull null
+                    if (first.uppercase() in setOf("PRIMARY", "FOREIGN", "UNIQUE", "CHECK", "CONSTRAINT", "KEY")) {
+                        null
+                    } else {
+                        first.trim('"', '`', '[', ']')
+                    }
+                }
+            }
+
+            val schemaVersion = migrationsList.readLines()
+                .map { it.trim() }
+                .last { it.isNotEmpty() && !it.startsWith("#") }
+                .substringBefore('_')
+                .removeSuffix(".sql")
+
+            fun listOf(name: String, values: List<String>): String =
+                values.joinToString(separator = ",\n", prefix = "    val $name: List<String> = listOf(\n", postfix = "\n    )") { "        \"$it\"" }
+
+            generatedSchemaFile.asFile.writeText(
+                """
+                |package com.uiptv.mobile.shared.db
+                |
+                |/**
+                | * GENERATED FILE - DO NOT EDIT.
+                | *
+                | * Produced by the `generateUiptvSchemaMirror` Gradle task in `mobile/shared/build.gradle.kts`
+                | * from `core/src/main/resources/db/migrations/0000_baseline.sql`.
+                | *
+                | * `0000_baseline.sql` is the single schema artifact both platforms share: core loads it from the
+                | * classpath and androidApp repackages it as an asset. Generating the mirror from it means a new
+                | * column reaches the Android contract by adding one `ALTER TABLE` to the baseline, instead of
+                | * by editing this file and the matching Java literal in `uiptv-shared` and hoping every copy
+                | * stays in step.
+                | *
+                | * Regenerate with:
+                | *   ./gradlew :shared:generateUiptvSchemaMirror
+                | *
+                | * `UiptvSyncSchemaBaselineContractTest` re-derives the same list from the baseline and fails
+                | * the build if this file is stale, so a hand edit cannot survive CI either.
+                | */
+                |internal object UiptvGeneratedSchema {
+                |    const val SCHEMA_VERSION: String = "$schemaVersion"
+                |
+                |    /** Configuration columns, in `0000_baseline.sql` declaration order. */
+                |${listOf("configurationColumns", columnsOf("Configuration"))}
+                |
+                |    /** Every table declared by the baseline, which is also the set that must survive a restore. */
+                |${listOf("baselineTables", tables.keys.sorted())}
+                |}
+                |
+                """.trimMargin()
+            )
+            logger.lifecycle("Generated ${generatedSchemaFile.asFile.name} (schema $schemaVersion, ${tables.size} tables)")
+        }
+    }
+
+    // Consumers depend on the generated mirror, so a baseline change regenerates it before compiling.
+    tasks.matching { it.name.startsWith("compile") && it.name.endsWith("Kotlin") }.configureEach {
+        dependsOn(generateUiptvSchemaMirror)
     }
 
     sourceSets {

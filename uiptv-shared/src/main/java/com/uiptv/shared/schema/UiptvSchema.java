@@ -180,7 +180,8 @@ public final class UiptvSchema {
                 column("pinToTop", TYPE_TEXT),
                 column(COL_RESOLVE_CHAIN_AND_DEEP_REDIRECTS, TYPE_TEXT),
                 column("httpMethod", TYPE_TEXT),
-                column("timezone", TYPE_TEXT)
+                column("timezone", TYPE_TEXT),
+                column("parentalLock", TYPE_TEXT)
         ));
         columns.put(UiptvTable.ACCOUNT_INFO, List.of(
                 column("id", TYPE_INTEGER_PRIMARY_KEY),
@@ -207,6 +208,7 @@ public final class UiptvSchema {
                 column("categoryTitle", TYPE_TEXT),
                 column("channelId", TYPE_TEXT),
                 column("channelName", TYPE_TEXT),
+                column("logo", TYPE_TEXT),
                 column("cmd", TYPE_TEXT),
                 column("serverPortalUrl", TYPE_TEXT),
                 column("categoryId", TYPE_TEXT),
@@ -247,6 +249,164 @@ public final class UiptvSchema {
                 column("categoryName", TYPE_TEXT_NOT_NULL),
                 column("channelId", TYPE_TEXT_NOT_NULL),
                 column("selected", TYPE_TEXT)
+        ));
+        columns.put(UiptvTable.CATEGORY, List.of(
+                column("id", TYPE_INTEGER_PRIMARY_KEY),
+                column("categoryId", TYPE_TEXT),
+                column(COL_ACCOUNT_ID, TYPE_TEXT),
+                column("accountType", TYPE_TEXT),
+                column("title", TYPE_TEXT),
+                column("alias", TYPE_TEXT),
+                column("url", TYPE_TEXT),
+                column("activeSub", TYPE_TEXT),
+                column("censored", TYPE_TEXT)
+        ));
+        columns.put(UiptvTable.CHANNEL, List.of(
+                column("id", TYPE_INTEGER_PRIMARY_KEY),
+                column("channelId", TYPE_TEXT),
+                column("categoryId", TYPE_TEXT),
+                column("name", TYPE_TEXT),
+                column("number", TYPE_TEXT),
+                column("cmd", TYPE_TEXT),
+                column("cmd_1", TYPE_TEXT),
+                column("cmd_2", TYPE_TEXT),
+                column("cmd_3", TYPE_TEXT),
+                column("logo", TYPE_TEXT),
+                column("censored", TYPE_TEXT),
+                column("status", TYPE_TEXT),
+                column("hd", TYPE_TEXT),
+                column("drmType", TYPE_TEXT),
+                column("drmLicenseUrl", TYPE_TEXT),
+                column("clearKeysJson", TYPE_TEXT),
+                column("inputstreamaddon", TYPE_TEXT),
+                column("manifestType", TYPE_TEXT)
+        ));
+        columns.put(UiptvTable.VOD_CATEGORY, List.of(
+                column("id", TYPE_INTEGER_PRIMARY_KEY),
+                column("categoryId", TYPE_TEXT),
+                column(COL_ACCOUNT_ID, TYPE_TEXT),
+                column("accountType", TYPE_TEXT),
+                column("title", TYPE_TEXT),
+                column("alias", TYPE_TEXT),
+                column("url", TYPE_TEXT),
+                column("activeSub", TYPE_TEXT),
+                column("censored", TYPE_TEXT),
+                column("extraJson", TYPE_TEXT),
+                column("cachedAt", TYPE_TEXT)
+        ));
+        columns.put(UiptvTable.VOD_CHANNEL, List.of(
+                column("id", TYPE_INTEGER_PRIMARY_KEY),
+                column("channelId", TYPE_TEXT),
+                column("categoryId", TYPE_TEXT),
+                column(COL_ACCOUNT_ID, TYPE_TEXT),
+                column("name", TYPE_TEXT),
+                column("number", TYPE_TEXT),
+                column("cmd", TYPE_TEXT),
+                column("cmd_1", TYPE_TEXT),
+                column("cmd_2", TYPE_TEXT),
+                column("cmd_3", TYPE_TEXT),
+                column("logo", TYPE_TEXT),
+                column("censored", TYPE_TEXT),
+                column("status", TYPE_TEXT),
+                column("hd", TYPE_TEXT),
+                column("drmType", TYPE_TEXT),
+                column("drmLicenseUrl", TYPE_TEXT),
+                column("clearKeysJson", TYPE_TEXT),
+                column("inputstreamaddon", TYPE_TEXT),
+                column("manifestType", TYPE_TEXT),
+                column("extraJson", TYPE_TEXT),
+                column("cachedAt", TYPE_TEXT)
+        ));
+        columns.put(UiptvTable.VOD_WATCH_STATE, List.of(
+                column("id", TYPE_INTEGER_PRIMARY_KEY),
+                column(COL_ACCOUNT_ID, TYPE_TEXT),
+                column("categoryId", TYPE_TEXT),
+                column("vodId", TYPE_TEXT),
+                column("vodName", TYPE_TEXT),
+                column("vodCmd", TYPE_TEXT),
+                column("vodLogo", TYPE_TEXT),
+                column("updatedAt", TYPE_TEXT)
+        ));
+        columns.put(UiptvTable.SERIES_CATEGORY, List.of(
+                column("id", TYPE_INTEGER_PRIMARY_KEY),
+                column("categoryId", TYPE_TEXT),
+                column(COL_ACCOUNT_ID, TYPE_TEXT),
+                column("accountType", TYPE_TEXT),
+                column("title", TYPE_TEXT),
+                column("alias", TYPE_TEXT),
+                column("url", TYPE_TEXT),
+                column("activeSub", TYPE_TEXT),
+                column("censored", TYPE_TEXT),
+                column("extraJson", TYPE_TEXT),
+                column("cachedAt", TYPE_TEXT)
+        ));
+        columns.put(UiptvTable.SERIES_CHANNEL, List.of(
+                column("id", TYPE_INTEGER_PRIMARY_KEY),
+                column("channelId", TYPE_TEXT),
+                column("categoryId", TYPE_TEXT),
+                column(COL_ACCOUNT_ID, TYPE_TEXT),
+                column("name", TYPE_TEXT),
+                column("number", TYPE_TEXT),
+                column("cmd", TYPE_TEXT),
+                column("cmd_1", TYPE_TEXT),
+                column("cmd_2", TYPE_TEXT),
+                column("cmd_3", TYPE_TEXT),
+                column("logo", TYPE_TEXT),
+                column("censored", TYPE_TEXT),
+                column("status", TYPE_TEXT),
+                column("hd", TYPE_TEXT),
+                column("drmType", TYPE_TEXT),
+                column("drmLicenseUrl", TYPE_TEXT),
+                column("clearKeysJson", TYPE_TEXT),
+                column("inputstreamaddon", TYPE_TEXT),
+                column("manifestType", TYPE_TEXT),
+                column("extraJson", TYPE_TEXT),
+                column("cachedAt", TYPE_TEXT)
+        ));
+        columns.put(UiptvTable.SERIES_EPISODE, List.of(
+                column("id", TYPE_INTEGER_PRIMARY_KEY),
+                column(COL_ACCOUNT_ID, TYPE_TEXT),
+                column("categoryId", TYPE_TEXT),
+                column("seriesId", TYPE_TEXT),
+                column("channelId", TYPE_TEXT),
+                column("name", TYPE_TEXT),
+                column("cmd", TYPE_TEXT),
+                column("logo", TYPE_TEXT),
+                column("season", TYPE_TEXT),
+                column("episodeNum", TYPE_TEXT),
+                column("description", TYPE_TEXT),
+                column("releaseDate", TYPE_TEXT),
+                column("rating", TYPE_TEXT),
+                column("duration", TYPE_TEXT),
+                column("extraJson", TYPE_TEXT),
+                column("cachedAt", TYPE_TEXT)
+        ));
+        columns.put(UiptvTable.SERIES_WATCH_STATE, List.of(
+                column("id", TYPE_INTEGER_PRIMARY_KEY),
+                column(COL_ACCOUNT_ID, TYPE_TEXT),
+                column("mode", TYPE_TEXT),
+                column("categoryId", TYPE_TEXT),
+                column("seriesId", TYPE_TEXT),
+                column("episodeId", TYPE_TEXT),
+                column("episodeName", TYPE_TEXT),
+                column("season", TYPE_TEXT),
+                column("episodeNum", TYPE_TEXT),
+                column("updatedAt", TYPE_TEXT),
+                column("source", TYPE_TEXT),
+                column("seriesCategorySnapshot", TYPE_TEXT),
+                column("seriesChannelSnapshot", TYPE_TEXT),
+                column("seriesEpisodeSnapshot", TYPE_TEXT)
+        ));
+        columns.put(UiptvTable.SERIES_WATCHING_NOW_SNAPSHOT, List.of(
+                column("id", TYPE_INTEGER_PRIMARY_KEY),
+                column(COL_ACCOUNT_ID, TYPE_TEXT),
+                column("categoryId", TYPE_TEXT),
+                column("seriesId", TYPE_TEXT),
+                column("categoryDbId", TYPE_TEXT),
+                column("seriesTitle", TYPE_TEXT),
+                column("seriesPoster", TYPE_TEXT),
+                column("episodesJson", TYPE_TEXT),
+                column("updatedAt", TYPE_TEXT)
         ));
         return Collections.unmodifiableMap(columns);
     }

@@ -142,6 +142,47 @@ class AndroidUiptvDatabaseCompatibilityTest {
     }
 
     @Test
+    fun rejectsASnapshotMissingADeclaredConfigurationColumn() {
+        val snapshot = File.createTempFile("uiptv-sync-incomplete-", ".db", context.cacheDir)
+        try {
+            // Build a snapshot whose Configuration table predates a column this build declares. Dropping a
+            // column SQLite supports only from API 35, and the device under test is newer, but the check is
+            // about the declared set rather than the mechanism, so rebuild the table without the newest
+            // column instead.
+            SQLiteDatabase.openOrCreateDatabase(snapshot, null).use { source ->
+                AndroidUiptvMigrationApplier(AndroidMigrationSource(context)).applyAll(source)
+                val dropped = UiptvSyncSchema.configurationColumns.last()
+                source.execSQL("ALTER TABLE Configuration DROP COLUMN \"$dropped\"")
+            }
+
+            helper.writableDatabase.execSQL(
+                "INSERT INTO Configuration(id, defaultPlayerPath) VALUES(1, 'local-player')"
+            )
+            val before = helper.writableDatabase.singleString("Configuration", "defaultPlayerPath", "1")
+
+            val failure = runCatching {
+                AndroidSQLiteSnapshotSyncApplier(helper, context.cacheDir).apply(snapshot)
+            }.exceptionOrNull()
+
+            assertTrue(
+                "Expected the snapshot to be rejected, got $failure",
+                failure is IllegalArgumentException
+            )
+            assertTrue(
+                "The failure should name the missing column, got ${failure?.message}",
+                failure?.message?.contains(UiptvSyncSchema.configurationColumns.last()) == true
+            )
+            assertEquals(
+                "A rejected snapshot must not touch the live database",
+                before,
+                helper.writableDatabase.singleString("Configuration", "defaultPlayerPath", "id = 1")
+            )
+        } finally {
+            snapshot.delete()
+        }
+    }
+
+    @Test
     fun accountRepositorySavesListsClearsCacheAndDeletesAccountData() = runBlocking {
         val repository = AndroidSQLiteAccountRepository(helper)
         val saved = repository.saveAccount(

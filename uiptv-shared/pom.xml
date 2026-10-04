@@ -25,4 +25,17 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <testResources>
+            <!--
+              The baseline SQL is the schema artifact every platform shares: core loads it from the
+              classpath, the Android app repackages it as an asset, and UiptvSchemaTest reads it to verify
+              this module's declared columns instead of trusting a second hand-maintained copy.
+            -->
+            <testResource>
+                <directory>${project.basedir}/../core/src/main/resources</directory>
+            </testResource>
+        </testResources>
+    </build>
 </project>

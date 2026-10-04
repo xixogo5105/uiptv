@@ -68,50 +68,13 @@ object UiptvSyncSchema {
      * Every column of the `Configuration` table, in the exact order declared by
      * `core/src/main/resources/db/migrations/0000_baseline.sql` (mirrored by `DatabaseUtils.dbStructure`).
      *
-     * This must stay a complete, ordered mirror rather than the subset the Android UI happens to read: the
-     * desktop app can restore a database produced on Android, so any column missing here is a column the
-     * desktop side has no contract for. `UiptvSyncSchemaBaselineContractTest` and
-     * `AndroidUiptvDatabaseCompatibilityTest.createsDesktopCompatibleTablesFromPackagedMigrations` both fail if
-     * this list drifts from the baseline.
+     * The list is generated from that baseline by the `generateUiptvSchemaMirror` Gradle task, not written by
+     * hand. It has to stay a complete, ordered mirror rather than the subset the Android UI happens to read:
+     * the desktop app can restore a database produced on Android, so any column missing here is a column the
+     * desktop side has no contract for. `UiptvSyncSchemaBaselineContractTest` re-derives the list from the
+     * baseline and fails the build if the generated output is ever stale.
      */
-    val configurationColumns: List<String> = listOf(
-        "id",
-        "playerPath1",
-        "playerPath2",
-        "playerPath3",
-        "defaultPlayerPath",
-        "filterCategoriesList",
-        "filterChannelsList",
-        "pauseFiltering",
-        "serverPort",
-        "embeddedPlayer",
-        "cacheExpiryDays",
-        "enableThumbnails",
-        "wideView",
-        "languageLocale",
-        "tmdbReadAccessToken",
-        "filterLockHash",
-        "uiZoomPercent",
-        "autoRunServerOnStartup",
-        "httpsServerEnabled",
-        "httpsServerPort",
-        "vlcNetworkCachingMs",
-        "vlcLiveCachingMs",
-        "publishedM3uCategoryMode",
-        "enableVlcHttpUserAgent",
-        "enableVlcHttpForwardCookies",
-        "resolveChainAndDeepRedirects",
-        "filterLockUnlockDurationMinutes",
-        "vlcNoVideoTitleShow",
-        "vlcQuiet",
-        "vlcHttpReconnect",
-        "vlcAdaptiveUseAccess",
-        "vlcVout",
-        "vlcAvcodecHw",
-        "lightweightModeEnabled",
-        "showBookmarkAndAccountCounts",
-        "themeMode"
-    )
+    val configurationColumns: List<String> = UiptvGeneratedSchema.configurationColumns
 
     val androidPortableConfigurationColumns: Set<String> =
         configurationColumns
