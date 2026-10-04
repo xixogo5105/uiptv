@@ -409,6 +409,14 @@ public class AppHeaderNavigation extends HBox {
             if (badgeLabel != null) {
                 getChildren().add(badgeLabel);
                 badgeLabel.setManaged(false);
+                // The badge is unmanaged and is positioned by positionBadge() rather than by the
+                // layout system, so showing or hiding it at runtime has to reposition it
+                // explicitly. Relying on layoutChildren() alone left the badge with the
+                // zero-sized bounds it had while hidden: a visibility change on an unmanaged node
+                // does not dirty this container, so no further layout pass ever ran and the count
+                // only reappeared after the application was restarted.
+                badgeLabel.visibleProperty().addListener((_, _, _) -> positionBadge());
+                badgeLabel.textProperty().addListener((_, _, _) -> positionBadge());
             }
             UiRenderQuality.optimizeLayout(this);
         }
@@ -416,13 +424,18 @@ public class AppHeaderNavigation extends HBox {
         @Override
         protected void layoutChildren() {
             super.layoutChildren();
-            if (badgeLabel != null && badgeLabel.isVisible()) {
-                double badgeWidth = badgeLabel.prefWidth(-1);
-                double badgeHeight = badgeLabel.prefHeight(-1);
-                double x = getWidth() - (badgeWidth / 2.0) + 4;
-                double y = - (badgeHeight / 2.0) - 4;
-                badgeLabel.resizeRelocate(x, y, badgeWidth, badgeHeight);
+            positionBadge();
+        }
+
+        private void positionBadge() {
+            if (badgeLabel == null || !badgeLabel.isVisible()) {
+                return;
             }
+            double badgeWidth = badgeLabel.prefWidth(-1);
+            double badgeHeight = badgeLabel.prefHeight(-1);
+            double x = getWidth() - (badgeWidth / 2.0) + 4;
+            double y = - (badgeHeight / 2.0) - 4;
+            badgeLabel.resizeRelocate(x, y, badgeWidth, badgeHeight);
         }
     }
 

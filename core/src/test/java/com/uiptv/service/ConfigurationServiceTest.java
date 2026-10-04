@@ -121,6 +121,21 @@ class ConfigurationServiceTest extends DbBackedTest {
     }
 
     @Test
+    void showBookmarkAndAccountCounts_defaultsToEnabled_andPersistsBothValues() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        assertTrue(service.read().isShowBookmarkAndAccountCounts());
+
+        Configuration configuration = service.read();
+        configuration.setShowBookmarkAndAccountCounts(false);
+        service.save(configuration);
+        assertFalse(service.read().isShowBookmarkAndAccountCounts());
+
+        configuration.setShowBookmarkAndAccountCounts(true);
+        service.save(configuration);
+        assertTrue(service.read().isShowBookmarkAndAccountCounts());
+    }
+
+    @Test
     void publishedM3uCategoryMode_defaultsToSourceDashCategory_andPersistsCustomValue() {
         ConfigurationService service = ConfigurationService.getInstance();
         assertEquals(M3U8PublicationService.PublishedCategoryMode.SOURCE_DASH_CATEGORY, service.getPublishedM3uCategoryMode());
