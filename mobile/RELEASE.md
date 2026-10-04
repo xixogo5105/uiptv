@@ -15,10 +15,10 @@ Run from `mobile/`:
 ./gradlew :androidApp:connectedDebugAndroidTest
 ```
 
-Run the shared desktop contract tests from the repo root:
+Run the desktop contract tests from the repo root:
 
 ```bash
-./mvnw -pl uiptv-shared test
+./mvnw -pl core test
 ```
 
 ## Manual Smoke Test

@@ -27,7 +27,6 @@ Release assets are currently published for Windows (x86_64), Linux (x86_64 and a
 
 UIPTV now builds as a Maven reactor with separated runtime modules:
 
-- `uiptv-shared/`: shared DTOs, contracts, and models exchanged between modules.
 - `core/`: shared domain models, SQLite/database layer, application services, cache reloaders, import parsers, migrations, i18n bundles, and release/version resources.
 - `api-server/`: Jetty-based local web server, JSON/playlist endpoints, and bundled SPA/PWA assets under `api-server/src/main/resources/web/`.
 - `javafx-app/`: JavaFX desktop application, players, widgets, dialogs, desktop CSS, icons, and native packaging configuration.

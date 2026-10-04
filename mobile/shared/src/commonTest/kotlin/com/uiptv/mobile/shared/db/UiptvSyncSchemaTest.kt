@@ -100,9 +100,19 @@ class UiptvSyncSchemaTest {
         assertTrue("wideView" in UiptvSyncSchema.androidPortableConfigurationColumns)
         assertTrue("publishedM3uCategoryMode" in UiptvSyncSchema.androidPortableConfigurationColumns)
         assertTrue("filterLockUnlockDurationMinutes" in UiptvSyncSchema.androidPortableConfigurationColumns)
+
+        // The desktop can restore a database produced on Android, so the restore is an exact clone. Only
+        // machine-specific player paths and the secret-derived lock hash stay behind; the server bindings and
+        // the VLC, theme and display options are expected to match across devices. Asserted end to end by
+        // ConfigurationSyncColumnParityTest against the real SQLiteTableSync path.
         assertTrue("defaultPlayerPath" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
-        assertTrue("embeddedPlayer" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
-        assertTrue("serverPort" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
+        assertTrue("playerPath1" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
+        assertTrue("filterLockHash" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
+        assertTrue("serverPort" in UiptvSyncSchema.androidPortableConfigurationColumns)
+        assertTrue("embeddedPlayer" in UiptvSyncSchema.androidPortableConfigurationColumns)
+        assertTrue("themeMode" in UiptvSyncSchema.androidPortableConfigurationColumns)
+        assertTrue("vlcVout" in UiptvSyncSchema.androidPortableConfigurationColumns)
+        assertTrue("httpsServerEnabled" in UiptvSyncSchema.androidPortableConfigurationColumns)
     }
 
     @Test

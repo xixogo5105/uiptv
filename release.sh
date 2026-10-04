@@ -89,7 +89,7 @@ VERSION="$VERSION" VERSION_CODE="$VERSION_CODE" perl -0pi -e '
   s/versionName = "[^"]+"/versionName = "$ENV{VERSION}"/;
 ' mobile/androidApp/build.gradle.kts
 
-git add pom.xml uiptv-shared/pom.xml core/pom.xml api-server/pom.xml javafx-app/pom.xml coverage-aggregate/pom.xml mobile/androidApp/build.gradle.kts
+git add pom.xml core/pom.xml api-server/pom.xml javafx-app/pom.xml coverage-aggregate/pom.xml mobile/androidApp/build.gradle.kts
 
 # ===============================
 # Create release commit

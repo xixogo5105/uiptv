@@ -47,21 +47,22 @@ object UiptvSyncSchema {
 
     val desktopTablesPreservedButHiddenInV1: List<String> = emptyList()
 
+    /**
+     * Configuration columns that never travel between a desktop and an Android device.
+     *
+     * Deliberately small. The desktop can restore a database produced on Android and vice versa, and the
+     * snapshot is applied as a whole-file clone, so the contract is an exact clone rather than a filtered
+     * subset: only values that are unsafe or meaningless to copy are excluded. Player paths name executables
+     * that exist on one machine only, `filterLockHash` is a secret-derived value that must not leave the
+     * device that produced it, and `id` is the row key. Everything else, including the server bindings and the
+     * VLC and theme options, is expected to match across devices.
+     */
     val androidNeverSyncConfigurationColumns: Set<String> = setOf(
         "playerPath1",
         "playerPath2",
         "playerPath3",
         "defaultPlayerPath",
-        "embeddedPlayer",
-        "serverPort",
-        "autoRunServerOnStartup",
-        "themeMode",
-        "uiZoomPercent",
-        "filterLockHash",
-        "vlcNetworkCachingMs",
-        "vlcLiveCachingMs",
-        "enableVlcHttpUserAgent",
-        "enableVlcHttpForwardCookies"
+        "filterLockHash"
     )
 
     /**

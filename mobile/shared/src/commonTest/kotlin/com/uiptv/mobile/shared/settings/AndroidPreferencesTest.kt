@@ -74,6 +74,7 @@ class AndroidPreferencesTest {
             key in UiptvSyncSchema.androidPortableConfigurationColumns
         })
         assertTrue("defaultPlayerPath" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
-        assertTrue("serverPort" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
+        assertTrue("playerPath1" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
+        assertTrue("filterLockHash" in UiptvSyncSchema.androidNeverSyncConfigurationColumns)
     }
 }

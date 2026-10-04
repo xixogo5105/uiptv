@@ -9,8 +9,7 @@ package com.uiptv.mobile.shared.db
  * `0000_baseline.sql` is the single schema artifact both platforms share: core loads it from the
  * classpath and androidApp repackages it as an asset. Generating the mirror from it means a new
  * column reaches the Android contract by adding one `ALTER TABLE` to the baseline, instead of
- * by editing this file and the matching Java literal in `uiptv-shared` and hoping every copy
- * stays in step.
+ * by editing this file and any other declaration and hoping every copy stays in step.
  *
  * Regenerate with:
  *   ./gradlew :shared:generateUiptvSchemaMirror
