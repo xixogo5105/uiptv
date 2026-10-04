@@ -2,6 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.application.ConfigurationApplicationService;
 import com.uiptv.model.Configuration;
+import com.uiptv.model.ThemeMode;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
@@ -9,15 +10,13 @@ import com.uiptv.service.DatabaseSyncService;
 import com.uiptv.service.remotesync.RemoteSyncSessionService;
 import com.uiptv.ui.main.BaseMainApplicationUI;
 import com.uiptv.ui.main.MainApplicationUI;
-import com.uiptv.ui.util.StyleClassDecorator;
-import com.uiptv.ui.util.ThemeStylesheetResolver;
+import com.uiptv.ui.util.ThemeManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.widget.AppNavigationController;
-import com.uiptv.widget.AppFonts;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -57,7 +56,6 @@ public class RootApplication extends Application {
     private static final DatabaseSyncService databaseSyncService = DatabaseSyncService.getInstance();
     private static final ConfigurationApplicationService configurationApplicationService = ConfigurationApplicationService.getInstance();
     private static Stage primaryStage;
-    private static String currentTheme;
     private final ConfigurationService configurationService = ConfigurationService.getInstance();
     private final ConfigurationChangeListener titleConfigurationChangeListener =
             _ -> scheduleTitleUpdate();
@@ -147,26 +145,14 @@ public class RootApplication extends Application {
     }
 
     public static String getCurrentTheme() {
-        return currentTheme;
+        return ThemeManager.getCurrentTheme();
     }
 
-    public static void applyTheme(Scene scene, Class<?> themeResourceClass, boolean darkTheme, int zoomPercent) {
-        if (scene == null || scene.getRoot() == null) {
-            return;
-        }
-
-        AppFonts.load();
-        currentTheme = ThemeStylesheetResolver.resolveStylesheetUrl(
-                themeResourceClass,
-                darkTheme,
-                zoomPercent
-        );
-        scene.getStylesheets().clear();
-        scene.getStylesheets().add(currentTheme);
-        scene.getRoot().styleProperty().unbind();
-        scene.getRoot().setStyle(ThemeStylesheetResolver.buildSceneRootStyle(zoomPercent));
-        UiI18n.applySceneOrientation(scene);
-        StyleClassDecorator.decorate(scene.getRoot());
+    /**
+     * Applies a three-state theme selection. See {@link ThemeManager} for the Light/Dark/System contract.
+     */
+    public static void applyTheme(Scene scene, Class<?> themeResourceClass, ThemeMode themeMode, int zoomPercent) {
+        ThemeManager.applyTheme(scene, themeResourceClass, themeMode, zoomPercent);
     }
 
     @Override
@@ -396,10 +382,10 @@ public class RootApplication extends Application {
 
     private void configureFontStyles(Scene scene) {
         Configuration configuration = configurationService.read();
-        applyTheme(
+        ThemeManager.applyTheme(
                 scene,
                 getClass(),
-                configuration.isDarkTheme(),
+                configuration == null ? ThemeMode.LIGHT : configuration.resolveThemeMode(),
                 configurationService.getUiZoomPercent()
         );
     }

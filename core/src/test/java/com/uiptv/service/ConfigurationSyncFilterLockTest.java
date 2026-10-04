@@ -61,12 +61,12 @@ class ConfigurationSyncFilterLockTest extends DbBackedTest {
              PreparedStatement ps = conn.prepareStatement(
                      "INSERT INTO Configuration (" +
                              "playerPath1, playerPath2, playerPath3, defaultPlayerPath, " +
-                             "filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, " +
+                             "filterCategoriesList, filterChannelsList, pauseFiltering, serverPort, embeddedPlayer, " +
                              "cacheExpiryDays, enableThumbnails, wideView, languageLocale, " +
                              "tmdbReadAccessToken, filterLockHash, uiZoomPercent, autoRunServerOnStartup, " +
                              "vlcNetworkCachingMs, vlcLiveCachingMs, publishedM3uCategoryMode, enableVlcHttpUserAgent, " +
                              "enableVlcHttpForwardCookies, resolveChainAndDeepRedirects, filterLockUnlockDurationMinutes" +
-                             ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                             ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
             ps.setString(1, "player-1");
             ps.setString(2, "player-2");
             ps.setString(3, "player-3");
@@ -74,24 +74,23 @@ class ConfigurationSyncFilterLockTest extends DbBackedTest {
             ps.setString(5, categoryFilter);
             ps.setString(6, channelFilter);
             ps.setString(7, pauseFiltering);
-            ps.setString(8, "0");
-            ps.setString(9, "8888");
-            ps.setString(10, "0");
-            ps.setString(11, "30");
-            ps.setString(12, "1");
-            ps.setString(13, "0");
-            ps.setString(14, "en-US");
-            ps.setString(15, "");
-            ps.setString(16, filterLockHash);
-            ps.setString(17, "100");
-            ps.setString(18, "0");
+            ps.setString(8, "8888");
+            ps.setString(9, "0");
+            ps.setString(10, "30");
+            ps.setString(11, "1");
+            ps.setString(12, "0");
+            ps.setString(13, "en-US");
+            ps.setString(14, "");
+            ps.setString(15, filterLockHash);
+            ps.setString(16, "100");
+            ps.setString(17, "0");
+            ps.setString(18, "1000");
             ps.setString(19, "1000");
-            ps.setString(20, "1000");
-            ps.setString(21, "");
+            ps.setString(20, "");
+            ps.setString(21, "1");
             ps.setString(22, "1");
-            ps.setString(23, "1");
+            ps.setString(23, "0");
             ps.setString(24, "0");
-            ps.setString(25, "0");
             ps.executeUpdate();
         }
     }

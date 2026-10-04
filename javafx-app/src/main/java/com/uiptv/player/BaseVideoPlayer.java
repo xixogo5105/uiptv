@@ -803,17 +803,19 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
         List<MenuItem> items = tracksContextMenu.getItems();
         items.clear();
-        appendTrackSection(items, "Audio", getAudioTrackOptions(), getSelectedAudioTrackId(), this::selectAudioTrack, "No audio tracks");
+        appendTrackSection(items, I18n.tr("autoAudioTracksSection"), getAudioTrackOptions(),
+                getSelectedAudioTrackId(), this::selectAudioTrack, I18n.tr("autoNoAudioTracks"));
 
         List<TrackOption> playlistOptions = getPlaylistTrackOptions();
         if (!playlistOptions.isEmpty()) {
             if (!items.isEmpty()) {
                 items.add(new SeparatorMenuItem());
             }
-            appendTrackSection(items, "Playlist", playlistOptions, getSelectedPlaylistTrackId(), this::selectPlaylistTrack, "No playlist items");
+            appendTrackSection(items, I18n.tr("autoPlaylistTracksSection"), playlistOptions,
+                    getSelectedPlaylistTrackId(), this::selectPlaylistTrack, I18n.tr("autoNoPlaylistItems"));
         }
         if (items.isEmpty()) {
-            MenuItem noneItem = new MenuItem("No options");
+            MenuItem noneItem = new MenuItem(I18n.tr("autoNoOptions"));
             noneItem.getStyleClass().add(PLAYER_TRACKS_MENU_ITEM);
             noneItem.setDisable(true);
             items.add(noneItem);

@@ -2,6 +2,7 @@ package com.uiptv.lightweight;
 
 import com.uiptv.application.ConfigurationApplicationService;
 import com.uiptv.model.Configuration;
+import com.uiptv.model.ThemeMode;
 import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.util.AppLog;
@@ -10,6 +11,7 @@ import com.uiptv.util.ServerUrlUtil;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.application.ColorScheme;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -318,11 +320,23 @@ primaryStage.setTitle("UIPTV - Lightweight Mode");
 
     private void applyTheme(BorderPane root) {
         Configuration configuration = configurationService.read();
-        boolean dark = configuration != null && configuration.isDarkTheme();
-        if (dark) {
+        ThemeMode mode = configuration == null ? ThemeMode.LIGHT : configuration.resolveThemeMode();
+        root.getStyleClass().remove("dark-theme");
+        if (mode == ThemeMode.DARK || (mode.isSystem() && isDarkSystemScheme())) {
             root.getStyleClass().add("dark-theme");
-        } else {
-            root.getStyleClass().remove("dark-theme");
+        }
+    }
+
+    /**
+     * The lightweight window re-reads its theme on every change instead of binding to the operating system,
+     * so a system-following selection is resolved once per apply.
+     */
+    private boolean isDarkSystemScheme() {
+        try {
+            return Platform.getPreferences().getColorScheme() == ColorScheme.DARK;
+        } catch (IllegalStateException | UnsupportedOperationException _) {
+            // Toolkit not started or platform does not report a colour scheme: stay on the light palette.
+            return false;
         }
     }
 

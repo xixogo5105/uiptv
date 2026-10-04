@@ -87,7 +87,6 @@ class BaselineSchemaCompatibilityTest extends DbBackedTest {
                 "kids",
                 "ads",
                 true,
-                true,
                 "8899",
                 true,
                 "45",

@@ -1839,6 +1839,8 @@
 .uiptv-pill {
     -fx-background-color: transparent;
     -fx-border-color: transparent;
+    /* Declared so the selected state can show an outline without changing pill geometry on selection. */
+    -fx-border-width: 1;
     -fx-background-radius: 12;
     -fx-border-radius: 12;
     -fx-padding: 5 13 5 13;
@@ -1903,10 +1905,15 @@
 }
 
 .uiptv-pill:selected {
-    -fx-background-color: -uiptv-surface-hover;
+    /* Was -uiptv-surface-hover, which is the same value as the :hover state, so the selected pill was
+       indistinguishable from a hovered one. Now clearly lighter than both the bar and the hover state,
+       with an outline and a drop shadow mirroring the light theme. */
+    -fx-background-color: rgba(255, 255, 255, 0.16);
+    -fx-border-color: rgba(255, 255, 255, 0.28);
+    -fx-border-width: 1;
     -fx-text-fill: -uiptv-text-primary;
-    -fx-font-weight: 600;
-    -fx-effect: none;
+    -fx-font-weight: 700;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 10, 0.25, 0, 2);
 }
 
 .uiptv-pill-icon {

@@ -392,7 +392,6 @@ class M3uCacheReloaderTest extends DbBackedTest {
                 categoryFilter,
                 channelFilter,
                 pauseFiltering,
-                false,
                 "8888",
                 false,
                 false

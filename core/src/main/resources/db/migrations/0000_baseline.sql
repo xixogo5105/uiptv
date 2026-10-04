@@ -18,8 +18,6 @@ CREATE TABLE IF NOT EXISTS Configuration
     TEXT,
     pauseFiltering
     TEXT,
-    darkTheme
-    TEXT,
     serverPort
     TEXT,
     embeddedPlayer
@@ -97,7 +95,11 @@ CREATE TABLE IF NOT EXISTS Configuration
     showBookmarkAndAccountCounts
     TEXT
     default
-    '1'
+    '1',
+    themeMode
+    TEXT
+    default
+    'light'
 );
 
 CREATE TABLE IF NOT EXISTS Account

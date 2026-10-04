@@ -2,6 +2,7 @@ package com.uiptv.service.remotesync;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
+import com.uiptv.model.ThemeMode;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DatabaseSyncService;
@@ -230,7 +231,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         assertNotNull(result.report());
         assertNotNull(AccountService.getInstance().getByName("remote-account"));
         Configuration configuration = ConfigurationService.getInstance().read();
-        assertTrue(configuration.isDarkTheme());
+        assertTrue(configuration.resolveThemeMode() == ThemeMode.DARK);
         assertEquals("remote-player", configuration.getPlayerPath1());
         assertEquals("session-2", httpClient.completedSessionId);
         assertTrue(httpClient.completedSuccess);
@@ -285,7 +286,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         assertFalse(result.report().isConfigurationRequested());
         assertNotNull(AccountService.getInstance().getByName("remote-account"));
         Configuration configuration = ConfigurationService.getInstance().read();
-        assertFalse(configuration.isDarkTheme());
+        assertFalse(configuration.resolveThemeMode() == ThemeMode.DARK);
         assertEquals("local-player", configuration.getPlayerPath1());
         assertEquals("session-config-excluded", httpClient.completedSessionId);
         assertTrue(httpClient.completedSuccess);
@@ -361,7 +362,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
 
     private void saveLocalConfiguration(boolean darkTheme, String playerPath1) {
         Configuration configuration = ConfigurationService.getInstance().read();
-        configuration.setDarkTheme(darkTheme);
+        configuration.applyThemeMode(darkTheme ? ThemeMode.DARK : ThemeMode.LIGHT);
         configuration.setPlayerPath1(playerPath1);
         ConfigurationService.getInstance().save(configuration);
     }

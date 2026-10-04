@@ -83,3 +83,5 @@
 0203_add_account_parental_lock.sql
 0204_add_configuration_lightweight_mode.sql
 0205_add_configuration_show_bookmark_account_counts.sql
+0206_add_configuration_theme_mode.sql
+0207_drop_configuration_dark_theme.sql

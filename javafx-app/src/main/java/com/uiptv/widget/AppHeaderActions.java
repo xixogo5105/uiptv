@@ -1,6 +1,7 @@
 package com.uiptv.widget;
 
 import com.uiptv.model.Configuration;
+import com.uiptv.model.ThemeMode;
 import com.uiptv.service.ConfigurationChangeListener;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.AboutUI;
@@ -46,6 +47,8 @@ public class AppHeaderActions extends HBox {
     private static final String ICON_UPDATE = "M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z";
     private static final String ICON_SUN = "M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41.39.39 1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41.39.39 1.03.39 1.41 0l1.06-1.06z";
     private static final String ICON_MOON = "M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z";
+    // Half-filled circle, used as the "follow the system" target in the header theme toggle.
+    private static final String ICON_CONTRAST = "M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10zm1-17.93c3.94.49 7 3.85 7 7.93s-3.05 7.44-7 7.93V4.07z";
 
     private final HostServices hostServices;
     private final Runnable themeToggleHandler;
@@ -143,19 +146,30 @@ public class AppHeaderActions extends HBox {
     }
 
     private MenuItem createThemeMenuItem() {
-        Configuration configuration = readConfigurationSafely();
-        boolean darkTheme = configuration != null && configuration.isDarkTheme();
-        MenuItem item = new MenuItem(themeMenuText(), createThemeMenuIcon(darkTheme));
+        ThemeMode nextMode = nextThemeMode();
+        MenuItem item = new MenuItem(themeMenuText(nextMode), createThemeMenuIcon(nextMode));
         item.setOnAction(_ -> toggleThemeMode());
         return item;
     }
 
-    private String themeMenuText() {
-        Configuration configuration = ConfigurationService.getInstance().read();
-        boolean darkTheme = configuration != null && configuration.isDarkTheme();
-        return darkTheme
-                ? I18n.tr("autoDisableDarkTheme")
-                : I18n.tr("autoEnableDarkTheme");
+    /**
+     * Theme the header toggle would switch to next: Light to Dark to System to Light. The item always
+     * describes the action, so the label and the glyph show where the press leads.
+     */
+    private ThemeMode nextThemeMode() {
+        Configuration configuration = readConfigurationSafely();
+        if (configuration == null) {
+            return ThemeMode.DARK;
+        }
+        return configuration.resolveThemeMode().next();
+    }
+
+    private String themeMenuText(ThemeMode nextMode) {
+        return switch (nextMode) {
+            case DARK -> I18n.tr("autoEnableDarkTheme");
+            case LIGHT -> I18n.tr("autoDisableDarkTheme");
+            case SYSTEM -> I18n.tr("autoUseSystemTheme");
+        };
     }
 
     private MenuItem createStayOnTopMenuItem() {
@@ -174,9 +188,7 @@ public class AppHeaderActions extends HBox {
     private String parentalLockMenuText() {
         Configuration configuration = ConfigurationService.getInstance().read();
         boolean paused = configuration != null && configuration.isPauseFiltering();
-        return paused
-                ? "Enable parental lock access"
-                : "Disable parental lock access";
+        return I18n.tr(paused ? "autoEnableParentalLockAccess" : "autoDisableParentalLockAccess");
     }
 
     private Configuration readConfigurationSafely() {
@@ -234,9 +246,13 @@ public class AppHeaderActions extends HBox {
         return wrapper;
     }
 
-    private Node createThemeMenuIcon(boolean darkTheme) {
+    private Node createThemeMenuIcon(ThemeMode nextMode) {
         SVGPath icon = new SVGPath();
-        icon.setContent(darkTheme ? ICON_SUN : ICON_MOON);
+        icon.setContent(switch (nextMode) {
+            case LIGHT -> ICON_SUN;
+            case DARK -> ICON_MOON;
+            case SYSTEM -> ICON_CONTRAST;
+        });
         icon.getStyleClass().add("theme-menu-icon");
         UiRenderQuality.optimizeTextNode(icon);
 
@@ -262,9 +278,9 @@ public class AppHeaderActions extends HBox {
         if (parentalPauseChangedHandler != null) {
             parentalPauseChangedHandler.run();
         }
-        showMessageAlert(configuration.isPauseFiltering()
-                ? "Parental lock access disabled."
-                : "Parental lock access enabled.");
+        showMessageAlert(I18n.tr(configuration.isPauseFiltering()
+                ? "autoParentalLockAccessDisabled"
+                : "autoParentalLockAccessEnabled"));
     }
 
     private void togglePlainTextMode() {

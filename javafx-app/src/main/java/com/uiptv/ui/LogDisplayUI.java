@@ -1,6 +1,7 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.Configuration;
+import com.uiptv.model.ThemeMode;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.AppLog;
@@ -374,7 +375,7 @@ public class LogDisplayUI extends VBox {
             RootApplication.applyTheme(
                     scene,
                     RootApplication.class,
-                    configuration != null && configuration.isDarkTheme(),
+                    configuration == null ? ThemeMode.LIGHT : configuration.resolveThemeMode(),
                     service.getUiZoomPercent()
             );
             return;

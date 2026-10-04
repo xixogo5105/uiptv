@@ -3,6 +3,7 @@ package com.uiptv.ui;
 import com.uiptv.api.Callback;
 import com.uiptv.application.ConfigurationApplicationService;
 import com.uiptv.model.Configuration;
+import com.uiptv.model.ThemeMode;
 import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.player.api.VideoPlayerInterface;
 import com.uiptv.service.*;
@@ -65,6 +66,8 @@ public class ConfigurationUI extends VBox {
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
     private static final String STYLE_CLASS_NO_DIM_DISABLED = "no-dim-disabled";
     private static final String STYLE_CLASS_HELP_LINK = "section-help-link";
+    private static final double THEME_LABEL_WIDTH_PERCENT = 35;
+
     private static final String STYLE_CLASS_OUTLINE_PANE = "uiptv-outline-pane";
     private static final String STYLE_CLASS_CONFIGURATION_STATUS_ICON = "configuration-status-icon";
     private static final String STYLE_CLASS_CONFIGURATION_STATUS_ICON_ON = "configuration-status-icon-on";
@@ -84,7 +87,6 @@ public class ConfigurationUI extends VBox {
     private static final double SETTINGS_MIN_COMPACT_CARD_WIDTH = 280;
     private static final double SETTINGS_CARD_HGAP = 14;
     private static final double SETTINGS_SWITCH_WIDTH = 52;
-    private static final double SETTINGS_THEME_PILL_WIDTH = 181;
     private static final AtomicReference<Stage> activePublishM3u8PopupStage = new AtomicReference<>();
     private static final AtomicReference<Stage> activeVlcOptionsPopupStage = new AtomicReference<>();
     private static final AtomicReference<Stage> activeDatabaseSyncPopupStage = new AtomicReference<>();
@@ -131,7 +133,6 @@ public class ConfigurationUI extends VBox {
     private Node filterPasswordProtectionRow;
     private Node wideViewRow;
     private final VBox filterAdminControls = new VBox(10);
-    private final CheckBox darkThemeCheckBox = new CheckBox(I18n.tr("configUseDarkTheme"));
     private final SwitchToggle autoRunServerOnStartupSwitch = new SwitchToggle();
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
@@ -224,7 +225,7 @@ public class ConfigurationUI extends VBox {
     private record SettingsPanelFilter(String id, String title) {
     }
 
-    private record ThemeModeOption(String id, String title, boolean dark) {
+    private record ThemeModeOption(String id, String title, ThemeMode mode) {
     }
 
     private record SettingsSection(String id, String title, Node statusIcon, Node content, Hyperlink helpLink,
@@ -598,15 +599,10 @@ public class ConfigurationUI extends VBox {
     private void toggleThemeFromHeader() {
         if (themeToggleHandler != null) {
             themeToggleHandler.run();
-            Configuration configuration = service.read();
-            if (configuration != null) {
-                darkThemeCheckBox.setSelected(configuration.isDarkTheme());
-                syncThemeModeSelector();
-            }
+            syncThemeModeSelector(service.read());
             return;
         }
-        darkThemeCheckBox.setSelected(!darkThemeCheckBox.isSelected());
-        syncThemeModeSelector();
+        syncThemeModeSelector(getSelectedThemeMode().next());
         applyThemePreview();
     }
 
@@ -796,10 +792,6 @@ public class ConfigurationUI extends VBox {
         return row;
     }
 
-    private Node createSettingPillRow(String labelKey, PillBar<?> pillBar) {
-        return createSettingControlRow(labelKey, pillBar, SETTINGS_THEME_PILL_WIDTH);
-    }
-
     private Node createSettingControlRow(String labelKey, Node control, double controlWidth) {
         Label label = new Label(I18n.tr(labelKey));
         label.getStyleClass().add(STYLE_CLASS_SETTINGS_FILTER_MODE_LABEL);
@@ -835,6 +827,52 @@ public class ConfigurationUI extends VBox {
         return row;
     }
 
+    /**
+     * Label and control side by side, with the label taking {@code labelWidthPercent} of the row and the
+     * control taking the rest.
+     * <p>
+     * The split is computed in {@code layoutChildren} rather than with
+     * {@link ColumnConstraints#setPercentWidth(double)}: JavaFX rounds a percentage to the nearest 0.1 and
+     * lets the columns over-subscribe the row (0.35 and 0.65 become 0.4 and 0.7, i.e. 110%), after which
+     * GridPane collapses both children to their minimum widths - a pill bar then renders as a tall, narrow
+     * strip instead of a row of options.
+     */
+    private Node createProportionalSettingControlRow(String labelKey, Node control, double labelWidthPercent) {
+        Label label = new Label(I18n.tr(labelKey));
+        label.getStyleClass().add(STYLE_CLASS_SETTINGS_FILTER_MODE_LABEL);
+        label.setWrapText(false);
+        label.setTextOverrun(OverrunStyle.ELLIPSIS);
+        label.setAlignment(Pos.CENTER_LEFT);
+
+        double labelShare = Math.min(Math.max(labelWidthPercent, 0), 100) / 100;
+        HBox row = new HBox(12) {
+            @Override
+            protected void layoutChildren() {
+                double usable = Math.max(0, getWidth() - getSpacing());
+                double labelWidth = usable * labelShare;
+                double controlWidth = Math.max(0, usable - labelWidth);
+                double height = getHeight();
+
+                Node labelNode = getChildren().get(0);
+                double labelHeight = Math.min(labelNode.prefHeight(-1), height);
+                labelNode.resizeRelocate(0, Math.max(0, (height - labelHeight) / 2), labelWidth, labelHeight);
+                getChildren().get(1).resizeRelocate(labelWidth + getSpacing(), 0, controlWidth, height);
+            }
+        };
+        row.getStyleClass().add("settings-filter-mode-row");
+        row.setFillHeight(true);
+        row.setMinWidth(0);
+        row.setMaxWidth(Double.MAX_VALUE);
+        if (control instanceof Region region) {
+            region.setMinWidth(0);
+            region.setMaxWidth(Double.MAX_VALUE);
+        }
+        row.getChildren().addAll(label, control);
+        HBox.setHgrow(label, Priority.NEVER);
+        HBox.setHgrow(control, Priority.ALWAYS);
+        return row;
+    }
+
     private Node createFilterPasswordProtectionRow() {
         Node row = createSettingSwitchRow("filterLockDisablePasswordAction", filterPasswordProtectionSwitch);
         row.setVisible(false);
@@ -846,7 +884,9 @@ public class ConfigurationUI extends VBox {
         configureThemeModeSelector();
         configureThumbnailModeSelector();
         configureShowBookmarkAndAccountCountsSelector();
-        Node themeModeRow = createSettingPillRow("configDarkTheme", themeModePillBar);
+        // Label and pill bar share the row: the label takes a fixed 35% and the bar takes the rest, which is
+        // wide enough for the three options to stay on one line without the bar spanning the whole panel.
+        Node themeModeRow = createProportionalSettingControlRow("configDarkTheme", themeModePillBar, THEME_LABEL_WIDTH_PERCENT);
 
         languageComboBox.setMaxWidth(Double.MAX_VALUE);
         languageComboBox.setMinWidth(0);
@@ -958,7 +998,15 @@ public class ConfigurationUI extends VBox {
     }
 
     private void configureThemeModeSelector() {
-        themeModePillBar.setItems(List.of(createThemeModeOption(false), createThemeModeOption(true)));
+        // The theme selection stays a pill bar at every width. The widget otherwise falls back to its
+        // compact dropdown once the options no longer fit on a single row, and three options are just wide
+        // enough to trip that in this panel. Every other pill bar keeps the responsive behaviour.
+        themeModePillBar.setCompactDropdownEnabled(false);
+        themeModePillBar.setItems(List.of(
+                createThemeModeOption(ThemeMode.LIGHT),
+                createThemeModeOption(ThemeMode.DARK),
+                createThemeModeOption(ThemeMode.SYSTEM)
+        ));
         themeModePillBar.selectedItemProperty().addListener((_, _, selected) -> {
             if (syncingThemeModeSelector) {
                 return;
@@ -966,18 +1014,26 @@ public class ConfigurationUI extends VBox {
             if (selected == null) {
                 return;
             }
-            darkThemeCheckBox.setSelected(selected.dark());
             applyThemePreview();
         });
-        syncThemeModeSelector();
+        syncThemeModeSelector(ThemeMode.LIGHT);
     }
 
-    private ThemeModeOption createThemeModeOption(boolean dark) {
+    private ThemeModeOption createThemeModeOption(ThemeMode mode) {
         return new ThemeModeOption(
-                dark ? "dark" : "light",
-                I18n.tr(dark ? "commonDark" : "commonLight"),
-                dark
+                mode.name().toLowerCase(Locale.ROOT),
+                I18n.tr(switch (mode) {
+                    case LIGHT -> "commonLight";
+                    case DARK -> "commonDark";
+                    case SYSTEM -> "commonSystem";
+                }),
+                mode
         );
+    }
+
+    private ThemeMode getSelectedThemeMode() {
+        ThemeModeOption selected = themeModePillBar.getSelectedItem();
+        return selected == null ? ThemeMode.LIGHT : selected.mode();
     }
 
     private void syncThumbnailModeSelector() {
@@ -989,13 +1045,20 @@ public class ConfigurationUI extends VBox {
         }
     }
 
-    private void syncThemeModeSelector() {
+    private void syncThemeModeSelector(ThemeMode mode) {
         syncingThemeModeSelector = true;
         try {
-            themeModePillBar.setSelectedItem(createThemeModeOption(darkThemeCheckBox.isSelected()));
+            themeModePillBar.setSelectedItem(createThemeModeOption(mode == null ? ThemeMode.LIGHT : mode));
         } finally {
             syncingThemeModeSelector = false;
         }
+    }
+
+    /**
+     * Loads a stored configuration into the three-state selector.
+     */
+    private void syncThemeModeSelector(Configuration configuration) {
+        syncThemeModeSelector(configuration == null ? ThemeMode.LIGHT : configuration.resolveThemeMode());
     }
 
     private void initializeLanguageSelection(Configuration configuration) {
@@ -1054,7 +1117,7 @@ public class ConfigurationUI extends VBox {
         RootApplication.applyTheme(
                 scene,
                 getClass(),
-                darkThemeCheckBox.isSelected(),
+                getSelectedThemeMode(),
                 getSelectedThemeZoomPercent()
         );
     }
@@ -1604,8 +1667,7 @@ public class ConfigurationUI extends VBox {
             filterCategoriesWithTextContains.setText(persistedFilterCategoriesValue);
             filterChannelWithTextContains.setText(persistedFilterChannelsValue);
             syncFilterLockStateSwitch(!persistedPauseFilteringValue);
-            darkThemeCheckBox.setSelected(configuration.isDarkTheme());
-            syncThemeModeSelector();
+            syncThemeModeSelector(configuration);
             enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
             syncThumbnailModeSelector();
             showBookmarkAndAccountCountsSwitch.setSelected(configuration.isShowBookmarkAndAccountCounts());
@@ -1711,7 +1773,7 @@ public class ConfigurationUI extends VBox {
                 playerPath1.getText(), playerPath2.getText(), playerPath3.getText(), resolveDefaultPlayerPath(),
                 resolveFilterCategoriesValueForSave(), resolveFilterChannelsValueForSave(),
                 resolvePauseFilteringValueForSave(),
-                darkThemeCheckBox.isSelected(), serverPort.getText(),
+                serverPort.getText(),
                 defaultEmbedPlayer.isSelected(),
                 sanitizeCacheExpiryDaysText(),
                 enableThumbnailsCheckBox.isSelected()
@@ -1740,6 +1802,8 @@ public class ConfigurationUI extends VBox {
         configuration.setVlcVout(vlcVoutEnabled ? "true" : null);
         configuration.setVlcAvcodecHw(vlcAvcodecHwEnabled ? "true" : null);
         configuration.setShowBookmarkAndAccountCounts(showBookmarkAndAccountCountsSwitch.isSelected());
+        // Persists the three-state selection; mirrors the legacy darkTheme flag as part of the write.
+        configuration.applyThemeMode(getSelectedThemeMode());
         return configuration;
     }
 

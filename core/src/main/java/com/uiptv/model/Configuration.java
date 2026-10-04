@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = false)
-public class Configuration extends BaseJson {
+    public class Configuration extends BaseJson {
     private String dbId;
     private String playerPath1;
     private String playerPath2;
@@ -27,7 +27,6 @@ public class Configuration extends BaseJson {
     private String vlcNetworkCachingMs;
     private String vlcLiveCachingMs;
     private String publishedM3uCategoryMode;
-    private boolean darkTheme;
     private boolean pauseFiltering;
     private boolean pauseCaching;
     private boolean embeddedPlayer;
@@ -46,10 +45,15 @@ public class Configuration extends BaseJson {
     private String vlcVout;
     private String vlcAvcodecHw;
     private boolean showBookmarkAndAccountCounts = true;
+    /**
+     * Three-state theme selection, persisted in the {@code themeMode} column as {@code "light"},
+     * {@code "dark"} or {@link ThemeMode#SYSTEM_VALUE}. An absent or unrecognised value means light.
+     */
+    private String themeMode;
 
 
     @SuppressWarnings("java:S107")
-    public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, boolean darkTheme, String serverPort, boolean embeddedPlayer, boolean enableThumbnails) {
+    public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, String serverPort, boolean embeddedPlayer, boolean enableThumbnails) {
         this.playerPath1 = playerPath1;
         this.playerPath2 = playerPath2;
         this.playerPath3 = playerPath3;
@@ -57,26 +61,39 @@ public class Configuration extends BaseJson {
         this.filterCategoriesList = filterCategoriesList;
         this.filterChannelsList = filterChannelsList;
         this.pauseFiltering = pauseFiltering;
-        this.darkTheme = darkTheme;
         this.serverPort = serverPort;
         this.embeddedPlayer = embeddedPlayer;
         this.enableThumbnails = enableThumbnails;
     }
 
     @SuppressWarnings("java:S107")
-    public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, boolean darkTheme, String serverPort, boolean embeddedPlayer) {
-        this(playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, true);
+    public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, String serverPort, boolean embeddedPlayer) {
+        this(playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, serverPort, embeddedPlayer, true);
     }
 
     @SuppressWarnings("java:S107")
-    public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, boolean darkTheme, String serverPort, boolean embeddedPlayer, String cacheExpiryDays, boolean enableThumbnails) {
-        this(playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, enableThumbnails);
+    public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, String serverPort, boolean embeddedPlayer, String cacheExpiryDays, boolean enableThumbnails) {
+        this(playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, serverPort, embeddedPlayer, enableThumbnails);
         this.cacheExpiryDays = cacheExpiryDays;
     }
 
     @SuppressWarnings("java:S107")
-    public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, boolean darkTheme, String serverPort, boolean embeddedPlayer, String cacheExpiryDays) {
-        this(playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, cacheExpiryDays, true);
+    public Configuration(String playerPath1, String playerPath2, String playerPath3, String defaultPlayerPath, String filterCategoriesList, String filterChannelsList, boolean pauseFiltering, String serverPort, boolean embeddedPlayer, String cacheExpiryDays) {
+        this(playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, serverPort, embeddedPlayer, cacheExpiryDays, true);
+    }
+
+    /**
+     * Resolves the three-state theme selection. Never returns {@code null}.
+     */
+    public ThemeMode resolveThemeMode() {
+        return ThemeMode.fromPersisted(themeMode);
+    }
+
+    /**
+     * Stores the selection.
+     */
+    public void applyThemeMode(ThemeMode mode) {
+        this.themeMode = (mode == null ? ThemeMode.LIGHT : mode).persistedValue();
     }
 
 }

@@ -159,7 +159,7 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
         Configuration cfg = new Configuration(
                 "player-a", "player-b", "player-c", "player-a",
                 "", "", false,
-                false, String.valueOf(appPort), false, false
+                String.valueOf(appPort), false, false
         );
         cfg.setEnableThumbnails(false);
         cfg.setLanguageLocale("ar-SA");

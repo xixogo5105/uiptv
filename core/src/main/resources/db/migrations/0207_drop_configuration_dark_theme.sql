@@ -1,0 +1,4 @@
+-- themeMode is now the only theme column; 0206 has already copied the legacy darkTheme flag into it,
+-- so the flag itself is no longer read or written anywhere. The directive is a no-op when the column is
+-- already absent, which is the case for databases created from the current baseline.
+--@drop_column Configuration darkTheme

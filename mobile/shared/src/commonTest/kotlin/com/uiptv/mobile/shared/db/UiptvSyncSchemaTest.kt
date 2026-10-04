@@ -56,7 +56,6 @@ class UiptvSyncSchemaTest {
                 "filterCategoriesList",
                 "filterChannelsList",
                 "pauseFiltering",
-                "darkTheme",
                 "serverPort",
                 "embeddedPlayer",
                 "cacheExpiryDays",

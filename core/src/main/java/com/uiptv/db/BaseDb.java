@@ -99,7 +99,10 @@ public abstract class BaseDb {
         try {
             if(isBlank(resultSet.getString(column))) return false;
             return (Integer.parseInt(resultSet.getString(column)) > 0);
-        } catch (SQLException _) {
+        } catch (SQLException | NumberFormatException _) {
+            // NumberFormatException: the column holds something that is not a 0/1 flag, for instance a
+            // configuration row imported from another source. Callers that care about the raw content read
+            // the column themselves.
             return false;
         }
     }

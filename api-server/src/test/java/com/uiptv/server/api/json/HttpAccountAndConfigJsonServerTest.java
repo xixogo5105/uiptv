@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
 import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
+import com.uiptv.model.ThemeMode;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.testsupport.DbBackedTest;
@@ -46,6 +47,39 @@ class HttpAccountAndConfigJsonServerTest extends DbBackedTest {
     }
 
     @Test
+    void configServer_returnsTheThreeStateThemeSelection() throws Exception {
+        HttpConfigJsonServer handler = new HttpConfigJsonServer();
+
+        for (ThemeMode mode : ThemeMode.values()) {
+            Configuration configuration = ConfigurationService.getInstance().read();
+            configuration.applyThemeMode(mode);
+            ConfigurationService.getInstance().save(configuration);
+
+            StubHttpExchange exchange = new StubHttpExchange("/config", "GET");
+            handler.handle(exchange);
+
+            assertEquals(200, exchange.getResponseCode());
+            JSONObject response = new JSONObject(exchange.getResponseBodyText());
+            assertEquals(mode.persistedValue(), response.getString("themeMode"));
+        }
+    }
+
+    @Test
+    void configServer_rejectsAThemeWrite() throws Exception {
+        Configuration configuration = ConfigurationService.getInstance().read();
+        configuration.applyThemeMode(ThemeMode.DARK);
+        ConfigurationService.getInstance().save(configuration);
+
+        HttpConfigJsonServer handler = new HttpConfigJsonServer();
+        StubHttpExchange exchange = new StubHttpExchange("/config", "POST", "{\"themeMode\":\"light\"}");
+        handler.handle(exchange);
+
+        // generateResponse only allows GET, so a write cannot silently downgrade the stored selection.
+        assertEquals(405, exchange.getResponseCode());
+        assertEquals(ThemeMode.DARK, ConfigurationService.getInstance().read().resolveThemeMode());
+    }
+
+    @Test
     void configServer_returnsThumbnailFlagFromConfiguration() throws Exception {
         Configuration configuration = ConfigurationService.getInstance().read();
         configuration.setEnableThumbnails(true);
@@ -63,14 +97,20 @@ class HttpAccountAndConfigJsonServerTest extends DbBackedTest {
     private static class StubHttpExchange extends HttpExchange {
         private final URI requestUri;
         private final String method;
+        private final String requestBody;
         private final Headers requestHeaders = new Headers();
         private final Headers responseHeaders = new Headers();
         private final ByteArrayOutputStream responseBody = new ByteArrayOutputStream();
         private int responseCode = -1;
 
         StubHttpExchange(String uri, String method) {
+            this(uri, method, null);
+        }
+
+        StubHttpExchange(String uri, String method, String requestBody) {
             this.requestUri = URI.create(uri);
             this.method = method;
+            this.requestBody = requestBody;
         }
 
         String getResponseBodyText() {
@@ -109,7 +149,9 @@ class HttpAccountAndConfigJsonServerTest extends DbBackedTest {
 
         @Override
         public InputStream getRequestBody() {
-            return new ByteArrayInputStream(new byte[0]);
+            return new ByteArrayInputStream(
+                    requestBody == null ? new byte[0] : requestBody.getBytes(StandardCharsets.UTF_8)
+            );
         }
 
         @Override

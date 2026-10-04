@@ -89,7 +89,6 @@ class ContentFilterFlowTest extends DbBackedTest {
                 categoryFilter,
                 channelFilter,
                 pauseFiltering,
-                false,
                 "8888",
                 false,
                 false

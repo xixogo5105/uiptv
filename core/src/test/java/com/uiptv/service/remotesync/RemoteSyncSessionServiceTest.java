@@ -2,6 +2,7 @@ package com.uiptv.service.remotesync;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
+import com.uiptv.model.ThemeMode;
 import com.uiptv.service.AccountService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DatabaseSyncService;
@@ -89,7 +90,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
             Account imported = AccountService.getInstance().getByName("source-account");
             assertNotNull(imported);
             Configuration configuration = ConfigurationService.getInstance().read();
-            assertTrue(configuration.isDarkTheme());
+            assertTrue(configuration.resolveThemeMode() == ThemeMode.DARK);
             assertEquals("keep-local-player", configuration.getPlayerPath1());
         });
 
@@ -149,7 +150,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         withDatabase(remoteDb, () -> {
             assertNotNull(AccountService.getInstance().getByName("source-account"));
             Configuration configuration = ConfigurationService.getInstance().read();
-            assertFalse(configuration.isDarkTheme());
+            assertFalse(configuration.resolveThemeMode() == ThemeMode.DARK);
             assertEquals("keep-local-player", configuration.getPlayerPath1());
         });
 
@@ -293,7 +294,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         withDatabase(targetDb, () -> {
             assertNotNull(AccountService.getInstance().getByName("remote-account"));
             Configuration configuration = ConfigurationService.getInstance().read();
-            assertTrue(configuration.isDarkTheme());
+            assertTrue(configuration.resolveThemeMode() == ThemeMode.DARK);
             assertEquals("copy-me", configuration.getPlayerPath1());
         });
 
@@ -414,7 +415,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
 
     private void saveConfiguration(boolean darkTheme, String playerPath1) {
         Configuration configuration = ConfigurationService.getInstance().read();
-        configuration.setDarkTheme(darkTheme);
+        configuration.applyThemeMode(darkTheme ? ThemeMode.DARK : ThemeMode.LIGHT);
         configuration.setPlayerPath1(playerPath1);
         configuration.setServerPort("8888");
         ConfigurationService.getInstance().save(configuration);

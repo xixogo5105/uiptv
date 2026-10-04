@@ -253,7 +253,7 @@ class CrudTest extends DbBackedTest {
         ConfigurationService configService = ConfigurationService.getInstance();
 
         // 1. Create/Update Configuration
-        Configuration config = new Configuration("path1", "path2", "path3", "default", "catFilter", "chanFilter", true, true, "8080", false, false);
+        Configuration config = new Configuration("path1", "path2", "path3", "default", "catFilter", "chanFilter", true, "8080", false, false);
         configService.save(config);
 
         // 2. Read
@@ -261,7 +261,7 @@ class CrudTest extends DbBackedTest {
         assertNotNull(fetchedConfig);
         assertEquals("path1", fetchedConfig.getPlayerPath1());
         assertEquals("8080", fetchedConfig.getServerPort());
-        assertTrue(fetchedConfig.isDarkTheme());
+        assertEquals(ThemeMode.LIGHT, fetchedConfig.resolveThemeMode());
 
         // 3. Update
         fetchedConfig.setServerPort("9090");

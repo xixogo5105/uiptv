@@ -28,7 +28,6 @@ class ThumbnailModeServiceTest extends DbBackedTest {
                 "", "", "", "",
                 "", "",
                 false,
-                false,
                 "",
                 false,
                 "30",

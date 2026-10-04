@@ -2,6 +2,7 @@ package com.uiptv.db;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.Configuration;
+import com.uiptv.model.ThemeMode;
 import com.uiptv.util.AppLog;
 
 import java.sql.*;
@@ -126,12 +127,12 @@ public class ConfigurationDb extends BaseDb {
                 nullSafeString(resultSet, "filterCategoriesList"),
                 nullSafeString(resultSet, "filterChannelsList"),
                 safeBoolean(resultSet, "pauseFiltering"),
-                safeBoolean(resultSet, "darkTheme"),
                 nullSafeString(resultSet, "serverPort"),
                 safeBoolean(resultSet, "embeddedPlayer"),
                 nullSafeString(resultSet, "cacheExpiryDays"),
                 safeBoolean(resultSet, "enableThumbnails")
         );
+        c.applyThemeMode(ThemeMode.fromPersisted(nullSafeString(resultSet, "themeMode")));
         c.setWideView(safeBoolean(resultSet, "wideView"));
         c.setLanguageLocale(nullSafeString(resultSet, "languageLocale"));
         c.setTmdbReadAccessToken(nullSafeString(resultSet, "tmdbReadAccessToken"));
@@ -198,34 +199,34 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(5, configuration.getFilterCategoriesList());
         statement.setString(6, configuration.getFilterChannelsList());
         statement.setString(7, configuration.isPauseFiltering() ? "1" : "0");
-        statement.setString(8, configuration.isDarkTheme() ? "1" : "0");
-        statement.setString(9, configuration.getServerPort());
-        statement.setString(10, configuration.isEmbeddedPlayer() ? "1" : "0");
-        statement.setString(11, configuration.getCacheExpiryDays());
-        statement.setString(12, configuration.isEnableThumbnails() ? "1" : "0");
-        statement.setString(13, configuration.isWideView() ? "1" : "0");
-        statement.setString(14, configuration.getLanguageLocale());
-        statement.setString(15, configuration.getTmdbReadAccessToken());
-        statement.setString(16, configuration.getFilterLockHash());
-        statement.setString(17, configuration.getUiZoomPercent());
-        statement.setString(18, configuration.isAutoRunServerOnStartup() ? "1" : "0");
-        statement.setString(19, configuration.isHttpsServerEnabled() ? "1" : "0");
-        statement.setString(20, configuration.getHttpsServerPort());
-        statement.setString(21, configuration.getVlcNetworkCachingMs());
-        statement.setString(22, configuration.getVlcLiveCachingMs());
-        statement.setString(23, configuration.getPublishedM3uCategoryMode());
-        statement.setString(24, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
-        statement.setString(25, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
-        statement.setString(26, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
-        statement.setString(27, configuration.getFilterLockUnlockDurationMinutes());
-        statement.setString(28, configuration.isVlcNoVideoTitleShow() ? "1" : "0");
-        statement.setString(29, configuration.isVlcQuiet() ? "1" : "0");
-        statement.setString(30, configuration.isVlcHttpReconnect() ? "1" : "0");
-        statement.setString(31, configuration.isVlcAdaptiveUseAccess() ? "1" : "0");
-        statement.setString(32, configuration.getVlcVout());
-        statement.setString(33, configuration.getVlcAvcodecHw());
-        statement.setString(34, configuration.isLightweightModeEnabled() ? "1" : "0");
-        statement.setString(35, configuration.isShowBookmarkAndAccountCounts() ? "1" : "0");
+        statement.setString(8, configuration.getServerPort());
+        statement.setString(9, configuration.isEmbeddedPlayer() ? "1" : "0");
+        statement.setString(10, configuration.getCacheExpiryDays());
+        statement.setString(11, configuration.isEnableThumbnails() ? "1" : "0");
+        statement.setString(12, configuration.isWideView() ? "1" : "0");
+        statement.setString(13, configuration.getLanguageLocale());
+        statement.setString(14, configuration.getTmdbReadAccessToken());
+        statement.setString(15, configuration.getFilterLockHash());
+        statement.setString(16, configuration.getUiZoomPercent());
+        statement.setString(17, configuration.isAutoRunServerOnStartup() ? "1" : "0");
+        statement.setString(18, configuration.isHttpsServerEnabled() ? "1" : "0");
+        statement.setString(19, configuration.getHttpsServerPort());
+        statement.setString(20, configuration.getVlcNetworkCachingMs());
+        statement.setString(21, configuration.getVlcLiveCachingMs());
+        statement.setString(22, configuration.getPublishedM3uCategoryMode());
+        statement.setString(23, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
+        statement.setString(24, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
+        statement.setString(25, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
+        statement.setString(26, configuration.getFilterLockUnlockDurationMinutes());
+        statement.setString(27, configuration.isVlcNoVideoTitleShow() ? "1" : "0");
+        statement.setString(28, configuration.isVlcQuiet() ? "1" : "0");
+        statement.setString(29, configuration.isVlcHttpReconnect() ? "1" : "0");
+        statement.setString(30, configuration.isVlcAdaptiveUseAccess() ? "1" : "0");
+        statement.setString(31, configuration.getVlcVout());
+        statement.setString(32, configuration.getVlcAvcodecHw());
+        statement.setString(33, configuration.isLightweightModeEnabled() ? "1" : "0");
+        statement.setString(34, configuration.isShowBookmarkAndAccountCounts() ? "1" : "0");
+        statement.setString(35, configuration.resolveThemeMode().persistedValue());
      }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {

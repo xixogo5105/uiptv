@@ -17,6 +17,7 @@ import java.util.Objects;
 import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -114,6 +115,70 @@ class PillBarTest {
         assertEquals(40 * scale, snapshot.computedSingleRowHeight(), 0.01);
         assertEquals(44 * scale, snapshot.computedDoubleRowHeight(), 0.01);
         assertEquals(44 * scale, snapshot.prefHeightProperty(), 0.01);
+    }
+
+    @Test
+    void disablingTheCompactDropdownKeepsASingleRowWhenTheOptionsFit() throws Exception {
+        // The theme selector opts out of the compact dropdown and is laid out full width. Three short
+        // options must then stay on one row instead of reserving double height for wrapped content.
+        double[] heights = runOnFxThread(() -> {
+            PillBar<String> pillBar = new PillBar<>(value -> value, value -> value);
+            pillBar.setCompactDropdownEnabled(false);
+            pillBar.setItems(List.of("Light", "Dark", "System"));
+            new Scene(pillBar, 720, 90);
+            pillBar.applyCss();
+
+            pillBar.resize(720, 140);
+            pillBar.layout();
+            pillBar.layout();
+            double fullWidthHeight = pillBar.getPrefHeight();
+            double baseFontSize = pillAt(pillBar, 0).getFont().getSize();
+
+            // Narrow enough that the options genuinely cannot share a row.
+            pillBar.resize(90, 140);
+            pillBar.layout();
+            pillBar.layout();
+            double narrowHeight = pillBar.getPrefHeight();
+
+            return new double[]{fullWidthHeight, narrowHeight, baseFontSize};
+        });
+
+        double scale = heights[2] / 13.0;
+        assertEquals(40 * scale, heights[0], 0.01,
+                "Three short options must reserve a single row when given the full width");
+        assertTrue(heights[1] > heights[0] * 1.5,
+                "Wrapping to a second row is still expected when the options cannot fit");
+    }
+
+    @Test
+    void compactDropdownCanBeDisabledForBarsThatMustStayVisible() throws Exception {
+        // The theme selector opts out so three options never collapse into a dropdown, while every other
+        // pill bar keeps the responsive fallback.
+        boolean[] managedWithoutOptOut = runOnFxThread(() -> {
+            PillBar<String> pillBar = new PillBar<>(value -> value, value -> value);
+            pillBar.setItems(List.of("Light theme", "Dark theme", "System theme"));
+            new Scene(pillBar, 720, 90);
+            pillBar.applyCss();
+            pillBar.resize(180, 140);
+            pillBar.layout();
+            pillBar.layout();
+            return new boolean[]{compactDropdown(pillBar).isManaged()};
+        });
+
+        boolean[] managedWithOptOut = runOnFxThread(() -> {
+            PillBar<String> pillBar = new PillBar<>(value -> value, value -> value);
+            pillBar.setCompactDropdownEnabled(false);
+            pillBar.setItems(List.of("Light theme", "Dark theme", "System theme"));
+            new Scene(pillBar, 720, 90);
+            pillBar.applyCss();
+            pillBar.resize(180, 140);
+            pillBar.layout();
+            pillBar.layout();
+            return new boolean[]{compactDropdown(pillBar).isManaged()};
+        });
+
+        assertTrue(managedWithoutOptOut[0], "Without the opt-out a wrapped bar falls back to the dropdown");
+        assertFalse(managedWithOptOut[0], "Disabling the compact dropdown keeps the pills at any width");
     }
 
     @Test

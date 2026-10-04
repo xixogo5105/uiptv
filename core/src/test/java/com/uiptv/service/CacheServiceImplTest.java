@@ -900,7 +900,6 @@ class CacheServiceImplTest extends DbBackedTest {
                 categoryFilter,
                 channelFilter,
                 pauseFiltering,
-                false,
                 "8888",
                 false,
                 false

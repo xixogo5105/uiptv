@@ -59,7 +59,6 @@ public class DatabaseUtils {
                 new DataColumn("filterCategoriesList", "TEXT"),
                 new DataColumn("filterChannelsList", "TEXT"),
                 new DataColumn("pauseFiltering", "TEXT"),
-                new DataColumn("darkTheme", "TEXT"),
                 new DataColumn("serverPort", "TEXT"),
                 new DataColumn("embeddedPlayer", "TEXT"),
                 new DataColumn("cacheExpiryDays", "TEXT"),
@@ -86,7 +85,10 @@ public class DatabaseUtils {
                 new DataColumn("vlcVout", "TEXT"),
                 new DataColumn("vlcAvcodecHw", "TEXT"),
                 new DataColumn("lightweightModeEnabled", "TEXT"),
-                new DataColumn("showBookmarkAndAccountCounts", "TEXT")
+                new DataColumn("showBookmarkAndAccountCounts", "TEXT"),
+                // Three-state theme selection. darkTheme stays as the legacy "0"/"1" mirror so an older
+                // build reading the same database still resolves the right palette.
+                new DataColumn("themeMode", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),

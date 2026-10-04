@@ -286,7 +286,8 @@ public abstract class BaseMainApplicationUI {
         if (configuration == null) {
             return;
         }
-        configuration.setDarkTheme(!configuration.isDarkTheme());
+        // Header cycle: Light to Dark to System to Light.
+        configuration.applyThemeMode(configuration.resolveThemeMode().next());
         configurationService.save(configuration);
         Scene currentScene = primaryStage.getScene();
         if (currentScene != null) {

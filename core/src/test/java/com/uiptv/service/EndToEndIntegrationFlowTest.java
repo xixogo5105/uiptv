@@ -14,6 +14,7 @@ import com.uiptv.model.Category;
 import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
+import com.uiptv.model.ThemeMode;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.model.SeriesWatchState;
 import com.uiptv.shared.EpisodeList;
@@ -194,7 +195,6 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
                 "skip-me",
                 "skip-channel",
                 false,
-                false,
                 "9999",
                 false,
                 false
@@ -203,7 +203,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
         Configuration updated = configurationService.read();
         updated.setServerPort("10001");
-        updated.setDarkTheme(true);
+        updated.applyThemeMode(ThemeMode.DARK);
         updated.setEnableThumbnails(true);
         updated.setEmbeddedPlayer(true);
         updated.setWideView(true);
@@ -216,7 +216,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
 
         Configuration persisted = configurationService.read();
         assertEquals("10001", persisted.getServerPort());
-        assertTrue(persisted.isDarkTheme());
+        assertEquals(ThemeMode.DARK, persisted.resolveThemeMode());
         assertTrue(persisted.isEnableThumbnails());
         assertTrue(persisted.isEmbeddedPlayer());
         assertTrue(persisted.isWideView());
@@ -948,8 +948,8 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     private void seedConfigurationRow(String dbPath, String playerPath1, String playerPath2, String resolveChainEnabled) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
              PreparedStatement ps = conn.prepareStatement(
-                     "INSERT OR REPLACE INTO Configuration (id, playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, darkTheme, serverPort, embeddedPlayer, cacheExpiryDays, enableThumbnails, wideView, languageLocale, tmdbReadAccessToken, uiZoomPercent, autoRunServerOnStartup, vlcNetworkCachingMs, vlcLiveCachingMs, enableVlcHttpUserAgent, enableVlcHttpForwardCookies, resolveChainAndDeepRedirects) " +
-                             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                     "INSERT OR REPLACE INTO Configuration (id, playerPath1, playerPath2, playerPath3, defaultPlayerPath, filterCategoriesList, filterChannelsList, pauseFiltering, serverPort, embeddedPlayer, cacheExpiryDays, enableThumbnails, wideView, languageLocale, tmdbReadAccessToken, uiZoomPercent, autoRunServerOnStartup, vlcNetworkCachingMs, vlcLiveCachingMs, enableVlcHttpUserAgent, enableVlcHttpForwardCookies, resolveChainAndDeepRedirects) " +
+                             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
             ps.setInt(1, 1);
             ps.setString(2, playerPath1);
             ps.setString(3, playerPath2);
@@ -958,21 +958,20 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             ps.setString(6, "sports");
             ps.setString(7, "news");
             ps.setString(8, "0");
-            ps.setString(9, "1");
-            ps.setString(10, "8080");
-            ps.setString(11, "1");
-            ps.setString(12, "9");
+            ps.setString(9, "8080");
+            ps.setString(10, "1");
+            ps.setString(11, "9");
+            ps.setString(12, "1");
             ps.setString(13, "1");
-            ps.setString(14, "1");
-            ps.setString(15, "en-GB");
-            ps.setString(16, "tmdb-sync");
-            ps.setString(17, "133");
-            ps.setString(18, "1");
-            ps.setString(19, "3000");
-            ps.setString(20, "5000");
-            ps.setString(21, "1");
-            ps.setString(22, "0");
-            ps.setString(23, resolveChainEnabled);
+            ps.setString(14, "en-GB");
+            ps.setString(15, "tmdb-sync");
+            ps.setString(16, "133");
+            ps.setString(17, "1");
+            ps.setString(18, "3000");
+            ps.setString(19, "5000");
+            ps.setString(20, "1");
+            ps.setString(21, "0");
+            ps.setString(22, resolveChainEnabled);
             ps.executeUpdate();
         }
     }
