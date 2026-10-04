@@ -170,15 +170,26 @@ public class AppHeaderNavigation extends HBox {
     }
 
     public void refreshBadgeCounts() {
-        // Check if badge counts should be shown based on configuration
-        ConfigurationService configurationService = ConfigurationService.getInstance();
-        Configuration configuration = configurationService.read();
-        if (configuration != null && !configuration.isShowBookmarkAndAccountCounts()) {
-            // Hide badges if setting is disabled
-            updateBadgeCounts(0, 0);
+        // Bookmark/account change notifications can arrive on a worker thread, and this method
+        // touches JavaFX nodes, so always continue on the FX thread.
+        if (!Platform.isFxApplicationThread()) {
+            try {
+                Platform.runLater(this::refreshBadgeCounts);
+            } catch (IllegalStateException _) {
+                // The JavaFX runtime is already shutting down.
+            }
             return;
         }
-        
+
+        if (!isBadgeCountDisplayEnabled()) {
+            // Hide the badges but keep the cached counts intact. Discarding them here would leave
+            // nothing to repaint when the setting is switched back on, and the counts would only
+            // reappear after an application restart.
+            updateBadgeLabel(bookmarksBadge, 0);
+            updateBadgeLabel(accountsBadge, 0);
+            return;
+        }
+
         if (cachedBookmarkCount >= 0 || cachedAccountCount >= 0) {
             updateBadgeCounts(cachedBookmarkCount, cachedAccountCount);
         }
@@ -205,9 +216,30 @@ public class AppHeaderNavigation extends HBox {
             final int finalAccounts = cachedAccountCount;
 
             if (finalBookmarks >= 0 || finalAccounts >= 0) {
-                Platform.runLater(() -> updateBadgeCounts(finalBookmarks, finalAccounts));
+                Platform.runLater(() -> publishRefreshedBadgeCounts(finalBookmarks, finalAccounts));
             }
         });
+    }
+
+    private void publishRefreshedBadgeCounts(int bookmarkCount, int accountCount) {
+        // The setting may have been switched off while this reload was still in flight; a late
+        // result must not resurrect badges the user just hid.
+        if (!isBadgeCountDisplayEnabled()) {
+            updateBadgeLabel(bookmarksBadge, 0);
+            updateBadgeLabel(accountsBadge, 0);
+            return;
+        }
+        updateBadgeCounts(bookmarkCount, accountCount);
+    }
+
+    private static boolean isBadgeCountDisplayEnabled() {
+        try {
+            Configuration configuration = ConfigurationService.getInstance().read();
+            return configuration == null || configuration.isShowBookmarkAndAccountCounts();
+        } catch (RuntimeException _) {
+            // Fall back to the default (counts shown) when configuration cannot be read.
+            return true;
+        }
     }
 
     public void updateBadgeCounts(int bookmarkCount, int accountCount) {
