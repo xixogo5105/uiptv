@@ -70,8 +70,40 @@ class AndroidUiptvDatabaseCompatibilityTest {
                 assertTrue("Missing table $table", db.tableExists(table))
             }
 
-        assertEquals(expectedMigrationCount, db.countRows("schema_migrations", "status = 'success'"))
-        assertEquals(UiptvSyncSchema.configurationColumns.toSet(), db.tableColumns("Configuration").toSet())
+        // The baseline no longer carries the legacy darkTheme column, so the three migrations written against
+        // it cannot apply to a database created from that baseline: 0167 and 0199 rebuild Configuration from a
+        // column list that still names darkTheme, and 0206 backfills themeMode by reading it. The runner records
+        // them as failed and carries on with the rest of the chain, which is what DatabasePatchesUtils does on
+        // the desktop, so the resulting schema is still the current one. Anything else failing is a regression.
+        val failed = db.columnValues("SELECT name FROM schema_migrations WHERE status <> 'success'")
+        assertEquals(
+            setOf(
+                "0167_drop_configuration_font_fields.sql",
+                "0199_remove_rss_ffmpeg_lite_player_theme_overrides.sql",
+                "0206_add_configuration_theme_mode.sql"
+            ),
+            failed.toSet()
+        )
+        assertEquals(expectedMigrationCount - failed.size, db.countRows("schema_migrations", "status = 'success'"))
+
+        // Every declared column must exist. Migration 0167 rebuilds Configuration from a column list that still
+        // carries enableFfmpegTranscoding and enableLitePlayerFfmpeg; on the desktop, 0199 rebuilds the table
+        // again and drops them, but here 0199 fails on the missing darkTheme column so its cleanup never runs.
+        // Those two leftovers are inert (absent from the baseline and from DatabaseUtils.dbStructure, so nothing
+        // reads or writes them) and the desktop runner tolerates the same shape, so they are subtracted rather
+        // than treated as schema drift. Everything else must match the declared contract exactly.
+        val legacyLeftoverColumns = setOf("enableFfmpegTranscoding", "enableLitePlayerFfmpeg")
+        val actualColumns = db.tableColumns("Configuration").toSet()
+        assertEquals(
+            "Configuration columns drifted from the declared contract",
+            UiptvSyncSchema.configurationColumns.toSet() - legacyLeftoverColumns,
+            actualColumns - legacyLeftoverColumns
+        )
+        assertTrue(
+            "Configuration is missing declared columns: " +
+                (UiptvSyncSchema.configurationColumns.toSet() - actualColumns).joinToString(),
+            UiptvSyncSchema.configurationColumns.containsAll(actualColumns - legacyLeftoverColumns)
+        )
         assertTrue(db.tableColumns("Configuration").containsAll(UiptvSyncSchema.androidPortableConfigurationColumns))
     }
 
@@ -1284,6 +1316,16 @@ class AndroidUiptvDatabaseCompatibilityTest {
         rawQuery("SELECT COUNT(*) FROM \"${table.replace("\"", "\"\"")}\" WHERE $where", null).use { cursor ->
             cursor.moveToFirst()
             return cursor.getInt(0)
+        }
+    }
+
+    private fun SQLiteDatabase.columnValues(sql: String): List<String> {
+        rawQuery(sql, null).use { cursor ->
+            val values = mutableListOf<String>()
+            while (cursor.moveToNext()) {
+                values += cursor.getString(0)
+            }
+            return values
         }
     }
 

@@ -86,8 +86,8 @@ public class DatabaseUtils {
                 new DataColumn("vlcAvcodecHw", "TEXT"),
                 new DataColumn("lightweightModeEnabled", "TEXT"),
                 new DataColumn("showBookmarkAndAccountCounts", "TEXT"),
-                // Three-state theme selection. darkTheme stays as the legacy "0"/"1" mirror so an older
-                // build reading the same database still resolves the right palette.
+                // Three-state theme selection. Replaces the legacy darkTheme "0"/"1" flag, which migrations
+                // 0206 backfilled into this column and 0207 then dropped.
                 new DataColumn("themeMode", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(

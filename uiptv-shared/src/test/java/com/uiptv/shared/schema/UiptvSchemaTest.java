@@ -70,7 +70,7 @@ class UiptvSchemaTest {
 
     @Test
     void migrationMetadataTracksCurrentSchemaVersion() {
-        assertEquals("0199", UiptvMigrationInfo.CURRENT_SCHEMA_VERSION);
+        assertEquals("0207", UiptvMigrationInfo.CURRENT_SCHEMA_VERSION);
         assertEquals(UiptvMigrationInfo.CURRENT_SCHEMA_VERSION, UiptvSchema.CURRENT_SCHEMA_VERSION);
         assertEquals("0000_baseline.sql", UiptvMigrationInfo.BASELINE_MIGRATION);
     }

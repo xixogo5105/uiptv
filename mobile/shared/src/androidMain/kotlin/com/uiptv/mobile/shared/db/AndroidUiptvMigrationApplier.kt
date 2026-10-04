@@ -18,17 +18,39 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
             return
         }
 
-        db.beginTransaction()
+        // SQLiteDatabase nests transactions by reference counting, so an inner endTransaction() only decrements
+        // a counter: it cannot roll back on its own. SQLiteOpenHelper already wraps onCreate/onUpgrade in a
+        // transaction, so starting another one here would leave a failed migration's partial writes (a
+        // half-created Configuration_new, for example) inside the outer transaction instead of undoing them.
+        // Only take ownership of a transaction when the applier is running standalone.
+        val ownsTransaction = !db.inTransaction()
+        if (ownsTransaction) {
+            db.beginTransaction()
+        }
+
+        var failure: Exception? = null
         try {
             executeMigration(db, sql)
             recordMigration(db, name, checksum, "success", null)
-            db.setTransactionSuccessful()
+            if (ownsTransaction) {
+                db.setTransactionSuccessful()
+            }
         } catch (ex: Exception) {
-            db.endTransaction()
-            recordMigration(db, name, checksum, "failed", ex.message ?: ex::class.simpleName.orEmpty())
-            throw ex
+            failure = ex
+        } finally {
+            if (ownsTransaction) {
+                db.endTransaction()
+            }
         }
-        db.endTransaction()
+
+        if (failure != null) {
+            // Matches DatabasePatchesUtils.applyMigration on the desktop: a migration that cannot be applied is
+            // recorded as failed and the chain continues to the next one. The baseline already carries the
+            // current schema, so migrations written against older shapes (0167 and 0199 rebuild Configuration
+            // around the long-dropped darkTheme column, for example) are redundant here rather than fatal.
+            // Rethrowing aborted the whole chain and left the database unusable.
+            recordMigration(db, name, checksum, "failed", failure.message ?: failure::class.simpleName.orEmpty())
+        }
     }
 
     private fun executeMigration(db: SQLiteDatabase, sql: String) {

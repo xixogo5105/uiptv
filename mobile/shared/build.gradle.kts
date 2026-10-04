@@ -39,6 +39,16 @@ kotlin {
 
     jvmToolchain(17)
 
+    // The baseline SQL is the single schema artifact both platforms already share: core loads it from the
+    // classpath and androidApp repackages it as an asset. Exposing it to the shared module's tests lets
+    // UiptvSyncSchemaBaselineContractTest derive its expectation from that file instead of a second
+    // hand-maintained column list, so schema drift fails the build rather than surfacing at restore time.
+    sourceSets {
+        commonTest {
+            resources.srcDir("../../core/src/main/resources")
+        }
+    }
+
     sourceSets {
         commonMain.dependencies {
             implementation(compose.runtime)

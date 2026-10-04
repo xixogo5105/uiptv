@@ -72,9 +72,19 @@ public final class UiptvSchema {
             "wideView",
             "languageLocale",
             "tmdbReadAccessToken",
+            "httpsServerEnabled",
+            "httpsServerPort",
             "publishedM3uCategoryMode",
             COL_RESOLVE_CHAIN_AND_DEEP_REDIRECTS,
-            "filterLockUnlockDurationMinutes"
+            "filterLockUnlockDurationMinutes",
+            "vlcNoVideoTitleShow",
+            "vlcQuiet",
+            "vlcHttpReconnect",
+            "vlcAdaptiveUseAccess",
+            "vlcVout",
+            "vlcAvcodecHw",
+            "lightweightModeEnabled",
+            "showBookmarkAndAccountCounts"
     );
 
     public static final List<UiptvTable> ANDROID_PULL_SYNC_TABLE_ORDER = List.of(
@@ -121,7 +131,6 @@ public final class UiptvSchema {
                 column("filterCategoriesList", TYPE_TEXT),
                 column("filterChannelsList", TYPE_TEXT),
                 column("pauseFiltering", TYPE_TEXT),
-                column("themeMode", TYPE_TEXT),
                 column("serverPort", TYPE_TEXT),
                 column("embeddedPlayer", TYPE_TEXT),
                 column("cacheExpiryDays", TYPE_TEXT),
@@ -132,13 +141,24 @@ public final class UiptvSchema {
                 column(COL_FILTER_LOCK_HASH, TYPE_TEXT),
                 column("uiZoomPercent", TYPE_TEXT),
                 column("autoRunServerOnStartup", TYPE_TEXT),
+                column("httpsServerEnabled", TYPE_TEXT),
+                column("httpsServerPort", TYPE_TEXT),
                 column("vlcNetworkCachingMs", TYPE_TEXT),
                 column("vlcLiveCachingMs", TYPE_TEXT),
                 column("publishedM3uCategoryMode", TYPE_TEXT),
                 column("enableVlcHttpUserAgent", TYPE_TEXT),
                 column("enableVlcHttpForwardCookies", TYPE_TEXT),
                 column(COL_RESOLVE_CHAIN_AND_DEEP_REDIRECTS, TYPE_TEXT),
-                column("filterLockUnlockDurationMinutes", TYPE_TEXT)
+                column("filterLockUnlockDurationMinutes", TYPE_TEXT),
+                column("vlcNoVideoTitleShow", TYPE_TEXT),
+                column("vlcQuiet", TYPE_TEXT),
+                column("vlcHttpReconnect", TYPE_TEXT),
+                column("vlcAdaptiveUseAccess", TYPE_TEXT),
+                column("vlcVout", TYPE_TEXT),
+                column("vlcAvcodecHw", TYPE_TEXT),
+                column("lightweightModeEnabled", TYPE_TEXT),
+                column("showBookmarkAndAccountCounts", TYPE_TEXT),
+                column("themeMode", TYPE_TEXT)
         ));
         columns.put(UiptvTable.ACCOUNT, List.of(
                 column("id", TYPE_INTEGER_PRIMARY_KEY),

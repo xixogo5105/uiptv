@@ -66,13 +66,24 @@ class UiptvSyncSchemaTest {
                 "filterLockHash",
                 "uiZoomPercent",
                 "autoRunServerOnStartup",
+                "httpsServerEnabled",
+                "httpsServerPort",
                 "vlcNetworkCachingMs",
                 "vlcLiveCachingMs",
                 "publishedM3uCategoryMode",
                 "enableVlcHttpUserAgent",
                 "enableVlcHttpForwardCookies",
                 "resolveChainAndDeepRedirects",
-                "filterLockUnlockDurationMinutes"
+                "filterLockUnlockDurationMinutes",
+                "vlcNoVideoTitleShow",
+                "vlcQuiet",
+                "vlcHttpReconnect",
+                "vlcAdaptiveUseAccess",
+                "vlcVout",
+                "vlcAvcodecHw",
+                "lightweightModeEnabled",
+                "showBookmarkAndAccountCounts",
+                "themeMode"
             ),
             UiptvSyncSchema.configurationColumns
         )
