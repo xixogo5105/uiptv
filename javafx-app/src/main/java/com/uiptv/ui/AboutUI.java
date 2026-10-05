@@ -23,6 +23,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 
 public class AboutUI {
     private static final String FALLBACK_PROJECT_URL = "https://github.com/xixogo5105/uiptv";
@@ -50,10 +51,7 @@ public class AboutUI {
         root.getStyleClass().add("management-popup-root");
 
         Scene scene = new Scene(root, resolveSceneWidth(), resolveSceneHeight());
-        UiI18n.applySceneOrientation(scene);
-        if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
+        RootApplication.applyThemeToPopupScene(scene, null);
         stage.setScene(scene);
         stage.showAndWait();
     }

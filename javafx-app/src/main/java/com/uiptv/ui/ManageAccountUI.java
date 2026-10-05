@@ -40,6 +40,7 @@ import static com.uiptv.util.StringUtils.*;
 import static com.uiptv.widget.DialogAlert.showDialog;
 import static com.uiptv.widget.UIptvAlert.showErrorAlert;
 import static com.uiptv.widget.UIptvAlert.showMessageAlert;
+import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
 public class ManageAccountUI extends VBox {
     public static final String PRIMARY_MAC_ADDRESS_HINT_KEY = "managePrimaryMacAddressHint";
@@ -437,6 +438,54 @@ public class ManageAccountUI extends VBox {
 
         ProgressDialog progressDialog = new ProgressDialog(resolveOwnerStage());
         progressDialog.setDefaultMacAddress(macAddress.getValue());
+        progressDialog.setOnSetDefaultMac(selectedMac -> {
+            // Set the selected MAC as the default in the UI
+            if (macAddress.getItems().contains(selectedMac)) {
+                macAddress.setValue(selectedMac);
+            } else {
+                // If not in items, add it temporarily (though it should be there)
+                macAddress.getItems().add(selectedMac);
+                macAddress.setValue(selectedMac);
+            }
+            // Update the progress dialog to reflect the new default
+            progressDialog.updateDefaultMacAddress(selectedMac);
+            // Save the account to persist the change
+            saveAccount(false);
+        });
+        progressDialog.setOnDeleteMac(selectedMac -> {
+            // Show confirmation before deleting
+            if (showConfirmationAlert(I18n.tr("macHoverConfirmDelete", selectedMac))) {
+                // Remove from macAddressList
+                String current = macAddressList.getText();
+                if (isNotBlank(current)) {
+                    List<String> macs = new ArrayList<>(Arrays.stream(current.replace(SPACE, "").split(","))
+                            .filter(value -> !isBlank(value))
+                            .toList());
+                    boolean removed = macs.removeIf(mac -> mac.equalsIgnoreCase(selectedMac));
+                    if (removed) {
+                        String newMacsStr = String.join(", ", macs);
+                        macAddressList.setText(newMacsStr);
+                        // Update the combo box items
+                        macAddress.getItems().clear();
+                        if (!macs.isEmpty()) {
+                            macAddress.getItems().addAll(macs);
+                            // If we deleted the current default, set a new default
+                            if (selectedMac.equalsIgnoreCase(macAddress.getValue())) {
+                                macAddress.setValue(macs.getFirst());
+                            }
+                        } else {
+                            macAddress.setValue(null);
+                        }
+                        setupMacAddressByList(newMacsStr);
+                        saveAccount(false);
+                    }
+                }
+                // Remove the verification card from the progress dialog
+                progressDialog.removeVerificationCard(selectedMac);
+                // Also stop the verification if it's still running to prevent re-adding the card
+                progressDialog.requestDirectStop();
+            }
+        });
         progressDialog.show();
 
         AtomicBoolean stopRequested = new AtomicBoolean(false);
@@ -581,6 +630,7 @@ public class ManageAccountUI extends VBox {
             }
 
             macAddressList.setText(newMacsStr);
+            setupMacAddressByList(newMacsStr);
             saveAccount(false);
         }
     }

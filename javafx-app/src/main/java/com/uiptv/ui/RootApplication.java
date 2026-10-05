@@ -33,6 +33,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import javafx.util.Duration;
 
 import java.io.IOException;
@@ -153,6 +154,26 @@ public class RootApplication extends Application {
      */
     public static void applyTheme(Scene scene, Class<?> themeResourceClass, ThemeMode themeMode, int zoomPercent) {
         ThemeManager.applyTheme(scene, themeResourceClass, themeMode, zoomPercent);
+    }
+
+    /**
+     * Applies the current application theme to a popup scene. This registers the scene with
+     * {@link ThemeManager} so that system theme changes (when ThemeMode.SYSTEM is active) are
+     * automatically propagated to the popup.
+     *
+     * @param scene  the popup scene to theme
+     * @param owner  the owner window, used to inherit zoom and theme mode; may be {@code null}
+     */
+    public static void applyThemeToPopupScene(Scene scene, Window owner) {
+        ConfigurationService service = ConfigurationService.getInstance();
+        Configuration configuration = service.read();
+        Class<?> resourceAnchor = RootApplication.class;
+        ThemeMode themeMode = configuration == null ? ThemeMode.LIGHT : configuration.resolveThemeMode();
+        int zoomPercent = service.getUiZoomPercent();
+
+        ThemeManager.applyTheme(scene, resourceAnchor, themeMode, zoomPercent);
+
+        UiI18n.applySceneOrientation(scene);
     }
 
     @Override

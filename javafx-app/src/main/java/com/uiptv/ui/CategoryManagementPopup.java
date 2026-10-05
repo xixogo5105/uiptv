@@ -5,6 +5,7 @@ import com.uiptv.util.I18n;
 import javafx.scene.Scene;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 
 public class CategoryManagementPopup extends CategoryManagementInline {
     private static final double SCENE_WIDTH = 480;
@@ -48,12 +49,7 @@ public class CategoryManagementPopup extends CategoryManagementInline {
 
     private Scene createScene(Stage owner) {
         Scene scene = new Scene(this, SCENE_WIDTH, SCENE_HEIGHT);
-        UiI18n.applySceneOrientation(scene);
-        if (owner != null && owner.getScene() != null) {
-            scene.getStylesheets().addAll(owner.getScene().getStylesheets());
-        } else if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
+        RootApplication.applyThemeToPopupScene(scene, owner);
         return scene;
     }
 }

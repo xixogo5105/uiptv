@@ -47,9 +47,8 @@ public class CategoryManagementInline extends VBox {
         categoryNameField.getStyleClass().add("management-popup-text-field");
         categoryNameField.setOnAction(event -> addCategory());
 
-        addButton.getStyleClass().add("prominent");
+        addButton.getStyleClass().add("uiptv-inline-primary-button");
         addButton.setOnAction(event -> addCategory());
-        addButton.setDefaultButton(true);
 
         removeButton.getStyleClass().add("dangerous");
         removeButton.setOnAction(event -> removeCategory());

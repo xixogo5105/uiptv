@@ -192,8 +192,7 @@ public class ManageAccountInfoPane extends BorderPane {
         VBox.setVgrow(card, Priority.ALWAYS);
 
         Scene scene = new Scene(root, PROFILE_POPUP_WIDTH, PROFILE_POPUP_HEIGHT);
-        UiI18n.applySceneOrientation(scene);
-        applyOwnerStylesheets(scene, owner);
+        RootApplication.applyThemeToPopupScene(scene, owner);
         stage.setScene(scene);
         stage.showAndWait();
     }
@@ -219,20 +218,6 @@ public class ManageAccountInfoPane extends BorderPane {
             return getScene().getWindow();
         }
         return RootApplication.getPrimaryStage();
-    }
-
-    private void applyOwnerStylesheets(Scene scene, Window owner) {
-        if (owner instanceof Stage ownerStage && ownerStage.getScene() != null) {
-            scene.getStylesheets().addAll(ownerStage.getScene().getStylesheets());
-            return;
-        }
-        if (getScene() != null) {
-            scene.getStylesheets().addAll(getScene().getStylesheets());
-            return;
-        }
-        if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
     }
 
     private void copyToClipboard(String text) {

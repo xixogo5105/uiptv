@@ -4922,3 +4922,48 @@
     -fx-text-fill: #2b5f9e;
     -fx-cursor: default;
 }
+
+/* Verification MAC Card Action Styles */
+.verification-mac-card-actions {
+    -fx-spacing: 6;
+    -fx-alignment: center-right;
+}
+
+.verification-mac-card-action-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 20;
+    -fx-background-radius: 20;
+    -fx-padding: 8;
+    -fx-min-width: 36;
+    -fx-min-height: 36;
+    -fx-pref-width: 36;
+    -fx-pref-height: 36;
+    -fx-cursor: hand;
+    -fx-opacity: 0.7;
+    -fx-transition: opacity 0.1s ease, -fx-background-color 0.1s ease;
+}
+
+.verification-mac-card-action-button:hover,
+.verification-mac-card-action-button:focused {
+    -fx-background-color: rgba(37, 99, 235, 0.1);
+    -fx-border-color: rgba(37, 99, 235, 0.2);
+    -fx-opacity: 1;
+}
+
+.verification-mac-card-action-button:pressed {
+    -fx-background-color: rgba(37, 99, 235, 0.2);
+}
+
+.verification-mac-card-action-icon {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.verification-mac-card-action-button:hover .verification-mac-card-action-icon,
+.verification-mac-card-action-button:focused .verification-mac-card-action-icon {
+    -fx-fill: -uiptv-header-action-hover-fg;
+}
+
+.verification-mac-card-action-button:pressed .verification-mac-card-action-icon {
+    -fx-fill: derive(-uiptv-header-action-hover-fg, -20%);
+}

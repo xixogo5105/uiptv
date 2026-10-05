@@ -29,6 +29,7 @@ import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 
 import java.net.URI;
 import java.util.ArrayDeque;
@@ -1193,8 +1194,9 @@ public class ReloadCacheInline extends VBox {
             return;
         }
         Stage popupStage = new Stage();
-        if (getScene() != null && getScene().getWindow() != null) {
-            popupStage.initOwner(getScene().getWindow());
+        Window owner = getScene() != null ? getScene().getWindow() : null;
+        if (owner != null) {
+            popupStage.initOwner(owner);
             popupStage.initModality(Modality.WINDOW_MODAL);
         } else {
             popupStage.initModality(Modality.APPLICATION_MODAL);
@@ -1204,12 +1206,7 @@ public class ReloadCacheInline extends VBox {
         Runnable closeAction = popupStage::close;
         VBox root = buildProblemAccountsInlineRoot(processedAccounts, problematicAccounts, accountsBox, closeAction);
         Scene scene = new Scene(root, PROBLEM_ACCOUNTS_DIALOG_WIDTH, 560);
-        UiI18n.applySceneOrientation(scene);
-        if (getScene() != null) {
-            scene.getStylesheets().addAll(getScene().getStylesheets());
-        } else if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
+        RootApplication.applyThemeToPopupScene(scene, owner);
         popupStage.setScene(scene);
         popupStage.show();
     }

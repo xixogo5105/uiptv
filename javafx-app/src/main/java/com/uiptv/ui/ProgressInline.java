@@ -2,29 +2,27 @@ package com.uiptv.ui;
 
 import com.uiptv.util.I18n;
 import com.uiptv.widget.InlinePanelService;
-import com.uiptv.widget.SegmentedProgressBar;
 import com.uiptv.widget.InlinePanelService.InlinePanelHandle;
+import com.uiptv.widget.SegmentedProgressBar;
+import com.uiptv.widget.UIptvAlert;
 import javafx.application.Platform;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
-import javafx.scene.shape.Circle;
-import javafx.scene.shape.Line;
+import javafx.scene.Node;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.*;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
+import javafx.util.Duration;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
@@ -49,6 +47,13 @@ public class ProgressInline extends BorderPane {
     private InlinePanelHandle panelHandle;
     private boolean completed;
     private String defaultMacAddress = "";
+    
+    // Callback actions for MAC card hover actions
+    private Consumer<String> onSetDefaultMac = mac -> { };
+    private Consumer<String> onDeleteMac = mac -> { };
+    
+    // Direct stop action (without confirmation)
+    private Runnable directStopAction = () -> { };
     
     // Pause Widget Components
     private final HBox pauseWidget = new HBox(10);
@@ -212,6 +217,78 @@ public class ProgressInline extends BorderPane {
         this.defaultMacAddress = defaultMacAddress == null ? "" : defaultMacAddress.trim();
     }
 
+    public void updateDefaultMacAddress(String newDefaultMacAddress) {
+        this.defaultMacAddress = newDefaultMacAddress == null ? "" : newDefaultMacAddress.trim();
+        refreshVerificationCards();
+    }
+
+    private void refreshVerificationCards() {
+        Platform.runLater(() -> {
+            for (Node node : messageContainer.getChildren()) {
+                String cardMac = (String) node.getProperties().get("macAddress");
+                if (cardMac == null || cardMac.isBlank()) continue;
+
+                // The node is either a VBox (for default MAC) or StackPane wrapper (for non-default)
+                VBox card = (node instanceof StackPane wrapper) ? (VBox) wrapper.getChildren().get(0) : (VBox) node;
+                
+                // Check if this card is the new default
+                boolean isNewDefault = isDefaultMac(cardMac);
+                
+                // Update the title row - add/remove default badge
+                HBox titleRow = (HBox) card.getChildren().get(0);
+                Label existingBadge = null;
+                for (Node child : titleRow.getChildren()) {
+                    if (child instanceof Label label && label.getStyleClass().contains("verification-default-pill")) {
+                        existingBadge = label;
+                        break;
+                    }
+                }
+
+                if (isNewDefault && existingBadge == null) {
+                    Label defaultBadge = new Label(I18n.tr("macHoverDefaultBadge"));
+                    defaultBadge.getStyleClass().addAll("mac-default-pill", "verification-default-pill");
+                    titleRow.getChildren().add(defaultBadge);
+                } else if (!isNewDefault && existingBadge != null) {
+                    titleRow.getChildren().remove(existingBadge);
+                }
+
+                // Update hover actions - remove if now default, add if no longer default
+                if (node instanceof StackPane wrapper) {
+                    HBox actions = null;
+                    for (Node child : wrapper.getChildren()) {
+                        if (child instanceof HBox hbox && hbox.getStyleClass().contains("verification-mac-card-actions")) {
+                            actions = hbox;
+                            break;
+                        }
+                    }
+
+                    if (isNewDefault) {
+                        // Now default - remove action buttons
+                        if (actions != null) {
+                            wrapper.getChildren().remove(actions);
+                        }
+                    } else {
+                        // No longer default - add action buttons if not present
+                        if (actions == null) {
+                            HBox newActions = createMacCardActions(cardMac);
+                            StackPane.setAlignment(newActions, Pos.TOP_RIGHT);
+                            StackPane.setMargin(newActions, new Insets(8, 8, 0, 0));
+                            wrapper.getChildren().add(newActions);
+                        } else {
+                            // Update the set default button state
+                            for (Node btn : actions.getChildren()) {
+                                if (btn instanceof Button button && button.getTooltip() != null 
+                                        && button.getTooltip().getText().equals(I18n.tr("macHoverSetDefault"))) {
+                                    button.setDisable(false);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     public void setTotal(int total) {
         totalItems = Math.max(0, total);
         completedItems = 0;
@@ -292,8 +369,9 @@ public class ProgressInline extends BorderPane {
 
     private void appendVerificationHeader(String mac, int index, int total) {
         String safeMac = mac == null ? "" : mac.trim();
-        VBox card = createVerificationCard(
+        Node card = createVerificationCardWithActions(
                 I18n.tr("manageVerifyingMacProgress", index + 1, total, safeMac),
+                safeMac,
                 isDefaultMac(safeMac)
         );
         messageContainer.getChildren().add(card);
@@ -304,6 +382,10 @@ public class ProgressInline extends BorderPane {
     }
 
     private VBox createVerificationCard(String titleText, boolean defaultMac) {
+        return createVerificationCard(titleText, null, defaultMac);
+    }
+
+    private VBox createVerificationCard(String titleText, String macAddress, boolean defaultMac) {
         TextFlow title = createStyledText(titleText);
         title.getStyleClass().add("verification-card-title");
         title.getChildren().forEach(text -> text.getStyleClass().add("verification-card-title-text"));
@@ -315,7 +397,7 @@ public class ProgressInline extends BorderPane {
         titleRow.setAlignment(Pos.CENTER_LEFT);
         titleRow.setMaxWidth(Double.MAX_VALUE);
         if (defaultMac) {
-            Label defaultBadge = new Label("Default");
+            Label defaultBadge = new Label(I18n.tr("macHoverDefaultBadge"));
             defaultBadge.getStyleClass().addAll("mac-default-pill", "verification-default-pill");
             titleRow.getChildren().add(defaultBadge);
         }
@@ -329,6 +411,46 @@ public class ProgressInline extends BorderPane {
 
         currentVerificationDetails = details;
         lastRenderedLine = title;
+
+        return card;
+    }
+
+    private Node createVerificationCardWithActions(String titleText, String macAddress, boolean defaultMac) {
+        TextFlow title = createStyledText(titleText);
+        title.getStyleClass().add("verification-card-title");
+        title.getChildren().forEach(text -> text.getStyleClass().add("verification-card-title-text"));
+        title.setMinWidth(0);
+        HBox.setHgrow(title, Priority.ALWAYS);
+
+        HBox titleRow = new HBox(8, title);
+        titleRow.getStyleClass().add("verification-card-title-row");
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.setMaxWidth(Double.MAX_VALUE);
+        if (defaultMac) {
+            Label defaultBadge = new Label(I18n.tr("macHoverDefaultBadge"));
+            defaultBadge.getStyleClass().addAll("mac-default-pill", "verification-default-pill");
+            titleRow.getChildren().add(defaultBadge);
+        }
+
+        VBox details = new VBox(6);
+        details.getStyleClass().add("verification-card-details");
+
+        VBox card = new VBox(8, titleRow, details);
+        card.getStyleClass().add("verification-mac-card");
+        card.setMaxWidth(Double.MAX_VALUE);
+
+        currentVerificationDetails = details;
+        lastRenderedLine = title;
+
+        // Store MAC address on card for later lookup/removal
+        if (macAddress != null && !macAddress.isBlank()) {
+            card.getProperties().put("macAddress", macAddress.trim());
+        }
+
+        // If we have a MAC address and it's not the default MAC, add hover action buttons
+        if (macAddress != null && !macAddress.isBlank() && !defaultMac) {
+            return wrapCardWithHoverActions(card, macAddress);
+        }
         return card;
     }
 
@@ -432,5 +554,112 @@ public class ProgressInline extends BorderPane {
             return;
         }
         closePanelAction.run();
+    }
+
+    private Node wrapCardWithHoverActions(VBox card, String macAddress) {
+        StackPane wrapper = new StackPane();
+        wrapper.getChildren().add(card);
+
+        // Store MAC address on wrapper for later lookup/removal
+        if (macAddress != null && !macAddress.isBlank()) {
+            wrapper.getProperties().put("macAddress", macAddress.trim());
+        }
+
+        // Create action buttons
+        HBox actions = createMacCardActions(macAddress);
+        StackPane.setAlignment(actions, Pos.TOP_RIGHT);
+        StackPane.setMargin(actions, new Insets(8, 8, 0, 0)); // top, right, bottom, left
+        wrapper.getChildren().add(actions);
+
+        // Hide actions by default
+        actions.setVisible(false);
+        actions.setManaged(false);
+
+        // Show actions on hover
+        wrapper.setOnMouseEntered(event -> {
+            actions.setVisible(true);
+            actions.setManaged(true);
+        });
+        wrapper.setOnMouseExited(event -> {
+            actions.setVisible(false);
+            actions.setManaged(false);
+        });
+
+        return wrapper;
+    }
+
+    private HBox createMacCardActions(String macAddress) {
+        // Set as default button (only show if not already default)
+        boolean isCurrentDefault = isDefaultMac(macAddress);
+        Button setDefaultBtn = createMacActionButton(
+                I18n.tr("macHoverSetDefault"),
+                "M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z", // Star icon
+                !isCurrentDefault,
+                () -> {
+                    if (!isCurrentDefault) {
+                        onSetDefaultMac.accept(macAddress);
+                    }
+                });
+
+        // Delete button (always show, but with confirmation)
+        Button deleteBtn = createMacActionButton(
+                I18n.tr("macHoverDelete"),
+                "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z", // Trash icon
+                true,
+                () -> {
+                    onDeleteMac.accept(macAddress);
+                });
+
+        HBox actions = new HBox(6, setDefaultBtn, deleteBtn);
+        actions.getStyleClass().add("verification-mac-card-actions");
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        return actions;
+    }
+
+    private Button createMacActionButton(String tooltipText, String iconPath, boolean disableIfNotApplicable, Runnable action) {
+        Button button = new Button();
+        SVGPath icon = new SVGPath();
+        icon.setContent(iconPath);
+        icon.getStyleClass().add("verification-mac-card-action-icon");
+        button.setGraphic(icon);
+        button.setTooltip(new Tooltip(tooltipText));
+        button.getStyleClass().add("verification-mac-action-button");
+        button.setOnAction(_ -> action.run());
+        
+        return button;
+    }
+
+    public void setOnSetDefaultMac(Consumer<String> action) {
+        this.onSetDefaultMac = action == null ? mac -> { } : action;
+    }
+
+    public void setOnDeleteMac(Consumer<String> action) {
+        this.onDeleteMac = action == null ? mac -> { } : action;
+    }
+
+    public void setDirectStopAction(Runnable action) {
+        this.directStopAction = action == null ? () -> { } : action;
+    }
+
+    public void requestDirectStop() {
+        directStopAction.run();
+    }
+
+    /**
+     * Removes the verification card for the given MAC address from the log.
+     */
+    public void removeVerificationCard(String macAddress) {
+        Platform.runLater(() -> {
+            String targetMac = macAddress == null ? "" : macAddress.trim();
+            if (targetMac.isBlank()) return;
+
+            for (Node node : messageContainer.getChildren()) {
+                String cardId = (String) node.getProperties().get("macAddress");
+                if (targetMac.equalsIgnoreCase(cardId)) {
+                    messageContainer.getChildren().remove(node);
+                    break;
+                }
+            }
+        });
     }
 }

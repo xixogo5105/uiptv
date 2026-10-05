@@ -5,6 +5,8 @@ import com.uiptv.util.I18n;
 import javafx.scene.Scene;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.Window;
+import java.util.function.Consumer;
 
 public class ProgressDialog extends Stage {
     private static final double SCENE_WIDTH = 1180;
@@ -23,12 +25,7 @@ public class ProgressDialog extends Stage {
         progressInline.setExternalCloseHandler(this::close);
 
         Scene scene = new Scene(progressInline, SCENE_WIDTH, SCENE_HEIGHT);
-        UiI18n.applySceneOrientation(scene);
-        if (owner != null && owner.getScene() != null) {
-            scene.getStylesheets().addAll(owner.getScene().getStylesheets());
-        } else if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
+        RootApplication.applyThemeToPopupScene(scene, owner);
         setScene(scene);
         setOnCloseRequest(event -> {
             event.consume();
@@ -70,6 +67,30 @@ public class ProgressDialog extends Stage {
 
     public void setOnStop(Runnable action) {
         progressInline.setOnStop(action);
+    }
+
+    public void setOnSetDefaultMac(Consumer<String> action) {
+        progressInline.setOnSetDefaultMac(action);
+    }
+
+    public void setOnDeleteMac(Consumer<String> action) {
+        progressInline.setOnDeleteMac(action);
+    }
+
+    public void setDirectStopAction(Runnable action) {
+        progressInline.setDirectStopAction(action);
+    }
+
+    public void requestDirectStop() {
+        progressInline.requestDirectStop();
+    }
+
+    public void removeVerificationCard(String macAddress) {
+        progressInline.removeVerificationCard(macAddress);
+    }
+
+    public void updateDefaultMacAddress(String newDefaultMacAddress) {
+        progressInline.updateDefaultMacAddress(newDefaultMacAddress);
     }
 
     public void markCompleted() {

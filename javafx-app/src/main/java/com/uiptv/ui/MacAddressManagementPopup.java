@@ -6,6 +6,7 @@ import com.uiptv.util.I18n;
 import javafx.scene.Scene;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -53,12 +54,7 @@ public class MacAddressManagementPopup extends MacAddressManagementInline {
 
     private Scene createScene(Stage owner) {
         Scene scene = new Scene(this, SCENE_WIDTH, SCENE_HEIGHT);
-        UiI18n.applySceneOrientation(scene);
-        if (owner != null && owner.getScene() != null) {
-            scene.getStylesheets().addAll(owner.getScene().getStylesheets());
-        } else if (RootApplication.getCurrentTheme() != null) {
-            scene.getStylesheets().add(RootApplication.getCurrentTheme());
-        }
+        RootApplication.applyThemeToPopupScene(scene, owner);
         return scene;
     }
 }
