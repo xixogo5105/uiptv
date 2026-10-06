@@ -945,6 +945,19 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     }
 
     @Override
+    public void showLoading() {
+        loadingSpinner.setVisible(true);
+    }
+
+    @Override
+    public void updateChannelInfo(Channel channel, Account account) {
+        this.currentChannel = channel;
+        this.currentAccount = account;
+        streamInfoText.setText("");
+        refreshNowShowingHeader();
+    }
+
+    @Override
     public void stopForReload() {
         removeBingeWatchWatchStateListener();
         if (Platform.isFxApplicationThread()) {

@@ -20,6 +20,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
@@ -37,6 +40,8 @@ public final class PlaybackUIService {
     private static final String DEFAULT_MODE = "series";
     /** Prevent out-of-order URL resolution from repeatedly resetting the embedded player. */
     private static final AtomicLong PLAYBACK_REQUEST_SEQUENCE = new AtomicLong();
+    private static final ExecutorService PLAYBACK_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
+    private static Future<?> currentPlaybackResolution;
 
     private PlaybackUIService() {
     }
@@ -62,6 +67,10 @@ public final class PlaybackUIService {
         }
 
         long requestSequence = PLAYBACK_REQUEST_SEQUENCE.incrementAndGet();
+        Future<?> previousResolution = currentPlaybackResolution;
+        if (previousResolution != null) {
+            previousResolution.cancel(true);
+        }
         Configuration configuration = ConfigurationService.getInstance().read();
         PlaybackModeContext context = buildPlaybackModeContext(configuration, request, playbackAccount);
 
@@ -75,14 +84,27 @@ public final class PlaybackUIService {
             return;
         }
 
-        new Thread(() -> {
+        if (context.playerPathIsEmbedded() || (isBlank(request.playerPath) && context.useEmbeddedPlayerConfig())) {
+            var player = getPlayer();
+            player.stopForReload();
+            player.updateChannelInfo(request.channel, playbackAccount);
+            player.showLoading();
+        }
+        currentPlaybackResolution = PLAYBACK_EXECUTOR.submit(() -> {
             try {
+                if (Thread.currentThread().isInterrupted()) {
+                    return;
+                }
                 PlayerResponse response = resolvePlayerResponse(request, playbackAccount);
+                if (Thread.currentThread().isInterrupted()) {
+                    return;
+                }
                 response.setFromChannel(request.channel, playbackAccount);
                 runLater(() -> {
-                    if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) {
-                        launchResolvedPlayback(context, request, response);
+                    if (requestSequence != PLAYBACK_REQUEST_SEQUENCE.get()) {
+                        return;
                     }
+                    launchResolvedPlayback(context, request, response);
                 });
             } catch (Exception e) {
                 runLater(() -> {
@@ -97,7 +119,7 @@ public final class PlaybackUIService {
                     }
                 });
             }
-        }, "uiptv-playback-resolver").start();
+        });
     }
 
     public static void playDirectUrl(String playerPath, String url, String errorPrefix) {

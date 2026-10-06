@@ -17,6 +17,10 @@ public interface VideoPlayerInterface {
 
     void stopForReload();
 
+    void showLoading();
+
+    void updateChannelInfo(com.uiptv.model.Channel channel, com.uiptv.model.Account account);
+
     void disposePlayer();
 
     void toggleFullscreen();

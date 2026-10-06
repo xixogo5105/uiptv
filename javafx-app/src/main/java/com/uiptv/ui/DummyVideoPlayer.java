@@ -27,6 +27,16 @@ public class DummyVideoPlayer implements VideoPlayerInterface {
     }
 
     @Override
+    public void showLoading() {
+        // Intentionally empty: dummy player has no loading state.
+    }
+
+    @Override
+    public void updateChannelInfo(com.uiptv.model.Channel channel, com.uiptv.model.Account account) {
+        // Intentionally empty: dummy player has no channel info to update.
+    }
+
+    @Override
     public void disposePlayer() {
         // Intentionally empty: dummy player has no resources to dispose.
     }
