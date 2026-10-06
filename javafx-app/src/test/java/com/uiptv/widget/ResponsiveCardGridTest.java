@@ -341,6 +341,7 @@ class ResponsiveCardGridTest {
                             >= title.getLayoutY() + title.getHeight() / 2 - 1,
                     row.getChildren().indexOf(bookmark) == row.getChildren().size() - 1,
                     margin != null && margin.getRight() == 8,
+                    Math.abs(indicator.getLayoutX() - (title.getLayoutX() + title.getWidth()) - 10) < 1,
                     indicator.isManaged(),
                     Math.abs(bookmark.getLayoutX() - bookmarkXBeforeActivation) < 1);
         });
@@ -349,8 +350,99 @@ class ResponsiveCardGridTest {
         assertTrue(snapshot.indicatorVerticallyCenteredWithTitle());
         assertTrue(snapshot.bookmarkActionFollowsIndicator());
         assertTrue(snapshot.indicatorHasRightMargin());
+        assertTrue(snapshot.indicatorHasTenPixelTitleGap());
         assertTrue(snapshot.indicatorManagedWhilePlaying());
         assertTrue(snapshot.bookmarkActionPositionPreserved());
+    }
+
+    @Test
+    void inlineIndicatorUsesTheSameTenPixelTitleGapWithAndWithoutRowSpacing() throws Exception {
+        assertEquals(10, inlineIndicatorTitleGap(0), 1);
+        assertEquals(10, inlineIndicatorTitleGap(6), 1);
+    }
+
+    private static double inlineIndicatorTitleGap(double rowSpacing) throws Exception {
+        return runOnFxThread(() -> {
+            ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(_ -> {
+                HBox row = new HBox(rowSpacing, new Label("Title"), new Region());
+                row.getStyleClass().add("playing-indicator-inline-row");
+                row.setAlignment(Pos.CENTER_LEFT);
+                row.setMaxWidth(Double.MAX_VALUE);
+                VBox card = new VBox(row);
+                card.setMaxWidth(Double.MAX_VALUE);
+                return card;
+            }, true);
+            grid.setItems(FXCollections.observableArrayList("one"));
+            grid.setOnItemActivated(_ -> {
+            });
+            grid.resize(400, 100);
+            grid.layout();
+            Region card = cardAt(grid, 0);
+            new Scene(grid, 400, 100);
+            grid.applyCss();
+            grid.layout();
+            HBox row = (HBox) ((VBox) card).getChildren().getFirst();
+            Label title = (Label) row.getChildren().getFirst();
+
+            Event.fireEvent(card, mouseClick(card, 2, false, false));
+            grid.layout();
+
+            PlayingCardIndicator indicator = (PlayingCardIndicator) row.getChildren().get(1);
+            return indicator.getLayoutX() - (title.getLayoutX() + title.getWidth());
+        });
+    }
+
+    @Test
+    void activatingAnotherGridMovesTheSinglePlayingIndicator() throws Exception {
+        CardGridIndicatorSnapshot snapshot = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> firstGrid = createIndicatorGrid();
+            ResponsiveCardGrid<String> secondGrid = createIndicatorGrid();
+            VBox pages = new VBox(firstGrid, secondGrid);
+            new Scene(pages, 400, 240);
+            pages.applyCss();
+            pages.layout();
+            Region firstCard = cardAt(firstGrid, 0);
+            Region secondCard = cardAt(secondGrid, 0);
+            PlayingCardIndicator firstIndicator = findIndicator(firstCard);
+            PlayingCardIndicator secondIndicator = findIndicator(secondCard);
+
+            Event.fireEvent(firstCard, mouseClick(firstCard, 2, false, false));
+            boolean firstVisibleInitially = firstIndicator.isVisible();
+            Event.fireEvent(secondCard, mouseClick(secondCard, 2, false, false));
+
+            return new CardGridIndicatorSnapshot(
+                    firstVisibleInitially,
+                    firstIndicator.isVisible(),
+                    secondIndicator.isVisible());
+        });
+
+        assertTrue(snapshot.firstVisibleInitially());
+        assertFalse(snapshot.firstVisibleAfterSecondActivation());
+        assertTrue(snapshot.secondVisibleAfterActivation());
+    }
+
+    private static ResponsiveCardGrid<String> createIndicatorGrid() {
+        ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(_ -> {
+            HBox row = new HBox(new Label("Title"), new Region());
+            row.getStyleClass().add("playing-indicator-inline-row");
+            row.setAlignment(Pos.CENTER_LEFT);
+            row.setMaxWidth(Double.MAX_VALUE);
+            return row;
+        }, true);
+        grid.setItems(FXCollections.observableArrayList("one"));
+        grid.setOnItemActivated(_ -> {
+        });
+        grid.resize(400, 100);
+        grid.layout();
+        return grid;
+    }
+
+    private static PlayingCardIndicator findIndicator(Region card) {
+        return ((HBox) card).getChildren().stream()
+                .filter(PlayingCardIndicator.class::isInstance)
+                .map(PlayingCardIndicator.class::cast)
+                .findFirst()
+                .orElseThrow();
     }
 
     @Test
@@ -385,6 +477,9 @@ class ResponsiveCardGridTest {
                             - title.localToScene(0, 0).getY() - title.getHeight() / 2) < 1,
                     trailingAction.localToScene(0, 0).getX() > indicator.localToScene(0, 0).getX(),
                     indicatorMargin != null && indicatorMargin.getRight() == 8,
+                    Math.abs(indicator.localToScene(indicator.getBoundsInLocal()).getMinX()
+                            - title.localToScene(title.getBoundsInLocal()).getMaxX()
+                            - 10) < 1,
                     indicator.isManaged(),
                     Math.abs(trailingAction.localToScene(0, 0).getX() - trailingActionXBeforeActivation) < 1);
         });
@@ -393,6 +488,7 @@ class ResponsiveCardGridTest {
         assertTrue(snapshot.indicatorVerticallyCenteredWithTitle());
         assertTrue(snapshot.bookmarkActionFollowsIndicator());
         assertTrue(snapshot.indicatorHasRightMargin());
+        assertTrue(snapshot.indicatorHasTenPixelTitleGap());
         assertTrue(snapshot.indicatorManagedWhilePlaying());
         assertTrue(snapshot.bookmarkActionPositionPreserved());
     }
@@ -1348,7 +1444,13 @@ class ResponsiveCardGridTest {
                                    boolean indicatorVerticallyCenteredWithTitle,
                                    boolean bookmarkActionFollowsIndicator,
                                    boolean indicatorHasRightMargin,
+                                   boolean indicatorHasTenPixelTitleGap,
                                    boolean indicatorManagedWhilePlaying,
                                    boolean bookmarkActionPositionPreserved) {
+    }
+
+    private record CardGridIndicatorSnapshot(boolean firstVisibleInitially,
+                                             boolean firstVisibleAfterSecondActivation,
+                                             boolean secondVisibleAfterActivation) {
     }
 }

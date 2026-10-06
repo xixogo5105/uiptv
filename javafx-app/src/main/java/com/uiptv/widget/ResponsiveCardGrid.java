@@ -26,6 +26,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 
+import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -44,6 +45,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private static final double DEFAULT_MAX_CARD_WIDTH = 320;
     private static final double DEFAULT_HORIZONTAL_GAP = 14;
     private static final double DEFAULT_VERTICAL_GAP = 12;
+    private static final double INLINE_INDICATOR_GAP = 10;
+    private static final double INLINE_INDICATOR_RIGHT_MARGIN = 8;
+    private static WeakReference<ResponsiveCardGrid<?>> activePlayingIndicatorGrid = new WeakReference<>(null);
     private static final double SCROLL_VISIBILITY_TOLERANCE = 4.0;
     private static final double SCROLL_VALUE_TOLERANCE = 0.001;
     private static final int DEFAULT_VIRTUALIZATION_THRESHOLD =
@@ -995,7 +999,11 @@ public class ResponsiveCardGrid<T> extends StackPane {
         HBox inlineRow = findInlineIndicatorRow(card);
         if (inlineRow != null) {
             indicator.setManaged(false);
-            HBox.setMargin(indicator, new Insets(0, 8, 0, 0));
+            HBox.setMargin(indicator, new Insets(
+                    0,
+                    INLINE_INDICATOR_RIGHT_MARGIN,
+                    0,
+                    Math.max(0, INLINE_INDICATOR_GAP - inlineRow.getSpacing())));
             inlineRow.getChildren().add(Math.min(1, inlineRow.getChildren().size()), indicator);
             return;
         }
@@ -1141,11 +1149,26 @@ public class ResponsiveCardGrid<T> extends StackPane {
     }
 
     private void setActivatedItem(T item) {
+        if (playingIndicatorEnabled) {
+            ResponsiveCardGrid<?> previousGrid = activePlayingIndicatorGrid.get();
+            if (previousGrid != null && previousGrid != this) {
+                previousGrid.clearActivatedItem();
+            }
+            activePlayingIndicatorGrid = new WeakReference<>(this);
+        }
         activatedItem = item;
         applyActivatedStyles(cardsByItem);
         applyActivatedStyles(detachedCardsByItem);
         refreshPlayingCardIndicators();
         // Reapply selection so the activated card keeps its ordinary selected style.
+        updateSelectionStyles();
+    }
+
+    private void clearActivatedItem() {
+        activatedItem = null;
+        applyActivatedStyles(cardsByItem);
+        applyActivatedStyles(detachedCardsByItem);
+        refreshPlayingCardIndicators();
         updateSelectionStyles();
     }
 
