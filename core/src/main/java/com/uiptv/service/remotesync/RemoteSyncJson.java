@@ -36,8 +36,8 @@ public final class RemoteSyncJson {
     public static RemoteSyncRequest toRequest(JSONObject json) {
         return new RemoteSyncRequest(
                 RemoteSyncDirection.valueOf(json.optString(DIRECTION, RemoteSyncDirection.EXPORT_TO_REMOTE.name())),
-                json.optString(VERIFICATION_CODE, ""),
-                json.optString(REQUESTER_NAME, ""),
+                sanitizeUserText(json.optString(VERIFICATION_CODE, "")),
+                sanitizeUserText(json.optString(REQUESTER_NAME, "")),
                 new RemoteSyncOptions(
                         json.optBoolean(SYNC_CONFIGURATION, false),
                         json.optBoolean(SYNC_EXTERNAL_PLAYER_PATHS, false),
@@ -46,6 +46,18 @@ public final class RemoteSyncJson {
                         json.optBoolean(ENCRYPTED_TRANSFER, false)
                 )
         );
+    }
+
+    private static String sanitizeUserText(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#x27;");
     }
 
     public static JSONObject toJson(RemoteSyncSessionState state) {
