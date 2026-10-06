@@ -12,6 +12,7 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static com.uiptv.util.ServerUtils.generateJsonResponse;
 import static com.uiptv.util.ServerUtils.getParam;
@@ -22,15 +23,16 @@ public class HttpWebChannelJsonServer implements HttpHandler {
     private static final int MAX_PAGE_SIZE = 240;
     private static final int DEFAULT_PREFETCH = 3;
     private static final int MAX_PREFETCH = 5;
+    private static final Pattern SAFE_IDENTIFIER = Pattern.compile("^[a-zA-Z0-9_\\-.:]{1,128}$");
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
         CatalogPagedChannelsResult result = CatalogApplicationService.getInstance().listWebChannels(
                 new CatalogWebChannelsQuery(
-                        getParam(ex, "accountId"),
+                        sanitizeIdentifier(getParam(ex, "accountId")),
                         CatalogMode.fromRequest(getParam(ex, "mode")),
-                        getParam(ex, "categoryId"),
-                        getParam(ex, "movieId"),
+                        sanitizeIdentifier(getParam(ex, "categoryId")),
+                        sanitizeIdentifier(getParam(ex, "movieId")),
                         parseInt(getParam(ex, "page"), 0, 0, Integer.MAX_VALUE),
                         parseInt(getParam(ex, "pageSize"), DEFAULT_PAGE_SIZE, 20, MAX_PAGE_SIZE),
                         parseInt(getParam(ex, "prefetchPages"), DEFAULT_PREFETCH, 1, MAX_PREFETCH),
@@ -54,5 +56,17 @@ public class HttpWebChannelJsonServer implements HttpHandler {
         } catch (Exception _) {
             return defaultValue;
         }
+    }
+
+    private String sanitizeIdentifier(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return isSafeIdentifier(trimmed) ? trimmed : "";
+    }
+
+    private boolean isSafeIdentifier(String value) {
+        return value != null && SAFE_IDENTIFIER.matcher(value).matches();
     }
 }
