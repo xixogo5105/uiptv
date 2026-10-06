@@ -57,7 +57,7 @@ class ServerUtilsTest {
         StubExchange ts = new StubExchange("/video", "GET", null);
         ServerUtils.generateTs8Response(ts, "ts-data", "video.ts");
         assertEquals(200, ts.getResponseCode());
-        assertEquals("attachment; filename=video.ts", ts.getResponseHeaders().getFirst("Content-Disposition"));
+        assertEquals("attachment; filename=\"video.ts\"", ts.getResponseHeaders().getFirst("Content-Disposition"));
 
         StubExchange rejected = new StubExchange("/html", "POST", null);
         ServerUtils.generateHtmlResponse(rejected, "<html></html>");
