@@ -16,6 +16,7 @@ import com.uiptv.widget.SearchFieldBehavior;
 import com.uiptv.widget.UiRenderQuality;
 import javafx.application.HostServices;
 import javafx.application.Platform;
+import javafx.animation.PauseTransition;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -32,6 +33,7 @@ import javafx.scene.shape.SVGPath;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -67,6 +69,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private final TextField searchTextField = new TextField();
     private final ResponsiveCardGrid<BookmarkItem> bookmarkGrid = new ResponsiveCardGrid<>(this::createBookmarkCard, true);
     private final StackPane bookmarkGridFrame = new StackPane();
+    private final ScrollPane bookmarkPageScroll = new ScrollPane();
     private final LoadingStateView bookmarkLoadingOverlay = new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS));
     private final PillBar<BookmarkCategory> categoryPillBar =
             new PillBar<>(BookmarkCategory::getName, BookmarkCategory::getId);
@@ -74,6 +77,9 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private final ObservableList<BookmarkItem> filteredItems = FXCollections.observableArrayList();
     private final List<BookmarkItem> allBookmarkItems = new ArrayList<>();
     private final AtomicLong reloadGeneration = new AtomicLong(0);
+    private final ConcurrentLinkedQueue<BookmarkSnapshot> pendingBookmarkSnapshots = new ConcurrentLinkedQueue<>();
+    private final PauseTransition bookmarkSnapshotPulse = new PauseTransition(javafx.util.Duration.millis(16));
+    private final java.util.concurrent.atomic.AtomicBoolean bookmarkSnapshotDrainScheduled = new java.util.concurrent.atomic.AtomicBoolean();
     private final AtomicLong bookmarkOrderSaveGeneration = new AtomicLong(0);
     private final ExecutorService bookmarkOrderSaveExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "bookmark-order-save");
@@ -120,6 +126,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     public BookmarkChannelListUI(HostServices hostServices, Runnable themeToggleHandler) {
         this.hostServices = hostServices;
         this.themeToggleHandler = themeToggleHandler;
+        bookmarkSnapshotPulse.setOnFinished(_ -> drainBookmarkSnapshots());
         initWidgets();
         registerBookmarkChangeListener();
         registerThumbnailModeListener();
@@ -150,6 +157,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         reloadRequestedWhileReloading = false;
         long generation = reloadGeneration.incrementAndGet();
         reloadInProgress = true;
+        pendingBookmarkSnapshots.clear();
+        setBookmarkScrollingEnabled(false);
         showLoadingState(generation);
         startReloadThread(generation);
     }
@@ -218,16 +227,13 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 }
 
                 BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(batch, accountByName);
-                List<BookmarkItem> batchItems = buildLoadedBookmarkItems(generation, batch, context);
+                List<BookmarkItem> batchItems = buildLoadedBookmarkItems(generation, batch, context, allLoadedItems);
                 if (generation != reloadGeneration.get()) {
                     return;
                 }
                 if (batchItems.isEmpty()) {
                     break;
                 }
-
-                allLoadedItems.addAll(batchItems);
-                maybeStreamPartialReload(generation, allLoadedItems);
 
                 offset += BOOKMARK_DB_FETCH_BATCH_SIZE;
             }
@@ -237,22 +243,28 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 reloadRequestedWhileReloading = true;
             }
 
-            runLater(() -> applyReloadResult(generation, allLoadedItems, categories, revisionAfterRead));
+            pendingBookmarkSnapshots.add(new BookmarkSnapshot(generation, allLoadedItems, categories, revisionAfterRead, false));
+            scheduleBookmarkSnapshotDrain();
         } catch (Exception _) {
             // Keep the bookmark pane usable and show the existing placeholder on reload failure.
-            runLater(() -> handleReloadFailure(generation));
+            pendingBookmarkSnapshots.add(new BookmarkSnapshot(generation, List.of(), null, 0, true));
+            scheduleBookmarkSnapshotDrain();
         }
     }
 
     private List<BookmarkItem> buildLoadedBookmarkItems(long generation,
                                                         List<Bookmark> bookmarks,
-                                                        BookmarkResolver.ResolutionContext context) {
+                                                        BookmarkResolver.ResolutionContext context,
+                                                        List<BookmarkItem> allLoadedItems) {
         List<BookmarkItem> loadedItems = new ArrayList<>(bookmarks.size());
         for (Bookmark bookmark : bookmarks) {
             if (generation != reloadGeneration.get()) {
                 return List.of();
             }
-            loadedItems.add(createBookmarkItem(bookmarkResolver.resolveBookmark(bookmark, context)));
+            BookmarkItem item = createBookmarkItem(bookmarkResolver.resolveBookmark(bookmark, context));
+            loadedItems.add(item);
+            allLoadedItems.add(item);
+            maybeStreamPartialReload(generation, allLoadedItems);
         }
         return loadedItems;
     }
@@ -265,10 +277,42 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         if (size == 0) {
             return;
         }
-        if (size <= BOOKMARK_INITIAL_STREAM_SIZE || size % BOOKMARK_STREAM_BATCH_SIZE == 0) {
-            List<BookmarkItem> snapshot = new ArrayList<>(loadedItems);
-            runLater(() -> applyPartialReload(generation, snapshot));
+        if (size == BOOKMARK_INITIAL_STREAM_SIZE || size > BOOKMARK_INITIAL_STREAM_SIZE && size % BOOKMARK_STREAM_BATCH_SIZE == 0) {
+            pendingBookmarkSnapshots.add(new BookmarkSnapshot(generation, new ArrayList<>(loadedItems), null, 0, false));
+            scheduleBookmarkSnapshotDrain();
         }
+    }
+
+    private void scheduleBookmarkSnapshotDrain() {
+        if (!bookmarkSnapshotDrainScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        runLater(this::drainBookmarkSnapshots);
+    }
+
+    private void drainBookmarkSnapshots() {
+        BookmarkSnapshot snapshot = pendingBookmarkSnapshots.poll();
+        if (snapshot != null) {
+            if (snapshot.failed()) {
+                handleReloadFailure(snapshot.generation());
+            } else if (snapshot.categories() != null) {
+                applyReloadResult(snapshot.generation(), snapshot.items(), snapshot.categories(), snapshot.revision());
+            } else {
+                applyPartialReload(snapshot.generation(), snapshot.items());
+            }
+        }
+        if (!pendingBookmarkSnapshots.isEmpty()) {
+            bookmarkSnapshotPulse.playFromStart();
+            return;
+        }
+        bookmarkSnapshotDrainScheduled.set(false);
+        if (!pendingBookmarkSnapshots.isEmpty()) {
+            scheduleBookmarkSnapshotDrain();
+        }
+    }
+
+    private record BookmarkSnapshot(long generation, List<BookmarkItem> items, List<BookmarkCategory> categories,
+                                    long revision, boolean failed) {
     }
 
     private void handleReloadFailure(long generation) {
@@ -277,6 +321,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         }
         reloadInProgress = false;
         setBookmarkLoadingOverlayVisible(false);
+        setBookmarkScrollingEnabled(true);
         bookmarkGrid.setPlaceholderText(I18n.tr("autoUnableToLoadBookmarks"));
         triggerDeferredReloadIfNeeded();
     }
@@ -301,6 +346,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         lastKnownBookmarkRevision = revision;
         reloadInProgress = false;
         setBookmarkLoadingOverlayVisible(false);
+        setBookmarkScrollingEnabled(true);
         requestContentFocus();
         triggerDeferredReloadIfNeeded();
     }
@@ -445,9 +491,13 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         reloadInProgress = false;
         loadedOnce = false;
         reloadRequestedWhileReloading = false;
+        pendingBookmarkSnapshots.clear();
+        bookmarkSnapshotPulse.stop();
+        bookmarkSnapshotDrainScheduled.set(false);
         allBookmarkItems.clear();
         filteredItems.clear();
         setBookmarkLoadingOverlayVisible(false);
+        setBookmarkScrollingEnabled(true);
     }
 
     private void triggerDeferredReloadIfNeeded() {
@@ -478,13 +528,14 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         page.setMinSize(0, 0);
         page.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
-        ScrollPane pageScroll = new ScrollPane(bookmarkGridFrame);
+        ScrollPane pageScroll = bookmarkPageScroll;
+        pageScroll.setContent(bookmarkGridFrame);
         UiRenderQuality.optimizeLayout(pageScroll);
         pageScroll.getStyleClass().addAll("bookmarks-page-scroll", "transparent-scroll-pane");
         pageScroll.setFitToWidth(true);
         pageScroll.setPannable(true);
         pageScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        pageScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        pageScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         pageScroll.setFocusTraversable(false);
         pageScroll.setMinSize(0, 0);
         pageScroll.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
@@ -555,6 +606,17 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         return row;
     }
 
+    private void setBookmarkScrollingEnabled(boolean enabled) {
+        Runnable update = () -> bookmarkPageScroll.setVbarPolicy(enabled
+                ? ScrollPane.ScrollBarPolicy.AS_NEEDED
+                : ScrollPane.ScrollBarPolicy.NEVER);
+        if (Platform.isFxApplicationThread()) {
+            update.run();
+        } else {
+            runLater(update);
+        }
+    }
+
     private HBox createInlineFilterToolbarRow(PillBar<?> pillBar, HBox actions) {
         HBox row = new HBox(FILTER_TOOLBAR_GAP, pillBar, actions);
         row.setAlignment(Pos.CENTER_LEFT);
@@ -610,7 +672,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         bookmarkGrid.setCardWidthRange(255, 345);
         bookmarkGrid.setGaps(16, 14);
         bookmarkGrid.setReorderEnabled(true);
-        bookmarkGrid.setLowVirtualizationThreshold();
+        bookmarkGrid.setVirtualizationThreshold(BOOKMARK_INITIAL_STREAM_SIZE);
         bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS)));
         bookmarkGrid.setCardDisposer(card -> {
             if (card instanceof BookmarkCard bookmarkCard) {

@@ -44,8 +44,11 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
+import java.lang.ref.WeakReference;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -59,6 +62,7 @@ import static javafx.application.Platform.runLater;
 @SuppressWarnings("java:S5843")
 public abstract class BaseEpisodesListUI extends HBox {
     private static final String BINGE_WATCH_FAILED_PREFIX = "Binge watch failed: ";
+    private static WeakReference<BaseEpisodesListUI> activePlayingEpisodeOwner = new WeakReference<>(null);
     protected static final Pattern SXXEYY_PATTERN = Pattern.compile("(?i)\\bS(\\d{1,2})E(\\d{1,3})\\b");
     protected static final Pattern SEASON_PATTERN = Pattern.compile("(?i)\\bseason\\s*(\\d+)\\b|\\bS(\\d{1,2})(?=\\b|E\\d+)|\\b(\\d{1,2})x\\d{1,3}\\b");
     protected static final Pattern EPISODE_PATTERN = Pattern.compile("(?i)\\bepisode\\s*(\\d+)\\b|\\bE(\\d{1,3})\\b|\\b\\d{1,2}x(\\d{1,3})\\b");
@@ -77,6 +81,7 @@ public abstract class BaseEpisodesListUI extends HBox {
     protected final Label emptyStateLabel = new Label();
     protected final ObservableList<EpisodeItem> allEpisodeItems = FXCollections.observableArrayList(EpisodeItem.extractor());
     private final AtomicBoolean portalReloadInProgress = new AtomicBoolean(false);
+    private final AtomicLong watchedStateRefreshGeneration = new AtomicLong();
 
     protected JSONObject seasonInfo = new JSONObject();
     private String pendingTargetSeason = "";
@@ -86,6 +91,7 @@ public abstract class BaseEpisodesListUI extends HBox {
     private Runnable bingeWatchControlRefreshListener;
     private Runnable reloadControlRefreshListener;
     private Consumer<EpisodeList> portalReloadListener;
+    private String activePlayingEpisodeKey = "";
 
     private boolean bookmarkListenerRegistered = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> refreshBookmarkStatesAsync();
@@ -237,6 +243,15 @@ public abstract class BaseEpisodesListUI extends HBox {
 
     protected void beforeApplyingPortalReload(EpisodeList refreshed) {
         // Optional in subclasses.
+    }
+
+    protected void onPlayingEpisodeChanged() {
+        // Optional in subclasses.
+    }
+
+    protected boolean isPlayingEpisode(EpisodeItem item) {
+        return item != null && !isBlank(activePlayingEpisodeKey)
+                && Objects.equals(activePlayingEpisodeKey, episodePlaybackKey(item));
     }
 
     public void setItems(EpisodeList newChannelList) {
@@ -432,6 +447,7 @@ public abstract class BaseEpisodesListUI extends HBox {
     }
 
     protected void releaseTransientState() {
+        watchedStateRefreshGeneration.incrementAndGet();
         allEpisodeItems.clear();
         seasonInfo = new JSONObject();
         channelList.getEpisodes().clear();
@@ -475,24 +491,40 @@ public abstract class BaseEpisodesListUI extends HBox {
     }
 
     protected void refreshWatchedStatesAsync() {
+        long refreshGeneration = watchedStateRefreshGeneration.incrementAndGet();
         if (allEpisodeItems.isEmpty() || account == null || isBlank(account.getDbId()) || isBlank(seriesId)) {
             return;
         }
         new Thread(() -> {
             SeriesWatchState state = SeriesWatchStateService.getInstance().getSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
-            runLater(() -> {
-                for (EpisodeItem item : allEpisodeItems) {
-                    item.setWatched(SeriesWatchStateService.getInstance().isMatchingEpisode(
-                            state,
-                            item.getEpisodeId(),
-                            item.getSeason(),
-                            item.getEpisodeNumber(),
-                            item.getEpisodeName()
-                    ));
-                }
-                onWatchedStatesRefreshed();
-            });
+            runLater(() -> applyWatchedStateSnapshot(refreshGeneration, state));
         }, "episodes-watch-refresh").start();
+    }
+
+    private void applyWatchedStateSnapshot(long refreshGeneration, SeriesWatchState state) {
+        if (refreshGeneration != watchedStateRefreshGeneration.get()) {
+            return;
+        }
+        for (EpisodeItem item : allEpisodeItems) {
+            item.setWatched(SeriesWatchStateService.getInstance().isMatchingEpisode(
+                    state,
+                    item.getEpisodeId(),
+                    item.getSeason(),
+                    item.getEpisodeNumber(),
+                    item.getEpisodeName()
+            ));
+        }
+        onWatchedStatesRefreshed();
+    }
+
+    private void applyWatchedEpisodeImmediately(EpisodeItem item) {
+        SeriesWatchState state = new SeriesWatchState();
+        state.setEpisodeId(item.getEpisodeId());
+        state.setEpisodeName(item.getEpisodeName());
+        state.setSeason(item.getSeason());
+        state.setEpisodeNum(SeriesWatchStateService.getInstance().parseEpisodeNum(item.getEpisodeNumber(), item.getEpisodeName()));
+        long refreshGeneration = watchedStateRefreshGeneration.incrementAndGet();
+        applyWatchedStateSnapshot(refreshGeneration, state);
     }
 
     protected String bookmarkIdentityKey(String channelId, String channelName) {
@@ -527,7 +559,6 @@ public abstract class BaseEpisodesListUI extends HBox {
                     item.getSeason(),
                     item.getEpisodeNumber()
             );
-            refreshWatchedStatesAsync();
         }, "episodes-mark-watched").start();
     }
 
@@ -537,7 +568,6 @@ public abstract class BaseEpisodesListUI extends HBox {
         }
         new Thread(() -> {
             SeriesWatchStateService.getInstance().clearSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
-            refreshWatchedStatesAsync();
         }, "episodes-clear-watched").start();
     }
 
@@ -545,6 +575,7 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (item == null) {
             return;
         }
+        markEpisodeAsPlaying(item);
         SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
                 account,
                 seriesCategoryId,
@@ -554,7 +585,7 @@ public abstract class BaseEpisodesListUI extends HBox {
                 item.getSeason(),
                 item.getEpisodeNumber()
         );
-        refreshWatchedStatesAsync();
+        applyWatchedEpisodeImmediately(item);
         Channel channel = new Channel();
         channel.setChannelId(item.getEpisodeId());
         channel.setName(item.getEpisodeName());
@@ -567,6 +598,21 @@ public abstract class BaseEpisodesListUI extends HBox {
                 .channelId(item.getEpisodeId())
                 .categoryId(seriesCategoryId)
                 .errorPrefix(I18n.tr("autoErrorPlayingEpisodePrefix")));
+    }
+
+    private void markEpisodeAsPlaying(EpisodeItem item) {
+        BaseEpisodesListUI previousOwner = activePlayingEpisodeOwner.get();
+        if (previousOwner != null && previousOwner != this) {
+            previousOwner.activePlayingEpisodeKey = "";
+            previousOwner.onPlayingEpisodeChanged();
+        }
+        activePlayingEpisodeOwner = new WeakReference<>(this);
+        activePlayingEpisodeKey = episodePlaybackKey(item);
+        onPlayingEpisodeChanged();
+    }
+
+    private String episodePlaybackKey(EpisodeItem item) {
+        return item == null ? "" : firstNonBlank(item.getEpisodeId(), item.getCmd());
     }
 
     protected void bingeWatchSeason(String season, String playerPath) {

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,6 +53,25 @@ class ImdbMetadataServiceTest {
         assertTrue(queries.stream().anyMatch(q -> q.contains("office")));
         assertTrue((Double) invoke("titleSimilarity", new Class[]{String.class, String.class}, "the office us", "office us") >= 0.5d);
         assertEquals("first", invoke("firstNonBlank", new Class[]{String[].class}, (Object) new String[]{"", "first", "second"}));
+    }
+
+    @Test
+    void metadataWithoutEpisodeRowsUsesShortCacheTtl() throws Exception {
+        JSONObject incomplete = new JSONObject()
+                .put("tmdb", "tt1234567")
+                .put("imdbUrl", "https://www.imdb.com/title/tt1234567/")
+                .put("name", "Example Show");
+        invoke("writeMetadataCache", new Class[]{String.class, JSONObject.class, boolean.class},
+                "incomplete-series", incomplete, false);
+        assertCacheExpiryMatches("incomplete-series", "METADATA_CACHE_EMPTY_MS");
+
+        service.clearCache();
+        JSONObject complete = new JSONObject()
+                .put("name", "Example Show")
+                .put("episodesMeta", new JSONArray().put(new JSONObject().put("title", "Pilot")));
+        invoke("writeMetadataCache", new Class[]{String.class, JSONObject.class, boolean.class},
+                "complete-series", complete, false);
+        assertCacheExpiryMatches("complete-series", "METADATA_CACHE_SUCCESS_MS");
     }
 
     @Test
@@ -672,5 +692,22 @@ class ImdbMetadataServiceTest {
         Method method = ImdbMetadataService.class.getDeclaredMethod(name, parameterTypes);
         method.setAccessible(true);
         return method.invoke(service, args);
+    }
+
+    private void assertCacheExpiryMatches(String cacheKey, String ttlFieldName) throws Exception {
+        Field cacheField = ImdbMetadataService.class.getDeclaredField("METADATA_CACHE");
+        cacheField.setAccessible(true);
+        Map<?, ?> cache = (Map<?, ?>) cacheField.get(null);
+        Object entry = cache.get(cacheKey);
+        Method expiresAtMethod = entry.getClass().getDeclaredMethod("expiresAtMs");
+        expiresAtMethod.setAccessible(true);
+        long expiresAt = (long) expiresAtMethod.invoke(entry);
+
+        Field ttlField = ImdbMetadataService.class.getDeclaredField(ttlFieldName);
+        ttlField.setAccessible(true);
+        long expectedTtl = ttlField.getLong(null);
+        long remainingTtl = expiresAt - System.currentTimeMillis();
+        assertTrue(remainingTtl > expectedTtl - 1_000L);
+        assertTrue(remainingTtl <= expectedTtl);
     }
 }

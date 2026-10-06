@@ -12,6 +12,7 @@ import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -21,6 +22,33 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ChannelServiceBatchLookupTest extends DbBackedTest {
+
+    @Test
+    void cachedVodLookupStreamsDatabasePagesWithoutReplayingFullList() throws Exception {
+        Account saved = saveAccount("cached-vod-stream", Account.AccountAction.vod);
+        List<Channel> source = new ArrayList<>();
+        for (int index = 0; index < 101; index++) {
+            source.add(channel("vod-" + index, "Movie " + index, "http://stream/" + index));
+        }
+        VodChannelDb.get().saveAll(source, "category-db-id", saved);
+
+        List<Integer> emittedBatchSizes = new ArrayList<>();
+        List<ChannelService.PageProgress> progress = new ArrayList<>();
+        List<Channel> result = ChannelService.getInstance().get(
+                "provider-category-id",
+                saved,
+                "category-db-id",
+                null,
+                batch -> emittedBatchSizes.add(batch.size()),
+                () -> false,
+                progress::add
+        );
+
+        assertEquals(101, result.size());
+        assertEquals(List.of(100, 1), emittedBatchSizes);
+        assertEquals(List.of(100, 101), progress.stream().map(ChannelService.PageProgress::fetchedItems).toList());
+        assertEquals(101, progress.getLast().totalItems());
+    }
 
     @Test
     void getChannelsByChannelIdsAndAccount_returnsOnlyRequestedChannelsForAccount() {

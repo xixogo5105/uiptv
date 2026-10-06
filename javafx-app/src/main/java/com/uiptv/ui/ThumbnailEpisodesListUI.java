@@ -10,6 +10,7 @@ import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
+import com.uiptv.widget.PlayingCardIndicator;
 import com.uiptv.widget.PlayMenuButton;
 import javafx.application.Platform;
 import javafx.geometry.Bounds;
@@ -107,6 +108,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private boolean watchingNowDetailStylingApplied = false;
     private VBox bodyContainer;
     private final Map<EpisodeItem, VBox> renderedCardsByItem = new HashMap<>();
+    private final Map<EpisodeItem, PlayingCardIndicator> playingIndicatorsByItem = new HashMap<>();
+    private JSONArray episodeMetadataRows;
     private Consumer<JSONObject> seasonInfoListener;
     private boolean internalBingeWatchControlVisible = true;
     private boolean internalSeriesTitleVisible = true;
@@ -196,6 +199,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
     @Override
     protected void onItemsLoaded() {
+        if (episodeMetadataRows != null) {
+            enrichEpisodesFromMeta(allEpisodeItems, episodeMetadataRows);
+        }
         applySeriesHeader();
         refreshSeasonTabs();
         applySeasonFilter();
@@ -241,6 +247,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         itemsLoaded.set(false);
         channelList.getEpisodes().clear();
         allEpisodeItems.clear();
+        renderedCardsByItem.clear();
+        playingIndicatorsByItem.clear();
         refreshSeasonTabs();
         applySeasonFilter();
     }
@@ -709,6 +717,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             selectedEpisodeCard = null;
             selectedEpisodeItem = null;
             renderedCardsByItem.clear();
+            playingIndicatorsByItem.clear();
             cardsContainer.getChildren().clear();
             setEmptyState(I18n.tr("autoNoEpisodesFound"), true);
             updateBingeWatchButton();
@@ -891,13 +900,11 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
 
         HBox badges = new HBox(4);
         badges.setAlignment(Pos.TOP_RIGHT);
-        if (row.isWatched()) {
-            Label watched = new Label(I18n.tr("autoWatching"));
-            watched.getStyleClass().add("drm-badge");
-            watched.setMinWidth(Region.USE_PREF_SIZE);
-            watched.setMaxWidth(Double.MAX_VALUE);
-            badges.getChildren().add(watched);
-        }
+        badges.getChildren().add(createWatchingBadge(row, true));
+        PlayingCardIndicator playingIndicator = new PlayingCardIndicator();
+        playingIndicatorsByItem.put(row, playingIndicator);
+        updatePlayingIndicator(row, playingIndicator);
+        badges.getChildren().add(playingIndicator);
         ContextMenu rowMenu = addRightClickContextMenu(row, root);
         Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
         playButton.getStyleClass().add("episode-play-button");
@@ -950,6 +957,33 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             event.consume();
         });
         return root;
+    }
+
+    private Label createWatchingBadge(EpisodeItem row, boolean fillWidth) {
+        Label watched = new Label(I18n.tr("autoWatching"));
+        watched.getStyleClass().add("drm-badge");
+        watched.setMinWidth(Region.USE_PREF_SIZE);
+        watched.setMaxWidth(fillWidth ? Double.MAX_VALUE : Region.USE_PREF_SIZE);
+        watched.setMouseTransparent(true);
+        updateWatchingBadge(watched, row.isWatched());
+        row.watchedProperty().addListener((_, _, isWatched) -> updateWatchingBadge(watched, isWatched));
+        return watched;
+    }
+
+    private void updateWatchingBadge(Label watched, boolean isWatched) {
+        watched.setVisible(isWatched);
+        watched.setManaged(isWatched);
+    }
+
+    @Override
+    protected void onPlayingEpisodeChanged() {
+        playingIndicatorsByItem.forEach(this::updatePlayingIndicator);
+    }
+
+    private void updatePlayingIndicator(EpisodeItem item, PlayingCardIndicator indicator) {
+        boolean visible = isPlayingEpisode(item);
+        indicator.setManaged(visible);
+        indicator.setVisible(visible);
     }
 
     private void addEpisodeMetaLabels(VBox text, EpisodeItem row, List<Label> cardLabels) {
@@ -1019,14 +1053,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         titleBox.setMinWidth(0);
         titleBox.setMaxWidth(Double.MAX_VALUE);
 
-        if (row.isWatched()) {
-            Label watched = new Label(I18n.tr("autoWatching"));
-            watched.getStyleClass().add("drm-badge");
-            watched.setMinWidth(Region.USE_PREF_SIZE);
-            watched.setMaxWidth(Region.USE_PREF_SIZE);
-            watched.setMouseTransparent(true);
-            titleBox.getChildren().add(watched);
-        }
+        titleBox.getChildren().add(createWatchingBadge(row, false));
 
         Label meta = new Label(drawerEpisodeMeta(row));
         meta.getStyleClass().add("watching-now-episode-drawer-meta");
@@ -1483,29 +1510,31 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         imdbLoading = true;
         Platform.runLater(() -> {
             applySeriesHeader();
-            setEpisodeLoadingOverlayVisible(!allEpisodeItems.isEmpty(), I18n.tr(I18N_AUTO_LOADING_IMDB_DETAILS));
         });
         long generation = lifecycleGeneration.get();
+        String title = firstNonBlank(seasonInfo.optString("name", ""), categoryTitle);
+        String tmdb = seasonInfo.optString("tmdb", "");
+        List<String> fuzzyHints = List.copyOf(buildImdbFuzzyHints(title));
         boolean submitted = WatchingNowMetadataExecutor.submit(() -> {
+            JSONObject imdb = null;
             try {
                 if (!isImdbTaskCurrent(generation)) {
                     return;
                 }
-                JSONObject imdb = findImdbWithRetry(
-                        firstNonBlank(seasonInfo.optString("name", ""), categoryTitle),
-                        seasonInfo.optString("tmdb", ""),
-                        3
-                );
-                if (imdb != null && isImdbTaskCurrent(generation)) {
-                    applyImdbMetadata(imdb);
-                }
+                imdb = findImdbWithRetry(title, tmdb, fuzzyHints, 3);
             } finally {
-                Platform.runLater(() -> completeImdbLazyLoad(generation));
+                JSONObject resolvedMetadata = imdb;
+                Platform.runLater(() -> {
+                    if (isImdbTaskCurrent(generation) && resolvedMetadata != null) {
+                        applyImdbMetadata(resolvedMetadata);
+                    }
+                    completeImdbLazyLoad(generation);
+                });
             }
         });
         if (!submitted) {
             imdbLoading = false;
-            Platform.runLater(() -> setEpisodeLoadingOverlayVisible(false, null));
+            applySeriesHeader();
         }
     }
 
@@ -1524,7 +1553,16 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         mergeMissing(seasonInfo, imdb, KEY_RATING);
         mergeMissing(seasonInfo, imdb, "tmdb");
         mergeMissing(seasonInfo, imdb, "imdbUrl");
-        enrichEpisodesFromMeta(allEpisodeItems, imdb.optJSONArray("episodesMeta"));
+        JSONArray metadataRows = imdb.optJSONArray("episodesMeta");
+        if (metadataRows != null && !metadataRows.isEmpty()) {
+            episodeMetadataRows = new JSONArray(metadataRows.toString());
+        }
+        enrichEpisodesFromMeta(allEpisodeItems, episodeMetadataRows);
+        playingIndicatorsByItem.values().forEach(indicator -> indicator.setVisible(false));
+        renderedCardsByItem.clear();
+        playingIndicatorsByItem.clear();
+        cardsWindowDirty = true;
+        applySeasonFilter();
     }
 
     private void completeImdbLazyLoad(long generation) {
@@ -1535,7 +1573,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         imdbLoading = false;
         applySeriesHeader();
         applySeasonFilter();
-        setEpisodeLoadingOverlayVisible(false, null);
         navigateToPendingEpisodeTarget();
     }
 
@@ -1559,6 +1596,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         lifecycleGeneration.incrementAndGet();
         super.releaseTransientState();
         renderedCardsByItem.clear();
+        playingIndicatorsByItem.clear();
         cardsContainer.getChildren().clear();
         seasonOptions = List.of();
         seasonPillBar.setItems(seasonOptions);
@@ -1569,6 +1607,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         cardsWindowDirty = true;
         imdbLoaded = false;
         imdbLoading = false;
+        episodeMetadataRows = null;
         imdbBadgeNode = null;
         setEpisodeLoadingOverlayVisible(false, null);
         seriesPosterNode.setImage(null);
@@ -1703,8 +1742,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         return "";
     }
 
-    private JSONObject findImdbWithRetry(String title, String tmdb, int maxAttempts) {
-        List<String> hints = buildImdbFuzzyHints(title);
+    private JSONObject findImdbWithRetry(String title, String tmdb, List<String> hints, int maxAttempts) {
         int attempts = Math.max(1, maxAttempts);
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try {

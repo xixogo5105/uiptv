@@ -11,6 +11,7 @@ import com.uiptv.util.XtremeApiParser;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -39,6 +40,11 @@ public class SeriesEpisodeService {
     }
 
     public EpisodeList getEpisodes(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {
+        return getEpisodes(account, categoryId, seriesId, isCancelled, null);
+    }
+
+    public EpisodeList getEpisodes(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled,
+                                   Consumer<EpisodeList> partialCallback) {
         if (account == null || isBlank(seriesId)) {
             return new EpisodeList();
         }
@@ -47,12 +53,24 @@ public class SeriesEpisodeService {
         if (hasEpisodes(cached)) {
             return cached;
         }
+        EpisodeList staleCache = loadFromDbAnyAge(account, categoryId, seriesId);
+        if (hasEpisodes(staleCache) && partialCallback != null) {
+            partialCallback.accept(staleCache);
+        }
 
-        EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled);
+        EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled, partialCallback);
         if (hasEpisodes(fetched)) {
             return fetched;
         }
-        return new EpisodeList();
+        return hasEpisodes(staleCache) ? staleCache : new EpisodeList();
+    }
+
+    public EpisodeList getCachedEpisodes(Account account, String categoryId, String seriesId) {
+        if (account == null || isBlank(seriesId)) {
+            return new EpisodeList();
+        }
+        EpisodeList cached = loadFromDbAnyAge(account, categoryId, seriesId);
+        return cached == null ? new EpisodeList() : cached;
     }
 
     public EpisodeList getEpisodesForWatchingNow(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {
@@ -96,11 +114,17 @@ public class SeriesEpisodeService {
 
     @SuppressWarnings("java:S4276")
     private EpisodeList fetchEpisodesFromPortal(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {
+        return fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled, null);
+    }
+
+    private EpisodeList fetchEpisodesFromPortal(Account account, String categoryId, String seriesId,
+                                                Supplier<Boolean> isCancelled, Consumer<EpisodeList> partialCallback) {
         if (account.getType() == XTREME_API) {
             try {
                 EpisodeList episodes = XtremeApiParser.parseEpisodes(seriesId, account);
                 if (hasEpisodes(episodes)) {
                     saveEpisodesToDbCache(account, categoryId, seriesId, episodes);
+                    publishPartial(partialCallback, episodes);
                     return episodes;
                 }
             } catch (RuntimeException _) {
@@ -112,12 +136,38 @@ public class SeriesEpisodeService {
 
         if (account.getType() == STALKER_PORTAL) {
             Supplier<Boolean> cancellationCheck = isCancelled != null ? isCancelled : () -> false;
-            List<Channel> seriesChannels = ChannelService.getInstance().getSeries(categoryId, seriesId, account, null, cancellationCheck);
-            SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, seriesChannels);
+            List<Channel> seriesChannels = new ArrayList<>();
+            try {
+                List<Channel> fetchedChannels = ChannelService.getInstance().getSeries(categoryId, seriesId, account, page -> {
+                    if (page == null || page.isEmpty()) {
+                        return;
+                    }
+                    seriesChannels.addAll(page);
+                    publishPartial(partialCallback, toEpisodeList(seriesChannels));
+                }, cancellationCheck);
+                if (fetchedChannels != null && !fetchedChannels.isEmpty()) {
+                    seriesChannels.clear();
+                    seriesChannels.addAll(fetchedChannels);
+                }
+            } catch (RuntimeException _) {
+                if (!hasEpisodes(toEpisodeList(seriesChannels))) {
+                    EpisodeList fallback = loadFromDbAnyAge(account, categoryId, seriesId);
+                    return fallback == null ? new EpisodeList() : fallback;
+                }
+            }
+            if (!seriesChannels.isEmpty()) {
+                SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, seriesChannels);
+            }
             return toEpisodeList(seriesChannels);
         }
 
         return new EpisodeList();
+    }
+
+    private void publishPartial(Consumer<EpisodeList> callback, EpisodeList episodes) {
+        if (callback != null && hasEpisodes(episodes)) {
+            callback.accept(episodes);
+        }
     }
 
     private EpisodeList loadFromDbCache(Account account, String categoryId, String seriesId) {

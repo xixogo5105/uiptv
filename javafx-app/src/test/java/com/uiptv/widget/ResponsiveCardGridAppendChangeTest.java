@@ -43,6 +43,7 @@ class ResponsiveCardGridAppendChangeTest {
         assertEquals(List.of("a", "b", "c", "d", "e"), items,
                 "the appended batch must be accepted; a rejected change would mean the listener threw");
         assertTrue(renderedCardCount() > 0, "the grid must still hold rendered cards");
+        assertTrue(renderedLabelExists("c"), "newly appended cards must render while virtualization is inactive");
     }
 
     @Test
@@ -156,6 +157,21 @@ class ResponsiveCardGridAppendChangeTest {
             }
             return count;
         });
+    }
+
+    private static boolean renderedLabelExists(String expected) throws Exception {
+        return runOnFxThread(() -> grid.getChildrenUnmodifiable().stream()
+                .anyMatch(child -> containsLabel(child, expected)));
+    }
+
+    private static boolean containsLabel(javafx.scene.Node node, String expected) {
+        if (node instanceof Label label && expected.equals(label.getText())) {
+            return true;
+        }
+        if (node instanceof javafx.scene.Parent parent) {
+            return parent.getChildrenUnmodifiable().stream().anyMatch(child -> containsLabel(child, expected));
+        }
+        return false;
     }
 
     private static int countLabels(javafx.scene.Node node) {

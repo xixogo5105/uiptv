@@ -33,6 +33,26 @@ public class SeriesChannelDb extends BaseDb {
         return getAll(WHERE_ACCOUNT_AND_CATEGORY, new String[]{account.getDbId(), categoryId});
     }
 
+    public List<Channel> getChannels(Account account, String categoryId, int limit, int offset) {
+        return getAll(
+                WHERE_ACCOUNT_AND_CATEGORY + " ORDER BY id LIMIT ? OFFSET ?",
+                new String[]{account.getDbId(), categoryId, String.valueOf(limit), String.valueOf(offset)}
+        );
+    }
+
+    public int getChannelCount(Account account, String categoryId) {
+        String sql = "SELECT COUNT(*) FROM " + SERIES_CHANNEL_TABLE.getTableName() + WHERE_ACCOUNT_AND_CATEGORY;
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, account.getDbId());
+            statement.setString(2, categoryId);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        } catch (SQLException e) {
+            throw new DatabaseAccessException("Unable to count cached series channels", e);
+        }
+    }
+
     public List<Channel> getChannelsBySeriesIds(Account account, List<String> seriesIds) {
         if (account == null || seriesIds == null || seriesIds.isEmpty()) {
             return List.of();

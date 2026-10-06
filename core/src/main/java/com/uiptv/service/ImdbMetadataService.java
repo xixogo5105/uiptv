@@ -125,13 +125,13 @@ public class ImdbMetadataService {
         JSONObject candidate = searchBestCandidate(searchQueries);
         String imdbId = resolvePreferredImdbId(preferredImdbId, candidate, searchQueries);
         if (isBlank(imdbId)) {
-            writeMetadataCache(cacheKey, details);
+            writeMetadataCache(cacheKey, details, moviePreferred);
             return details;
         }
 
         initializeImdbDetails(details, imdbId);
         if (!thumbnailsEnabled) {
-            writeMetadataCache(cacheKey, details);
+            writeMetadataCache(cacheKey, details, moviePreferred);
             return details;
         }
 
@@ -142,7 +142,7 @@ public class ImdbMetadataService {
         mergeCinemetaMetadata(details, primaryMeta, true);
         mergeCinemetaMetadata(details, secondaryMeta, false);
         applyTmdbLocalization(details, primaryMeta, secondaryMeta, moviePreferred);
-        writeMetadataCache(cacheKey, details);
+        writeMetadataCache(cacheKey, details, moviePreferred);
         return details;
     }
 
@@ -187,11 +187,22 @@ public class ImdbMetadataService {
         return copyJson(entry.details());
     }
 
-    private void writeMetadataCache(String cacheKey, JSONObject details) {
+    private void writeMetadataCache(String cacheKey, JSONObject details, boolean moviePreferred) {
         if (isBlank(cacheKey) || details == null) {
             return;
         }
-        long ttl = details.isEmpty() ? METADATA_CACHE_EMPTY_MS : METADATA_CACHE_SUCCESS_MS;
+        JSONArray episodesMeta = details.optJSONArray(KEY_EPISODES_META);
+        boolean hasEpisodeMetadata = episodesMeta != null && !episodesMeta.isEmpty();
+        boolean hasUsefulHeaderMetadata = details.keySet().stream()
+                .filter(key -> !key.equals("tmdb") && !key.equals(KEY_IMDB_URL) && !key.equals(KEY_EPISODES_META))
+                .map(details::opt)
+                .anyMatch(value -> value != null && value != JSONObject.NULL && !value.toString().isBlank());
+        boolean completeMetadata = moviePreferred
+                ? hasUsefulHeaderMetadata
+                : hasEpisodeMetadata;
+        long ttl = completeMetadata
+                ? METADATA_CACHE_SUCCESS_MS
+                : METADATA_CACHE_EMPTY_MS;
         METADATA_CACHE.put(cacheKey, new MetadataCacheEntry(copyJson(details), System.currentTimeMillis() + ttl));
     }
 

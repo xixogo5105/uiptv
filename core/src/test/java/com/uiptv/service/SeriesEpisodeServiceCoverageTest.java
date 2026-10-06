@@ -2,11 +2,11 @@ package com.uiptv.service;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 import com.uiptv.db.SeriesEpisodeDb;
+import com.uiptv.db.SQLConnection;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.SeriesWatchingNowSnapshot;
@@ -17,6 +17,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.lang.reflect.Method;
+import java.sql.Connection;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,6 +48,21 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
     }
 
     @Test
+    void getCachedEpisodes_returnsStaleEpisodesForImmediateDisplay() throws Exception {
+        Account account = createSeriesAccount("stale-episode-cache");
+        SeriesEpisodeDb.get().saveAll(account, "cat-stale", "series-stale",
+                List.of(channel("cached-episode", "Season 1 Episode 2", "cmd://cached")));
+        try (Connection connection = SQLConnection.connect(); Statement statement = connection.createStatement()) {
+            statement.executeUpdate("UPDATE SeriesEpisode SET cachedAt=0 WHERE accountId='" + account.getDbId() + "'");
+        }
+
+        EpisodeList cached = SeriesEpisodeService.getInstance().getCachedEpisodes(account, "cat-stale", "series-stale");
+
+        assertEquals(1, cached.getEpisodes().size());
+        assertEquals("cached-episode", cached.getEpisodes().getFirst().getId());
+    }
+
+    @Test
     void getEpisodes_usesFreshAnyCategoryCacheForXtreme() {
         Account account = createSeriesAccount("fresh-any-category-cache");
         SeriesEpisodeDb.get().saveAll(account, "cat-a", "series-2", List.of(channel("ep-2", "Season 03 Episode 04", "cmd://2")));
@@ -64,7 +82,7 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
 
         try (MockedStatic<ChannelService> channelServiceStatic = mockStatic(ChannelService.class)) {
             channelServiceStatic.when(ChannelService::getInstance).thenReturn(channelService);
-            when(channelService.getSeries(eq("cat-s"), eq("series-s"), eq(account), isNull(), any()))
+            when(channelService.getSeries(eq("cat-s"), eq("series-s"), eq(account), any(), any()))
                     .thenReturn(remote);
 
             EpisodeList list = SeriesEpisodeService.getInstance().getEpisodes(account, "cat-s", "series-s", () -> false);
@@ -72,6 +90,36 @@ class SeriesEpisodeServiceCoverageTest extends DbBackedTest {
             assertEquals(1, list.getEpisodes().size());
             assertEquals("4", list.getEpisodes().get(0).getSeason());
             assertEquals(1, SeriesEpisodeDb.get().getEpisodes(account, "cat-s", "series-s").size());
+        }
+    }
+
+    @Test
+    void getEpisodes_publishesStalkerEpisodesAsProviderPagesArrive() {
+        Account account = createStalkerAccount("stalker-series-stream");
+        ChannelService channelService = mock(ChannelService.class);
+        List<EpisodeList> streamed = new ArrayList<>();
+        Channel firstPageEpisode = channel("stalker-streamed-1", "Season 1 Episode 1", "cmd://first");
+        Channel secondPageEpisode = channel("stalker-streamed-2", "Season 1 Episode 2", "cmd://second");
+
+        try (MockedStatic<ChannelService> channelServiceStatic = mockStatic(ChannelService.class)) {
+            channelServiceStatic.when(ChannelService::getInstance).thenReturn(channelService);
+            when(channelService.getSeries(eq("cat-stream"), eq("series-stream"), eq(account), any(), any()))
+                    .thenAnswer(invocation -> {
+                        @SuppressWarnings("unchecked")
+                        java.util.function.Consumer<List<Channel>> pageCallback = invocation.getArgument(3);
+                        pageCallback.accept(List.of(firstPageEpisode));
+                        pageCallback.accept(List.of(secondPageEpisode));
+                        return List.of(firstPageEpisode, secondPageEpisode);
+                    });
+
+            EpisodeList result = SeriesEpisodeService.getInstance()
+                    .getEpisodes(account, "cat-stream", "series-stream", () -> false, streamed::add);
+
+            assertEquals(2, result.getEpisodes().size());
+            assertEquals(2, streamed.size());
+            assertEquals(List.of("stalker-streamed-1"), streamed.get(0).getEpisodes().stream().map(Episode::getId).toList());
+            assertEquals(List.of("stalker-streamed-1", "stalker-streamed-2"),
+                    streamed.get(1).getEpisodes().stream().map(Episode::getId).toList());
         }
     }
 

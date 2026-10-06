@@ -47,6 +47,7 @@ public class ChannelService {
     private static final String STALKER_MAX_DELAY_PROPERTY = "uiptv.stalker.page.maxDelay.ms";
     private static final String STALKER_JITTER_PROPERTY = "uiptv.stalker.page.jitter.ms";
     private static final int STALKER_MAX_RETRIES_PER_PAGE = Integer.getInteger("uiptv.stalker.page.maxRetries", 2);
+    private static final int VOD_SERIES_DB_PAGE_SIZE = 100;
     private static final Map<String, RequestThrottle> STALKER_THROTTLES = new java.util.concurrent.ConcurrentHashMap<>();
     private final CacheService cacheService;
     private final ContentFilterService contentFilterService;
@@ -148,16 +149,18 @@ public class ChannelService {
     private List<Channel> getCachedVodSeriesChannels(String categoryId, Account account, String dbId, LoggerCallback logger,
                                                      Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
                                                      Consumer<PageProgress> progressCallback) {
-        List<Channel> cachedChannels = getVodSeriesFromDbCache(account, dbId);
-        if (!cachedChannels.isEmpty() && isVodSeriesChannelsFresh(account, dbId)) {
-            log(logger, "Loaded channels from local cache for category " + categoryId + ".");
-            if (progressCallback != null) {
-                progressCallback.accept(new PageProgress(cachedChannels.size(), cachedChannels.size(), 1, 1));
-            }
-            return publishChannels(maybeFilterChannels(dedupeChannels(cachedChannels), true, account), callback);
-        }
-        log(logger, "No fresh cache found for category " + categoryId + ". Fetching from portal...");
         boolean streamingCallback = callback != null && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API);
+        boolean streamCache = streamingCallback || progressCallback != null;
+        if (isVodSeriesChannelsFresh(account, dbId)) {
+            List<Channel> cachedChannels = streamCache
+                    ? getVodSeriesFromDbCachePaged(account, dbId, callback, isCancelled, progressCallback)
+                    : getVodSeriesFromDbCache(account, dbId);
+            log(logger, "Loaded channels from local cache for category " + categoryId + ".");
+            List<Channel> resolved = maybeFilterChannels(dedupeChannels(cachedChannels), true, account);
+            return streamCache ? resolved : publishChannels(resolved, callback);
+        }
+        List<Channel> cachedChannels = getVodSeriesFromDbCache(account, dbId);
+        log(logger, "No fresh cache found for category " + categoryId + ". Fetching from portal...");
         List<Channel> fetchedChannels = fetchVodSeriesFromProviderAllPages(categoryId, account, isCancelled, logger, callback, progressCallback);
         boolean cancelled = Thread.currentThread().isInterrupted() || (isCancelled != null && isCancelled.get());
         if (!fetchedChannels.isEmpty() && !cancelled) {
@@ -172,6 +175,38 @@ public class ChannelService {
         }
         List<Channel> resolved = !fetchedChannels.isEmpty() ? fetchedChannels : cachedChannels;
         return publishChannels(maybeFilterChannels(dedupeChannels(resolved), true, account), streamingCallback ? null : callback);
+    }
+
+    private List<Channel> getVodSeriesFromDbCachePaged(Account account, String dbCategoryId,
+                                                        Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                                        Consumer<PageProgress> progressCallback) {
+        int total = account.getAction() == vod
+                ? VodChannelDb.get().getChannelCount(account, dbCategoryId)
+                : SeriesChannelDb.get().getChannelCount(account, dbCategoryId);
+        int pageCount = Math.max(1, (int) Math.ceil((double) total / VOD_SERIES_DB_PAGE_SIZE));
+        List<Channel> channels = new ArrayList<>(total);
+        for (int page = 0; page < pageCount; page++) {
+            if (Thread.currentThread().isInterrupted() || isCancelled != null && isCancelled.get()) {
+                break;
+            }
+            int offset = page * VOD_SERIES_DB_PAGE_SIZE;
+            List<Channel> batch = account.getAction() == vod
+                    ? VodChannelDb.get().getChannels(account, dbCategoryId, VOD_SERIES_DB_PAGE_SIZE, offset)
+                    : SeriesChannelDb.get().getChannels(account, dbCategoryId, VOD_SERIES_DB_PAGE_SIZE, offset);
+            batch = dedupeChannels(batch);
+            normalizeCachedVodSeriesChannels(batch, account);
+            channels.addAll(batch);
+            if (progressCallback != null) {
+                progressCallback.accept(new PageProgress(channels.size(), total, page + 1, pageCount));
+            }
+            if (callback != null && !batch.isEmpty()) {
+                List<Channel> visibleBatch = maybeFilterChannels(batch, true, account);
+                if (!visibleBatch.isEmpty()) {
+                    callback.accept(visibleBatch);
+                }
+            }
+        }
+        return channels;
     }
 
     private void fetchAndCacheMissingLiveChannels(String categoryId, Account account, String dbId, Consumer<List<Channel>> callback,
@@ -279,6 +314,11 @@ public class ChannelService {
             channels = Collections.emptyList();
         }
         channels = dedupeChannels(channels);
+        normalizeCachedVodSeriesChannels(channels, account);
+        return channels;
+    }
+
+    private void normalizeCachedVodSeriesChannels(List<Channel> channels, Account account) {
         channels.forEach(channel -> {
             channel.setLogo(normalizeLogoUrl(account, channel.getLogo()));
             if (isBlank(channel.getLogo())) {
@@ -286,7 +326,6 @@ public class ChannelService {
             }
         });
         channels.forEach(this::resolveLogoIfNeeded);
-        return channels;
     }
 
     private boolean isVodSeriesChannelsFresh(Account account, String dbCategoryId) {
@@ -747,7 +786,10 @@ public class ChannelService {
     public List<Channel> getSeries(String categoryId, String movieId, Account account, Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled) {
         // This method does not seem to be part of the caching logic, so it can stay here.
         // If it needs to be cached, it should be moved to CacheServiceImpl.
-        return maybeFilterChannels(getStalkerPortalChOrSeries(categoryId, account, movieId, "0", callback, isCancelled), true, account);
+        Consumer<List<Channel>> visibleCallback = callback == null
+                ? null
+                : channels -> callback.accept(maybeFilterChannels(channels, true, account));
+        return maybeFilterChannels(getStalkerPortalChOrSeries(categoryId, account, movieId, "0", visibleCallback, isCancelled), true, account);
     }
 
     public String readToJson(Category category, Account account) throws IOException {

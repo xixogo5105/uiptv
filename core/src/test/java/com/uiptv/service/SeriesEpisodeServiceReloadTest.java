@@ -2,7 +2,6 @@ package com.uiptv.service;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
@@ -69,7 +68,7 @@ class SeriesEpisodeServiceReloadTest extends DbBackedTest {
 
         try (MockedStatic<ChannelService> channelServiceStatic = mockStatic(ChannelService.class)) {
             channelServiceStatic.when(ChannelService::getInstance).thenReturn(channelService);
-            when(channelService.getSeries(eq(categoryId), eq(seriesId), eq(account), isNull(), any()))
+            when(channelService.getSeries(eq(categoryId), eq(seriesId), eq(account), any(), any()))
                     .thenReturn(remote);
 
             EpisodeList reloaded = SeriesEpisodeService.getInstance()
@@ -78,7 +77,7 @@ class SeriesEpisodeServiceReloadTest extends DbBackedTest {
             assertEquals(1, reloaded.getEpisodes().size());
             assertEquals("fresh-stalker", reloaded.getEpisodes().getFirst().getId());
             verify(channelService, times(1))
-                    .getSeries(eq(categoryId), eq(seriesId), eq(account), isNull(), any());
+                    .getSeries(eq(categoryId), eq(seriesId), eq(account), any(), any());
         }
 
         List<Channel> stored = SeriesEpisodeDb.get().getEpisodes(account, categoryId, seriesId);

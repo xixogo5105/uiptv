@@ -584,6 +584,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (added.isEmpty()) {
             return;
         }
+        if (!virtualizedActive) {
+            rebuildCards();
+            return;
+        }
         // Drop focus/selection indices that pointed past the previous end of the list.
         pruneSelection();
         scheduleVirtualWindowUpdate();

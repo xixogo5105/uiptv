@@ -45,6 +45,7 @@ import javafx.util.Duration;
 import java.net.URI;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -92,6 +93,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private final AtomicReference<Map<String, SeriesWatchState>> currentSeriesWatchStates = new AtomicReference<>(Map.of());
     private final AtomicBoolean itemsLoaded = new AtomicBoolean(false);
     private final AtomicBoolean disposed = new AtomicBoolean(false);
+    private final ConcurrentLinkedQueue<ChannelChangeBatch> pendingChannelChanges = new ConcurrentLinkedQueue<>();
+    private final AtomicBoolean channelChangeDrainScheduled = new AtomicBoolean();
+    private final AtomicBoolean loadingCompletionRequested = new AtomicBoolean();
+    private final PauseTransition channelChangePulse = new PauseTransition(Duration.millis(16));
     private final WatchingNowVodResolver vodMetadataResolver = new WatchingNowVodResolver();
     private boolean allCategory = false;
     private final EventHandler<ScrollEvent> scrollEventFilter = Event::consume;
@@ -161,6 +166,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 : mediaContext.withAction(this.listAction);
         this.account = this.mediaContext.toAccount();
         this.categoryTitle = categoryTitle;
+        channelChangePulse.setOnFinished(_ -> drainChannelChanges());
         preloadAllCategoryContextAsync();
         initWidgets();
         registerSceneLifecycleListener();
@@ -242,7 +248,40 @@ public class ChannelListUI extends HBox implements SearchTarget {
         List<ChannelItem> itemBatch = toMutableItemList(pendingItems);
         List<LogoUpdate> logoBatch = toMutableLogoList(pendingLogoUpdates);
         clearLists(pendingItems, pendingLogoUpdates);
-        runLater(() -> applyChannelChanges(itemBatch, logoBatch));
+        pendingChannelChanges.add(new ChannelChangeBatch(itemBatch, logoBatch));
+        scheduleChannelChangeDrain();
+    }
+
+    private void scheduleChannelChangeDrain() {
+        if (channelChangeDrainScheduled.compareAndSet(false, true)) {
+            runLater(this::drainChannelChanges);
+        }
+    }
+
+    private void drainChannelChanges() {
+        if (disposed.get()) {
+            pendingChannelChanges.clear();
+            channelChangePulse.stop();
+            channelChangeDrainScheduled.set(false);
+            return;
+        }
+        ChannelChangeBatch batch = pendingChannelChanges.poll();
+        if (batch != null) {
+            applyChannelChanges(batch.items(), batch.logoUpdates());
+        }
+        if (!pendingChannelChanges.isEmpty()) {
+            channelChangePulse.playFromStart();
+            return;
+        }
+        channelChangeDrainScheduled.set(false);
+        if (!pendingChannelChanges.isEmpty()) {
+            scheduleChannelChangeDrain();
+        } else if (loadingCompletionRequested.get()) {
+            finishLoadingComplete();
+        }
+    }
+
+    private record ChannelChangeBatch(List<ChannelItem> items, List<LogoUpdate> logoUpdates) {
     }
 
     private static boolean isEmpty(List<?> list) {
@@ -378,14 +417,24 @@ public class ChannelListUI extends HBox implements SearchTarget {
             if (disposed.get()) {
                 return;
             }
-            setScrollingEnabled(true);
-            if (!itemsLoaded.get()) {
-                String emptyText = I18n.tr("autoNothingFoundFor", categoryTitle);
-                table.setPlaceholder(new Label(emptyText));
-                channelGrid.setPlaceholderText(emptyText);
+            loadingCompletionRequested.set(true);
+            if (pendingChannelChanges.isEmpty()) {
+                finishLoadingComplete();
             }
-            finalizeLoadingProgress();
         });
+    }
+
+    private void finishLoadingComplete() {
+        if (disposed.get() || !loadingCompletionRequested.compareAndSet(true, false)) {
+            return;
+        }
+        setScrollingEnabled(true);
+        if (!itemsLoaded.get()) {
+            String emptyText = I18n.tr("autoNothingFoundFor", categoryTitle);
+            table.setPlaceholder(new Label(emptyText));
+            channelGrid.setPlaceholderText(emptyText);
+        }
+        finalizeLoadingProgress();
     }
 
     private void setScrollingEnabled(boolean enabled) {
@@ -1504,6 +1553,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void releaseTransientState() {
+        pendingChannelChanges.clear();
+        channelChangePulse.stop();
+        channelChangeDrainScheduled.set(false);
+        loadingCompletionRequested.set(false);
         if (currentRequestCancelled != null) {
             currentRequestCancelled.set(true);
         }
@@ -1972,13 +2025,33 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private void populateEpisodes(ChannelItem item, AtomicBoolean isCancelled, EpisodesListUI ui) {
         try {
+            EpisodeList cachedEpisodes = SeriesEpisodeService.getInstance()
+                    .getCachedEpisodes(account, categoryId, item.getChannelId());
+            if (cachedEpisodes != null && cachedEpisodes.getEpisodes() != null && !cachedEpisodes.getEpisodes().isEmpty()) {
+                seriesEpisodesCache.put(seriesEpisodeCacheKey(item), cachedEpisodes);
+                publishEpisodesToUi(ui, cachedEpisodes);
+            }
+            if (isCancelled.get()) {
+                return;
+            }
             EpisodeList episodes = SeriesEpisodeService.getInstance()
-                    .getEpisodes(account, categoryId, item.getChannelId(), isCancelled::get);
-            seriesEpisodesCache.put(seriesEpisodeCacheKey(item), episodes);
-            ui.setItems(episodes);
+                    .getEpisodes(account, categoryId, item.getChannelId(), isCancelled::get,
+                            partialEpisodes -> publishEpisodesToUi(ui, partialEpisodes));
+            if (episodes != null && episodes.getEpisodes() != null && !episodes.getEpisodes().isEmpty()) {
+                seriesEpisodesCache.put(seriesEpisodeCacheKey(item), episodes);
+                publishEpisodesToUi(ui, episodes);
+            }
         } finally {
             ui.setLoadingComplete();
         }
+    }
+
+    private void publishEpisodesToUi(EpisodesListUI ui, EpisodeList episodes) {
+        runLater(() -> {
+            if (!disposed.get()) {
+                ui.setItems(episodes);
+            }
+        });
     }
 
     private boolean showCachedEpisodesIfPresent(ChannelItem item) {

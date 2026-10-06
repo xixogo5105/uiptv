@@ -8,6 +8,7 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
+import com.uiptv.widget.PlayingCardIndicator;
 import javafx.application.Platform;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
@@ -53,6 +54,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     private final MenuButton bingeWatchButton = new MenuButton();
     private final Button reloadEpisodesButton = new Button();
     private final Map<EpisodeItem, Pane> renderedCardsByItem = new HashMap<>();
+    private final Map<EpisodeItem, PlayingCardIndicator> playingIndicatorsByItem = new HashMap<>();
     private EpisodeItem selectedEpisodeItem;
     private List<EpisodeItem> currentFilteredEpisodes = List.of();
     private static final int EPISODE_VIRTUAL_BUFFER = 3;
@@ -230,6 +232,7 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
     private void applyEpisodeRows() {
         if (allEpisodeItems.isEmpty()) {
             renderedCardsByItem.clear();
+            playingIndicatorsByItem.clear();
             selectedEpisodeItem = null;
             cardsContainer.getChildren().clear();
             setEmptyState(I18n.tr("autoNoEpisodesFound"), true);
@@ -374,7 +377,11 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         card.getChildren().add(title);
         card.getProperties().put(KEY_CARD_LABELS, List.of(title));
         addRightClickContextMenu(row, card);
+        PlayingCardIndicator playingIndicator = new PlayingCardIndicator();
+        playingIndicatorsByItem.put(row, playingIndicator);
+        updatePlayingIndicator(row, playingIndicator);
         card.getChildren().add(menuButton);
+        card.getChildren().add(card.getChildren().indexOf(menuButton), playingIndicator);
         configureCardHoverReveal(card);
         card.focusedProperty().addListener((_, _, focused) -> {
             if (Boolean.TRUE.equals(focused)) {
@@ -397,6 +404,17 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             event.consume();
         });
         return card;
+    }
+
+    @Override
+    protected void onPlayingEpisodeChanged() {
+        playingIndicatorsByItem.forEach(this::updatePlayingIndicator);
+    }
+
+    private void updatePlayingIndicator(EpisodeItem item, PlayingCardIndicator indicator) {
+        boolean visible = isPlayingEpisode(item);
+        indicator.setManaged(visible);
+        indicator.setVisible(visible);
     }
 
     private Button createEpisodeMenuButton(EpisodeItem item) {
