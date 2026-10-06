@@ -63,6 +63,10 @@ class ServerUtilsTest {
         ServerUtils.generateHtmlResponse(rejected, "<html></html>");
         assertEquals(405, rejected.getResponseCode());
         assertEquals("GET", rejected.getResponseHeaders().getFirst("Allow"));
+
+        StubExchange html = new StubExchange("/html", "GET", null);
+        ServerUtils.generateHtmlResponse(html, "<!doctype html><html><body>UIPTV</body></html>");
+        assertEquals("<!doctype html><html><body>UIPTV</body></html>", html.getResponseBodyText());
     }
 
     private static final class StubExchange extends HttpExchange {

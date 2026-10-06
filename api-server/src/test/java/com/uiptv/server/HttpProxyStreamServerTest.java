@@ -60,7 +60,7 @@ class HttpProxyStreamServerTest {
         upstreamServer.start();
 
         proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        proxyServer.createContext("/proxy-stream", new HttpProxyStreamServer());
+        proxyServer.createContext("/proxy-stream", localUpstreamProxy());
         proxyServer.start();
 
         String upstreamUrl = "http://127.0.0.1:" + upstreamServer.getAddress().getPort() + "/stream.ts";
@@ -106,7 +106,7 @@ class HttpProxyStreamServerTest {
         upstreamServer.start();
 
         proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        proxyServer.createContext("/proxy-stream", new HttpProxyStreamServer());
+        proxyServer.createContext("/proxy-stream", localUpstreamProxy());
         proxyServer.start();
 
         String upstreamUrl = "http://127.0.0.1:" + upstreamServer.getAddress().getPort()
@@ -150,7 +150,7 @@ class HttpProxyStreamServerTest {
         upstreamServer.start();
 
         proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        proxyServer.createContext("/proxy-stream", new HttpProxyStreamServer());
+        proxyServer.createContext("/proxy-stream", localUpstreamProxy());
         proxyServer.start();
 
         String upstreamBase = "http://127.0.0.1:" + upstreamServer.getAddress().getPort();
@@ -210,6 +210,7 @@ class HttpProxyStreamServerTest {
         assertTrue((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://localhost:8080/player"));
         assertFalse((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://0.0.0.0:8080/player"));
         assertFalse((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://portal.test/player"));
+        assertFalse((Boolean) invoke(handler, "isAllowedTargetUrl", new Class[]{String.class}, "http://127.0.0.1:8080/private"));
 
         assertEquals("A B", invoke(handler, "queryParam", new Class[]{String.class, String.class}, "http://x.test/path?mac=A+B&empty", "mac"));
         assertEquals("", invoke(handler, "queryParam", new Class[]{String.class, String.class}, "http://x.test/path", "mac"));
@@ -251,4 +252,14 @@ class HttpProxyStreamServerTest {
     }
 
     private static final String PROXY_PREFIX = "/proxy-stream?src=";
+
+    private HttpProxyStreamServer localUpstreamProxy() {
+        int upstreamPort = upstreamServer.getAddress().getPort();
+        return new HttpProxyStreamServer(url -> {
+            URI uri = URI.create(url);
+            return "http".equalsIgnoreCase(uri.getScheme())
+                    && "127.0.0.1".equals(uri.getHost())
+                    && uri.getPort() == upstreamPort;
+        });
+    }
 }

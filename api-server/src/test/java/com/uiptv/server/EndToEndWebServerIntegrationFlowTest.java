@@ -875,14 +875,11 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
 
         String src = URLEncoder.encode(providerBaseUrl + "/upstream/stream.ts", StandardCharsets.UTF_8);
         HttpTextResponse proxyStream = get("/proxy-stream?src=" + src);
-        assertEquals(200, proxyStream.statusCode());
-        assertEquals("UPSTREAM-TS-DATA", proxyStream.body());
+        assertEquals(400, proxyStream.statusCode(), "Private upstream targets must be rejected");
 
         String chunkedSrc = URLEncoder.encode(providerBaseUrl + "/upstream/stream.ts?chunked=1", StandardCharsets.UTF_8);
         HttpTextResponse chunkedProxyStream = get("/proxy-stream?src=" + chunkedSrc);
-        assertEquals(200, chunkedProxyStream.statusCode());
-        assertEquals("UPSTREAM-TS-DATA", chunkedProxyStream.body());
-        assertNotEquals("0", chunkedProxyStream.firstHeader("Content-Length"));
+        assertEquals(400, chunkedProxyStream.statusCode(), "Private upstream targets must be rejected");
     }
 
     private void assertWebChannelJsonServerApi() throws Exception {

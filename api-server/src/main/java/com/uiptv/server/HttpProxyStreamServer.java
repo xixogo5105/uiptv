@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Predicate;
 
 import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.ServerUrlUtil.isLocalServerHost;
@@ -48,6 +50,15 @@ public class HttpProxyStreamServer implements HttpHandler {
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
     private static final long UNKNOWN_CONTENT_LENGTH = 0L;
     private static final String PROXY_STREAM_PATH = "/proxy-stream?src=";
+    private final Predicate<String> targetUrlValidator;
+
+    public HttpProxyStreamServer() {
+        this(HttpProxyStreamServer::isAllowedTargetUrl);
+    }
+
+    HttpProxyStreamServer(Predicate<String> targetUrlValidator) {
+        this.targetUrlValidator = Objects.requireNonNull(targetUrlValidator);
+    }
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
@@ -58,7 +69,7 @@ public class HttpProxyStreamServer implements HttpHandler {
         }
 
         String current = source.trim();
-        if (!isAllowedTargetUrl(current)) {
+        if (!targetUrlValidator.test(current)) {
             ex.sendResponseHeaders(400, -1);
             return;
         }
@@ -159,7 +170,7 @@ public class HttpProxyStreamServer implements HttpHandler {
                     URI base = URI.create(current);
                     URI resolved = base.resolve(location);
                     String resolvedTarget = downgradeHttpsToHttp(resolved.toString());
-                    if (!isAllowedTargetUrl(resolvedTarget)) {
+                    if (!targetUrlValidator.test(resolvedTarget)) {
                         return null;
                     }
                     current = resolvedTarget;

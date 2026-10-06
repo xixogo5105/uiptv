@@ -129,28 +129,13 @@ public class ServerUtils {
             httpExchange.getResponseHeaders().add("Content-Disposition", "attachment; filename=\"" + safeFileName + "\"");
             httpExchange.getResponseHeaders().add("Content-Transfer-Encoding", "binary");
         }
-        String safeResponse = response == null ? "" : response;
-        if (CONTENT_TYPE_HTML.equals(contentType)
-                || CONTENT_TYPE_JAVASCRIPT.equals(contentType)
-                || CONTENT_TYPE_CSS.equals(contentType)) {
-            safeResponse = escapeForHtml(safeResponse);
-        }
-        byte[] responseBytes = safeResponse.getBytes(StandardCharsets.UTF_8);
+        byte[] responseBytes = (response == null ? "" : response).getBytes(StandardCharsets.UTF_8);
         httpExchange.getResponseHeaders().add("Content-length", Long.toString(responseBytes.length));
         httpExchange.sendResponseHeaders(200, responseBytes.length);
 
         OutputStream os = httpExchange.getResponseBody();
         os.write(responseBytes);
         os.close();
-    }
-
-    private static String escapeForHtml(String value) {
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#x27;");
     }
 
     private static String sanitizeContentDispositionFileName(String fileName) {
