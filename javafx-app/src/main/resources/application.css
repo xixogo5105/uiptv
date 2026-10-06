@@ -3569,6 +3569,122 @@
     -fx-fill: -uiptv-selected-card-fg;
 }
 
+.episode-menu-button {
+    -fx-min-width: 24;
+    -fx-pref-width: 24;
+    -fx-max-width: 24;
+    -fx-min-height: 24;
+    -fx-pref-height: 24;
+    -fx-max-height: 24;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 7;
+    -fx-border-radius: 7;
+}
+
+.episode-menu-button .play-menu-icon-ring {
+    -fx-stroke: -uiptv-text-secondary;
+}
+
+.episode-menu-button .play-menu-icon-dot {
+    -fx-fill: -uiptv-text-secondary;
+}
+
+.uiptv-responsive-card:selected .episode-menu-button .play-menu-icon-ring,
+.uiptv-responsive-card.selected .episode-menu-button .play-menu-icon-ring,
+.episode-card:selected .episode-menu-button .play-menu-icon-ring,
+.episode-card.selected .episode-menu-button .play-menu-icon-ring {
+    -fx-stroke: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .episode-menu-button .play-menu-icon-dot,
+.uiptv-responsive-card.selected .episode-menu-button .play-menu-icon-dot,
+.episode-card:selected .episode-menu-button .play-menu-icon-dot,
+.episode-card.selected .episode-menu-button .play-menu-icon-dot {
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.play-menu-button.episode-menu-button:hover,
+.play-menu-button.episode-menu-button:focused {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-fg;
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.play-menu-button.episode-menu-button:hover .play-menu-icon-ring,
+.play-menu-button.episode-menu-button:focused .play-menu-icon-ring {
+    -fx-stroke: -uiptv-selected-card-fg;
+}
+
+.play-menu-button.episode-menu-button:hover .play-menu-icon-dot,
+.play-menu-button.episode-menu-button:focused .play-menu-icon-dot {
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .play-menu-button.episode-menu-button:hover .play-menu-icon-ring,
+.uiptv-responsive-card:selected .play-menu-button.episode-menu-button:focused .play-menu-icon-ring,
+.uiptv-responsive-card.selected .play-menu-button.episode-menu-button:hover .play-menu-icon-ring,
+.uiptv-responsive-card.selected .play-menu-button.episode-menu-button:focused .play-menu-icon-ring,
+.episode-card:selected .play-menu-button.episode-menu-button:hover .play-menu-icon-ring,
+.episode-card:selected .play-menu-button.episode-menu-button:focused .play-menu-icon-ring,
+.episode-card.selected .play-menu-button.episode-menu-button:hover .play-menu-icon-ring,
+.episode-card.selected .play-menu-button.episode-menu-button:focused .play-menu-icon-ring {
+    -fx-stroke: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .play-menu-button.episode-menu-button:hover .play-menu-icon-dot,
+.uiptv-responsive-card:selected .play-menu-button.episode-menu-button:focused .play-menu-icon-dot,
+.uiptv-responsive-card.selected .play-menu-button.episode-menu-button:hover .play-menu-icon-dot,
+.uiptv-responsive-card.selected .play-menu-button.episode-menu-button:focused .play-menu-icon-dot,
+.episode-card:selected .play-menu-button.episode-menu-button:hover .play-menu-icon-dot,
+.episode-card:selected .play-menu-button.episode-menu-button:focused .play-menu-icon-dot,
+.episode-card.selected .play-menu-button.episode-menu-button:hover .play-menu-icon-dot,
+.episode-card.selected .play-menu-button.episode-menu-button:focused .play-menu-icon-dot {
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .play-menu-button.episode-menu-button:hover,
+.uiptv-responsive-card:selected .play-menu-button.episode-menu-button:focused,
+.uiptv-responsive-card.selected .play-menu-button.episode-menu-button:hover,
+.uiptv-responsive-card.selected .play-menu-button.episode-menu-button:focused,
+.episode-card:selected .play-menu-button.episode-menu-button:hover,
+.episode-card:selected .play-menu-button.episode-menu-button:focused,
+.episode-card.selected .play-menu-button.episode-menu-button:hover,
+.episode-card.selected .play-menu-button.episode-menu-button:focused {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-fg;
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .play-menu-button.episode-menu-button,
+.uiptv-responsive-card.selected .play-menu-button.episode-menu-button,
+.episode-card:selected .play-menu-button.episode-menu-button,
+.episode-card.selected .play-menu-button.episode-menu-button {
+    -fx-background-color: transparent;
+}
+
+.watching-now-episode-card.selected-card .episode-menu-button {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-fg;
+    -fx-border-width: 2;
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-episode-card.selected-card .episode-menu-button .play-menu-icon-ring {
+    -fx-stroke: transparent;
+}
+
+.watching-now-episode-card.selected-card .episode-menu-button .play-menu-icon-dot {
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
+.watching-now-episode-card.selected-card .episode-menu-button:hover,
+.watching-now-episode-card.selected-card .episode-menu-button:focused {
+    -fx-background-color: derive(-uiptv-selected-card-bg, 18%);
+}
+
 .small-pill-button:hover,
 .small-pill-button:focused,
 .play-menu-button:hover,
@@ -3585,6 +3701,18 @@
     -fx-fill: -uiptv-text-primary;
 }
 
+.play-menu-button.episode-play-button:hover,
+.play-menu-button.episode-play-button:focused {
+    -fx-background-color: -uiptv-selected-card-bg;
+    -fx-border-color: -uiptv-selected-card-fg;
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+
+.play-menu-button.episode-play-button:hover .play-menu-icon-dot,
+.play-menu-button.episode-play-button:focused .play-menu-icon-dot {
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
 .menu-item.episode-menu-item,
 .menu-item.episode-menu-item .label {
     -fx-font-weight: normal;
@@ -3599,6 +3727,7 @@
 .watching-now-episode-card.selected-card .episode-play-button {
     -fx-background-color: -uiptv-selected-card-bg;
     -fx-border-color: -uiptv-selected-card-fg;
+    -fx-border-width: 2;
     -fx-text-fill: -uiptv-selected-card-fg;
 }
 

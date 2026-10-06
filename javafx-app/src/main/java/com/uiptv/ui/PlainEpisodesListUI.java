@@ -21,6 +21,7 @@ import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.TextInputControl;
+import com.uiptv.widget.PlayMenuButton;
 import javafx.scene.Node;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.KeyEvent;
@@ -28,12 +29,16 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
+import javafx.geometry.Side;
 import javafx.scene.layout.VBox;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Map;
 
 import static com.uiptv.util.StringUtils.isBlank;
@@ -363,9 +368,14 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         title.setMouseTransparent(true);
         HBox.setHgrow(title, Priority.ALWAYS);
 
+        // Create menu button for hover context menu (similar to BookmarkChannelListUI and AccountListUI)
+        Button menuButton = createEpisodeMenuButton(row);
+        
         card.getChildren().add(title);
         card.getProperties().put(KEY_CARD_LABELS, List.of(title));
         addRightClickContextMenu(row, card);
+        card.getChildren().add(menuButton);
+        configureCardHoverReveal(card);
         card.focusedProperty().addListener((_, _, focused) -> {
             if (Boolean.TRUE.equals(focused)) {
                 selectedEpisodeItem = row;
@@ -387,6 +397,50 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
             event.consume();
         });
         return card;
+    }
+
+    private Button createEpisodeMenuButton(EpisodeItem item) {
+        Button menuButton = new PlayMenuButton(I18n.tr("autoPlay2"));
+        menuButton.getStyleClass().add("episode-menu-button");
+        menuButton.setOnAction(event -> {
+            event.consume();
+            // Select the item when menu button is clicked
+            List<EpisodeItem> selectedItems = selectedEpisodesForMenuButton(item);
+            ContextMenu menu = createEpisodeContextMenu(item, selectedItems, menuButton);
+            UiI18n.preparePopupControl(menu, menuButton);
+            menu.show(menuButton, Side.BOTTOM, 0, 0);
+        });
+        return menuButton;
+    }
+
+    private ContextMenu createEpisodeContextMenu(EpisodeItem item, List<EpisodeItem> selectedItems, Button owner) {
+        ContextMenu menu = new ContextMenu();
+        UiI18n.preparePopupControl(menu, owner);
+        populateEpisodeContextMenu(menu, item);
+        return menu;
+    }
+
+    private List<EpisodeItem> selectedEpisodesForMenuButton(EpisodeItem item) {
+        if (item == null) {
+            return List.of();
+        }
+        List<EpisodeItem> selectedItems = List.copyOf(allEpisodeItems);
+        boolean itemInSelection = selectedItems.stream().anyMatch(selectedItem -> isSameEpisodeItem(selectedItem, item));
+        if (itemInSelection) {
+            return selectedItems;
+        }
+        // Clear current selection and select only this item
+        clearEpisodeSelections();
+        return List.of(item);
+    }
+
+    private boolean isSameEpisodeItem(EpisodeItem left, EpisodeItem right) {
+        return left != null && right != null && Objects.equals(left.getEpisodeId(), right.getEpisodeId());
+    }
+
+    private void clearEpisodeSelections() {
+        // Clear selection logic would go here if needed
+        // For now, we'll rely on the context menu selection handling
     }
 
     private void handleEpisodeNavigationKeyPressed(KeyEvent event) {

@@ -47,6 +47,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -932,6 +933,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 setSelectedEpisodeCard(root);
             }
         });
+        configureCardHoverReveal(root);
+
         root.setOnMouseClicked(event -> {
             if (event.getButton() != MouseButton.PRIMARY) {
                 return;
@@ -1015,7 +1018,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         titleBox.setAlignment(Pos.CENTER_LEFT);
         titleBox.setMinWidth(0);
         titleBox.setMaxWidth(Double.MAX_VALUE);
-        titleBox.setMouseTransparent(true);
 
         if (row.isWatched()) {
             Label watched = new Label(I18n.tr("autoWatching"));
@@ -1035,12 +1037,17 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         meta.setVisible(!isBlank(meta.getText()));
         meta.setManaged(!isBlank(meta.getText()));
 
+        // Create menu button for hover context menu (similar to BookmarkChannelListUI and AccountListUI)
+        Button menuButton = createEpisodeMenuButton(row);
+        titleBox.getChildren().add(menuButton);
+
         List<Label> cardLabels = new ArrayList<>();
         cardLabels.add(title);
         cardLabels.add(meta);
         root.getChildren().addAll(titleBox, meta);
         root.getProperties().put(KEY_CARD_LABELS, cardLabels);
         addRightClickContextMenu(row, root);
+        configureCardHoverReveal(root);
         root.focusedProperty().addListener((_, _, focused) -> {
             if (Boolean.TRUE.equals(focused)) {
                 setSelectedEpisodeCard(root);
@@ -1059,6 +1066,50 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             event.consume();
         });
         return root;
+    }
+
+    private ContextMenu createEpisodeContextMenu(EpisodeItem item, List<EpisodeItem> selectedItems, Button owner) {
+        ContextMenu menu = new ContextMenu();
+        UiI18n.preparePopupControl(menu, owner);
+        populateEpisodeContextMenu(menu, item);
+        return menu;
+    }
+
+    private Button createEpisodeMenuButton(EpisodeItem item) {
+        Button menuButton = new PlayMenuButton(I18n.tr("autoPlay2"));
+        menuButton.getStyleClass().add("episode-menu-button");
+        menuButton.setOnAction(event -> {
+            event.consume();
+            // Select the item when menu button is clicked
+            List<EpisodeItem> selectedItems = selectedEpisodesForMenuButton(item);
+            ContextMenu menu = createEpisodeContextMenu(item, selectedItems, menuButton);
+            UiI18n.preparePopupControl(menu, menuButton);
+            menu.show(menuButton, Side.BOTTOM, 0, 0);
+        });
+        return menuButton;
+    }
+
+    private List<EpisodeItem> selectedEpisodesForMenuButton(EpisodeItem item) {
+        if (item == null) {
+            return List.of();
+        }
+        List<EpisodeItem> selectedItems = new ArrayList<>(renderedCardsByItem.keySet());
+        boolean itemInSelection = selectedItems.stream().anyMatch(selectedItem -> isSameEpisodeItem(selectedItem, item));
+        if (itemInSelection) {
+            return selectedItems;
+        }
+        // Clear current selection and select only this item
+        clearEpisodeSelections();
+        return List.of(item);
+    }
+
+    private boolean isSameEpisodeItem(EpisodeItem left, EpisodeItem right) {
+        return left != null && right != null && Objects.equals(left.getEpisodeId(), right.getEpisodeId());
+    }
+
+    private void clearEpisodeSelections() {
+        // Clear selection logic - for now we'll just reset the selected episode card
+        setSelectedEpisodeCard(null);
     }
 
     private void handleEpisodeNavigationKeyPressed(KeyEvent event) {

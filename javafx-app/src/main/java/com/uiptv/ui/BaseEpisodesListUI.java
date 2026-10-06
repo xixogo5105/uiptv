@@ -18,6 +18,7 @@ import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.EpisodeTitleFormatter;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
+import com.uiptv.widget.HoverRevealAction;
 import javafx.beans.Observable;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -25,9 +26,13 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.control.Label;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import org.json.JSONObject;
 
@@ -1122,6 +1127,41 @@ public abstract class BaseEpisodesListUI extends HBox {
             }
         }
         return "";
+    }
+
+    protected void configureCardHoverReveal(Region card) {
+        List<HoverRevealAction> actions = new ArrayList<>();
+        collectHoverRevealActions(card, actions);
+        if (actions.isEmpty()) {
+            return;
+        }
+        for (HoverRevealAction action : actions) {
+            action.conceal();
+        }
+        card.addEventHandler(MouseEvent.MOUSE_ENTERED, event -> {
+            for (HoverRevealAction action : actions) {
+                action.reveal();
+            }
+        });
+        card.addEventHandler(MouseEvent.MOUSE_EXITED, event -> {
+            for (HoverRevealAction action : actions) {
+                action.conceal();
+            }
+        });
+    }
+
+    private void collectHoverRevealActions(Node node, List<HoverRevealAction> actions) {
+        if (node == null) {
+            return;
+        }
+        if (node instanceof HoverRevealAction action) {
+            actions.add(action);
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                collectHoverRevealActions(child, actions);
+            }
+        }
     }
 
     public static class EpisodeItem {
