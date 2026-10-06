@@ -1,17 +1,23 @@
 package com.uiptv.util;
 
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
+import org.apache.hc.core5.concurrent.FutureCallback;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.client5.http.impl.LaxRedirectStrategy;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.FileEntity;
@@ -22,6 +28,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -31,6 +38,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @SuppressWarnings("java:S1874")
@@ -62,9 +72,15 @@ public class HttpUtil {
                     // stale connection and fail until manually retried.
                     .setValidateAfterInactivity(TimeValue.ofSeconds(5))
                     .build();
+    private static final PoolingAsyncClientConnectionManager ASYNC_CONNECTION_MANAGER =
+            PoolingAsyncClientConnectionManagerBuilder.create()
+                    .setMaxConnTotal(MAX_CONNECTIONS_TOTAL)
+                    .setMaxConnPerRoute(MAX_CONNECTIONS_PER_ROUTE)
+                    .setValidateAfterInactivity(TimeValue.ofSeconds(5))
+                    .build();
     private static final CloseableHttpClient HTTP_CLIENT = HttpClients.custom()
             .setConnectionManager(CONNECTION_MANAGER)
-            .setRedirectStrategy(new LaxRedirectStrategy())
+            .setRedirectStrategy(new org.apache.hc.client5.http.impl.LaxRedirectStrategy())
             .disableAutomaticRetries()
             .evictExpiredConnections()
             .evictIdleConnections(TimeValue.ofSeconds(IDLE_CONNECTION_EVICT_SECONDS))
@@ -75,7 +91,7 @@ public class HttpUtil {
                     .setRedirectsEnabled(true)
                     .setMaxRedirects(MAX_REDIRECTS)
                     .build())
-            .build();
+             .build();
 
     public static HttpResult sendRequest(String url, Map<String, String> headers, String method) throws IOException {
         return sendRequest(url, headers, method, null);
@@ -490,6 +506,135 @@ public class HttpUtil {
         @Override
         public void close() throws IOException {
             response.close();
+        }
+    }
+
+    private static final CloseableHttpAsyncClient ASYNC_HTTP_CLIENT;
+
+    static {
+        CloseableHttpAsyncClient client = HttpAsyncClients.custom()
+                .setConnectionManager(ASYNC_CONNECTION_MANAGER)
+                .setRedirectStrategy(new org.apache.hc.client5.http.impl.LaxRedirectStrategy())
+                .disableAutomaticRetries()
+                .evictExpiredConnections()
+                .evictIdleConnections(TimeValue.ofSeconds(IDLE_CONNECTION_EVICT_SECONDS))
+                .setDefaultRequestConfig(RequestConfig.custom()
+                        .setConnectTimeout(Timeout.ofSeconds(CONNECT_TIMEOUT_SECONDS))
+                        .setConnectionRequestTimeout(Timeout.ofSeconds(CONNECTION_REQUEST_TIMEOUT_SECONDS))
+                        .setResponseTimeout(Timeout.ofSeconds(RESPONSE_TIMEOUT_SECONDS))
+                        .setRedirectsEnabled(true)
+                        .setMaxRedirects(MAX_REDIRECTS)
+                        .build())
+                .build();
+        client.start();
+        ASYNC_HTTP_CLIENT = client;
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                client.close();
+            } catch (IOException e) {
+                AppLog.addWarningLog(HttpUtil.class, "Failed to close asynchronous HTTP client: " + e.getMessage());
+            }
+        }, "uiptv-http-async-client-shutdown"));
+    }
+
+    public static CompletableFuture<HttpResult> sendAsync(String url, Map<String, String> headers, String method) {
+        return sendAsync(url, headers, method, null, RequestOptions.defaults());
+    }
+
+    public static CompletableFuture<HttpResult> sendAsync(String url, Map<String, String> headers, String method, String body) {
+        return sendAsync(url, headers, method, body, RequestOptions.defaults());
+    }
+
+    public static CompletableFuture<HttpResult> sendAsync(String url, Map<String, String> headers, String method, String body, RequestOptions options) {
+        SimpleHttpRequest request = SimpleHttpRequest.create(safeMethod(method), toSafeUri(url));
+        request.setConfig(buildRequestConfig(options));
+        if (headers != null) {
+            headers.forEach(request::setHeader);
+        }
+        if (body != null && !body.isBlank()) {
+            request.setBody(body, ContentType.APPLICATION_FORM_URLENCODED);
+        }
+
+        AtomicReference<Future<?>> apacheFutureRef = new AtomicReference<>();
+        CancellableFuture<HttpResult> result = new CancellableFuture<>(apacheFutureRef);
+
+        Future<SimpleHttpResponse> apacheFuture = ASYNC_HTTP_CLIENT.execute(request, null, new FutureCallback<SimpleHttpResponse>() {
+            @Override
+            public void completed(SimpleHttpResponse response) {
+                if (result.isDone()) {
+                    return;
+                }
+                Map<String, List<String>> responseHeaders = new LinkedHashMap<>();
+                if (response.getHeaders() != null) {
+                    for (Header header : response.getHeaders()) {
+                        responseHeaders.computeIfAbsent(header.getName(), k -> new ArrayList<>()).add(header.getValue());
+                    }
+                }
+                Map<String, List<String>> requestHeaders = new LinkedHashMap<>();
+                if (headers != null) {
+                    headers.forEach((k, v) -> {
+                        requestHeaders.computeIfAbsent(k, _ -> new ArrayList<>()).add(v);
+                    });
+                }
+                result.complete(new HttpResult(
+                        request.getMethod(),
+                        getUriString(request),
+                        response.getCode(),
+                        options == null || options.readBody() ? response.getBodyText() : "",
+                        requestHeaders,
+                        responseHeaders
+                ));
+            }
+
+            @Override
+            public void failed(Exception ex) {
+                if (result.isDone()) {
+                    return;
+                }
+                result.completeExceptionally(ex);
+            }
+
+            @Override
+            public void cancelled() {
+                result.cancel(false);
+            }
+        });
+        result.setDelegate(apacheFuture);
+
+        return result;
+    }
+
+    static final class CancellableFuture<T> extends CompletableFuture<T> {
+        private final AtomicReference<Future<?>> delegateRef;
+
+        CancellableFuture(AtomicReference<Future<?>> delegateRef) {
+            this.delegateRef = delegateRef;
+        }
+
+        void setDelegate(Future<?> delegate) {
+            delegateRef.set(delegate);
+            if (isCancelled()) {
+                delegate.cancel(true);
+            }
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            boolean cancelled = super.cancel(mayInterruptIfRunning);
+            Future<?> delegate = delegateRef.get();
+            if (cancelled && delegate != null) {
+                delegate.cancel(mayInterruptIfRunning);
+            }
+            return cancelled;
+        }
+    }
+
+    private static String getUriString(org.apache.hc.core5.http.message.BasicHttpRequest request) {
+        try {
+            return request.getUri().toString();
+        } catch (URISyntaxException e) {
+            // Fallback to the request URI if URI is malformed
+            return request.getRequestUri();
         }
     }
 }

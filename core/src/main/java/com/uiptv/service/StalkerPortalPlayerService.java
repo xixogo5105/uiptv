@@ -3,6 +3,7 @@ package com.uiptv.service;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
+import com.uiptv.application.PlaybackResolutionException;
 import com.uiptv.util.FetchAPI;
 import com.uiptv.util.PlayerUrlUtils;
 import org.json.JSONObject;
@@ -13,23 +14,31 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
 import static com.uiptv.util.StringUtils.isBlank;
 
 public class StalkerPortalPlayerService implements AccountPlayerService {
-    private static final int CREATE_LINK_TIMEOUT_SECONDS = Integer.getInteger("uiptv.stalker.create_link.timeout.seconds", 8);
+    private static final int CREATE_LINK_TIMEOUT_SECONDS = Integer.getInteger("uiptv.stalker.create_link.timeout.seconds", 3);
     private static final String FFMPEG_PREFIX = "ffmpeg ";
     private static final String STREAM_PARAM = "stream=";
     private static final String STREAM_PARAM_WITH_SEPARATOR = "stream=&";
     private static final com.uiptv.util.HttpUtil.RequestOptions CREATE_LINK_REQUEST_OPTIONS =
             new com.uiptv.util.HttpUtil.RequestOptions(true, true,
                     CREATE_LINK_TIMEOUT_SECONDS, CREATE_LINK_TIMEOUT_SECONDS, CREATE_LINK_TIMEOUT_SECONDS);
+    private static final AtomicLong CREATE_LINK_SEQUENCE = new AtomicLong();
 
     @Override
     public PlayerResponse get(Account account, Channel channel, String series, String parentSeriesId, String categoryId) throws IOException {
-        com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "Resolving playback URL for Stalker Portal account: " + account.getAccountName());
+        com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "playback resolution start account=" + account.getAccountName() + " channel=" + channel.getName());
+        long startNanos = System.nanoTime();
+        if (Thread.currentThread().isInterrupted()) {
+            throw new IOException("Playback resolution was cancelled");
+        }
         ensureStalkerSession(account);
         String resolvedSeries = resolveSeriesParam(account, channel, series);
 
@@ -42,7 +51,9 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
         }
 
         String finalUrl = PlayerUrlUtils.normalizeStreamUrl(account, PlayerUrlUtils.resolveAndProcessUrl(rawUrl));
-        com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "Final resolved URL: " + finalUrl);
+        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+        com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class,
+                "playback resolution complete elapsed=" + elapsedMs + "ms url=" + finalUrl);
         com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "Playback URL resolved.");
         
         PlayerResponse response = new PlayerResponse(finalUrl);
@@ -93,8 +104,72 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
         }
 
         com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "live create_link candidates: " + candidates.size());
+        return resolveLiveCandidatesWithTokenRefresh(
+                candidates,
+                cmd -> resolveLiveCandidate(account, series, cmd),
+                () -> HandshakeService.getInstance().hardTokenRefresh(account),
+                fallbackCmd,
+                channel.getCmd()
+        );
+    }
+
+    private String resolveLiveCandidate(Account account, String series, String originalCmd) {
+        String resolvedCmd = resolveCreateLink(account, series, originalCmd);
+        if (isBlank(resolvedCmd)) {
+            return null;
+        }
+        resolvedCmd = normalizeSeriesStreamPlaceholder(resolvedCmd, series);
+        return mergeMissingQueryParams(resolvedCmd, originalCmd);
+    }
+
+    static String resolveLiveCandidatesWithTokenRefresh(
+            List<String> candidates,
+            Function<String, String> resolver,
+            Runnable tokenRefresh,
+            String fallbackCmd,
+            String channelCmd
+    ) {
+        String resolved = resolveLiveCandidates(candidates, resolver);
+        if (resolved != null) {
+            return resolved;
+        }
+        if (Thread.currentThread().isInterrupted()) {
+            throw new PlaybackResolutionCancelledException();
+        }
+
+        tokenRefresh.run();
+        if (Thread.currentThread().isInterrupted()) {
+            throw new PlaybackResolutionCancelledException();
+        }
+
+        resolved = resolveLiveCandidates(candidates, resolver);
+        if (resolved != null) {
+            return resolved;
+        }
+        com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService.class, "live create_link fallback to original cmd");
+        return isBlank(fallbackCmd) ? channelCmd : fallbackCmd;
+    }
+
+    static String resolveLiveCandidates(
+            List<String> candidates,
+            Function<String, String> resolver
+    ) {
+        boolean candidateTimedOut = false;
         for (String cmd : candidates) {
-            String resolved = fetchStalkerPortalUrl(account, series, cmd);
+            if (Thread.currentThread().isInterrupted()) {
+                throw new PlaybackResolutionCancelledException();
+            }
+            String resolved;
+            try {
+                resolved = resolver.apply(cmd);
+            } catch (PlaybackResolutionTimeoutException e) {
+                candidateTimedOut = true;
+                com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService.class, "live create_link candidate timed out");
+                continue;
+            }
+            if (Thread.currentThread().isInterrupted()) {
+                throw new PlaybackResolutionCancelledException();
+            }
             if (isUsableResolvedLiveUrl(resolved)) {
                 com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "live create_link selected usable URL");
                 return resolved;
@@ -106,20 +181,35 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
             }
         }
 
-        com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService.class, "live create_link fallback to original cmd");
-        return isBlank(fallbackCmd) ? channel.getCmd() : fallbackCmd;
+        if (Thread.currentThread().isInterrupted()) {
+            throw new PlaybackResolutionCancelledException();
+        }
+        if (candidateTimedOut) {
+            throw new PlaybackResolutionTimeoutException();
+        }
+
+        return null;
     }
 
     private String fetchStalkerPortalUrl(final Account account, final String series, final String originalCmd) {
         if (isBlank(originalCmd)) {
             return originalCmd;
         }
+        if (Thread.currentThread().isInterrupted()) {
+            throw new PlaybackResolutionCancelledException();
+        }
 
         com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "create_link start");
         String resolvedCmd = resolveCreateLink(account, series, originalCmd);
         if (isBlank(resolvedCmd)) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new PlaybackResolutionCancelledException();
+            }
             com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService.class, "create_link returned empty cmd. Refreshing token and retrying once.");
             HandshakeService.getInstance().hardTokenRefresh(account);
+            if (Thread.currentThread().isInterrupted()) {
+                throw new PlaybackResolutionCancelledException();
+            }
             resolvedCmd = resolveCreateLink(account, series, originalCmd);
         }
 
@@ -138,12 +228,102 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
     }
 
     private String resolveCreateLink(Account account, String series, String cmd) {
-        String json = FetchAPI.fetch(getParams(account, cmd, series), account, CREATE_LINK_REQUEST_OPTIONS);
-        String resolved = parseUrl(json);
-        if (isBlank(resolved)) {
-            com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService.class, "create_link unresolved for provided cmd.");
+        long seq = CREATE_LINK_SEQUENCE.incrementAndGet();
+        long startNanos = System.nanoTime();
+        com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "create_link start seq=" + seq);
+        CompletableFuture<com.uiptv.util.HttpUtil.HttpResult> httpFuture = null;
+        try {
+            httpFuture = com.uiptv.util.HttpUtil.sendAsync(
+                    resolveCreateLinkUrl(account, cmd, series),
+                    com.uiptv.util.FetchAPI.headers(account, false),
+                    "GET",
+                    null,
+                    CREATE_LINK_REQUEST_OPTIONS
+            );
+            return awaitCreateLinkResult(httpFuture, CREATE_LINK_TIMEOUT_SECONDS, seq, startNanos);
+        } catch (PlaybackResolutionTimeoutException | PlaybackResolutionCancelledException e) {
+            throw e;
+        } catch (Exception e) {
+            long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+            com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService.class, "create_link failed seq=" + seq + " elapsed=" + elapsedMs + "ms error=" + safe(e.getMessage()));
+            return null;
+        } finally {
+            if (httpFuture != null && !httpFuture.isDone()) {
+                httpFuture.cancel(true);
+            }
         }
-        return resolved;
+    }
+
+    private String awaitCreateLinkResult(
+            CompletableFuture<com.uiptv.util.HttpUtil.HttpResult> httpFuture,
+            int timeoutSeconds,
+            long seq,
+            long startNanos
+    ) throws IOException {
+        CompletableFuture<String> resultFuture = httpFuture.thenApply(response -> parseUrl(response.body()));
+        try {
+            String result = resultFuture.get(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS);
+            if (isBlank(result)) {
+                com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService.class, "create_link empty seq=" + seq);
+            } else {
+                long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+                com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "create_link resolved seq=" + seq + " elapsed=" + elapsedMs + "ms");
+            }
+            return isBlank(result) ? null : result;
+        } catch (java.util.concurrent.TimeoutException ex) {
+            com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService.class, "create_link timeout seq=" + seq);
+            resultFuture.cancel(true);
+            httpFuture.cancel(true);
+            throw new PlaybackResolutionTimeoutException();
+        } catch (InterruptedException ex) {
+            resultFuture.cancel(true);
+            httpFuture.cancel(true);
+            Thread.currentThread().interrupt();
+            com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService.class, "create_link interrupted seq=" + seq);
+            throw new PlaybackResolutionCancelledException();
+        } catch (java.util.concurrent.ExecutionException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof IOException ioException) {
+                throw ioException;
+            } else if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new IOException(cause);
+        } finally {
+            if (!resultFuture.isDone()) {
+                resultFuture.cancel(true);
+            }
+            if (!httpFuture.isDone()) {
+                httpFuture.cancel(true);
+            }
+        }
+    }
+
+    private String resolveCreateLinkUrl(Account account, String cmd, String series) {
+        Map<String, String> params = getParams(account, cmd, series);
+        String baseUrl = com.uiptv.util.FetchAPI.resolveBaseUrl(account);
+        String payload = com.uiptv.util.FetchAPI.mapToString(params);
+        return baseUrl + "?" + payload;
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    static final class PlaybackResolutionTimeoutException extends PlaybackResolutionException {
+        private static final long serialVersionUID = 1L;
+
+        PlaybackResolutionTimeoutException() {
+            super("Playback URL resolution timed out.");
+        }
+    }
+
+    static final class PlaybackResolutionCancelledException extends PlaybackResolutionException {
+        private static final long serialVersionUID = 1L;
+
+        PlaybackResolutionCancelledException() {
+            super("Playback URL resolution was cancelled.");
+        }
     }
 
     private static Map<String, String> getParams(Account account, String urlPrefix, String series) {

@@ -5,6 +5,7 @@ import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
+import com.uiptv.application.PlaybackResolutionException;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.ui.util.UiServerUrlUtil;
@@ -106,6 +107,8 @@ public final class PlaybackUIService {
                     }
                     launchResolvedPlayback(context, request, response);
                 });
+            } catch (PlaybackResolutionException e) {
+                // Expected timeout or cancellation; keep playback failures non-modal.
             } catch (Exception e) {
                 runLater(() -> {
                     if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) {

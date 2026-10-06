@@ -92,7 +92,7 @@ public class FetchAPI {
     }
 
 
-    private static String resolveBaseUrl(Account account) {
+    public static String resolveBaseUrl(Account account) {
         if (account == null) {
             return "";
         }
@@ -103,7 +103,7 @@ public class FetchAPI {
         return normalizeUrlCandidate(account.getUrl(), true);
     }
 
-    private static String normalizeUrlCandidate(String value, boolean appendPortalPhpWhenMissing) {
+    public static String normalizeUrlCandidate(String value, boolean appendPortalPhpWhenMissing) {
         if (isBlank(value)) {
             return "";
         }
@@ -131,7 +131,7 @@ public class FetchAPI {
         }
     }
 
-    private static Map<String, String> headers(Account account, boolean isPost) {
+    public static Map<String, String> headers(Account account, boolean isPost) {
         Map<String, String> headers = new HashMap<>();
         headers.put("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
         headers.put("X-User-Agent", "Model: MAG250; Link: WiFi");
@@ -148,7 +148,7 @@ public class FetchAPI {
         return headers;
     }
 
-    private static String mapToString(Map<String, String> parameters) {
+    public static String mapToString(Map<String, String> parameters) {
         return parameters.entrySet()
                 .stream()
                 .map(e -> e.getKey() + "=" + URLEncoder.encode(e.getValue() == null ? "" : e.getValue(), StandardCharsets.UTF_8))
