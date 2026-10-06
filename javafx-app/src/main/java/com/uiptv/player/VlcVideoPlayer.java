@@ -313,12 +313,16 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             return;
         }
         long requestVersion = audioStateRequestVersion.get();
+        EmbeddedMediaPlayer currentPlayer = mediaPlayer;
+        if (currentPlayer == null || currentPlayer != mp) {
+            return;
+        }
         Platform.runLater(() -> {
             if (!isCurrentPlayer(mp)) {
                 return;
             }
             retryCount = 0;
-            applyDesiredAudioState(mp);
+            applyDesiredAudioState(currentPlayer);
             scheduleAudioStateStartupSync(requestVersion);
             loadingSpinner.setVisible(false);
             btnPlayPause.setGraphic(pauseIcon);
@@ -426,12 +430,16 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             return;
         }
         long requestVersion = audioStateRequestVersion.get();
+        EmbeddedMediaPlayer currentPlayer = mediaPlayer;
+        if (currentPlayer == null || currentPlayer != mp) {
+            return;
+        }
         Platform.runLater(() -> {
             if (!isCurrentPlayer(mp)) {
                 return;
             }
             refreshTrackMenus();
-            applyDesiredAudioState(mp);
+            applyDesiredAudioState(currentPlayer);
             scheduleAudioStateRetry(requestVersion, 250);
         });
     }
