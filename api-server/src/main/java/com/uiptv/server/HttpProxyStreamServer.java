@@ -8,9 +8,11 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -56,6 +58,10 @@ public class HttpProxyStreamServer implements HttpHandler {
         }
 
         String current = source.trim();
+        if (!isAllowedTargetUrl(current)) {
+            ex.sendResponseHeaders(400, -1);
+            return;
+        }
         List<String> cookies = new ArrayList<>();
         String requestMethod = ex.getRequestMethod();
 
@@ -97,6 +103,42 @@ public class HttpProxyStreamServer implements HttpHandler {
         }
     }
 
+    private static boolean isAllowedTargetUrl(String rawUrl) {
+        if (isBlank(rawUrl)) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(rawUrl.trim());
+            String scheme = uri.getScheme();
+            if (scheme == null || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
+                return false;
+            }
+            String host = uri.getHost();
+            if (isBlank(host)) {
+                return false;
+            }
+            InetAddress[] addresses = InetAddress.getAllByName(host);
+            if (addresses == null || addresses.length == 0) {
+                return false;
+            }
+            for (InetAddress address : addresses) {
+                if (isBlockedAddress(address)) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (IllegalArgumentException | UnknownHostException ex) {
+            return false;
+        }
+    }
+
+    private static boolean isBlockedAddress(InetAddress address) {
+        return address.isAnyLocalAddress()
+                || address.isLoopbackAddress()
+                || address.isLinkLocalAddress()
+                || address.isSiteLocalAddress();
+    }
+
     private HttpUtil.StreamResult openResolvedStream(String current,
                                                      List<String> cookies,
                                                      Map<String, String> forwardHeaders,
@@ -116,7 +158,11 @@ public class HttpProxyStreamServer implements HttpHandler {
                     }
                     URI base = URI.create(current);
                     URI resolved = base.resolve(location);
-                    current = downgradeHttpsToHttp(resolved.toString());
+                    String resolvedTarget = downgradeHttpsToHttp(resolved.toString());
+                    if (!isAllowedTargetUrl(resolvedTarget)) {
+                        return null;
+                    }
+                    current = resolvedTarget;
                     continue;
                 }
             }
