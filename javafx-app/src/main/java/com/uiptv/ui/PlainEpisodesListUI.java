@@ -371,6 +371,9 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         title.setMouseTransparent(true);
         HBox.setHgrow(title, Priority.ALWAYS);
 
+        // Reactive watching-now badge — shows/hides as watchedProperty changes.
+        Label watchedBadge = createWatchingBadge(row);
+
         // Create menu button for hover context menu (similar to BookmarkChannelListUI and AccountListUI)
         Button menuButton = createEpisodeMenuButton(row);
         
@@ -380,8 +383,9 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         PlayingCardIndicator playingIndicator = new PlayingCardIndicator();
         playingIndicatorsByItem.put(row, playingIndicator);
         updatePlayingIndicator(row, playingIndicator);
+        card.getChildren().add(watchedBadge);
+        card.getChildren().add(playingIndicator);
         card.getChildren().add(menuButton);
-        card.getChildren().add(card.getChildren().indexOf(menuButton), playingIndicator);
         configureCardHoverReveal(card);
         card.focusedProperty().addListener((_, _, focused) -> {
             if (Boolean.TRUE.equals(focused)) {
@@ -405,6 +409,24 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
         });
         return card;
     }
+
+    private Label createWatchingBadge(EpisodeItem row) {
+        Label watched = new Label(I18n.tr("autoWatching"));
+        watched.getStyleClass().add("drm-badge");
+        watched.setMinWidth(Region.USE_PREF_SIZE);
+        watched.setMaxWidth(Region.USE_PREF_SIZE);
+        watched.setMouseTransparent(true);
+        applyWatchingBadgeVisibility(watched, row.isWatched());
+        row.watchedProperty().addListener((_, _, isWatched) -> applyWatchingBadgeVisibility(watched, isWatched));
+        return watched;
+    }
+
+    private void applyWatchingBadgeVisibility(Label badge, boolean isWatched) {
+        badge.setVisible(isWatched);
+        badge.setManaged(isWatched);
+    }
+
+
 
     @Override
     protected void onPlayingEpisodeChanged() {

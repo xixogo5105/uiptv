@@ -549,6 +549,8 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (item == null || isBlank(seriesId) || account == null) {
             return;
         }
+        // Immediate optimistic UI update so the badge appears instantly, same as play().
+        applyWatchedEpisodeImmediately(item);
         new Thread(() -> {
             SeriesWatchStateService.getInstance().markSeriesEpisodeManual(
                     account,
@@ -566,6 +568,8 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (account == null || isBlank(account.getDbId()) || isBlank(seriesId)) {
             return;
         }
+        // Immediate optimistic UI clear so the badge disappears instantly.
+        applyWatchedStateSnapshot(watchedStateRefreshGeneration.incrementAndGet(), null);
         new Thread(() -> {
             SeriesWatchStateService.getInstance().clearSeriesLastWatched(account.getDbId(), seriesCategoryId, seriesId);
         }, "episodes-clear-watched").start();
