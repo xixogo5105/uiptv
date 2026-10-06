@@ -125,7 +125,8 @@ public class ServerUtils {
         httpExchange.getResponseHeaders().add("Access-Control-Allow-Credentials-Header", "*");
         httpExchange.getResponseHeaders().add("Content-Type", contentType);
         if (isNotBlank(fileName) && DOWNLOADABLE.contains(contentType)) {
-            httpExchange.getResponseHeaders().add("Content-Disposition", "attachment; filename=" + fileName);
+            String safeFileName = sanitizeContentDispositionFileName(fileName);
+            httpExchange.getResponseHeaders().add("Content-Disposition", "attachment; filename=\"" + safeFileName + "\"");
             httpExchange.getResponseHeaders().add("Content-Transfer-Encoding", "binary");
         }
         String safeResponse = response == null ? "" : response;
@@ -150,6 +151,19 @@ public class ServerUtils {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#x27;");
+    }
+
+    private static String sanitizeContentDispositionFileName(String fileName) {
+        if (fileName == null) {
+            return "";
+        }
+        return fileName
+                .replace("\r", "_")
+                .replace("\n", "_")
+                .replace("\"", "_")
+                .replace(";", "_")
+                .replace("\\", "_")
+                .replace("/", "_");
     }
 
     private static void writeResponse(HttpExchange httpExchange, int statusCode, byte[] responseBytes, String contentType) throws IOException {
