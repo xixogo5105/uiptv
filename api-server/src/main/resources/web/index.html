@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/video.js@8.24.1/dist/video-js.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20260924b" rel="stylesheet">
+    <link href="/css/spa.css?v=20261006b" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.43/dist/vue.global.prod.js"></script>
@@ -141,15 +141,17 @@
                                         @drop.prevent="onBookmarkDrop($event, bookmark)"
                                         class="row-card media-card"
                                         v-for="bookmark in filteredBookmarks">
-                                    <span :class="{ active: isActiveBookmark(bookmark) }" class="live-marker" v-if="isActiveBookmark(bookmark)">
-                                        <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
-                                    </span>
                                     <img :src="bookmark.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img" v-if="bookmark.logo">
                                     <div :style="{ display: bookmark.logo ? 'none' : '' }" class="logo-box">
                                         {{ fallbackInitials(bookmark.channelName) }}
                                     </div>
                                         <div class="content-copy">
-                                            <div class="title-line">{{ bookmark.channelName }}</div>
+                                            <div class="title-line">
+                                                {{ bookmark.channelName }}
+                                                <span :class="{ active: isActiveBookmark(bookmark) }" class="live-marker" v-if="isActiveBookmark(bookmark)">
+                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                </span>
+                                            </div>
                                             <div class="meta-line">{{ bookmark.accountName }}</div>
                                         </div>
                                         <button @click.stop="removeRecentlyPlayedBookmark(bookmark)" class="row-action-button" title="Clear from recently played" type="button" v-if="isRecentlyPlayedBookmarksSelected">
@@ -312,9 +314,6 @@
                                             @click="handleChannelSelection(channel)"
                                             class="row-card media-card"
                                             v-for="channel in filteredChannels">
-                                        <span :class="{ active: isActiveChannel(channel) }" class="live-marker" v-if="isActiveChannel(channel)">
-                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
-                                        </span>
                                         <img :src="channel.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img" v-if="channel.logo">
                                         <div :style="{ display: channel.logo ? 'none' : '' }" class="logo-box">
                                             {{ fallbackInitials(channel.name) }}
@@ -322,6 +321,9 @@
                                         <div class="content-copy">
                                             <div class="title-line">
                                                 {{ channel.name }}
+                                                <span class="live-marker active" v-if="isActiveChannel(channel)">
+                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                </span>
                                                 <span class="pill" v-if="channel.drmType">DRM</span>
                                                 <span class="pill" v-if="contentMode === 'series' && channel.watched">IN PROGRESS</span>
                                             </div>
@@ -420,9 +422,6 @@
                                             @click="playChannel(episode)"
                                             class="row-card episode-card"
                                             v-for="(episode, idx) in filteredSeriesEpisodes">
-                                        <span class="live-marker" v-if="isActiveChannel(episode)">
-                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
-                                        </span>
                                         <img :src="episode.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img episode-thumb" v-if="episode.logo">
                                         <div :style="{ display: episode.logo ? 'none' : '' }" class="logo-box">
                                             {{ fallbackInitials(getEpisodeDisplayTitle(episode, idx), 'EP') }}
@@ -430,6 +429,9 @@
                                         <div class="content-copy">
                                             <div class="title-line">
                                                 {{ getEpisodeDisplayTitle(episode, idx) }}
+                                                <span class="live-marker active" v-if="isActiveChannel(episode)">
+                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                </span>
                                                 <span class="pill" v-if="episode.watched">WATCHED</span>
                                             </div>
                                             <div class="meta-line clamp">{{ getEpisodeSubtitle(episode) }}</div>
@@ -485,15 +487,17 @@
                                             @click="openWatchingNowSeriesDetail(row)"
                                             class="row-card resume-card"
                                             v-for="row in filteredWatchingNowRows">
-                                        <span class="live-marker" v-if="isActiveWatchingNowRow(row)">
-                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
-                                        </span>
                                         <img :src="row.seriesPoster" @error="imageError" @load="imageLoad" alt="" class="poster-thumb" v-if="row.seriesPoster">
                                         <div :style="{ display: row.seriesPoster ? 'none' : '' }" class="poster-fallback small">
                                             {{ (row.seriesTitle || 'S').slice(0, 2).toUpperCase() }}
                                         </div>
                                         <div class="content-copy">
-                                            <div class="title-line">{{ row.seriesTitle }}</div>
+                                            <div class="title-line">
+                                                {{ row.seriesTitle }}
+                                                <span class="live-marker active" v-if="isActiveWatchingNowRow(row)">
+                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                </span>
+                                            </div>
                                             <div class="meta-line">{{ row.accountName }}</div>
                                         </div>
                                     </article>
@@ -519,15 +523,17 @@
                                             @click="playWatchingNowVodRow(row)"
                                             class="row-card resume-card"
                                             v-for="row in filteredWatchingNowVodRows">
-                                        <span class="live-marker" v-if="isActiveWatchingNowVodRow(row)">
-                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
-                                        </span>
                                         <img :src="row.vodLogo" @error="imageError" @load="imageLoad" alt="" class="poster-thumb" v-if="row.vodLogo">
                                         <div :style="{ display: row.vodLogo ? 'none' : '' }" class="poster-fallback small">
                                             {{ (row.vodName || 'M').slice(0, 2).toUpperCase() }}
                                         </div>
                                         <div class="content-copy">
-                                            <div class="title-line">{{ row.vodName }}</div>
+                                            <div class="title-line">
+                                                {{ row.vodName }}
+                                                <span class="live-marker active" v-if="isActiveWatchingNowVodRow(row)">
+                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                </span>
+                                            </div>
                                             <div class="meta-line">{{ row.accountName }}</div>
                                             <div class="meta-line clamp" v-if="getVodPlot(row)">{{ getVodPlot(row) }}</div>
                                         </div>
@@ -616,9 +622,6 @@
                                             @click="playChannel(episode)"
                                             class="row-card episode-card"
                                             v-for="(episode, idx) in filteredSeriesEpisodes">
-                                        <span class="live-marker" v-if="isActiveChannel(episode)">
-                                            <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
-                                        </span>
                                         <img :src="episode.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img episode-thumb" v-if="episode.logo">
                                         <div :style="{ display: episode.logo ? 'none' : '' }" class="logo-box">
                                             {{ fallbackInitials(getEpisodeDisplayTitle(episode, idx), 'EP') }}
@@ -626,6 +629,9 @@
                                         <div class="content-copy">
                                             <div class="title-line">
                                                 {{ getEpisodeDisplayTitle(episode, idx) }}
+                                                <span class="live-marker active" v-if="isActiveChannel(episode)">
+                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                </span>
                                                 <span class="pill" v-if="episode.watched">WATCHED</span>
                                             </div>
                                             <div class="meta-line clamp">{{ getEpisodeSubtitle(episode) }}</div>
@@ -681,7 +687,7 @@
     </main>
 </div>
 
-<script src="/javascript/spa.js?v=20260924b"></script>
+<script src="/javascript/spa.js?v=20261006b"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;
@@ -694,7 +700,7 @@
             window.location.reload();
         });
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js?v=20260924b')
+            navigator.serviceWorker.register('/sw.js?v=20261006b')
                 .then(registration => {
                     console.log('ServiceWorker registration successful with scope: ', registration.scope);
                 }, err => {

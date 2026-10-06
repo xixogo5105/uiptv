@@ -736,16 +736,23 @@ a[href] {
 }
 
 .live-marker {
-    position: absolute;
-    top: 8px;
-    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
     color: var(--accent);
-    font-size: 0.82rem;
+    line-height: 1;
 }
 
 .live-marker.active,
 .soft-button.broadcasting {
     color: var(--accent);
+}
+
+.title-line .live-marker {
+    min-width: 1rem;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
 }
 
 .soft-button.broadcasting {
@@ -768,8 +775,8 @@ a[href] {
 }
 
 .live-marker .broadcast-icon {
-    width: 0.82rem;
-    height: 0.82rem;
+    width: 1rem;
+    height: 1rem;
 }
 
 .binge-watch-button {
@@ -1064,14 +1071,6 @@ a[href] {
     grid-row: 1;
 }
 
-.media-card.has-row-status-action > .live-marker {
-    position: static;
-    grid-column: 3;
-    grid-row: 1;
-    align-self: center;
-    justify-self: center;
-}
-
 .media-card > .row-action-button {
     grid-column: 3;
     grid-row: 1;
@@ -1354,8 +1353,29 @@ a[href] {
 }
 
 .player-panel .uiptv-player-controls {
+    display: flex;
+    flex-wrap: nowrap;
+    width: 100%;
+    box-sizing: border-box;
     justify-content: flex-start;
+    gap: 2px;
+    padding: 4px 0;
     margin-left: 0;
+}
+
+.player-panel .uiptv-player-controls > .uiptv-control-btn,
+.player-panel .uiptv-player-controls > .uiptv-control-menu {
+    flex: 0 1 28px;
+    min-width: 22px;
+}
+
+.player-panel .uiptv-control-btn {
+    box-sizing: border-box;
+    min-width: 22px;
+}
+
+.player-panel .uiptv-control-menu .uiptv-control-btn {
+    width: 100%;
 }
 
 .uiptv-control-btn {
