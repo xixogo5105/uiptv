@@ -28,18 +28,14 @@ import java.net.URISyntaxException;
 import org.apache.http.client.utils.URIBuilder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
     static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
 
     private final Object playerLock = new Object();
-    private final ExecutorService playExecutor = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "vlc-play-media");
-        t.setDaemon(true);
-        return t;
-    });
+    private final ExecutorService playExecutor = Executors.newVirtualThreadPerTaskExecutor();
     /**
      * Native teardown runs on its own thread rather than on {@link #playExecutor}.
      * <p>
@@ -59,8 +55,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         return t;
     });
     private MediaPlayerFactory mediaPlayerFactory;
-    private EmbeddedMediaPlayer mediaPlayer;
+    private volatile EmbeddedMediaPlayer mediaPlayer;
     private MediaPlayerEventAdapter mediaPlayerEvents;
+    private volatile Future<?> playbackTask;
     private ImageView videoImageView;
     private int videoSourceWidth;
     private int videoSourceHeight;
@@ -234,26 +231,30 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         scheduleAudioStateRetry(requestVersion, 1000);
     }
 
+    private boolean isCurrentPlayer(MediaPlayer player) {
+        return !isDisposed.get() && player != null && mediaPlayer == player;
+    }
+
     private MediaPlayerEventAdapter createMediaPlayerEvents() {
         return new MediaPlayerEventAdapter() {
             @Override
             public void mediaChanged(MediaPlayer mp, MediaRef mediaRef) {
-                handleMediaChanged(mediaRef);
+                handleMediaChanged(mp, mediaRef);
             }
 
             @Override
             public void playing(MediaPlayer mp) {
-                handlePlaying();
+                handlePlaying(mp);
             }
 
             @Override
             public void paused(MediaPlayer mp) {
-                handlePaused();
+                handlePaused(mp);
             }
 
             @Override
             public void positionChanged(MediaPlayer mp, float newPosition) {
-                handlePositionChanged(newPosition);
+                handlePositionChanged(mp, newPosition);
             }
 
             @Override
@@ -263,48 +264,65 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
             @Override
             public void finished(MediaPlayer mp) {
-                handleFinished();
+                handleFinished(mp);
             }
 
             @Override
             public void stopped(MediaPlayer mp) {
-                handleStopped();
+                handleStopped(mp);
             }
 
             @Override
             public void error(MediaPlayer mp) {
-                handleError();
+                handleError(mp);
             }
 
             @Override
             public void elementaryStreamAdded(MediaPlayer mp, TrackType type, int id) {
-                handleElementaryStreamEvent(type);
+                handleElementaryStreamEvent(mp, type);
             }
 
             @Override
             public void elementaryStreamDeleted(MediaPlayer mp, TrackType type, int id) {
-                handleElementaryStreamEvent(type);
+                handleElementaryStreamEvent(mp, type);
             }
 
             @Override
             public void elementaryStreamSelected(MediaPlayer mp, TrackType type, int id) {
-                handleElementaryStreamEvent(type);
+                handleElementaryStreamEvent(mp, type);
             }
         };
     }
 
-    private void handleMediaChanged(MediaRef mediaRef) {
+    private void handleMediaChanged(MediaPlayer mp, MediaRef mediaRef) {
+        if (!isCurrentPlayer(mp)) {
+            return;
+        }
         String mediaUri = extractMediaUri(mediaRef);
         if (!mediaUri.isBlank()) {
-            Platform.runLater(() -> updateBingeWatchEpisodeFromActiveMedia(mediaUri));
+            Platform.runLater(() -> {
+                if (isCurrentPlayer(mp)) {
+                    updateBingeWatchEpisodeFromActiveMedia(mediaUri);
+                }
+            });
         }
     }
 
-    private void handlePlaying() {
+    private void handlePlaying(MediaPlayer mp) {
+        if (!isCurrentPlayer(mp)) {
+            return;
+        }
         long requestVersion = audioStateRequestVersion.get();
+        EmbeddedMediaPlayer currentPlayer = mediaPlayer;
+        if (currentPlayer == null || currentPlayer != mp) {
+            return;
+        }
         Platform.runLater(() -> {
+            if (!isCurrentPlayer(mp)) {
+                return;
+            }
             retryCount = 0;
-            applyDesiredAudioState();
+            applyDesiredAudioState(currentPlayer);
             scheduleAudioStateStartupSync(requestVersion);
             loadingSpinner.setVisible(false);
             btnPlayPause.setGraphic(pauseIcon);
@@ -313,32 +331,56 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         });
     }
 
-    private void handlePaused() {
-        Platform.runLater(() -> btnPlayPause.setGraphic(playIcon));
-    }
-
-    private void handlePositionChanged(float newPosition) {
-        if (isUserSeeking) {
+    private void handlePaused(MediaPlayer mp) {
+        if (!isCurrentPlayer(mp)) {
             return;
         }
         Platform.runLater(() -> {
-            if (!timeSlider.isDisable()) {
+            if (isCurrentPlayer(mp)) {
+                btnPlayPause.setGraphic(playIcon);
+            }
+        });
+    }
+
+    private void handlePositionChanged(MediaPlayer mp, float newPosition) {
+        if (!isCurrentPlayer(mp) || isUserSeeking) {
+            return;
+        }
+        Platform.runLater(() -> {
+            if (isCurrentPlayer(mp) && !timeSlider.isDisable()) {
                 timeSlider.setValue(newPosition);
             }
         });
     }
 
     private void handleTimeChanged(MediaPlayer mp, long newTime) {
+        if (!isCurrentPlayer(mp)) {
+            return;
+        }
+        final long totalTime;
+        final boolean seekable;
+        try {
+            totalTime = mp.status().length();
+            seekable = mp.status().isSeekable();
+        } catch (Exception _) {
+            return;
+        }
         Platform.runLater(() -> {
-            long totalTime = mp.status().length();
-            boolean seekable = mp.status().isSeekable();
-            updatePlaybackTimeUi(newTime, totalTime, seekable);
-            refreshRenderedImageStreamInfo();
+            if (isCurrentPlayer(mp)) {
+                updatePlaybackTimeUi(newTime, totalTime, seekable);
+                refreshRenderedImageStreamInfo();
+            }
         });
     }
 
-    private void handleFinished() {
+    private void handleFinished(MediaPlayer mp) {
+        if (!isCurrentPlayer(mp)) {
+            return;
+        }
         Platform.runLater(() -> {
+            if (!isCurrentPlayer(mp)) {
+                return;
+            }
             btnPlayPause.setGraphic(playIcon);
             if (isRepeating && isRetrying.get()) {
                 handleRepeat();
@@ -346,8 +388,14 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         });
     }
 
-    private void handleStopped() {
+    private void handleStopped(MediaPlayer mp) {
+        if (!isCurrentPlayer(mp)) {
+            return;
+        }
         Platform.runLater(() -> {
+            if (!isCurrentPlayer(mp)) {
+                return;
+            }
             btnPlayPause.setGraphic(playIcon);
             timeSlider.setValue(0);
             timeSlider.setDisable(false);
@@ -359,8 +407,14 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         });
     }
 
-    private void handleError() {
+    private void handleError(MediaPlayer mp) {
+        if (!isCurrentPlayer(mp)) {
+            return;
+        }
         Platform.runLater(() -> {
+            if (!isCurrentPlayer(mp)) {
+                return;
+            }
             loadingSpinner.setVisible(false);
             com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VlcVideoPlayer: An error occurred in the media player.");
             errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
@@ -371,15 +425,23 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         });
     }
 
-    private void handleElementaryStreamEvent(TrackType type) {
-        if (type == TrackType.AUDIO) {
-            long requestVersion = audioStateRequestVersion.get();
-            Platform.runLater(() -> {
-                refreshTrackMenus();
-                applyDesiredAudioState();
-                scheduleAudioStateRetry(requestVersion, 250);
-            });
+    private void handleElementaryStreamEvent(MediaPlayer mp, TrackType type) {
+        if (type != TrackType.AUDIO || !isCurrentPlayer(mp)) {
+            return;
         }
+        long requestVersion = audioStateRequestVersion.get();
+        EmbeddedMediaPlayer currentPlayer = mediaPlayer;
+        if (currentPlayer == null || currentPlayer != mp) {
+            return;
+        }
+        Platform.runLater(() -> {
+            if (!isCurrentPlayer(mp)) {
+                return;
+            }
+            refreshTrackMenus();
+            applyDesiredAudioState(currentPlayer);
+            scheduleAudioStateRetry(requestVersion, 250);
+        });
     }
 
     private String extractMediaUri(MediaRef mediaRef) {
@@ -421,13 +483,17 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     protected void playMedia(String uri) {
         loadingSpinner.setVisible(true);
         long playbackRequestVersion = mediaRequestVersion.incrementAndGet();
-        playExecutor.submit(() -> {
+        Future<?> previousTask = playbackTask;
+        if (previousTask != null) {
+            previousTask.cancel(true);
+        }
+        playbackTask = playExecutor.submit(() -> {
             try {
-                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
+                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) {
                     return;
                 }
                 ensurePlayerInitialized();
-                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
+                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) {
                     return;
                 }
                 videoSourceWidth = 0;
@@ -436,20 +502,27 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 String playUri = resolveHlsPlaylistChain(uri);
                 // Sanitize URL for libvlc: encode raw braces and other problematic characters that some CDNs reject
                 playUri = sanitizeUriForLibVlc(playUri);
-                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
+                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) {
                     return;
                 }
                 long audioRequestVersion = markAudioStateSyncRequested();
+                EmbeddedMediaPlayer player;
                 synchronized (playerLock) {
-                    EmbeddedMediaPlayer player = mediaPlayer;
-                    if (player != null && !isDisposed.get() && playbackRequestVersion == mediaRequestVersion.get()) {
-                        if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
-                            player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
-                        } else {
-                            player.media().play(playUri);
-                        }
-                        scheduleAudioStateStartupSync(audioRequestVersion);
-                    }
+                    player = mediaPlayer;
+                }
+                if (player == null || isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) {
+                    return;
+                }
+
+                // Never hold playerLock across native VLC calls. A slow player.media().play()
+                // must not prevent the JavaFX Stop path from detaching the player.
+                if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
+                    player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
+                } else {
+                    player.media().play(playUri);
+                }
+                if (playbackRequestVersion == mediaRequestVersion.get() && !Thread.currentThread().isInterrupted()) {
+                    scheduleAudioStateStartupSync(audioRequestVersion);
                 }
             } catch (Throwable t) {
                 // submit() captures the failure in a Future nobody reads, so without this the task
@@ -457,7 +530,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 // player), so handleError cannot run, and the spinner shown above stays up forever
                 // with no message. Catch Throwable because libVLC init failures surface as
                 // UnsatisfiedLinkError, which is an Error, not an Exception.
-                reportPlaybackFailure(uri, t);
+                reportPlaybackFailure(uri, playbackRequestVersion, t);
             }
         });
     }
@@ -466,11 +539,14 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
      * Surfaces a failure that happened before libVLC ever saw the media, mirroring
      * {@link #handleError()} so the user gets the same message and a logged cause.
      */
-    private void reportPlaybackFailure(String uri, Throwable t) {
+    private void reportPlaybackFailure(String uri, long playbackRequestVersion, Throwable t) {
+        if (playbackRequestVersion != mediaRequestVersion.get() || isDisposed.get()) {
+            return;
+        }
         com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class,
                 "VlcVideoPlayer: playback could not be started for " + uri, t);
         Platform.runLater(() -> {
-            if (isDisposed.get()) {
+            if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
                 return;
             }
             loadingSpinner.setVisible(false);
@@ -503,6 +579,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     @Override
     protected void disposeMedia() {
         mediaRequestVersion.incrementAndGet();
+        Future<?> task = playbackTask;
+        playbackTask = null;
+        if (task != null) {
+            task.cancel(true);
+        }
         EmbeddedMediaPlayer playerToCleanup;
         MediaPlayerFactory factoryToCleanup;
         synchronized (playerLock) {
@@ -557,6 +638,16 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             videoImageView.setImage(null);
         } else {
             Platform.runLater(() -> videoImageView.setImage(null));
+        }
+    }
+
+    @Override
+    public void disposePlayer() {
+        try {
+            super.disposePlayer();
+        } finally {
+            playExecutor.shutdownNow();
+            teardownExecutor.shutdownNow();
         }
     }
 
