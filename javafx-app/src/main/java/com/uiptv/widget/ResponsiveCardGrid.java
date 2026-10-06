@@ -11,6 +11,7 @@ import javafx.css.PseudoClass;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.control.ButtonBase;
 import javafx.scene.control.ComboBoxBase;
@@ -20,6 +21,8 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.input.*;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 
@@ -58,6 +61,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private static final double MIN_VIRTUAL_CARD_HEIGHT = 32;
 
     private final Function<T, Region> cardFactory;
+    private final boolean playingIndicatorEnabled;
     private final GridPane cardPane = new GridPane();
     private final StackPane placeholder = new StackPane();
     private final Label placeholderLabel = new Label();
@@ -76,6 +80,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private final ChangeListener<Bounds> virtualViewportBoundsListener = (_, _, _) -> {
         scheduleVirtualWindowUpdate();
     };
+    private final ChangeListener<Boolean> ancestorVisibilityListener = (_, _, _) -> refreshPlayingCardIndicators();
+    private final ChangeListener<Parent> ancestorParentListener = (_, _, _) -> refreshVisibilityObservers();
+    private final Set<Node> visibilityObservedNodes = Collections.newSetFromMap(new IdentityHashMap<>());
     private ObservableList<T> items = FXCollections.observableArrayList();
     private ContextMenuFactory<T> contextMenuFactory;
     private Consumer<T> itemActivatedHandler;
@@ -119,7 +126,12 @@ public class ResponsiveCardGrid<T> extends StackPane {
             Integer.getInteger("uiptv.cardGrid.detachedCardCache", 160);
 
     public ResponsiveCardGrid(Function<T, Region> cardFactory) {
+        this(cardFactory, false);
+    }
+
+    public ResponsiveCardGrid(Function<T, Region> cardFactory, boolean playingIndicatorEnabled) {
         this.cardFactory = Objects.requireNonNull(cardFactory, "cardFactory");
+        this.playingIndicatorEnabled = playingIndicatorEnabled;
         getStyleClass().add("uiptv-responsive-card-grid");
         UiRenderQuality.optimizeLayout(this);
         setFocusTraversable(true);
@@ -145,6 +157,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         widthProperty().addListener((_, _, _) -> updateCardWidths());
         parentProperty().addListener((_, _, _) -> scheduleVirtualScrollPaneHook());
         sceneProperty().addListener((_, _, newScene) -> {
+            refreshVisibilityObservers();
             if (newScene != null) {
                 scheduleInitialItemFocus();
                 scheduleVirtualScrollPaneHook();
@@ -152,6 +165,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 detachVirtualScrollPane();
             }
         });
+        refreshVisibilityObservers();
         visibleProperty().addListener((_, _, visible) -> {
             if (Boolean.TRUE.equals(visible)) {
                 scheduleInitialItemFocus();
@@ -447,6 +461,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             updateSelectionStyles();
             applyActivatedStyles(cardsByItem);
             ensureInitialSelection();
+            refreshPlayingCardIndicators();
             scheduleInitialItemFocus();
         });
     }
@@ -753,6 +768,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             // hover affordances here. Without this a card retained by the detached cache can come
             // back already revealed, and the "..." would linger on every such card.
             concealHoverActionsIn(entry.getValue());
+            updatePlayingCardIndicator(entry.getValue(), false);
         }
         if (detachedCardCachingEnabled) {
             for (Map.Entry<T, Region> entry : cardsToCache) {
@@ -777,6 +793,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 } else {
                     // Card reused from detached cache - ensure activated state is correct
                     card.pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS, Objects.equals(item, activatedItem));
+                    updatePlayingCardIndicator(card, false);
                     concealHoverActionsIn(card);
                 }
                 cardsByItem.put(item, card);
@@ -788,6 +805,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             renderedCards.add(card);
         }
         cardPane.getChildren().setAll(renderedCards);
+        refreshPlayingCardIndicators();
         firstRenderedIndex = safeFirst;
         lastRenderedExclusive = safeLast;
         renderedCardWidth = computedCardWidth;
@@ -934,7 +952,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (!card.getStyleClass().contains("uiptv-responsive-card")) {
             card.getStyleClass().add("uiptv-responsive-card");
         }
-        card.pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS, Objects.equals(item, activatedItem));
+        addPlayingCardIndicator(card);
+        boolean activated = Objects.equals(item, activatedItem);
+        card.pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS, activated);
+        updatePlayingCardIndicator(card, activated);
         UiRenderQuality.optimizeLayout(card);
         card.setFocusTraversable(false);
         card.setMinHeight(cardMinHeight);
@@ -964,6 +985,77 @@ public class ResponsiveCardGrid<T> extends StackPane {
             configureDragHandlers(item, card);
         }
         registerInteractiveChildFocusListeners(item, card);
+    }
+
+    private void addPlayingCardIndicator(Region card) {
+        if (!playingIndicatorEnabled || !(card instanceof Pane pane)) {
+            return;
+        }
+        PlayingCardIndicator indicator = new PlayingCardIndicator();
+        HBox inlineRow = findInlineIndicatorRow(card);
+        if (inlineRow != null) {
+            indicator.setManaged(false);
+            HBox.setMargin(indicator, new Insets(0, 8, 0, 0));
+            inlineRow.getChildren().add(Math.min(1, inlineRow.getChildren().size()), indicator);
+            return;
+        }
+        indicator.setManaged(false);
+        indicator.translateXProperty().bind(card.widthProperty().subtract(indicator.widthProperty()).subtract(16)
+                .subtract(indicator.layoutXProperty()));
+        indicator.translateYProperty().bind(card.heightProperty().subtract(indicator.heightProperty()).divide(2)
+                .subtract(indicator.layoutYProperty()));
+        pane.getChildren().add(indicator);
+    }
+
+    private HBox findInlineIndicatorRow(Node node) {
+        if (node instanceof HBox row && row.getStyleClass().contains("playing-indicator-inline-row")) {
+            return row;
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                HBox row = findInlineIndicatorRow(child);
+                if (row != null) {
+                    return row;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void updatePlayingCardIndicator(Region card, boolean activated) {
+        if (!playingIndicatorEnabled) {
+            return;
+        }
+        PlayingCardIndicator indicator = findPlayingCardIndicator(card);
+        if (indicator == null) {
+            return;
+        }
+        boolean visible = activated
+                && isDisplayable()
+                && card.isVisible()
+                && isDescendantOf(card, cardPane);
+        indicator.setManaged(visible && isInlineIndicator(indicator));
+        indicator.setVisible(visible);
+    }
+
+    private boolean isInlineIndicator(PlayingCardIndicator indicator) {
+        return indicator.getParent() instanceof HBox row
+                && row.getStyleClass().contains("playing-indicator-inline-row");
+    }
+
+    private PlayingCardIndicator findPlayingCardIndicator(Node node) {
+        if (node instanceof PlayingCardIndicator indicator) {
+            return indicator;
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                PlayingCardIndicator indicator = findPlayingCardIndicator(child);
+                if (indicator != null) {
+                    return indicator;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -1052,17 +1144,42 @@ public class ResponsiveCardGrid<T> extends StackPane {
         activatedItem = item;
         applyActivatedStyles(cardsByItem);
         applyActivatedStyles(detachedCardsByItem);
-        // Ensure the activated item does not retain :selected pseudo-class or
-        // .selected style class, which were applied during MOUSE_PRESSED.
-        // Without this, the card carries both :activated and :selected, and the
-        // background repaint can stall until the next interaction.
+        refreshPlayingCardIndicators();
+        // Reapply selection so the activated card keeps its ordinary selected style.
         updateSelectionStyles();
     }
 
     private void applyActivatedStyles(Map<T, Region> cards) {
         for (Map.Entry<T, Region> entry : cards.entrySet()) {
-            entry.getValue().pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS,
-                    Objects.equals(entry.getKey(), activatedItem));
+            Region card = entry.getValue();
+            boolean activated = Objects.equals(entry.getKey(), activatedItem);
+            card.pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS, activated);
+        }
+    }
+
+    private void refreshVisibilityObservers() {
+        for (Node node : visibilityObservedNodes) {
+            node.visibleProperty().removeListener(ancestorVisibilityListener);
+            node.parentProperty().removeListener(ancestorParentListener);
+        }
+        visibilityObservedNodes.clear();
+
+        Node node = this;
+        while (node != null) {
+            visibilityObservedNodes.add(node);
+            node.visibleProperty().addListener(ancestorVisibilityListener);
+            node.parentProperty().addListener(ancestorParentListener);
+            node = node.getParent();
+        }
+        refreshPlayingCardIndicators();
+    }
+
+    private void refreshPlayingCardIndicators() {
+        for (Map.Entry<T, Region> entry : cardsByItem.entrySet()) {
+            updatePlayingCardIndicator(entry.getValue(), Objects.equals(entry.getKey(), activatedItem));
+        }
+        for (Region card : detachedCardsByItem.values()) {
+            updatePlayingCardIndicator(card, false);
         }
     }
 
@@ -1819,12 +1936,11 @@ selectedItemsInternal.add(item);
         for (Map.Entry<T, Region> entry : cardsByItem.entrySet()) {
             T item = entry.getKey();
             boolean selected = selectedItems.contains(item);
-            boolean isActivated = Objects.equals(item, activatedItem);
             Region card = entry.getValue();
-            card.pseudoClassStateChanged(SELECTED_PSEUDO_CLASS, selected && !isActivated);
-            if (selected && !isActivated && !card.getStyleClass().contains(SELECTED_STYLE_CLASS)) {
+            card.pseudoClassStateChanged(SELECTED_PSEUDO_CLASS, selected);
+            if (selected && !card.getStyleClass().contains(SELECTED_STYLE_CLASS)) {
                 card.getStyleClass().add(SELECTED_STYLE_CLASS);
-            } else if (!selected || isActivated) {
+            } else if (!selected) {
                 card.getStyleClass().remove(SELECTED_STYLE_CLASS);
             }
         }

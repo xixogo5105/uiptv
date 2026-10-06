@@ -48,7 +48,7 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
     private static final String VOD_WATCHING_NOW_CACHE = "vod-watching-now";
     private final VBox contentBox = new VBox(10);
     private final ScrollPane scrollPane = new ScrollPane(contentBox);
-    private final ResponsiveCardGrid<VodPanelData> vodGrid = new ResponsiveCardGrid<>(this::createCard);
+    private final ResponsiveCardGrid<VodPanelData> vodGrid = new ResponsiveCardGrid<>(this::createCard, true);
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
     private final AtomicBoolean refreshScheduled = new AtomicBoolean(false);

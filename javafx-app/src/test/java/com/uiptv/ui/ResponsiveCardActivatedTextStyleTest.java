@@ -1,16 +1,15 @@
 package com.uiptv.ui;
 
-import com.uiptv.widget.PlayMenuButton;
+import com.uiptv.widget.PlayingCardIndicator;
 import javafx.css.PseudoClass;
-import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
-import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.Paint;
 import javafx.scene.shape.Circle;
+import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Text;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -21,21 +20,9 @@ import java.util.Objects;
 import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Regression coverage for the "currently playing" highlight on cards.
- *
- * <p>The {@code :activated} pseudo class marks the item last opened by a
- * double click. When a different item is activated, the previous card loses the
- * pseudo class and must fall back to its ordinary styling. A blanket
- * {@code .card:activated .text} rule used to also match the internal {@code Text}
- * of every {@link Label} skin; JavaFX then reset that skin node to
- * {@code Labeled}'s hardcoded {@code Color.BLACK} initial value instead of
- * re-reading the label's {@code -fx-text-fill}, leaving black text on the dark
- * card background.
- */
 class ResponsiveCardActivatedTextStyleTest {
     private static final PseudoClass ACTIVATED = PseudoClass.getPseudoClass("activated");
     private static final List<String> THEMES = List.of("/application.css", "/dark-application.css");
@@ -56,12 +43,12 @@ class ResponsiveCardActivatedTextStyleTest {
     }
 
     @Test
-    void activatingACardStillHighlightsItsLabelsInEveryTheme() throws Exception {
+    void activatingACardPreservesItsThemeTextColours() throws Exception {
         for (String theme : THEMES) {
             Snapshot plain = runOnFxThread(() -> snapshot(theme, State.PLAIN));
             Snapshot activated = runOnFxThread(() -> snapshot(theme, State.ACTIVATED));
-            assertNotEquals(plain.toString(), activated.toString(),
-                    theme + ": :activated must still restyle the card");
+            assertEquals(plain, activated,
+                    theme + ": activation must not recolour the card text");
         }
     }
 
@@ -79,36 +66,29 @@ class ResponsiveCardActivatedTextStyleTest {
         });
     }
 
-    /**
-     * The "..." affordance of a bookmark card must stay legible on the dark blue
-     * background of the item that was last opened by a double click.
-     */
     @Test
-    void playMenuAffordanceStaysLightOnAnActivatedCard() throws Exception {
+    void broadcastIndicatorAppearsOnActivatedCardsWithThemeContrast() throws Exception {
         for (String theme : THEMES) {
-            IconColours plain = runOnFxThread(() -> iconColours(theme, State.PLAIN));
-            IconColours activated = runOnFxThread(() -> iconColours(theme, State.ACTIVATED));
+            IndicatorSnapshot hidden = runOnFxThread(() -> indicatorSnapshot(theme, State.PLAIN));
+            IndicatorSnapshot shown = runOnFxThread(() -> indicatorSnapshot(theme, State.ACTIVATED));
 
-            assertTrue(isLight(activated.ringStroke),
-                    theme + ": activated \"...\" ring must be light, was " + activated.ringStroke);
-            assertTrue(isLight(activated.dotFill),
-                    theme + ": activated \"...\" dots must be light, was " + activated.dotFill);
-            assertNotEquals(plain.ringStroke, activated.ringStroke,
-                    theme + ": :activated must restyle the \"...\" ring");
-            assertNotEquals(plain.dotFill, activated.dotFill,
-                    theme + ": :activated must restyle the \"...\" dots");
+            assertEquals(0, hidden.opacity(), 0.001, theme + ": indicator must start hidden");
+            assertEquals(1, shown.opacity(), 0.001, theme + ": indicator must appear on activation");
+            if (theme.equals("/dark-application.css")) {
+                assertTrue(isLight(shown.arcStroke()), "dark theme broadcast arcs should be light");
+                assertTrue(isLight(shown.dotFill()), "dark theme broadcast dot should be light");
+            } else {
+                assertFalse(isLight(shown.arcStroke()), "light theme broadcast arcs should be dark");
+                assertFalse(isLight(shown.dotFill()), "light theme broadcast dot should be dark");
+            }
         }
     }
 
-    private IconColours iconColours(String theme, State state) throws Exception {
+    private IndicatorSnapshot indicatorSnapshot(String theme, State state) throws Exception {
         return runOnFxThread(() -> {
-            PlayMenuButton playMenu = new PlayMenuButton("menu");
-            playMenu.getStyleClass().add("bookmark-play-menu-button");
-            // The affordance is hollow until a card is hovered, so reveal it before inspecting the
-            // icon shapes the stylesheet is expected to restyle.
-            playMenu.reveal();
-            VBox card = new VBox(playMenu);
-            card.getStyleClass().addAll("uiptv-responsive-card", "bookmark-card");
+            VBox card = card();
+            PlayingCardIndicator indicator = new PlayingCardIndicator();
+            card.getChildren().add(indicator);
             Scene scene = new Scene(new StackPane(card), 400, 300);
             scene.getStylesheets().add(url(theme));
             StackPane root = (StackPane) scene.getRoot();
@@ -117,30 +97,12 @@ class ResponsiveCardActivatedTextStyleTest {
                 card.pseudoClassStateChanged(ACTIVATED, true);
                 root.applyCss();
             }
-            Circle ring = (Circle) iconChild(playMenu, "play-menu-icon-ring");
-            Circle dot = (Circle) iconChild(playMenu, "play-menu-icon-dot");
-            return new IconColours(ring.getStroke(), dot.getFill());
+            SVGPath arc = (SVGPath) indicator.lookup(".playing-card-broadcast-arc");
+            Circle dot = (Circle) indicator.lookup(".playing-card-broadcast-dot");
+            return new IndicatorSnapshot(indicator.getOpacity(), arc.getStroke(), dot.getFill());
         });
     }
 
-    private static Node iconChild(PlayMenuButton playMenu, String styleClass) {
-        Pane icon = (Pane) playMenu.getGraphic();
-        return icon.getChildren().stream()
-                .filter(node -> node.getStyleClass().contains(styleClass))
-                .findFirst()
-                .orElseThrow();
-    }
-
-    private record IconColours(Paint ringStroke, Paint dotFill) {
-    }
-
-    private enum State {
-        PLAIN,
-        ACTIVATED,
-        ROUND_TRIP
-    }
-
-    /** @return the resolved text colours in the requested pseudo-class state */
     private Snapshot snapshot(String theme, State state) throws Exception {
         return runOnFxThread(() -> {
             VBox card = card();
@@ -190,7 +152,6 @@ class ResponsiveCardActivatedTextStyleTest {
         if (!(paint instanceof Color color)) {
             return true;
         }
-        // quick sRGB luminance; anything near zero is unreadable on a dark surface
         return 0.2126 * color.getRed() + 0.7152 * color.getGreen() + 0.0722 * color.getBlue() > 0.25;
     }
 
@@ -199,10 +160,15 @@ class ResponsiveCardActivatedTextStyleTest {
                 .toExternalForm();
     }
 
+    private enum State {
+        PLAIN,
+        ACTIVATED,
+        ROUND_TRIP
+    }
+
     private record Snapshot(List<Paint> labelFills, List<Paint> textFills) {
-        @Override
-        public String toString() {
-            return "labels=" + labelFills + " texts=" + textFills;
-        }
+    }
+
+    private record IndicatorSnapshot(double opacity, Paint arcStroke, Paint dotFill) {
     }
 }

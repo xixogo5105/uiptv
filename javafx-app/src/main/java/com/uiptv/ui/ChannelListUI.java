@@ -80,7 +80,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private final String categoryTitle;
     private final String categoryId;
     private final SearchableTableView<ChannelItem> table = new SearchableTableView<>();
-    private final ResponsiveCardGrid<ChannelItem> channelGrid = new ResponsiveCardGrid<>(this::createChannelCard);
+    private final ResponsiveCardGrid<ChannelItem> channelGrid = new ResponsiveCardGrid<>(this::createChannelCard, true);
     private final ScrollPane channelGridScroll = new ScrollPane();
     private final TableColumn<ChannelItem, String> channelName = new TableColumn<>(I18n.tr("autoChannels"));
     private final List<Channel> channelList;
@@ -902,6 +902,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private Region createPlainTextChannelCard(ChannelItem item) {
         HBox card = new HBox();
         card.getStyleClass().addAll("bookmark-card", "plain-text-row-card");
+        card.getStyleClass().add("playing-indicator-inline-row");
         card.setAlignment(Pos.CENTER_LEFT);
         card.setMinWidth(0);
         card.setMaxWidth(Double.MAX_VALUE);
@@ -912,9 +913,11 @@ public class ChannelListUI extends HBox implements SearchTarget {
         title.setTextOverrun(OverrunStyle.ELLIPSIS);
         title.setMinWidth(0);
         title.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(title, Priority.ALWAYS);
 
         card.getChildren().add(title);
+        Region titleRowSpacer = new Region();
+        HBox.setHgrow(titleRowSpacer, Priority.ALWAYS);
+        card.getChildren().add(titleRowSpacer);
         if (item != null && item.getChannel() != null && PlayerService.getInstance().isDrmProtected(item.getChannel())) {
             card.getChildren().add(createDrawerBadge(I18n.tr(I18N_AUTO_DRM)));
         }
@@ -928,7 +931,9 @@ public class ChannelListUI extends HBox implements SearchTarget {
         // Plain-text rows get the same "..." affordance as the thumbnail cards. It is created here
         // but stays hollow until the row is hovered, so adding it here does not reintroduce the
         // per-row cost this avoids in the catalogue.
-        card.getChildren().add(createActionButton(item));
+        Button actionButton = createActionButton(item);
+        HBox.setMargin(actionButton, new Insets(0, 0, 0, 6));
+        card.getChildren().add(actionButton);
         return card;
     }
 
@@ -947,7 +952,16 @@ public class ChannelListUI extends HBox implements SearchTarget {
         meta.setVisible(!isBlank(meta.getText()));
         meta.setManaged(!isBlank(meta.getText()));
 
-        VBox text = new VBox(2, title, meta);
+        HBox titleRow = new HBox(6, title);
+        titleRow.getStyleClass().add("playing-indicator-inline-row");
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.setMinWidth(0);
+        titleRow.setMaxWidth(Double.MAX_VALUE);
+        Region titleRowSpacer = new Region();
+        HBox.setHgrow(titleRowSpacer, Priority.ALWAYS);
+        titleRow.getChildren().add(titleRowSpacer);
+
+        VBox text = new VBox(2, titleRow, meta);
         text.setAlignment(Pos.CENTER_LEFT);
         text.setMinWidth(0);
         text.setMaxWidth(Double.MAX_VALUE);
@@ -971,7 +985,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             thumbnail.loadImage(item == null ? "" : item.getLogo(), IMAGE_CACHE_KEY_CHANNEL);
             row.getChildren().add(thumbnail);
         }
-        row.getChildren().addAll(text, badges);
+        row.getChildren().addAll(text, badges, createActionButton(item));
         return row;
     }
 

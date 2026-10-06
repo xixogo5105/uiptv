@@ -65,7 +65,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                     .thenComparing(BookmarkItem::getAccountName, Comparator.nullsLast(Comparator.naturalOrder()))
                     .thenComparing(BOOKMARK_NAME_COMPARATOR);
     private final TextField searchTextField = new TextField();
-    private final ResponsiveCardGrid<BookmarkItem> bookmarkGrid = new ResponsiveCardGrid<>(this::createBookmarkCard);
+    private final ResponsiveCardGrid<BookmarkItem> bookmarkGrid = new ResponsiveCardGrid<>(this::createBookmarkCard, true);
     private final StackPane bookmarkGridFrame = new StackPane();
     private final LoadingStateView bookmarkLoadingOverlay = new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS));
     private final PillBar<BookmarkCategory> categoryPillBar =
@@ -788,16 +788,20 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
         Label title = new Label(item == null || item.getChannelName() == null ? "" : item.getChannelName());
         title.getStyleClass().add("bookmark-channel-title");
+        title.setAlignment(Pos.CENTER_LEFT);
         title.setWrapText(true);
         title.setMinWidth(0);
         title.setMaxWidth(Double.MAX_VALUE);
 
         HBox titleRow = new HBox(6);
+        titleRow.getStyleClass().add("playing-indicator-inline-row");
         titleRow.setAlignment(Pos.CENTER_LEFT);
         titleRow.setMinWidth(0);
         titleRow.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(title, Priority.ALWAYS);
         titleRow.getChildren().add(title);
+        Region titleRowSpacer = new Region();
+        HBox.setHgrow(titleRowSpacer, Priority.ALWAYS);
+        titleRow.getChildren().add(titleRowSpacer);
         if (isDrmProtected(item)) {
             titleRow.getChildren().add(createPlainTextDrmBadge());
         }

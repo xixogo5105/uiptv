@@ -78,7 +78,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     private static final double SERIES_EPISODE_LOADING_PANEL_HEIGHT = 220;
     private final VBox contentBox = new VBox(8);
     private final ScrollPane scrollPane = new ScrollPane(contentBox);
-    private final ResponsiveCardGrid<SeriesPanelData> seriesGrid = new ResponsiveCardGrid<>(this::createSeriesListCard);
+    private final ResponsiveCardGrid<SeriesPanelData> seriesGrid = new ResponsiveCardGrid<>(this::createSeriesListCard, true);
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private final AtomicBoolean reloadQueued = new AtomicBoolean(false);
     private final AtomicBoolean refreshScheduled = new AtomicBoolean(false);

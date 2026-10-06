@@ -214,13 +214,16 @@ final class WatchingNowMediaCardFactory {
             Label title = createTitle();
             Label account = createAccount();
             HBox titleRow = new HBox(TITLE_ROW_GAP);
-            titleRow.setAlignment(Pos.TOP_LEFT);
+            titleRow.getStyleClass().add("playing-indicator-inline-row");
+            titleRow.setAlignment(Pos.CENTER_LEFT);
             titleRow.setMinWidth(0);
             titleRow.setMaxWidth(Double.MAX_VALUE);
+            titleRow.getChildren().add(title);
+            Region titleRowSpacer = new Region();
+            HBox.setHgrow(titleRowSpacer, Priority.ALWAYS);
+            titleRow.getChildren().add(titleRowSpacer);
             if (actionButton != null) {
-                titleRow.getChildren().addAll(title, actionButton);
-            } else {
-                titleRow.getChildren().add(title);
+                titleRow.getChildren().add(actionButton);
             }
 
             details.getChildren().add(titleRow);
@@ -294,7 +297,6 @@ final class WatchingNowMediaCardFactory {
             title.setMinWidth(0);
             title.setMinHeight(Region.USE_PREF_SIZE);
             title.setMouseTransparent(true);
-            HBox.setHgrow(title, Priority.ALWAYS);
             return title;
         }
 

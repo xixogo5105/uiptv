@@ -5,12 +5,17 @@ import com.uiptv.model.Channel;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
+import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
+import com.uiptv.widget.PlayingCardIndicator;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.event.Event;
+import javafx.event.EventType;
+import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
@@ -18,8 +23,12 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.scene.input.PickResult;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -162,6 +171,49 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     @Test
+    void plainTextChannelCardPlacesBroadcastBesideTitleBeforeTrailingActions() throws Exception {
+        boolean correctlyPlaced = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            ChannelListUI.ChannelItem item = channelItem(true);
+            Region card = createPlainTextChannelCard(ui, item);
+            ResponsiveCardGrid<ChannelListUI.ChannelItem> grid = new ResponsiveCardGrid<>(_ -> card, true);
+            grid.setItems(FXCollections.observableArrayList(item));
+            Scene scene = new Scene(grid, 420, 180);
+            scene.getRoot().applyCss();
+            scene.getRoot().layout();
+
+            HBox row = (HBox) card;
+            Label title = findLabelByStyle(card, "bookmark-channel-title");
+            PlayingCardIndicator indicator = findNodeByStyle(card, "playing-card-indicator") instanceof PlayingCardIndicator found
+                    ? found
+                    : null;
+            Node bookmark = findNodeByStyle(card, "channel-bookmark-icon");
+            return row.getStyleClass().contains("playing-indicator-inline-row")
+                    && title != null
+                    && indicator != null
+                    && row.getChildren().indexOf(indicator) == row.getChildren().indexOf(title) + 1
+                    && bookmark != null
+                    && row.getChildren().indexOf(bookmark) > row.getChildren().indexOf(indicator);
+        });
+
+        assertTrue(correctlyPlaced);
+    }
+
+    @Test
+    void plainTextChannelCardSpacesBookmarkFromHoverMenuAction() throws Exception {
+        double leftMargin = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            Region card = createPlainTextChannelCard(ui, channelItem(true));
+            Node action = findNodeByType(card, PlayMenuButton.class);
+            assertNotNull(action);
+            Insets margin = HBox.getMargin(action);
+            return margin == null ? 0 : margin.getLeft();
+        });
+
+        assertTrue(leftMargin > 0);
+    }
+
+    @Test
     void drawerChannelRowDoesNotRepeatCategoryNameAsMetadata() throws Exception {
         LabelSnapshot meta = runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
@@ -188,6 +240,67 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     @Test
+    void thumbnailDrawerChannelRowPlacesBroadcastBesideTitleBeforeBadges() throws Exception {
+        boolean correctlyPlaced = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            setBooleanField(ui, "thumbnailsEnabled", true);
+            ui.setMediaDrawerMode(true);
+            ChannelListUI.ChannelItem item = channelItem(true);
+            ResponsiveCardGrid<ChannelListUI.ChannelItem> grid = channelGrid(ui);
+            grid.setItems(FXCollections.observableArrayList(item));
+            Scene scene = new Scene(grid, 420, 180);
+            scene.getRoot().applyCss();
+            scene.getRoot().layout();
+
+            Node card = findNodeByStyle(grid, "account-drawer-channel-row");
+            Label title = findLabelByStyle(card, "account-drawer-channel-title");
+            PlayingCardIndicator indicator = findNodeByStyle(card, "playing-card-indicator") instanceof PlayingCardIndicator found
+                    ? found
+                    : null;
+            Node bookmark = findNodeByStyle(card, "channel-bookmark-icon");
+            return title != null
+                    && title.getParent() instanceof HBox titleRow
+                    && titleRow.getStyleClass().contains("playing-indicator-inline-row")
+                    && indicator != null
+                    && titleRow.getChildren().indexOf(indicator) == titleRow.getChildren().indexOf(title) + 1
+                    && bookmark != null
+                    && bookmark.getParent() instanceof HBox badges
+                    && badges.getChildren().indexOf(bookmark) >= 0;
+        });
+
+        assertTrue(correctlyPlaced);
+    }
+
+    @Test
+    void thumbnailDrawerChannelRowIncludesHoverMenuAction() throws Exception {
+        boolean revealedOnHover = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            setBooleanField(ui, "thumbnailsEnabled", true);
+            ui.setMediaDrawerMode(true);
+            ChannelListUI.ChannelItem item = channelItem();
+            ResponsiveCardGrid<ChannelListUI.ChannelItem> grid = channelGrid(ui);
+            grid.setItems(FXCollections.observableArrayList(item));
+            Scene scene = new Scene(grid, 420, 180);
+            scene.getRoot().applyCss();
+            scene.getRoot().layout();
+
+            Node card = findNodeByStyle(grid, "account-drawer-channel-row");
+            Node actionNode = findNodeByType(card, PlayMenuButton.class);
+            if (!(actionNode instanceof PlayMenuButton action) || action.getParent() != card) {
+                return false;
+            }
+            assertFalse(action.isMaterialised());
+            dispatchMouseEvent(card, MouseEvent.MOUSE_ENTERED);
+            boolean revealed = action.isRevealed();
+            dispatchMouseEvent(card, MouseEvent.MOUSE_EXITED);
+            assertFalse(action.isRevealed());
+            return revealed;
+        });
+
+        assertTrue(revealedOnHover);
+    }
+
+    @Test
     void drawerChannelRowCentersTitleBesideThumbnail() throws Exception {
         boolean centered = runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
@@ -195,7 +308,9 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
             Region row = createDrawerChannelRow(ui, channelItem());
             Label title = findLabelByStyle(row, "account-drawer-channel-title");
             return title != null
-                    && title.getParent() instanceof VBox text
+                    && title.getParent() instanceof HBox titleRow
+                    && titleRow.getStyleClass().contains("playing-indicator-inline-row")
+                    && titleRow.getParent() instanceof VBox text
                     && text.getAlignment() == javafx.geometry.Pos.CENTER_LEFT;
         });
 
@@ -441,6 +556,44 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
             }
         }
         return null;
+    }
+
+    private static Node findNodeByType(Node node, Class<? extends Node> type) {
+        if (node != null && type.isInstance(node)) {
+            return node;
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                Node match = findNodeByType(child, type);
+                if (match != null) {
+                    return match;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void dispatchMouseEvent(Node target, EventType<MouseEvent> type) {
+        Event.fireEvent(target, new MouseEvent(
+                type,
+                0,
+                0,
+                0,
+                0,
+                MouseButton.NONE,
+                0,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                new PickResult(target, 0, 0)
+        ));
     }
 
     private static String menuItemText(MenuItem item) {

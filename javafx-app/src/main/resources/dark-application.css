@@ -2860,58 +2860,24 @@
     -fx-translate-y: 0;
 }
 
-/* The item last activated by a double-click. This intentionally differs from
-   ordinary single-click selection, which retains the dark neutral treatment. */
-.uiptv-responsive-card:activated,
-.bookmark-card:activated {
-    -fx-background-color: #1e40af;
-    -fx-border-color: #60a5fa;
+.playing-card-indicator {
+    -fx-opacity: 0;
+    -fx-background-color: -uiptv-nav-bg;
+    -fx-background-radius: 50%;
 }
 
-.uiptv-responsive-card:activated .label,
-.bookmark-card:activated .label {
-    -fx-text-fill: #eff6ff;
+.uiptv-responsive-card:activated .playing-card-indicator,
+.bookmark-card:activated .playing-card-indicator {
+    -fx-opacity: 1;
 }
 
-/* Target only genuine Text nodes. A bare ".text" selector also matches the
-   internal Text of every Label skin, and once :activated is dropped JavaFX
-   restores that skin node to its hardcoded Color.BLACK instead of re-reading
-   the Label's -fx-text-fill - which is unreadable on a dark card. Every real
-   Text used inside a card is listed by its own style class. */
-.uiptv-responsive-card:activated .account-card-type-text,
-.bookmark-card:activated .account-card-type-text {
-    -fx-fill: #eff6ff;
+.playing-card-broadcast-arc {
+    -fx-fill: transparent;
+    -fx-stroke: -uiptv-text-primary;
 }
 
-.uiptv-responsive-card:activated .bookmark-channel-title,
-.uiptv-responsive-card:activated .bookmark-channel-title-text,
-.uiptv-responsive-card:activated .account-card-title,
-.uiptv-responsive-card:activated .account-category-card-title,
-.uiptv-responsive-card:activated .account-drawer-channel-title,
-.uiptv-responsive-card:activated .watching-now-episode-drawer-title {
-    -fx-text-fill: #eff6ff;
-    -fx-fill: #eff6ff;
-}
-
-.uiptv-responsive-card:activated .bookmark-channel-account,
-.uiptv-responsive-card:activated .account-card-type,
-.uiptv-responsive-card:activated .account-card-metrics,
-.uiptv-responsive-card:activated .account-drawer-channel-meta,
-.uiptv-responsive-card:activated .watching-now-episode-drawer-meta {
-    -fx-text-fill: rgba(239, 246, 255, 0.72);
-}
-
-.uiptv-responsive-card:activated .bookmark-account-suffix-text {
-    -fx-fill: rgba(239, 246, 255, 0.72);
-}
-
-.uiptv-responsive-card:activated .channel-bookmark-icon {
-    -fx-fill: #eff6ff;
-}
-
-.uiptv-responsive-card:activated .channel-logo-view {
-    -fx-background-color: rgba(255, 255, 255, 0.12);
-    -fx-border-color: #3b82f6;
+.playing-card-broadcast-dot {
+    -fx-fill: -uiptv-text-primary;
 }
 
 .uiptv-responsive-card:selected .bookmark-channel-title,
@@ -3632,18 +3598,6 @@
     -fx-fill: -uiptv-selected-card-fg;
 }
 
-/* The activated card has a dark blue background, so the "..." affordance needs
-   the same whitish foreground the rest of the activated card already uses. */
-.uiptv-responsive-card:activated .bookmark-play-menu-button .play-menu-icon-ring,
-.bookmark-card:activated .bookmark-play-menu-button .play-menu-icon-ring {
-    -fx-stroke: #eff6ff;
-}
-
-.uiptv-responsive-card:activated .bookmark-play-menu-button .play-menu-icon-dot,
-.bookmark-card:activated .bookmark-play-menu-button .play-menu-icon-dot {
-    -fx-fill: #eff6ff;
-}
-
 .play-menu-button.bookmark-play-menu-button:hover,
 .play-menu-button.bookmark-play-menu-button:focused {
     -fx-background-color: rgba(255,255,255,0.12);
@@ -3679,20 +3633,6 @@
 .bookmark-card.selected .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
 .bookmark-card.selected .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot {
     -fx-fill: -uiptv-selected-card-fg;
-}
-
-.uiptv-responsive-card:activated .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-ring,
-.uiptv-responsive-card:activated .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-ring,
-.bookmark-card:activated .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-ring,
-.bookmark-card:activated .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-ring {
-    -fx-stroke: #eff6ff;
-}
-
-.uiptv-responsive-card:activated .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
-.uiptv-responsive-card:activated .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot,
-.bookmark-card:activated .play-menu-button.bookmark-play-menu-button:hover .play-menu-icon-dot,
-.bookmark-card:activated .play-menu-button.bookmark-play-menu-button:focused .play-menu-icon-dot {
-    -fx-fill: #eff6ff;
 }
 
 .small-pill-button:hover,

@@ -76,14 +76,17 @@ public class BookmarkCard extends HBox {
 
         TextFlow titleFlow = createTitleFlow(title, titleSuffix);
         HBox titleRow = new HBox(6, titleFlow);
+        titleRow.getStyleClass().add("playing-indicator-inline-row");
         UiRenderQuality.optimizeLayout(titleRow);
-        titleRow.setAlignment(Pos.TOP_LEFT);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
         titleRow.setFillHeight(false);
         titleRow.setMinWidth(0);
         titleRow.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(titleFlow, Priority.ALWAYS);
 
         HBox titleTrailing = createTitleTrailing(drmProtected && !showDrmBadgeOnImage, trailingAction);
+        Region titleRowSpacer = new Region();
+        HBox.setHgrow(titleRowSpacer, Priority.ALWAYS);
+        titleRow.getChildren().add(titleRowSpacer);
         if (titleTrailing != null) {
             titleRow.getChildren().add(titleTrailing);
         }

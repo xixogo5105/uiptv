@@ -2,7 +2,9 @@ package com.uiptv.widget;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.css.PseudoClass;
 import javafx.event.Event;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -19,6 +21,8 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.geometry.Insets;
+import javafx.scene.text.TextFlow;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -203,6 +207,194 @@ class ResponsiveCardGridTest {
             return null;
         });
         assertEquals("three", activated.get());
+    }
+
+    @Test
+    void doubleClickShowsBroadcastIndicatorAndKeepsSelectedCardStyling() throws Exception {
+        CardIndicatorSnapshot snapshot = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(_ -> {
+                HBox row = new HBox();
+                row.setAlignment(Pos.CENTER_LEFT);
+                return row;
+            }, true);
+            grid.setItems(FXCollections.observableArrayList("one"));
+            grid.setOnItemActivated(_ -> {
+            });
+            grid.resize(400, 240);
+            grid.layout();
+
+            Region card = cardAt(grid, 0);
+            HBox cardPane = (HBox) card;
+            PlayingCardIndicator indicator = cardPane.getChildren().stream()
+                    .filter(PlayingCardIndicator.class::isInstance)
+                    .map(PlayingCardIndicator.class::cast)
+                    .findFirst()
+                    .orElseThrow();
+            Event.fireEvent(card, mouseClick(card, 2, false, false));
+
+            javafx.scene.Scene scene = new javafx.scene.Scene(grid, 400, 240);
+            scene.getStylesheets().add(ResponsiveCardGridTest.class.getResource("/application.css").toExternalForm());
+            scene.getRoot().applyCss();
+            scene.getRoot().layout();
+            return new CardIndicatorSnapshot(
+                    card.getPseudoClassStates().contains(PseudoClass.getPseudoClass("activated")),
+                    card.getStyleClass().contains("selected"),
+                    indicator.getOpacity(),
+                    indicator.isVisible(),
+                    indicator.isManaged(),
+                    indicator.getLayoutX() + indicator.getTranslateX()
+                            + indicator.getLayoutBounds().getWidth() <= card.getWidth() - 16,
+                    Math.abs(indicator.getLayoutY() + indicator.getTranslateY()
+                            + indicator.getLayoutBounds().getHeight() / 2 - card.getHeight() / 2) < 1);
+        });
+
+        assertTrue(snapshot.activated());
+        assertTrue(snapshot.selected());
+        assertEquals(1, snapshot.indicatorOpacity(), 0.001);
+        assertTrue(snapshot.indicatorVisible());
+        assertFalse(snapshot.indicatorManaged());
+        assertTrue(snapshot.indicatorStaysInsideCard());
+        assertTrue(snapshot.indicatorVerticallyCentered());
+    }
+
+    @Test
+    void broadcastIndicatorHidesAndStopsAnimatingWhenItsPageIsHidden() throws Exception {
+        CardIndicatorVisibilitySnapshot snapshot = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(_ -> new HBox(), true);
+            grid.setItems(FXCollections.observableArrayList("one"));
+            grid.setOnItemActivated(_ -> {
+            });
+            grid.resize(400, 240);
+            grid.layout();
+            Region card = cardAt(grid, 0);
+            PlayingCardIndicator indicator = ((HBox) card).getChildren().stream()
+                    .filter(PlayingCardIndicator.class::isInstance)
+                    .map(PlayingCardIndicator.class::cast)
+                    .findFirst()
+                    .orElseThrow();
+            VBox page = new VBox(grid);
+            javafx.scene.Scene scene = new javafx.scene.Scene(page, 400, 240);
+            scene.getRoot().applyCss();
+            Event.fireEvent(card, mouseClick(card, 2, false, false));
+            boolean visibleOnPage = indicator.isVisible();
+            boolean animatingOnPage = indicator.isAnimationRunning();
+
+            page.setVisible(false);
+            boolean hiddenWithPage = !indicator.isVisible();
+            boolean stoppedWithPage = !indicator.isAnimationRunning();
+            page.setVisible(true);
+
+            return new CardIndicatorVisibilitySnapshot(
+                    visibleOnPage,
+                    animatingOnPage,
+                    hiddenWithPage,
+                    stoppedWithPage,
+                    indicator.isVisible());
+        });
+
+        assertTrue(snapshot.visibleOnPage());
+        assertTrue(snapshot.animatingOnPage());
+        assertTrue(snapshot.hiddenWithPage());
+        assertTrue(snapshot.stoppedWithPage());
+        assertTrue(snapshot.visibleWhenPageReturns());
+    }
+
+    @Test
+    void broadcastIndicatorAppearsBesideTextWithoutReorderingBookmarkActions() throws Exception {
+        CardRowSnapshot snapshot = runOnFxThread(() -> {
+            ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(_ -> {
+                Label title = new Label("Cricket Event 2");
+                title.setAlignment(Pos.CENTER_LEFT);
+                Region spacer = new Region();
+                HBox row = new HBox(6, title, spacer, new Button("bookmark"));
+                row.getStyleClass().add("playing-indicator-inline-row");
+                row.setAlignment(Pos.CENTER_LEFT);
+                row.setMaxWidth(Double.MAX_VALUE);
+                HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
+                VBox card = new VBox(row);
+                card.setMaxWidth(Double.MAX_VALUE);
+                return card;
+            }, true);
+            grid.setItems(FXCollections.observableArrayList("one"));
+            grid.setOnItemActivated(_ -> {
+            });
+            grid.resize(400, 100);
+            grid.layout();
+
+            Region card = cardAt(grid, 0);
+            HBox row = (HBox) ((VBox) card).getChildren().getFirst();
+            Label title = (Label) row.getChildren().getFirst();
+            PlayingCardIndicator indicator = (PlayingCardIndicator) row.getChildren().get(1);
+            Button bookmark = (Button) row.getChildren().getLast();
+            new Scene(grid, 400, 100);
+            grid.applyCss();
+            grid.layout();
+            double bookmarkXBeforeActivation = bookmark.getLayoutX();
+            Event.fireEvent(card, mouseClick(card, 2, false, false));
+            grid.layout();
+            Insets margin = HBox.getMargin(indicator);
+            return new CardRowSnapshot(
+                    row.getChildren().indexOf(indicator) == row.getChildren().indexOf(title) + 1,
+                    indicator.getLayoutY() + indicator.getHeight() / 2
+                            <= title.getLayoutY() + title.getHeight() / 2 + 1
+                            && indicator.getLayoutY() + indicator.getHeight() / 2
+                            >= title.getLayoutY() + title.getHeight() / 2 - 1,
+                    row.getChildren().indexOf(bookmark) == row.getChildren().size() - 1,
+                    margin != null && margin.getRight() == 8,
+                    indicator.isManaged(),
+                    Math.abs(bookmark.getLayoutX() - bookmarkXBeforeActivation) < 1);
+        });
+
+        assertTrue(snapshot.indicatorFollowsTitle());
+        assertTrue(snapshot.indicatorVerticallyCenteredWithTitle());
+        assertTrue(snapshot.bookmarkActionFollowsIndicator());
+        assertTrue(snapshot.indicatorHasRightMargin());
+        assertTrue(snapshot.indicatorManagedWhilePlaying());
+        assertTrue(snapshot.bookmarkActionPositionPreserved());
+    }
+
+    @Test
+    void thumbnailBookmarkIndicatorStaysBesideTitleAndKeepsTrailingActionAtRight() throws Exception {
+        CardRowSnapshot snapshot = runOnFxThread(() -> {
+            Button trailingAction = new Button("bookmark");
+            BookmarkCard bookmarkCard = new BookmarkCard(
+                    "Bollygold", "docker samsung India", null, true, "bookmark", false, trailingAction);
+            ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(_ -> bookmarkCard, true);
+            grid.setItems(FXCollections.observableArrayList("one"));
+            grid.setOnItemActivated(_ -> {
+            });
+            grid.setSingleColumn(true);
+            grid.resize(420, 180);
+            Scene scene = new Scene(grid, 420, 180);
+            scene.getStylesheets().add(ResponsiveCardGridTest.class.getResource("/application.css").toExternalForm());
+            scene.getRoot().applyCss();
+            scene.getRoot().layout();
+
+            TextFlow title = findDescendant(bookmarkCard, TextFlow.class);
+            PlayingCardIndicator indicator = findDescendant(bookmarkCard, PlayingCardIndicator.class);
+            double trailingActionXBeforeActivation = trailingAction.localToScene(0, 0).getX();
+            Event.fireEvent(bookmarkCard, mouseClick(bookmarkCard, 2, false, false));
+            scene.getRoot().layout();
+            Insets indicatorMargin = HBox.getMargin(indicator);
+
+            return new CardRowSnapshot(
+                    indicator.getParent() instanceof HBox row
+                            && row.getStyleClass().contains("playing-indicator-inline-row")
+                            && row.getChildren().indexOf(indicator) == row.getChildren().indexOf(title) + 1,
+                    Math.abs(indicator.localToScene(0, 0).getY() + indicator.getHeight() / 2
+                            - title.localToScene(0, 0).getY() - title.getHeight() / 2) < 1,
+                    trailingAction.localToScene(0, 0).getX() > indicator.localToScene(0, 0).getX(),
+                    indicatorMargin != null && indicatorMargin.getRight() == 8,
+                    indicator.isManaged(),
+                    Math.abs(trailingAction.localToScene(0, 0).getX() - trailingActionXBeforeActivation) < 1);
+        });
+
+        assertTrue(snapshot.indicatorFollowsTitle());
+        assertTrue(snapshot.indicatorVerticallyCenteredWithTitle());
+        assertTrue(snapshot.bookmarkActionFollowsIndicator());
+        assertTrue(snapshot.indicatorHasRightMargin());
+        assertTrue(snapshot.indicatorManagedWhilePlaying());
+        assertTrue(snapshot.bookmarkActionPositionPreserved());
     }
 
     @Test
@@ -1134,5 +1326,29 @@ class ResponsiveCardGridTest {
     }
 
     private record VirtualWindowSnapshot(int createdCards, List<String> renderedLabels) {
+    }
+
+    private record CardIndicatorSnapshot(boolean activated,
+                                         boolean selected,
+                                         double indicatorOpacity,
+                                         boolean indicatorVisible,
+                                         boolean indicatorManaged,
+                                         boolean indicatorStaysInsideCard,
+                                         boolean indicatorVerticallyCentered) {
+    }
+
+    private record CardIndicatorVisibilitySnapshot(boolean visibleOnPage,
+                                                   boolean animatingOnPage,
+                                                   boolean hiddenWithPage,
+                                                   boolean stoppedWithPage,
+                                                   boolean visibleWhenPageReturns) {
+    }
+
+    private record CardRowSnapshot(boolean indicatorFollowsTitle,
+                                   boolean indicatorVerticallyCenteredWithTitle,
+                                   boolean bookmarkActionFollowsIndicator,
+                                   boolean indicatorHasRightMargin,
+                                   boolean indicatorManagedWhilePlaying,
+                                   boolean bookmarkActionPositionPreserved) {
     }
 }
