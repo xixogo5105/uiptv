@@ -404,15 +404,15 @@
                                     <!-- Collapsed View -->
                                     <article class="detail-card series-detail-card series-detail-collapsed" v-else>
                                         <div class="collapsed-content">
-                                            <div class="collapsed-title-section">
-                                                <img :src="seriesDetail.cover" @error="imageError" @load="imageLoad" alt="" class="collapsed-poster-img" v-if="seriesDetail.cover">
-                                                <div :style="{ display: seriesDetail.cover ? 'none' : '' }" class="collapsed-poster-fallback">
-                                                    <i class="bi bi-collection-play"></i>
+<div class="collapsed-title-section">
+                                                    <img :src="seriesDetail.cover" @error="imageError" @load="imageLoad" alt="" class="collapsed-poster-img" v-if="seriesDetail.cover">
+                                                    <div :style="{ display: seriesDetail.cover ? 'none' : '' }" class="collapsed-poster-fallback">
+                                                        <i class="bi bi-collection-play"></i>
+                                                    </div>
+                                                    <div class="series-title">{{ seriesDetail.name || 'Series' }}</div>
+                                                    <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
                                                 </div>
-                                                <div class="series-title">{{ seriesDetail.name || 'Series' }}</div>
-                                                <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
-                                            </div>
-                                            <div class="collapsed-actions">
+                                                <div class="collapsed-actions">
                                                 <button :disabled="!canBingeWatchSeason || bingeWatchLoading" @click="startBingeWatchSeason" class="soft-button binge-watch-button" type="button" v-if="canBingeWatchSeason">
                                                     <span aria-hidden="true" class="spinner-border spinner-border-sm" v-if="bingeWatchLoading"></span>
                                                     <i class="bi bi-collection-play" v-else></i>
@@ -628,6 +628,8 @@
                                                        <i class="bi bi-collection-play"></i>
                                                    </div>
                                                    <div class="series-title">{{ seriesDetail.name || 'Series' }}</div>
+                                               </div>
+                                               <div class="collapsed-imdb-row">
                                                    <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
                                                </div>
                                                <div class="collapsed-actions">

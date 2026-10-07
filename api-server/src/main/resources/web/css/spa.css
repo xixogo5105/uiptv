@@ -1201,6 +1201,78 @@ a[href] {
         top: 50%;
         transform: translateY(-50%);
     }
+
+    /* Watching-now: shift both buttons 20px right (12px -> 32px) so they
+       clear the thumbnail in expanded mode, and align the collapsed
+       expand button with the first line of the title. */
+    .watching-detail-layout .series-detail-collapse-btn {
+        right: 4px;
+    }
+
+    .watching-detail-layout .series-detail-card.series-detail-collapsed .series-detail-expand-btn {
+        right: 4px;
+        top: 20px;
+        transform: translateY(-50%);
+    }
+}
+
+/* Watching-now collapsed series detail: stack poster + title + expand
+   toggle on the first row, the IMDb link on the second row, and the
+   binge-watch button on the third row. Scoped to the watching layout so
+   the account->series collapsed view keeps its single-row layout.
+   Desktop only — mobile already stacks everything via the generic
+   @media (max-width: 520px) rules below. */
+@media (min-width: 521px) {
+    .watching-detail-layout .series-detail-card.series-detail-collapsed {
+        min-height: auto;
+        padding: 10px 12px 10px 60px;
+    }
+
+    .watching-detail-layout .collapsed-content {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding-right: 48px;
+    }
+
+    .watching-detail-layout .collapsed-poster-img,
+    .watching-detail-layout .collapsed-poster-fallback {
+        position: absolute;
+        left: 12px;
+        top: 10px;
+    }
+
+    .watching-detail-layout .collapsed-title-section {
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 8px;
+        min-width: 0;
+        padding-left: 8px;
+    }
+
+    .watching-detail-layout .collapsed-title-section .series-title {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: none;
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    .watching-detail-layout .collapsed-imdb-row {
+        display: inline-flex;
+        align-items: center;
+        align-self: flex-start;
+        padding-left: 8px;
+    }
+
+    .watching-detail-layout .collapsed-actions {
+        width: 100%;
+        justify-content: flex-start;
+        padding-left: 8px;
+    }
 }
 
 @media (max-width: 520px) {
