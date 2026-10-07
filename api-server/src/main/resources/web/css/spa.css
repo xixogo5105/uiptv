@@ -1073,6 +1073,24 @@ a[href] {
     overflow: hidden;
 }
 
+.collapsed-poster-img,
+.collapsed-poster-fallback {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    flex: 0 0 auto;
+    object-fit: cover;
+}
+
+.collapsed-poster-fallback {
+    display: grid;
+    place-items: center;
+    background: var(--surface-highest);
+    color: var(--primary);
+    font-weight: 800;
+    font-size: 1.1rem;
+}
+
 .series-title {
     font-size: 0.95rem;
     font-weight: 700;
@@ -1089,6 +1107,7 @@ a[href] {
 .collapsed-title-section .imdb-pill {
     flex: 0 0 auto;
     white-space: nowrap;
+    align-self: center;
 }
 
 .collapsed-actions {
@@ -1110,18 +1129,26 @@ a[href] {
     .collapsed-title-section {
         flex-wrap: wrap;
     }
-    
-    .series-title {
+
+    .collapsed-title-section .collapsed-poster-img,
+    .collapsed-title-section .collapsed-poster-fallback {
         order: 1;
+        flex-basis: auto;
+    }
+
+    .series-title {
+        order: 2;
         flex-basis: 100%;
     }
-    
+
     .collapsed-title-section .imdb-pill {
-        order: 2;
-    }
-    
-    .collapsed-actions {
         order: 3;
+        flex-basis: 100%;
+        justify-content: flex-start;
+    }
+
+    .collapsed-actions {
+        order: 4;
         width: 100%;
         justify-content: flex-end;
     }
@@ -1162,6 +1189,18 @@ a[href] {
     color: var(--text);
     border-color: color-mix(in srgb, var(--accent) 48%, transparent);
     background: color-mix(in srgb, var(--accent) 12%, var(--surface-highest));
+}
+
+/* In the collapsed card the 48px poster grows the card height, so the
+   expand toggle must center vertically to stay aligned with the
+   binge-watch button and IMDb pill. The expanded card keeps the
+   fixed top-right placement. Desktop only — mobile repositions the
+   toggle to a static flex item. */
+@media (min-width: 521px) {
+    .series-detail-card.series-detail-collapsed .series-detail-expand-btn {
+        top: 50%;
+        transform: translateY(-50%);
+    }
 }
 
 @media (max-width: 520px) {
