@@ -3,6 +3,7 @@ package com.uiptv.application;
 import com.uiptv.db.ChannelDb;
 import com.uiptv.db.CategoryDb;
 import com.uiptv.db.SeriesCategoryDb;
+import com.uiptv.db.SeriesChannelDb;
 import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.db.VodCategoryDb;
 import com.uiptv.db.VodChannelDb;
@@ -19,6 +20,7 @@ import com.uiptv.service.ChannelService;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.HandshakeService;
 import com.uiptv.service.ImdbMetadataService;
+import com.uiptv.service.SeriesEpisodeService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeInfo;
@@ -107,6 +109,10 @@ public class CatalogApplicationService {
             return List.of();
         }
 
+        if (account.getType() == AccountType.STALKER_PORTAL) {
+            return getStalkerSeriesEpisodes(account, query.categoryId(), query.seriesId());
+        }
+
         String categoryId = resolveSeriesCategoryId(query.categoryId());
         List<Channel> cachedEpisodes = SeriesEpisodeDb.get().getEpisodes(account, categoryId, query.seriesId());
         if (cachedEpisodes.isEmpty() && account.getType() == AccountType.XTREME_API) {
@@ -125,9 +131,6 @@ public class CatalogApplicationService {
             episodes = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, query.seriesId());
         }
         applyWatchedFlag(episodes, account, categoryId, query.seriesId());
-        if (account.getType() == AccountType.STALKER_PORTAL) {
-            episodes.forEach(channel -> channel.setRating(""));
-        }
         return episodes;
     }
 
@@ -221,7 +224,7 @@ public class CatalogApplicationService {
         }
 
         String seriesId = safe(query.seriesId());
-        String categoryId = safe(query.categoryId());
+        String categoryId = resolveSeriesCategoryId(query.categoryId());
         String seriesName = safe(query.seriesName());
         JSONArray episodes = new JSONArray();
         JSONArray episodesMeta = new JSONArray();
@@ -239,7 +242,7 @@ public class CatalogApplicationService {
             episodesMeta = imdbFirst.optJSONArray(KEY_EPISODES_META);
         }
 
-        SeriesProviderDetails providerDetails = loadProviderSeriesDetails(account, categoryId, seriesId, episodesMeta);
+        SeriesProviderDetails providerDetails = loadProviderSeriesDetails(account, seriesId, episodesMeta);
         mergeProviderSeasonInfo(seasonInfo, providerDetails.seasonInfo());
         if (providerDetails.episodes().length() > 0) {
             episodes = providerDetails.episodes();
@@ -252,6 +255,14 @@ public class CatalogApplicationService {
         }
 
         episodes = enrichEpisodes(episodes, episodesMeta);
+        List<Channel> enriched = toChannels(episodes);
+        if (!enriched.isEmpty() && isNotBlank(seriesId)) {
+            if (!providerDetails.episodes().isEmpty()) {
+                SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, enriched);
+            } else {
+                SeriesEpisodeDb.get().updateMetadata(account, categoryId, seriesId, enriched);
+            }
+        }
         applyNameYearFallback(seasonInfo, seriesName);
         normalizeSeasonAndEpisodeArtwork(seasonInfo, episodes, account);
         return new CatalogSeriesDetailsResult(seasonInfo, episodes, episodesMeta == null ? new JSONArray() : episodesMeta);
@@ -278,17 +289,28 @@ public class CatalogApplicationService {
             List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, categoryApiId, movieId);
             if (!cached.isEmpty()) {
                 applyWatchedFlag(cached, account, categoryApiId, movieId);
-                cached.forEach(channel -> channel.setRating(""));
                 return cached;
             }
         }
 
         List<Channel> episodes = ChannelService.getInstance().getSeries(categoryApiId, movieId, account, null, null);
         if (!episodes.isEmpty()) {
+            episodes.forEach(SeriesEpisodeService.getInstance()::populateEpisodeNumbers);
+            List<Channel> seriesRows = SeriesChannelDb.get().getChannelsBySeriesIds(account, List.of(movieId));
+            String seriesName = seriesRows.stream()
+                    .map(Channel::getName)
+                    .filter(StringUtils::isNotBlank)
+                    .findFirst().orElse("");
+            if (isNotBlank(seriesName)) {
+                JSONObject imdb = applyInitialImdbMetadata(seriesName, new JSONObject(), toJsonArray(episodes));
+                Map<String, JSONObject> episodesMeta = indexEpisodesMeta(imdb.optJSONArray(KEY_EPISODES_META));
+                episodes.forEach(episode -> enrichEpisode(episode, episodesMeta));
+            }
             SeriesEpisodeDb.get().saveAll(account, categoryApiId, movieId, episodes);
+            applyWatchedFlag(episodes, account, categoryApiId, movieId);
+            return episodes;
         }
-        applyWatchedFlag(episodes, account, categoryApiId, movieId);
-        return episodes;
+        return List.of();
     }
 
     private List<Channel> readSingleCategoryChannels(Account account, String categoryId) throws IOException {
@@ -599,7 +621,7 @@ public class CatalogApplicationService {
         return new ArrayList<>(unique.values());
     }
 
-    private SeriesProviderDetails loadProviderSeriesDetails(Account account, String categoryId, String seriesId, JSONArray episodesMeta) {
+    private SeriesProviderDetails loadProviderSeriesDetails(Account account, String seriesId, JSONArray episodesMeta) {
         if (account.getType() != AccountType.XTREME_API || isBlank(seriesId)) {
             return new SeriesProviderDetails(null, new JSONArray());
         }
@@ -608,9 +630,6 @@ public class CatalogApplicationService {
             return new SeriesProviderDetails(null, new JSONArray());
         }
         JSONArray episodesJson = toEpisodesJson(details, indexEpisodesMeta(episodesMeta));
-        if (episodesJson.length() > 0) {
-            SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, toChannels(episodesJson));
-        }
         return new SeriesProviderDetails(details.getSeasonInfo(), episodesJson);
     }
 
@@ -792,6 +811,9 @@ public class CatalogApplicationService {
         }
         if (!isBlank(meta.optString("logo", ""))) {
             channel.setLogo(meta.optString("logo", ""));
+        }
+        if (isBlank(channel.getRating())) {
+            channel.setRating(meta.optString(KEY_RATING, ""));
         }
     }
 

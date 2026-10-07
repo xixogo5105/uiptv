@@ -94,9 +94,18 @@ class ImdbMetadataServiceTest {
                 .put("air_date", "2024-02-03")
                 .put("still_path", "/still.png");
         JSONObject mappedEpisode = (JSONObject) invoke("mapTmdbEpisodeMeta", new Class[]{JSONObject.class}, tmdbEpisode);
-        assertEquals("", mappedEpisode.getString("title"));
+        assertEquals("", mappedEpisode.optString("title", ""));
         assertEquals("Episode plot", mappedEpisode.getString("plot"));
         assertTrue(mappedEpisode.getString("logo").contains("/still.png"));
+        assertEquals("", mappedEpisode.optString("rating", ""));
+
+        JSONObject tmdbEpisodeWithRating = new JSONObject()
+                .put("name", "Rated Episode")
+                .put("overview", "Plot")
+                .put("air_date", "2024-02-03")
+                .put("vote_average", 7.4);
+        JSONObject mappedWithRating = (JSONObject) invoke("mapTmdbEpisodeMeta", new Class[]{JSONObject.class}, tmdbEpisodeWithRating);
+        assertEquals("7.4", mappedWithRating.getString("rating"));
 
         JSONArray genres = new JSONArray()
                 .put(new JSONObject().put("name", "Drama"))
@@ -438,6 +447,36 @@ class ImdbMetadataServiceTest {
     }
 
     @Test
+    void tmdbEpisodeMeta_mergesVoteAverageIntoRating() throws Exception {
+        JSONObject target = new JSONObject()
+                .put("season", "1")
+                .put("episodeNum", "2")
+                .put("title", "Existing Title")
+                .put("plot", "Existing plot")
+                .put("releaseDate", "2024-01-01")
+                .put("rating", "6.0")
+                .put("logo", "http://old-logo");
+        JSONObject tmdbEpisode = new JSONObject()
+                .put("episode_number", 2)
+                .put("name", "New Title")
+                .put("overview", "New plot")
+                .put("air_date", "2024-02-01")
+                .put("vote_average", 8.5)
+                .put("still_path", "/new-still.png");
+
+        @SuppressWarnings("unchecked")
+        Map<String, JSONObject> index = (Map<String, JSONObject>) invoke("indexEpisodesBySeasonEpisode", new Class[]{JSONArray.class},
+                new JSONArray().put(target));
+        invoke("mergeLocalizedTmdbEpisode", new Class[]{Map.class, String.class, JSONObject.class}, index, "1", tmdbEpisode);
+
+        assertEquals("New Title", target.getString("title"));
+        assertEquals("New plot", target.getString("plot"));
+        assertEquals("2024-02-01", target.getString("releaseDate"));
+        assertEquals("8.5", target.getString("rating"));
+        assertEquals("http://old-logo", target.getString("logo"));
+    }
+
+    @Test
     void metadataLimits_boundSearchQueriesEpisodesSeasonsAndHttpBodies() throws Exception {
         List<String> hints = new ArrayList<>();
         String longTitle = "Example Show ".repeat(40);
@@ -563,6 +602,32 @@ class ImdbMetadataServiceTest {
         }
     }
 
+    @Test
+    void englishSeriesMetadataStillFetchesTmdbEpisodeRatings() throws Exception {
+        I18n.setLocale("en-GB");
+        ConfigurationService configurationService = mock(ConfigurationService.class);
+        com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
+        configuration.setTmdbReadAccessToken("token");
+        try (MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class);
+             MockedStatic<com.uiptv.util.HttpUtil> httpUtilStatic = mockStatic(com.uiptv.util.HttpUtil.class)) {
+            configurationStatic.when(ConfigurationService::getInstance).thenReturn(configurationService);
+            when(configurationService.read()).thenReturn(configuration);
+            httpUtilStatic.when(() -> com.uiptv.util.HttpUtil.sendRequest(anyString(), anyMap(), eq("GET")))
+                    .thenAnswer(invocation -> new com.uiptv.util.HttpUtil.HttpResult(200,
+                            branchMetadataBodyFor(invocation.getArgument(0, String.class)), Map.of(), Map.of()));
+
+            JSONObject details = new JSONObject().put("episodesMeta", new JSONArray()
+                    .put(new JSONObject().put("season", "1").put("episodeNum", "1").put("title", "Old")));
+            invoke("applyTmdbLocalization", new Class[]{JSONObject.class, JSONObject.class, JSONObject.class, boolean.class},
+                    details, new JSONObject().put("tmdbMediaId", "999"), new JSONObject(), false);
+
+            JSONObject episode = details.getJSONArray("episodesMeta").getJSONObject(0);
+            assertEquals("8.6", episode.getString("rating"));
+            assertEquals("Episode FR", episode.getString("title"));
+            assertFalse(details.has("name"));
+        }
+    }
+
     private String metadataBodyFor(String url) {
         if (url.contains("v2.sg.media-imdb.com/suggestion")) {
             return """
@@ -658,7 +723,7 @@ class ImdbMetadataServiceTest {
         }
         if (url.contains("/tv/999/season/1")) {
             return """
-                    {"episodes":[{"episode_number":1,"name":"Episode FR","overview":"Resume episode","air_date":"2024-02-03","still_path":""}]}
+                    {"episodes":[{"episode_number":1,"name":"Episode FR","overview":"Resume episode","air_date":"2024-02-03","vote_average":8.6,"still_path":""}]}
                     """;
         }
         if (url.contains("/tv/999")) {

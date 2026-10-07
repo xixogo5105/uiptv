@@ -89,6 +89,29 @@ public class SeriesEpisodeDb extends BaseDb {
         }
     }
 
+    /** Enrichment must not renew provider freshness or replace local episode row IDs. */
+    public void updateMetadata(Account account, String categoryId, String seriesId, List<Channel> episodes) {
+        String sql = "UPDATE " + SERIES_EPISODE_TABLE.getTableName()
+                + " SET logo=?, description=?, releaseDate=?, rating=?"
+                + WHERE_ACCOUNT_CATEGORY_SERIES + " AND channelId=?";
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            for (Channel channel : episodes) {
+                statement.setString(1, channel.getLogo());
+                statement.setString(2, channel.getDescription());
+                statement.setString(3, channel.getReleaseDate());
+                statement.setString(4, channel.getRating());
+                statement.setString(5, account.getDbId());
+                statement.setString(6, safeCategoryId(categoryId));
+                statement.setString(7, seriesId);
+                statement.setString(8, channel.getChannelId());
+                statement.addBatch();
+            }
+            statement.executeBatch();
+        } catch (SQLException e) {
+            throw new DatabaseAccessException("Unable to update episode metadata", e);
+        }
+    }
+
     public void deleteByAccount(String accountId) {
         String sql = "DELETE FROM " + SERIES_EPISODE_TABLE.getTableName() + " WHERE accountId=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {

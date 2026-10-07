@@ -87,13 +87,17 @@ class ThumbnailEpisodesListUITest extends DbBackedUiTest {
                             .put("episodeNum", "1")
                             .put("title", "Episode 1")
                             .put("plot", "Episode plot from TMDB")
+                            .put("rating", "8.6")
                             .put("logo", "https://image.test/episode.jpg")));
             applyMetadata.invoke(ui, metadata);
             ui.layout();
             assertTrue(ui.allEpisodeItems.getFirst().getPlot().contains("Episode plot from TMDB"));
+            assertTrue(ui.allEpisodeItems.getFirst().getRating().contains("8.6"));
             Field cardsContainerField = ThumbnailEpisodesListUI.class.getDeclaredField("cardsContainer");
             cardsContainerField.setAccessible(true);
-            return containsLabelText((Node) cardsContainerField.get(ui), "Episode plot from TMDB");
+            Node cards = (Node) cardsContainerField.get(ui);
+            return containsLabelText(cards, "Episode plot from TMDB")
+                    && containsLabelText(cards, I18n.tr("autoRatingPrefix", "8.6"));
         });
 
         assertTrue(metadataIsVisible);
@@ -114,7 +118,8 @@ class ThumbnailEpisodesListUITest extends DbBackedUiTest {
         FxTestSupport.waitForFxEvents();
 
         boolean metadataSurvivedEpisodeRefresh = runOnFxThread(() ->
-                ui.allEpisodeItems.getFirst().getPlot().contains("Episode plot from TMDB"));
+                ui.allEpisodeItems.getFirst().getPlot().contains("Episode plot from TMDB")
+                        && ui.allEpisodeItems.getFirst().getRating().contains("8.6"));
         assertTrue(metadataSurvivedEpisodeRefresh, "later episode-page updates must retain fetched TMDB details");
     }
 

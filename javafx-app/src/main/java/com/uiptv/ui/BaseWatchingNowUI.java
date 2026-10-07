@@ -58,6 +58,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     private static final String KEY_CARD_LABELS = "cardLabels";
     private static final String KEY_COVER = "cover";
     private static final String KEY_RELEASE_DATE = "releaseDate";
+    private static final String KEY_RATING = "rating";
     private static final String KEY_TITLE = "title";
     private static final String MESSAGE_NO_CURRENTLY_WATCHED_SERIES = "autoNoCurrentlyWatchedSeriesFound";
     private static final String STRONG_LABEL = "strong-label";
@@ -2363,6 +2364,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                             episode.plot
                     );
                     episode.releaseDate = firstNonBlank(episode.releaseDate, meta.optString(KEY_RELEASE_DATE, ""));
+                    episode.rating = firstNonBlank(episode.rating, meta.optString(KEY_RATING, ""));
                     episode.searchTextCache = null;
                     if (!isBlank(episode.imageUrl)) {
                         episode.channel.setLogo(episode.imageUrl);

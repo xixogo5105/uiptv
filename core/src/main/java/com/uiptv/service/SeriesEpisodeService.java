@@ -296,6 +296,14 @@ public class SeriesEpisodeService {
         }
     }
 
+    public void populateEpisodeNumbers(Channel channel) {
+        if (channel == null) {
+            return;
+        }
+        channel.setSeason(resolveEpisodeSeason(channel));
+        channel.setEpisodeNum(resolveEpisodeNumber(channel));
+    }
+
     private String resolveEpisodeSeason(Channel channel) {
         return isBlank(channel.getSeason()) ? extractSeason(channel.getName()) : channel.getSeason();
     }

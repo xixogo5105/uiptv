@@ -11,6 +11,8 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import com.uiptv.db.SeriesCategoryDb;
+import com.uiptv.db.SeriesChannelDb;
+import com.uiptv.db.SQLConnection;
 import com.uiptv.db.SeriesEpisodeDb;
 import com.uiptv.db.VodCategoryDb;
 import com.uiptv.db.VodChannelDb;
@@ -22,6 +24,7 @@ import com.uiptv.service.CategoryService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.service.ImdbMetadataService;
+import com.uiptv.service.HandshakeService;
 import com.uiptv.service.SeriesWatchStateService;
 import com.uiptv.shared.Episode;
 import com.uiptv.shared.EpisodeInfo;
@@ -34,6 +37,8 @@ import com.uiptv.util.XtremeApiParser;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
@@ -108,6 +113,158 @@ class CatalogApplicationServiceTest extends DbBackedTest {
 
         assertEquals(2, response.size());
         assertTrue(response.get(1).isWatched());
+    }
+
+    @Test
+    void listSeriesEpisodes_doesNotClearStalkerRatings() {
+        Account account = new Account("stalker-ratings", "user", "pass", "http://portal", null, null, null, null, null, null,
+                AccountType.STALKER_PORTAL, null, "http://portal", false);
+        account.setDbId("stalker-rating-acc");
+        account.setAction(Account.AccountAction.series);
+        AccountService.getInstance().save(account);
+        Account saved = AccountService.getInstance().getByName("stalker-ratings");
+        saved.setAction(Account.AccountAction.series);
+
+        Category category = new Category("api-cat", "Series", "series", false, 0);
+        SeriesCategoryDb.get().saveAll(List.of(category), saved);
+        Category savedCategory = SeriesCategoryDb.get().getCategories(saved).get(0);
+
+        Channel episode = new Channel();
+        episode.setChannelId("ep-1");
+        episode.setName("Episode 1");
+        episode.setSeason("1");
+        episode.setEpisodeNum("1");
+        episode.setRating("8.5");
+
+        SeriesEpisodeDb.get().saveAll(saved, savedCategory.getCategoryId(), "series-1", List.of(episode));
+
+        List<Channel> response = CatalogApplicationService.getInstance()
+                .listSeriesEpisodes(new CatalogSeriesEpisodesQuery(saved.getDbId(), savedCategory.getDbId(), "series-1"));
+
+        assertEquals(1, response.size());
+        assertEquals("8.5", response.getFirst().getRating());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"channels", "episodes", "web"})
+    void stalkerEpisodeRoutes_enrichRatingsUsingSeriesTitle(String route) throws Exception {
+        Account account = new Account("stalker-series-rating", "user", "pass", "http://portal", null, null, null, null, null, null,
+                AccountType.STALKER_PORTAL, null, "http://portal", false);
+        account.setDbId("stalker-series-acc");
+        account.setAction(Account.AccountAction.series);
+        AccountService.getInstance().save(account);
+        Account saved = AccountService.getInstance().getByName("stalker-series-rating");
+        saved.setAction(Account.AccountAction.series);
+
+        Category category = new Category("api-cat", "Series", "series", false, 0);
+        category.setDbId("db-cat");
+        SeriesCategoryDb.get().saveAll(List.of(category), saved);
+        Category savedCategory = SeriesCategoryDb.get().getCategories(saved).get(0);
+
+        Channel series = new Channel();
+        series.setChannelId("series-1");
+        series.setName("Test Series");
+        SeriesChannelDb.get().saveAll(List.of(series), savedCategory.getDbId(), saved);
+
+        JSONObject providerResponse = new JSONObject().put("js", new JSONObject().put("data", new JSONArray()
+                .put(new JSONObject().put("id", "provider-row").put("name", "Season 2")
+                        .put("cmd", "http://portal/play/ep-1").put("series", new JSONArray().put(1)))));
+        List<Channel> providerEpisodes = ChannelService.getInstance().parseVodChannels(saved, providerResponse.toString(), false);
+        assertEquals(1, providerEpisodes.size());
+
+        ChannelService channelService = mock(ChannelService.class);
+        ImdbMetadataService imdbMetadataService = mock(ImdbMetadataService.class);
+
+        try (MockedStatic<ChannelService> channelStatic = mockStatic(ChannelService.class);
+             MockedStatic<ImdbMetadataService> imdbStatic = mockStatic(ImdbMetadataService.class);
+             MockedStatic<HandshakeService> handshakeStatic = mockStatic(HandshakeService.class)) {
+            channelStatic.when(ChannelService::getInstance).thenReturn(channelService);
+            imdbStatic.when(ImdbMetadataService::getInstance).thenReturn(imdbMetadataService);
+            handshakeStatic.when(HandshakeService::getInstance).thenReturn(mock(HandshakeService.class));
+
+            when(channelService.getSeries(eq(savedCategory.getCategoryId()), eq("series-1"), eq(saved), any(), any()))
+                    .thenReturn(providerEpisodes);
+
+            JSONObject imdbResult = new JSONObject()
+                    .put("name", "Test Series")
+                    .put("episodesMeta", new JSONArray().put(new JSONObject()
+                            .put("season", "2")
+                            .put("episodeNum", "1")
+                            .put("rating", "8.5")
+                            .put("title", "Episode 1")));
+            when(imdbMetadataService.findBestEffortDetails(eq("Test Series"), eq(""), anyList()))
+                    .thenReturn(imdbResult);
+
+            CatalogApplicationService catalog = CatalogApplicationService.getInstance();
+            List<Channel> result = switch (route) {
+                case "episodes" -> catalog.listSeriesEpisodes(new CatalogSeriesEpisodesQuery(
+                        saved.getDbId(), savedCategory.getDbId(), "series-1"));
+                case "web" -> catalog.listWebChannels(new CatalogWebChannelsQuery(
+                        saved.getDbId(), CatalogMode.SERIES, savedCategory.getDbId(), "series-1", 0, 20, 1, 0)).items();
+                default -> catalog.listChannels(new CatalogChannelsQuery(
+                        saved.getDbId(), CatalogMode.SERIES, savedCategory.getDbId(), "series-1"));
+            };
+
+            assertEquals(1, result.size());
+            assertEquals("8.5", result.getFirst().getRating());
+            assertEquals("http://portal/play/ep-1", result.getFirst().getCmd());
+            assertEquals("2", result.getFirst().getSeason());
+            assertEquals("1", result.getFirst().getEpisodeNum());
+            verify(imdbMetadataService).findBestEffortDetails(eq("Test Series"), eq(""), anyList());
+
+            List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(saved, savedCategory.getCategoryId(), "series-1");
+            assertEquals(1, cached.size());
+            assertEquals("8.5", cached.getFirst().getRating());
+        }
+    }
+
+    @Test
+    void getSeriesDetails_enrichesCanonicalCacheWithoutRenewingProviderFreshness() throws Exception {
+        Account account = new Account("stalker-details", "user", "pass", "http://portal", null, null, null, null, null, null,
+                AccountType.STALKER_PORTAL, null, "http://portal", false);
+        AccountService.getInstance().save(account);
+        Account saved = AccountService.getInstance().getByName("stalker-details");
+        saved.setAction(Account.AccountAction.series);
+        Category category = new Category("provider-cat", "Series", "series", false, 0);
+        SeriesCategoryDb.get().saveAll(List.of(category), saved);
+        Category savedCategory = SeriesCategoryDb.get().getCategories(saved).getFirst();
+        Channel episode = new Channel();
+        episode.setChannelId("episode-1");
+        episode.setName("Episode 1");
+        episode.setSeason("1");
+        episode.setEpisodeNum("1");
+        episode.setCmd("cmd://original");
+        SeriesEpisodeDb.get().saveAll(saved, "provider-cat", "series-1", List.of(episode));
+        String originalDbId = SeriesEpisodeDb.get().getEpisodes(saved, "provider-cat", "series-1").getFirst().getDbId();
+        long cachedAt = System.currentTimeMillis() - 10_000;
+        try (var connection = SQLConnection.connect();
+             var statement = connection.prepareStatement("UPDATE SeriesEpisode SET cachedAt=?")) {
+            statement.setLong(1, cachedAt);
+            statement.executeUpdate();
+        }
+        ImdbMetadataService metadataService = mock(ImdbMetadataService.class);
+        JSONObject metadata = new JSONObject().put("episodesMeta", new JSONArray().put(new JSONObject()
+                .put("season", "1").put("episodeNum", "1").put("rating", "9.2")));
+        try (MockedStatic<ImdbMetadataService> imdbStatic = mockStatic(ImdbMetadataService.class);
+             MockedStatic<HandshakeService> handshakeStatic = mockStatic(HandshakeService.class)) {
+            imdbStatic.when(ImdbMetadataService::getInstance).thenReturn(metadataService);
+            handshakeStatic.when(HandshakeService::getInstance).thenReturn(mock(HandshakeService.class));
+            when(metadataService.findBestEffortDetails(anyString(), anyString(), anyList())).thenReturn(metadata);
+            CatalogSeriesDetailsResult details = CatalogApplicationService.getInstance().getSeriesDetails(
+                    new CatalogSeriesDetailsQuery(saved.getDbId(), savedCategory.getDbId(), "series-1", "Test Show"));
+            assertEquals("9.2", details.episodes().getJSONObject(0).getString("rating"));
+        }
+        Channel cached = SeriesEpisodeDb.get().getEpisodes(saved, "provider-cat", "series-1").getFirst();
+        assertEquals("9.2", cached.getRating());
+        assertEquals(originalDbId, cached.getDbId());
+        assertEquals("cmd://original", cached.getCmd());
+        assertTrue(SeriesEpisodeDb.get().getEpisodes(saved, savedCategory.getDbId(), "series-1").isEmpty());
+        try (var connection = SQLConnection.connect();
+             var statement = connection.prepareStatement("SELECT cachedAt FROM SeriesEpisode");
+             var rows = statement.executeQuery()) {
+            assertTrue(rows.next());
+            assertEquals(cachedAt, rows.getLong(1));
+        }
     }
 
     @Test
@@ -214,6 +371,7 @@ class CatalogApplicationServiceTest extends DbBackedTest {
                         .put("episodeNum", "1")
                         .put("plot", "Meta plot")
                         .put("logo", "http://logo")
+                        .put("rating", "9.0")
                         .put("title", "Episode 1")));
         JSONObject imdbFallback = new JSONObject()
                 .put("plot", "Fallback plot")
@@ -244,6 +402,72 @@ class CatalogApplicationServiceTest extends DbBackedTest {
             assertEquals("Episode 1", ep.getString("name"));
             assertTrue(ep.getString("description").contains("Meta") || ep.getString("description").contains("Provider"));
             assertTrue(ep.getString("logo").contains("http://"));
+            assertEquals("8.1", ep.getString("rating"));
+        }
+    }
+
+    @Test
+    void getSeriesDetails_appliesMetaRatingWhenProviderRatingIsBlank() {
+        Account account = new Account("series-acc-blank", "user", "pass", "http://xtreme", null, null, null, null, null, null,
+                AccountType.XTREME_API, null, "http://xtreme", false);
+        account.setDbId("acc-blank");
+        account.setAction(Account.AccountAction.series);
+
+        Episode episode = new Episode();
+        episode.setId("ep-blank");
+        episode.setTitle("Blank Rating Episode");
+        episode.setCmd("http://origin/ep-blank.m3u8");
+        episode.setSeason("1");
+        episode.setEpisodeNum("1");
+        EpisodeInfo info = new EpisodeInfo();
+        info.setMovieImage("http://img/ep-blank.png");
+        info.setPlot("Provider plot");
+        info.setReleaseDate("2019");
+        info.setRating("");
+        info.setDuration("42");
+        episode.setInfo(info);
+
+        SeasonInfo seasonInfo = new SeasonInfo();
+        seasonInfo.setName("Provider Season");
+        seasonInfo.setReleaseDate("2018");
+
+        EpisodeList episodeList = new EpisodeList();
+        episodeList.setSeasonInfo(seasonInfo);
+        episodeList.getEpisodes().add(episode);
+
+        JSONObject imdbFirst = new JSONObject()
+                .put("name", "IMDB Title")
+                .put("cover", "http://cover")
+                .put("episodesMeta", new JSONArray().put(new JSONObject()
+                        .put("season", "1")
+                        .put("episodeNum", "1")
+                        .put("plot", "Meta plot")
+                        .put("logo", "http://logo")
+                        .put("rating", "9.0")
+                        .put("title", "Blank Rating Episode")));
+
+        AccountService accountService = mock(AccountService.class);
+        ImdbMetadataService imdbMetadataService = mock(ImdbMetadataService.class);
+
+        try (MockedStatic<AccountService> accountStatic = mockStatic(AccountService.class);
+             MockedStatic<XtremeApiParser> xtremeParser = mockStatic(XtremeApiParser.class);
+             MockedStatic<ImdbMetadataService> imdbStatic = mockStatic(ImdbMetadataService.class)) {
+            accountStatic.when(AccountService::getInstance).thenReturn(accountService);
+            when(accountService.getById("acc-blank")).thenReturn(account);
+
+            xtremeParser.when(() -> XtremeApiParser.parseEpisodes("series-blank", account)).thenReturn(episodeList);
+
+            imdbStatic.when(ImdbMetadataService::getInstance).thenReturn(imdbMetadataService);
+            when(imdbMetadataService.findBestEffortDetails(anyString(), anyString(), anyList()))
+                    .thenReturn(imdbFirst);
+
+            CatalogSeriesDetailsResult response = CatalogApplicationService.getInstance()
+                    .getSeriesDetails(new CatalogSeriesDetailsQuery("acc-blank", "cat-1", "series-blank", "Show (2021)"));
+
+            assertEquals(1, response.episodes().length());
+            JSONObject ep = response.episodes().getJSONObject(0);
+            assertEquals("9.0", ep.getString("rating"));
+            assertEquals("9.0", SeriesEpisodeDb.get().getEpisodes(account, "cat-1", "series-blank").getFirst().getRating());
         }
     }
 

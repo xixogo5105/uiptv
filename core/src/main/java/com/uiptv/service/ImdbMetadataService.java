@@ -601,7 +601,7 @@ public class ImdbMetadataService {
 
     private void applyTmdbLocalization(JSONObject details, JSONObject primaryMeta, JSONObject secondaryMeta, boolean moviePreferred) {
         String localeTag = I18n.getCurrentLanguageTag();
-        if (isBlank(localeTag) || localeTag.toLowerCase(Locale.ROOT).startsWith("en")) {
+        if (isBlank(localeTag)) {
             return;
         }
 
@@ -610,14 +610,15 @@ public class ImdbMetadataService {
             return;
         }
 
-        JSONObject primaryLocalized = fetchPrimaryLocalizedTmdbDetails(tmdbId, localeTag, moviePreferred);
-        JSONObject secondaryLocalized = fetchSecondaryLocalizedTmdbDetails(tmdbId, localeTag, moviePreferred);
-        JSONObject localized = !primaryLocalized.isEmpty() ? primaryLocalized : secondaryLocalized;
-        if (localized.isEmpty()) {
-            return;
+        if (!localeTag.toLowerCase(Locale.ROOT).startsWith("en")) {
+            JSONObject primaryLocalized = fetchPrimaryLocalizedTmdbDetails(tmdbId, localeTag, moviePreferred);
+            JSONObject secondaryLocalized = fetchSecondaryLocalizedTmdbDetails(tmdbId, localeTag, moviePreferred);
+            JSONObject localized = !primaryLocalized.isEmpty() ? primaryLocalized : secondaryLocalized;
+            if (!localized.isEmpty()) {
+                applyLocalizedTmdbFields(details, localized);
+            }
         }
 
-        applyLocalizedTmdbFields(details, localized);
         if (!moviePreferred) {
             enrichEpisodesMetaWithTmdb(details.optJSONArray(KEY_EPISODES_META), tmdbId, localeTag);
         }
@@ -911,6 +912,7 @@ public class ImdbMetadataService {
         replaceIfPresent(target, mapped, KEY_TITLE);
         replaceIfPresent(target, mapped, KEY_PLOT);
         replaceIfPresent(target, mapped, KEY_RELEASE_DATE);
+        replaceIfPresent(target, mapped, KEY_RATING);
         mergeMissing(target, mapped, KEY_LOGO);
     }
 
@@ -963,6 +965,12 @@ public class ImdbMetadataService {
         mapped.put(KEY_TITLE, sanitizeEpisodeTitle(episode.optString("name", "")));
         mapped.put(KEY_PLOT, episode.optString(KEY_OVERVIEW, ""));
         mapped.put(KEY_RELEASE_DATE, episode.optString("air_date", ""));
+
+        double voteAverage = episode.optDouble("vote_average", 0);
+        if (voteAverage > 0) {
+            mapped.put(KEY_RATING, StringUtils.formatRating(String.valueOf(voteAverage)));
+        }
+
         String stillPath = episode.optString("still_path", "");
         if (isNotBlank(stillPath)) {
             mapped.put(KEY_LOGO, "https://image.tmdb.org/t/p/w500" + stillPath);

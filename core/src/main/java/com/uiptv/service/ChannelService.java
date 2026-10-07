@@ -790,7 +790,6 @@ public class ChannelService {
                 ? null
                 : channels -> callback.accept(maybeFilterChannels(channels, true, account));
         List<Channel> channels = getStalkerPortalChOrSeries(categoryId, account, movieId, "0", visibleCallback, isCancelled);
-        channels.forEach(channel -> channel.setRating(""));
         return maybeFilterChannels(channels, true, account);
     }
 

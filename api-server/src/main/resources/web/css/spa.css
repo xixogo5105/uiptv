@@ -724,6 +724,10 @@ a[href] {
     display: block;
     overflow: visible;
     min-height: 0;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    height: auto;
+    max-height: none;
 }
 
 .detail-plot {
@@ -1052,12 +1056,13 @@ a[href] {
 
 .episode-card {
     display: flex;
+    flex: 0 0 auto;
     flex-direction: row;
     align-items: flex-start;
     gap: 10px;
     min-height: 78px;
     height: auto;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .episode-card > .logo-box {
@@ -1066,7 +1071,9 @@ a[href] {
 
 .episode-card > .content-copy {
     flex: 1 1 auto;
+    min-width: 0;
     min-height: 0;
+    height: auto;
     overflow: visible;
 }
 
