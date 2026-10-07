@@ -125,6 +125,9 @@ public class CatalogApplicationService {
             episodes = SeriesEpisodeDb.get().getEpisodesFromFreshestCategory(account, query.seriesId());
         }
         applyWatchedFlag(episodes, account, categoryId, query.seriesId());
+        if (account.getType() == AccountType.STALKER_PORTAL) {
+            episodes.forEach(channel -> channel.setRating(""));
+        }
         return episodes;
     }
 
@@ -269,16 +272,17 @@ public class CatalogApplicationService {
                 && isNotBlank(movieId)
                 && !ALL_CATEGORY.equalsIgnoreCase(categoryId);
     }
-
     private List<Channel> getStalkerSeriesEpisodes(Account account, String categoryId, String movieId) {
         String categoryApiId = resolveCategoryApiId(account, categoryId);
         if (SeriesEpisodeDb.get().isFresh(account, categoryApiId, movieId, ConfigurationService.getInstance().getCacheExpiryMs())) {
             List<Channel> cached = SeriesEpisodeDb.get().getEpisodes(account, categoryApiId, movieId);
             if (!cached.isEmpty()) {
                 applyWatchedFlag(cached, account, categoryApiId, movieId);
+                cached.forEach(channel -> channel.setRating(""));
                 return cached;
             }
         }
+
         List<Channel> episodes = ChannelService.getInstance().getSeries(categoryApiId, movieId, account, null, null);
         if (!episodes.isEmpty()) {
             SeriesEpisodeDb.get().saveAll(account, categoryApiId, movieId, episodes);

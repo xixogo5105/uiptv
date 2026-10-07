@@ -789,7 +789,9 @@ public class ChannelService {
         Consumer<List<Channel>> visibleCallback = callback == null
                 ? null
                 : channels -> callback.accept(maybeFilterChannels(channels, true, account));
-        return maybeFilterChannels(getStalkerPortalChOrSeries(categoryId, account, movieId, "0", visibleCallback, isCancelled), true, account);
+        List<Channel> channels = getStalkerPortalChOrSeries(categoryId, account, movieId, "0", visibleCallback, isCancelled);
+        channels.forEach(channel -> channel.setRating(""));
+        return maybeFilterChannels(channels, true, account);
     }
 
     public String readToJson(Category category, Account account) throws IOException {
