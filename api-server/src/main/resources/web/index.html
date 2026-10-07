@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/video.js@8.24.1/dist/video-js.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20261007b" rel="stylesheet">
+    <link href="/css/spa.css?v=20261007k" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.43/dist/vue.global.prod.js"></script>
@@ -368,32 +368,59 @@
                             </div>
 
                             <div class="panel-list" v-if="viewState === 'episodes'">
-                                <article class="detail-card series-detail-card" v-if="contentMode === 'series' && seriesDetail">
-                                    <img :src="seriesDetail.cover" @error="imageError" @load="imageLoad" alt="" class="poster-img" v-if="seriesDetail.cover">
-                                    <div :style="{ display: seriesDetail.cover ? 'none' : '' }" class="poster-fallback">
-                                        <i class="bi bi-collection-play"></i>
-                                    </div>
-                                    <div class="content-copy">
-                                        <div class="title-line">{{ seriesDetail.name || 'Series' }}</div>
-                                        <div class="meta-line" v-if="seriesDetailLoading">
-                                            <span class="spinner-border spinner-border-sm"></span>
-                                            Loading series details...
+                                <!-- Series Detail Panel - Collapsible -->
+                                <div v-if="contentMode === 'series' && seriesDetail" class="series-detail-panel">
+                                    <!-- Expanded View -->
+                                    <article class="detail-card series-detail-card" v-if="!seriesDetailCollapsed">
+                                        <img :src="seriesDetail.cover" @error="imageError" @load="imageLoad" alt="" class="poster-img" v-if="seriesDetail.cover">
+                                        <div :style="{ display: seriesDetail.cover ? 'none' : '' }" class="poster-fallback">
+                                            <i class="bi bi-collection-play"></i>
                                         </div>
-                                        <div class="meta-line clamp detail-plot" v-if="seriesDetail.plot">{{ seriesDetail.plot }}</div>
-                                        <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
-                                        <div class="series-meta-list">
-                                            <span v-if="seriesDetail.genre">Genre: {{ seriesDetail.genre }}</span>
-                                            <span v-if="seriesDetail.releaseDate">Release: {{ formatShortDate(seriesDetail.releaseDate) }}</span>
-                                            <span v-if="seriesDetail.director">Director: {{ seriesDetail.director }}</span>
-                                            <span v-if="seriesDetail.cast">Cast: {{ seriesDetail.cast }}</span>
+                                        <div class="content-copy">
+                                            <div class="title-line">{{ seriesDetail.name || 'Series' }}</div>
+                                            <div class="meta-line" v-if="seriesDetailLoading">
+                                                <span class="spinner-border spinner-border-sm"></span>
+                                                Loading series details...
+                                            </div>
+                                            <div class="meta-line clamp detail-plot" v-if="seriesDetail.plot">{{ seriesDetail.plot }}</div>
+                                            <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
+                                            <div class="series-meta-list">
+                                                <span v-if="seriesDetail.genre">Genre: {{ seriesDetail.genre }}</span>
+                                                <span v-if="seriesDetail.releaseDate">Release: {{ formatShortDate(seriesDetail.releaseDate) }}</span>
+                                                <span v-if="seriesDetail.director">Director: {{ seriesDetail.director }}</span>
+                                                <span v-if="seriesDetail.cast">Cast: {{ seriesDetail.cast }}</span>
+                                            </div>
+                                            <button :disabled="!canBingeWatchSeason || bingeWatchLoading" @click="startBingeWatchSeason" class="soft-button binge-watch-button" type="button">
+                                                <span aria-hidden="true" class="spinner-border spinner-border-sm" v-if="bingeWatchLoading"></span>
+                                                <i class="bi bi-collection-play" v-else></i>
+                                                <span>{{ bingeWatchButtonLabel }}</span>
+                                            </button>
                                         </div>
-                                        <button :disabled="!canBingeWatchSeason || bingeWatchLoading" @click="startBingeWatchSeason" class="soft-button binge-watch-button" type="button">
-                                            <span aria-hidden="true" class="spinner-border spinner-border-sm" v-if="bingeWatchLoading"></span>
-                                            <i class="bi bi-collection-play" v-else></i>
-                                            <span>{{ bingeWatchButtonLabel }}</span>
+                                        <button @click="toggleSeriesDetailCollapsed" class="series-detail-collapse-btn" type="button" aria-label="Collapse series details">
+                                            <i class="bi bi-chevron-up"></i>
                                         </button>
-                                    </div>
-                                </article>
+                                    </article>
+
+                                    <!-- Collapsed View -->
+                                    <article class="detail-card series-detail-card series-detail-collapsed" v-else>
+                                        <div class="collapsed-content">
+                                            <div class="collapsed-title-section">
+                                                <div class="series-title">{{ seriesDetail.name || 'Series' }}</div>
+                                                <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
+                                            </div>
+                                            <div class="collapsed-actions">
+                                                <button :disabled="!canBingeWatchSeason || bingeWatchLoading" @click="startBingeWatchSeason" class="soft-button binge-watch-button" type="button" v-if="canBingeWatchSeason">
+                                                    <span aria-hidden="true" class="spinner-border spinner-border-sm" v-if="bingeWatchLoading"></span>
+                                                    <i class="bi bi-collection-play" v-else></i>
+                                                    <span>{{ bingeWatchButtonLabel }}</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <button @click="toggleSeriesDetailCollapsed" class="series-detail-expand-btn" type="button" aria-label="Expand series details">
+                                            <i class="bi bi-chevron-down"></i>
+                                        </button>
+                                    </article>
+                                </div>
 
                                 <div class="chip-row season-row" v-if="contentMode === 'series' && seriesSeasonTabs.length > 0">
                                     <button
@@ -555,33 +582,60 @@
                                 <span>{{ currentAccountName }}</span>
                             </header>
                             <div class="panel-list">
-                                <article class="detail-card series-detail-card" v-if="seriesDetail">
-                                    <img :src="seriesDetail.cover" @error="imageError" @load="imageLoad" alt="" class="poster-img" v-if="seriesDetail.cover">
-                                    <div :style="{ display: seriesDetail.cover ? 'none' : '' }" class="poster-fallback">
-                                        <i class="bi bi-collection-play"></i>
-                                    </div>
-                                    <div class="content-copy">
-                                        <div class="title-line">{{ seriesDetail.name || 'Series' }}</div>
-                                        <div class="meta-line" v-if="seriesDetailLoading">
-                                            <span class="spinner-border spinner-border-sm"></span>
-                                            Loading series details...
+                                <!-- Series Detail Panel - Collapsible -->
+                                <div v-if="seriesDetail" class="series-detail-panel">
+                                    <!-- Expanded View -->
+                                    <article class="detail-card series-detail-card" v-if="!seriesDetailCollapsed">
+                                        <img :src="seriesDetail.cover" @error="imageError" @load="imageLoad" alt="" class="poster-img" v-if="seriesDetail.cover">
+                                        <div :style="{ display: seriesDetail.cover ? 'none' : '' }" class="poster-fallback">
+                                            <i class="bi bi-collection-play"></i>
                                         </div>
-                                        <div class="meta-line clamp detail-plot" v-if="seriesDetail.plot">{{ seriesDetail.plot }}</div>
-                                        <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
-                                        <div class="series-meta-list">
-                                            <span v-if="seriesDetail.genre">Genre: {{ seriesDetail.genre }}</span>
-                                            <span v-if="seriesDetail.releaseDate">Release: {{ formatShortDate(seriesDetail.releaseDate) }}</span>
-                                            <span v-if="seriesDetail.director">Director: {{ seriesDetail.director }}</span>
-                                            <span v-if="seriesDetail.cast">Cast: {{ seriesDetail.cast }}</span>
-                                        </div>
-                                        <button :disabled="!canBingeWatchSeason || bingeWatchLoading" @click="startBingeWatchSeason" class="soft-button binge-watch-button" type="button">
-                                            <span aria-hidden="true" class="spinner-border spinner-border-sm" v-if="bingeWatchLoading"></span>
-                                            <i class="bi bi-collection-play" v-else></i>
-                                            <span>{{ bingeWatchButtonLabel }}</span>
-                                        </button>
-                                    </div>
-                                </article>
-                                <div class="empty-state compact" v-else>
+                                        <div class="content-copy">
+                                            <div class="title-line">{{ seriesDetail.name || 'Series' }}</div>
+                                            <div class="meta-line" v-if="seriesDetailLoading">
+                                                <span class="spinner-border spinner-border-sm"></span>
+                                                Loading series details...
+                                            </div>
+                                            <div class="meta-line clamp detail-plot" v-if="seriesDetail.plot">{{ seriesDetail.plot }}</div>
+                                            <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
+                                            <div class="series-meta-list">
+                                                <span v-if="seriesDetail.genre">Genre: {{ seriesDetail.genre }}</span>
+                                                <span v-if="seriesDetail.releaseDate">Release: {{ formatShortDate(seriesDetail.releaseDate) }}</span>
+                                                <span v-if="seriesDetail.director">Director: {{ seriesDetail.director }}</span>
+                                                <span v-if="seriesDetail.cast">Cast: {{ seriesDetail.cast }}</span>
+                                            </div>
+                                            <button :disabled="!canBingeWatchSeason || bingeWatchLoading" @click="startBingeWatchSeason" class="soft-button binge-watch-button" type="button">
+                                                <span aria-hidden="true" class="spinner-border spinner-border-sm" v-if="bingeWatchLoading"></span>
+                                                <i class="bi bi-collection-play" v-else></i>
+                                                <span>{{ bingeWatchButtonLabel }}</span>
+                                            </button>
+</div>
+                                         <button @click="toggleSeriesDetailCollapsed" class="series-detail-collapse-btn" type="button" aria-label="Collapse series details">
+                                             <i class="bi bi-chevron-up"></i>
+                                         </button>
+                                     </article>
+
+<!-- Collapsed View -->
+                                      <article class="detail-card series-detail-card series-detail-collapsed" v-else>
+                                          <div class="collapsed-content">
+                                              <div class="collapsed-title-section">
+                                                  <div class="series-title">{{ seriesDetail.name || 'Series' }}</div>
+                                                  <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
+                                              </div>
+                                              <div class="collapsed-actions">
+                                                  <button :disabled="!canBingeWatchSeason || bingeWatchLoading" @click="startBingeWatchSeason" class="soft-button binge-watch-button" type="button" v-if="canBingeWatchSeason">
+                                                      <span aria-hidden="true" class="spinner-border spinner-border-sm" v-if="bingeWatchLoading"></span>
+                                                      <i class="bi bi-collection-play" v-else></i>
+                                                      <span>{{ bingeWatchButtonLabel }}</span>
+                                                  </button>
+                                              </div>
+                                          </div>
+                                          <button @click="toggleSeriesDetailCollapsed" class="series-detail-expand-btn" type="button" aria-label="Expand series details">
+                                              <i class="bi bi-chevron-down"></i>
+                                          </button>
+                                      </article>
+                                 </div>
+                                 <div class="empty-state compact" v-else>
                                     <i class="bi bi-collection-play"></i>
                                     <strong>Loading series</strong>
                                     <span>Episodes will appear when details are ready.</span>
@@ -687,7 +741,7 @@
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261007b"></script>
+    <script src="/javascript/spa.js?v=20261007g"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;

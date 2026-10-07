@@ -49,6 +49,7 @@ createApp({
             return params.get('playerOnly') === '1';
         };
         const WIDE_VIEW_COOKIE_NAME = 'uiptv_wide_view_mode';
+        const SERIES_DETAIL_COLLAPSED_COOKIE_NAME = 'uiptv_series_detail_collapsed';
         const WIDE_VIEW_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
         const readCookieValue = (name) => {
             const prefix = `${encodeURIComponent(name)}=`;
@@ -62,10 +63,15 @@ createApp({
         const persistWideViewPreference = (enabled) => {
             document.cookie = `${encodeURIComponent(WIDE_VIEW_COOKIE_NAME)}=${enabled ? 'wide' : 'narrow'}; Max-Age=${WIDE_VIEW_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
         };
+        const readSeriesDetailCollapsedPreference = () => readCookieValue(SERIES_DETAIL_COLLAPSED_COOKIE_NAME) === 'collapsed';
+        const persistSeriesDetailCollapsedPreference = (collapsed) => {
+            document.cookie = `${encodeURIComponent(SERIES_DETAIL_COLLAPSED_COOKIE_NAME)}=${collapsed ? 'collapsed' : 'expanded'}; Max-Age=${WIDE_VIEW_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
+        };
         const wideViewActive = ref(readWideViewPreference());
         if (!readCookieValue(WIDE_VIEW_COOKIE_NAME)) {
             persistWideViewPreference(wideViewActive.value);
         }
+        const seriesDetailCollapsed = ref(readSeriesDetailCollapsedPreference());
         const contentStageNarrow = ref(false);
         const isCompactDrilldown = computed(() => wideViewActive.value || contentStageNarrow.value);
         const wideDrilldownPanel = ref('categories');
@@ -90,6 +96,10 @@ createApp({
         };
         const restoreWideViewPreference = () => {
             setWideViewActive(readWideViewPreference());
+        };
+        const toggleSeriesDetailCollapsed = () => {
+            seriesDetailCollapsed.value = !seriesDetailCollapsed.value;
+            persistSeriesDetailCollapsedPreference(seriesDetailCollapsed.value);
         };
         const playerManuallyHidden = ref(false);
         const listLoading = ref(false);
@@ -5012,7 +5022,9 @@ createApp({
             switchTextTrack,
             formatVideoTrackLabel,
             formatAudioTrackLabel,
-            formatTextTrackLabel
+            formatTextTrackLabel,
+            seriesDetailCollapsed,
+            toggleSeriesDetailCollapsed
         };
     }
 }).mount('#app');

@@ -1022,6 +1022,171 @@ a[href] {
     align-self: flex-start;
 }
 
+/* Series Detail Panel - Collapsible */
+.series-detail-panel {
+    position: relative;
+}
+
+.series-detail-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    background: color-mix(in srgb, var(--surface-high) 88%, var(--surface-highest));
+    position: relative;
+}
+
+.series-detail-card.series-detail-collapsed {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    min-height: 64px;
+}
+
+.series-detail-card.series-detail-collapsed .content-copy,
+.series-detail-card.series-detail-collapsed .poster-img,
+.series-detail-card.series-detail-collapsed .poster-fallback,
+.series-detail-card.series-detail-collapsed .series-meta-list,
+.series-detail-card.series-detail-collapsed .detail-plot,
+.series-detail-card.series-detail-collapsed .meta-line:not(.clamp) {
+    display: none;
+}
+
+.collapsed-content {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.collapsed-title-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.series-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: 300px;
+}
+
+.collapsed-title-section .imdb-pill {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.collapsed-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.collapsed-actions .binge-watch-button,
+.collapsed-actions .series-detail-expand-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+    .collapsed-title-section {
+        flex-wrap: wrap;
+    }
+    
+    .series-title {
+        order: 1;
+        flex-basis: 100%;
+    }
+    
+    .collapsed-title-section .imdb-pill {
+        order: 2;
+    }
+    
+    .collapsed-actions {
+        order: 3;
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
+.series-detail-collapse-btn,
+.series-detail-expand-btn {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    width: 32px;
+    height: 32px;
+    border: 1px solid color-mix(in srgb, var(--outline) 32%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-highest) 72%, transparent);
+    color: var(--muted);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    flex: 0 0 auto;
+    transition: all 0.15s ease;
+    z-index: 10;
+}
+
+.series-detail-collapse-btn:hover,
+.series-detail-expand-btn:hover {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface-highest));
+}
+
+@media (max-width: 520px) {
+    .series-detail-card.series-detail-collapsed {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px 10px;
+        min-height: auto;
+    }
+
+    .collapsed-content {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        order: 1;
+        width: 100%;
+    }
+
+    .collapsed-title-section {
+        justify-content: space-between;
+    }
+
+    .collapsed-actions {
+        justify-content: flex-end;
+    }
+
+    .series-detail-collapse-btn,
+    .series-detail-expand-btn {
+        position: static;
+        transform: none;
+        width: auto;
+        height: auto;
+        padding: 6px 10px;
+        border-radius: 6px;
+        order: 2;
+        align-self: flex-end;
+    }
+}
+
 .season-row {
     padding-bottom: 2px;
 }
