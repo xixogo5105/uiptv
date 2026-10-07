@@ -1061,6 +1061,7 @@ a[href] {
     gap: 12px;
     flex: 1;
     min-width: 0;
+    padding-right: 56px;
 }
 
 .collapsed-title-section {
@@ -1101,6 +1102,8 @@ a[href] {
 .collapsed-actions .series-detail-expand-btn {
     flex: 0 0 auto;
     white-space: nowrap;
+    align-self: center;
+    margin-top: 0;
 }
 
 @media (max-width: 480px) {
@@ -1129,18 +1132,29 @@ a[href] {
     position: absolute;
     right: 12px;
     top: 12px;
-    width: 32px;
-    height: 32px;
-    border: 1px solid color-mix(in srgb, var(--outline) 32%, transparent);
-    border-radius: 8px;
+    min-height: 34px;
+    height: auto;
+    width: auto;
+    min-width: 0;
+    padding: 0 12px;
+    border: 1px solid color-mix(in srgb, var(--outline) 38%, transparent);
+    border-radius: 999px;
     background: color-mix(in srgb, var(--surface-highest) 72%, transparent);
     color: var(--muted);
-    display: grid;
-    place-items: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     cursor: pointer;
     flex: 0 0 auto;
     transition: all 0.15s ease;
     z-index: 10;
+    font-size: 0.85rem;
+}
+
+.series-detail-collapse-btn i,
+.series-detail-expand-btn i {
+    font-size: 0.9rem;
 }
 
 .series-detail-collapse-btn:hover,
