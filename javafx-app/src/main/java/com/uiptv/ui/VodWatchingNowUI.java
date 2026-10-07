@@ -14,6 +14,7 @@ import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ImageUrlNormalizer;
+import com.uiptv.util.StringUtils;
 import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
@@ -597,7 +598,10 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         }
         addDetailLine(data.detailMetadataBox, I18n.tr("autoDurationPrefix", data.duration), data.duration);
         addDetailLine(data.detailMetadataBox, I18n.tr("autoReleasePrefix", data.metadata.releaseDate), data.metadata.releaseDate);
-        addDetailLine(data.detailMetadataBox, I18n.tr("autoImdbPrefix", data.metadata.rating), data.metadata.rating);
+        String formattedRating = StringUtils.formatRating(data.metadata.rating);
+        if (!isBlank(formattedRating)) {
+            addDetailLine(data.detailMetadataBox, I18n.tr("autoImdbPrefix", formattedRating), formattedRating);
+        }
         if (!isBlank(data.metadata.plot)) {
             Label plot = new Label(data.metadata.plot);
             plot.getStyleClass().add("watching-now-series-meta-line");
@@ -655,8 +659,9 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         data.releaseNode = null;
         data.durationNode = null;
         data.plotNode = null;
-        if (!isBlank(data.metadata.rating)) {
-            data.ratingNode = new Label(I18n.tr("autoImdbPrefix", data.metadata.rating));
+        String formattedRating = StringUtils.formatRating(data.metadata.rating);
+        if (!isBlank(formattedRating)) {
+            data.ratingNode = new Label(I18n.tr("autoImdbPrefix", formattedRating));
             styleMetadataChip(data.ratingNode);
             metadataNodes.add(data.ratingNode);
         }

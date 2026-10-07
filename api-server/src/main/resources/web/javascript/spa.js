@@ -507,19 +507,19 @@ createApp({
             modeState.selectedSeason = selectedSeriesSeason.value;
         };
 
+        const formatRating = (value) => {
+            if (!value) return '';
+            const num = Number(value);
+            if (!Number.isFinite(num) || num <= 0) return '';
+            return num.toFixed(1);
+        };
+
         const getEpisodeSubtitle = (episode) => {
-            const parts = [];
-            const season = resolveEpisodeSeason(episode);
-            const epNum = resolveEpisodeNumber(episode);
-            if (season || epNum) {
-                const s = season ? `S${String(season).padStart(2, '0')}` : '';
-                const e = epNum ? `E${String(epNum).padStart(2, '0')}` : '';
-                parts.push([s, e].filter(Boolean).join(' · '));
-            }
-            if (episode?.releaseDate) parts.push(`Release: ${formatShortDate(episode.releaseDate)}`);
-            if (episode?.duration) parts.push(`Duration: ${episode.duration}`);
-            if (episode?.description) parts.push(episode.description);
-            return parts.join('\n');
+            const line1 = [];
+            if (episode?.rating) line1.push(`Rating: ${formatRating(episode.rating)}`);
+            if (episode?.releaseDate) line1.push(`Release: ${formatShortDate(episode.releaseDate)}`);
+            const line2 = episode?.description ? episode.description : '';
+            return [line1.join(' · '), line2].filter(Boolean).join('\n');
         };
 
         const formatShortDate = (value) => {
@@ -578,7 +578,8 @@ createApp({
                     description: episode.description || meta.plot || '',
                     releaseDate: episode.releaseDate || meta.releaseDate || '',
                     season: episode.season || meta.season || '',
-                    episodeNum: episode.episodeNum || meta.episodeNum || ''
+                    episodeNum: episode.episodeNum || meta.episodeNum || '',
+                    rating: episode.rating || meta.rating || ''
                 };
             });
         };
@@ -4956,6 +4957,7 @@ createApp({
             selectSeriesSeason,
             getEpisodeDisplayTitle,
             getEpisodeSubtitle,
+            formatRating,
             getSeriesEpisodeAnchorId,
             getVodPlot,
             getImdbUrl,

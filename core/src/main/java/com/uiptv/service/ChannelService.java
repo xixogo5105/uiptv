@@ -832,6 +832,7 @@ public class ChannelService {
                 JSONObject jsonChannel = list.getJSONObject(i);
                 Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), normalizeLogoUrl(null, jsonChannel.getString("logo")), nullSafeInteger(jsonChannel, FIELD_CENSORED), nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                 channel.setCategoryId(nullSafeString(jsonChannel, "tv_genre_id"));
+                channel.setRating(nullSafeString(jsonChannel, "rating"));
                 channel.setExtraJson(jsonChannel.toString());
                 resolveLogoIfNeeded(channel);
                 channelList.add(channel);
@@ -864,17 +865,22 @@ public class ChannelService {
                 if (account.getAction() == series && isNotBlank(cmd)) {
                     JSONArray seriesArray = jsonChannel.getJSONArray("series");
                     if (seriesArray != null) {
-                        for (int j = 0; j < seriesArray.length(); j++) {
-                            Channel channel = new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + seriesArray.get(j), number, cmd, null, null, null, normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, FIELD_CENSORED), nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
-                            channel.setCategoryId(categoryId);
-                            channel.setExtraJson(jsonChannel.toString());
-                            resolveLogoIfNeeded(channel);
-                            channelList.add(channel);
-                        }
+                    for (int j = 0; j < seriesArray.length(); j++) {
+                        Channel channel = new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + seriesArray.get(j), number, cmd, null, null, null, normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, FIELD_CENSORED), nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+                        channel.setCategoryId(categoryId);
+                        channel.setExtraJson(jsonChannel.toString());
+                        resolveLogoIfNeeded(channel);
+                        channelList.add(channel);
+                    }
                     }
                 } else {
                     Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, FIELD_CENSORED), nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
                     channel.setCategoryId(categoryId);
+                    String rating = nullSafeString(jsonChannel, "rating");
+                    if (isBlank(rating)) {
+                        rating = nullSafeString(jsonChannel, "rating_imdb");
+                    }
+                    channel.setRating(rating);
                     channel.setExtraJson(jsonChannel.toString());
                     resolveLogoIfNeeded(channel);
                     channelList.add(channel);

@@ -351,7 +351,7 @@
                                             Loading movie details...
                                         </div>
                                         <div class="meta-line clamp detail-plot" v-if="vodDetail.plot">{{ vodDetail.plot }}</div>
-                                        <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl()">IMDb {{ vodDetail.rating || '' }}</a>
+                                        <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(vodDetail.rating)">IMDb {{ formatRating(vodDetail.rating) }}</a>
                                         <div class="meta-line">
                                             <span v-if="vodDetail.genre">Genre: {{ vodDetail.genre }}</span>
                                             <span v-if="vodDetail.releaseDate">Release: {{ formatShortDate(vodDetail.releaseDate) }}</span>
@@ -380,7 +380,7 @@
                                             Loading series details...
                                         </div>
                                         <div class="meta-line clamp detail-plot" v-if="seriesDetail.plot">{{ seriesDetail.plot }}</div>
-                                        <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl()">IMDb {{ seriesDetail.rating || '' }}</a>
+                                        <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
                                         <div class="series-meta-list">
                                             <span v-if="seriesDetail.genre">Genre: {{ seriesDetail.genre }}</span>
                                             <span v-if="seriesDetail.releaseDate">Release: {{ formatShortDate(seriesDetail.releaseDate) }}</span>
@@ -426,24 +426,24 @@
                                         <div :style="{ display: episode.logo ? 'none' : '' }" class="logo-box">
                                             {{ fallbackInitials(getEpisodeDisplayTitle(episode, idx), 'EP') }}
                                         </div>
-                                        <div class="content-copy">
-                                            <div class="title-line">
-                                                {{ getEpisodeDisplayTitle(episode, idx) }}
-                                                <span class="live-marker active" v-if="isActiveChannel(episode)">
-                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
-                                                </span>
-                                                <span class="pill" v-if="episode.watched">WATCHED</span>
+                                            <div class="content-copy">
+                                                <div class="title-line">
+                                                    {{ getEpisodeDisplayTitle(episode, idx) }}
+                                                    <span class="live-marker active" v-if="isActiveChannel(episode)">
+                                                        <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                    </span>
+                                                    <span class="pill" v-if="episode.watched">WATCHED</span>
+                                                </div>
+                                                <div class="meta-line">{{ getEpisodeSubtitle(episode) }}</div>
                                             </div>
-                                            <div class="meta-line clamp">{{ getEpisodeSubtitle(episode) }}</div>
-                                        </div>
-                                    </article>
-                                </template>
-                            </div>
-                        </section>
-                    </div>
+                                        </article>
+                                    </template>
+                                </div>
+                            </section>
+                        </div>
 
-                    <footer class="screen-status">
-                        <span v-if="viewState === 'accounts'">{{ filteredAccounts.length }} accounts shown</span>
+                        <footer class="screen-status">
+                            <span v-if="viewState === 'accounts'">{{ filteredAccounts.length }} accounts shown</span>
                         <span v-else>{{ contentModeLabels[contentMode] }} · {{ currentAccountName }}</span>
                         <span class="status-progress" aria-hidden="true"><span></span></span>
                     </footer>
@@ -567,7 +567,7 @@
                                             Loading series details...
                                         </div>
                                         <div class="meta-line clamp detail-plot" v-if="seriesDetail.plot">{{ seriesDetail.plot }}</div>
-                                        <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl()">IMDb {{ seriesDetail.rating || '' }}</a>
+                                        <a :href="getImdbUrl()" class="imdb-pill" rel="noopener noreferrer" target="_blank" v-if="getImdbUrl() && formatRating(seriesDetail.rating)">IMDb {{ formatRating(seriesDetail.rating) }}</a>
                                         <div class="series-meta-list">
                                             <span v-if="seriesDetail.genre">Genre: {{ seriesDetail.genre }}</span>
                                             <span v-if="seriesDetail.releaseDate">Release: {{ formatShortDate(seriesDetail.releaseDate) }}</span>
@@ -626,22 +626,22 @@
                                         <div :style="{ display: episode.logo ? 'none' : '' }" class="logo-box">
                                             {{ fallbackInitials(getEpisodeDisplayTitle(episode, idx), 'EP') }}
                                         </div>
-                                        <div class="content-copy">
-                                            <div class="title-line">
-                                                {{ getEpisodeDisplayTitle(episode, idx) }}
-                                                <span class="live-marker active" v-if="isActiveChannel(episode)">
-                                                    <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
-                                                </span>
-                                                <span class="pill" v-if="episode.watched">WATCHED</span>
+                                            <div class="content-copy">
+                                                <div class="title-line">
+                                                    {{ getEpisodeDisplayTitle(episode, idx) }}
+                                                    <span class="live-marker active" v-if="isActiveChannel(episode)">
+                                                        <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
+                                                    </span>
+                                                    <span class="pill" v-if="episode.watched">WATCHED</span>
+                                                </div>
+                                                <div class="meta-line">{{ getEpisodeSubtitle(episode) }}</div>
                                             </div>
-                                            <div class="meta-line clamp">{{ getEpisodeSubtitle(episode) }}</div>
+                                        </article>
+                                        <div class="empty-state compact" v-if="filteredSeriesEpisodes.length === 0">
+                                            <i class="bi bi-collection-play"></i>
+                                            <strong>No episodes</strong>
+                                            <span>Try another season or refresh Watching Now.</span>
                                         </div>
-                                    </article>
-                                    <div class="empty-state compact" v-if="filteredSeriesEpisodes.length === 0">
-                                        <i class="bi bi-collection-play"></i>
-                                        <strong>No episodes</strong>
-                                        <span>Try another season or refresh Watching Now.</span>
-                                    </div>
                                 </template>
                             </div>
                         </section>

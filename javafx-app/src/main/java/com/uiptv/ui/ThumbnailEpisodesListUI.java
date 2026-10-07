@@ -8,6 +8,7 @@ import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
+import com.uiptv.util.StringUtils;
 import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayingCardIndicator;
@@ -615,7 +616,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private void populateHeaderDetails() {
-        String rating = seasonInfo.optString(KEY_RATING, "");
+        String rating = StringUtils.formatRating(seasonInfo.optString(KEY_RATING, ""));
         if (!isBlank(rating)) {
             ratingNode.setText(I18n.tr("autoImdbPrefix", rating));
         }
@@ -995,8 +996,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             text.getChildren().add(release);
             cardLabels.add(release);
         }
-        if (!isBlank(row.getRating())) {
-            Label rating = new Label(I18n.tr("autoRatingPrefix", row.getRating()));
+        if (!isBlank(StringUtils.formatRating(row.getRating()))) {
+            Label rating = new Label(I18n.tr("autoRatingPrefix", StringUtils.formatRating(row.getRating())));
             if (watchingNowDetailStylingApplied) {
                 rating.getStyleClass().add("watching-now-episode-meta-label");
             }
@@ -1275,8 +1276,9 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         if (!isBlank(row.getReleaseDate())) {
             parts.add(I18n.tr(I18N_AUTO_RELEASE_PREFIX, shortDateOnly(row.getReleaseDate())));
         }
-        if (!isBlank(row.getRating())) {
-            parts.add(I18n.tr("autoRatingPrefix", row.getRating()));
+        String formattedRating = StringUtils.formatRating(row.getRating());
+        if (!isBlank(formattedRating)) {
+            parts.add(I18n.tr("autoRatingPrefix", formattedRating));
         }
         return String.join(" · ", parts);
     }
@@ -1550,7 +1552,10 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         mergeMissing(seasonInfo, imdb, "director");
         mergeMissing(seasonInfo, imdb, "genre");
         mergeMissing(seasonInfo, imdb, KEY_RELEASE_DATE);
-        mergeMissing(seasonInfo, imdb, KEY_RATING);
+        String imdbRating = imdb.optString(KEY_RATING, "");
+        if (!isBlank(imdbRating)) {
+            seasonInfo.put(KEY_RATING, imdbRating);
+        }
         mergeMissing(seasonInfo, imdb, "tmdb");
         mergeMissing(seasonInfo, imdb, "imdbUrl");
         JSONArray metadataRows = imdb.optJSONArray("episodesMeta");

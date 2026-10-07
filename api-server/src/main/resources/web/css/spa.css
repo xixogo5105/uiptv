@@ -718,6 +718,14 @@ a[href] {
     overflow: hidden;
 }
 
+.episode-card .meta-line {
+    white-space: pre-line;
+    -webkit-line-clamp: unset;
+    display: block;
+    overflow: visible;
+    min-height: 0;
+}
+
 .detail-plot {
     -webkit-line-clamp: 5;
 }
@@ -1017,6 +1025,8 @@ a[href] {
 .episode-card {
     align-items: flex-start;
     min-height: 78px;
+    height: auto;
+    overflow: visible;
 }
 
 .episode-thumb {
@@ -1041,10 +1051,23 @@ a[href] {
 }
 
 .episode-card {
-    display: grid;
-    grid-template-columns: 74px minmax(0, 1fr);
-    align-items: start;
-    column-gap: 10px;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
+    min-height: 78px;
+    height: auto;
+    overflow: visible;
+}
+
+.episode-card > .logo-box {
+    flex: 0 0 auto;
+}
+
+.episode-card > .content-copy {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: visible;
 }
 
 .resume-card {
@@ -1056,8 +1079,6 @@ a[href] {
 
 .media-card > .logo-img,
 .media-card > .logo-box,
-.episode-card > .logo-img,
-.episode-card > .logo-box,
 .resume-card > .poster-thumb,
 .resume-card > .poster-fallback {
     grid-column: 1;
@@ -1065,10 +1086,11 @@ a[href] {
 }
 
 .media-card > .content-copy,
-.episode-card > .content-copy,
 .resume-card > .content-copy {
     grid-column: 2;
     grid-row: 1;
+    min-height: 0;
+    overflow: visible;
 }
 
 .media-card > .row-action-button {

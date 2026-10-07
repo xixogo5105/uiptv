@@ -3,6 +3,7 @@ package com.uiptv.service;
 import com.uiptv.model.Configuration;
 import com.uiptv.util.HttpUtil;
 import com.uiptv.util.I18n;
+import com.uiptv.util.StringUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -380,7 +381,10 @@ public class ImdbMetadataService {
 
             JSONObject rating = data.optJSONObject("aggregateRating");
             if (rating != null) {
-                result.put(KEY_RATING, rating.optString("ratingValue", ""));
+                String ratingValue = rating.optString("ratingValue", "");
+                if (isNotBlank(ratingValue)) {
+                    result.put(KEY_RATING, StringUtils.formatRating(ratingValue));
+                }
             }
 
             applyImdbGenre(result, data.opt(KEY_GENRE));
@@ -589,7 +593,10 @@ public class ImdbMetadataService {
         } else if (isNotBlank(released)) {
             result.put(KEY_RELEASE_DATE, released.substring(0, Math.min(10, released.length())));
         }
-        result.put(KEY_RATING, meta.optString("imdbRating", ""));
+        String imdbRating = meta.optString("imdbRating", "");
+        if (isNotBlank(imdbRating)) {
+            result.put(KEY_RATING, StringUtils.formatRating(imdbRating));
+        }
     }
 
     private void applyTmdbLocalization(JSONObject details, JSONObject primaryMeta, JSONObject secondaryMeta, boolean moviePreferred) {
@@ -813,7 +820,7 @@ public class ImdbMetadataService {
     private void populateTmdbLocalizedDetails(JSONObject result, JSONObject payload) {
         result.put(KEY_NAME, firstNonBlank(payload.optString(KEY_NAME, ""), payload.optString(KEY_TITLE, "")));
         result.put(KEY_PLOT, payload.optString(KEY_OVERVIEW, ""));
-        result.put(KEY_RATING, String.valueOf(payload.optDouble("vote_average", 0)));
+        result.put(KEY_RATING, StringUtils.formatRating(String.valueOf(payload.optDouble("vote_average", 0))));
         result.put(KEY_RELEASE_DATE, firstNonBlank(payload.optString("release_date", ""), payload.optString("first_air_date", "")));
         putTmdbGenres(result, payload.optJSONArray("genres"));
         putTmdbPoster(result, payload.optString("poster_path", ""));

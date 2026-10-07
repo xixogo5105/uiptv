@@ -2,6 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.ui.util.UiServerUrlUtil;
+import com.uiptv.util.StringUtils;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Rectangle2D;
@@ -86,7 +87,7 @@ public final class SeriesCardUiSupport {
             logo.setPreserveRatio(true);
             logo.setSmooth(true);
         }
-        Label value = new Label(rating);
+        Label value = new Label(StringUtils.formatRating(rating));
         value.getStyleClass().add("imdb-pill-value");
         pill.getChildren().addAll(logo, value);
         pill.setOnMouseClicked(e -> UiServerUrlUtil.openInBrowser(imdbUrl));

@@ -6,6 +6,7 @@ import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
+import com.uiptv.util.StringUtils;
 import com.uiptv.widget.AsyncImageView;
 import com.uiptv.widget.BookmarkCard;
 import com.uiptv.widget.LoadingStateView;
@@ -1046,8 +1047,9 @@ public class ChannelListUI extends HBox implements SearchTarget {
             parts.add(I18n.tr("autoSeries"));
         }
         Channel channel = item == null ? null : item.getChannel();
-        if (channel != null && !isBlank(channel.getRating())) {
-            parts.add(I18n.tr("autoRatingPrefix", channel.getRating()));
+        String formattedRating = StringUtils.formatRating(channel != null ? channel.getRating() : null);
+        if (!isBlank(formattedRating)) {
+            parts.add(I18n.tr("autoRatingPrefix", formattedRating));
         }
         return String.join(" · ", parts);
     }
@@ -1190,8 +1192,9 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (listAction == series && channel.isWatched()) {
             metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr(I18N_AUTO_IN_PROGRESS)));
         }
-        if (!isBlank(channel.getRating())) {
-            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoRatingPrefix", channel.getRating())));
+        String formattedRating = StringUtils.formatRating(channel.getRating());
+        if (!isBlank(formattedRating)) {
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoRatingPrefix", formattedRating)));
         }
         if (!isBlank(channel.getDuration())) {
             metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoDurationPrefix", channel.getDuration())));
@@ -1206,8 +1209,9 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (vodMetadata == null) {
             return;
         }
-        if (!isBlank(vodMetadata.getRating())) {
-            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoImdbPrefix", vodMetadata.getRating())));
+        String formattedRating = StringUtils.formatRating(vodMetadata.getRating());
+        if (!isBlank(formattedRating)) {
+            metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoImdbPrefix", formattedRating)));
         }
         if (!isBlank(vodMetadata.getReleaseDate())) {
             metadataNodes.add(WatchingNowMediaCardFactory.createChip(I18n.tr("autoReleasePrefix", vodMetadata.getReleaseDate())));

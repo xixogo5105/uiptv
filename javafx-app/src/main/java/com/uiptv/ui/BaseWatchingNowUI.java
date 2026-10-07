@@ -15,6 +15,7 @@ import com.uiptv.util.EpisodeTitleFormatter;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ImageUrlNormalizer;
 import com.uiptv.util.ServerUrlUtil;
+import com.uiptv.util.StringUtils;
 import com.uiptv.widget.IconActionButton;
 import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
@@ -1208,7 +1209,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     }
 
     private void addImdbHeaderNodes(VBox details, SeriesPanelData data) {
-        String ratingValue = data.seasonInfo.optString("rating", "");
+        String ratingValue = StringUtils.formatRating(data.seasonInfo.optString("rating", ""));
         if (!isBlank(ratingValue)) {
             data.ratingNode.setText(I18n.tr("autoImdbPrefix", ratingValue));
         }
@@ -1694,8 +1695,9 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (target == null || cardLabels == null || row == null) {
             return;
         }
-        if (!isBlank(row.rating)) {
-            Label rating = new Label(I18n.tr("autoRatingPrefix", row.rating));
+        String formattedRating = StringUtils.formatRating(row.rating);
+        if (!isBlank(formattedRating)) {
+            Label rating = new Label(I18n.tr("autoRatingPrefix", formattedRating));
             rating.setMinWidth(0);
             rating.getStyleClass().add("watching-now-episode-meta-label");
             target.getChildren().add(rating);
@@ -2175,7 +2177,10 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         mergeMissing(data.seasonInfo, imdb, "director");
         mergeMissing(data.seasonInfo, imdb, "genre");
         mergeMissing(data.seasonInfo, imdb, KEY_RELEASE_DATE);
-        mergeMissing(data.seasonInfo, imdb, "rating");
+        String imdbRating = imdb.optString("rating", "");
+        if (!isBlank(imdbRating)) {
+            data.seasonInfo.put("rating", imdbRating);
+        }
         mergeMissing(data.seasonInfo, imdb, "tmdb");
         mergeMissing(data.seasonInfo, imdb, "imdbUrl");
         enrichEpisodesFromMeta(data.episodes, imdb.optJSONArray("episodesMeta"));

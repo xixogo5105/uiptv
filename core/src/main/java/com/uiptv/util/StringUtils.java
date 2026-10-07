@@ -256,4 +256,15 @@ public class StringUtils {
         byte[] bytes = normalized.getBytes(UTF_8);
         return new String(bytes, UTF_8);
     }
+
+    public static String formatRating(String value) {
+        if (isBlank(value)) return "";
+        try {
+            double d = Double.parseDouble(value);
+            if (d <= 0) return "";
+            return String.format(java.util.Locale.ROOT, "%.1f", d);
+        } catch (NumberFormatException _) {
+            return value;
+        }
+    }
 }

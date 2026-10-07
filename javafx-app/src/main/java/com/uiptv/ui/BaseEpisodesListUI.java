@@ -18,6 +18,7 @@ import com.uiptv.ui.util.UiServerUrlUtil;
 import com.uiptv.util.EpisodeTitleFormatter;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
+import com.uiptv.util.StringUtils;
 import com.uiptv.widget.HoverRevealAction;
 import javafx.beans.Observable;
 import javafx.beans.property.SimpleBooleanProperty;
