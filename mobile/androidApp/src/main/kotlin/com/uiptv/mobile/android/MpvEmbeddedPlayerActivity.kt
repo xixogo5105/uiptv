@@ -139,6 +139,11 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var currentBingeIndex = -1
     private var markedTargetKey = ""
     private val preferencesRepository by lazy { AndroidDataStorePreferencesRepository(this) }
+    private var locked = false
+    private lateinit var lockButton: TextView
+    private lateinit var unlockButton: TextView
+    private var unlockTapTime = 0L
+    private var unlockHideRunnable: Runnable? = null
     private val mpvObserver = object : MPVLib.EventObserver {
         override fun eventProperty(property: String) {
             postMpvEvent { handleMpvPropertyChanged(property, null) }
@@ -277,7 +282,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
             )
             addView(
                 feedbackView,
-                FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM).apply {
+                    bottomMargin = dp(120)
+                }
             )
             addView(
                 loadingSpinner,
@@ -294,6 +301,24 @@ class MpvEmbeddedPlayerActivity : Activity() {
         feedbackView.bringToFront()
         loadingSpinner.bringToFront()
         messageView.bringToFront()
+        unlockButton = TextView(this).apply {
+            text = "\uD83D\uDD13"
+            setTextColor(Color.WHITE)
+            setTextSize(36f)
+            setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            minimumWidth = dp(96)
+            minimumHeight = dp(96)
+            setPadding(dp(24), dp(24), dp(24), dp(24))
+            background = roundedBackground(Color.argb(220, 12, 16, 20), dp(48))
+            isClickable = true
+            isFocusable = true
+            visibility = View.GONE
+            setOnClickListener { handleUnlockTap() }
+        }
+        rootLayout.addView(unlockButton, FrameLayout.LayoutParams(dp(96), dp(96)).apply {
+            gravity = Gravity.CENTER
+        })
         enterImmersiveMode()
 
         val createdMpv = MPVLib.create(this)
@@ -367,6 +392,16 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (locked && ::unlockButton.isInitialized) {
+            if (unlockButton.visibility == View.VISIBLE &&
+                event.isInsideVisibleOverlay(unlockButton)) {
+                return super.dispatchTouchEvent(event)
+            }
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                showUnlockButton()
+            }
+            return true
+        }
         if (event.isInsideVisibleOverlay(controlsOverlay) || event.isInsideVisibleOverlay(playlistOverlay)) {
             return super.dispatchTouchEvent(event)
         }
@@ -702,6 +737,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
             if (isPictureInPictureAvailable()) {
                 addView(iconControlButton(R.drawable.picture_in_picture, "Picture in picture") { enterPictureInPicture() }, compactControlLayoutParams())
             }
+            lockButton = controlButton("\uD83D\uDD12") { toggleLock() }
+            addView(lockButton, compactControlLayoutParams())
         }
         val controlsScroller = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
@@ -1024,9 +1061,12 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 .onSuccess { preference ->
                     repeatEnabled = preference.repeatReconnect
                     muted = preference.muted
+                    locked = false
                     updateRepeatButton()
                     updateMuteButton()
+                    updateLockButton()
                     applyDesiredAudioState()
+                    showControlsTemporarily()
                 }
         }
     }
@@ -1039,6 +1079,65 @@ class MpvEmbeddedPlayerActivity : Activity() {
         playbackScope.launch {
             runCatching { preferencesRepository.saveEmbeddedPlayerPreference(preference) }
         }
+    }
+
+    private fun toggleLock() {
+        locked = !locked
+        saveEmbeddedPlayerPreference()
+        if (locked) {
+            overlayHandler.removeCallbacks(hideControlsRunnable)
+            controlsOverlay.visibility = View.GONE
+            controlsVisible = false
+            hidePlaylistOverlay()
+            showUnlockButton()
+            showFeedback("Screen locked")
+            enterImmersiveMode()
+        } else {
+            hideUnlockButton()
+            showControlsTemporarily()
+        }
+        updateLockButton()
+    }
+
+    private fun showUnlockButton() {
+        if (!::unlockButton.isInitialized) return
+        unlockButton.visibility = View.VISIBLE
+        unlockButton.bringToFront()
+        unlockTapTime = 0L
+        // Auto-hide after 3 seconds
+        unlockHideRunnable?.let(overlayHandler::removeCallbacks)
+        unlockHideRunnable = Runnable { hideUnlockButton() }
+        overlayHandler.postDelayed(unlockHideRunnable!!, 3000)
+    }
+
+    private fun hideUnlockButton() {
+        if (!::unlockButton.isInitialized) return
+        unlockButton.visibility = View.GONE
+        unlockTapTime = 0L
+        unlockHideRunnable?.let(overlayHandler::removeCallbacks)
+        unlockHideRunnable = null
+    }
+
+    private fun handleUnlockTap() {
+        val now = System.currentTimeMillis()
+        if (now - unlockTapTime < 500) {
+            // Double tap within 500ms - unlock
+            toggleLock()
+        } else {
+            // First tap - show feedback and wait for second tap
+            unlockTapTime = now
+            showFeedback("Double-tap to unlock")
+            overlayHandler.postDelayed({
+                if (System.currentTimeMillis() - unlockTapTime >= 500) {
+                    unlockTapTime = 0L
+                }
+            }, 500)
+        }
+    }
+
+    private fun updateLockButton() {
+        if (!::lockButton.isInitialized) return
+        lockButton.text = "\uD83D\uDD12"
     }
 
     private fun updateRepeatButton() {
@@ -1180,7 +1279,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun showControlsTemporarily() {
-        if (!::controlsOverlay.isInitialized) {
+        if (locked || !::controlsOverlay.isInitialized) {
             return
         }
         controlsOverlay.visibility = View.VISIBLE
@@ -1220,11 +1319,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private fun setVolumeLevel(level: Int) {
         val maxVolume = maxMusicVolume()
         val bounded = level.coerceIn(0, maxVolume)
-        if (muted && bounded > 0) {
-            muted = false
-            updateMuteButton()
-            saveEmbeddedPlayerPreference()
-        }
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, bounded, 0)
         val percent = (bounded * 100f / maxVolume).roundToInt()
         applyDesiredAudioState()

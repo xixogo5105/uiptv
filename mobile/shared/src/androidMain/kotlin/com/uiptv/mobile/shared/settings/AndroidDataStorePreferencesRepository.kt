@@ -35,7 +35,8 @@ class AndroidDataStorePreferencesRepository(
             ),
             embeddedPlayerPreference = EmbeddedPlayerPreference(
                 repeatReconnect = values[EMBEDDED_PLAYER_REPEAT_RECONNECT] ?: false,
-                muted = values[EMBEDDED_PLAYER_MUTED] ?: false
+                muted = values[EMBEDDED_PLAYER_MUTED] ?: false,
+                locked = values[EMBEDDED_PLAYER_LOCKED] ?: false
             ),
             panelVisibilityPreference = PanelVisibilityPreference(
                 bookmarksCategoryPanelVisible = values[PANEL_BOOKMARKS_CATEGORY_VISIBLE] ?: false,
@@ -71,6 +72,7 @@ class AndroidDataStorePreferencesRepository(
         dataStore.edit { values ->
             values[EMBEDDED_PLAYER_REPEAT_RECONNECT] = preference.repeatReconnect
             values[EMBEDDED_PLAYER_MUTED] = preference.muted
+            values[EMBEDDED_PLAYER_LOCKED] = preference.locked
         }
     }
 
@@ -97,6 +99,7 @@ class AndroidDataStorePreferencesRepository(
         val PLAYER_REMEMBER = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PLAYER_REMEMBER)
         val EMBEDDED_PLAYER_REPEAT_RECONNECT = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_REPEAT_RECONNECT)
         val EMBEDDED_PLAYER_MUTED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_MUTED)
+        val EMBEDDED_PLAYER_LOCKED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_LOCKED)
         val PANEL_BOOKMARKS_CATEGORY_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_BOOKMARKS_CATEGORY_VISIBLE)
         val PANEL_WATCHING_NOW_DETAILS_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_WATCHING_NOW_DETAILS_VISIBLE)
         val PANEL_ACCOUNTS_ACTIONS_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_ACCOUNTS_ACTIONS_VISIBLE)

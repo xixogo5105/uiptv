@@ -52,6 +52,21 @@ class MpvEmbeddedPlayerActivityControlTest {
         clickControl(player, "Close player")
     }
 
+    @Test
+    fun lockButtonTogglesLockState() {
+        val player = launchPlayer("VOD")
+
+        // Wait for lock button to appear
+        clickControl(player, "Lock")
+
+        // Wait for unlock button to appear (shows on touch)
+        // We need to simulate a touch to show the unlock button
+        // For now, just verify the lock button click works
+        waitForAnyControl(player, listOf("Unlock"))
+        clickControl(player, "Unlock")
+        waitForAnyControl(player, listOf("Lock"))
+    }
+
     private fun launchPlayer(mode: String): Activity {
         val context = instrumentation.targetContext
         val intent = Intent(context, MpvEmbeddedPlayerActivity::class.java)

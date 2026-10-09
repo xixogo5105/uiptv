@@ -48,6 +48,7 @@ class AndroidPreferencesTest {
             AndroidOnlyPreferenceKeys.PLAYER_REMEMBER,
             AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_REPEAT_RECONNECT,
             AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_MUTED,
+            AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_LOCKED,
             AndroidOnlyPreferenceKeys.PANEL_BOOKMARKS_CATEGORY_VISIBLE,
             AndroidOnlyPreferenceKeys.PANEL_WATCHING_NOW_DETAILS_VISIBLE,
             AndroidOnlyPreferenceKeys.PANEL_ACCOUNTS_ACTIONS_VISIBLE,
@@ -64,6 +65,7 @@ class AndroidPreferencesTest {
         assertTrue(AndroidOnlyPreferenceKeys.PLAYER_REMEMBER in AndroidOnlyPreferenceKeys.all)
         assertTrue(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_REPEAT_RECONNECT in AndroidOnlyPreferenceKeys.all)
         assertTrue(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_MUTED in AndroidOnlyPreferenceKeys.all)
+        assertTrue(AndroidOnlyPreferenceKeys.EMBEDDED_PLAYER_LOCKED in AndroidOnlyPreferenceKeys.all)
         assertFalse(UiptvSyncSchema.syncableTables.any { it.contains("Player", ignoreCase = true) })
     }
 

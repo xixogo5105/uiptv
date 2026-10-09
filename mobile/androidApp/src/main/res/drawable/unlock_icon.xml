@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+    <!-- Lock body -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M16,4 C10.48,4 6,8.48 6,14 L6,28 C6,30.21 7.79,32 10,32 L22,32 C24.21,32 26,30.21 26,28 L26,14 C26,8.48 21.52,4 16,4 Z M16,6 C20.42,6 24,9.58 24,14 L24,28 C24,30.21 22.21,32 20,32 L12,32 C9.79,32 8,30.21 8,28 L8,14 C8,9.58 11.58,6 16,6 Z" />
+    <!-- Shackle (open/lifted) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M16,8 C14.34,8 13,9.34 13,11 L13,7 C13,5.34 14.34,4 16,4 C17.66,4 19,5.34 19,7 L19,11 C19,12.66 17.66,14 16,14 C14.34,14 13,12.66 13,11 Z" />
+    <!-- Keyhole circle -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M16,17.5 C18.98,17.5 21,19.52 21,22 C21,24.48 18.98,26.5 16,26.5 C13.02,26.5 11,24.48 11,22 C11,19.52 13.02,17.5 16,17.5 Z M16,19.5 C18.48,19.5 21.5,22.52 21.5,26 C21.5,29.48 18.48,32.5 15,32.5 C11.52,32.5 8.5,29.48 8.5,26 C8.5,22.52 11.52,19.5 15,19.5 C18.48,19.5 21.5,22.52 21.5,26 Z" />
+    <!-- Keyhole rect -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M15,20 L17,20 L17,25 L15,25 Z" />
+</vector>

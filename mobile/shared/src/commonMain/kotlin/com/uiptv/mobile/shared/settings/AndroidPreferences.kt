@@ -27,7 +27,8 @@ data class PlayerPreference(
 
 data class EmbeddedPlayerPreference(
     val repeatReconnect: Boolean = false,
-    val muted: Boolean = false
+    val muted: Boolean = false,
+    val locked: Boolean = false
 )
 
 data class PanelVisibilityPreference(
@@ -69,6 +70,7 @@ object AndroidOnlyPreferenceKeys {
     const val PLAYER_REMEMBER = "player_remember"
     const val EMBEDDED_PLAYER_REPEAT_RECONNECT = "embedded_player_repeat_reconnect"
     const val EMBEDDED_PLAYER_MUTED = "embedded_player_muted"
+    const val EMBEDDED_PLAYER_LOCKED = "embedded_player_locked"
     const val PANEL_BOOKMARKS_CATEGORY_VISIBLE = "panel_bookmarks_category_visible"
     const val PANEL_WATCHING_NOW_DETAILS_VISIBLE = "panel_watching_now_details_visible"
     const val PANEL_ACCOUNTS_ACTIONS_VISIBLE = "panel_accounts_actions_visible"
@@ -83,6 +85,7 @@ object AndroidOnlyPreferenceKeys {
         PLAYER_REMEMBER,
         EMBEDDED_PLAYER_REPEAT_RECONNECT,
         EMBEDDED_PLAYER_MUTED,
+        EMBEDDED_PLAYER_LOCKED,
         PANEL_BOOKMARKS_CATEGORY_VISIBLE,
         PANEL_WATCHING_NOW_DETAILS_VISIBLE,
         PANEL_ACCOUNTS_ACTIONS_VISIBLE,
