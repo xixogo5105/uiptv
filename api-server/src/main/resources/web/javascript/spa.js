@@ -18,7 +18,61 @@ createApp({
         const selectedBookmarkCategoryId = ref('__recently_played_bookmarks__');
         const watchingNowRows = ref([]);
         const selectedWatchingNowKey = ref('');
-        const watchingNowTab = ref('series');
+        const watchingNowTab = ref('live');
+        const liveGuideRows = ref([]);
+        const showAllGuideChannels = ref(false);
+        const liveGuideLoading = ref(false);
+        const liveGuideError = ref('');
+        const liveGuideAccountId = ref('');
+        const liveGuideStart = ref(0);
+        const LIVE_GUIDE_HOUR_WIDTH = 240;
+        let liveGuideRequest = 0;
+        const filteredLiveGuideRows = computed(() => liveGuideRows.value.filter(row =>
+            (showAllGuideChannels.value || (row.programmes || []).some(p => p.stop > Date.now()))
+            && String(row.channel?.name || '').toLowerCase().includes(searchQuery.value.toLowerCase())));
+        const liveGuideTicks = computed(() => Array.from({length: 6}, (_, hour) => liveGuideStart.value + hour * 3600000));
+        const guideDate = computed(() => new Date(liveGuideStart.value).toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}));
+        const shiftGuide = hours => { liveGuideStart.value += hours * 3600000; };
+        const guideTime = time => new Date(time).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+        const guideBlocks = row => (row.programmes || []).filter(p => p.stop > liveGuideStart.value && p.start < liveGuideStart.value + 6 * 3600000);
+        const guideBlockStyle = p => ({
+            left: `${Math.max(0, p.start - liveGuideStart.value) / 3600000 * LIVE_GUIDE_HOUR_WIDTH}px`,
+            width: `${Math.max(1, (Math.min(p.stop, liveGuideStart.value + 6 * 3600000) - Math.max(p.start, liveGuideStart.value)) / 3600000 * LIVE_GUIDE_HOUR_WIDTH - 3)}px`
+        });
+        const guideIsCurrent = p => p.start <= Date.now() && p.stop > Date.now();
+        const loadLiveGuide = async (preserveWindow = false) => {
+            const request = ++liveGuideRequest;
+            liveGuideLoading.value = true;
+            liveGuideError.value = '';
+            const start = new Date(); start.setMinutes(0, 0, 0); start.setHours(start.getHours() - 1);
+            if (!preserveWindow) liveGuideStart.value = start.getTime();
+            try {
+                const params = new URLSearchParams();
+                if (liveGuideAccountId.value) params.set('accountId', liveGuideAccountId.value);
+                const response = await fetch(`${window.location.origin}/liveGuide?${params}`);
+                if (!response.ok) throw new Error('Guide unavailable');
+                const loaded = await response.json();
+                if (request === liveGuideRequest) liveGuideRows.value = Array.isArray(loaded) ? loaded : [];
+            } catch (_) {
+                if (request === liveGuideRequest) liveGuideError.value = 'Unable to load the programme guide.';
+            } finally {
+                if (request === liveGuideRequest) liveGuideLoading.value = false;
+            }
+        };
+        const playGuideRow = row => {
+            if (row.bookmarkId) {
+                playBookmark({dbId: row.bookmarkId, accountName: row.accountName, channelName: row.channel.name,
+                    channelId: row.channel.channelId, logo: row.channel.logo, accountAction: 'itv'});
+                return;
+            }
+            const channel = row.channel;
+            const params = new URLSearchParams({accountId: row.accountId, categoryId: channel.categoryId || '',
+                channelId: channel.dbId || '', mode: 'itv'});
+            appendPlaybackCompatParams(params, 'itv');
+            const url = `${window.location.origin}/player?${params}`;
+            startPlayback(url, {...channel, accountId: row.accountId, accountName: row.accountName,
+                id: channel.dbId, type: 'channel', mode: 'itv', playRequestUrl: url});
+        };
         const watchingNowDrilldown = ref(false);
         const watchingNowLoadedAt = ref(0);
         const WATCHING_NOW_CACHE_TTL_MS = 120000;
@@ -37,6 +91,32 @@ createApp({
 
         const currentContext = ref({accountId: null, categoryId: null, accountType: null});
         const currentChannel = ref(null);
+        const playerEpg = ref(null);
+        const playerProgrammeTime = time => new Date(time).toLocaleString([], {weekday: 'short', hour: '2-digit', minute: '2-digit'});
+        let playerEpgRequest = 0;
+        let playerEpgController = null;
+        const refreshPlayerEpg = async (clear = false) => {
+            const request = ++playerEpgRequest;
+            if (playerEpgController) playerEpgController.abort();
+            if (clear) playerEpg.value = null;
+            const channel = currentChannel.value;
+            if (!channel || String(channel.mode || 'itv').toLowerCase() !== 'itv') { playerEpg.value = null; return; }
+            const params = new URLSearchParams();
+            const bookmarkId = channel.bookmarkId || (channel.type === 'bookmark' ? channel.id : '');
+            if (bookmarkId) params.set('bookmarkId', bookmarkId);
+            else {
+                if (!channel.accountId || !channel.dbId || !channel.categoryId) { playerEpg.value = null; return; }
+                params.set('accountId', channel.accountId); params.set('channelId', channel.dbId); params.set('categoryId', channel.categoryId);
+            }
+            const controller = new AbortController(); playerEpgController = controller;
+            try {
+                const response = await fetch(`${window.location.origin}/playerEpg?${params}`, {signal: controller.signal});
+                if (!response.ok) throw new Error('Guide unavailable');
+                const result = await response.json();
+                if (request === playerEpgRequest) playerEpg.value = result.now || result.next ? result : null;
+            } catch (_) { if (request === playerEpgRequest) playerEpg.value = null; }
+        };
+        watch(currentChannel, () => refreshPlayerEpg(true));
         const playbackMode = ref('');
         const isPlaying = ref(false);
         const playbackError = ref('');
@@ -1962,6 +2042,11 @@ createApp({
             }, 0);
         };
         const switchTab = (tab) => {
+            if (tab === 'watchingNow' && activeTab.value !== 'watchingNow') {
+                liveGuideAccountId.value = activeTab.value === 'accounts' ? String(selectedAccountId.value || '') : '';
+                liveGuideRows.value = [];
+                watchingNowTab.value = 'live';
+            }
             const wasWatchingNowDrilldown = watchingNowDrilldown.value;
             if (activeTab.value === tab && tab === 'accounts') {
                 viewState.value = 'accounts';
@@ -1986,6 +2071,7 @@ createApp({
             clearSearch();
             if (tab === 'watchingNow') {
                 watchingNowDrilldown.value = false;
+                if (watchingNowTab.value === 'live') loadLiveGuide();
                 if (!watchingNowTab.value) {
                     watchingNowTab.value = 'series';
                 }
@@ -1995,7 +2081,8 @@ createApp({
         };
 
         const setWatchingNowTab = (tab) => {
-            watchingNowTab.value = tab === 'vod' ? 'vod' : 'series';
+            watchingNowTab.value = ['live', 'vod', 'series'].includes(tab) ? tab : 'live';
+            if (watchingNowTab.value === 'live') loadLiveGuide();
         };
 
         const openWatchingNowSeriesDetail = async (row) => {
@@ -4786,6 +4873,11 @@ createApp({
         };
 
         onMounted(async () => {
+            const guideRefreshTimer = window.setInterval(() => {
+                if (!document.hidden && activeTab.value === 'watchingNow' && watchingNowTab.value === 'live' && !liveGuideLoading.value) loadLiveGuide(true);
+                if (!document.hidden && currentChannel.value && !wideViewActive.value && !playerExpanded.value) refreshPlayerEpg();
+            }, 60000);
+            window.addEventListener('beforeunload', () => window.clearInterval(guideRefreshTimer), {once: true});
             loadRecentBookmarkHistory();
             if (document.fullscreenEnabled) {
                 document.addEventListener('fullscreenchange', () => {
@@ -4854,6 +4946,9 @@ createApp({
         }, {immediate: true});
 
         return {
+            playerEpg, playerProgrammeTime, showAllGuideChannels,
+            liveGuideRows, liveGuideLoading, liveGuideError, filteredLiveGuideRows, liveGuideTicks,
+            guideTime, guideBlocks, guideBlockStyle, guideIsCurrent, playGuideRow, guideDate, shiftGuide, loadLiveGuide,
             activeTab,
             viewState,
             currentContext,

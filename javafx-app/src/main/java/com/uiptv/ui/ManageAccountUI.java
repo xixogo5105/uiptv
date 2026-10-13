@@ -256,10 +256,10 @@ public class ManageAccountUI extends VBox {
         formContainer.getChildren().clear();
         switch (type) {
             case STALKER_PORTAL:
-                formContainer.getChildren().addAll(accountTypePillBar, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, httpMethodCombo, timezoneCombo, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, epg, httpMethodCombo, timezoneCombo, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);
                 break;
             case M3U8_LOCAL:
-                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8PathBrowserRow, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8PathBrowserRow, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);
                 break;
             case M3U8_URL:
                 formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);

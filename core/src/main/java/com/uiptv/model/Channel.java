@@ -37,6 +37,9 @@ public class Channel extends BaseJson {
     private String rating;
     private String duration;
     private String extraJson;
+    // Guide data is transient: fetched independently of the provider catalog.
+    private com.uiptv.application.EpgProgramme epgNow;
+    private com.uiptv.application.EpgProgramme epgNext;
     private int censored;
     private int status;
     private int hd;

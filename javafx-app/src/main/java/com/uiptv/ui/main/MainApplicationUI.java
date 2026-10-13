@@ -312,7 +312,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
 
     private void applyStackedEmbeddedLayout() {
         applyStackedEmbeddedArrangement();
-        setPlayerAdjacentControlsVisible(false);
+        setPlayerAdjacentControlsVisible(hasPlayerGuidePanel());
 
         activeTabPane.setMinWidth(0);
         activeTabPane.setPrefWidth(Region.USE_COMPUTED_SIZE);
@@ -403,17 +403,18 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         if (responsiveContent == null || navigationShell == null || embeddedPlayer == null || playerAdjacentControls == null) {
             return;
         }
+        int navigationRow = hasPlayerGuidePanel() ? 2 : 1;
         boolean alreadyStacked = rowIndex(embeddedPlayer) == 0
                 && columnIndex(embeddedPlayer) == 0
-                && rowIndex(navigationShell) == 1
+                && rowIndex(navigationShell) == navigationRow
                 && columnIndex(navigationShell) == 0;
         if (alreadyStacked) {
             return;
         }
         configureStackedResponsiveGrid();
         placeInGrid(embeddedPlayer, 0, 0);
-        placeInGrid(navigationShell, 0, 1);
-        placeInGrid(playerAdjacentControls, 0, 0);
+        placeInGrid(navigationShell, 0, navigationRow);
+        placeInGrid(playerAdjacentControls, 0, hasPlayerGuidePanel() ? 1 : 0);
         GridPane.setHgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setVgrow(embeddedPlayer, Priority.NEVER);
         GridPane.setHalignment(embeddedPlayer, HPos.LEFT);
@@ -576,7 +577,10 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         navigationRow.setVgrow(Priority.ALWAYS);
         navigationRow.setFillHeight(true);
         responsiveContent.getColumnConstraints().setAll(contentColumn);
-        responsiveContent.getRowConstraints().setAll(playerRow, navigationRow);
+        if (hasPlayerGuidePanel()) {
+            RowConstraints guideRow = new RowConstraints(); guideRow.setMinHeight(0); guideRow.setMaxHeight(300); guideRow.setVgrow(Priority.NEVER);
+            responsiveContent.getRowConstraints().setAll(playerRow, guideRow, navigationRow);
+        } else responsiveContent.getRowConstraints().setAll(playerRow, navigationRow);
     }
     private void applyStackedEmbeddedPlayerSize() {
         embeddedPlayer.prefHeightProperty().unbind();
@@ -655,6 +659,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
 
     private VBox createPlayerAdjacentControls() {
         VBox controls = new VBox(8);
+        controls.getChildren().add(new com.uiptv.ui.PlayerEpgUI());
         controls.getStyleClass().add("player-adjacent-page-controls");
         controls.setFillWidth(true);
         controls.setPadding(new Insets(0, PLAYER_ADJACENT_CONTROLS_RIGHT_INSET, 0, 0));
@@ -663,6 +668,10 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         controls.setVisible(false);
         controls.setManaged(false);
         return controls;
+    }
+
+    private boolean hasPlayerGuidePanel() {
+        return playerAdjacentControls != null && playerAdjacentControls.getChildren().stream().anyMatch(node -> node instanceof com.uiptv.ui.PlayerEpgUI);
     }
 
     private void setPlayerAdjacentControlsVisible(boolean visible) {
@@ -682,7 +691,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
             restoreDockNode(dockedNode);
         }
         dockedTopControls = null;
-        playerAdjacentControls.getChildren().clear();
+        playerAdjacentControls.getChildren().removeIf(node -> !(node instanceof com.uiptv.ui.PlayerEpgUI));
         setPlayerAdjacentControlsVisible(false);
     }
     private void addDockedNode(List<DockedNode> controls, Node node) {

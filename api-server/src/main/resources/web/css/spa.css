@@ -2199,3 +2199,38 @@ a[href] {
         min-height: 0 !important;
     }
 }
+
+/* Live XMLTV timeline; fixed hour widths align all channel rows. */
+.live-guide-panel { min-width: 0; width: 100%; }
+.live-guide-scroll { overflow: auto; max-height: 65vh; border-radius: 12px; }
+.live-guide-axis, .live-guide-row { display: flex; width: 1640px; gap: 0; }
+.live-guide-axis { position: sticky; top: 0; z-index: 3; background: var(--surface, #192332); padding-block: 10px; }
+.live-guide-name { position: sticky; left: 0; z-index: 2; display: flex; align-items: center; gap: 8px; flex: 0 0 200px; width: 200px; padding: 10px; text-align: left; overflow: hidden; background: var(--surface, #192332); color: inherit; border: 0; }
+.live-guide-name img { width: 36px; height: 36px; object-fit: contain; }
+.live-guide-hours { display: flex; width: 1440px; }
+.live-guide-hours span { flex: 0 0 240px; }
+.live-guide-track { position: relative; width: 1440px; height: 64px; background: rgba(127, 127, 127, .06); border-bottom: 1px solid rgba(127, 127, 127, .18); }
+.live-guide-programme { position: absolute; top: 3px; height: 58px; display: flex; flex-direction: column; justify-content: center; gap: 3px; text-align: left; border: 1px solid rgba(127, 127, 127, .25); border-radius: 5px; padding: 6px 10px; background: rgba(127, 127, 127, .12); color: inherit; overflow: hidden; }
+.live-guide-programme strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-guide-programme.current { border-bottom: 3px solid #32b8dd; background: rgba(50, 184, 221, .13); }
+.live-guide-empty { display: block; padding: 20px 12px; opacity: .65; }
+
+.player-epg-panel { padding: 14px; border: 1px solid var(--outline); border-radius: 10px; background: var(--surface); color: var(--text); max-height: 360px; overflow: auto; }
+.player-epg-panel header { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.player-epg-panel header span { color: var(--muted); }
+.player-epg-panel article + article { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--outline); }
+.player-epg-panel small { display: block; color: var(--muted); margin-top: 5px; }
+.player-epg-panel p { margin: 8px 0 0; line-height: 1.5; white-space: pre-line; }
+
+/* Keep the video and programme details inside the same player card. */
+.content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) {
+ display: flex; flex-direction: column; overflow-y: auto;
+}
+.content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) > * { flex-shrink: 0; }
+.content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) #player-wrapper { height: auto; flex: 0 0 auto; }
+@media (max-width: 1100px) {
+ .content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) {
+  max-height: none; height: max-content; min-height: max-content; align-self: start; overflow: hidden;
+ }
+ .content-shell:not(.wide-view):has(.player-epg-panel) { overflow-y: auto; }
+}

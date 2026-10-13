@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/video.js@8.24.1/dist/video-js.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20261007k" rel="stylesheet">
+    <link href="/css/spa.css?v=20261013epgFit" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.43/dist/vue.global.prod.js"></script>
@@ -328,6 +328,8 @@
                                                 <span class="pill" v-if="contentMode === 'series' && channel.watched">IN PROGRESS</span>
                                             </div>
                                             <div class="meta-line clamp" v-if="contentMode === 'vod' && getVodPlot(channel)">{{ getVodPlot(channel) }}</div>
+                                            <div class="meta-line clamp" v-if="contentMode === 'itv' && channel.epgNow">Now: {{ channel.epgNow.title }}</div>
+                                            <div class="meta-line clamp" v-if="contentMode === 'itv' && channel.epgNext">Next: {{ channel.epgNext.title }}</div>
                                         </div>
                                     </article>
                                     <div class="empty-state compact" v-if="filteredChannels.length === 0">
@@ -486,9 +488,10 @@
                     <div class="screen-heading">
                         <div>
                             <h1>Watching Now</h1>
-                            <p>{{ watchingNowDrilldown ? 'Continue the selected series.' : 'Resume series and movies from the same content browser.' }}</p>
+                            <p>{{ watchingNowDrilldown ? 'Continue the selected series.' : watchingNowTab === 'live' ? 'Programme guide for your current account or bookmarked channels.' : 'Resume series and movies from the same content browser.' }}</p>
                         </div>
                         <div aria-label="Watching Now" class="segmented" role="group" v-if="!watchingNowDrilldown">
+                            <button :class="{ active: watchingNowTab === 'live' }" @click="setWatchingNowTab('live')" type="button">Live</button>
                             <button :class="{ active: watchingNowTab === 'series' }" @click="setWatchingNowTab('series')" type="button">Series</button>
                             <button :class="{ active: watchingNowTab === 'vod' }" @click="setWatchingNowTab('vod')" type="button">Movies</button>
                         </div>
@@ -500,7 +503,25 @@
                         </div>
                     </div>
 
-                    <div class="watching-layout" v-if="!watchingNowDrilldown">
+                    <section class="live-guide-panel" v-if="!watchingNowDrilldown && watchingNowTab === 'live'" aria-label="Live programme guide">
+                        <div class="segmented"><button @click="shiftGuide(-6)" type="button" aria-label="Previous six hours">‹</button><button @click="loadLiveGuide()" type="button">Now</button><button @click="shiftGuide(6)" type="button" aria-label="Next six hours">›</button><span>{{ guideDate }}</span><label><input type="checkbox" v-model="showAllGuideChannels"> Show all channels</label></div>
+                        <p v-if="liveGuideLoading">Loading programme guide…</p>
+                        <p role="alert" v-if="liveGuideError">{{ liveGuideError }}</p>
+                        <div class="live-guide-scroll" v-if="!liveGuideLoading">
+                            <div class="live-guide-axis"><strong class="live-guide-name">Channel</strong><div class="live-guide-hours"><span v-for="tick in liveGuideTicks" :key="tick">{{ guideTime(tick) }}</span></div></div>
+                            <div class="live-guide-row" v-for="row in filteredLiveGuideRows" :key="row.accountId + ':' + row.channel.channelId">
+                                <button class="live-guide-name" :title="row.accountName" @click="playGuideRow(row)"><img v-if="row.channel.logo" :src="row.channel.logo" alt="">{{ row.channel.name }}</button>
+                                <div class="live-guide-track">
+                                    <span class="live-guide-empty" v-if="!guideBlocks(row).length">No programme guide available</span>
+                                    <button v-for="programme in guideBlocks(row)" :key="programme.start" class="live-guide-programme" :class="{ current: guideIsCurrent(programme) }" :style="guideBlockStyle(programme)" @click="playGuideRow(row)" :title="programme.title + '\n' + guideTime(programme.start) + ' – ' + guideTime(programme.stop) + '\n' + programme.description">
+                                        <strong>{{ programme.title }}</strong><small>{{ guideTime(programme.start) }} – {{ guideTime(programme.stop) }}</small>
+                                    </button>
+                                </div>
+                            </div>
+                            <p v-if="!filteredLiveGuideRows.length">No channels with programme guide data. Enable “Show all channels” to see the others.</p>
+                        </div>
+                    </section>
+                    <div class="watching-layout" v-if="!watchingNowDrilldown && watchingNowTab !== 'live'">
                         <section class="browser-panel watching-list-panel">
                             <header class="panel-heading">
                                 <strong>{{ watchingNowTab === 'series' ? 'Series' : 'Movies' }}</strong>
@@ -581,7 +602,7 @@
                         </section>
                     </div>
 
-                    <div class="watching-detail-layout" v-else>
+                    <div class="watching-detail-layout" v-if="watchingNowDrilldown">
                         <section class="browser-panel watching-detail-panel">
                             <header class="panel-heading">
                                 <strong>Details</strong>
@@ -714,7 +735,7 @@
                     </div>
 
                     <footer class="screen-status">
-                        <span>{{ watchingNowDrilldown ? 'Watching Now series detail' : 'Watching Now keeps existing series and movie resume behavior.' }}</span>
+                        <span>{{ watchingNowDrilldown ? 'Watching Now series detail' : watchingNowTab === 'live' ? 'Select a channel or programme to play live TV.' : 'Watching Now keeps existing series and movie resume behavior.' }}</span>
                         <span class="status-progress" aria-hidden="true"><span></span></span>
                     </footer>
                 </section>
@@ -747,13 +768,18 @@
                 </div>
 
                 <div class="uiptv-shared-player" data-uiptv-shared-player data-variant="stacked" v-if="!playerExpanded"></div>
+                <section class="player-epg-panel" aria-label="Now and Next" v-if="playerEpg && !wideViewActive && !playerExpanded">
+                    <header><strong>Now &amp; Next</strong><span>{{ playerEpg.channelName }}</span></header>
+                    <article v-if="playerEpg.now"><strong>Now: {{ playerEpg.now.title }}</strong><small>{{ playerProgrammeTime(playerEpg.now.start) }} – {{ playerProgrammeTime(playerEpg.now.stop) }}</small><p v-if="playerEpg.now.description">{{ playerEpg.now.description }}</p></article>
+                    <article v-if="playerEpg.next"><strong>Next: {{ playerEpg.next.title }}</strong><small>{{ playerProgrammeTime(playerEpg.next.start) }} – {{ playerProgrammeTime(playerEpg.next.stop) }}</small><p v-if="playerEpg.next.description">{{ playerEpg.next.description }}</p></article>
+                </section>
             </aside>
 
         </div>
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261007g"></script>
+    <script src="/javascript/spa.js?v=20261013epgFit"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;

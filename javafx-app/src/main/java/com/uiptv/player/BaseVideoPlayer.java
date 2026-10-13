@@ -879,6 +879,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             if (response.getChannel() != null) {
                 this.currentChannel = response.getChannel();
             }
+            MediaPlayerFactory.updateGuideContext(currentAccount, currentChannel);
         } else {
             uri = null;
         }
@@ -953,6 +954,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     public void updateChannelInfo(Channel channel, Account account) {
         this.currentChannel = channel;
         this.currentAccount = account;
+        MediaPlayerFactory.updateGuideContext(account, channel);
         streamInfoText.setText("");
         refreshNowShowingHeader();
     }

@@ -211,7 +211,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
             return;
         }
         itemsLoaded.set(true);
-        if (Platform.isFxApplicationThread() && newChannels.size() > CHANNEL_UI_BATCH_SIZE) {
+        if (Platform.isFxApplicationThread() && (newChannels.size() > CHANNEL_UI_BATCH_SIZE
+                || listAction == Account.AccountAction.itv && new com.uiptv.application.EpgApplicationService().supportsGuide(mediaContext.toAccount()))) {
             List<Channel> channels = new ArrayList<>(newChannels);
             Thread worker = new Thread(() -> addItemsIncrementally(channels), "uiptv-channel-card-batcher");
             worker.setDaemon(true);
@@ -222,6 +223,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void addItemsIncrementally(List<Channel> newChannels) {
+        if (listAction == Account.AccountAction.itv) new com.uiptv.application.EpgApplicationService().enrich(mediaContext.toAccount(), newChannels);
         List<Bookmark> accountBookmarks = loadBookmarksForAccount();
         Set<String> savedVodKeys = loadVodWatchStateKeys();
         Map<String, SeriesWatchState> seriesWatchStates = loadSeriesWatchStates();
@@ -862,7 +864,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         Node titleAction = listAction == series ? createSeriesWatchingBadge(item) : createPlayMenuAction(item);
         BookmarkCard card = new BookmarkCard(
                 item == null ? "" : item.getChannelName(),
-                "",
+                epgSummary(item),
                 item == null ? "" : item.getLogo(),
                 thumbnailsEnabled,
                 IMAGE_CACHE_KEY_CHANNEL,
@@ -871,6 +873,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
         );
         card.getStyleClass().add("channel-list-card");
         return card;
+    }
+
+    private String epgSummary(ChannelItem item) {
+        Channel channel = item == null ? null : item.getChannel();
+        if (channel == null || listAction != Account.AccountAction.itv) return "";
+        String now = channel.getEpgNow() == null ? "" : I18n.tr("epgNow") + ": " + channel.getEpgNow().title();
+        String next = channel.getEpgNext() == null ? "" : I18n.tr("epgNext") + ": " + channel.getEpgNext().title();
+        return now + (now.isEmpty() || next.isEmpty() ? "" : " · ") + next;
     }
 
     private Node createPlayMenuAction(ChannelItem item) {
@@ -965,6 +975,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
         title.setMaxWidth(Double.MAX_VALUE);
 
         card.getChildren().add(title);
+        String guide = epgSummary(item);
+        if (!guide.isBlank()) Tooltip.install(card, new Tooltip(guide));
         Region titleRowSpacer = new Region();
         HBox.setHgrow(titleRowSpacer, Priority.ALWAYS);
         card.getChildren().add(titleRowSpacer);
@@ -1041,6 +1053,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private String drawerChannelMeta(ChannelItem item) {
         List<String> parts = new ArrayList<>();
+        String guide = epgSummary(item);
+        if (!guide.isBlank()) parts.add(guide);
         if (listAction == vod) {
             parts.add(I18n.tr("autoVod"));
         } else if (listAction == series) {

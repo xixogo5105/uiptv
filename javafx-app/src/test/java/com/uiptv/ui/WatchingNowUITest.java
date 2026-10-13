@@ -24,7 +24,7 @@ class WatchingNowUITest {
     }
 
     @Test
-    void tabLabels_exposeSeriesFirstAndVodSecond() {
-        assertEquals(List.of("Series", "VOD"), WatchingNowUI.tabLabels());
+    void tabLabels_exposeLiveSeriesAndVod() {
+        assertEquals(List.of("Live TV", "Series", "VOD"), WatchingNowUI.tabLabels());
     }
 }

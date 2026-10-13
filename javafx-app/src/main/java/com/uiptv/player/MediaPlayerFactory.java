@@ -17,6 +17,16 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 
 public class MediaPlayerFactory {
+    public record GuideContext(com.uiptv.model.AccountMediaContext account, com.uiptv.model.Channel channel) { }
+    private static final javafx.beans.property.ReadOnlyObjectWrapper<GuideContext> guideContext = new javafx.beans.property.ReadOnlyObjectWrapper<>();
+    public static javafx.beans.property.ReadOnlyObjectProperty<GuideContext> guideContextProperty() { return guideContext.getReadOnlyProperty(); }
+    public static void updateGuideContext(com.uiptv.model.Account account, com.uiptv.model.Channel channel) {
+        com.uiptv.model.Channel lookup = new com.uiptv.model.Channel();
+        if (channel != null) { lookup.setChannelId(channel.getChannelId()); lookup.setName(channel.getName()); }
+        GuideContext context = account == null || channel == null ? null : new GuideContext(com.uiptv.model.AccountMediaContext.from(account), lookup);
+        Runnable publish = () -> guideContext.set(context);
+        if (javafx.application.Platform.isFxApplicationThread()) publish.run(); else javafx.application.Platform.runLater(publish);
+    }
     private static VideoPlayerInterface instance;
     private static VideoPlayerInterface.PlayerType playerType;
     private static final StackPane playerHostContainer = new StackPane();

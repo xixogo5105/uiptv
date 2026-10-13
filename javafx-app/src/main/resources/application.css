@@ -5036,3 +5036,11 @@
 .verification-mac-card-action-button:pressed .verification-mac-card-action-icon {
     -fx-fill: derive(-uiptv-header-action-hover-fg, -20%);
 }
+
+.live-guide { -fx-padding: 8; }
+.live-guide-channel { -fx-alignment: center-left; }
+.live-guide-programme { -fx-alignment: center-left; -fx-background-radius: 5; }
+.live-guide-programme.current-programme { -fx-border-color: #32b8dd; -fx-border-width: 0 0 3 0; }
+.live-guide-now-marker { -fx-stroke: #32b8dd; -fx-stroke-width: 1.5; }
+
+.player-epg-panel { -fx-padding: 8; -fx-background-radius: 8; }

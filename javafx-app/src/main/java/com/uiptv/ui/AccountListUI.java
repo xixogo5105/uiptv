@@ -123,6 +123,12 @@ public class AccountListUI extends HBox implements SearchTarget {
     private AppPageHeader pageHeader;
     private MenuButton accountSortButton;
     private CategoryListUI activeCategoryListUI;
+
+    public String liveGuideAccountId() {
+        if (activeCategoryListUI != null && currentContent != listView) return activeCategoryListUI.liveGuideAccountId();
+        AccountItem selected = accountGrid.getSelectedItems().isEmpty() ? null : accountGrid.getSelectedItems().getFirst();
+        return selected == null ? "" : selected.getAccountId();
+    }
     private Node leadingBodyContent;
     private final ChangeListener<Boolean> leadingBodyContentVisibilityListener =
             (_, _, _) -> updateBodyLayoutChildren();

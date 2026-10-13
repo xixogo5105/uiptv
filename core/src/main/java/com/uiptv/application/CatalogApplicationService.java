@@ -97,7 +97,9 @@ public class CatalogApplicationService {
             String categoryApiId = ALL_CATEGORY.equalsIgnoreCase(categoryId) ? "" : resolveCategoryApiId(account, categoryId);
             applySeriesRowsWatched(account, categoryApiId, channels);
         }
-        return dedupeChannels(channels);
+        List<Channel> result = dedupeChannels(channels);
+        if (account.getAction() == Account.AccountAction.itv) new EpgApplicationService().enrich(account, result);
+        return result;
     }
 
     public List<Channel> listSeriesEpisodes(CatalogSeriesEpisodesQuery query) {
@@ -523,7 +525,9 @@ public class CatalogApplicationService {
             }
         }
 
-        return new CatalogPagedChannelsResult(dedupeChannels(merged), currentPage, hasMore, resolvedApiOffset);
+        List<Channel> result = dedupeChannels(merged);
+        if (account.getAction() == Account.AccountAction.itv) new EpgApplicationService().enrich(account, result);
+        return new CatalogPagedChannelsResult(result, currentPage, hasMore, resolvedApiOffset);
     }
 
     private CatalogPagedChannelsResult sliceChannels(List<Channel> channels, int page, int pageSize, int prefetchPages) {

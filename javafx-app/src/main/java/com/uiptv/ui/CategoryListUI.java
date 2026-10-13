@@ -133,6 +133,8 @@ public class CategoryListUI extends HBox implements SearchTarget {
         return mediaContext.withAction(mode == null ? Account.AccountAction.itv : mode);
     }
 
+    public String liveGuideAccountId() { return mediaContext.dbId(); }
+
     private Account accountForMode(Account.AccountAction mode) {
         return contextForMode(mode).toAccount();
     }

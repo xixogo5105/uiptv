@@ -22,6 +22,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class WatchingNowUI extends VBox {
     private static final String SERIES_TAB = "series";
     private static final String VOD_TAB = "vod";
+    private static final String LIVE_TAB = "live";
+    private LiveGuideUI liveDelegate;
+    private String liveAccountId = "";
+
+    public void setLiveContext(String accountId) {
+        liveAccountId = accountId == null ? "" : accountId;
+        if (liveDelegate != null) liveDelegate.setContext(liveAccountId);
+        if (modePillBar != null) modePillBar.setSelectedItem(LIVE_TAB);
+    }
     private static final Duration SEARCH_DEBOUNCE_DELAY = Duration.millis(180);
 
     private PillBar<String> modePillBar;
@@ -61,6 +70,7 @@ public class WatchingNowUI extends VBox {
     }
 
     public void forceReload() {
+        if (liveDelegate != null) liveDelegate.invalidate();
         if (seriesDelegate != null) {
             seriesDelegate.markDirty();
         }
@@ -75,7 +85,9 @@ public class WatchingNowUI extends VBox {
             scheduleActivationRefresh();
             return;
         }
-        if (isVodSelected()) {
+        if (isLiveSelected()) {
+            liveDelegate.refreshIfNeeded();
+        } else if (isVodSelected()) {
             vodDelegate.refreshIfNeeded();
         } else if (seriesDelegate != null) {
             seriesDelegate.refreshIfNeeded();
@@ -89,12 +101,14 @@ public class WatchingNowUI extends VBox {
     private void buildContent() {
         seriesDelegate = buildSeriesDelegate();
         vodDelegate = new VodWatchingNowUI();
+        liveDelegate = new LiveGuideUI();
+        liveDelegate.setContext(liveAccountId);
 
         modePillBar = new PillBar<>(
-                item -> SERIES_TAB.equals(item) ? I18n.tr("autoSeries") : I18n.tr("autoVod"),
+                item -> LIVE_TAB.equals(item) ? I18n.tr("categoryTabLiveTv") : SERIES_TAB.equals(item) ? I18n.tr("autoSeries") : I18n.tr("autoVod"),
                 item -> item
         );
-        modePillBar.setItems(List.of(SERIES_TAB, VOD_TAB));
+        modePillBar.setItems(List.of(LIVE_TAB, SERIES_TAB, VOD_TAB));
         modePillBar.selectedItemProperty().addListener((_, _, selected) -> showSelectedMode(selected));
 
         contentPane = new StackPane();
@@ -108,7 +122,7 @@ public class WatchingNowUI extends VBox {
         vodDelegate.setManaged(false);
         vodContent.setVisible(false);
         vodContent.setManaged(false);
-        contentPane.getChildren().setAll(seriesContent, vodContent);
+        contentPane.getChildren().setAll(seriesContent, vodContent, liveDelegate);
 
         searchTextField.setPromptText(I18n.tr("commonSearch"));
         SearchFieldBehavior.installMouseClear(searchTextField);
@@ -126,8 +140,8 @@ public class WatchingNowUI extends VBox {
         setMaxWidth(Double.MAX_VALUE);
         getChildren().setAll(header, modePillBar, searchRow, contentPane);
         VBox.setVgrow(contentPane, Priority.ALWAYS);
-        modePillBar.setSelectedItem(SERIES_TAB);
-        showSelectedMode(SERIES_TAB);
+        modePillBar.setSelectedItem(LIVE_TAB);
+        showSelectedMode(LIVE_TAB);
     }
 
     private void scheduleSearchQuery(String query) {
@@ -146,6 +160,7 @@ public class WatchingNowUI extends VBox {
 
     private void applySearchQueryToSelectedMode(String query) {
         String activeQuery = normalizeSearchInput(query);
+        if (isLiveSelected()) { SearchTarget.apply(liveDelegate, activeQuery); return; }
         if (isVodSelected()) {
             SearchTarget.apply(vodDelegate, activeQuery);
             return;
@@ -181,7 +196,7 @@ public class WatchingNowUI extends VBox {
     }
 
     static List<String> tabLabels() {
-        return List.of(I18n.tr("autoSeries"), I18n.tr("autoVod"));
+        return List.of(I18n.tr("categoryTabLiveTv"), I18n.tr("autoSeries"), I18n.tr("autoVod"));
     }
 
     private void showSelectedMode(String selected) {
@@ -189,19 +204,23 @@ public class WatchingNowUI extends VBox {
             return;
         }
         boolean showVod = VOD_TAB.equals(selected);
-        seriesDelegate.setVisible(!showVod);
-        seriesDelegate.setManaged(!showVod);
+        boolean showLive = LIVE_TAB.equals(selected);
+        seriesDelegate.setVisible(!showVod && !showLive);
+        seriesDelegate.setManaged(!showVod && !showLive);
         vodDelegate.setVisible(showVod);
         vodDelegate.setManaged(showVod);
         for (javafx.scene.Node child : contentPane.getChildren()) {
             boolean childIsVod = child instanceof VBox vbox
                     && !vbox.getChildren().isEmpty()
                     && vbox.getChildren().getFirst() == vodDelegate;
-            child.setVisible(showVod == childIsVod);
-            child.setManaged(showVod == childIsVod);
+            boolean visible = showLive ? child == liveDelegate : child != liveDelegate && showVod == childIsVod;
+            child.setVisible(visible);
+            child.setManaged(visible);
         }
         applySearchQueryToSelectedMode(currentSearchQuery());
-        if (showVod) {
+        if (showLive) {
+            liveDelegate.refreshIfNeeded();
+        } else if (showVod) {
             vodDelegate.refreshIfNeeded();
         } else {
             seriesDelegate.refreshIfNeeded();
@@ -212,6 +231,8 @@ public class WatchingNowUI extends VBox {
     private boolean isVodSelected() {
         return modePillBar != null && VOD_TAB.equals(modePillBar.getSelectedItem()) && vodDelegate != null;
     }
+
+    private boolean isLiveSelected() { return modePillBar != null && LIVE_TAB.equals(modePillBar.getSelectedItem()); }
 
     private BaseWatchingNowUI buildSeriesDelegate() {
         if (ThumbnailAwareUI.areThumbnailsEnabled()) {
@@ -296,7 +317,9 @@ public class WatchingNowUI extends VBox {
             if (!isPageDisplayable()) {
                 return;
             }
-            if (isVodSelected()) {
+            if (isLiveSelected()) {
+                liveDelegate.requestFocus();
+            } else if (isVodSelected()) {
                 vodDelegate.requestContentFocus();
             } else if (seriesDelegate != null) {
                 seriesDelegate.requestContentFocus();
@@ -322,11 +345,12 @@ public class WatchingNowUI extends VBox {
         String selectedTab = modePillBar == null ? SERIES_TAB : modePillBar.getSelectedItem();
         disposeDelegates();
         buildContent();
-        modePillBar.setSelectedItem(VOD_TAB.equals(selectedTab) ? VOD_TAB : SERIES_TAB);
+        modePillBar.setSelectedItem(selectedTab);
     }
 
     private void disposeDelegates() {
         searchDebounce.stop();
+        if (liveDelegate != null) { liveDelegate.dispose(); liveDelegate = null; }
         if (seriesDelegate != null) {
             seriesDelegate.dispose();
             seriesDelegate = null;
