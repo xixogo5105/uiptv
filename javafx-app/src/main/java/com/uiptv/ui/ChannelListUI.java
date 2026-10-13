@@ -76,6 +76,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private static final String I18N_AUTO_IN_PROGRESS = "autoInProgress";
     private static final String I18N_AUTO_LOADING_CHANNELS_FOR = "autoLoadingChannelsFor";
 
+    private LiveGuideUI epgGuide;
     private final AccountMediaContext mediaContext;
     private final Account account;
     private final Account.AccountAction listAction;
@@ -171,6 +172,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
         preloadAllCategoryContextAsync();
         initWidgets();
         registerSceneLifecycleListener();
+        EpgModeUI.observe(this, this::applyListContentMode);
+        table.getSearchTextField().textProperty().addListener((_, _, query) -> { if (epgGuide != null) epgGuide.setSearchQuery(query); });
         table.setPlaceholder(new Label(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle)));
     }
 
@@ -200,6 +203,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     @Override
     public void setSearchQuery(String searchText) {
         String value = searchText == null ? "" : searchText;
+        if (epgGuide != null) epgGuide.setSearchQuery(value);
         TextField searchField = table.getSearchTextField();
         if (!Objects.equals(searchField.getText(), value)) {
             searchField.setText(value);
@@ -314,6 +318,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
         if (!itemBatch.isEmpty()) {
             channelItems.addAll(itemBatch);
+            updateEpgFilter();
             table.setPlaceholder(null);
             channelGrid.setPlaceholderText("");
         }
@@ -725,6 +730,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
         table.getSearchTextField().setVisible(true);
         table.getSearchTextField().setManaged(true);
         Node content = channelGridScroll;
+        if (listAction == Account.AccountAction.itv && EpgModeUI.isEnabled()) {
+            if (epgGuide == null) { epgGuide = new LiveGuideUI(); epgGuide.setContext(account.getDbId()); }
+            updateEpgFilter(); content = epgGuide;
+        } else if (epgGuide != null) { epgGuide.dispose(); epgGuide = null; }
         if (content instanceof Region region) {
             region.setMinWidth(0);
             region.setMaxWidth(Double.MAX_VALUE);
@@ -732,6 +741,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
         listPane.getChildren().setAll(searchBox, content);
         VBox.setVgrow(content, Priority.ALWAYS);
+        if (epgGuide != null && getScene() != null) epgGuide.refreshIfNeeded();
+    }
+
+    private void updateEpgFilter() {
+        if (epgGuide == null) return;
+        Set<String> ids = channelItems == null ? Set.of() : channelItems.stream().map(item -> item.getChannel().getChannelId()).collect(java.util.stream.Collectors.toSet());
+        epgGuide.setRowFilter(row -> ids.contains(row.channel().getChannelId()));
+        epgGuide.setSearchQuery(table.getSearchTextField().getText());
     }
 
     private void initDetailPane() {
@@ -1542,6 +1559,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private void applyThumbnailMode(boolean enabled) {
         thumbnailsEnabled = enabled;
+        if (epgGuide != null) epgGuide.refreshIfNeeded();
         if (enabled) {
             channelName.setCellFactory(column -> createThumbnailCell());
         } else {
@@ -1562,6 +1580,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     public void dispose() {
+        if (epgGuide != null) epgGuide.dispose();
         if (!disposed.compareAndSet(false, true)) {
             return;
         }

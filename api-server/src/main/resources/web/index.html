@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/video.js@8.24.1/dist/video-js.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20261013epgResponsive" rel="stylesheet">
+    <link href="/css/spa.css?v=20261013epgMode" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.43/dist/vue.global.prod.js"></script>
@@ -66,6 +66,10 @@
             </label>
 
             <div class="topbar-actions">
+                <div class="epg-settings-menu">
+                    <button @click="epgSettingsOpen = !epgSettingsOpen" class="soft-button icon-only" :title="epgLabels.settings" :aria-label="epgLabels.settings" :aria-expanded="epgSettingsOpen" type="button"><i class="bi bi-gear"></i></button>
+                    <div class="epg-settings-popover" v-if="epgSettingsOpen"><button @click="toggleEpgMode" type="button" :aria-pressed="epgModeEnabled">{{ epgModeEnabled ? epgLabels.disable : epgLabels.enable }}</button></div>
+                </div>
                 <button :class="{ broadcasting: isPlaying || playbackLoading }" @click="togglePlayerPanel" class="soft-button icon-only" type="button" v-if="hasPlayerContent" :title="playerPanelVisible ? 'Hide player' : 'Show player'">
                     <img
                             :alt="(isPlaying || playbackLoading) ? 'Broadcasting' : 'Not broadcasting'"
@@ -113,7 +117,26 @@
                         </select>
                     </div>
 
-                    <div class="scroll-area">
+                    <section class="live-guide-panel" v-if="epgGuideVisible" aria-label="Live programme guide">
+                        <div class="segmented guide-toolbar"><button @click="shiftGuide(-6)" type="button" aria-label="Previous six hours">‹</button><button @click="loadLiveGuide()" type="button">Now</button><button @click="shiftGuide(6)" type="button" aria-label="Next six hours">›</button><span>{{ guideDate }}</span><label><input type="checkbox" v-model="showAllGuideChannels"> Show all channels</label><button @click="zoomGuide(-120)" type="button" aria-label="Zoom out">−</button><button @click="zoomGuide(120)" type="button" aria-label="Zoom in">+</button></div>
+                        <div class="live-guide-selected-programme" v-if="selectedGuideProgramme"><strong>{{ selectedGuideProgramme.channelName }} · {{ selectedGuideProgramme.title }}</strong><small>{{ guideTime(selectedGuideProgramme.start) }} – {{ guideTime(selectedGuideProgramme.stop) }}</small></div>
+                        <p v-if="liveGuideLoading">Loading programme guide…</p>
+                        <p role="alert" v-if="liveGuideError">{{ liveGuideError }}</p>
+                        <div class="live-guide-scroll" v-if="!liveGuideLoading">
+                            <div class="live-guide-axis" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}"><strong class="live-guide-name">Channel</strong><div class="live-guide-hours" :style="{width: liveGuideHourWidth * 6 + 'px'}"><span v-for="tick in liveGuideTicks" :key="tick" :style="{flexBasis: liveGuideHourWidth + 'px'}">{{ guideTime(tick) }}</span></div></div>
+                            <div class="live-guide-row" v-for="row in filteredLiveGuideRows" :key="row.accountId + ':' + row.channel.channelId" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}">
+                                <button class="live-guide-name" :title="row.accountName" @click="playGuideRow(row)"><img v-if="thumbnailsEnabled && row.channel.logo" :src="row.channel.logo" @error="imageError" alt="">{{ row.channel.name }}</button>
+                                <div class="live-guide-track" :style="{width: liveGuideHourWidth * 6 + 'px'}">
+                                    <span class="live-guide-empty" v-if="!guideBlocks(row).length">No programme guide available</span>
+                                    <button v-for="programme in guideBlocks(row)" :key="programme.start" class="live-guide-programme" :class="{ current: guideIsCurrent(programme) }" :style="guideBlockStyle(programme)" @click="playGuideRow(row, programme)" :title="programme.title + '\n' + guideTime(programme.start) + ' – ' + guideTime(programme.stop) + '\n' + programme.description">
+                                        <strong>{{ programme.title }}</strong><small>{{ guideTime(programme.start) }} – {{ guideTime(programme.stop) }}</small>
+                                    </button>
+                                </div>
+                            </div>
+                            <p v-if="!filteredLiveGuideRows.length">No channels with programme guide data. Enable “Show all channels” to see the others.</p>
+                        </div>
+                    </section>
+                    <div class="scroll-area" v-if="!epgGuideVisible">
                         <div class="content-grid bookmark-grid">
                             <article class="row-card loading-card" v-if="bookmarksLoading && bookmarks.length === 0">
                                 <div class="logo-box"><span class="spinner-border spinner-border-sm"></span></div>
@@ -300,7 +323,26 @@
                                 </div>
                             </div>
 
-                            <div class="panel-list" v-if="viewState === 'channels'">
+                    <section class="live-guide-panel" v-if="epgGuideVisible" aria-label="Live programme guide">
+                        <div class="segmented guide-toolbar"><button @click="shiftGuide(-6)" type="button" aria-label="Previous six hours">‹</button><button @click="loadLiveGuide()" type="button">Now</button><button @click="shiftGuide(6)" type="button" aria-label="Next six hours">›</button><span>{{ guideDate }}</span><label><input type="checkbox" v-model="showAllGuideChannels"> Show all channels</label><button @click="zoomGuide(-120)" type="button" aria-label="Zoom out">−</button><button @click="zoomGuide(120)" type="button" aria-label="Zoom in">+</button></div>
+                        <div class="live-guide-selected-programme" v-if="selectedGuideProgramme"><strong>{{ selectedGuideProgramme.channelName }} · {{ selectedGuideProgramme.title }}</strong><small>{{ guideTime(selectedGuideProgramme.start) }} – {{ guideTime(selectedGuideProgramme.stop) }}</small></div>
+                        <p v-if="liveGuideLoading">Loading programme guide…</p>
+                        <p role="alert" v-if="liveGuideError">{{ liveGuideError }}</p>
+                        <div class="live-guide-scroll" v-if="!liveGuideLoading">
+                            <div class="live-guide-axis" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}"><strong class="live-guide-name">Channel</strong><div class="live-guide-hours" :style="{width: liveGuideHourWidth * 6 + 'px'}"><span v-for="tick in liveGuideTicks" :key="tick" :style="{flexBasis: liveGuideHourWidth + 'px'}">{{ guideTime(tick) }}</span></div></div>
+                            <div class="live-guide-row" v-for="row in filteredLiveGuideRows" :key="row.accountId + ':' + row.channel.channelId" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}">
+                                <button class="live-guide-name" :title="row.accountName" @click="playGuideRow(row)"><img v-if="thumbnailsEnabled && row.channel.logo" :src="row.channel.logo" @error="imageError" alt="">{{ row.channel.name }}</button>
+                                <div class="live-guide-track" :style="{width: liveGuideHourWidth * 6 + 'px'}">
+                                    <span class="live-guide-empty" v-if="!guideBlocks(row).length">No programme guide available</span>
+                                    <button v-for="programme in guideBlocks(row)" :key="programme.start" class="live-guide-programme" :class="{ current: guideIsCurrent(programme) }" :style="guideBlockStyle(programme)" @click="playGuideRow(row, programme)" :title="programme.title + '\n' + guideTime(programme.start) + ' – ' + guideTime(programme.stop) + '\n' + programme.description">
+                                        <strong>{{ programme.title }}</strong><small>{{ guideTime(programme.start) }} – {{ guideTime(programme.stop) }}</small>
+                                    </button>
+                                </div>
+                            </div>
+                            <p v-if="!filteredLiveGuideRows.length">No channels with programme guide data. Enable “Show all channels” to see the others.</p>
+                        </div>
+                    </section>
+                            <div class="panel-list" v-if="viewState === 'channels' && !epgGuideVisible">
                                 <article class="row-card loading-card" v-if="listLoading">
                                     <div class="logo-box"><span class="spinner-border spinner-border-sm"></span></div>
                                     <div class="content-copy">
@@ -488,10 +530,9 @@
                     <div class="screen-heading">
                         <div>
                             <h1>Watching Now</h1>
-                            <p>{{ watchingNowDrilldown ? 'Continue the selected series.' : watchingNowTab === 'live' ? 'Programme guide for your current account or bookmarked channels.' : 'Resume series and movies from the same content browser.' }}</p>
+                            <p>{{ watchingNowDrilldown ? 'Continue the selected series.' : 'Resume series and movies from the same content browser.' }}</p>
                         </div>
                         <div aria-label="Watching Now" class="segmented" role="group" v-if="!watchingNowDrilldown">
-                            <button :class="{ active: watchingNowTab === 'live' }" @click="setWatchingNowTab('live')" type="button">Live</button>
                             <button :class="{ active: watchingNowTab === 'series' }" @click="setWatchingNowTab('series')" type="button">Series</button>
                             <button :class="{ active: watchingNowTab === 'vod' }" @click="setWatchingNowTab('vod')" type="button">Movies</button>
                         </div>
@@ -503,26 +544,7 @@
                         </div>
                     </div>
 
-                    <section class="live-guide-panel" v-if="!watchingNowDrilldown && watchingNowTab === 'live'" aria-label="Live programme guide">
-                        <div class="segmented guide-toolbar"><button @click="shiftGuide(-6)" type="button" aria-label="Previous six hours">‹</button><button @click="loadLiveGuide()" type="button">Now</button><button @click="shiftGuide(6)" type="button" aria-label="Next six hours">›</button><span>{{ guideDate }}</span><label><input type="checkbox" v-model="showAllGuideChannels"> Show all channels</label><button @click="zoomGuide(-120)" type="button" aria-label="Zoom out">−</button><button @click="zoomGuide(120)" type="button" aria-label="Zoom in">+</button></div>
-                        <div class="live-guide-selected-programme" v-if="selectedGuideProgramme"><strong>{{ selectedGuideProgramme.channelName }} · {{ selectedGuideProgramme.title }}</strong><small>{{ guideTime(selectedGuideProgramme.start) }} – {{ guideTime(selectedGuideProgramme.stop) }}</small></div>
-                        <p v-if="liveGuideLoading">Loading programme guide…</p>
-                        <p role="alert" v-if="liveGuideError">{{ liveGuideError }}</p>
-                        <div class="live-guide-scroll" v-if="!liveGuideLoading">
-                            <div class="live-guide-axis" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}"><strong class="live-guide-name">Channel</strong><div class="live-guide-hours" :style="{width: liveGuideHourWidth * 6 + 'px'}"><span v-for="tick in liveGuideTicks" :key="tick" :style="{flexBasis: liveGuideHourWidth + 'px'}">{{ guideTime(tick) }}</span></div></div>
-                            <div class="live-guide-row" v-for="row in filteredLiveGuideRows" :key="row.accountId + ':' + row.channel.channelId" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}">
-                                <button class="live-guide-name" :title="row.accountName" @click="playGuideRow(row)"><img v-if="thumbnailsEnabled && row.channel.logo" :src="row.channel.logo" @error="imageError" alt="">{{ row.channel.name }}</button>
-                                <div class="live-guide-track" :style="{width: liveGuideHourWidth * 6 + 'px'}">
-                                    <span class="live-guide-empty" v-if="!guideBlocks(row).length">No programme guide available</span>
-                                    <button v-for="programme in guideBlocks(row)" :key="programme.start" class="live-guide-programme" :class="{ current: guideIsCurrent(programme) }" :style="guideBlockStyle(programme)" @click="playGuideRow(row, programme)" :title="programme.title + '\n' + guideTime(programme.start) + ' – ' + guideTime(programme.stop) + '\n' + programme.description">
-                                        <strong>{{ programme.title }}</strong><small>{{ guideTime(programme.start) }} – {{ guideTime(programme.stop) }}</small>
-                                    </button>
-                                </div>
-                            </div>
-                            <p v-if="!filteredLiveGuideRows.length">No channels with programme guide data. Enable “Show all channels” to see the others.</p>
-                        </div>
-                    </section>
-                    <div class="watching-layout" v-if="!watchingNowDrilldown && watchingNowTab !== 'live'">
+                    <div class="watching-layout" v-if="!watchingNowDrilldown">
                         <section class="browser-panel watching-list-panel">
                             <header class="panel-heading">
                                 <strong>{{ watchingNowTab === 'series' ? 'Series' : 'Movies' }}</strong>
@@ -780,7 +802,7 @@
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261013epgResponsive"></script>
+    <script src="/javascript/spa.js?v=20261013epgMode"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;

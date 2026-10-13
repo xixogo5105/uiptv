@@ -64,6 +64,7 @@ public class HttpConfigJsonServer implements HttpHandler {
         JSONObject response = new JSONObject();
         response.put(KEY_ENABLE_THUMBNAILS, config == null || config.isEnableThumbnails());
         response.put(KEY_WIDE_VIEW, config != null && config.isWideView());
+        response.put("languageLocale", config == null ? "" : config.getLanguageLocale());
         // Read-only: reports the stored selection as light/dark/system. Replaces the removed darkTheme flag,
         // which could not describe the third state.
         response.put(KEY_THEME_MODE, config == null

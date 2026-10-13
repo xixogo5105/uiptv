@@ -18,7 +18,12 @@ createApp({
         const selectedBookmarkCategoryId = ref('__recently_played_bookmarks__');
         const watchingNowRows = ref([]);
         const selectedWatchingNowKey = ref('');
-        const watchingNowTab = ref('live');
+        const watchingNowTab = ref('series');
+        const epgModeEnabled = ref(false);
+        const epgSettingsOpen = ref(false);
+        const epgLabels = ref({settings: 'Settings', enable: 'Enable EPG mode', disable: 'Disable EPG mode'});
+        const epgGuideVisible = computed(() => epgModeEnabled.value && (activeTab.value === 'bookmarks' || activeTab.value === 'accounts' && viewState.value === 'channels' && contentMode.value === 'itv'));
+        const toggleEpgMode = () => { epgModeEnabled.value = !epgModeEnabled.value; epgSettingsOpen.value = false; };
         const liveGuideRows = ref([]);
         const showAllGuideChannels = ref(false);
         const liveGuideLoading = ref(false);
@@ -29,9 +34,14 @@ createApp({
         const selectedGuideProgramme = ref(null);
         const zoomGuide = delta => { liveGuideHourWidth.value = Math.max(240, Math.min(720, liveGuideHourWidth.value + delta)); };
         let liveGuideRequest = 0;
-        const filteredLiveGuideRows = computed(() => liveGuideRows.value.filter(row =>
-            (showAllGuideChannels.value || (row.programmes || []).some(p => p.stop > Date.now()))
-            && String(row.channel?.name || '').toLowerCase().includes(searchQuery.value.toLowerCase())));
+        const filteredLiveGuideRows = computed(() => {
+            const bookmarkIds = new Set(filteredBookmarks.value.map(b => String(b.dbId)));
+            const channelIds = new Set(filteredChannels.value.map(c => String(c.channelId)));
+            return liveGuideRows.value.filter(row =>
+                (activeTab.value === 'bookmarks' ? bookmarkIds.has(String(row.bookmarkId)) : channelIds.has(String(row.channel?.channelId)))
+                && (showAllGuideChannels.value || (row.programmes || []).some(p => p.stop > Date.now()))
+                && String(row.channel?.name || '').toLowerCase().includes(searchQuery.value.toLowerCase()));
+        });
         const liveGuideTicks = computed(() => Array.from({length: 6}, (_, hour) => liveGuideStart.value + hour * 3600000));
         const guideDate = computed(() => new Date(liveGuideStart.value).toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}));
         const shiftGuide = hours => { liveGuideStart.value += hours * 3600000; };
@@ -1368,6 +1378,11 @@ createApp({
                 const response = await fetch(window.location.origin + '/config');
                 const config = await response.json();
                 thumbnailsEnabled.value = config?.enableThumbnails !== false;
+                try {
+                    const labels = await (await fetch('/epg-labels.json')).json();
+                    const language = (config?.languageLocale || navigator.language || 'en').replaceAll('-', '_');
+                    epgLabels.value = labels[language] || labels[language.split('_')[0]] || labels.en;
+                } catch (_) { /* Keep usable labels when the translation asset cannot be loaded. */ }
             } catch (e) {
                 thumbnailsEnabled.value = true;
             }
@@ -2045,12 +2060,6 @@ createApp({
             }, 0);
         };
         const switchTab = (tab) => {
-            if (tab === 'watchingNow' && activeTab.value !== 'watchingNow') {
-                liveGuideAccountId.value = activeTab.value === 'accounts' ? String(selectedAccountId.value || '') : '';
-                liveGuideRows.value = [];
-                selectedGuideProgramme.value = null;
-                watchingNowTab.value = 'live';
-            }
             const wasWatchingNowDrilldown = watchingNowDrilldown.value;
             if (activeTab.value === tab && tab === 'accounts') {
                 viewState.value = 'accounts';
@@ -2075,7 +2084,6 @@ createApp({
             clearSearch();
             if (tab === 'watchingNow') {
                 watchingNowDrilldown.value = false;
-                if (watchingNowTab.value === 'live') loadLiveGuide();
                 if (!watchingNowTab.value) {
                     watchingNowTab.value = 'series';
                 }
@@ -2085,8 +2093,7 @@ createApp({
         };
 
         const setWatchingNowTab = (tab) => {
-            watchingNowTab.value = ['live', 'vod', 'series'].includes(tab) ? tab : 'live';
-            if (watchingNowTab.value === 'live') loadLiveGuide();
+            watchingNowTab.value = ['vod', 'series'].includes(tab) ? tab : 'series';
         };
 
         const openWatchingNowSeriesDetail = async (row) => {
@@ -4878,7 +4885,7 @@ createApp({
 
         onMounted(async () => {
             const guideRefreshTimer = window.setInterval(() => {
-                if (!document.hidden && activeTab.value === 'watchingNow' && watchingNowTab.value === 'live' && !liveGuideLoading.value) loadLiveGuide(true);
+                if (!document.hidden && epgGuideVisible.value && !liveGuideLoading.value) loadLiveGuide(true);
                 if (!document.hidden && currentChannel.value && !wideViewActive.value && !playerExpanded.value) refreshPlayerEpg();
             }, 60000);
             window.addEventListener('beforeunload', () => window.clearInterval(guideRefreshTimer), {once: true});
@@ -4925,6 +4932,13 @@ createApp({
             }
         });
 
+        watch([epgGuideVisible, activeTab, selectedAccountId, viewState], () => {
+            ++liveGuideRequest;
+            liveGuideRows.value = []; selectedGuideProgramme.value = null; liveGuideLoading.value = false;
+            if (!epgGuideVisible.value) return;
+            liveGuideAccountId.value = activeTab.value === 'accounts' ? String(selectedAccountId.value || '') : '';
+            loadLiveGuide();
+        });
         watch(currentChannelDebugTitle, () => {
             setBrowserTitle();
         }, {immediate: true});
@@ -4950,6 +4964,7 @@ createApp({
         }, {immediate: true});
 
         return {
+            epgModeEnabled, epgSettingsOpen, epgGuideVisible, epgLabels, toggleEpgMode,
             thumbnailsEnabled, liveGuideHourWidth, selectedGuideProgramme, zoomGuide,
             playerEpg, playerProgrammeTime, showAllGuideChannels,
             liveGuideRows, liveGuideLoading, liveGuideError, filteredLiveGuideRows, liveGuideTicks,

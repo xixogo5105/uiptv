@@ -4,7 +4,9 @@ The **EPG** field in account settings accepts an XMLTV HTTP/HTTPS URL or a local
 
 For M3U accounts, leaving this field empty enables discovery from the playlist header's `x-tvg-url`, `url-tvg`, or `tvg-url` attribute. Relative sources resolve against the playlist location. A manually entered source takes priority. When a header contains several comma-separated sources, the first is used.
 
-Open **Watching Now → Live** to see channels and programmes across a shared time axis. Opening Watching Now from an account uses that account's channels. Opening it from Bookmarks uses live bookmarked channels across their accounts. There is no additional account picker. Click a channel or programme to play that channel. Use the arrows to browse six-hour windows and **Now** to return to the current window. Programme details and start/end times appear in tooltips; client times are local. In narrow player mode, Now & Next titles, times, and descriptions also appear below the video when guide data is available.
+Use the gear menu to **Enable EPG mode**. Bookmarks then shows the current bookmark group's live channels across a shared time axis, while an account's live channel page shows the current category's channels. Search and existing category filters remain active. **Disable EPG mode** restores the ordinary lists. The switch applies across these views for the current application session; it starts disabled. Watching Now contains only Series and VOD.
+
+Click a channel or programme to play that channel. Use the arrows to browse six-hour windows and **Now** to return to the current window. Programme details and start/end times appear in tooltips; client times are local. In narrow player mode, Now & Next also appears below the video when guide data is available. The web gear labels use the configured application language, falling back to the browser language.
 
 Matching uses the playlist/provider channel ID first. If it does not match, a unique, case-insensitive XMLTV display name may match the channel name. Region and quality suffixes are retained, and ambiguous names do not match. The local database ID is never used as an XMLTV identifier.
 

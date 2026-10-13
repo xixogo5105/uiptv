@@ -2242,3 +2242,7 @@ a[href] {
 .live-guide-name { white-space: normal; }
 .live-guide-selected-programme { margin: 10px 0; padding: 10px 12px; border-radius: 8px; background: var(--surface-high); overflow-wrap: anywhere; }
 .live-guide-selected-programme small { display: block; color: var(--muted); margin-top: 4px; }
+
+.epg-settings-menu { position: relative; }
+.epg-settings-popover { position: absolute; right: 0; top: 100%; z-index: 20; min-width: 190px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 8px 24px #0004; }
+.epg-settings-popover button { width: 100%; padding: 10px; text-align: left; color: var(--text); background: transparent; border: 0; cursor: pointer; }

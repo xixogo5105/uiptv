@@ -73,6 +73,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private final LoadingStateView bookmarkLoadingOverlay = new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS));
     private final PillBar<BookmarkCategory> categoryPillBar =
             new PillBar<>(BookmarkCategory::getName, BookmarkCategory::getId);
+    private LiveGuideUI epgGuide;
     private final VBox listPanel = new VBox(8);
     private final ObservableList<BookmarkItem> filteredItems = FXCollections.observableArrayList();
     private final List<BookmarkItem> allBookmarkItems = new ArrayList<>();
@@ -130,6 +131,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         initWidgets();
         registerBookmarkChangeListener();
         registerThumbnailModeListener();
+        EpgModeUI.observe(this, this::applyEpgMode);
         sceneProperty().addListener((_, _, newScene) -> {
             if (newScene == null) {
                 releaseTransientState();
@@ -153,6 +155,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     public void forceReload() {
+        if (epgGuide != null) { epgGuide.invalidate(); epgGuide.refreshIfNeeded(); }
         loadedOnce = true;
         reloadRequestedWhileReloading = false;
         long generation = reloadGeneration.incrementAndGet();
@@ -547,6 +550,20 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         getChildren().setAll(page);
         HBox.setHgrow(page, Priority.ALWAYS);
         addChannelClickHandler();
+    }
+
+    private void applyEpgMode() {
+        if (EpgModeUI.isEnabled()) {
+            if (epgGuide == null) epgGuide = new LiveGuideUI();
+            bookmarkPageScroll.setVisible(false); bookmarkPageScroll.setManaged(false);
+            if (!listPanel.getChildren().contains(epgGuide)) listPanel.getChildren().add(epgGuide);
+            VBox.setVgrow(epgGuide, Priority.ALWAYS);
+            epgGuide.setVisible(true); epgGuide.setManaged(true);
+            filterView(); epgGuide.refreshIfNeeded();
+        } else {
+            bookmarkPageScroll.setVisible(true); bookmarkPageScroll.setManaged(true);
+            if (epgGuide != null) { listPanel.getChildren().remove(epgGuide); epgGuide.dispose(); epgGuide = null; }
+        }
     }
 
     private VBox createHeaderArea() {
@@ -945,6 +962,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
     private void applyThumbnailMode(boolean enabled) {
         thumbnailsEnabled = enabled;
+        if (epgGuide != null) epgGuide.refreshIfNeeded();
         applyBookmarkGridDisplayMode(enabled);
         bookmarkGrid.refresh();
     }
@@ -1005,6 +1023,10 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 })
                 .collect(Collectors.toCollection(ArrayList::new));
         applyBookmarkSort(filteredList);
+        if (epgGuide != null) {
+            Set<String> bookmarkIds = filteredList.stream().map(BookmarkItem::getBookmarkId).collect(Collectors.toSet());
+            epgGuide.setRowFilter(row -> bookmarkIds.contains(row.bookmarkId()));
+        }
 
         if (!sameFilteredItems(filteredList)) {
             filteredItems.setAll(filteredList);

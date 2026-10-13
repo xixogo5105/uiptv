@@ -86,6 +86,7 @@ class AppHeaderActionsTest extends DbBackedUiTest {
                 I18n.tr("autoLogs"),
                 "Disable parental lock access",
                 I18n.tr("autoEnablePlainTextMode"),
+                I18n.tr("epgEnableMode"),
                 I18n.tr("autoEnableDarkTheme"),
                 I18n.tr("autoStayOnTop"),
                 I18n.tr("configLightweightModeSwitchTitle"),
@@ -115,6 +116,35 @@ class AppHeaderActionsTest extends DbBackedUiTest {
         });
 
         assertFalse(ConfigurationService.getInstance().read().isEnableThumbnails());
+    }
+
+    @Test
+    void epgGearActionSwitchesBothBookmarkAndLiveChannelViews() throws Exception {
+        runOnFxThread(() -> {
+            com.uiptv.ui.EpgModeUI.setEnabled(false);
+            var bookmarks = new com.uiptv.ui.BookmarkChannelListUI(null, null);
+            var channels = new com.uiptv.ui.ChannelListUI(new com.uiptv.model.Account(), "All", "all", com.uiptv.model.Account.AccountAction.itv);
+            var movies = new com.uiptv.ui.ChannelListUI(new com.uiptv.model.Account(), "Movies", "movies", com.uiptv.model.Account.AccountAction.vod);
+            var root = new javafx.scene.layout.VBox(bookmarks, channels, movies);
+            new javafx.scene.Scene(root, 900, 800);
+            var actions = new AppHeaderActions(null, null, null);
+            try {
+                actions.createGearMenu().getItems().stream().filter(item -> I18n.tr("epgEnableMode").equals(item.getText())).findFirst().orElseThrow().fire();
+                root.applyCss(); root.layout();
+                assertTrue(com.uiptv.ui.EpgModeUI.isEnabled());
+                assertEquals(1, bookmarks.lookupAll(".live-guide").size());
+                assertEquals(1, channels.lookupAll(".live-guide").size());
+                assertTrue(movies.lookupAll(".live-guide").isEmpty());
+                actions.createGearMenu().getItems().stream().filter(item -> I18n.tr("epgDisableMode").equals(item.getText())).findFirst().orElseThrow().fire();
+                assertFalse(com.uiptv.ui.EpgModeUI.isEnabled());
+                assertTrue(bookmarks.lookupAll(".live-guide").isEmpty());
+                assertTrue(channels.lookupAll(".live-guide").isEmpty());
+            } finally {
+                com.uiptv.ui.EpgModeUI.setEnabled(false);
+                root.getChildren().clear(); channels.dispose(); movies.dispose();
+            }
+            return null;
+        });
     }
 
     private static Button visibleButtonAt(AppHeaderActions actions, int index) {

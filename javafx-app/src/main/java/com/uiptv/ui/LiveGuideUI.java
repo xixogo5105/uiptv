@@ -23,6 +23,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
     private final Label status = new Label();
     private final AtomicInteger generation = new AtomicInteger();
     private List<LiveGuideApplicationService.Row> data = List.of();
+    private java.util.function.Predicate<LiveGuideApplicationService.Row> rowFilter = _ -> true;
     private String accountId = "", query = "";
     private long windowStart;
     private boolean loading;
@@ -56,6 +57,10 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         getChildren().addAll(toolbar, selectedProgramme, scroll);
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
         sceneProperty().addListener((_, _, scene) -> { if (scene == null) clock.stop(); else clock.play(); });
+    }
+
+    public void setRowFilter(java.util.function.Predicate<LiveGuideApplicationService.Row> filter) {
+        rowFilter = filter == null ? _ -> true : filter; render();
     }
 
     public void setContext(String id) {
@@ -108,6 +113,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         rows.getChildren().add(header);
         int count = 0;
         for (LiveGuideApplicationService.Row row : data) {
+            if (!rowFilter.test(row)) continue;
             Channel channel = row.channel();
             if (!showAllChannels.isSelected() && row.programmes().stream().noneMatch(p -> p.stop() > System.currentTimeMillis())) continue;
             if (channel.getName() == null || !channel.getName().toLowerCase(Locale.ROOT).contains(query)) continue;

@@ -116,6 +116,7 @@ public class AppHeaderActions extends HBox {
                 new SeparatorMenuItem(),
                 createMenuItem(parentalLockMenuText(), parentalLockIcon(), this::toggleParentalPause),
                 createPlainTextModeMenuItem(),
+                createEpgModeMenuItem(),
                 createThemeMenuItem(),
                 createStayOnTopMenuItem(),
                 new SeparatorMenuItem(),
@@ -135,6 +136,11 @@ public class AppHeaderActions extends HBox {
         MenuItem item = new MenuItem(text, createMenuIcon(iconPath));
         item.setOnAction(_ -> action.run());
         return item;
+    }
+
+    private MenuItem createEpgModeMenuItem() {
+        return createMenuItem(I18n.tr(com.uiptv.ui.EpgModeUI.isEnabled() ? "epgDisableMode" : "epgEnableMode"), ICON_GEAR,
+                () -> com.uiptv.ui.EpgModeUI.setEnabled(!com.uiptv.ui.EpgModeUI.isEnabled()));
     }
 
     private MenuItem createPlainTextModeMenuItem() {

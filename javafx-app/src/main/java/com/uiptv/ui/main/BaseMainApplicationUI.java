@@ -31,7 +31,6 @@ import java.util.function.Supplier;
 public abstract class BaseMainApplicationUI {
 
     private static final Duration DEFERRED_TAB_GAP = Duration.millis(400);
-    private final AtomicReference<String> liveGuideAccountId = new AtomicReference<>("");
     private static final double COMPACT_EMBEDDED_PLAYER_WIDTH = 480;
     private static final double COMPACT_EMBEDDED_PLAYER_HEIGHT = 305;
     private static final double MANAGE_ACCOUNT_DOCK_MIN_WIDTH = 340;
@@ -103,11 +102,8 @@ public abstract class BaseMainApplicationUI {
                 }
             }
             if (newTab == watchingNowTab) {
-                if (oldTab == bookmarkChannelListTab) liveGuideAccountId.set("");
-                else if (oldTab == manageAccountTab) liveGuideAccountId.set(accountListUI.liveGuideAccountId());
                 WatchingNowUI watchingNowUI = watchingNowRef.get();
                 if (watchingNowUI != null) {
-                    watchingNowUI.setLiveContext(liveGuideAccountId.get());
                     watchingNowUI.refreshIfNeeded();
                 }
             }
@@ -376,7 +372,6 @@ public abstract class BaseMainApplicationUI {
     private void initializeDeferredTabs(DeferredTabsContext context) {
         Runnable loadWatchingNow = () -> {
             WatchingNowUI watchingNowUI = new WatchingNowUI(hostServices, this::toggleTheme);
-            watchingNowUI.setLiveContext(liveGuideAccountId.get());
             setMinWidthForPane(watchingNowUI);
             context.watchingNowRef().set(watchingNowUI);
             context.watchingNowTab().setContent(AppNavigationPane.wrapContent(watchingNowUI));
