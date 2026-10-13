@@ -25,7 +25,9 @@ createApp({
         const liveGuideError = ref('');
         const liveGuideAccountId = ref('');
         const liveGuideStart = ref(0);
-        const LIVE_GUIDE_HOUR_WIDTH = 240;
+        const liveGuideHourWidth = ref(240);
+        const selectedGuideProgramme = ref(null);
+        const zoomGuide = delta => { liveGuideHourWidth.value = Math.max(240, Math.min(720, liveGuideHourWidth.value + delta)); };
         let liveGuideRequest = 0;
         const filteredLiveGuideRows = computed(() => liveGuideRows.value.filter(row =>
             (showAllGuideChannels.value || (row.programmes || []).some(p => p.stop > Date.now()))
@@ -36,8 +38,8 @@ createApp({
         const guideTime = time => new Date(time).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
         const guideBlocks = row => (row.programmes || []).filter(p => p.stop > liveGuideStart.value && p.start < liveGuideStart.value + 6 * 3600000);
         const guideBlockStyle = p => ({
-            left: `${Math.max(0, p.start - liveGuideStart.value) / 3600000 * LIVE_GUIDE_HOUR_WIDTH}px`,
-            width: `${Math.max(1, (Math.min(p.stop, liveGuideStart.value + 6 * 3600000) - Math.max(p.start, liveGuideStart.value)) / 3600000 * LIVE_GUIDE_HOUR_WIDTH - 3)}px`
+            left: `${Math.max(0, p.start - liveGuideStart.value) / 3600000 * liveGuideHourWidth.value}px`,
+            width: `${Math.max(1, (Math.min(p.stop, liveGuideStart.value + 6 * 3600000) - Math.max(p.start, liveGuideStart.value)) / 3600000 * liveGuideHourWidth.value - 3)}px`
         });
         const guideIsCurrent = p => p.start <= Date.now() && p.stop > Date.now();
         const loadLiveGuide = async (preserveWindow = false) => {
@@ -59,7 +61,8 @@ createApp({
                 if (request === liveGuideRequest) liveGuideLoading.value = false;
             }
         };
-        const playGuideRow = row => {
+        const playGuideRow = (row, programme = null) => {
+            selectedGuideProgramme.value = programme ? {...programme, channelName: row.channel.name} : null;
             if (row.bookmarkId) {
                 playBookmark({dbId: row.bookmarkId, accountName: row.accountName, channelName: row.channel.name,
                     channelId: row.channel.channelId, logo: row.channel.logo, accountAction: 'itv'});
@@ -2045,6 +2048,7 @@ createApp({
             if (tab === 'watchingNow' && activeTab.value !== 'watchingNow') {
                 liveGuideAccountId.value = activeTab.value === 'accounts' ? String(selectedAccountId.value || '') : '';
                 liveGuideRows.value = [];
+                selectedGuideProgramme.value = null;
                 watchingNowTab.value = 'live';
             }
             const wasWatchingNowDrilldown = watchingNowDrilldown.value;
@@ -4946,6 +4950,7 @@ createApp({
         }, {immediate: true});
 
         return {
+            thumbnailsEnabled, liveGuideHourWidth, selectedGuideProgramme, zoomGuide,
             playerEpg, playerProgrammeTime, showAllGuideChannels,
             liveGuideRows, liveGuideLoading, liveGuideError, filteredLiveGuideRows, liveGuideTicks,
             guideTime, guideBlocks, guideBlockStyle, guideIsCurrent, playGuideRow, guideDate, shiftGuide, loadLiveGuide,

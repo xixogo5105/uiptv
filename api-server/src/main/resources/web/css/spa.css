@@ -2234,3 +2234,11 @@ a[href] {
  }
  .content-shell:not(.wide-view):has(.player-epg-panel) { overflow-y: auto; }
 }
+
+.guide-toolbar { flex-wrap: wrap; gap: 8px; }
+.live-guide-track { height: 96px; }
+.live-guide-programme { height: 90px; }
+.live-guide-programme strong { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+.live-guide-name { white-space: normal; }
+.live-guide-selected-programme { margin: 10px 0; padding: 10px 12px; border-radius: 8px; background: var(--surface-high); overflow-wrap: anywhere; }
+.live-guide-selected-programme small { display: block; color: var(--muted); margin-top: 4px; }

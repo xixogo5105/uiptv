@@ -16,6 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LiveGuideUI extends VBox implements SearchTarget {
     private static final double CHANNEL_WIDTH = 200;
     private static final double HOUR_WIDTH = 240;
+    private double hourWidth = HOUR_WIDTH;
+    private final Label selectedProgramme = new Label();
     private final VBox rows = new VBox(4);
     private final ScrollPane scroll = new ScrollPane(rows);
     private final Label status = new Label();
@@ -42,9 +44,16 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         next.setOnAction(_ -> { hourOffset += 6; render(); });
         now.setOnAction(_ -> { hourOffset = 0; invalidate(); refreshIfNeeded(); });
         showAllChannels.setOnAction(_ -> render());
-        HBox toolbar = new HBox(8, previous, now, next, status, showAllChannels);
+        Button zoomIn = new Button("+"), zoomOut = new Button("−");
+        zoomIn.setTooltip(new Tooltip(I18n.tr("epgZoomIn"))); zoomOut.setTooltip(new Tooltip(I18n.tr("epgZoomOut")));
+        zoomIn.setOnAction(_ -> { hourWidth = Math.min(720, hourWidth + 120); render(); });
+        zoomOut.setOnAction(_ -> { hourWidth = Math.max(240, hourWidth - 120); render(); });
+        FlowPane toolbar = new FlowPane(8, 8, previous, now, next, status, showAllChannels, zoomOut, zoomIn);
         toolbar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        getChildren().addAll(toolbar, scroll);
+        selectedProgramme.setWrapText(true); selectedProgramme.setMinHeight(Region.USE_PREF_SIZE); selectedProgramme.setMaxWidth(Double.MAX_VALUE);
+        selectedProgramme.getStyleClass().add("live-guide-selected-programme");
+        selectedProgramme.setVisible(false); selectedProgramme.setManaged(false);
+        getChildren().addAll(toolbar, selectedProgramme, scroll);
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
         sceneProperty().addListener((_, _, scene) -> { if (scene == null) clock.stop(); else clock.play(); });
     }
@@ -56,7 +65,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         hourOffset = 0;
         generation.incrementAndGet();
         loading = false; loadedAt = 0; data = List.of();
-        rows.getChildren().clear();
+        rows.getChildren().clear(); selectedProgramme.setVisible(false); selectedProgramme.setManaged(false);
     }
 
     public void refreshIfNeeded() {
@@ -94,7 +103,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         channelHeading.setMinWidth(CHANNEL_WIDTH); header.getChildren().add(channelHeading);
         for (int hour = 0; hour < 6; hour++) {
             Label tick = new Label(formatTime(windowStart + hour * 3_600_000L));
-            tick.setMinWidth(HOUR_WIDTH); header.getChildren().add(tick);
+            tick.setMinWidth(hourWidth); header.getChildren().add(tick);
         }
         rows.getChildren().add(header);
         int count = 0;
@@ -106,11 +115,15 @@ public class LiveGuideUI extends VBox implements SearchTarget {
             HBox line = new HBox();
             Button name = new Button(channel.getName());
             name.getStyleClass().add("live-guide-channel");
+            if (ThumbnailAwareUI.areThumbnailsEnabled() && channel.getLogo() != null && !channel.getLogo().isBlank()) {
+                com.uiptv.widget.AsyncImageView thumbnail = new com.uiptv.widget.AsyncImageView();
+                thumbnail.loadImage(channel.getLogo(), "channel"); name.setGraphic(thumbnail);
+            }
             name.setMinWidth(CHANNEL_WIDTH); name.setPrefWidth(CHANNEL_WIDTH); name.setMaxWidth(CHANNEL_WIDTH);
-            name.setMinHeight(58); name.setOnAction(_ -> play(row));
+            name.setWrapText(true); name.setMinHeight(90); name.setOnAction(_ -> play(row));
             name.setTooltip(new Tooltip(row.accountName()));
             Pane timeline = new Pane();
-            timeline.setMinSize(HOUR_WIDTH * 6, 58); timeline.setPrefSize(HOUR_WIDTH * 6, 58);
+            timeline.setMinSize(hourWidth * 6, 90); timeline.setPrefSize(hourWidth * 6, 90);
             boolean hasProgramme = false;
             for (EpgProgramme p : row.programmes()) {
                 long left = Math.max(p.start(), windowStart), right = Math.min(p.stop(), windowStart + 6 * 3_600_000L);
@@ -119,19 +132,22 @@ public class LiveGuideUI extends VBox implements SearchTarget {
                 Button block = new Button(p.title());
                 block.getStyleClass().add("live-guide-programme");
                 if (p.start() <= System.currentTimeMillis() && p.stop() > System.currentTimeMillis()) block.getStyleClass().add("current-programme");
-                block.setLayoutX((left - windowStart) / 3_600_000.0 * HOUR_WIDTH);
+                block.setLayoutX((left - windowStart) / 3_600_000.0 * hourWidth);
                 block.setLayoutY(3);
-                block.setPrefSize(Math.max(1, (right - left) / 3_600_000.0 * HOUR_WIDTH - 3), 52);
-                block.setMinWidth(0); block.setWrapText(true);
+                block.setPrefSize(Math.max(1, (right - left) / 3_600_000.0 * hourWidth - 3), 84);
+                block.setMinWidth(0); block.setWrapText(true); block.setTextOverrun(OverrunStyle.CLIP);
                 block.setTooltip(new Tooltip(p.title() + "\n" + formatTime(p.start()) + " – " + formatTime(p.stop()) + "\n" + p.description()));
-                block.setOnAction(_ -> play(row));
+                block.setOnAction(_ -> {
+                    selectedProgramme.setText(channel.getName() + " · " + p.title() + " · " + formatTime(p.start()) + " – " + formatTime(p.stop()));
+                    selectedProgramme.setVisible(true); selectedProgramme.setManaged(true); play(row);
+                });
                 timeline.getChildren().add(block);
             }
             if (!hasProgramme) { Label empty = new Label(I18n.tr("epgNoGuide")); empty.setLayoutY(18); timeline.getChildren().add(empty); }
-            javafx.scene.shape.Line marker = new javafx.scene.shape.Line(HOUR_WIDTH * (System.currentTimeMillis() - windowStart) / 3_600_000.0, 0,
-                    HOUR_WIDTH * (System.currentTimeMillis() - windowStart) / 3_600_000.0, 58);
+            javafx.scene.shape.Line marker = new javafx.scene.shape.Line(hourWidth * (System.currentTimeMillis() - windowStart) / 3_600_000.0, 0,
+                    hourWidth * (System.currentTimeMillis() - windowStart) / 3_600_000.0, 90);
             marker.getStyleClass().add("live-guide-now-marker"); marker.setMouseTransparent(true);
-            if (marker.getStartX() >= 0 && marker.getStartX() <= HOUR_WIDTH * 6) timeline.getChildren().add(marker);
+            if (marker.getStartX() >= 0 && marker.getStartX() <= hourWidth * 6) timeline.getChildren().add(marker);
             line.getChildren().addAll(name, timeline); rows.getChildren().add(line);
         }
         status.setText(count == 0 ? I18n.tr("epgNoGuide") : (accountId.isBlank() ? I18n.tr("autoFavorite") : data.getFirst().accountName()));

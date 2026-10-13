@@ -311,6 +311,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     }
 
     private void applyStackedEmbeddedLayout() {
+        setPlayerGuideCompact(true);
         applyStackedEmbeddedArrangement();
         setPlayerAdjacentControlsVisible(hasPlayerGuidePanel());
 
@@ -340,6 +341,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     }
 
     private void applyPlayerAdjacentTopControlsEmbeddedLayout() {
+        setPlayerGuideCompact(false);
         applyPlayerAdjacentTopControlsEmbeddedArrangement();
         setPlayerAdjacentControlsVisible(true);
         activeTabPane.setMinWidth(0);
@@ -578,7 +580,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         navigationRow.setFillHeight(true);
         responsiveContent.getColumnConstraints().setAll(contentColumn);
         if (hasPlayerGuidePanel()) {
-            RowConstraints guideRow = new RowConstraints(); guideRow.setMinHeight(0); guideRow.setMaxHeight(300); guideRow.setVgrow(Priority.NEVER);
+            RowConstraints guideRow = new RowConstraints(); guideRow.setMinHeight(Region.USE_PREF_SIZE); guideRow.setVgrow(Priority.NEVER);
             responsiveContent.getRowConstraints().setAll(playerRow, guideRow, navigationRow);
         } else responsiveContent.getRowConstraints().setAll(playerRow, navigationRow);
     }
@@ -606,11 +608,16 @@ public class MainApplicationUI extends BaseMainApplicationUI {
 
     private double stackedEmbeddedPlayerHeight() {
         double width = stackedEmbeddedPlayerWidth();
-        return Math.clamp(
+        double preferred = Math.clamp(
                 width * STACKED_EMBEDDED_PLAYER_ASPECT_RATIO + STACKED_EMBEDDED_PLAYER_VERTICAL_CHROME,
                 STACKED_EMBEDDED_PLAYER_MIN_HEIGHT,
                 STACKED_EMBEDDED_PLAYER_MAX_HEIGHT
         );
+        if (hasPlayerGuidePanel() && !shouldUsePlayerAdjacentTopControlsLayout() && responsiveContent.getHeight() > 0) {
+            double guideHeight = playerAdjacentControls.prefHeight(availableLayoutWidth());
+            preferred = Math.min(preferred, Math.max(130, responsiveContent.getHeight() - guideHeight - 180));
+        }
+        return preferred;
     }
 
     private void placeInGrid(Node node, int column, int row) {
@@ -672,6 +679,12 @@ public class MainApplicationUI extends BaseMainApplicationUI {
 
     private boolean hasPlayerGuidePanel() {
         return playerAdjacentControls != null && playerAdjacentControls.getChildren().stream().anyMatch(node -> node instanceof com.uiptv.ui.PlayerEpgUI);
+    }
+
+    private void setPlayerGuideCompact(boolean compact) {
+        if (playerAdjacentControls == null) return;
+        playerAdjacentControls.getChildren().stream().filter(com.uiptv.ui.PlayerEpgUI.class::isInstance)
+                .map(com.uiptv.ui.PlayerEpgUI.class::cast).forEach(panel -> panel.setCompact(compact));
     }
 
     private void setPlayerAdjacentControlsVisible(boolean visible) {

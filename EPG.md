@@ -10,6 +10,8 @@ Matching uses the playlist/provider channel ID first. If it does not match, a un
 
 ## Current scope
 
+- Desktop Now/Next uses wrapping programme cards without an inner scrollbar; compact single-column mode keeps full titles and offers a programme-details link. Both guides wrap programme titles, offer timeline zoom, and show the selected programme's full title above the timeline.
+- Channel logos in both guides follow the existing thumbnail setting. Plain-text mode omits logos.
 - Shared XMLTV support for desktop and web; Now/Next also appears in live channel cards.
 - In-memory cache for up to eight guides, refreshed on use after six hours. Failures retain the previous guide and retry after five minutes. Desktop and web Live views refresh while open.
 - Streaming parsing, disabled external XML entities/DTD loading, request timeouts, a 100 MiB decompressed size limit, and a 200,000-programme limit per guide. Retained programmes cover roughly the previous day through the next seven days.
