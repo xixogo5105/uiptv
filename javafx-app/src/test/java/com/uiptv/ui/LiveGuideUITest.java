@@ -51,9 +51,9 @@ class LiveGuideUITest extends DbBackedUiTest {
             Pane second = (Pane) ((HBox) rows.getChildren().get(2)).getChildren().get(1);
             assertEquals(first.getChildren().getFirst().getLayoutX(), second.getChildren().getFirst().getLayoutX());
             assertEquals(477, ((Button) first.getChildren().getFirst()).getPrefWidth(), .01);
-            assertNotNull(((Button) ((HBox) rows.getChildren().get(1)).getChildren().getFirst()).getGraphic());
+            assertNotNull(((Button) ((HBox) rows.getChildren().get(1)).getChildren().getFirst()).getGraphic().lookup(".channel-logo-view"));
             ThumbnailAwareUI.notifyThumbnailModeChanged(false); guide.refreshIfNeeded();
-            assertNull(((Button) ((HBox) rows.getChildren().get(1)).getChildren().getFirst()).getGraphic());
+            assertNull(((Button) ((HBox) rows.getChildren().get(1)).getChildren().getFirst()).getGraphic().lookup(".channel-logo-view"));
             ThumbnailAwareUI.notifyThumbnailModeChanged(originalThumbnailMode); guide.refreshIfNeeded();
             WritableImage snapshot = root.snapshot(null, null);
             BufferedImage png = new BufferedImage((int) snapshot.getWidth(), (int) snapshot.getHeight(), BufferedImage.TYPE_INT_ARGB);
@@ -63,6 +63,52 @@ class LiveGuideUITest extends DbBackedUiTest {
             guide.setContext("account-2"); assertTrue(rows.getChildren().isEmpty()); guide.dispose();
             return null;
         });
+    }
+
+    @Test void onlyDoubleClickPlaysAndIndicatorFollowsAccountAndChannelIdentity() throws Exception {
+        runOnFxThread(() -> {
+            java.util.concurrent.atomic.AtomicInteger plays = new java.util.concurrent.atomic.AtomicInteger();
+            LiveGuideUI guide = new LiveGuideUI() {
+                @Override protected void play(LiveGuideApplicationService.Row row) { plays.incrementAndGet(); }
+            };
+            Channel channel = new Channel(); channel.setChannelId("provider-1"); channel.setName("News");
+            long now = System.currentTimeMillis();
+            var programme = new EpgProgramme("News at Ten", "", now - 60_000, now + 3_600_000);
+            field("data").set(guide, List.of(new LiveGuideApplicationService.Row("account-one", "One", "", channel, List.of(programme))));
+            field("loadedAt").setLong(guide, now); guide.refreshIfNeeded();
+            StackPane root = new StackPane(guide); new Scene(root, 900, 400);
+            VBox rows = (VBox) field("rows").get(guide);
+            HBox row = (HBox) rows.getChildren().get(1);
+            Button name = (Button) row.getChildren().getFirst();
+            Button block = (Button) ((Pane) row.getChildren().get(1)).getChildren().getFirst();
+            try {
+                for (Button target : List.of(name, block)) {
+                    target.fire();
+                    mouseClick(target, 1);
+                    assertEquals(0, plays.get());
+                }
+                assertTrue(((Label) field("selectedProgramme").get(guide)).getText().contains("News at Ten"));
+                mouseClick(name, 2); assertEquals(1, plays.get());
+                mouseClick(block, 2); assertEquals(2, plays.get());
+                var account = new com.uiptv.model.Account(); account.setDbId("other-account"); account.setAction(com.uiptv.model.Account.AccountAction.itv);
+                com.uiptv.player.MediaPlayerFactory.updateGuideContext(account, channel);
+                Node indicator = name.getGraphic().lookup(".playing-card-indicator"); assertFalse(indicator.isVisible());
+                account.setDbId("account-one"); com.uiptv.player.MediaPlayerFactory.updateGuideContext(account, channel);
+                assertTrue(indicator.isVisible()); assertTrue(indicator.isManaged());
+                Channel otherChannel = new Channel(); otherChannel.setChannelId("provider-2");
+                com.uiptv.player.MediaPlayerFactory.updateGuideContext(account, otherChannel);
+                assertFalse(indicator.isVisible());
+            } finally {
+                guide.dispose(); root.getChildren().clear(); com.uiptv.player.MediaPlayerFactory.updateGuideContext(null, null);
+            }
+            return null;
+        });
+    }
+
+    private static void mouseClick(Button button, int count) {
+        javafx.event.Event.fireEvent(button, new javafx.scene.input.MouseEvent(javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                0, 0, 0, 0, javafx.scene.input.MouseButton.PRIMARY, count, false, false, false, false,
+                false, false, false, false, false, true, null));
     }
 
     @Test void playerDetailsAppearBelowVideoAndHideWhenGuideIsAbsent() throws Exception {

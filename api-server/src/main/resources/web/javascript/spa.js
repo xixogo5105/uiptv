@@ -1235,6 +1235,11 @@ createApp({
             return !!(normalizedBookmarkId || hasIdMatch || hasNameMatch);
         };
 
+        const isActiveGuideRow = row => matchesCurrentPlayback({
+            id: row.channel?.channelId || '', accountId: row.accountId, accountName: row.accountName,
+            mode: 'itv', name: row.channel?.name || '', bookmarkId: row.bookmarkId || ''
+        });
+
         const buildPlaybackTargetKey = ({
                                             id = '',
                                             accountId = '',
@@ -4964,7 +4969,7 @@ createApp({
         }, {immediate: true});
 
         return {
-            epgModeEnabled, epgSettingsOpen, epgGuideVisible, epgLabels, toggleEpgMode,
+            isActiveGuideRow, epgModeEnabled, epgSettingsOpen, epgGuideVisible, epgLabels, toggleEpgMode,
             thumbnailsEnabled, liveGuideHourWidth, selectedGuideProgramme, zoomGuide,
             playerEpg, playerProgrammeTime, showAllGuideChannels,
             liveGuideRows, liveGuideLoading, liveGuideError, filteredLiveGuideRows, liveGuideTicks,

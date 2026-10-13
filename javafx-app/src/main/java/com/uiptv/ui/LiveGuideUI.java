@@ -18,6 +18,8 @@ public class LiveGuideUI extends VBox implements SearchTarget {
     private static final double HOUR_WIDTH = 240;
     private double hourWidth = HOUR_WIDTH;
     private final Label selectedProgramme = new Label();
+    private final Map<LiveGuideApplicationService.Row, com.uiptv.widget.PlayingCardIndicator> playingIndicators = new LinkedHashMap<>();
+    private final javafx.beans.value.ChangeListener<com.uiptv.player.MediaPlayerFactory.GuideContext> playbackListener = (_, _, _) -> updatePlayingIndicators();
     private final VBox rows = new VBox(4);
     private final ScrollPane scroll = new ScrollPane(rows);
     private final Label status = new Label();
@@ -56,7 +58,11 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         selectedProgramme.setVisible(false); selectedProgramme.setManaged(false);
         getChildren().addAll(toolbar, selectedProgramme, scroll);
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
-        sceneProperty().addListener((_, _, scene) -> { if (scene == null) clock.stop(); else clock.play(); });
+        sceneProperty().addListener((_, oldScene, scene) -> {
+            if (oldScene != null) com.uiptv.player.MediaPlayerFactory.guideContextProperty().removeListener(playbackListener);
+            if (scene == null) { clock.stop(); hidePlayingIndicators(); }
+            else { com.uiptv.player.MediaPlayerFactory.guideContextProperty().addListener(playbackListener); updatePlayingIndicators(); clock.play(); }
+        });
     }
 
     public void setRowFilter(java.util.function.Predicate<LiveGuideApplicationService.Row> filter) {
@@ -70,6 +76,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         hourOffset = 0;
         generation.incrementAndGet();
         loading = false; loadedAt = 0; data = List.of();
+        hidePlayingIndicators(); playingIndicators.clear();
         rows.getChildren().clear(); selectedProgramme.setVisible(false); selectedProgramme.setManaged(false);
     }
 
@@ -96,12 +103,16 @@ public class LiveGuideUI extends VBox implements SearchTarget {
     }
 
     public void invalidate() { loadedAt = 0; }
-    public void dispose() { generation.incrementAndGet(); loading = false; clock.stop(); }
+    public void dispose() {
+        generation.incrementAndGet(); loading = false; clock.stop(); hidePlayingIndicators();
+        com.uiptv.player.MediaPlayerFactory.guideContextProperty().removeListener(playbackListener);
+    }
     @Override public void setSearchQuery(String text) { query = text == null ? "" : text.toLowerCase(Locale.ROOT); render(); }
 
     private void render() {
         if (loading && data.isEmpty()) return;
         windowStart = Instant.now().atZone(ZoneId.systemDefault()).withMinute(0).withSecond(0).withNano(0).minusHours(1).plusHours(hourOffset).toInstant().toEpochMilli();
+        hidePlayingIndicators(); playingIndicators.clear();
         rows.getChildren().clear();
         HBox header = new HBox();
         Label channelHeading = new Label(DateTimeFormatter.ofPattern("EEE d MMM").format(Instant.ofEpochMilli(windowStart).atZone(ZoneId.systemDefault())));
@@ -121,12 +132,16 @@ public class LiveGuideUI extends VBox implements SearchTarget {
             HBox line = new HBox();
             Button name = new Button(channel.getName());
             name.getStyleClass().add("live-guide-channel");
+            HBox graphic = new HBox(6); graphic.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
             if (ThumbnailAwareUI.areThumbnailsEnabled() && channel.getLogo() != null && !channel.getLogo().isBlank()) {
                 com.uiptv.widget.AsyncImageView thumbnail = new com.uiptv.widget.AsyncImageView();
-                thumbnail.loadImage(channel.getLogo(), "channel"); name.setGraphic(thumbnail);
+                thumbnail.loadImage(channel.getLogo(), "channel"); graphic.getChildren().add(thumbnail);
             }
+            var indicator = new com.uiptv.widget.PlayingCardIndicator();
+            graphic.getChildren().add(indicator); playingIndicators.put(row, indicator); name.setGraphic(graphic);
+            installPlaybackActivation(name, row);
             name.setMinWidth(CHANNEL_WIDTH); name.setPrefWidth(CHANNEL_WIDTH); name.setMaxWidth(CHANNEL_WIDTH);
-            name.setWrapText(true); name.setMinHeight(90); name.setOnAction(_ -> play(row));
+            name.setWrapText(true); name.setMinHeight(90);
             name.setTooltip(new Tooltip(row.accountName()));
             Pane timeline = new Pane();
             timeline.setMinSize(hourWidth * 6, 90); timeline.setPrefSize(hourWidth * 6, 90);
@@ -145,8 +160,9 @@ public class LiveGuideUI extends VBox implements SearchTarget {
                 block.setTooltip(new Tooltip(p.title() + "\n" + formatTime(p.start()) + " – " + formatTime(p.stop()) + "\n" + p.description()));
                 block.setOnAction(_ -> {
                     selectedProgramme.setText(channel.getName() + " · " + p.title() + " · " + formatTime(p.start()) + " – " + formatTime(p.stop()));
-                    selectedProgramme.setVisible(true); selectedProgramme.setManaged(true); play(row);
+                    selectedProgramme.setVisible(true); selectedProgramme.setManaged(true);
                 });
+                installPlaybackActivation(block, row);
                 timeline.getChildren().add(block);
             }
             if (!hasProgramme) { Label empty = new Label(I18n.tr("epgNoGuide")); empty.setLayoutY(18); timeline.getChildren().add(empty); }
@@ -156,12 +172,41 @@ public class LiveGuideUI extends VBox implements SearchTarget {
             if (marker.getStartX() >= 0 && marker.getStartX() <= hourWidth * 6) timeline.getChildren().add(marker);
             line.getChildren().addAll(name, timeline); rows.getChildren().add(line);
         }
+        updatePlayingIndicators();
         status.setText(count == 0 ? I18n.tr("epgNoGuide") : (accountId.isBlank() ? I18n.tr("autoFavorite") : data.getFirst().accountName()));
+    }
+
+    private void installPlaybackActivation(Button button, LiveGuideApplicationService.Row row) {
+        button.setOnMouseClicked(event -> {
+            if (event.getButton() == javafx.scene.input.MouseButton.PRIMARY && event.getClickCount() == 2) {
+                play(row); event.consume();
+            }
+        });
+        button.setOnKeyPressed(event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.ENTER || event.getCode() == javafx.scene.input.KeyCode.SPACE) {
+                button.fire(); play(row); event.consume();
+            }
+        });
+    }
+
+    private void hidePlayingIndicators() {
+        playingIndicators.values().forEach(indicator -> { indicator.setVisible(false); indicator.setManaged(false); });
+    }
+
+    private void updatePlayingIndicators() {
+        var context = com.uiptv.player.MediaPlayerFactory.guideContextProperty().get();
+        for (var entry : playingIndicators.entrySet()) {
+            var row = entry.getKey();
+            boolean active = context != null && context.account() != null && context.account().action() == Account.AccountAction.itv
+                    && Objects.equals(context.account().dbId(), row.accountId())
+                    && Objects.equals(context.channel().getChannelId(), row.channel().getChannelId());
+            entry.getValue().setManaged(active); entry.getValue().setVisible(active);
+        }
     }
 
     private static String formatTime(long time) { return DateTimeFormatter.ofPattern("HH:mm").format(Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault())); }
 
-    private void play(LiveGuideApplicationService.Row row) {
+    protected void play(LiveGuideApplicationService.Row row) {
         Thread.ofVirtual().start(() -> {
             Account account = AccountService.getInstance().getById(row.accountId());
             if (account == null) return;
