@@ -473,3 +473,5 @@ epg.cache.ttl=24h
 ```
 
 Downloaded XMLTV remains cached across restarts. The default TTL is 24 hours. Refresh EPG clears this cache and downloads again. Native provider schedules have a separate short-lived cache.
+
+In the mobile embedded mpv player, swipe left on the video or tap **Guide** to open a side panel with the on-air programme title, local times, progress and full description, followed by Up next. Swipe right on the panel or tap **Close guide** to close it. The panel uses cached EPG data and respects player locking and the mobile EPG enable switch.

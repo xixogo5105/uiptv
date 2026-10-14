@@ -53,6 +53,36 @@ class MpvEmbeddedPlayerActivityControlTest {
     }
 
     @Test
+    fun onAirProgrammeDrawerShowsDetailsAndOpensBySwipe() {
+        val player = launchPlayer("LIVE")
+        waitForAnyControl(player, listOf("Pause", "Play", "Play/pause"))
+        val now = System.currentTimeMillis()
+        val programme = com.uiptv.mobile.shared.epg.MobileEpgProgramme("Godzilla", "On-air movie description", now - 60_000, now + 3_600_000)
+        instrumentation.runOnMainSync {
+            val job = player.javaClass.getDeclaredField("epgJob").apply { isAccessible = true }.get(player) as? kotlinx.coroutines.Job
+            job?.cancel()
+            player.javaClass.getDeclaredMethod("displayEpg", com.uiptv.mobile.shared.epg.MobileEpgResult::class.java).apply { isAccessible = true }
+                .invoke(player, com.uiptv.mobile.shared.epg.MobileEpgResult(com.uiptv.mobile.shared.epg.MobileEpgStatus.AVAILABLE, listOf(programme)))
+        }
+        clickControl(player, "Show programme guide")
+        val panel = waitForControl(player, "Programme details panel")
+        org.junit.Assert.assertEquals(View.VISIBLE, panel.visibility)
+        org.junit.Assert.assertEquals("Godzilla", (waitForControl(player, "On-air programme title") as android.widget.TextView).text.toString())
+        org.junit.Assert.assertEquals("On-air movie description", (waitForControl(player, "On-air programme description") as android.widget.TextView).text.toString())
+        clickControl(player, "Close programme guide")
+        org.junit.Assert.assertEquals(View.GONE, panel.visibility)
+        instrumentation.runOnMainSync {
+            val root = player.javaClass.getDeclaredField("rootLayout").apply { isAccessible = true }.get(player) as View
+            val time = android.os.SystemClock.uptimeMillis()
+            val down = android.view.MotionEvent.obtain(time, time, android.view.MotionEvent.ACTION_DOWN, root.width * 0.8f, root.height * 0.2f, 0)
+            val up = android.view.MotionEvent.obtain(time, time + 100, android.view.MotionEvent.ACTION_UP, root.width * 0.2f, root.height * 0.2f, 0)
+            player.dispatchTouchEvent(down); player.dispatchTouchEvent(up); down.recycle(); up.recycle()
+        }
+        org.junit.Assert.assertEquals(View.VISIBLE, panel.visibility)
+        clickControl(player, "Close programme guide")
+    }
+
+    @Test
     fun lockButtonTogglesLockState() {
         val player = launchPlayer("VOD")
 

@@ -72,6 +72,12 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private lateinit var progressSeekBar: SeekBar
     private lateinit var streamInfoLabel: TextView
     private lateinit var epgLabel: TextView
+    private lateinit var epgPanel: ScrollView
+    private lateinit var epgDetails: LinearLayout
+    private lateinit var epgGuideButton: TextView
+    private var epgResult: com.uiptv.mobile.shared.epg.MobileEpgResult? = null
+    private var panelTouchX = 0f
+    private var panelTouchY = 0f
     private var epgJob: kotlinx.coroutines.Job? = null
     private val epgDatabase by lazy { AndroidUiptvDatabaseHelper(this) }
     private val epgRepository by lazy { com.uiptv.mobile.shared.epg.AndroidEpgRepository(this, epgDatabase, preferencesRepository) }
@@ -305,6 +311,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
         feedbackView.bringToFront()
         loadingSpinner.bringToFront()
         messageView.bringToFront()
+        epgPanel = createEpgPanel()
+        rootLayout.addView(epgPanel, FrameLayout.LayoutParams(minOf(dp(360), resources.displayMetrics.widthPixels * 4 / 5), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.END))
         unlockButton = TextView(this).apply {
             text = "\uD83D\uDD13"
             contentDescription = "Unlock"
@@ -409,6 +417,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             }
             return true
         }
+        if (event.isInsideVisibleOverlay(epgPanel)) return super.dispatchTouchEvent(event)
         if (event.isInsideVisibleOverlay(controlsOverlay) || event.isInsideVisibleOverlay(playlistOverlay)) {
             return super.dispatchTouchEvent(event)
         }
@@ -417,6 +426,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean =
         when (keyCode) {
+            KeyEvent.KEYCODE_BACK -> {
+                if (epgPanel.visibility == View.VISIBLE) { hideEpgPanel(); true }
+                else super.onKeyUp(keyCode, event)
+            }
             KeyEvent.KEYCODE_DPAD_CENTER,
             KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_SPACE -> {
@@ -601,6 +614,11 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
             MotionEvent.ACTION_UP,
             MotionEvent.ACTION_CANCEL -> {
+                if (event.actionMasked == MotionEvent.ACTION_UP && activeGesture == PlayerGesture.None &&
+                    abs(event.x - touchStartX) > dp(64) && abs(event.x - touchStartX) > abs(event.y - touchStartY)) {
+                    if (event.x < touchStartX) showEpgPanel() else hideEpgPanel()
+                    return true
+                }
                 val wasTap = activeGesture == PlayerGesture.None &&
                     abs(event.x - touchStartX) < TapSlopPx &&
                     abs(event.y - touchStartY) < TapSlopPx
@@ -666,11 +684,15 @@ class MpvEmbeddedPlayerActivity : Activity() {
         epgLabel = TextView(this).apply {
             setTextColor(Color.WHITE); setTextSize(11f); maxLines = 2; visibility = View.GONE
         }
+        epgGuideButton = controlButton("Guide") { showEpgPanel() }.apply {
+            contentDescription = "Show programme guide"; visibility = View.GONE
+        }
         val closeButton = controlButton(CloseIcon) { finish() }
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(titleLabel, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(epgGuideButton)
             addView(closeButton)
         }
         streamInfoLabel = TextView(this).apply {
@@ -1093,6 +1115,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun toggleLock() {
+        hideEpgPanel()
         locked = !locked
         saveEmbeddedPlayerPreference()
         if (locked) {
@@ -1490,6 +1513,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
         if (!::epgLabel.isInitialized) return
         epgJob?.cancel()
         epgLabel.visibility = View.GONE
+        epgResult = null
+        if (::epgGuideButton.isInitialized) epgGuideButton.visibility = View.GONE
+        if (::epgPanel.isInitialized) hideEpgPanel()
         val target = currentTarget ?: return
         if (target.mode != BrowseMode.LIVE) return
         epgJob = playbackScope.launch {
@@ -1497,14 +1523,88 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 val result = epgRepository.schedule(target.accountId, target.channelId, target.title)
                 if (target != currentTarget) return@launch
                 val now = System.currentTimeMillis()
-                epgLabel.text = listOfNotNull(result.now(now)?.let { "Now: ${it.title}" },
-                    result.next(now)?.let { "Next: ${it.title}" }).joinToString("\n")
-                epgLabel.visibility = if (epgLabel.text.isBlank()) View.GONE else View.VISIBLE
+                displayEpg(result)
                 if (result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) return@launch
                 val boundary = result.programmes.filter { it.stop > now }.minOfOrNull { it.stop } ?: now + 60_000
                 kotlinx.coroutines.delay((boundary - now).coerceIn(1000, 60_000))
             }
         }
+    }
+
+    private fun createEpgPanel(): ScrollView {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(18), dp(18), dp(24))
+            setBackgroundColor(Color.argb(242, 18, 22, 30))
+        }
+        content.addView(controlButton("Close guide") { hideEpgPanel() }.apply { contentDescription = "Close programme guide" })
+        epgDetails = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(epgDetails)
+        return ScrollView(this).apply {
+            contentDescription = "Programme details panel"
+            visibility = View.GONE; isFillViewport = true; addView(content)
+            setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> { panelTouchX = event.x; panelTouchY = event.y; false }
+                    MotionEvent.ACTION_UP -> {
+                        if (event.x - panelTouchX > dp(64) && abs(event.x - panelTouchX) > abs(event.y - panelTouchY)) {
+                            hideEpgPanel(); true
+                        } else false
+                    }
+                    else -> false
+                }
+            }
+        }
+    }
+
+    private fun showEpgPanel() {
+        if (locked || !isLiveStream() || epgResult == null || epgResult?.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) return
+        controlsOverlay.visibility = View.GONE; controlsVisible = false
+        hidePlaylistOverlay(); renderEpgDetails()
+        epgPanel.visibility = View.VISIBLE; epgPanel.bringToFront()
+        epgPanel.translationX = epgPanel.layoutParams.width.toFloat()
+        epgPanel.animate().translationX(0f).setDuration(180).start()
+    }
+
+    private fun hideEpgPanel() { if (::epgPanel.isInitialized) { epgPanel.animate().cancel(); epgPanel.visibility = View.GONE } }
+
+    private fun displayEpg(result: com.uiptv.mobile.shared.epg.MobileEpgResult) {
+        epgResult = result
+        val now = System.currentTimeMillis()
+        epgLabel.text = listOfNotNull(result.now(now)?.let { "Now: ${it.title}" }, result.next(now)?.let { "Next: ${it.title}" }).joinToString("\n")
+        epgLabel.visibility = if (epgLabel.text.isBlank()) View.GONE else View.VISIBLE
+        epgGuideButton.visibility = if (result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) View.GONE else View.VISIBLE
+        if (result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) hideEpgPanel()
+        else if (::epgPanel.isInitialized && epgPanel.visibility == View.VISIBLE) renderEpgDetails()
+    }
+
+    private fun renderEpgDetails() {
+        epgDetails.removeAllViews()
+        fun text(value: String, size: Float = 16f, description: String? = null) {
+            epgDetails.addView(TextView(this).apply {
+                this.text = value; setTextColor(Color.WHITE); textSize = size
+                setPadding(0, dp(8), 0, dp(8)); contentDescription = description
+            })
+        }
+        text(currentTarget?.title.orEmpty(), 18f)
+        val now = System.currentTimeMillis()
+        val result = epgResult
+        val current = result?.now(now)
+        val format = java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.getDefault())
+        if (current != null) {
+            text("On air", 13f); text(current.title, 22f, "On-air programme title")
+            text("${format.format(java.util.Date(current.start))} – ${format.format(java.util.Date(current.stop))}", 14f)
+            epgDetails.addView(ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+                max = 1000; progress = (((now - current.start).toDouble() / (current.stop - current.start)) * 1000).toInt().coerceIn(0, 1000)
+                contentDescription = "Programme progress"
+            })
+            text(current.description.ifBlank { "No programme description available" }, 16f, "On-air programme description")
+        } else text(result?.message?.takeIf { it.isNotBlank() } ?: "No on-air programme guide available", 16f)
+        result?.next(now)?.let { next ->
+            text("Up next", 13f); text(next.title, 18f)
+            text("${format.format(java.util.Date(next.start))} – ${format.format(java.util.Date(next.stop))}", 14f)
+        }
+        text("Swipe right to close", 12f)
     }
 
     private fun updateStreamInfo() {
