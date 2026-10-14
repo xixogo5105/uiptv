@@ -27,6 +27,23 @@ class EpgResolutionTest extends DbBackedTest {
         Files.writeString(path, "<tv><programme channel='" + id + "' start='" + format.format(now.minusSeconds(60)) + "' stop='" + format.format(now.plusSeconds(3600)) + "'><title>" + title + "</title></programme></tv>");
         return path.toString();
     }
+    @Test void namedProgrammesKeepTheirDurationWhenGenericPlaceholdersOverlap() {
+        var godzilla = new EpgProgramme("Godzilla", "", 1000, 3000);
+        var movie = new EpgProgramme("Movie", "", 1500, 4000);
+        var normalized = EpgSchedules.normalize(List.of(movie, godzilla, godzilla));
+        assertEquals(List.of(godzilla, new EpgProgramme("Movie", "", 3000, 4000)), normalized);
+        assertEquals(1, EpgSchedules.normalize(List.of(godzilla, new EpgProgramme("Movie", "", 1500, 2000))).size());
+    }
+    @Test void nativeCatalogueDoesNotDownloadXmlBeforeChannelNativeResolution() throws Exception {
+        account.setType(AccountType.XTREME_API); account.setEpg("https://example.invalid/account.xml");
+        config.setGlobalEpgSource("https://example.invalid/global.xml"); ConfigurationService.getInstance().save(config);
+        try (var http = mockStatic(HttpUtil.class)) {
+            var service = new EpgApplicationService(); service.enrich(account, List.of(channel));
+            assertTrue(service.catalogSchedules(account, List.of(channel), false).get(channel).isEmpty());
+            http.verifyNoInteractions();
+        }
+    }
+
     @Test void allDesktopSourcesHaveA200MiBLimitAndLimitsAreEnforced() throws Exception {
         assertEquals(200L * 1024 * 1024, EpgApplicationService.sourceSizeLimit());
         try (var limited = new EpgApplicationService.LimitedInputStream(new java.io.ByteArrayInputStream(new byte[5]), 4)) {

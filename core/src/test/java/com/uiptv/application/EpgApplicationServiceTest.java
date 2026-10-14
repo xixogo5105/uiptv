@@ -114,7 +114,9 @@ class EpgApplicationServiceTest extends DbBackedTest {
         assertEquals("guide-id", channel.getChannelId());
         assertEquals("different-local-id", channel.getDbId());
         for (AccountType type : AccountType.values()) {
-            account.setType(type); service.enrich(account, List.of(channel)); assertEquals(type == AccountType.M3U8_LOCAL || type == AccountType.M3U8_URL ? "Automatic" : "Manual", channel.getEpgNow().title());
+            account.setType(type); service.enrich(account, List.of(channel));
+            if (type == AccountType.XTREME_API || type == AccountType.STALKER_PORTAL) assertNull(channel.getEpgNow());
+            else assertEquals(type == AccountType.M3U8_LOCAL || type == AccountType.M3U8_URL ? "Automatic" : "Manual", channel.getEpgNow().title());
         }
     }
 

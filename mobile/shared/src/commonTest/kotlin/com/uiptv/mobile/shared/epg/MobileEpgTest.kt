@@ -21,6 +21,12 @@ class MobileEpgTest {
         assertTrue(guide.forChannel("missing", "Zee TV 4K").isEmpty())
         assertEquals(listOf(p), guide.forChannel("missing", "Zee TV HD"))
     }
+    @Test fun namedMoviesTakePriorityOverOverlappingGenericPlaceholders() {
+        val godzilla = MobileEpgProgramme("Godzilla", "", 1000, 3000)
+        val movie = MobileEpgProgramme("Movie", "", 1500, 4000)
+        assertEquals(listOf(godzilla, movie.copy(start = 3000)), MobileEpgSchedules.normalize(listOf(movie, godzilla, godzilla)))
+        assertEquals(listOf(godzilla), MobileEpgSchedules.normalize(listOf(godzilla, movie.copy(stop = 2000))))
+    }
     @Test fun programmeBoundariesAreHalfOpenAndNextIsUpcoming() {
         val first = MobileEpgProgramme("Now", "", 1000, 2000)
         val next = MobileEpgProgramme("Next", "", 2000, 3000)

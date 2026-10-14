@@ -69,10 +69,10 @@ object AndroidXmltvReader {
         qualityNames.remove("")
         val completed = programmes.mapValues { (_, raw) ->
             val sorted = raw.sortedBy { it.start }
-            sorted.mapIndexedNotNull { index, p ->
+            MobileEpgSchedules.normalize(sorted.mapIndexedNotNull { index, p ->
                 val end = if (p.stop == 0L) sorted.getOrNull(index + 1)?.start ?: 0L else p.stop
                 if (end > p.start) p.copy(stop = end) else null
-            }
+            })
         }
         return MobileXmltvGuide(completed, names.toMap(), qualityNames.toMap())
     }

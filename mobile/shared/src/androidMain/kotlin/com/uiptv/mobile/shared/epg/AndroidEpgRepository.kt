@@ -66,7 +66,7 @@ class AndroidEpgRepository(
                 catch (e: CancellationException) { throw e }
                 catch (_: Exception) { emptyList() }
                 val stale = programmes.isEmpty() && cached?.programmes?.any { it.stop > now } == true
-                NativeCache(if (stale) cached!!.programmes else programmes, now + if (programmes.isEmpty()) 60_000 else 300_000, stale)
+                NativeCache(if (stale) cached!!.programmes else programmes, now + 30 * 60_000L, stale)
                     .also { native[key] = it; while (native.size > 256) native.remove(native.keys.first()) }
             }
             if (schedules.programmes.any { it.stop > now }) return@withLock MobileEpgResult(
@@ -129,7 +129,7 @@ class AndroidEpgRepository(
             if (found.isNotBlank()) found = if (playlist.startsWith("content:")) found else
                 (if (playlist.contains("://") || playlist.startsWith("file:")) URI(playlist) else File(playlist).toURI()).resolve(found).toString()
         } catch (_: Exception) { found = "" }
-        discovered[playlist] = found to now + if (found.isBlank()) 300_000 else 900_000
+        discovered[playlist] = found to now + if (found.isBlank()) 30 * 60_000L else 900_000
         while (discovered.size > 8) discovered.remove(discovered.keys.first())
         return found
     }
@@ -156,7 +156,7 @@ class AndroidEpgRepository(
                 else -> "Guide source unavailable or invalid."
             }
             val fallback = previous?.guide ?: if (remote) disk.read(source, now, stale = true) else null
-            GuideCache(fallback, now + 300_000, fallback != null, message)
+            GuideCache(fallback, now + 30 * 60_000L, fallback != null, message)
         }
         guides[source] = cached
         while (guides.size > 32) guides.remove(guides.keys.first())
@@ -212,7 +212,7 @@ class AndroidEpgRepository(
         }
         fun text(value: String) = if (account.type == MobileAccountType.XTREME_API)
             runCatching { Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(Base64.decode(value, Base64.DEFAULT))).toString() }.getOrDefault(value) else value
-        return (0 until minOf(list.length(), 2000)).mapNotNull { index ->
+        return MobileEpgSchedules.normalize((0 until minOf(list.length(), 2000)).mapNotNull { index ->
             val p = list.optJSONObject(index) ?: return@mapNotNull null
             fun field(vararg keys: String) = keys.map { p.optString(it) }.firstOrNull { it.isNotBlank() }.orEmpty()
             val associated = field("ch_id", "channel_id", "stream_id")
@@ -223,7 +223,7 @@ class AndroidEpgRepository(
             val title = text(field("title", "name"))
             if (start > now - 86400_000 && start < now + 7 * 86400_000L && stop > start && title.isNotBlank())
                 MobileEpgProgramme(title, text(field("description", "descr", "desc")), start, stop) else null
-        }.sortedBy { it.start }
+        }.sortedBy { it.start })
     }
     companion object {
         fun resolveDesktopSource(source: String, desktopHost: String): String {

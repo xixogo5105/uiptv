@@ -88,7 +88,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private int epgCardGeneration;
     private final PauseTransition epgCardPulse = new PauseTransition(Duration.millis(250));
     private final javafx.animation.Timeline epgCardClock = new javafx.animation.Timeline(
-            new javafx.animation.KeyFrame(Duration.minutes(1), _ -> refreshVisibleCardEpg()));
+            new javafx.animation.KeyFrame(Duration.minutes(30), _ -> refreshVisibleCardEpg()));
     private final ResponsiveCardGrid<ChannelItem> channelGrid = new ResponsiveCardGrid<>(this::createChannelCard, true);
     private final ScrollPane channelGridScroll = new ScrollPane();
     private final TableColumn<ChannelItem, String> channelName = new TableColumn<>(I18n.tr("autoChannels"));
@@ -933,7 +933,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         int request = ++epgCardGeneration;
         if (epgCardWorker != null) epgCardWorker.interrupt();
         Map<Node, ChannelItem> items = new LinkedHashMap<>();
-        for (Node card : cards) { items.put(card, (ChannelItem) card.getProperties().get("epgChannelItem")); epgCardRefreshAt.put(card, now + 60_000); }
+        for (Node card : cards) { items.put(card, (ChannelItem) card.getProperties().get("epgChannelItem")); epgCardRefreshAt.put(card, now + 30 * 60_000L); }
         epgCardWorker = Thread.ofVirtual().start(() -> {
             for (var entry : items.entrySet()) {
                 if (Thread.currentThread().isInterrupted()) return;

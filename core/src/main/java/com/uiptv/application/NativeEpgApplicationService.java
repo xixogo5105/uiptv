@@ -76,7 +76,7 @@ public class NativeEpgApplicationService {
             if (!usable && previous != null && EpgApplicationService.usable(previous.programmes())) result = previous.programmes();
             synchronized (CACHE) {
                 if (revision != cacheRevision) return List.of();
-                CACHE.put(key, new Cached(result, now + (usable ? 5 * 60_000L : 60_000L)));
+                CACHE.put(key, new Cached(result, now + 30 * 60_000L));
                 while (CACHE.size() > 256) CACHE.remove(CACHE.keySet().iterator().next());
             }
             return result;
@@ -158,7 +158,7 @@ public class NativeEpgApplicationService {
                     result.add(new EpgProgramme(title, text(first(p, "description", "descr", "desc"), encoded), start, stop));
             }
             result.sort(Comparator.comparingLong(EpgProgramme::start));
-            return List.copyOf(result);
+            return EpgSchedules.normalize(result);
         } catch (Exception ignored) { return List.of(); }
     }
 

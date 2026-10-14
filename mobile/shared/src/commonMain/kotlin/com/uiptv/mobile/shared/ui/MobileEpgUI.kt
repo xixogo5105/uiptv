@@ -75,7 +75,7 @@ internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) 
     var revision by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(accountId, channelId, state.time / 60_000, revision) {
+    LaunchedEffect(accountId, channelId, state.time / (30 * 60_000), revision) {
         result = state.actions.schedule(accountId, channelId, name)
     }
     val now = result?.now(state.time)
@@ -146,7 +146,7 @@ internal fun MobileLiveGuideButton(
     var result by remember { mutableStateOf<MobileEpgResult?>(null) }
     TextButton(onClick = { open = true }) { Text("Live Guide") }
     if (!open) return
-    LaunchedEffect(selected.accountId, selected.channelId, state.time / 60_000) {
+    LaunchedEffect(selected.accountId, selected.channelId, state.time / (30 * 60_000)) {
         result = null
         result = state.actions.schedule(selected.accountId, selected.channelId, selected.name)
     }

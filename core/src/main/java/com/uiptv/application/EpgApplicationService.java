@@ -72,10 +72,11 @@ public class EpgApplicationService {
         if (!supportsGuide(account) || channels.isEmpty()) return;
         // Catalog enrichment shares XMLTV sources; native schedules are requested on guide/player demand.
         long now = System.currentTimeMillis();
-        ResolutionContext context = context(account);
+        boolean loadXml = account.getType() != AccountType.STALKER_PORTAL && account.getType() != AccountType.XTREME_API;
+        ResolutionContext context = context(account, loadXml);
         for (Channel channel : channels) {
             List<EpgProgramme> nativeSchedule = new NativeEpgApplicationService().cached(account, channel);
-            for (EpgProgramme p : usable(nativeSchedule) ? nativeSchedule : xmlSchedule(account, channel, context)) {
+            for (EpgProgramme p : usable(nativeSchedule) ? nativeSchedule : xmlSchedule(account, channel, context, loadXml)) {
                 if (p.start() <= now && now < p.stop()) channel.setEpgNow(p);
                 if (p.start() > now) { channel.setEpgNext(p); break; }
             }
@@ -88,6 +89,12 @@ public class EpgApplicationService {
         return usable(nativeSchedule) ? nativeSchedule : xmlSchedule(account, channel);
     }
 
+    public List<EpgProgramme> memorySchedule(Account account, Channel channel) {
+        if (!supportsGuide(account) || channel == null) return List.of();
+        var nativeSchedule = new NativeEpgApplicationService().cached(account, channel);
+        return usable(nativeSchedule) ? nativeSchedule : xmlSchedule(account, channel, context(account, false), false);
+    }
+
     public List<EpgProgramme> schedule(Account account, Channel channel) {
         if (!supportsGuide(account) || channel == null || Thread.currentThread().isInterrupted()) return List.of();
         List<EpgProgramme> nativeSchedule = new NativeEpgApplicationService().schedule(account, channel);
@@ -95,19 +102,26 @@ public class EpgApplicationService {
     }
 
     public Map<Channel, List<EpgProgramme>> catalogSchedules(Account account, List<Channel> channels) {
+        return catalogSchedules(account, channels, true);
+    }
+    public Map<Channel, List<EpgProgramme>> catalogSchedules(Account account, List<Channel> channels, boolean loadXml) {
         if (!supportsGuide(account)) return Map.of();
-        ResolutionContext context = context(account);
+        ResolutionContext context = context(account, loadXml);
         Map<Channel, List<EpgProgramme>> result = new IdentityHashMap<>();
         for (Channel channel : channels) {
             List<EpgProgramme> nativeSchedule = new NativeEpgApplicationService().cached(account, channel);
-            result.put(channel, usable(nativeSchedule) ? nativeSchedule : xmlSchedule(account, channel, context));
+            result.put(channel, usable(nativeSchedule) ? nativeSchedule : xmlSchedule(account, channel, context, loadXml));
         }
         return result;
     }
     private record ResolutionContext(List<String> sources, org.json.JSONObject mappings) { }
-    private ResolutionContext context(Account account) {
+    private ResolutionContext context(Account account) { return context(account, true); }
+    private ResolutionContext context(Account account, boolean load) {
         LinkedHashSet<String> sources = new LinkedHashSet<>();
-        try { sources.add(discover(account)); }
+        try {
+            if (load) sources.add(discover(account));
+            else if (account.getType() == AccountType.M3U8_LOCAL || account.getType() == AccountType.M3U8_URL) synchronized (SOURCES) { var source = SOURCES.get(account.getM3u8Path()); if (source != null) sources.add(source.source()); }
+        }
         catch (Exception e) { AppLog.addWarningLog(EpgApplicationService.class, "Playlist EPG discovery unavailable."); }
         sources.add(account.getEpg());
         var config = com.uiptv.service.ConfigurationService.getInstance().read();
@@ -121,6 +135,9 @@ public class EpgApplicationService {
         return xmlSchedule(account, channel, context(account));
     }
     private List<EpgProgramme> xmlSchedule(Account account, Channel channel, ResolutionContext context) {
+        return xmlSchedule(account, channel, context, true);
+    }
+    private List<EpgProgramme> xmlSchedule(Account account, Channel channel, ResolutionContext context, boolean load) {
         org.json.JSONObject mappings = account.getDbId() == null ? null : context.mappings().optJSONObject(account.getDbId());
         String override = mappings == null ? "" : mappings.optString(channel.getChannelId(), "");
         String id = override.isBlank() ? guideId(account, channel) : override;
@@ -128,7 +145,10 @@ public class EpgApplicationService {
         for (String source : sources) {
             if (Thread.currentThread().isInterrupted()) return List.of();
             if (source == null || source.isBlank()) continue;
-            List<EpgProgramme> programmes = guide(source.strip()).forChannel(id, override.isBlank() ? channel.getName() : "");
+            XmltvGuide selected;
+            if (load) selected = guide(source.strip());
+            else synchronized (GUIDES) { var cached = GUIDES.get(source.strip()); selected = cached == null ? EMPTY : cached.guide(); }
+            List<EpgProgramme> programmes = selected.forChannel(id, override.isBlank() ? channel.getName() : "");
             if (usable(programmes)) return programmes;
         }
         return List.of();
@@ -176,7 +196,7 @@ public class EpgApplicationService {
                     if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                     XmltvGuide previous = cached == null ? (remote ? EpgDiskCache.read(source, true) : null) : cached.guide();
                     if (previous == null) previous = EMPTY;
-                    putBounded(GUIDES, source, new CachedGuide(previous, now + Duration.ofMinutes(5).toMillis(), warning(e)));
+                    putBounded(GUIDES, source, new CachedGuide(previous, now + Duration.ofMinutes(30).toMillis(), warning(e)));
                     AppLog.addWarningLog(EpgApplicationService.class, "EPG source unavailable: " + com.uiptv.util.I18n.tr(warning(e)) + " Retaining previous guide.");
                     return previous;
                 }
@@ -205,7 +225,7 @@ public class EpgApplicationService {
                     break;
                 }
             } catch (IOException | RuntimeException e) {
-                putBounded(SOURCES, playlist, new DiscoveredSource("", now + Duration.ofMinutes(5).toMillis()));
+                putBounded(SOURCES, playlist, new DiscoveredSource("", now + Duration.ofMinutes(30).toMillis()));
                 throw e;
             }
             if (!found.isBlank()) {

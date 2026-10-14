@@ -43,3 +43,32 @@ interface MobileEpgRepository {
     suspend fun saveGlobalSource(source: String)
     suspend fun saveMapping(accountId: Long, providerChannelId: String, guideId: String)
 }
+
+object MobileEpgSchedules {
+    private fun generic(title: String) = title.trim().lowercase() in setOf("movie", "film", "programme", "program")
+    fun normalize(input: List<MobileEpgProgramme>): List<MobileEpgProgramme> {
+        val ordered = input.filter { it.stop > it.start }.distinct().sortedWith(
+            compareBy<MobileEpgProgramme> { generic(it.title) }.thenByDescending { it.start }
+                .thenByDescending { it.stop }.thenBy { it.title }.thenBy { it.description })
+        val starts = mutableMapOf<Long, MutableList<Int>>()
+        val stops = mutableMapOf<Long, MutableList<Int>>()
+        ordered.forEachIndexed { index, p ->
+            starts.getOrPut(p.start) { mutableListOf() }.add(index)
+            stops.getOrPut(p.stop) { mutableListOf() }.add(index)
+        }
+        val times = (starts.keys + stops.keys).sorted()
+        val active = mutableSetOf<Int>()
+        val result = mutableListOf<MobileEpgProgramme>()
+        var previousWinner: Int? = null
+        for (i in 0 until times.size - 1) {
+            val start = times[i]; val stop = times[i + 1]
+            active.removeAll(stops[start].orEmpty().toSet()); active.addAll(starts[start].orEmpty())
+            val winner = active.minOrNull()
+            if (winner == null) { previousWinner = null; continue }
+            if (winner == previousWinner && result.last().stop == start) result[result.lastIndex] = result.last().copy(stop = stop)
+            else result += ordered[winner].copy(start = start, stop = stop)
+            previousWinner = winner
+        }
+        return result.toList()
+    }
+}

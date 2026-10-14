@@ -84,7 +84,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                 long end = p.stop() == 0 && i + 1 < list.size() ? list.get(i + 1).start() : p.stop();
                 if (end > p.start()) completed.add(new EpgProgramme(p.title(), p.description(), p.start(), end));
             }
-            return List.copyOf(completed);
+            return EpgSchedules.normalize(completed);
         });
         return new XmltvGuide(Map.copyOf(programmes), Map.copyOf(names), Map.copyOf(qualityNames));
     }

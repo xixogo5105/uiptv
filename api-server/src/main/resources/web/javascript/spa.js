@@ -4952,7 +4952,7 @@ createApp({
                 for (const [key, record] of Array.from(visibleEpgCards).slice(0, 32)) {
                     if (!cardEpgContext()) break;
                     if (!visibleEpgCards.has(key) || Date.now() < record.refreshAt) continue;
-                    record.refreshAt = Date.now() + 60000;
+                    record.refreshAt = Date.now() + 30 * 60000;
                     const channel = record.channel;
                     const controller = new AbortController(); cardEpgController = controller; cardEpgActiveKey = key;
                     try {
@@ -5024,10 +5024,14 @@ createApp({
         onMounted(async () => {
             const guideRefreshTimer = window.setInterval(async () => {
                 if (!document.hidden) { await loadConfig(); refreshVisibleCardEpg(); }
-                if (!document.hidden && epgGuideVisible.value && !liveGuideLoading.value) loadLiveGuide(true);
-                if (!document.hidden && epgEnabled.value && currentChannel.value && !wideViewActive.value && !playerExpanded.value) refreshPlayerEpg();
+
             }, 60000);
             window.addEventListener('beforeunload', () => window.clearInterval(guideRefreshTimer), {once: true});
+            const scheduleRefreshTimer = window.setInterval(() => {
+                if (!document.hidden && epgGuideVisible.value && !liveGuideLoading.value) loadLiveGuide(true);
+                if (!document.hidden && epgEnabled.value && currentChannel.value) refreshPlayerEpg();
+            }, 30 * 60000);
+            window.addEventListener('beforeunload', () => window.clearInterval(scheduleRefreshTimer), {once: true});
             loadRecentBookmarkHistory();
             if (document.fullscreenEnabled) {
                 document.addEventListener('fullscreenchange', () => {

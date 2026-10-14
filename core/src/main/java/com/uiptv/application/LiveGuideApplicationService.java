@@ -51,7 +51,7 @@ public class LiveGuideApplicationService {
             List<Channel> channels = CatalogApplicationService.getInstance().listChannels(
                     new CatalogChannelsQuery(accountId, CatalogMode.ITV, CategoryType.ALL.displayName(), ""), false);
             channelsReady.accept(channels.stream().map(channel -> new Row(accountId, account.getAccountName(), "", channel, List.of(), false, nativeProvider(account))).toList());
-            Map<Channel, List<EpgProgramme>> schedules = epg.catalogSchedules(account, channels);
+            Map<Channel, List<EpgProgramme>> schedules = epg.catalogSchedules(account, channels, !nativeProvider(account));
             for (Channel channel : channels) rows.add(new Row(accountId, account.getAccountName(), "", channel, schedules.getOrDefault(channel, List.of()), nativeProvider(account) && !new NativeEpgApplicationService().fresh(account, channel), nativeProvider(account)));
         } else {
             Set<String> seen = new HashSet<>();
@@ -82,7 +82,7 @@ public class LiveGuideApplicationService {
                 if (account == null) continue;
                 account.setAction(Account.AccountAction.itv);
                 loaded.add(new Row(row.accountId(), row.accountName(), row.bookmarkId(), row.channel(),
-                        epg.cachedSchedule(account, row.channel()), row.nativePending(), row.nativeProvider()));
+                        (nativeProvider(account) ? epg.memorySchedule(account, row.channel()) : epg.cachedSchedule(account, row.channel())), row.nativePending(), row.nativeProvider()));
             }
             return List.copyOf(loaded);
         }

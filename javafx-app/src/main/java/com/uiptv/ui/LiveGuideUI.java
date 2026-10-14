@@ -102,7 +102,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
     }
 
     public void refreshIfNeeded() {
-        if (loading || System.currentTimeMillis() - loadedAt < 60_000) { render(); return; }
+        if (loading || System.currentTimeMillis() - loadedAt < 30 * 60_000L) { render(); return; }
         loading = true;
         status.setText(I18n.tr("epgLoading"));
         int request = generation.incrementAndGet();
