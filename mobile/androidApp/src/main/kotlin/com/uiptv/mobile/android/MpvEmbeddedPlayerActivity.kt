@@ -733,15 +733,26 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
         epgGuideButton = controlButton("Guide") { showEpgPanel() }.apply {
             contentDescription = "Show programme guide"; visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(dp(12), 0, dp(12), 0)
+            }
         }
-        val closeButton = controlButton(CloseIcon) { finish() }
+        val closeButton = controlButton(CloseIcon) { finish() }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(dp(8), 0, dp(8), 0)
+            }
+        }
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(titleLabel, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(spacer(dp(12)))
             addView(epgGuideButton)
-            addView(spacer(dp(12)))
             addView(closeButton)
         }
         streamInfoLabel = TextView(this).apply {
@@ -2143,10 +2154,6 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).roundToInt()
-
-    private fun spacer(width: Int = 0, height: Int = 0) = View(this).apply {
-        minimumWidth = width; minimumHeight = height
-    }
 
     private fun showMessage(message: String) {
         messageView.text = message
