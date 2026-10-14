@@ -72,4 +72,4 @@ epg.cache.ttl=24h
 
 The TTL applies to XMLTV feed caching, not native Stalker/Xtream per-channel requests. URLs and credentials are hashed into disk filenames. The cache contains decompressed XMLTV, so reserve disk space accordingly. Android stores validated downloaded XMLTV privately in its app files directory, with a 24-hour lifetime and reuse after process restart. Refresh EPG clears its memory and disk caches. Desktop INI paths are machine-specific.
 
-The desktop XML reader uses bounded 2 MiB general/total entity-text budgets to support large feeds with many standard XML character escapes. DTD and external entity resolution remain disabled. XML processing-limit and I/O failures are reported separately from malformed XML.
+The desktop XML reader uses bounded 8 MiB general/total entity-text budgets to support large feeds with many standard XML character escapes. DTD and external entity resolution remain disabled. XML processing-limit and I/O failures are reported separately from malformed XML.

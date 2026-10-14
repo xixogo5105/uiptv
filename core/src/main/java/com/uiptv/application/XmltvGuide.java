@@ -19,9 +19,9 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         // Large XMLTV descriptions can exceed the JDK default entity-text limit.
         // Keep this bounded per reader; DTDs and external entities remain disabled.
         if (factory.isPropertySupported("jdk.xml.maxGeneralEntitySizeLimit"))
-            factory.setProperty("jdk.xml.maxGeneralEntitySizeLimit", "2097152");
+            factory.setProperty("jdk.xml.maxGeneralEntitySizeLimit", "8388608");
         if (factory.isPropertySupported("jdk.xml.totalEntitySizeLimit"))
-            factory.setProperty("jdk.xml.totalEntitySizeLimit", "2097152");
+            factory.setProperty("jdk.xml.totalEntitySizeLimit", "8388608");
         factory.setProperty("javax.xml.stream.isSupportingExternalEntities", false);
         factory.setXMLResolver((publicId, systemId, base, namespace) -> { throw new javax.xml.stream.XMLStreamException("External entities disabled"); });
         Map<String, List<EpgProgramme>> programmes = new HashMap<>();
