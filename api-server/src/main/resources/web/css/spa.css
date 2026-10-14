@@ -2202,7 +2202,7 @@ a[href] {
 
 /* Live XMLTV timeline; fixed hour widths align all channel rows. */
 .live-guide-panel { min-width: 0; width: 100%; }
-.live-guide-scroll { overflow: auto; max-height: 65vh; border-radius: 12px; }
+.live-guide-scroll { overflow-anchor: none; overflow: auto; max-height: 65vh; border-radius: 12px; }
 .live-guide-axis, .live-guide-row { display: flex; width: 1640px; gap: 0; }
 .live-guide-axis { position: sticky; top: 0; z-index: 3; background: var(--surface, #192332); padding-block: 10px; }
 .live-guide-name { position: sticky; left: 0; z-index: 2; display: flex; align-items: center; gap: 8px; flex: 0 0 200px; width: 200px; padding: 10px; text-align: left; overflow: hidden; background: var(--surface, #192332); color: inherit; border: 0; }

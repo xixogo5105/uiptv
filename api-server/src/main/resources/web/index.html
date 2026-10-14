@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/video.js@8.24.1/dist/video-js.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20261014epgVirtualFinal" rel="stylesheet">
+    <link href="/css/spa.css?v=20261014epgScrollStable" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.43/dist/vue.global.prod.js"></script>
@@ -120,9 +120,9 @@
                     <section class="live-guide-panel" v-if="epgGuideVisible" aria-label="Live programme guide">
                         <div class="segmented guide-toolbar"><button @click="shiftGuide(-6)" type="button" aria-label="Previous six hours">‹</button><button @click="loadLiveGuide()" type="button">Now</button><button @click="shiftGuide(6)" type="button" aria-label="Next six hours">›</button><span>{{ guideDate }}</span><label><input type="checkbox" v-model="showAllGuideChannels"> Show all channels</label><button @click="zoomGuide(-120)" type="button" aria-label="Zoom out">−</button><button @click="zoomGuide(120)" type="button" aria-label="Zoom in">+</button></div>
                         <div class="live-guide-selected-programme" v-if="selectedGuideProgramme"><strong>{{ selectedGuideProgramme.channelName }} · {{ selectedGuideProgramme.title }}</strong><small>{{ guideTime(selectedGuideProgramme.start) }} – {{ guideTime(selectedGuideProgramme.stop) }}</small></div>
-                        <p v-if="liveGuideLoading">Loading programme guide…</p>
+                        <p v-if="liveGuideLoading && !liveGuideRows.length">Loading programme guide…</p>
                         <p role="alert" v-if="liveGuideError">{{ liveGuideError }}</p>
-                        <div class="live-guide-scroll" tabindex="0" ref="guideScrollElement" @scroll.passive="onGuideScroll" v-if="!liveGuideLoading">
+                        <div class="live-guide-scroll" tabindex="0" ref="guideScrollElement" @scroll.passive="onGuideScroll" v-if="!liveGuideLoading || liveGuideRows.length">
                             <div class="live-guide-axis" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}"><strong class="live-guide-name">Channel</strong><div class="live-guide-hours" :style="{width: liveGuideHourWidth * 6 + 'px'}"><span v-for="tick in liveGuideTicks" :key="tick" :style="{flexBasis: liveGuideHourWidth + 'px'}">{{ guideTime(tick) }}</span></div></div>
                             <div class="live-guide-spacer" :style="{height: guideWindow.top + 'px'}" aria-hidden="true"></div>
                             <div class="live-guide-row" v-for="row in visibleLiveGuideRows" :key="row.bookmarkId || row.accountId + ':' + row.channel.channelId" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}">
@@ -328,9 +328,9 @@
                     <section class="live-guide-panel" v-if="epgGuideVisible" aria-label="Live programme guide">
                         <div class="segmented guide-toolbar"><button @click="shiftGuide(-6)" type="button" aria-label="Previous six hours">‹</button><button @click="loadLiveGuide()" type="button">Now</button><button @click="shiftGuide(6)" type="button" aria-label="Next six hours">›</button><span>{{ guideDate }}</span><label><input type="checkbox" v-model="showAllGuideChannels"> Show all channels</label><button @click="zoomGuide(-120)" type="button" aria-label="Zoom out">−</button><button @click="zoomGuide(120)" type="button" aria-label="Zoom in">+</button></div>
                         <div class="live-guide-selected-programme" v-if="selectedGuideProgramme"><strong>{{ selectedGuideProgramme.channelName }} · {{ selectedGuideProgramme.title }}</strong><small>{{ guideTime(selectedGuideProgramme.start) }} – {{ guideTime(selectedGuideProgramme.stop) }}</small></div>
-                        <p v-if="liveGuideLoading">Loading programme guide…</p>
+                        <p v-if="liveGuideLoading && !liveGuideRows.length">Loading programme guide…</p>
                         <p role="alert" v-if="liveGuideError">{{ liveGuideError }}</p>
-                        <div class="live-guide-scroll" tabindex="0" ref="guideScrollElement" @scroll.passive="onGuideScroll" v-if="!liveGuideLoading">
+                        <div class="live-guide-scroll" tabindex="0" ref="guideScrollElement" @scroll.passive="onGuideScroll" v-if="!liveGuideLoading || liveGuideRows.length">
                             <div class="live-guide-axis" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}"><strong class="live-guide-name">Channel</strong><div class="live-guide-hours" :style="{width: liveGuideHourWidth * 6 + 'px'}"><span v-for="tick in liveGuideTicks" :key="tick" :style="{flexBasis: liveGuideHourWidth + 'px'}">{{ guideTime(tick) }}</span></div></div>
                             <div class="live-guide-spacer" :style="{height: guideWindow.top + 'px'}" aria-hidden="true"></div>
                             <div class="live-guide-row" v-for="row in visibleLiveGuideRows" :key="row.bookmarkId || row.accountId + ':' + row.channel.channelId" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}">
@@ -806,7 +806,7 @@
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261014epgVirtualFinal"></script>
+    <script src="/javascript/spa.js?v=20261014epgScrollStable"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;

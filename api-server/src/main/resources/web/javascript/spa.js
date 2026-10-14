@@ -4967,7 +4967,22 @@ createApp({
             }
         });
 
-        watch(filteredLiveGuideRows, () => {
+        // Data refreshes keep the same visible channel; user filters start a new list.
+        watch(filteredLiveGuideRows, async (rows, previousRows) => {
+            const element = guideScrollElement.value;
+            if (!element) return;
+            const top = element.scrollTop;
+            const index = Math.max(0, Math.floor((top - GUIDE_HEADER_HEIGHT) / GUIDE_ROW_HEIGHT));
+            const identity = row => row && (row.bookmarkId || `${row.accountId}:${row.channel?.channelId}`);
+            const anchor = identity(previousRows[index]);
+            const nextIndex = anchor ? rows.findIndex(row => identity(row) === anchor) : -1;
+            const target = nextIndex >= 0 ? top + (nextIndex - index) * GUIDE_ROW_HEIGHT : top;
+            await nextTick();
+            if (guideScrollElement.value !== element || element.scrollTop !== top) return;
+            element.scrollTop = target;
+            guideScrollTop.value = element.scrollTop;
+        });
+        watch([searchQuery, selectedBookmarkCategoryId, showAllGuideChannels], () => {
             guideScrollTop.value = 0;
             if (guideScrollElement.value) guideScrollElement.value.scrollTop = 0;
         });
