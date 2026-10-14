@@ -189,8 +189,13 @@ public class LiveGuideUI extends VBox implements SearchTarget {
                 block.setPrefSize(blockWidth, 84);
                 block.setMinWidth(0); block.setMaxWidth(blockWidth);
                 block.setWrapText(false); block.setTextOverrun(OverrunStyle.ELLIPSIS);
-                // Tiny time slots remain selectable without misleading one-letter labels.
-                if (blockWidth < 60) block.setText("");
+                // JavaFX's automatic wrapping splits long words into letters. Insert only
+                // word-boundary line breaks, then let the control elide oversized words.
+                Runnable updateTitle = () -> block.setText(wrapProgrammeTitle(p.title(),
+                        Math.max(0, blockWidth - block.getInsets().getLeft() - block.getInsets().getRight()), block.getFont(), 3));
+                block.fontProperty().addListener((_, _, _) -> updateTitle.run());
+                block.insetsProperty().addListener((_, _, _) -> updateTitle.run());
+                updateTitle.run();
                 block.setAccessibleText(p.title());
                 block.setTooltip(new Tooltip(p.title() + "\n" + formatTime(p.start()) + " – " + formatTime(p.stop()) + "\n" + p.description()));
                 block.setOnAction(_ -> {
@@ -217,6 +222,30 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         spacer.setMinHeight(height); spacer.setPrefHeight(height); spacer.setMaxHeight(height);
         spacer.setMinWidth(CHANNEL_WIDTH + hourWidth * 6);
         rows.getChildren().add(spacer);
+    }
+
+    static String wrapProgrammeTitle(String title, double width, javafx.scene.text.Font font, int maxLines) {
+        if (title == null || title.isBlank()) return "";
+        List<String> lines = new ArrayList<>();
+        String line = "";
+        javafx.scene.text.Text measure = new javafx.scene.text.Text();
+        measure.setFont(font);
+        for (String word : title.strip().split("\\s+")) {
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            measure.setText(candidate);
+            if (!line.isEmpty() && measure.getLayoutBounds().getWidth() > width) {
+                lines.add(line);
+                if (lines.size() == maxLines) {
+                    lines.set(maxLines - 1, lines.getLast() + "…");
+                    return String.join("\n", lines);
+                }
+                line = word;
+            } else {
+                line = candidate;
+            }
+        }
+        if (!line.isEmpty()) lines.add(line);
+        return String.join("\n", lines);
     }
 
     private void installPlaybackActivation(Button button, LiveGuideApplicationService.Row row) {

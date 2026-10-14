@@ -21,6 +21,19 @@ import static com.uiptv.testsupport.FxTestSupport.*;
 class LiveGuideUITest extends DbBackedUiTest {
     @BeforeAll static void startFx() throws Exception { initJavaFx(); }
 
+    @Test
+    void programmeTitlesWrapOnlyBetweenWords() throws Exception {
+        runOnFxThread(() -> {
+            var font = javafx.scene.text.Font.font(16);
+            var measure = new javafx.scene.text.Text("Titles stay"); measure.setFont(font);
+            double width = measure.getLayoutBounds().getWidth() + 1;
+            assertEquals("Titles stay\non one\nline", LiveGuideUI.wrapProgrammeTitle("Titles stay on one line", width, font, 3));
+            assertEquals("Titanic", LiveGuideUI.wrapProgrammeTitle("Titanic", 8, font, 3));
+            assertEquals("one\ntwo\nthree…", LiveGuideUI.wrapProgrammeTitle("one two three four", 1, font, 3));
+            return null;
+        });
+    }
+
     @Test void rendersAlignedTimelineAndClearsOldAccountRows() throws Exception {
         runOnFxThread(() -> {
             com.uiptv.widget.AppFonts.load();
@@ -31,7 +44,7 @@ class LiveGuideUITest extends DbBackedUiTest {
                 Channel channel = new Channel(); channel.setName(List.of("BBC One", "BBC Two", "ITV1", "Channel 4").get(i)); channel.setChannelId("provider-" + i);
                 fixture.add(new LiveGuideApplicationService.Row("account-1", "Example account", "", channel, List.of(
                         new EpgProgramme("Evening News", "Illustrative test data", hour - 3_600_000, hour + 3_600_000),
-                        new EpgProgramme("Documentary", "Illustrative test data", hour + 3_600_000, hour + 2 * 3_600_000),
+                        new EpgProgramme("Titles stay on one line with whole words wrapping below", "Illustrative test data", hour + 3_600_000, hour + 2 * 3_600_000),
                         new EpgProgramme("Film", "Illustrative test data", hour + 2 * 3_600_000, hour + 4 * 3_600_000),
                         new EpgProgramme("Morphle", "Short programme", hour + 4 * 3_600_000, hour + 4 * 3_600_000 + 180_000))));
             }
@@ -58,7 +71,7 @@ class LiveGuideUITest extends DbBackedUiTest {
             assertEquals(programmeBlock.getBackground().getFills().getFirst().getRadii(), programmeBlock.getBorder().getStrokes().getFirst().getRadii());
             assertNull(programmeBlock.getEffect());
             Button shortBlock = (Button) first.getChildren().get(3);
-            assertEquals("", shortBlock.getText());
+            assertEquals("Morphle", shortBlock.getText());
             assertEquals("Morphle", shortBlock.getAccessibleText());
             assertTrue(shortBlock.getTooltip().getText().startsWith("Morphle"));
             assertFalse(programmeBlock.isWrapText());
