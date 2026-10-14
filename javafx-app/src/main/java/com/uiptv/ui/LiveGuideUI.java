@@ -33,6 +33,9 @@ public class LiveGuideUI extends VBox implements SearchTarget {
     private String accountId = "", query = "";
     private long windowStart;
     private boolean loading;
+    private Thread nativeWorker;
+    private String nativeWindow = "";
+    private String sourceWarning = "";
     private long loadedAt;
     private int hourOffset;
     private final CheckBox showAllChannels = new CheckBox(I18n.tr("epgShowAllChannels"));
@@ -57,7 +60,16 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         zoomIn.setTooltip(new Tooltip(I18n.tr("epgZoomIn"))); zoomOut.setTooltip(new Tooltip(I18n.tr("epgZoomOut")));
         zoomIn.setOnAction(_ -> { hourWidth = Math.min(720, hourWidth + 120); render(); });
         zoomOut.setOnAction(_ -> { hourWidth = Math.max(240, hourWidth - 120); render(); });
-        FlowPane toolbar = new FlowPane(8, 8, previous, now, next, status, showAllChannels, zoomOut, zoomIn);
+        Button refresh = new Button(I18n.tr("epgRefreshGuide"));
+        refresh.setOnAction(_ -> {
+            generation.incrementAndGet(); if (nativeWorker != null) nativeWorker.interrupt();
+            loading = true; status.setText(I18n.tr("epgLoading"));
+            Thread.ofVirtual().start(() -> {
+                new EpgApplicationService().clearCache();
+                Platform.runLater(() -> { loading = false; nativeWindow = ""; sourceWarning = ""; invalidate(); refreshIfNeeded(); });
+            });
+        });
+        FlowPane toolbar = new FlowPane(8, 8, previous, now, next, refresh, status, showAllChannels, zoomOut, zoomIn);
         toolbar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         selectedProgramme.setWrapText(true); selectedProgramme.setMinHeight(Region.USE_PREF_SIZE); selectedProgramme.setMaxWidth(Double.MAX_VALUE);
         selectedProgramme.getStyleClass().add("live-guide-selected-programme");
@@ -66,7 +78,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
         sceneProperty().addListener((_, oldScene, scene) -> {
             if (oldScene != null) com.uiptv.player.MediaPlayerFactory.guideContextProperty().removeListener(playbackListener);
-            if (scene == null) { clock.stop(); hidePlayingIndicators(); }
+            if (scene == null) { if (nativeWorker != null) nativeWorker.interrupt(); clock.stop(); hidePlayingIndicators(); }
             else { com.uiptv.player.MediaPlayerFactory.guideContextProperty().addListener(playbackListener); updatePlayingIndicators(); clock.play(); }
         });
     }
@@ -81,6 +93,8 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         accountId = next;
         hourOffset = 0;
         generation.incrementAndGet();
+        if (nativeWorker != null) nativeWorker.interrupt();
+        nativeWindow = "";
         loading = false; loadedAt = 0; data = List.of();
         hidePlayingIndicators(); playingIndicators.clear();
         filteredRows = List.of(); renderedStart = renderedEnd = -1;
@@ -96,9 +110,10 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         Thread.ofVirtual().start(() -> {
             try {
                 List<LiveGuideApplicationService.Row> loaded = new LiveGuideApplicationService().list(requestedId);
+                String warning = new EpgApplicationService().globalWarning();
                 Platform.runLater(() -> {
                     if (request != generation.get()) return;
-                    data = loaded; loading = false; loadedAt = System.currentTimeMillis(); render();
+                    data = loaded; sourceWarning = warning.isBlank() ? "" : I18n.tr(warning); loading = false; loadedAt = System.currentTimeMillis(); render();
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
@@ -111,7 +126,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
 
     public void invalidate() { loadedAt = 0; }
     public void dispose() {
-        generation.incrementAndGet(); loading = false; clock.stop(); hidePlayingIndicators();
+        generation.incrementAndGet(); if (nativeWorker != null) nativeWorker.interrupt(); loading = false; clock.stop(); hidePlayingIndicators();
         com.uiptv.player.MediaPlayerFactory.guideContextProperty().removeListener(playbackListener);
     }
     @Override public void setSearchQuery(String text) { query = text == null ? "" : text.toLowerCase(Locale.ROOT); render(); }
@@ -120,12 +135,13 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         if (loading && data.isEmpty()) return;
         windowStart = Instant.now().atZone(ZoneId.systemDefault()).withMinute(0).withSecond(0).withNano(0).minusHours(1).plusHours(hourOffset).toInstant().toEpochMilli();
         long now = System.currentTimeMillis();
+        boolean noGuideData = data.stream().noneMatch(candidate -> candidate.programmes().stream().anyMatch(p -> p.stop() > now));
         filteredRows = data.stream().filter(rowFilter)
-                .filter(row -> showAllChannels.isSelected() || row.programmes().stream().anyMatch(p -> p.stop() > now))
+                .filter(row -> showAllChannels.isSelected() || !sourceWarning.isBlank() || noGuideData || row.nativeProvider() || row.programmes().stream().anyMatch(p -> p.stop() > now))
                 .filter(row -> row.channel().getName() != null && row.channel().getName().toLowerCase(Locale.ROOT).contains(query))
                 .toList();
         renderViewport(true);
-        status.setText(filteredRows.isEmpty() ? I18n.tr("epgNoGuide") : (accountId.isBlank() ? I18n.tr("autoFavorite") : filteredRows.getFirst().accountName()));
+        status.setText((filteredRows.isEmpty() ? I18n.tr("epgNoGuide") : (accountId.isBlank() ? I18n.tr("autoFavorite") : filteredRows.getFirst().accountName())) + (sourceWarning.isBlank() ? "" : " · " + sourceWarning));
     }
 
     private void scheduleViewportRefresh() {
@@ -170,6 +186,9 @@ public class LiveGuideUI extends VBox implements SearchTarget {
             var indicator = new com.uiptv.widget.PlayingCardIndicator();
             graphic.getChildren().add(indicator); playingIndicators.put(row, indicator); name.setGraphic(graphic);
             installPlaybackActivation(name, row);
+            MenuItem mapping = new MenuItem(I18n.tr("epgGuideIdOverride"));
+            mapping.setOnAction(_ -> editGuideMapping(row));
+            name.setContextMenu(new ContextMenu(mapping));
             name.setMinWidth(CHANNEL_WIDTH); name.setPrefWidth(CHANNEL_WIDTH); name.setMaxWidth(CHANNEL_WIDTH);
             name.setWrapText(true); name.setMinHeight(90);
             name.setTooltip(new Tooltip(row.accountName()));
@@ -214,6 +233,47 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         }
         addSpacer((filteredRows.size() - end) * ROW_HEIGHT);
         updatePlayingIndicators();
+        hydrateViewport(start, end);
+    }
+
+    private void editGuideMapping(LiveGuideApplicationService.Row row) {
+        Thread.ofVirtual().start(() -> {
+            var mappings = new com.uiptv.application.EpgMappingApplicationService();
+            String previous = mappings.read(row.accountId(), row.channel().getChannelId());
+            Platform.runLater(() -> {
+                TextInputDialog dialog = new TextInputDialog(previous);
+                dialog.setTitle(I18n.tr("epgGuideIdOverride"));
+                dialog.setHeaderText(row.channel().getName());
+                dialog.setContentText(I18n.tr("epgGuideIdHelp"));
+                dialog.showAndWait().ifPresent(value -> Thread.ofVirtual().start(() -> {
+                    mappings.save(row.accountId(), row.channel().getChannelId(), value);
+                    Platform.runLater(() -> { invalidate(); refreshIfNeeded(); });
+                }));
+            });
+        });
+    }
+
+    private void hydrateViewport(int start, int end) {
+        if (getScene() == null || !EpgModeUI.isFeatureEnabled()) return;
+        List<LiveGuideApplicationService.Row> visible = filteredRows.subList(start, end).stream().filter(LiveGuideApplicationService.Row::nativePending).toList();
+        if (visible.isEmpty()) return;
+        String window = generation.get() + ":" + start + ":" + end;
+        if (window.equals(nativeWindow)) return;
+        nativeWindow = window;
+        if (nativeWorker != null) nativeWorker.interrupt();
+        int request = generation.get();
+        nativeWorker = Thread.ofVirtual().start(() -> {
+            LiveGuideApplicationService service = new LiveGuideApplicationService();
+            for (LiveGuideApplicationService.Row row : visible) {
+                if (Thread.currentThread().isInterrupted()) return;
+                LiveGuideApplicationService.Row hydrated = service.hydrate(row);
+                Platform.runLater(() -> {
+                    if (request != generation.get() || getScene() == null) return;
+                    data = data.stream().map(item -> item == row ? hydrated : item).toList();
+                    render();
+                });
+            }
+        });
     }
 
     private void addSpacer(double height) {

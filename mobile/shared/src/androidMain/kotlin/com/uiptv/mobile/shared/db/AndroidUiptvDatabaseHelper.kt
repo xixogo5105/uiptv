@@ -10,7 +10,7 @@ class AndroidUiptvDatabaseHelper(context: Context) : SQLiteOpenHelper(
     UiptvSchemaInfo.DATABASE_NAME,
     null,
     UiptvSchemaInfo.SCHEMA_VERSION_CODE
-) {
+), java.io.Closeable {
     private val appContext = context.applicationContext
     private val migrationSource = AndroidMigrationSource(appContext)
 

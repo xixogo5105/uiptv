@@ -127,6 +127,7 @@ public class UIptvServer {
         addServlet(context, "/bingeWatchSession", new HttpBingeWatchSessionJsonServer());
         addServlet(context, "/watchingNow", new HttpWatchingNowJsonServer());
         addServlet(context, "/liveGuide", new HttpLiveGuideJsonServer());
+        addServlet(context, "/epgCache", new HttpEpgCacheJsonServer());
         addServlet(context, "/playerEpg", new HttpPlayerEpgJsonServer());
         addServlet(context, "/watchingNowSeriesEpisodes", new HttpWatchingNowSeriesEpisodesJsonServer());
         addServlet(context, "/watchingNowSeriesAction", new HttpWatchingNowSeriesActionServer());

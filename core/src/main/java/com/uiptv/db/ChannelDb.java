@@ -56,6 +56,7 @@ public class ChannelDb extends BaseDb {
             statement.setString(15, channel.getClearKeysJson());
             statement.setString(16, channel.getInputstreamaddon());
             statement.setString(17, channel.getManifestType());
+            statement.setString(18, channel.getExtraJson());
             statement.execute();
         } catch (SQLException e) {
             throw new DatabaseAccessException("Unable to execute query", e);
@@ -156,6 +157,9 @@ public class ChannelDb extends BaseDb {
     @SuppressWarnings("java:S1141")
     public void saveAll(List<Channel> channels, String dbCategoryId, Account account) {
         Category category = new CategoryDb().getCategoryByDbId(dbCategoryId, account);
+        // A category can disappear during account cache reload, or be a synthetic All row.
+        // Return fetched channels to the caller without persisting under an invalid identity.
+        if (category == null) return;
         deleteAll(category.getDbId());
         Collection<Channel> dedupedChannels = dedupeChannelsCaseInsensitive(channels);
         try (Connection conn = connect()) {
@@ -180,6 +184,7 @@ public class ChannelDb extends BaseDb {
                     statement.setString(15, channel.getClearKeysJson());
                     statement.setString(16, channel.getInputstreamaddon());
                     statement.setString(17, channel.getManifestType());
+            statement.setString(18, channel.getExtraJson());
                     statement.addBatch();
                     if (++count % BATCH_SIZE == 0) {
                         statement.executeBatch();
@@ -263,6 +268,7 @@ public class ChannelDb extends BaseDb {
                 nullSafeString(resultSet, "inputstreamaddon"),
                 nullSafeString(resultSet, "manifestType")
         );
+        c.setExtraJson(nullSafeString(resultSet, "extraJson"));
         c.setDbId(nullSafeString(resultSet, "id"));
         c.setCategoryId(nullSafeString(resultSet, "categoryId"));
         c.setClearKeysJson(nullSafeString(resultSet, "clearKeysJson"));

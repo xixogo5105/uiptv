@@ -1,0 +1,1 @@
+--@add_column Channel extraJson TEXT DEFAULT ''

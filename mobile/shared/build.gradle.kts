@@ -178,7 +178,7 @@ val generateUiptvSchemaMirror by tasks.registering {
     }
 
     // Consumers depend on the generated mirror, so a baseline change regenerates it before compiling.
-    tasks.matching { it.name.startsWith("compile") && it.name.endsWith("Kotlin") }.configureEach {
+    tasks.matching { it.name.startsWith("compile") }.configureEach {
         dependsOn(generateUiptvSchemaMirror)
     }
 

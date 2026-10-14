@@ -11,6 +11,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class HttpLiveGuideJsonServerTest extends DbBackedTest {
+    @org.junit.jupiter.api.BeforeEach void enableEpg() {
+        com.uiptv.model.Configuration config = com.uiptv.service.ConfigurationService.getInstance().read();
+        config.setEpgEnabled(true); com.uiptv.service.ConfigurationService.getInstance().save(config);
+    }
+
     @Test void exposesProgrammeTimesAndKeepsLocalAndProviderIdsSeparate() throws Exception {
         Channel channel = new Channel(); channel.setDbId("local-17"); channel.setChannelId("BBCOne.uk"); channel.setName("BBC One");
         LiveGuideApplicationService.Row row = new LiveGuideApplicationService.Row("local-account", "Test", "", channel,

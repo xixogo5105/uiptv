@@ -1,247 +1,541 @@
 {
   "ur_PK": {
     "settings": "ترتیبات",
-    "enable": "پروگرام گائیڈ موڈ فعال کریں",
-    "disable": "پروگرام گائیڈ موڈ غیر فعال کریں"
+    "guide": "پروگرام گائیڈ دیکھیں",
+    "list": "چینل فہرست دیکھیں",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ur": {
     "settings": "ترتیبات",
-    "enable": "پروگرام گائیڈ موڈ فعال کریں",
-    "disable": "پروگرام گائیڈ موڈ غیر فعال کریں"
+    "guide": "پروگرام گائیڈ دیکھیں",
+    "list": "چینل فہرست دیکھیں",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "pt_PT": {
     "settings": "Definições",
-    "enable": "Ativar modo de guia de programas",
-    "disable": "Desativar modo de guia de programas"
+    "guide": "Ver guia",
+    "list": "Ver lista de canais",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "pt": {
     "settings": "Definições",
-    "enable": "Ativar modo de guia de programas",
-    "disable": "Desativar modo de guia de programas"
+    "guide": "Ver guia",
+    "list": "Ver lista de canais",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "en_US": {
     "settings": "Settings",
-    "enable": "Enable EPG mode",
-    "disable": "Disable EPG mode"
+    "guide": "View Guide",
+    "list": "View channel list",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "en": {
     "settings": "Settings",
-    "enable": "Enable EPG mode",
-    "disable": "Disable EPG mode"
+    "guide": "View Guide",
+    "list": "View channel list",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "bn_BD": {
     "settings": "সেটিংস",
-    "enable": "অনুষ্ঠান নির্দেশিকা মোড চালু করুন",
-    "disable": "অনুষ্ঠান নির্দেশিকা মোড বন্ধ করুন"
+    "guide": "প্রোগ্রাম গাইড দেখুন",
+    "list": "চ্যানেল তালিকা দেখুন",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "bn": {
     "settings": "সেটিংস",
-    "enable": "অনুষ্ঠান নির্দেশিকা মোড চালু করুন",
-    "disable": "অনুষ্ঠান নির্দেশিকা মোড বন্ধ করুন"
+    "guide": "প্রোগ্রাম গাইড দেখুন",
+    "list": "চ্যানেল তালিকা দেখুন",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ml_IN": {
     "settings": "ക്രമീകരണങ്ങൾ",
-    "enable": "പരിപാടി ഗൈഡ് മോഡ് പ്രവർത്തനക്ഷമമാക്കുക",
-    "disable": "പരിപാടി ഗൈഡ് മോഡ് പ്രവർത്തനരഹിതമാക്കുക"
+    "guide": "പ്രോഗ്രാം ഗൈഡ് കാണുക",
+    "list": "ചാനൽ പട്ടിക കാണുക",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ml": {
     "settings": "ക്രമീകരണങ്ങൾ",
-    "enable": "പരിപാടി ഗൈഡ് മോഡ് പ്രവർത്തനക്ഷമമാക്കുക",
-    "disable": "പരിപാടി ഗൈഡ് മോഡ് പ്രവർത്തനരഹിതമാക്കുക"
+    "guide": "പ്രോഗ്രാം ഗൈഡ് കാണുക",
+    "list": "ചാനൽ പട്ടിക കാണുക",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "vi_VN": {
     "settings": "Cài đặt",
-    "enable": "Bật chế độ lịch chương trình",
-    "disable": "Tắt chế độ lịch chương trình"
+    "guide": "Xem lịch chương trình",
+    "list": "Xem danh sách kênh",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "vi": {
     "settings": "Cài đặt",
-    "enable": "Bật chế độ lịch chương trình",
-    "disable": "Tắt chế độ lịch chương trình"
+    "guide": "Xem lịch chương trình",
+    "list": "Xem danh sách kênh",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "zh_TW": {
     "settings": "設定",
-    "enable": "啟用節目指南模式",
-    "disable": "停用節目指南模式"
+    "guide": "檢視節目指南",
+    "list": "檢視頻道清單",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "zh": {
     "settings": "設定",
-    "enable": "啟用節目指南模式",
-    "disable": "停用節目指南模式"
+    "guide": "View Guide",
+    "list": "View channel list",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "pt_BR": {
     "settings": "Configurações",
-    "enable": "Ativar modo de guia de programas",
-    "disable": "Desativar modo de guia de programas"
+    "guide": "Ver guia",
+    "list": "Ver lista de canais",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ja_JP": {
     "settings": "設定",
-    "enable": "番組表モードを有効にする",
-    "disable": "番組表モードを無効にする"
+    "guide": "番組表を表示",
+    "list": "チャンネル一覧を表示",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ja": {
     "settings": "設定",
-    "enable": "番組表モードを有効にする",
-    "disable": "番組表モードを無効にする"
+    "guide": "番組表を表示",
+    "list": "チャンネル一覧を表示",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "de_DE": {
     "settings": "Einstellungen",
-    "enable": "EPG-Modus aktivieren",
-    "disable": "EPG-Modus deaktivieren"
+    "guide": "Programmführer anzeigen",
+    "list": "Kanalliste anzeigen",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "de": {
     "settings": "Einstellungen",
-    "enable": "EPG-Modus aktivieren",
-    "disable": "EPG-Modus deaktivieren"
+    "guide": "Programmführer anzeigen",
+    "list": "Kanalliste anzeigen",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "te_IN": {
     "settings": "సెట్టింగ్‌లు",
-    "enable": "కార్యక్రమ మార్గదర్శి మోడ్‌ను ప్రారంభించండి",
-    "disable": "కార్యక్రమ మార్గదర్శి మోడ్‌ను నిలిపివేయండి"
+    "guide": "ప్రోగ్రామ్ గైడ్ చూడండి",
+    "list": "ఛానల్ జాబితా చూడండి",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "te": {
     "settings": "సెట్టింగ్‌లు",
-    "enable": "కార్యక్రమ మార్గదర్శి మోడ్‌ను ప్రారంభించండి",
-    "disable": "కార్యక్రమ మార్గదర్శి మోడ్‌ను నిలిపివేయండి"
+    "guide": "ప్రోగ్రామ్ గైడ్ చూడండి",
+    "list": "ఛానల్ జాబితా చూడండి",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "fr_FR": {
     "settings": "Paramètres",
-    "enable": "Activer le mode guide des programmes",
-    "disable": "Désactiver le mode guide des programmes"
+    "guide": "Voir le guide",
+    "list": "Voir la liste des chaînes",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "fr": {
     "settings": "Paramètres",
-    "enable": "Activer le mode guide des programmes",
-    "disable": "Désactiver le mode guide des programmes"
+    "guide": "Voir le guide",
+    "list": "Voir la liste des chaînes",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "zh_CN": {
     "settings": "设置",
-    "enable": "启用节目指南模式",
-    "disable": "停用节目指南模式"
+    "guide": "查看节目指南",
+    "list": "查看频道列表",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ta_IN": {
     "settings": "அமைப்புகள்",
-    "enable": "நிகழ்ச்சி வழிகாட்டி பயன்முறையை இயக்கு",
-    "disable": "நிகழ்ச்சி வழிகாட்டி பயன்முறையை முடக்கு"
+    "guide": "நிகழ்ச்சி வழிகாட்டியைக் காண்க",
+    "list": "சேனல் பட்டியலைக் காண்க",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ta": {
     "settings": "அமைப்புகள்",
-    "enable": "நிகழ்ச்சி வழிகாட்டி பயன்முறையை இயக்கு",
-    "disable": "நிகழ்ச்சி வழிகாட்டி பயன்முறையை முடக்கு"
+    "guide": "நிகழ்ச்சி வழிகாட்டியைக் காண்க",
+    "list": "சேனல் பட்டியலைக் காண்க",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "id_ID": {
     "settings": "Pengaturan",
-    "enable": "Aktifkan mode panduan program",
-    "disable": "Nonaktifkan mode panduan program"
+    "guide": "Lihat panduan",
+    "list": "Lihat daftar saluran",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "id": {
     "settings": "Pengaturan",
-    "enable": "Aktifkan mode panduan program",
-    "disable": "Nonaktifkan mode panduan program"
+    "guide": "Lihat panduan",
+    "list": "Lihat daftar saluran",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "it_IT": {
     "settings": "Impostazioni",
-    "enable": "Attiva modalità guida programmi",
-    "disable": "Disattiva modalità guida programmi"
+    "guide": "Visualizza guida",
+    "list": "Visualizza elenco canali",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "it": {
     "settings": "Impostazioni",
-    "enable": "Attiva modalità guida programmi",
-    "disable": "Disattiva modalità guida programmi"
+    "guide": "Visualizza guida",
+    "list": "Visualizza elenco canali",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ko_KR": {
     "settings": "설정",
-    "enable": "프로그램 안내 모드 켜기",
-    "disable": "프로그램 안내 모드 끄기"
+    "guide": "편성표 보기",
+    "list": "채널 목록 보기",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ko": {
     "settings": "설정",
-    "enable": "프로그램 안내 모드 켜기",
-    "disable": "프로그램 안내 모드 끄기"
+    "guide": "편성표 보기",
+    "list": "채널 목록 보기",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "tr_TR": {
     "settings": "Ayarlar",
-    "enable": "Program rehberi modunu etkinleştir",
-    "disable": "Program rehberi modunu devre dışı bırak"
+    "guide": "Rehberi görüntüle",
+    "list": "Kanal listesini görüntüle",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "tr": {
     "settings": "Ayarlar",
-    "enable": "Program rehberi modunu etkinleştir",
-    "disable": "Program rehberi modunu devre dışı bırak"
+    "guide": "Rehberi görüntüle",
+    "list": "Kanal listesini görüntüle",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "en_GB": {
     "settings": "Settings",
-    "enable": "Enable EPG mode",
-    "disable": "Disable EPG mode"
+    "guide": "View Guide",
+    "list": "View channel list",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "hi_IN": {
     "settings": "सेटिंग्स",
-    "enable": "कार्यक्रम गाइड मोड चालू करें",
-    "disable": "कार्यक्रम गाइड मोड बंद करें"
+    "guide": "कार्यक्रम गाइड देखें",
+    "list": "चैनल सूची देखें",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "hi": {
     "settings": "सेटिंग्स",
-    "enable": "कार्यक्रम गाइड मोड चालू करें",
-    "disable": "कार्यक्रम गाइड मोड बंद करें"
+    "guide": "कार्यक्रम गाइड देखें",
+    "list": "चैनल सूची देखें",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "pa_IN": {
     "settings": "ਸੈਟਿੰਗਾਂ",
-    "enable": "ਈਪੀਜੀ ਮੋਡ ਚਾਲੂ ਕਰੋ",
-    "disable": "ਈਪੀਜੀ ਮੋਡ ਬੰਦ ਕਰੋ"
+    "guide": "ਪ੍ਰੋਗਰਾਮ ਗਾਈਡ ਵੇਖੋ",
+    "list": "ਚੈਨਲ ਸੂਚੀ ਵੇਖੋ",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "pa": {
     "settings": "ਸੈਟਿੰਗਾਂ",
-    "enable": "ਈਪੀਜੀ ਮੋਡ ਚਾਲੂ ਕਰੋ",
-    "disable": "ਈਪੀਜੀ ਮੋਡ ਬੰਦ ਕਰੋ"
+    "guide": "ਪ੍ਰੋਗਰਾਮ ਗਾਈਡ ਵੇਖੋ",
+    "list": "ਚੈਨਲ ਸੂਚੀ ਵੇਖੋ",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "th_TH": {
     "settings": "การตั้งค่า",
-    "enable": "เปิดโหมดผังรายการ",
-    "disable": "ปิดโหมดผังรายการ"
+    "guide": "ดูผังรายการ",
+    "list": "ดูรายการช่อง",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "th": {
     "settings": "การตั้งค่า",
-    "enable": "เปิดโหมดผังรายการ",
-    "disable": "ปิดโหมดผังรายการ"
+    "guide": "ดูผังรายการ",
+    "list": "ดูรายการช่อง",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "uk_UA": {
     "settings": "Налаштування",
-    "enable": "Увімкнути режим телепрограми",
-    "disable": "Вимкнути режим телепрограми"
+    "guide": "Відкрити телегід",
+    "list": "Відкрити список каналів",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "uk": {
     "settings": "Налаштування",
-    "enable": "Увімкнути режим телепрограми",
-    "disable": "Вимкнути режим телепрограми"
+    "guide": "Відкрити телегід",
+    "list": "Відкрити список каналів",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ru_RU": {
     "settings": "Настройки",
-    "enable": "Включить режим телепрограммы",
-    "disable": "Выключить режим телепрограммы"
+    "guide": "Открыть телегид",
+    "list": "Открыть список каналов",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ru": {
     "settings": "Настройки",
-    "enable": "Включить режим телепрограммы",
-    "disable": "Выключить режим телепрограммы"
+    "guide": "Открыть телегид",
+    "list": "Открыть список каналов",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ar_SA": {
     "settings": "الإعدادات",
-    "enable": "تفعيل وضع دليل البرامج",
-    "disable": "تعطيل وضع دليل البرامج"
+    "guide": "عرض الدليل",
+    "list": "عرض قائمة القنوات",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "ar": {
     "settings": "الإعدادات",
-    "enable": "تفعيل وضع دليل البرامج",
-    "disable": "تعطيل وضع دليل البرامج"
+    "guide": "عرض الدليل",
+    "list": "عرض قائمة القنوات",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "es_ES": {
     "settings": "Configuración",
-    "enable": "Activar modo de guía de programas",
-    "disable": "Desactivar modo de guía de programas"
+    "guide": "Ver guía",
+    "list": "Ver lista de canales",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   },
   "es": {
     "settings": "Configuración",
-    "enable": "Activar modo de guía de programas",
-    "disable": "Desactivar modo de guía de programas"
+    "guide": "Ver guía",
+    "list": "Ver lista de canales",
+    "epgRefreshGuide": "Refresh EPG",
+    "epgSourceTooLarge": "An EPG source exceeds the size limit. Use smaller regional feeds.",
+    "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
+    "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
+    "epgSourceUnavailable": "An EPG source could not be loaded.",
+    "refresh": "Refresh EPG"
   }
 }

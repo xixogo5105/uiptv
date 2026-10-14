@@ -64,6 +64,7 @@ class MpvEmbeddedPlayerActivityControlTest {
         // For now, just verify the lock button click works
         waitForAnyControl(player, listOf("Unlock"))
         clickControl(player, "Unlock")
+        clickControl(player, "Unlock")
         waitForAnyControl(player, listOf("Lock"))
     }
 

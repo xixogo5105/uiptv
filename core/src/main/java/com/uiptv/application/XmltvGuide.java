@@ -9,7 +9,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /** Streaming XMLTV reader. External DTDs and entities are never fetched. */
-public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names) {
+public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names, Map<String, String> qualityNames) {
+    public XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names) {
+        this(programmes, names, qualityAliases(names));
+    }
     public static XmltvGuide read(InputStream input, Instant now) throws Exception {
         XMLInputFactory factory = XMLInputFactory.newFactory();
         factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
@@ -18,6 +21,8 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         Map<String, List<EpgProgramme>> programmes = new HashMap<>();
         Map<String, String> names = new HashMap<>();
         Set<String> ambiguous = new HashSet<>();
+        Map<String, String> qualityNames = new HashMap<>();
+        Set<String> ambiguousQuality = new HashSet<>();
         XMLStreamReader reader = factory.createXMLStreamReader(input);
         String id = null, channel = null, title = "", description = "";
         Instant start = null, stop = null;
@@ -34,6 +39,9 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                             if (id != null && !name.isBlank()) {
                                 String previous = names.putIfAbsent(name, id);
                                 if (previous != null && !previous.equals(id)) ambiguous.add(name);
+                                String qualityName = normalizeQuality(name);
+                                String qualityPrevious = qualityNames.putIfAbsent(qualityName, id);
+                                if (qualityPrevious != null && !qualityPrevious.equals(id)) ambiguousQuality.add(qualityName);
                             }
                         }
                         case "programme" -> {
@@ -60,6 +68,8 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
             }
         } finally { reader.close(); }
         ambiguous.forEach(names::remove);
+        ambiguousQuality.forEach(qualityNames::remove);
+        qualityNames.remove("");
         programmes.replaceAll((key, list) -> {
             list.sort(Comparator.comparingLong(EpgProgramme::start));
             List<EpgProgramme> completed = new ArrayList<>();
@@ -70,15 +80,32 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
             }
             return List.copyOf(completed);
         });
-        return new XmltvGuide(Map.copyOf(programmes), Map.copyOf(names));
+        return new XmltvGuide(Map.copyOf(programmes), Map.copyOf(names), Map.copyOf(qualityNames));
     }
 
     public List<EpgProgramme> forChannel(String providerId, String name) {
         if (providerId != null && programmes.containsKey(providerId)) return programmes.get(providerId);
-        return programmes.getOrDefault(names.getOrDefault(normalize(name), ""), List.of());
+        String exact = names.get(normalize(name));
+        if (exact != null) return programmes.getOrDefault(exact, List.of());
+        return programmes.getOrDefault(qualityNames.getOrDefault(normalizeQuality(name), ""), List.of());
     }
 
     static String normalize(String name) { return name == null ? "" : name.strip().toLowerCase(Locale.ROOT).replaceAll("\\s+", " "); }
+
+    static String normalizeQuality(String name) {
+        String value = normalize(name).replaceAll("(?<![\\p{L}\\p{N}])(?:fhd|uhd|hd|sd|4k|8k|720p|1080p|2160p)(?![\\p{L}\\p{N}])", " ");
+        value = value.replaceAll("\\([\\s|/,-]*\\)|\\[[\\s|/,-]*\\]", " ").replaceAll("^[\\s|/,-]+|[\\s|/,-]+$", "");
+        return normalize(value);
+    }
+    private static Map<String, String> qualityAliases(Map<String, String> names) {
+        Map<String, String> result = new HashMap<>(); Set<String> ambiguous = new HashSet<>();
+        names.forEach((name, id) -> {
+            String key = normalizeQuality(name);
+            String previous = result.putIfAbsent(key, id);
+            if (previous != null && !previous.equals(id)) ambiguous.add(key);
+        });
+        ambiguous.forEach(result::remove); result.remove(""); return Map.copyOf(result);
+    }
 
     static Instant time(String value) {
         if (value == null) return null;

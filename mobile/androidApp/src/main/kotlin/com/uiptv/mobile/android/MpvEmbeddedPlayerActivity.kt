@@ -71,6 +71,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private lateinit var playPauseButton: ImageButton
     private lateinit var progressSeekBar: SeekBar
     private lateinit var streamInfoLabel: TextView
+    private lateinit var epgLabel: TextView
+    private var epgJob: kotlinx.coroutines.Job? = null
+    private val epgDatabase by lazy { AndroidUiptvDatabaseHelper(this) }
+    private val epgRepository by lazy { com.uiptv.mobile.shared.epg.AndroidEpgRepository(this, epgDatabase, preferencesRepository) }
     private lateinit var titleLabel: TextView
     private lateinit var timeLabel: TextView
     private lateinit var zoomButton: ImageButton
@@ -303,6 +307,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         messageView.bringToFront()
         unlockButton = TextView(this).apply {
             text = "\uD83D\uDD13"
+            contentDescription = "Unlock"
             setTextColor(Color.WHITE)
             setTextSize(36f)
             setTypeface(Typeface.DEFAULT, Typeface.BOLD)
@@ -349,10 +354,12 @@ class MpvEmbeddedPlayerActivity : Activity() {
         stoppingForLifecycle = false
         startPlayback()
         startProgressUpdates()
+        refreshEpg()
         showControlsTemporarily()
     }
 
     override fun onStop() {
+        epgJob?.cancel()
         stoppingForLifecycle = true
         cancelReconnect()
         overlayHandler.removeCallbacks(updateProgressRunnable)
@@ -656,6 +663,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
             setTypeface(Typeface.DEFAULT, Typeface.BOLD)
             maxLines = 1
         }
+        epgLabel = TextView(this).apply {
+            setTextColor(Color.WHITE); setTextSize(11f); maxLines = 2; visibility = View.GONE
+        }
         val closeButton = controlButton(CloseIcon) { finish() }
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -737,7 +747,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             if (isPictureInPictureAvailable()) {
                 addView(iconControlButton(R.drawable.picture_in_picture, "Picture in picture") { enterPictureInPicture() }, compactControlLayoutParams())
             }
-            lockButton = controlButton("\uD83D\uDD12") { toggleLock() }
+            lockButton = controlButton("\uD83D\uDD12") { toggleLock() }.apply { contentDescription = "Lock" }
             addView(lockButton, compactControlLayoutParams())
         }
         val controlsScroller = HorizontalScrollView(this).apply {
@@ -749,6 +759,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             setPadding(dp(12), dp(10), dp(12), dp(12))
             background = roundedBackground(Color.argb(175, 12, 16, 20), dp(0))
             visibility = View.GONE
+            addView(epgLabel, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(titleRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(streamInfoLabel, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = dp(2)
@@ -1475,6 +1486,27 @@ class MpvEmbeddedPlayerActivity : Activity() {
         videoSurface.setTransform(matrix)
     }
 
+    private fun refreshEpg() {
+        if (!::epgLabel.isInitialized) return
+        epgJob?.cancel()
+        epgLabel.visibility = View.GONE
+        val target = currentTarget ?: return
+        if (target.mode != BrowseMode.LIVE) return
+        epgJob = playbackScope.launch {
+            while (true) {
+                val result = epgRepository.schedule(target.accountId, target.channelId, target.title)
+                if (target != currentTarget) return@launch
+                val now = System.currentTimeMillis()
+                epgLabel.text = listOfNotNull(result.now(now)?.let { "Now: ${it.title}" },
+                    result.next(now)?.let { "Next: ${it.title}" }).joinToString("\n")
+                epgLabel.visibility = if (epgLabel.text.isBlank()) View.GONE else View.VISIBLE
+                if (result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) return@launch
+                val boundary = result.programmes.filter { it.stop > now }.minOfOrNull { it.stop } ?: now + 60_000
+                kotlinx.coroutines.delay((boundary - now).coerceIn(1000, 60_000))
+            }
+        }
+    }
+
     private fun updateStreamInfo() {
         if (!::streamInfoLabel.isInitialized) {
             return
@@ -1485,6 +1517,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 ?: intent.getStringExtra(NativePlayerActivity.EXTRA_TITLE).orEmpty().ifBlank { "Embedded player" }
         }
         streamInfoLabel.text = buildStreamInfoLabel()
+        refreshEpg()
     }
 
     private fun handleMpvEvent(eventId: Int) {

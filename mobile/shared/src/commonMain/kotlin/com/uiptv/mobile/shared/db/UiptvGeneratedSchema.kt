@@ -18,7 +18,7 @@ package com.uiptv.mobile.shared.db
  * the build if this file is stale, so a hand edit cannot survive CI either.
  */
 internal object UiptvGeneratedSchema {
-    const val SCHEMA_VERSION: String = "0207"
+    const val SCHEMA_VERSION: String = "0209"
 
     /** Configuration columns, in `0000_baseline.sql` declaration order. */
     val configurationColumns: List<String> = listOf(
@@ -57,7 +57,10 @@ internal object UiptvGeneratedSchema {
         "vlcAvcodecHw",
         "lightweightModeEnabled",
         "showBookmarkAndAccountCounts",
-        "themeMode"
+        "themeMode",
+        "epgEnabled",
+        "globalEpgSource",
+        "epgMappingsJson"
     )
 
     /** Every table declared by the baseline, which is also the set that must survive a restore. */

@@ -67,7 +67,7 @@ Build from the repository root. Maven resolves the module graph automatically.
 - **Lightweight Mode**: Minimal UI for headless/low-resource use with collapsible panels, native buttons, and focusable terminal/log view.
 - **Multiple IPTV Protocols**: The player supports the following protocols and formats:
   - **Stalker Portal**: Live Channels, Video On Demand, and Series.
-  - **M3U Playlists**: Supports local and remote M3U files (EPG is not yet supported).
+  - **M3U Playlists**: Supports local and remote M3U files, embedded XMLTV discovery, and optional programme guides.
   - **Xtreme Codes**: Live Channels, Video On Demand, and Series.
 - **Bulk Account Import**: Add multiple accounts at once for Stalker, Xtreme, and M3U, with optional post-import verification.
 - **Account Tools**: MAC verify/manage flows, account pinning, timezone and HTTP method support for Stalker, browser-playback routing, and account-level cache reload.
@@ -207,7 +207,7 @@ open -a Kodi --args "$STREAM_URL"
 ```
 
 ## Disclaimer
-This is a personal project developed for fun. EPG support is not yet implemented.
+This is a personal project developed for fun. Optional EPG supports native Stalker/Xtream schedules and XMLTV fallbacks on desktop, web and Android; see [EPG.md](EPG.md) for setup and provider limitations.
 
 Merge requests for bug fixes or new features are always welcome.
 

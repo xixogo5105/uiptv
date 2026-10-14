@@ -35,6 +35,7 @@ class AndroidPreferencesTest {
         assertEquals(EmbeddedPlayerPreference(), snapshot.embeddedPlayerPreference)
         assertEquals(PanelVisibilityPreference(), snapshot.panelVisibilityPreference)
         assertFalse(snapshot.firstRunCompleted)
+        assertFalse(snapshot.epgEnabled)
     }
 
     @Test
@@ -52,6 +53,7 @@ class AndroidPreferencesTest {
             AndroidOnlyPreferenceKeys.PANEL_BOOKMARKS_CATEGORY_VISIBLE,
             AndroidOnlyPreferenceKeys.PANEL_WATCHING_NOW_DETAILS_VISIBLE,
             AndroidOnlyPreferenceKeys.PANEL_ACCOUNTS_ACTIONS_VISIBLE,
+            AndroidOnlyPreferenceKeys.EPG_ENABLED,
             AndroidOnlyPreferenceKeys.FIRST_RUN_COMPLETED
         )
 

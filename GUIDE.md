@@ -450,3 +450,26 @@ A: Large playlists (20,000+ channels) can be heavy. Use the **Filter** options t
 
 **Enjoy using UIPTV!**
 If you encounter bugs or have feature requests, please visit our [GitHub Repository](https://github.com/xixogo5105/uiptv).
+
+## Electronic programme guide
+
+Enable **Settings → Enable EPG** on desktop and save. The web automatically follows that setting; its **View Guide** action only selects a view. Android has an independent default-off **Config → Enable EPG on this device** switch. Its Live/bookmark rows show Now/Next and open full schedules; **Live Guide** provides a channel-first guide with a two-pane wide layout.
+
+Guide resolution is **channel/embedded/provider-native → account EPG → global EPG source**. Configure account EPG in account settings and the shared global source in desktop Settings or Android Config. XMLTV HTTP/HTTPS URLs, local files and gzip are supported. Unavailable or unmatched guides fall through without interrupting playback. Local paths must be readable on the device using them.
+
+To correct an ID mismatch, right-click a desktop guide channel or open Android **View Guide** and save a **Guide ID override**. It survives cache reloads and database sync; clear it to return to provider matching. No global worldwide feed is bundled. Native support varies by provider. See [EPG.md](EPG.md) for matching, caching, privacy and troubleshooting details.
+
+### Global EPG sources and refresh
+
+Settings accepts multiple global XMLTV sources, one URL or local file per line. Put regional feeds (for example India, UK, USA and Australia) in priority order. Existing single-source settings remain compatible and sync uses the same configuration field. Each channel uses the first source with a usable matching schedule after provider/account sources; schedules are not combined. Duplicate names within a feed remain ambiguous. Unique matches can ignore standalone quality labels such as HD or 4K while retaining region names.
+
+The desktop gear and Settings enable controls update the same persistent EPG flag. Refresh EPG clears transient guide, discovery and provider caches and reloads schedules, preserving accounts, bookmarks and saved mappings. Oversized feeds report a warning; use regional feeds instead of an oversized worldwide feed.
+
+Desktop EPG cache uses the same INI directory and TTL conventions as thumbnails:
+
+```ini
+epg.tmp.cache.dir=/Volumes/backup/uiptv-database/epg/
+epg.cache.ttl=24h
+```
+
+Downloaded XMLTV remains cached across restarts. The default TTL is 24 hours. Refresh EPG clears this cache and downloads again. Native provider schedules have a separate short-lived cache.

@@ -119,32 +119,48 @@ class AppHeaderActionsTest extends DbBackedUiTest {
     }
 
     @Test
-    void epgGearActionSwitchesBothBookmarkAndLiveChannelViews() throws Exception {
-        runOnFxThread(() -> {
-            com.uiptv.ui.EpgModeUI.setEnabled(false);
+    void epgGearActionPersistsTheSettingsFlagAndSwitchesLiveViews() throws Exception {
+        new com.uiptv.application.EpgSettingsApplicationService().setEnabled(false);
+        awaitEpg(false);
+        var root = runOnFxThread(() -> {
             var bookmarks = new com.uiptv.ui.BookmarkChannelListUI(null, null);
             var channels = new com.uiptv.ui.ChannelListUI(new com.uiptv.model.Account(), "All", "all", com.uiptv.model.Account.AccountAction.itv);
             var movies = new com.uiptv.ui.ChannelListUI(new com.uiptv.model.Account(), "Movies", "movies", com.uiptv.model.Account.AccountAction.vod);
-            var root = new javafx.scene.layout.VBox(bookmarks, channels, movies);
-            new javafx.scene.Scene(root, 900, 800);
-            var actions = new AppHeaderActions(null, null, null);
-            try {
-                actions.createGearMenu().getItems().stream().filter(item -> I18n.tr("epgEnableMode").equals(item.getText())).findFirst().orElseThrow().fire();
-                root.applyCss(); root.layout();
-                assertTrue(com.uiptv.ui.EpgModeUI.isEnabled());
-                assertEquals(1, bookmarks.lookupAll(".live-guide").size());
-                assertEquals(1, channels.lookupAll(".live-guide").size());
-                assertTrue(movies.lookupAll(".live-guide").isEmpty());
-                actions.createGearMenu().getItems().stream().filter(item -> I18n.tr("epgDisableMode").equals(item.getText())).findFirst().orElseThrow().fire();
-                assertFalse(com.uiptv.ui.EpgModeUI.isEnabled());
-                assertTrue(bookmarks.lookupAll(".live-guide").isEmpty());
-                assertTrue(channels.lookupAll(".live-guide").isEmpty());
-            } finally {
-                com.uiptv.ui.EpgModeUI.setEnabled(false);
-                root.getChildren().clear(); channels.dispose(); movies.dispose();
-            }
-            return null;
+            var container = new javafx.scene.layout.VBox(bookmarks, channels, movies);
+            new javafx.scene.Scene(container, 900, 800);
+            return container;
         });
+        try {
+            runOnFxThread(() -> {
+                var actions = new AppHeaderActions(null, null, null);
+                var item = actions.createGearMenu().getItems().stream().filter(entry -> I18n.tr("epgEnableMode").equals(entry.getText())).findFirst().orElseThrow();
+                assertFalse(item.isDisable()); item.fire(); return null;
+            });
+            awaitEpg(true); assertTrue(ConfigurationService.getInstance().read().isEpgEnabled());
+            runOnFxThread(() -> {
+                root.applyCss(); root.layout();
+                assertEquals(1, root.getChildren().get(0).lookupAll(".live-guide").size());
+                assertEquals(1, root.getChildren().get(1).lookupAll(".live-guide").size());
+                assertTrue(root.getChildren().get(2).lookupAll(".live-guide").isEmpty());
+                var actions = new AppHeaderActions(null, null, null);
+                actions.createGearMenu().getItems().stream().filter(item -> I18n.tr("epgDisableMode").equals(item.getText())).findFirst().orElseThrow().fire();
+                return null;
+            });
+            awaitEpg(false); assertFalse(ConfigurationService.getInstance().read().isEpgEnabled());
+            runOnFxThread(() -> {
+                assertTrue(root.getChildren().get(0).lookupAll(".live-guide").isEmpty());
+                assertTrue(root.getChildren().get(1).lookupAll(".live-guide").isEmpty()); return null;
+            });
+        } finally {
+            runOnFxThread(() -> {
+                ((com.uiptv.ui.ChannelListUI) root.getChildren().get(1)).dispose();
+                ((com.uiptv.ui.ChannelListUI) root.getChildren().get(2)).dispose(); root.getChildren().clear(); return null;
+            });
+        }
+    }
+    private void awaitEpg(boolean expected) throws Exception {
+        for (int i = 0; i < 200 && runOnFxThread(com.uiptv.ui.EpgModeUI::isFeatureEnabled) != expected; i++) Thread.sleep(10);
+        assertEquals(expected, runOnFxThread(com.uiptv.ui.EpgModeUI::isFeatureEnabled));
     }
 
     private static Button visibleButtonAt(AppHeaderActions actions, int index) {

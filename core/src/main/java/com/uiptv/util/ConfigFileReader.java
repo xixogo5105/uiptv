@@ -63,6 +63,28 @@ public class ConfigFileReader {
         return 7 * 24;
     }
 
+    public static String getEpgTmpCacheDir() {
+        Properties properties = new Properties();
+        try (FileInputStream input = new FileInputStream(configFilePath())) {
+            properties.load(input);
+            String value = properties.getProperty("epg.tmp.cache.dir");
+            if (value == null || value.isBlank()) return null;
+            File path = new File(value.trim());
+            return path.isAbsolute() ? path.getAbsolutePath() : null;
+        } catch (IOException _) { return null; }
+    }
+
+    public static int getEpgCacheTtlHours() {
+        Properties properties = new Properties();
+        try (FileInputStream input = new FileInputStream(configFilePath())) {
+            properties.load(input);
+            String value = properties.getProperty("epg.cache.ttl");
+            if (value != null && !value.isBlank() && !sanitizeNumeric(value).isEmpty())
+                return parseThumbnailTtlHours(value.trim());
+        } catch (IOException | NumberFormatException _) { /* default */ }
+        return 24;
+    }
+
     private static int parseThumbnailTtlHours(String value) {
         if (value.isEmpty()) {
             return 7 * 24;

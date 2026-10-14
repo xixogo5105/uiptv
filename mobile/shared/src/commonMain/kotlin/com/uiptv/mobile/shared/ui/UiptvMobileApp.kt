@@ -291,6 +291,8 @@ private val UiptvLightColorScheme = lightColorScheme(
 @Composable
 fun UiptvMobileApp(
     resumeSignal: Int = 0,
+    isForeground: Boolean = true,
+    epgActions: EpgUiActions = EpgUiActions(),
     syncActions: RemoteSyncUiActions = RemoteSyncUiActions.preview(),
     accountActions: AccountUiActions = AccountUiActions.preview(),
     browseActions: BrowseUiActions = BrowseUiActions.preview(),
@@ -305,6 +307,12 @@ fun UiptvMobileApp(
     playerIconRenderer: PlayerIconRenderer = { choice, modifier -> DefaultPlayerIcon(choice, modifier) },
     backHandler: @Composable (enabled: Boolean, onBack: () -> Unit) -> Unit = { _, _ -> }
 ) {
+    var epgEnabled by remember { mutableStateOf(false) }
+    var epgTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(epgActions, resumeSignal) { epgEnabled = epgActions.loadEnabled() }
+    LaunchedEffect(epgEnabled, isForeground) {
+        while (epgEnabled && isForeground) { epgTime = System.currentTimeMillis(); kotlinx.coroutines.delay(60_000) }
+    }
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var selectedBrowseAccount by remember { mutableStateOf<MobileAccount?>(null) }
     var showThumbnails by remember { mutableStateOf(false) }
@@ -336,7 +344,8 @@ fun UiptvMobileApp(
 
     val useDarkTheme = isSystemInDarkTheme()
     val palette = if (useDarkTheme) DarkUiptvPalette else LightUiptvPalette
-    CompositionLocalProvider(LocalUiptvPalette provides palette) {
+    CompositionLocalProvider(LocalUiptvPalette provides palette,
+        LocalEpgState provides EpgUiState(epgEnabled && isForeground, epgTime, epgActions, { epgEnabled = it })) {
         MaterialTheme(colorScheme = if (useDarkTheme) UiptvDarkColorScheme else UiptvLightColorScheme) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val layoutMode = remember(maxWidth, maxHeight) {
@@ -1295,6 +1304,7 @@ private fun ChannelsScreen(
                         }
                     }
                 }
+                MobileLiveGuideButton(snapshot.items) { openBrowseItem(it) }
                 if (searchVisible) {
                     CompactOutlinedTextField(
                         value = if (selectedCategoryRowId == null) categoryQuery else channelQuery,
@@ -1597,7 +1607,8 @@ private fun WideChannelsContent(
                                 }
                             }
                         }
-                        if (searchVisible) {
+                        MobileLiveGuideButton(snapshot.items, onPlayItem)
+                if (searchVisible) {
                             CompactOutlinedTextField(
                                 value = categoryQuery,
                                 onValueChange = onCategoryQueryChange,
@@ -1984,7 +1995,10 @@ private fun BrowseItemRow(
                 }
             },
             supportingContent = {
-                Text(item.subtitle(), color = DeepNightMutedText, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Column {
+                    Text(item.subtitle(), color = DeepNightMutedText, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (item.mode == BrowseMode.LIVE) MobileEpgChannel(item.accountId, item.channelId, item.name)
+                }
             }
         )
     }
@@ -2427,12 +2441,10 @@ private fun BookmarkRow(
                 }
             },
             supportingContent = {
-                Text(
-                    bookmark.accountName,
-                    color = DeepNightMutedText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Column {
+                    Text(bookmark.accountName, color = DeepNightMutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (bookmark.mode == BrowseMode.LIVE) MobileEpgChannel(bookmark.accountId, bookmark.channelId, bookmark.channelName)
+                }
             }
         )
     }
@@ -4608,6 +4620,7 @@ private fun RemoteSyncScreen(
     ) {
         Text("Config", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         ConfigurationIntro()
+        MobileEpgSettings()
         CompactOutlinedTextField(
             value = host,
             onValueChange = ::updateHost,
@@ -5061,6 +5074,7 @@ private fun WideRemoteSyncContent(
             ) {
                 Text("Config", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 ConfigurationIntro(compact = compactWide)
+                MobileEpgSettings()
                 CompactOutlinedTextField(
                     value = host,
                     onValueChange = onHostChange,

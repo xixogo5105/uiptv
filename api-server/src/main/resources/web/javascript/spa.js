@@ -19,11 +19,13 @@ createApp({
         const watchingNowRows = ref([]);
         const selectedWatchingNowKey = ref('');
         const watchingNowTab = ref('series');
-        const epgModeEnabled = ref(false);
+        const epgEnabled = ref(false);
+        const guideSelected = ref(false);
         const epgSettingsOpen = ref(false);
-        const epgLabels = ref({settings: 'Settings', enable: 'Enable EPG mode', disable: 'Disable EPG mode'});
-        const epgGuideVisible = computed(() => epgModeEnabled.value && (activeTab.value === 'bookmarks' || activeTab.value === 'accounts' && viewState.value === 'channels' && contentMode.value === 'itv'));
-        const toggleEpgMode = () => { epgModeEnabled.value = !epgModeEnabled.value; epgSettingsOpen.value = false; };
+        const epgLabels = ref({settings: 'Settings', guide: 'View Guide'});
+        const epgGuideVisible = computed(() => epgEnabled.value && guideSelected.value && (activeTab.value === 'bookmarks' || activeTab.value === 'accounts' && viewState.value === 'channels' && contentMode.value === 'itv'));
+        const closeGuide = () => { guideSelected.value = false; epgSettingsOpen.value = false; };
+        const openGuide = () => { guideSelected.value = true; epgSettingsOpen.value = false; };
         const liveGuideRows = shallowRef([]);
         const showAllGuideChannels = ref(false);
         const liveGuideLoading = ref(false);
@@ -34,14 +36,17 @@ createApp({
         const selectedGuideProgramme = ref(null);
         const zoomGuide = delta => { liveGuideHourWidth.value = Math.max(240, Math.min(720, liveGuideHourWidth.value + delta)); };
         let liveGuideRequest = 0;
+        let liveGuideController = null;
+        let nativeGuideController = null;
         const filteredLiveGuideRows = computed(() => {
             const bookmarkContext = activeTab.value === 'bookmarks';
             const allowedIds = new Set(bookmarkContext
                 ? filteredBookmarks.value.map(b => String(b.dbId))
                 : filteredChannels.value.map(c => String(c.channelId)));
+            const noGuideData = !liveGuideRows.value.some(candidate => (candidate.programmes || []).some(p => p.stop > Date.now()));
             return liveGuideRows.value.filter(row =>
                 allowedIds.has(String(bookmarkContext ? row.bookmarkId : row.channel?.channelId))
-                && (showAllGuideChannels.value || (row.programmes || []).some(p => p.stop > Date.now()))
+                && (showAllGuideChannels.value || liveGuideError.value || noGuideData || row.nativeProvider || (row.programmes || []).some(p => p.stop > Date.now()))
                 && String(row.channel?.name || '').toLowerCase().includes(searchQuery.value.toLowerCase()));
         });
         const guideScrollElement = ref(null);
@@ -83,6 +88,7 @@ createApp({
         });
         const guideIsCurrent = p => p.start <= Date.now() && p.stop > Date.now();
         const loadLiveGuide = async (preserveWindow = false) => {
+            if (!epgEnabled.value || !epgGuideVisible.value) return;
             const request = ++liveGuideRequest;
             liveGuideLoading.value = true;
             liveGuideError.value = '';
@@ -91,15 +97,26 @@ createApp({
             try {
                 const params = new URLSearchParams();
                 if (liveGuideAccountId.value) params.set('accountId', liveGuideAccountId.value);
-                const response = await fetch(`${window.location.origin}/liveGuide?${params}`);
+                if (liveGuideController) liveGuideController.abort();
+                liveGuideController = new AbortController();
+                const response = await fetch(`${window.location.origin}/liveGuide?${params}`, {signal: liveGuideController.signal});
                 if (!response.ok) throw new Error('Guide unavailable');
                 const loaded = await response.json();
+                const warning = response.headers?.get("X-EPG-Warning") || "";
+                liveGuideError.value = warning ? epgLabels.value[warning] || "Guide source unavailable. Check the configured XMLTV feed." : "";
                 if (request === liveGuideRequest) liveGuideRows.value = Array.isArray(loaded) ? loaded : [];
             } catch (_) {
                 if (request === liveGuideRequest) liveGuideError.value = 'Unable to load the programme guide.';
             } finally {
                 if (request === liveGuideRequest) liveGuideLoading.value = false;
             }
+        };
+        const refreshGuideCache = async () => {
+            if (!epgEnabled.value) return;
+            liveGuideController?.abort(); nativeGuideController?.abort(); playerEpgController?.abort();
+            const response = await fetch('/epgCache', {method: 'POST'});
+            if (!response.ok) { liveGuideError.value = 'Unable to refresh guide cache.'; return; }
+            await loadLiveGuide(true); await refreshPlayerEpg(true);
         };
         const playGuideRow = (row, programme = null) => {
             selectedGuideProgramme.value = programme ? {...programme, channelName: row.channel.name} : null;
@@ -143,7 +160,7 @@ createApp({
             if (playerEpgController) playerEpgController.abort();
             if (clear) playerEpg.value = null;
             const channel = currentChannel.value;
-            if (!channel || String(channel.mode || 'itv').toLowerCase() !== 'itv') { playerEpg.value = null; return; }
+            if (!epgEnabled.value || !channel || String(channel.mode || 'itv').toLowerCase() !== 'itv') { playerEpg.value = null; return; }
             const params = new URLSearchParams();
             const bookmarkId = channel.bookmarkId || (channel.type === 'bookmark' ? channel.id : '');
             if (bookmarkId) params.set('bookmarkId', bookmarkId);
@@ -1413,6 +1430,11 @@ createApp({
                 const response = await fetch(window.location.origin + '/config');
                 const config = await response.json();
                 thumbnailsEnabled.value = config?.enableThumbnails !== false;
+                epgEnabled.value = config?.epgEnabled === true;
+                if (!epgEnabled.value) {
+                    if (playerEpgController) playerEpgController.abort();
+                    playerEpg.value = null;
+                }
                 try {
                     const labels = await (await fetch('/epg-labels.json')).json();
                     const language = (config?.languageLocale || navigator.language || 'en').replaceAll('-', '_');
@@ -4918,10 +4940,92 @@ createApp({
             suppressNextBookmarkClick.value = false;
         };
 
+        let cardEpgObserver = null, cardEpgBindings = new WeakMap(), cardEpgTimer;
+        const visibleEpgCards = new Map();
+        let cardEpgController = null, cardEpgRunning = false, cardEpgActiveKey = '';
+        const cardEpgContext = () => epgEnabled.value && activeTab.value === 'accounts' && viewState.value === 'channels'
+            && contentMode.value === 'itv' && !epgGuideVisible.value;
+        const refreshVisibleCardEpg = async () => {
+            if (!cardEpgContext() || cardEpgRunning) return;
+            cardEpgRunning = true;
+            try {
+                for (const [key, record] of Array.from(visibleEpgCards).slice(0, 32)) {
+                    if (!cardEpgContext()) break;
+                    if (!visibleEpgCards.has(key) || Date.now() < record.refreshAt) continue;
+                    record.refreshAt = Date.now() + 60000;
+                    const channel = record.channel;
+                    const controller = new AbortController(); cardEpgController = controller; cardEpgActiveKey = key;
+                    try {
+                        const params = new URLSearchParams({accountId: record.accountId, channelId: channel.dbId, categoryId: channel.categoryId});
+                        const response = await fetch(`/playerEpg?${params}`, {signal: controller.signal});
+                        if (!response.ok) continue;
+                        const result = await response.json();
+                        if (!cardEpgContext() || !visibleEpgCards.has(key) || record.accountId !== String(selectedAccountId.value)) continue;
+                        channel.epgNow = result.now || null; channel.epgNext = result.next || null;
+                    } catch (_) { /* Keep available fallback data after a failed refresh. */ }
+                }
+            } finally { cardEpgRunning = false; cardEpgActiveKey = ''; }
+        };
+        const observeChannelEpg = (element, channel) => {
+            const accountId = String(selectedAccountId.value || '');
+            const key = `${accountId}:${channel.dbId}`;
+            if (!element) { visibleEpgCards.delete(key); return; }
+            if (!cardEpgContext() || !channel.dbId || !channel.categoryId) return;
+            const account = accounts.value.find(value => String(value.dbId) === accountId);
+            if (!['STALKER_PORTAL', 'XTREME_API'].includes(account?.type)) return;
+            if (!cardEpgObserver) cardEpgObserver = new IntersectionObserver(entries => {
+                for (const entry of entries) {
+                    const record = cardEpgBindings.get(entry.target);
+                    if (!record) continue;
+                    if (entry.isIntersecting) visibleEpgCards.set(record.key, record);
+                    else {
+                        visibleEpgCards.delete(record.key);
+                        if (cardEpgActiveKey === record.key) cardEpgController?.abort();
+                    }
+                }
+                clearTimeout(cardEpgTimer); cardEpgTimer = setTimeout(refreshVisibleCardEpg, 200);
+            });
+            if (cardEpgBindings.has(element)) return;
+            cardEpgBindings.set(element, {key, accountId, channel, refreshAt: 0}); cardEpgObserver.observe(element);
+        };
+        watch([epgEnabled, activeTab, selectedAccountId, viewState, epgGuideVisible], () => {
+            if (cardEpgContext()) { nextTick(refreshVisibleCardEpg); return; }
+            clearTimeout(cardEpgTimer); cardEpgController?.abort(); cardEpgObserver?.disconnect();
+            cardEpgObserver = null; cardEpgBindings = new WeakMap(); visibleEpgCards.clear();
+        });
+        let nativeGuideTimer;
+        watch(() => visibleLiveGuideRows.value.filter(row => row.nativePending).map(row => row.bookmarkId || row.channel?.dbId).join(','), ids => {
+            clearTimeout(nativeGuideTimer);
+            if (nativeGuideController) nativeGuideController.abort();
+            if (!ids || !epgGuideVisible.value) return;
+            nativeGuideTimer = setTimeout(async () => {
+                const request = liveGuideRequest;
+                const controller = new AbortController(); nativeGuideController = controller;
+                const params = new URLSearchParams({visibleIds: ids});
+                if (liveGuideAccountId.value) params.set('accountId', liveGuideAccountId.value);
+                try {
+                    const response = await fetch(`/liveGuide?${params}`, {signal: controller.signal});
+                    if (!response.ok) return;
+                    const loaded = await response.json();
+                    if (request !== liveGuideRequest || !epgEnabled.value) return;
+                    const key = row => `${row.accountId}:${row.bookmarkId || row.channel?.dbId}`;
+                    const updates = new Map(loaded.map(row => [key(row), row]));
+                    liveGuideRows.value = liveGuideRows.value.map(row => updates.get(key(row)) || row);
+                } catch (_) { /* Source failures leave XMLTV fallback rows usable. */ }
+            }, 200);
+        });
+        watch(epgGuideVisible, visible => {
+            if (!visible) {
+                clearTimeout(nativeGuideTimer);
+                nativeGuideController?.abort(); liveGuideController?.abort();
+                liveGuideRequest++;
+            }
+        });
         onMounted(async () => {
-            const guideRefreshTimer = window.setInterval(() => {
+            const guideRefreshTimer = window.setInterval(async () => {
+                if (!document.hidden) { await loadConfig(); refreshVisibleCardEpg(); }
                 if (!document.hidden && epgGuideVisible.value && !liveGuideLoading.value) loadLiveGuide(true);
-                if (!document.hidden && currentChannel.value && !wideViewActive.value && !playerExpanded.value) refreshPlayerEpg();
+                if (!document.hidden && epgEnabled.value && currentChannel.value && !wideViewActive.value && !playerExpanded.value) refreshPlayerEpg();
             }, 60000);
             window.addEventListener('beforeunload', () => window.clearInterval(guideRefreshTimer), {once: true});
             loadRecentBookmarkHistory();
@@ -5019,11 +5123,11 @@ createApp({
 
         return {
             guideScrollElement, guideWindow, visibleLiveGuideRows, onGuideScroll,
-            isActiveGuideRow, epgModeEnabled, epgSettingsOpen, epgGuideVisible, epgLabels, toggleEpgMode,
+            observeChannelEpg, isActiveGuideRow, epgEnabled, epgSettingsOpen, epgGuideVisible, epgLabels, openGuide, closeGuide,
             thumbnailsEnabled, liveGuideHourWidth, selectedGuideProgramme, zoomGuide,
             playerEpg, playerProgrammeTime, showAllGuideChannels,
             liveGuideRows, liveGuideLoading, liveGuideError, filteredLiveGuideRows, liveGuideTicks,
-            guideTime, guideBlocks, guideBlockStyle, guideIsCurrent, playGuideRow, guideDate, shiftGuide, loadLiveGuide,
+            guideTime, guideBlocks, guideBlockStyle, guideIsCurrent, playGuideRow, guideDate, shiftGuide, loadLiveGuide, refreshGuideCache,
             activeTab,
             viewState,
             currentContext,

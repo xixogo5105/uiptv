@@ -152,7 +152,10 @@ class AndroidUiptvDatabaseCompatibilityTest {
             SQLiteDatabase.openOrCreateDatabase(snapshot, null).use { source ->
                 AndroidUiptvMigrationApplier(AndroidMigrationSource(context)).applyAll(source)
                 val dropped = UiptvSyncSchema.configurationColumns.last()
-                source.execSQL("ALTER TABLE Configuration DROP COLUMN \"$dropped\"")
+                val kept = UiptvSyncSchema.configurationColumns.filter { it != dropped }.joinToString(",") { "\"$it\"" }
+                source.execSQL("CREATE TABLE Configuration_incomplete AS SELECT $kept FROM Configuration")
+                source.execSQL("DROP TABLE Configuration")
+                source.execSQL("ALTER TABLE Configuration_incomplete RENAME TO Configuration")
             }
 
             helper.writableDatabase.execSQL(
@@ -1401,7 +1404,7 @@ class AndroidUiptvDatabaseCompatibilityTest {
             command = command
         )
 
-    private class TestHttpServer(private val bodiesByAction: Map<String, String>) : AutoCloseable {
+    internal class TestHttpServer(private val bodiesByAction: Map<String, String>) : AutoCloseable {
         private val socket = ServerSocket(0)
         val port: Int = socket.localPort
         val requests: MutableList<String> = Collections.synchronizedList(mutableListOf())

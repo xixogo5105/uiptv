@@ -21,6 +21,19 @@ import static com.uiptv.testsupport.FxTestSupport.*;
 class LiveGuideUITest extends DbBackedUiTest {
     @BeforeAll static void startFx() throws Exception { initJavaFx(); }
 
+    @Test void emptySchedulesKeepChannelsVisible() throws Exception {
+        runOnFxThread(() -> {
+            LiveGuideUI guide = new LiveGuideUI();
+            Channel channel = new Channel(); channel.setName("Star Plus");
+            field("data").set(guide, List.of(new LiveGuideApplicationService.Row("account", "Account", "", channel, List.of())));
+            field("loadedAt").setLong(guide, System.currentTimeMillis());
+            guide.refreshIfNeeded();
+            assertEquals(1, ((List<?>) field("filteredRows").get(guide)).size());
+            guide.dispose();
+            return null;
+        });
+    }
+
     @Test
     void programmeTitlesWrapOnlyBetweenWords() throws Exception {
         runOnFxThread(() -> {

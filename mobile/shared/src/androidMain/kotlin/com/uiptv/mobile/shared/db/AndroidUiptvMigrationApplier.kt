@@ -54,18 +54,20 @@ class AndroidUiptvMigrationApplier(private val source: AndroidMigrationSource) {
     }
 
     private fun executeMigration(db: SQLiteDatabase, sql: String) {
-        when (val directive = UiptvMigrationSql.findDirective(sql)) {
-            is MigrationDirective.AddColumn -> applyAddColumn(db, directive)
-            is MigrationDirective.DropColumn -> {
-                if (columnExists(db, directive.table, directive.column)) {
-                    db.execSQL("ALTER TABLE ${quoteIdentifier(directive.table)} DROP COLUMN ${quoteIdentifier(directive.column)}")
+        UiptvMigrationSql.findDirectives(sql).forEach { directive ->
+            when (directive) {
+                is MigrationDirective.AddColumn -> applyAddColumn(db, directive)
+                is MigrationDirective.DropColumn -> {
+                    if (columnExists(db, directive.table, directive.column)) {
+                        db.execSQL("ALTER TABLE ${quoteIdentifier(directive.table)} DROP COLUMN ${quoteIdentifier(directive.column)}")
+                    }
                 }
             }
-            null -> UiptvMigrationSql.executableStatements(sql).forEach { statement ->
-                when (val addColumn = UiptvMigrationSql.parseAddColumnStatement(statement)) {
-                    null -> db.execSQL(statement)
-                    else -> applyAddColumn(db, addColumn)
-                }
+        }
+        UiptvMigrationSql.executableStatements(sql).forEach { statement ->
+            when (val addColumn = UiptvMigrationSql.parseAddColumnStatement(statement)) {
+                null -> db.execSQL(statement)
+                else -> applyAddColumn(db, addColumn)
             }
         }
     }

@@ -99,7 +99,10 @@ CREATE TABLE IF NOT EXISTS Configuration
     themeMode
     TEXT
     default
-    'light'
+    'light',
+    epgEnabled TEXT default '0',
+    globalEpgSource TEXT default '',
+    epgMappingsJson TEXT default '{}'
 );
 
 CREATE TABLE IF NOT EXISTS Account
@@ -311,7 +314,8 @@ CREATE TABLE IF NOT EXISTS Channel
     inputstreamaddon
     TEXT,
     manifestType
-    TEXT
+    TEXT,
+    extraJson TEXT
 );
 
 CREATE TABLE IF NOT EXISTS VodCategory

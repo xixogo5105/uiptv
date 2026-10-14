@@ -103,6 +103,8 @@ public class ConfigurationUI extends VBox {
     private final PillBar<ThemeModeOption> themeModePillBar =
             new PillBar<>(ThemeModeOption::title, ThemeModeOption::id);
     private final SwitchToggle thumbnailModeSwitch = new SwitchToggle();
+    private final SwitchToggle epgEnabledSwitch = new SwitchToggle();
+    private final TextArea globalEpgSourceField = new TextArea();
     private final SwitchToggle showBookmarkAndAccountCountsSwitch = new SwitchToggle();
     private final SwitchToggle filterPasswordProtectionSwitch = new SwitchToggle();
     private final SwitchToggle wideViewSwitch = new SwitchToggle();
@@ -411,7 +413,7 @@ public class ConfigurationUI extends VBox {
         settingsSections.addAll(List.of(
                 new SettingsSection("players", I18n.tr("configVideoPlayers"), null, playersGroup, videoPlayersHelpLink, "players video playback embedded vlc wide view redirects"),
                 new SettingsSection("filters", I18n.tr("configFilters"), filtersGroupStatusIcon, filtersGroup, filtersHelpLink, "filters parental lock categories channels censor hidden protected"),
-                new SettingsSection("appearance", I18n.tr("configDarkTheme"), null, themeOverridesGroup, themeHelpLink, "appearance theme language thumbnails zoom"),
+                new SettingsSection("appearance", I18n.tr("configDarkTheme"), null, themeOverridesGroup, themeHelpLink, "appearance theme language thumbnails zoom epg guide programme sources counts"),
                 new SettingsSection("cache", I18n.tr("configCacheFiltering"), null, cacheGroup, cacheFilteringHelpLink, "cache clear reload watching now"),
                 new SettingsSection("sync", I18n.tr("configDatabaseSyncTitle"), null, databaseSyncGroup, databaseSyncHelpLink, "database sync import export backup remote"),
                 new SettingsSection("server", I18n.tr("configWebServer"), null, serverGroup, webServerHelpLink, "web server https port m3u publish startup"),
@@ -903,7 +905,24 @@ public class ConfigurationUI extends VBox {
         languageAndZoomSection.getStyleClass().add(STYLE_CLASS_OUTLINE_PANE);
         languageAndZoomSection.setMaxWidth(Double.MAX_VALUE);
 
-        return new VBox(10, themeModeRow, createSettingSwitchRow("configPlainTextMode", thumbnailModeSwitch), createSettingSwitchRow("configShowBookmarkAndAccountCounts", showBookmarkAndAccountCountsSwitch), languageAndZoomSection);
+        globalEpgSourceField.setPrefRowCount(4);
+        globalEpgSourceField.setPromptText(I18n.tr("configGlobalEpgHelp"));
+        globalEpgSourceField.setTooltip(new Tooltip(I18n.tr("configGlobalEpgHelp")));
+        return new VBox(10, createSettingSwitchRow("configEnableEpg", epgEnabledSwitch), buildEpgSourceRow(), themeModeRow, createSettingSwitchRow("configPlainTextMode", thumbnailModeSwitch), createSettingSwitchRow("configShowBookmarkAndAccountCounts", showBookmarkAndAccountCountsSwitch), languageAndZoomSection);
+    }
+
+    private Node buildEpgSourceRow() {
+        Button browse = new Button(I18n.tr("autoBrowse"));
+        browse.setOnAction(_ -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle(I18n.tr("configGlobalEpgSource"));
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("XMLTV", "*.xml", "*.xmltv", "*.gz"));
+            java.io.File file = chooser.showOpenDialog(getScene() == null ? null : getScene().getWindow());
+            if (file != null) globalEpgSourceField.setText(globalEpgSourceField.getText().isBlank() ? file.getAbsolutePath() : globalEpgSourceField.getText().strip() + "\n" + file.getAbsolutePath());
+        });
+        HBox row = new HBox(8, globalEpgSourceField, browse);
+        HBox.setHgrow(globalEpgSourceField, Priority.ALWAYS);
+        return createStackedSettingControlRow("configGlobalEpgSource", row);
     }
 
     private Node createStackedSettingControlRow(String labelKey, Region control) {
@@ -1671,6 +1690,8 @@ public class ConfigurationUI extends VBox {
             enableThumbnailsCheckBox.setSelected(configuration.isEnableThumbnails());
             syncThumbnailModeSelector();
             showBookmarkAndAccountCountsSwitch.setSelected(configuration.isShowBookmarkAndAccountCounts());
+            epgEnabledSwitch.setSelected(configuration.isEpgEnabled());
+            globalEpgSourceField.setText(configuration.getGlobalEpgSource());
             syncShowBookmarkAndAccountCountsSelector();
             wideViewCheckBox.setSelected(configuration.isWideView());
             serverPort.setText(configuration.getServerPort());
@@ -1713,6 +1734,11 @@ public class ConfigurationUI extends VBox {
             return false;
         }
         try {
+            String source = globalEpgSourceField.getText().strip();
+            if (com.uiptv.application.EpgApplicationService.globalSources(source).stream().anyMatch(entry -> entry.contains("://") && !entry.matches("(?i)^https?://[^\\s]+$") && !entry.startsWith("file://"))) {
+                showErrorAlert(I18n.tr("configGlobalEpgHelp"));
+                return false;
+            }
             savingConfiguration = true;
 
             Configuration previous = service.read();
@@ -1802,6 +1828,9 @@ public class ConfigurationUI extends VBox {
         configuration.setVlcVout(vlcVoutEnabled ? "true" : null);
         configuration.setVlcAvcodecHw(vlcAvcodecHwEnabled ? "true" : null);
         configuration.setShowBookmarkAndAccountCounts(showBookmarkAndAccountCountsSwitch.isSelected());
+        configuration.setEpgEnabled(epgEnabledSwitch.isSelected());
+        configuration.setGlobalEpgSource(globalEpgSourceField.getText().strip());
+        configuration.setEpgMappingsJson(previous == null ? "{}" : previous.getEpgMappingsJson());
         // Persists the three-state selection; mirrors the legacy darkTheme flag as part of the write.
         configuration.applyThemeMode(getSelectedThemeMode());
         return configuration;
@@ -2969,7 +2998,13 @@ public class ConfigurationUI extends VBox {
         helpText.setMaxWidth(Double.MAX_VALUE);
 
         ButtonType closeButton = new ButtonType(I18n.tr(I18N_COMMON_CLOSE), ButtonBar.ButtonData.CANCEL_CLOSE);
-        ThemedDialogSupport.showChoice(title, helpText, List.of(closeButton), closeButton);
+        ScrollPane helpScroll = new ScrollPane(helpText);
+        helpScroll.setFitToWidth(true);
+        helpScroll.setPrefViewportWidth(620);
+        helpScroll.setPrefViewportHeight(460);
+        helpScroll.setMaxHeight(460);
+        helpScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        ThemedDialogSupport.showChoice(title, helpScroll, List.of(closeButton), closeButton);
     }
 
     private record VlcCachingOption(String value, String label) {

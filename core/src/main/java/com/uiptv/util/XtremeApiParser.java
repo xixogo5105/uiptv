@@ -189,6 +189,11 @@ public class XtremeApiParser {
         }
     }
 
+    public static String fetchEpg(Account account, String action, String streamId) throws IOException {
+        if (!List.of("get_short_epg", "get_simple_data_table").contains(action)) throw new IOException("Unsupported EPG action");
+        return fetchPlayerApi(account, action, Map.of("stream_id", streamId, "limit", "100"));
+    }
+
     private static String fetchPlayerApi(Account account, String action, Map<String, String> extraParams) throws IOException {
         List<String> baseUrlCandidates = baseUrlCandidates(account);
         if (baseUrlCandidates.isEmpty()) {
@@ -218,7 +223,9 @@ public class XtremeApiParser {
                                                   boolean hasMoreCandidates) throws IOException {
         HttpUtil.HttpResult response;
         try {
-            response = HttpUtil.sendRequest(buildPlayerApiUrl(baseUrl, account, action, extraParams), null, "GET");
+            response = HttpUtil.sendRequest(buildPlayerApiUrl(baseUrl, account, action, extraParams), null, "GET", null,
+                    action.startsWith("get_short_epg") || action.equals("get_simple_data_table")
+                            ? new HttpUtil.RequestOptions(true, true, 5, 5, 10) : HttpUtil.RequestOptions.defaults());
         } catch (Exception e) {
             throw toPlayerApiIOException(e);
         }

@@ -25,6 +25,7 @@ data class MobileBrowseItem(
     val categoryProviderId: String,
     val categoryTitle: String,
     val channelId: String,
+    val epgId: String = "",
     val name: String,
     val number: String = "",
     val command: String = "",

@@ -37,6 +37,8 @@ class AndroidPreferencesRepositoryTest {
     fun storesRemoteEndpointAndPlayerPreferenceOutsideSharedDatabase() = runBlocking {
         val repository = AndroidDataStorePreferencesRepository(context)
         val defaults = repository.load()
+        assertFalse(defaults.epgEnabled)
+        repository.saveEpgEnabled(true)
 
         assertEquals(AndroidPlayerPreference.EMBEDDED_PLAYER, defaults.playerPreference.selectedPlayer)
         assertEquals(true, defaults.playerPreference.rememberForFutureStreams)
@@ -68,7 +70,8 @@ class AndroidPreferencesRepositoryTest {
         repository.markRemoteSyncSucceeded(1_893_456_000L)
         repository.setFirstRunCompleted(true)
 
-        val snapshot = repository.load()
+        val snapshot = AndroidDataStorePreferencesRepository(context).load()
+        assertEquals(true, snapshot.epgEnabled)
 
         assertEquals("192.168.1.20", snapshot.remoteEndpoint.host)
         assertEquals(8888, snapshot.remoteEndpoint.port)

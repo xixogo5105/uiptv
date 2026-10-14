@@ -96,22 +96,23 @@ class AndroidXtremeCacheReloader(
                         name = name,
                         categoryId = item.optString("category_id"),
                         logo = item.optString("stream_icon"),
-                        containerExtension = item.optString("container_extension")
+                        containerExtension = item.optString("container_extension"),
+                        extraJson = item.toString()
                     )
                 )
             }
         }
     }
 
-    private fun readApi(account: MobileAccount, action: String): String {
+    internal fun readApi(account: MobileAccount, action: String, params: Map<String, String> = emptyMap()): String {
         val base = normalizeBaseUrl(account.url)
-        val url = "$base/player_api.php?username=${account.username.url()}&password=${account.password.url()}&action=$action"
+        val url = "$base/player_api.php?username=${account.username.url()}&password=${account.password.url()}&action=$action" + params.entries.joinToString("") { "&${it.key.url()}=${it.value.url()}" }
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 15_000
-            readTimeout = 60_000
+            connectTimeout = if (action in listOf("get_short_epg", "get_simple_data_table")) 5_000 else 15_000
+            readTimeout = if (action in listOf("get_short_epg", "get_simple_data_table")) 10_000 else 60_000
             requestMethod = account.httpMethod.ifBlank { "GET" }
         }
-        return connection.readCacheBody("Xtreme request")
+        return connection.readCacheBody("Xtreme request", if (action in listOf("get_short_epg", "get_simple_data_table")) 10 * 1024 * 1024 else MAX_CACHE_HTTP_BODY_BYTES)
     }
 
     private fun saveLive(
@@ -208,6 +209,7 @@ class AndroidXtremeCacheReloader(
             "Channel",
             null,
             ContentValues().apply {
+                put("extraJson", stream.extraJson)
                 put("channelId", stream.streamId)
                 put("categoryId", categoryDbId.toString())
                 put("name", stream.name)
@@ -263,6 +265,7 @@ class AndroidXtremeCacheReloader(
         val name: String,
         val categoryId: String,
         val logo: String,
-        val containerExtension: String
+        val containerExtension: String,
+        val extraJson: String
     )
 }

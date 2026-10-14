@@ -58,6 +58,7 @@ public class PlayerEpgUI extends VBox {
         expandedDetails.getStyleClass().addAll("epg-programme-card", "epg-inline-details");
         expandedDetails.getChildren().add(detailsHeader); closeDetails();
         getChildren().addAll(heading, cards, expandedDetails); setVisible(false); setManaged(false);
+        EpgModeUI.observe(this, () -> refresh(MediaPlayerFactory.guideContextProperty().get(), true));
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
         sceneProperty().addListener((_, oldScene, newScene) -> {
             if (oldScene != null) { MediaPlayerFactory.guideContextProperty().removeListener(listener); clock.stop(); generation.incrementAndGet(); }
@@ -68,6 +69,7 @@ public class PlayerEpgUI extends VBox {
     private void refresh(MediaPlayerFactory.GuideContext context, boolean clear) {
         int request = generation.incrementAndGet();
         if (clear) { setVisible(false); setManaged(false); }
+        if (!EpgModeUI.isFeatureEnabled()) { setVisible(false); setManaged(false); return; }
         if (context == null || context.account() == null || context.account().action() != com.uiptv.model.Account.AccountAction.itv) return;
         Thread.ofVirtual().start(() -> {
             PlayerEpgApplicationService.Result result;

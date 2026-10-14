@@ -891,7 +891,7 @@ class AndroidSQLiteBrowseRepository(
                         SELECT ch.id, CAST(cat.accountId AS INTEGER) AS accountId, acc.accountName, cat.id AS categoryRowId,
                             cat.categoryId, cat.title AS categoryTitle, ch.channelId, ch.name, ch.number, ch.cmd,
                             ch.logo, ch.drmType, ch.drmLicenseUrl, ch.clearKeysJson, ch.inputstreamaddon, ch.manifestType,
-                            ch.hd, '' AS extraJson, bm.id AS bookmarkId
+                            ch.hd, ch.extraJson, bm.id AS bookmarkId
                         FROM Channel ch
                         JOIN Category cat ON ch.categoryId = CAST(cat.id AS TEXT)
                         JOIN Account acc ON CAST(cat.accountId AS INTEGER) = acc.id
@@ -1696,6 +1696,7 @@ class AndroidSQLiteBrowseRepository(
             categoryProviderId = string("categoryId"),
             categoryTitle = string("categoryTitle"),
             channelId = string("channelId"),
+            epgId = extra?.firstCleanString("epg_channel_id", "xmltv_id", "epg_id", "tvg-id").orEmpty(),
             name = string("name").ifBlank { string("channelId") },
             number = string("number"),
             command = string("cmd"),

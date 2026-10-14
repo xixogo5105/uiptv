@@ -88,10 +88,11 @@ public class DatabasePatchesUtils {
     }
 
     private static void executeMigrationContent(Connection conn, String migrationSql) throws SQLException {
-        String directive = findDirectiveLine(migrationSql);
-        if (directive != null) {
-            executeDirective(conn, directive);
-            return;
+        if (findDirectiveLine(migrationSql) != null) {
+            for (String line : migrationSql.split("\\R")) {
+                String trimmed = line.trim();
+                if (trimmed.startsWith("--@")) executeDirective(conn, trimmed);
+            }
         }
         executeSqlStatements(conn, migrationSql);
     }
@@ -166,12 +167,9 @@ public class DatabasePatchesUtils {
     }
 
     private static String findDirectiveLine(String migrationSql) {
-        String[] lines = migrationSql.split("\\R");
-        for (String line : lines) {
+        for (String line : migrationSql.split("\\R")) {
             String trimmed = line.trim();
-            if (trimmed.startsWith("--@")) {
-                return trimmed;
-            }
+            if (trimmed.startsWith("--@")) return trimmed;
         }
         return null;
     }

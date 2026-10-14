@@ -83,6 +83,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private final String categoryTitle;
     private final String categoryId;
     private final SearchableTableView<ChannelItem> table = new SearchableTableView<>();
+    private final Map<Node, Long> epgCardRefreshAt = new WeakHashMap<>();
+    private Thread epgCardWorker;
+    private int epgCardGeneration;
+    private final PauseTransition epgCardPulse = new PauseTransition(Duration.millis(250));
+    private final javafx.animation.Timeline epgCardClock = new javafx.animation.Timeline(
+            new javafx.animation.KeyFrame(Duration.minutes(1), _ -> refreshVisibleCardEpg()));
     private final ResponsiveCardGrid<ChannelItem> channelGrid = new ResponsiveCardGrid<>(this::createChannelCard, true);
     private final ScrollPane channelGridScroll = new ScrollPane();
     private final TableColumn<ChannelItem, String> channelName = new TableColumn<>(I18n.tr("autoChannels"));
@@ -172,7 +178,13 @@ public class ChannelListUI extends HBox implements SearchTarget {
         preloadAllCategoryContextAsync();
         initWidgets();
         registerSceneLifecycleListener();
-        EpgModeUI.observe(this, this::applyListContentMode);
+        epgCardPulse.setOnFinished(_ -> refreshVisibleCardEpg());
+        epgCardClock.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        EpgModeUI.observe(this, () -> { applyListContentMode(); channelGrid.refresh(); queueCardEpg(); });
+        sceneProperty().addListener((_, _, scene) -> {
+            if (scene == null) { epgCardClock.stop(); epgCardPulse.stop(); epgCardGeneration++; if (epgCardWorker != null) epgCardWorker.interrupt(); }
+            else { epgCardClock.play(); queueCardEpg(); }
+        });
         table.getSearchTextField().textProperty().addListener((_, _, query) -> { if (epgGuide != null) epgGuide.setSearchQuery(query); });
         table.setPlaceholder(new Label(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle)));
     }
@@ -216,7 +228,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
         itemsLoaded.set(true);
         if (Platform.isFxApplicationThread() && (newChannels.size() > CHANNEL_UI_BATCH_SIZE
-                || listAction == Account.AccountAction.itv && new com.uiptv.application.EpgApplicationService().supportsGuide(mediaContext.toAccount()))) {
+                || listAction == Account.AccountAction.itv && EpgModeUI.isFeatureEnabled())) {
             List<Channel> channels = new ArrayList<>(newChannels);
             Thread worker = new Thread(() -> addItemsIncrementally(channels), "uiptv-channel-card-batcher");
             worker.setDaemon(true);
@@ -869,10 +881,10 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private Region createChannelCard(ChannelItem item) {
         if (!thumbnailsEnabled) {
-            return createPlainTextChannelCard(item);
+            return trackEpgCard(createPlainTextChannelCard(item), item);
         }
         if (mediaDrawerMode) {
-            return createDrawerChannelRow(item);
+            return trackEpgCard(createDrawerChannelRow(item), item);
         }
         if (isMediaCatalogMode()) {
             return createWatchingNowMediaCard(item);
@@ -889,12 +901,59 @@ public class ChannelListUI extends HBox implements SearchTarget {
                 createBookmarkTitleAction(item, titleAction)
         );
         card.getStyleClass().add("channel-list-card");
+        return trackEpgCard(card, item);
+    }
+
+    private Region trackEpgCard(Region card, ChannelItem item) {
+        if (listAction != Account.AccountAction.itv || item == null) return card;
+        card.getProperties().put("epgChannelItem", item);
+        card.sceneProperty().addListener((_, _, _) -> queueCardEpg());
         return card;
+    }
+    private void queueCardEpg() {
+        epgCardGeneration++;
+        if (epgCardWorker != null) epgCardWorker.interrupt();
+        epgCardPulse.playFromStart();
+    }
+    private boolean cardViewVisible() {
+        if (getScene() == null || disposed.get() || EpgModeUI.isEnabled() || !EpgModeUI.isFeatureEnabled()) return false;
+        for (Node node = this; node != null; node = node.getParent()) if (!node.isVisible()) return false;
+        return true;
+    }
+    private void refreshVisibleCardEpg() {
+        if (!cardViewVisible() || listAction != Account.AccountAction.itv) return;
+        Account requestAccount = mediaContext.toAccount();
+        if (requestAccount.getType() != com.uiptv.util.AccountType.STALKER_PORTAL && requestAccount.getType() != com.uiptv.util.AccountType.XTREME_API) return;
+        Set<Node> candidates = new LinkedHashSet<>(channelGrid.lookupAll(".bookmark-card"));
+        candidates.addAll(channelGrid.lookupAll(".account-drawer-channel-row"));
+        long now = System.currentTimeMillis();
+        List<Node> cards = candidates.stream().filter(card -> card.getProperties().containsKey("epgChannelItem")
+                && now >= epgCardRefreshAt.getOrDefault(card, 0L)).limit(32).toList();
+        if (cards.isEmpty()) return;
+        int request = ++epgCardGeneration;
+        if (epgCardWorker != null) epgCardWorker.interrupt();
+        Map<Node, ChannelItem> items = new LinkedHashMap<>();
+        for (Node card : cards) { items.put(card, (ChannelItem) card.getProperties().get("epgChannelItem")); epgCardRefreshAt.put(card, now + 60_000); }
+        epgCardWorker = Thread.ofVirtual().start(() -> {
+            for (var entry : items.entrySet()) {
+                if (Thread.currentThread().isInterrupted()) return;
+                var result = new com.uiptv.application.PlayerEpgApplicationService().current(requestAccount, entry.getValue().getChannel());
+                Platform.runLater(() -> {
+                    if (request != epgCardGeneration || !cardViewVisible() || entry.getKey().getScene() == null) return;
+                    Channel channel = entry.getValue().getChannel(); channel.setEpgNow(result.now()); channel.setEpgNext(result.next());
+                    Label label = (Label) entry.getKey().lookup(entry.getKey() instanceof BookmarkCard ? ".bookmark-channel-account" : ".account-drawer-channel-meta");
+                    if (label != null) {
+                        label.setText(entry.getKey() instanceof BookmarkCard ? epgSummary(entry.getValue()) : drawerChannelMeta(entry.getValue()));
+                        label.setVisible(!label.getText().isBlank()); label.setManaged(label.isVisible());
+                    } else Tooltip.install(entry.getKey(), new Tooltip(epgSummary(entry.getValue())));
+                });
+            }
+        });
     }
 
     private String epgSummary(ChannelItem item) {
         Channel channel = item == null ? null : item.getChannel();
-        if (channel == null || listAction != Account.AccountAction.itv) return "";
+        if (!EpgModeUI.isFeatureEnabled() || channel == null || listAction != Account.AccountAction.itv) return "";
         String now = channel.getEpgNow() == null ? "" : I18n.tr("epgNow") + ": " + channel.getEpgNow().title();
         String next = channel.getEpgNext() == null ? "" : I18n.tr("epgNext") + ": " + channel.getEpgNext().title();
         return now + (now.isEmpty() || next.isEmpty() ? "" : " · ") + next;

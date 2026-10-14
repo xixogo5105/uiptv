@@ -1,0 +1,8 @@
+<tv>
+  <channel id="bbc"><display-name>BBC One HD</display-name></channel>
+  <channel id="a"><display-name>News</display-name></channel>
+  <channel id="b"><display-name>NEWS</display-name></channel>
+  <programme channel="bbc" start="20261025013000 +0100"><title>First hour</title><desc>Before clock change</desc></programme>
+  <programme channel="bbc" start="20261025013000 +0000" stop="20261025023000 +0000"><title>Second hour</title><desc>After clock change</desc></programme>
+  <programme channel="bbc" start="20260230180000 +0000" stop="bad"><title>Invalid</title></programme>
+</tv>

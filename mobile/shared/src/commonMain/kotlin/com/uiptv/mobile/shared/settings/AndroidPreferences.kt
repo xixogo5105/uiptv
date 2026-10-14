@@ -42,6 +42,7 @@ data class AndroidPreferenceSnapshot(
     val playerPreference: PlayerPreference = PlayerPreference(),
     val embeddedPlayerPreference: EmbeddedPlayerPreference = EmbeddedPlayerPreference(),
     val panelVisibilityPreference: PanelVisibilityPreference = PanelVisibilityPreference(),
+    val epgEnabled: Boolean = false,
     val firstRunCompleted: Boolean = false
 )
 
@@ -57,6 +58,8 @@ interface AndroidPreferencesRepository {
     suspend fun saveEmbeddedPlayerPreference(preference: EmbeddedPlayerPreference)
 
     suspend fun savePanelVisibilityPreference(preference: PanelVisibilityPreference)
+
+    suspend fun saveEpgEnabled(enabled: Boolean)
 
     suspend fun setFirstRunCompleted(completed: Boolean)
 }
@@ -74,6 +77,7 @@ object AndroidOnlyPreferenceKeys {
     const val PANEL_BOOKMARKS_CATEGORY_VISIBLE = "panel_bookmarks_category_visible"
     const val PANEL_WATCHING_NOW_DETAILS_VISIBLE = "panel_watching_now_details_visible"
     const val PANEL_ACCOUNTS_ACTIONS_VISIBLE = "panel_accounts_actions_visible"
+    const val EPG_ENABLED = "epg_enabled"
     const val FIRST_RUN_COMPLETED = "first_run_completed"
 
     val all: Set<String> = setOf(
@@ -89,6 +93,7 @@ object AndroidOnlyPreferenceKeys {
         PANEL_BOOKMARKS_CATEGORY_VISIBLE,
         PANEL_WATCHING_NOW_DETAILS_VISIBLE,
         PANEL_ACCOUNTS_ACTIONS_VISIBLE,
+        EPG_ENABLED,
         FIRST_RUN_COMPLETED
     )
 }

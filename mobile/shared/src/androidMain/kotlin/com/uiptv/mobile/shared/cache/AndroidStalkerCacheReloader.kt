@@ -137,13 +137,37 @@ class AndroidStalkerCacheReloader(
         return 0
     }
 
-    private fun connect(account: MobileAccount): StalkerSession {
+    private val epgSessions = linkedMapOf<MobileAccount, Pair<StalkerSession, Long>>()
+
+    internal fun clearEpgSessions() { epgSessions.clear() }
+
+    internal fun readEpg(account: MobileAccount, channelId: String, action: String): String {
+        require(action == "get_short_epg" || action == "get_epg_info")
+        val now = System.currentTimeMillis()
+        val cached = epgSessions[account]
+        val session = if (cached != null && now - cached.second < 15 * 60_000) cached.first else {
+            connect(account, 10_000).also {
+                epgSessions[account] = it to now
+                while (epgSessions.size > 8) epgSessions.remove(epgSessions.keys.first())
+            }
+        }
+        return try {
+            readPortal(session.portalUrl, account, session.token,
+                mapOf("type" to "itv", "action" to action, "ch_id" to channelId, "period" to "24", "size" to "100"),
+                maxBytes = 10 * 1024 * 1024, timeoutMillis = 10_000)
+        } catch (error: Exception) {
+            epgSessions.remove(account)
+            throw error
+        }
+    }
+
+    private fun connect(account: MobileAccount, timeoutMillis: Int = 60_000): StalkerSession {
         val portalUrl = normalizePortalUrl(account.serverPortalUrl.ifBlank { account.url })
         val handshake = readPortal(
             portalUrl = portalUrl,
             account = account,
             token = "",
-            params = mapOf("type" to "stb", "action" to "handshake", "token" to "")
+            params = mapOf("type" to "stb", "action" to "handshake", "token" to ""), timeoutMillis = timeoutMillis
         )
         val handshakeJson = JSONObject(handshake)
         val token = handshakeJson.optJSONObject("js")?.optString("token")
@@ -154,7 +178,7 @@ class AndroidStalkerCacheReloader(
                 portalUrl = portalUrl,
                 account = account,
                 token = token,
-                params = getProfileParams(account)
+                params = getProfileParams(account), timeoutMillis = timeoutMillis
             )
         }
         return StalkerSession(portalUrl, token)
@@ -333,7 +357,8 @@ class AndroidStalkerCacheReloader(
                         logo = item.optString("logo"),
                         censored = item.optInt("censored", 0),
                         status = item.optInt("status", 1),
-                        hd = item.optInt("hd", 0)
+                        hd = item.optInt("hd", 0),
+                        extraJson = item.toString()
                     )
                 )
             }
@@ -356,15 +381,16 @@ class AndroidStalkerCacheReloader(
         account: MobileAccount,
         token: String,
         params: Map<String, String>,
-        maxBytes: Int = MAX_CACHE_HTTP_BODY_BYTES
+        maxBytes: Int = MAX_CACHE_HTTP_BODY_BYTES,
+        timeoutMillis: Int = 60_000
     ): String {
         val payload = (params + ("JsHttpRequest" to "${System.currentTimeMillis()}-xml")).toQueryString()
         val method = account.httpMethod.ifBlank { "GET" }.trim().uppercase()
         val isPost = method == "POST"
         val requestUrl = if (isPost) portalUrl else "$portalUrl?$payload"
         val connection = (URL(requestUrl).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 15_000
-            readTimeout = 60_000
+            connectTimeout = minOf(15_000, timeoutMillis)
+            readTimeout = timeoutMillis
             requestMethod = method
             setRequestProperty("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3")
             setRequestProperty("X-User-Agent", "Model: MAG250; Link: WiFi")
@@ -474,6 +500,7 @@ class AndroidStalkerCacheReloader(
             "Channel",
             null,
             ContentValues().apply {
+                put("extraJson", stream.extraJson)
                 put("channelId", stream.channelId)
                 put("categoryId", categoryDbId.toString())
                 put("name", stream.name)
@@ -586,7 +613,8 @@ class AndroidStalkerCacheReloader(
         val logo: String,
         val censored: Int,
         val status: Int,
-        val hd: Int
+        val hd: Int,
+        val extraJson: String
     )
 
     private companion object {

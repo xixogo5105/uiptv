@@ -88,7 +88,10 @@ public class DatabaseUtils {
                 new DataColumn("showBookmarkAndAccountCounts", "TEXT"),
                 // Three-state theme selection. Replaces the legacy darkTheme "0"/"1" flag, which migrations
                 // 0206 backfilled into this column and 0207 then dropped.
-                new DataColumn("themeMode", "TEXT")
+                new DataColumn("themeMode", "TEXT"),
+                new DataColumn("epgEnabled", "TEXT"),
+                new DataColumn("globalEpgSource", "TEXT"),
+                new DataColumn("epgMappingsJson", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
@@ -182,7 +185,8 @@ public class DatabaseUtils {
                 new DataColumn(COLUMN_DRM_LICENSE_URL, "TEXT"),
                 new DataColumn(COLUMN_CLEAR_KEYS_JSON, "TEXT"),
                 new DataColumn(COLUMN_INPUTSTREAM_ADDON, "TEXT"),
-                new DataColumn(COLUMN_MANIFEST_TYPE, "TEXT")
+                new DataColumn(COLUMN_MANIFEST_TYPE, "TEXT"),
+                new DataColumn(COLUMN_EXTRA_JSON, "TEXT")
         )));
         dbStructure.put(DbTable.VOD_CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),

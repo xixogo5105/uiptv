@@ -109,6 +109,7 @@ class ConfigurationSyncColumnParityTest extends DbBackedTest {
     }
 
     private String sourceValue(String column) {
+        if ("globalEpgSource".equals(column)) return "https://example.test/india.xml.gz\nhttps://example.test/uk.xml.gz\nhttps://example.test/usa.xml.gz\nhttps://example.test/aus.xml.gz";
         return "android-" + column;
     }
 

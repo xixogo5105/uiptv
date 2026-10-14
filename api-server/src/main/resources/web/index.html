@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/video.js@8.24.1/dist/video-js.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20261014epgWholeWords" rel="stylesheet">
+    <link href="/css/spa.css?v=20261014epgFallback" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.43/dist/vue.global.prod.js"></script>
@@ -66,9 +66,9 @@
             </label>
 
             <div class="topbar-actions">
-                <div class="epg-settings-menu">
+                <div class="epg-settings-menu" v-if="epgEnabled">
                     <button @click="epgSettingsOpen = !epgSettingsOpen" class="soft-button icon-only" :title="epgLabels.settings" :aria-label="epgLabels.settings" :aria-expanded="epgSettingsOpen" type="button"><i class="bi bi-gear"></i></button>
-                    <div class="epg-settings-popover" v-if="epgSettingsOpen"><button @click="toggleEpgMode" type="button" :aria-pressed="epgModeEnabled">{{ epgModeEnabled ? epgLabels.disable : epgLabels.enable }}</button></div>
+                    <div class="epg-settings-popover" v-if="epgSettingsOpen && epgEnabled"><button @click="openGuide" type="button">{{ epgLabels.guide || "View Guide" }}</button><button @click="closeGuide" type="button">{{ epgLabels.list || "View channel list" }}</button></div>
                 </div>
                 <button :class="{ broadcasting: isPlaying || playbackLoading }" @click="togglePlayerPanel" class="soft-button icon-only" type="button" v-if="hasPlayerContent" :title="playerPanelVisible ? 'Hide player' : 'Show player'">
                     <img
@@ -118,7 +118,7 @@
                     </div>
 
                     <section class="live-guide-panel" v-if="epgGuideVisible" aria-label="Live programme guide">
-                        <div class="segmented guide-toolbar"><button @click="shiftGuide(-6)" type="button" aria-label="Previous six hours">‹</button><button @click="loadLiveGuide()" type="button">Now</button><button @click="shiftGuide(6)" type="button" aria-label="Next six hours">›</button><span>{{ guideDate }}</span><label><input type="checkbox" v-model="showAllGuideChannels"> Show all channels</label><button @click="zoomGuide(-120)" type="button" aria-label="Zoom out">−</button><button @click="zoomGuide(120)" type="button" aria-label="Zoom in">+</button></div>
+                        <div class="segmented guide-toolbar"><button @click="shiftGuide(-6)" type="button" aria-label="Previous six hours">‹</button><button @click="loadLiveGuide()" type="button">Now</button><button @click="shiftGuide(6)" type="button" aria-label="Next six hours">›</button><span>{{ guideDate }}</span><button @click="refreshGuideCache" type="button">{{ epgLabels.refresh || "Refresh EPG" }}</button><label><input type="checkbox" v-model="showAllGuideChannels"> Show all channels</label><button @click="zoomGuide(-120)" type="button" aria-label="Zoom out">−</button><button @click="zoomGuide(120)" type="button" aria-label="Zoom in">+</button></div>
                         <div class="live-guide-selected-programme" v-if="selectedGuideProgramme"><strong>{{ selectedGuideProgramme.channelName }} · {{ selectedGuideProgramme.title }}</strong><small>{{ guideTime(selectedGuideProgramme.start) }} – {{ guideTime(selectedGuideProgramme.stop) }}</small></div>
                         <p v-if="liveGuideLoading && !liveGuideRows.length">Loading programme guide…</p>
                         <p role="alert" v-if="liveGuideError">{{ liveGuideError }}</p>
@@ -326,7 +326,7 @@
                             </div>
 
                     <section class="live-guide-panel" v-if="epgGuideVisible" aria-label="Live programme guide">
-                        <div class="segmented guide-toolbar"><button @click="shiftGuide(-6)" type="button" aria-label="Previous six hours">‹</button><button @click="loadLiveGuide()" type="button">Now</button><button @click="shiftGuide(6)" type="button" aria-label="Next six hours">›</button><span>{{ guideDate }}</span><label><input type="checkbox" v-model="showAllGuideChannels"> Show all channels</label><button @click="zoomGuide(-120)" type="button" aria-label="Zoom out">−</button><button @click="zoomGuide(120)" type="button" aria-label="Zoom in">+</button></div>
+                        <div class="segmented guide-toolbar"><button @click="shiftGuide(-6)" type="button" aria-label="Previous six hours">‹</button><button @click="loadLiveGuide()" type="button">Now</button><button @click="shiftGuide(6)" type="button" aria-label="Next six hours">›</button><span>{{ guideDate }}</span><button @click="refreshGuideCache" type="button">{{ epgLabels.refresh || "Refresh EPG" }}</button><label><input type="checkbox" v-model="showAllGuideChannels"> Show all channels</label><button @click="zoomGuide(-120)" type="button" aria-label="Zoom out">−</button><button @click="zoomGuide(120)" type="button" aria-label="Zoom in">+</button></div>
                         <div class="live-guide-selected-programme" v-if="selectedGuideProgramme"><strong>{{ selectedGuideProgramme.channelName }} · {{ selectedGuideProgramme.title }}</strong><small>{{ guideTime(selectedGuideProgramme.start) }} – {{ guideTime(selectedGuideProgramme.stop) }}</small></div>
                         <p v-if="liveGuideLoading && !liveGuideRows.length">Loading programme guide…</p>
                         <p role="alert" v-if="liveGuideError">{{ liveGuideError }}</p>
@@ -359,7 +359,7 @@
                                             :key="channel.dbId || channel.channelId || channel.id"
                                             @click="handleChannelSelection(channel)"
                                             class="row-card media-card"
-                                            v-for="channel in filteredChannels">
+                                            v-for="channel in filteredChannels" :ref="el => observeChannelEpg(el, channel)">
                                         <img :src="channel.logo" @error="imageError" @load="imageLoad" alt="" class="logo-img" v-if="channel.logo">
                                         <div :style="{ display: channel.logo ? 'none' : '' }" class="logo-box">
                                             {{ fallbackInitials(channel.name) }}
@@ -374,8 +374,8 @@
                                                 <span class="pill" v-if="contentMode === 'series' && channel.watched">IN PROGRESS</span>
                                             </div>
                                             <div class="meta-line clamp" v-if="contentMode === 'vod' && getVodPlot(channel)">{{ getVodPlot(channel) }}</div>
-                                            <div class="meta-line clamp" v-if="contentMode === 'itv' && channel.epgNow">Now: {{ channel.epgNow.title }}</div>
-                                            <div class="meta-line clamp" v-if="contentMode === 'itv' && channel.epgNext">Next: {{ channel.epgNext.title }}</div>
+                                            <div class="meta-line clamp" v-if="epgEnabled && contentMode === 'itv' && channel.epgNow">Now: {{ channel.epgNow.title }}</div>
+                                            <div class="meta-line clamp" v-if="epgEnabled && contentMode === 'itv' && channel.epgNext">Next: {{ channel.epgNext.title }}</div>
                                         </div>
                                     </article>
                                     <div class="empty-state compact" v-if="filteredChannels.length === 0">
@@ -795,7 +795,7 @@
                 </div>
 
                 <div class="uiptv-shared-player" data-uiptv-shared-player data-variant="stacked" v-if="!playerExpanded"></div>
-                <section class="player-epg-panel" aria-label="Now and Next" v-if="playerEpg && !wideViewActive && !playerExpanded">
+                <section class="player-epg-panel" aria-label="Now and Next" v-if="epgEnabled && playerEpg && !wideViewActive && !playerExpanded">
                     <header><strong>Now &amp; Next</strong><span>{{ playerEpg.channelName }}</span></header>
                     <article v-if="playerEpg.now"><strong>Now: {{ playerEpg.now.title }}</strong><small>{{ playerProgrammeTime(playerEpg.now.start) }} – {{ playerProgrammeTime(playerEpg.now.stop) }}</small><p v-if="playerEpg.now.description">{{ playerEpg.now.description }}</p></article>
                     <article v-if="playerEpg.next"><strong>Next: {{ playerEpg.next.title }}</strong><small>{{ playerProgrammeTime(playerEpg.next.start) }} – {{ playerProgrammeTime(playerEpg.next.stop) }}</small><p v-if="playerEpg.next.description">{{ playerEpg.next.description }}</p></article>
@@ -806,7 +806,7 @@
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261014epgWholeWords"></script>
+    <script src="/javascript/spa.js?v=20261014epgFallback"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;

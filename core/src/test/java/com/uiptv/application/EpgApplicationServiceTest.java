@@ -15,6 +15,11 @@ import java.util.zip.GZIPOutputStream;
 import static org.junit.jupiter.api.Assertions.*;
 
 class EpgApplicationServiceTest extends DbBackedTest {
+    @org.junit.jupiter.api.BeforeEach void enableEpg() {
+        Configuration config = ConfigurationService.getInstance().read();
+        config.setEpgEnabled(true); ConfigurationService.getInstance().save(config);
+    }
+
     @Test void playerGuideResolvesLocalIdsAndBookmarkSourcesWithoutCrossAccountLeakage() throws Exception {
         Account first = saveCatalog("Player", "First channel");
         Account second = saveCatalog("Other", "Second channel");
@@ -50,6 +55,17 @@ class EpgApplicationServiceTest extends DbBackedTest {
             Channel channel = channel("guide-id", "Test"); EpgApplicationService service = new EpgApplicationService();
             service.enrich(account, List.of(channel)); service.enrich(account, List.of(channel));
             assertEquals("Remote current", channel.getEpgNow().title()); assertEquals(1, downloads.get());
+            // Simulate a process restart: discard parsed memory state, retain the feed on disk.
+            var cacheField = EpgApplicationService.class.getDeclaredField("GUIDES"); cacheField.setAccessible(true);
+            ((java.util.Map<?, ?>) cacheField.get(null)).clear();
+            service.enrich(account, List.of(channel));
+            assertEquals("Remote current", channel.getEpgNow().title()); assertEquals(1, downloads.get());
+            String guideUrl = "http://127.0.0.1:" + server.getAddress().getPort() + "/guide";
+            java.nio.file.Files.setLastModifiedTime(EpgDiskCache.path(guideUrl),
+                    java.nio.file.attribute.FileTime.from(java.time.Instant.now().minus(java.time.Duration.ofHours(25))));
+            ((java.util.Map<?, ?>) cacheField.get(null)).clear();
+            service.enrich(account, List.of(channel));
+            assertEquals("Remote current", channel.getEpgNow().title()); assertEquals(2, downloads.get());
         } finally { server.stop(0); }
     }
     @Test void xmltvHandlesOffsetsMissingStopsAndAmbiguousNames() throws Exception {
@@ -67,11 +83,11 @@ class EpgApplicationServiceTest extends DbBackedTest {
         assertEquals(programmes.get(1).start(), programmes.getFirst().stop());
         assertEquals(programmes, guide.forChannel("unknown", " BBC  One HD "));
         assertTrue(guide.forChannel("unknown", "News").isEmpty());
-        assertTrue(guide.forChannel("unknown", "BBC One").isEmpty());
+        assertEquals(programmes, guide.forChannel("unknown", "BBC One"));
         assertNull(XmltvGuide.time("20260230180000 +0000"));
     }
 
-    @Test void playlistDiscoverySupportsGzipAndManualSourceWins() throws Exception {
+    @Test void playlistDiscoverySupportsGzipAndEmbeddedSourceWins() throws Exception {
         Path guide = tempDir.resolve("guide.xml.gz");
         try (GZIPOutputStream out = new GZIPOutputStream(Files.newOutputStream(guide))) { out.write(xml("Automatic").getBytes(StandardCharsets.UTF_8)); }
         Path playlist = tempDir.resolve("playlist.m3u");
@@ -80,6 +96,7 @@ class EpgApplicationServiceTest extends DbBackedTest {
         account.setM3u8Path(playlist.toString());
         Channel channel = channel("guide-id", "Test");
         channel.setDbId("different-local-id");
+        channel.setExtraJson("{\"epg_channel_id\":\"guide-id\"}");
         EpgApplicationService service = new EpgApplicationService();
         service.enrich(account, List.of(channel));
         assertEquals("Automatic", channel.getEpgNow().title());
@@ -87,11 +104,11 @@ class EpgApplicationServiceTest extends DbBackedTest {
         Path manual = tempDir.resolve("manual.xml"); Files.writeString(manual, xml("Manual"));
         account.setEpg(manual.toString());
         service.enrich(account, List.of(channel));
-        assertEquals("Manual", channel.getEpgNow().title());
+        assertEquals("Automatic", channel.getEpgNow().title());
         assertEquals("guide-id", channel.getChannelId());
         assertEquals("different-local-id", channel.getDbId());
         for (AccountType type : AccountType.values()) {
-            account.setType(type); service.enrich(account, List.of(channel)); assertEquals("Manual", channel.getEpgNow().title());
+            account.setType(type); service.enrich(account, List.of(channel)); assertEquals(type == AccountType.M3U8_LOCAL || type == AccountType.M3U8_URL ? "Automatic" : "Manual", channel.getEpgNow().title());
         }
     }
 

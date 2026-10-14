@@ -57,7 +57,17 @@ import com.uiptv.mobile.shared.ui.RemoteSyncUiActions
 import com.uiptv.mobile.shared.ui.UiptvMobileApp
 
 class MainActivity : ComponentActivity() {
+    private var appForeground by mutableStateOf(true)
     private var appResumeSignal by mutableIntStateOf(0)
+
+    override fun onStart() {
+        super.onStart()
+        appForeground = true
+    }
+    override fun onStop() {
+        appForeground = false
+        super.onStop()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,6 +76,7 @@ class MainActivity : ComponentActivity() {
         val databaseHelper = AndroidUiptvDatabaseHelper(this)
         val accountRepository = AndroidSQLiteAccountRepository(databaseHelper)
         val browseRepository = AndroidSQLiteBrowseRepository(databaseHelper)
+        val epgRepository = com.uiptv.mobile.shared.epg.AndroidEpgRepository(this, databaseHelper, preferences)
         val filterRepository = AndroidSQLiteFilterSettingsRepository(databaseHelper)
         val backupManager = AndroidDatabaseBackupManager(this, databaseHelper)
         val cacheScheduler = AndroidCacheRefreshScheduler(this)
@@ -121,6 +132,16 @@ class MainActivity : ComponentActivity() {
             ) {
                 UiptvMobileApp(
                     resumeSignal = appResumeSignal,
+                    isForeground = appForeground,
+                    epgActions = com.uiptv.mobile.shared.ui.EpgUiActions(
+                        clearCache = epgRepository::clearCache,
+                        loadEnabled = { preferences.load().epgEnabled },
+                        saveEnabled = preferences::saveEpgEnabled,
+                        globalSource = epgRepository::globalSource,
+                        saveGlobalSource = epgRepository::saveGlobalSource,
+                        schedule = epgRepository::schedule,
+                        saveMapping = epgRepository::saveMapping
+                    ),
                     syncActions = RemoteSyncUiActions(
                         loadPreferences = preferences::load,
                         checkConnection = syncService::checkConnection,

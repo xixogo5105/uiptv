@@ -14,11 +14,17 @@ public class HttpLiveGuideJsonServer implements HttpHandler {
             return;
         }
         JSONArray rows = new JSONArray();
-        for (LiveGuideApplicationService.Row row : new LiveGuideApplicationService().list(getParam(exchange, "accountId"))) {
+        LiveGuideApplicationService service = new LiveGuideApplicationService();
+        String visible = getParam(exchange, "visibleIds");
+        var result = visible == null || visible.isBlank() ? service.list(getParam(exchange, "accountId"))
+                : service.visible(getParam(exchange, "accountId"), visible);
+        for (LiveGuideApplicationService.Row row : result) {
             rows.put(new JSONObject().put("accountId", row.accountId()).put("accountName", row.accountName())
-                    .put("bookmarkId", row.bookmarkId()).put("channel", new JSONObject(row.channel()))
+                    .put("nativePending", row.nativePending()).put("nativeProvider", row.nativeProvider()).put("bookmarkId", row.bookmarkId()).put("channel", new JSONObject(row.channel()))
                     .put("programmes", new JSONArray(row.programmes())));
         }
+        String warning = new com.uiptv.application.EpgApplicationService().globalWarning();
+        if (!warning.isBlank()) exchange.getResponseHeaders().set("X-EPG-Warning", warning);
         generateJsonResponse(exchange, rows.toString());
     }
 }

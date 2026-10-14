@@ -50,6 +50,9 @@ import lombok.NoArgsConstructor;
      * {@code "dark"} or {@link ThemeMode#SYSTEM_VALUE}. An absent or unrecognised value means light.
      */
     private String themeMode;
+    private boolean epgEnabled;
+    private String globalEpgSource = "";
+    private String epgMappingsJson = "{}";
 
 
     @SuppressWarnings("java:S107")

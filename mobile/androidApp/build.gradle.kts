@@ -47,6 +47,8 @@ android {
         buildConfigField("String", "BUILD_NUMBER", "\"$buildNumber\"")
     }
 
+    sourceSets.getByName("androidTest").assets.srcDir("../../core/src/test/resources")
+
     signingConfigs {
         create("release") {
             if (hasReleaseSigning) {
@@ -59,6 +61,11 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            if (providers.gradleProperty("uiptv.isolatedTestApp").orNull == "true") {
+                applicationIdSuffix = ".epgtest"
+            }
+        }
         getByName("release") {
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
@@ -73,12 +80,16 @@ android {
             assets.srcDir("../../core/src/main/resources")
         }
     }
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+    }
     buildFeatures {
         buildConfig = true
     }
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
     implementation(project(":shared"))
     implementation(libs.androidx.activity.compose)
     implementation(compose.foundation)

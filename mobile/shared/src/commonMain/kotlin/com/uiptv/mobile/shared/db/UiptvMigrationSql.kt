@@ -2,8 +2,8 @@ package com.uiptv.mobile.shared.db
 
 object UiptvSchemaInfo {
     const val DATABASE_NAME = "uiptv.db"
-    const val SCHEMA_VERSION_CODE = 207
-    const val CURRENT_SCHEMA_VERSION = "0207"
+    val SCHEMA_VERSION_CODE = CURRENT_SCHEMA_VERSION.toInt()
+    const val CURRENT_SCHEMA_VERSION = UiptvGeneratedSchema.SCHEMA_VERSION
     const val MIGRATIONS_DIR = "db/migrations"
     const val MIGRATIONS_LIST = "$MIGRATIONS_DIR/migrations.txt"
 }
@@ -33,6 +33,9 @@ object UiptvMigrationSql {
             .map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("#") }
             .toList()
+
+    fun findDirectives(sql: String): List<MigrationDirective> = sql.lineSequence()
+        .map { it.trim() }.filter { it.startsWith("--@") }.map(::parseDirective).toList()
 
     fun findDirective(sql: String): MigrationDirective? {
         val directiveLine = sql.lineSequence()

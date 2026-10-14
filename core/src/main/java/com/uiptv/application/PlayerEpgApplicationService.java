@@ -11,7 +11,7 @@ public class PlayerEpgApplicationService {
     public record Result(String channelName, EpgProgramme now, EpgProgramme next) { }
 
     public Result lookup(Query query) {
-        if (query == null) return new Result("", null, null);
+        if (!new EpgApplicationService().isEnabled() || query == null) return new Result("", null, null);
         Account account;
         Channel channel;
         if (query.bookmarkId() != null && !query.bookmarkId().isBlank()) {

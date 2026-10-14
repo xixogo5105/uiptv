@@ -1,0 +1,3 @@
+--@add_column Configuration epgEnabled TEXT DEFAULT '0'
+--@add_column Configuration globalEpgSource TEXT DEFAULT ''
+--@add_column Configuration epgMappingsJson TEXT DEFAULT '{}'

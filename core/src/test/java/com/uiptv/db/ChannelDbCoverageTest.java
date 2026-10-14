@@ -39,6 +39,9 @@ class ChannelDbCoverageTest extends DbBackedTest {
         ChannelDb channelDb = ChannelDb.get();
         assertEquals(2, channelDb.getChannelCountForAccount(savedAccount.getDbId()));
 
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> channelDb.saveAll(List.of(first), "missing-category", savedAccount));
+        assertEquals(2, channelDb.getChannelCountForAccount(savedAccount.getDbId()), "A stale category must not delete unrelated cached channels");
+
         List<Channel> channels = channelDb.getChannels(savedCategory.getDbId());
         assertEquals(2, channels.size());
         assertTrue(channels.stream().anyMatch(c -> "One".equals(c.getName())));

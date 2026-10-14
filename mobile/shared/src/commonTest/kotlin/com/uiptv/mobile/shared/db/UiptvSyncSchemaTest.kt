@@ -83,7 +83,10 @@ class UiptvSyncSchemaTest {
                 "vlcAvcodecHw",
                 "lightweightModeEnabled",
                 "showBookmarkAndAccountCounts",
-                "themeMode"
+                "themeMode",
+                "epgEnabled",
+                "globalEpgSource",
+                "epgMappingsJson"
             ),
             UiptvSyncSchema.configurationColumns
         )
