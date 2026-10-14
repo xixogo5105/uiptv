@@ -85,17 +85,23 @@ public final class PlaybackUIService {
             return;
         }
 
+        java.util.concurrent.CompletionStage<Void> playerReady = java.util.concurrent.CompletableFuture.completedFuture(null);
         if (context.playerPathIsEmbedded() || (isBlank(request.playerPath) && context.useEmbeddedPlayerConfig())) {
             var player = getPlayer();
             player.stopForReload();
+            playerReady = player.playbackReady();
             player.updateChannelInfo(request.channel, playbackAccount);
             player.showLoading();
         }
+        java.util.concurrent.CompletionStage<Void> ready = playerReady;
         currentPlaybackResolution = PLAYBACK_EXECUTOR.submit(() -> {
             try {
                 if (Thread.currentThread().isInterrupted()) {
                     return;
                 }
+                // Finish releasing the old stream before creating a token for the next one.
+                ready.toCompletableFuture().get();
+                if (Thread.currentThread().isInterrupted() || requestSequence != PLAYBACK_REQUEST_SEQUENCE.get()) return;
                 PlayerResponse response = resolvePlayerResponse(request, playbackAccount);
                 if (Thread.currentThread().isInterrupted()) {
                     return;
@@ -107,6 +113,8 @@ public final class PlaybackUIService {
                     }
                     launchResolvedPlayback(context, request, response);
                 });
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             } catch (PlaybackResolutionException e) {
                 // Expected timeout or cancellation; keep playback failures non-modal.
             } catch (Exception e) {
@@ -225,12 +233,12 @@ public final class PlaybackUIService {
 
     private static void launchResolvedPlayback(PlaybackModeContext context, PlaybackRequest request, PlayerResponse response) {
         if (context.playerPathIsEmbedded()) {
-            playEmbedded(response, true);
+            playPreparedEmbedded(response);
             return;
         }
         if (isBlank(request.playerPath)) {
             if (context.useEmbeddedPlayerConfig()) {
-                playEmbedded(response, true);
+                playPreparedEmbedded(response);
             } else {
                 showErrorAlert(I18n.tr("autoNoDefaultPlayerConfigured"));
             }
@@ -251,6 +259,16 @@ public final class PlaybackUIService {
         }
         player.stopForReload();
         player.play(response);
+    }
+
+    private static void playPreparedEmbedded(PlayerResponse response) {
+        // play() already stopped and awaited this player before URL resolution.
+        // A second teardown here races startup and needlessly ages the new token.
+        if (getPlayerType() == DUMMY) {
+            showErrorAlert(I18n.tr("autoEmbeddedPlayerUnavailable"));
+            return;
+        }
+        getPlayer().play(response);
     }
 
     static boolean isEmbeddedPlayerPath(String playerPath) {

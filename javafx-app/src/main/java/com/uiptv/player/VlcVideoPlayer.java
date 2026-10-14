@@ -36,24 +36,13 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     private final Object playerLock = new Object();
     private final ExecutorService playExecutor = Executors.newVirtualThreadPerTaskExecutor();
-    /**
-     * Native teardown runs on its own thread rather than on {@link #playExecutor}.
-     * <p>
-     * Playback tasks block for as long as {@code resolveHlsPlaylistChain} needs, which is a
-     * chain of HTTP requests. Sharing one single-thread executor therefore made every channel
-     * switch wait behind the previous switch's playlist resolution, delaying the moment libVLC
-     * first touches the stream. That delay is not harmless: Stalker {@code create_link} hands out
-     * a short-lived token, so by the time playback actually started the token could be expired
-     * and libVLC failed with an error that carries no reason.
-     * <p>
-     * A separate executor keeps the original intent - never block the JavaFX thread on native
-     * calls - without making teardown compete with playback for the same thread.
-     */
-    private final ExecutorService teardownExecutor = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "vlc-teardown-media");
+    /** Only native start/release commands share this queue; network resolution never occupies it. */
+    private final ExecutorService nativeExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "vlc-native-media");
         t.setDaemon(true);
         return t;
     });
+    private final java.util.function.Supplier<MediaPlayerFactory> nativeFactory;
     private MediaPlayerFactory mediaPlayerFactory;
     private volatile EmbeddedMediaPlayer mediaPlayer;
     private MediaPlayerEventAdapter mediaPlayerEvents;
@@ -66,7 +55,12 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private final AtomicLong mediaRequestVersion = new AtomicLong();
 
     public VlcVideoPlayer() {
-        super(); // Must be the first call
+        this(null);
+    }
+
+    VlcVideoPlayer(java.util.function.Supplier<MediaPlayerFactory> nativeFactory) {
+        super();
+        this.nativeFactory = nativeFactory;
 
         if (videoImageView == null) {
             videoImageView = new ImageView();
@@ -84,7 +78,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             if (mediaPlayer != null) {
                 return;
             }
-            mediaPlayerFactory = new MediaPlayerFactory(createVlcArgs().toArray(new String[0]));
+            mediaPlayerFactory = nativeFactory == null ? new MediaPlayerFactory(createVlcArgs().toArray(new String[0])) : nativeFactory.get();
             mediaPlayer = mediaPlayerFactory.mediaPlayers().newEmbeddedMediaPlayer();
             configureEmbeddedPlayer();
             mediaPlayerEvents = createMediaPlayerEvents();
@@ -416,7 +410,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 return;
             }
             loadingSpinner.setVisible(false);
-            com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VlcVideoPlayer: An error occurred in the media player.");
+            com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VLC media error request=" + mediaRequestVersion.get());
             errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
             errorLabel.setVisible(true);
             if (isRepeating && isRetrying.get()) {
@@ -492,45 +486,53 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) {
                     return;
                 }
-                ensurePlayerInitialized();
-                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) {
-                    return;
-                }
+                playbackReady().toCompletableFuture().get();
+                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) return;
                 videoSourceWidth = 0;
                 videoSourceHeight = 0;
                 lastStreamInfoLabel = "";
+                long prepared = System.nanoTime();
                 String playUri = resolveHlsPlaylistChain(uri);
+                com.uiptv.util.AppLog.addInfoLog(VlcVideoPlayer.class,
+                        "VLC playlist preparation request=" + playbackRequestVersion
+                                + " elapsed=" + (System.nanoTime() - prepared) / 1_000_000 + "ms");
                 // Sanitize URL for libvlc: encode raw braces and other problematic characters that some CDNs reject
                 playUri = sanitizeUriForLibVlc(playUri);
                 if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) {
                     return;
                 }
-                long audioRequestVersion = markAudioStateSyncRequested();
-                EmbeddedMediaPlayer player;
-                synchronized (playerLock) {
-                    player = mediaPlayer;
-                }
-                if (player == null || isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) {
-                    return;
-                }
-
-                // Never hold playerLock across native VLC calls. A slow player.media().play()
-                // must not prevent the JavaFX Stop path from detaching the player.
-                if (com.uiptv.service.ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
-                    player.media().play(playUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
-                } else {
-                    player.media().play(playUri);
-                }
-                if (playbackRequestVersion == mediaRequestVersion.get() && !Thread.currentThread().isInterrupted()) {
-                    scheduleAudioStateStartupSync(audioRequestVersion);
-                }
+                String resolvedUri = playUri;
+                nativeExecutor.submit(() -> {
+                    if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) return;
+                    long started = System.nanoTime();
+                    try {
+                        ensurePlayerInitialized();
+                        EmbeddedMediaPlayer player = mediaPlayer;
+                        if (player == null || isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) return;
+                        long audioRequestVersion = markAudioStateSyncRequested();
+                        boolean accepted;
+                        if (ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
+                            accepted = player.media().play(resolvedUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
+                        } else {
+                            accepted = player.media().play(resolvedUri);
+                        }
+                        com.uiptv.util.AppLog.addInfoLog(VlcVideoPlayer.class,
+                                "VLC start request=" + playbackRequestVersion + " accepted=" + accepted
+                                        + " elapsed=" + (System.nanoTime() - started) / 1_000_000 + "ms");
+                        if (!accepted) throw new IllegalStateException("libVLC rejected media startup");
+                        if (playbackRequestVersion == mediaRequestVersion.get()) scheduleAudioStateStartupSync(audioRequestVersion);
+                    } catch (Throwable failure) {
+                        reportPlaybackFailure(playbackRequestVersion, failure);
+                    }
+                });
             } catch (Throwable t) {
                 // submit() captures the failure in a Future nobody reads, so without this the task
                 // dies silently: no libVLC error event ever arrives (the URL never reached the
                 // player), so handleError cannot run, and the spinner shown above stays up forever
                 // with no message. Catch Throwable because libVLC init failures surface as
                 // UnsatisfiedLinkError, which is an Error, not an Exception.
-                reportPlaybackFailure(uri, playbackRequestVersion, t);
+                if (t instanceof InterruptedException) { Thread.currentThread().interrupt(); return; }
+                reportPlaybackFailure(playbackRequestVersion, t);
             }
         });
     }
@@ -539,12 +541,12 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
      * Surfaces a failure that happened before libVLC ever saw the media, mirroring
      * {@link #handleError()} so the user gets the same message and a logged cause.
      */
-    private void reportPlaybackFailure(String uri, long playbackRequestVersion, Throwable t) {
+    private void reportPlaybackFailure(long playbackRequestVersion, Throwable t) {
         if (playbackRequestVersion != mediaRequestVersion.get() || isDisposed.get()) {
             return;
         }
         com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class,
-                "VlcVideoPlayer: playback could not be started for " + uri, t);
+                "VlcVideoPlayer: playback could not be started request=" + playbackRequestVersion, t);
         Platform.runLater(() -> {
             if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
                 return;
@@ -593,17 +595,20 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             mediaPlayerEvents = null;
             mediaPlayerFactory = null;
         }
-        // Native VLC calls can block for an unreachable stream. Serializing cleanup
-        // with playback avoids both JavaFX freezes and play/release races, but it must not
-        // queue behind playback: a pending playlist resolution would then delay the next
-        // stream's first request enough to outlive its create_link token.
+        // Serialize release with native startup, never with HTTP playlist resolution.
+        // The UI detaches immediately; playbackReady lets URL resolution await cleanup off-thread.
         if (playerToCleanup != null || factoryToCleanup != null) {
-            teardownExecutor.submit(() -> releaseNativePlayer(playerToCleanup, factoryToCleanup));
+            nativeExecutor.submit(() -> releaseNativePlayer(playerToCleanup, factoryToCleanup));
         }
         clearVideoImage();
         videoSourceWidth = 0;
         videoSourceHeight = 0;
         lastStreamInfoLabel = "";
+    }
+
+    @Override
+    public java.util.concurrent.CompletionStage<Void> playbackReady() {
+        return java.util.concurrent.CompletableFuture.runAsync(this::ensurePlayerInitialized, nativeExecutor);
     }
 
     private void releaseNativePlayer(EmbeddedMediaPlayer playerToCleanup, MediaPlayerFactory factoryToCleanup) {
@@ -647,7 +652,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             super.disposePlayer();
         } finally {
             playExecutor.shutdownNow();
-            teardownExecutor.shutdownNow();
+            nativeExecutor.shutdown(); // Drain queued native releases rather than discarding them.
         }
     }
 

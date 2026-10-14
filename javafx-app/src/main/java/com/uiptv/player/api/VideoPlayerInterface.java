@@ -17,6 +17,11 @@ public interface VideoPlayerInterface {
 
     void stopForReload();
 
+    /** Completes after teardown and native preparation; await off the JavaFX thread before requesting a short-lived URL. */
+    default java.util.concurrent.CompletionStage<Void> playbackReady() {
+        return java.util.concurrent.CompletableFuture.completedFuture(null);
+    }
+
     void showLoading();
 
     void updateChannelInfo(com.uiptv.model.Channel channel, com.uiptv.model.Account account);

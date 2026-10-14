@@ -76,6 +76,34 @@ class PlaybackUIServiceTest {
         assertFalse(PlaybackUIService.isEmbeddedPlayerPath("/usr/bin/vlc"));
     }
 
+    @Test
+    void resolvedDoubleClickPlaybackDoesNotTearDownThePreparedPlayerAgain() throws Exception {
+        com.uiptv.testsupport.FxTestSupport.initJavaFx();
+        com.uiptv.testsupport.FxTestSupport.runOnFxThread(() -> {
+            var player = org.mockito.Mockito.mock(com.uiptv.player.api.VideoPlayerInterface.class);
+            try (var factory = org.mockito.Mockito.mockStatic(com.uiptv.player.MediaPlayerFactory.class)) {
+                factory.when(com.uiptv.player.MediaPlayerFactory::getPlayer).thenReturn(player);
+                factory.when(com.uiptv.player.MediaPlayerFactory::getPlayerType)
+                        .thenReturn(com.uiptv.player.api.VideoPlayerInterface.PlayerType.VLC);
+                var configuration = new com.uiptv.model.Configuration();
+                configuration.setEmbeddedPlayer(true);
+                var request = new PlaybackUIService.PlaybackRequest(sampleAccount(), sampleChannel(), PlaybackUIService.EMBEDDED_PLAYER_PATH);
+                var build = PlaybackUIService.class.getDeclaredMethod("buildPlaybackModeContext", com.uiptv.model.Configuration.class,
+                        PlaybackUIService.PlaybackRequest.class, Account.class);
+                build.setAccessible(true);
+                var context = build.invoke(null, configuration, request, request.accountForPlayback());
+                var launch = PlaybackUIService.class.getDeclaredMethod("launchResolvedPlayback", context.getClass(),
+                        PlaybackUIService.PlaybackRequest.class, com.uiptv.model.PlayerResponse.class);
+                launch.setAccessible(true);
+                var response = new com.uiptv.model.PlayerResponse("http://example.test/live.m3u8?token=fresh");
+                launch.invoke(null, context, request, response);
+                org.mockito.Mockito.verify(player).play(response);
+                org.mockito.Mockito.verify(player, org.mockito.Mockito.never()).stopForReload();
+            }
+            return null;
+        });
+    }
+
     private String readStringField(Object target, String name) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
