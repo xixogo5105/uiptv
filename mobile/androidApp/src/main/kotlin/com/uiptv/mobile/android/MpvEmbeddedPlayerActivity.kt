@@ -739,7 +739,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(titleLabel, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(spacer(dp(12)))
             addView(epgGuideButton)
+            addView(spacer(dp(12)))
             addView(closeButton)
         }
         streamInfoLabel = TextView(this).apply {
@@ -1614,7 +1616,11 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun showEpgPanel(side: Int = Gravity.END) {
-        if (locked || !isLiveStream() || epgResult?.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) return
+        if (locked || !isLiveStream()) return
+        val result = epgResult ?: return
+        if (result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) return
+        if (result.status != com.uiptv.mobile.shared.epg.MobileEpgStatus.AVAILABLE &&
+            result.status != com.uiptv.mobile.shared.epg.MobileEpgStatus.STALE) return
         controlsOverlay.visibility = View.GONE; controlsVisible = false
         hidePlaylistOverlay(); epgPanelSide = side
         (epgPanel.layoutParams as FrameLayout.LayoutParams).apply { gravity = side }
@@ -1644,9 +1650,11 @@ class MpvEmbeddedPlayerActivity : Activity() {
         epgResult = result
         val now = System.currentTimeMillis()
         epgLabel.text = listOfNotNull(result.now(now)?.let { "Now: ${it.title}" }, result.next(now)?.let { "Next: ${it.title}" }).joinToString("\n")
-        epgLabel.visibility = if (epgLabel.text.isBlank()) View.GONE else View.VISIBLE
-        epgGuideButton.visibility = if (result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) View.GONE else View.VISIBLE
-        if (result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) hideEpgPanel()
+        epgLabel.visibility = if (epgLabel.text.isBlank()) View.VISIBLE else View.VISIBLE
+        val available = result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.AVAILABLE ||
+            result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.STALE
+        epgGuideButton.visibility = if (available) View.VISIBLE else View.GONE
+        if (!available) hideEpgPanel()
         else if (::epgPanel.isInitialized && epgPanel.visibility == View.VISIBLE) renderEpgDetails()
     }
 
@@ -2135,6 +2143,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).roundToInt()
+
+    private fun spacer(width: Int = 0, height: Int = 0) = View(this).apply {
+        minimumWidth = width; minimumHeight = height
+    }
 
     private fun showMessage(message: String) {
         messageView.text = message

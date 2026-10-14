@@ -87,9 +87,10 @@ class MpvEmbeddedPlayerActivityControlTest {
     }
 
     @Test
-    fun onAirProgrammeDrawerOpensWhileGuideLoads() {
+    fun onAirProgrammeDrawerOnlyOpensWhenGuideDataIsAvailable() {
         val player = launchPlayer("LIVE")
         waitForAnyControl(player, listOf("Pause", "Play", "Play/pause"))
+        // EPG is still loading: the drawer must not open and the Guide button must stay hidden.
         instrumentation.runOnMainSync {
             val job = player.javaClass.getDeclaredField("epgJob").apply { isAccessible = true }.get(player) as? kotlinx.coroutines.Job
             job?.cancel()
@@ -97,10 +98,23 @@ class MpvEmbeddedPlayerActivityControlTest {
         }
         val root = player.javaClass.getDeclaredField("rootLayout").apply { isAccessible = true }.get(player) as View
         swipe(player, root.width - 1f, root.height * 0.2f, root.width * 0.2f, root.height * 0.2f)
-        val panel = waitForControl(player, "Programme details panel")
+        val panel = player.javaClass.getDeclaredField("epgPanel").apply { isAccessible = true }.get(player) as View
+        org.junit.Assert.assertEquals(View.GONE, panel.visibility)
+        val guideButton = player.javaClass.getDeclaredField("epgGuideButton").apply { isAccessible = true }.get(player) as View
+        org.junit.Assert.assertEquals(View.GONE, guideButton.visibility)
+        val now = System.currentTimeMillis()
+        val programme = com.uiptv.mobile.shared.epg.MobileEpgProgramme("Godzilla", "On-air movie description", now - 60_000, now + 3_600_000)
+        instrumentation.runOnMainSync {
+            player.javaClass.getDeclaredMethod("displayEpg", com.uiptv.mobile.shared.epg.MobileEpgResult::class.java).apply { isAccessible = true }
+                .invoke(player, com.uiptv.mobile.shared.epg.MobileEpgResult(com.uiptv.mobile.shared.epg.MobileEpgStatus.AVAILABLE, listOf(programme)))
+        }
+        org.junit.Assert.assertEquals(View.VISIBLE, guideButton.visibility)
+        swipe(player, root.width - 1f, root.height * 0.2f, root.width * 0.2f, root.height * 0.2f)
         org.junit.Assert.assertEquals(View.VISIBLE, panel.visibility)
         org.junit.Assert.assertEquals(android.view.Gravity.END, (panel.layoutParams as android.widget.FrameLayout.LayoutParams).gravity)
-        waitForText(player, "Loading programme guide…")
+        org.junit.Assert.assertEquals("Godzilla", (waitForControl(player, "On-air programme title") as android.widget.TextView).text.toString())
+        clickControl(player, "Close programme guide")
+        org.junit.Assert.assertEquals(View.GONE, panel.visibility)
     }
 
     @Test
