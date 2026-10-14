@@ -57,7 +57,29 @@ class EpgMemoryBudgetTest extends DbBackedTest {
         }
     }
 
-    @Test void largeFeedsEvictByMemoryBeforeTheEntryCountLimit() throws Exception {
+    @Test void compactStorageNormalizesUnsortedSchedulesAcrossChunks() throws Exception {
+        var now = Instant.now();
+        var formatter = DateTimeFormatter.ofPattern("uuuuMMddHHmmss xx").withZone(ZoneOffset.UTC);
+        var xml = new StringBuilder("<tv>");
+        for (int i = 599; i >= 0; i--) {
+            xml.append("<programme channel='station' start='").append(formatter.format(now.plusSeconds(i * 60L)))
+                    .append("'");
+            if (i == 599) xml.append(" stop='").append(formatter.format(now.plusSeconds(600 * 60L))).append("'");
+            xml.append("><title>Show ").append(i).append("</title><desc>").append("é".repeat(2048)).append("</desc></programme>");
+        }
+        xml.append("</tv>");
+        var parsed = XmltvGuide.read(new java.io.ByteArrayInputStream(xml.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)), now);
+        assertTrue(parsed.forChannel("station", "", false).isEmpty(), "Reading a feed must not expand schedules eagerly");
+        var schedule = parsed.forChannel("station", "");
+        assertEquals(600, schedule.size());
+        assertEquals("Show 0", schedule.getFirst().title());
+        assertEquals("Show 599", schedule.getLast().title());
+        assertEquals(60_000, schedule.getFirst().stop() - schedule.getFirst().start());
+        assertEquals("é".repeat(2048), schedule.getFirst().description());
+        assertTrue(parsed.estimatedBytes() < 1024 * 1024);
+    }
+
+    @Test void repeatedLargeFeedsStayCompactWithoutExpandingEveryChannel() throws Exception {
         Account account = account();
         EpgApplicationService service = new EpgApplicationService(); service.clearCache();
         var formatter = DateTimeFormatter.ofPattern("uuuuMMddHHmmss xx").withZone(ZoneOffset.UTC);
@@ -79,7 +101,7 @@ class EpgMemoryBudgetTest extends DbBackedTest {
                 assertFalse(service.cachedSchedule(account, channel).isEmpty());
             }
             account.setEpg(first);
-            assertTrue(service.memorySchedule(account, channel).isEmpty(), "Old large feeds must be evicted even below 32 entries");
+            assertFalse(service.memorySchedule(account, channel).isEmpty(), "Compressed feeds should fit without discarding useful regional sources");
         } finally { service.clearCache(); }
     }
 }

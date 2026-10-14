@@ -40,3 +40,11 @@ No provider/local identity translation, database schema, account credentials or 
 ## Remaining measurement
 
 The installed running app was not replaced or restarted. Measure a rebuilt app with the same accounts, EPG sources, window size and thumbnail settings, then repeat with embedded VLC playback. Capture RSS and post-collection live heap after startup, after navigation, after 30–60 minutes idle and after playback stops. The requested approximately 500 MB idle / 1 GB with VLC targets are not yet verified. If RSS continues growing while live heap stays flat, enable native-memory tracking at startup and investigate JavaFX rendering/native player allocations separately.
+
+## Follow-up: large regional feeds and EPG-only filtering
+
+The first memory guard could reject a feed below the 200 MiB download limit because its expanded programme strings exceeded the 32 MiB per-feed estimate. Schedules now compress in bounded 512 KiB batches while parsing, without retaining the whole expanded guide. Only requested channels expand and normalize, with a bounded per-feed cache of expanded schedules. Catalog memory-only reads never trigger expansion. Missing stop times and overlaps are resolved across all chunks for a requested channel.
+
+A read-only check parsed all 12 actual cached XMLTV files with a 256 MiB heap, including 66.3, 67.8 and 73.6 MiB feeds. All succeeded; the largest retained estimate was 3.8 MiB. Source URLs and programme contents were not included in probe output. The compressed-data, input-size, deadline and programme-count limits still protect unusually large or malformed feeds.
+
+EPG-only mode no longer includes confirmed empty channels because they are native providers, because every schedule is empty, or because any source has a warning. Pending channels remain visible with an explicit loading state while their guides are checked; resolved empty rows are hidden. When hiding rows exposes new pending rows, hydration continues into the newly visible viewport. Show all channels displays empty schedules in a rounded, vertically aligned programme-cell surface in both themes.

@@ -21,14 +21,44 @@ import static com.uiptv.testsupport.FxTestSupport.*;
 class LiveGuideUITest extends DbBackedUiTest {
     @BeforeAll static void startFx() throws Exception { initJavaFx(); }
 
-    @Test void emptySchedulesKeepChannelsVisible() throws Exception {
+    @Test void epgOnlyHidesResolvedEmptyRowsEvenWithSourceWarnings() throws Exception {
         runOnFxThread(() -> {
             LiveGuideUI guide = new LiveGuideUI();
             Channel channel = new Channel(); channel.setName("Star Plus");
-            field("data").set(guide, List.of(new LiveGuideApplicationService.Row("account", "Account", "", channel, List.of())));
+            field("data").set(guide, List.of(new LiveGuideApplicationService.Row("account", "Account", "", channel, List.of(), false, true)));
+            field("sourceWarning").set(guide, "Source warning");
+            field("loadedAt").setLong(guide, System.currentTimeMillis());
+            guide.refreshIfNeeded();
+            assertEquals(0, ((List<?>) field("filteredRows").get(guide)).size());
+            CheckBox showAll = (CheckBox) field("showAllChannels").get(guide);
+            showAll.fire();
+            assertEquals(1, ((List<?>) field("filteredRows").get(guide)).size());
+            VBox rows = (VBox) field("rows").get(guide);
+            HBox line = (HBox) rows.getChildren().get(1);
+            Pane timeline = (Pane) line.getChildren().get(1);
+            StackPane slot = (StackPane) timeline.getChildren().getFirst();
+            assertTrue(slot.getStyleClass().contains("live-guide-empty-slot"));
+            assertEquals(javafx.geometry.Pos.CENTER_LEFT, slot.getAlignment());
+            assertEquals(3, slot.getLayoutY());
+            assertEquals(84, slot.getPrefHeight());
+            assertEquals(com.uiptv.util.I18n.tr("epgNoGuide"), ((Label) slot.getChildren().getFirst()).getText());
+            guide.dispose();
+            return null;
+        });
+    }
+
+    @Test void pendingRowsDisplayLoadingUntilTheirGuideHasBeenChecked() throws Exception {
+        runOnFxThread(() -> {
+            LiveGuideUI guide = new LiveGuideUI();
+            Channel channel = new Channel(); channel.setName("News");
+            field("data").set(guide, List.of(new LiveGuideApplicationService.Row("account", "Account", "", channel, List.of(), true, false)));
             field("loadedAt").setLong(guide, System.currentTimeMillis());
             guide.refreshIfNeeded();
             assertEquals(1, ((List<?>) field("filteredRows").get(guide)).size());
+            VBox rows = (VBox) field("rows").get(guide);
+            Pane timeline = (Pane) ((HBox) rows.getChildren().get(1)).getChildren().get(1);
+            Label message = (Label) ((StackPane) timeline.getChildren().getFirst()).getChildren().getFirst();
+            assertEquals(com.uiptv.util.I18n.tr("epgLoading"), message.getText());
             guide.dispose();
             return null;
         });
@@ -93,11 +123,12 @@ class LiveGuideUITest extends DbBackedUiTest {
             ThumbnailAwareUI.notifyThumbnailModeChanged(false); guide.refreshIfNeeded();
             assertNull(((Button) ((HBox) rows.getChildren().get(1)).getChildren().getFirst()).getGraphic().lookup(".channel-logo-view"));
             ThumbnailAwareUI.notifyThumbnailModeChanged(originalThumbnailMode); guide.refreshIfNeeded();
+            CheckBox showAll = (CheckBox) field("showAllChannels").get(guide); showAll.fire(); assertEquals(6, rows.getChildren().size());
+            root.applyCss(); root.layout();
             WritableImage snapshot = root.snapshot(null, null);
             BufferedImage png = new BufferedImage((int) snapshot.getWidth(), (int) snapshot.getHeight(), BufferedImage.TYPE_INT_ARGB);
             for (int y = 0; y < png.getHeight(); y++) for (int x = 0; x < png.getWidth(); x++) png.setRGB(x, y, snapshot.getPixelReader().getArgb(x, y));
             Path output = Path.of("target/epg-desktop-preview.png"); Files.createDirectories(output.getParent()); ImageIO.write(png, "png", output.toFile());
-            CheckBox showAll = (CheckBox) field("showAllChannels").get(guide); showAll.fire(); assertEquals(6, rows.getChildren().size());
             guide.setContext("account-2"); assertTrue(rows.getChildren().isEmpty()); guide.dispose();
             return null;
         });
@@ -191,7 +222,9 @@ class LiveGuideUITest extends DbBackedUiTest {
                 var activeIndicator = indicators.values().stream().filter(Node::isVisible).findFirst().orElseThrow();
                 assertEquals(1.0, activeIndicator.getOpacity(), .001);
                 assertTrue(activeIndicator.getBoundsInParent().getWidth() >= 28);
-                WritableImage snapshot = root.snapshot(null, null);
+                CheckBox showAll = (CheckBox) field("showAllChannels").get(guide); showAll.fire(); assertEquals(6, rows.getChildren().size());
+            root.applyCss(); root.layout();
+            WritableImage snapshot = root.snapshot(null, null);
                 BufferedImage png = new BufferedImage((int) snapshot.getWidth(), (int) snapshot.getHeight(), BufferedImage.TYPE_INT_ARGB);
                 for (int y = 0; y < png.getHeight(); y++) for (int x = 0; x < png.getWidth(); x++) png.setRGB(x, y, snapshot.getPixelReader().getArgb(x, y));
                 ImageIO.write(png, "png", Path.of("target/epg-desktop-virtual-preview.png").toFile());
@@ -231,6 +264,8 @@ class LiveGuideUITest extends DbBackedUiTest {
             root.applyCss(); root.resize(470, 730); root.layout(); root.layout();
             assertTrue(panel.isVisible()); assertTrue(panel.isManaged());
             assertTrue(panel.getBoundsInParent().getMinY() >= video.getBoundsInParent().getMaxY());
+            CheckBox showAll = (CheckBox) field("showAllChannels").get(guide); showAll.fire(); assertEquals(6, rows.getChildren().size());
+            root.applyCss(); root.layout();
             WritableImage snapshot = root.snapshot(null, null);
             BufferedImage image = new BufferedImage((int) snapshot.getWidth(), (int) snapshot.getHeight(), BufferedImage.TYPE_INT_ARGB);
             for (int y = 0; y < image.getHeight(); y++) for (int x = 0; x < image.getWidth(); x++) image.setRGB(x, y, snapshot.getPixelReader().getArgb(x, y));
@@ -269,7 +304,9 @@ class LiveGuideUITest extends DbBackedUiTest {
                 assertEquals(0, panel.lookupAll(".scroll-pane").size());
                 for (Node title : panel.lookupAll(".epg-programme-title")) assertTrue(title.getBoundsInParent().getHeight() >= ((Label) title).prefHeight(title.getBoundsInParent().getWidth()) - 1);
                 if (height == 620) {
-                    WritableImage snapshot = root.snapshot(null, null);
+                    CheckBox showAll = (CheckBox) field("showAllChannels").get(guide); showAll.fire(); assertEquals(6, rows.getChildren().size());
+            root.applyCss(); root.layout();
+            WritableImage snapshot = root.snapshot(null, null);
                     BufferedImage image = new BufferedImage((int) snapshot.getWidth(), (int) snapshot.getHeight(), BufferedImage.TYPE_INT_ARGB);
                     for (int y = 0; y < image.getHeight(); y++) for (int x = 0; x < image.getWidth(); x++) image.setRGB(x, y, snapshot.getPixelReader().getArgb(x, y));
                     ImageIO.write(image, "png", Path.of("target/epg-single-column-preview.png").toFile());

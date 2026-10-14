@@ -166,7 +166,7 @@ public class EpgApplicationService {
             XmltvGuide selected;
             if (load) selected = guide(source.strip());
             else synchronized (GUIDES) { var cached = GUIDES.get(source.strip()); selected = cached == null ? EMPTY : cached.guide(); }
-            List<EpgProgramme> programmes = selected.forChannel(id, override.isBlank() ? channel.getName() : "");
+            List<EpgProgramme> programmes = selected.forChannel(id, override.isBlank() ? channel.getName() : "", load);
             if (usable(programmes)) return programmes;
         }
         return List.of();

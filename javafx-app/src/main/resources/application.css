@@ -5080,3 +5080,14 @@
 }
 .player-epg-panel { -fx-padding: 0; -fx-background-color: transparent; }
 .epg-inline-details-scroll, .epg-inline-details-scroll > .viewport { -fx-background-color: transparent; -fx-background-insets: 0; }
+
+/* Empty schedules occupy the same aligned surface as programme blocks. */
+.live-guide-empty-slot {
+    -fx-background-color: -uiptv-surface-muted;
+    -fx-background-radius: 8;
+    -fx-border-color: -uiptv-card-border;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 0 16;
+}
+.live-guide-empty-message { -fx-text-fill: -uiptv-text-secondary; }

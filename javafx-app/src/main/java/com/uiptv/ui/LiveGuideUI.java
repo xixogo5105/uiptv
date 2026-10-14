@@ -144,9 +144,8 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         if (loading && data.isEmpty()) return;
         windowStart = Instant.now().atZone(ZoneId.systemDefault()).withMinute(0).withSecond(0).withNano(0).minusHours(1).plusHours(hourOffset).toInstant().toEpochMilli();
         long now = System.currentTimeMillis();
-        boolean noGuideData = data.stream().noneMatch(candidate -> candidate.programmes().stream().anyMatch(p -> p.stop() > now));
         filteredRows = data.stream().filter(rowFilter)
-                .filter(row -> showAllChannels.isSelected() || !sourceWarning.isBlank() || noGuideData || row.nativePending() || row.nativeProvider() || row.programmes().stream().anyMatch(p -> p.stop() > now))
+                .filter(row -> showAllChannels.isSelected() || row.nativePending() || row.programmes().stream().anyMatch(p -> p.stop() > now))
                 .filter(row -> row.channel().getName() != null && row.channel().getName().toLowerCase(Locale.ROOT).contains(query))
                 .toList();
         renderViewport(true);
@@ -233,7 +232,15 @@ public class LiveGuideUI extends VBox implements SearchTarget {
                 installPlaybackActivation(block, row);
                 timeline.getChildren().add(block);
             }
-            if (!hasProgramme) { Label empty = new Label(I18n.tr("epgNoGuide")); empty.setLayoutY(18); timeline.getChildren().add(empty); }
+            if (!hasProgramme) {
+                Label message = new Label(I18n.tr(row.nativePending() ? "epgLoading" : "epgNoGuide"));
+                message.getStyleClass().add("live-guide-empty-message");
+                StackPane empty = new StackPane(message);
+                empty.getStyleClass().add("live-guide-empty-slot");
+                empty.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                empty.setLayoutY(3); empty.setPrefSize(hourWidth * 6 - 3, 84);
+                timeline.getChildren().add(empty);
+            }
             javafx.scene.shape.Line marker = new javafx.scene.shape.Line(hourWidth * (System.currentTimeMillis() - windowStart) / 3_600_000.0, 0,
                     hourWidth * (System.currentTimeMillis() - windowStart) / 3_600_000.0, 90);
             marker.getStyleClass().add("live-guide-now-marker"); marker.setMouseTransparent(true);
@@ -275,15 +282,25 @@ public class LiveGuideUI extends VBox implements SearchTarget {
             LiveGuideApplicationService service = new LiveGuideApplicationService();
             Map<LiveGuideApplicationService.Row, LiveGuideApplicationService.Row> updates = new IdentityHashMap<>();
             long publishedAt = System.nanoTime();
-            for (LiveGuideApplicationService.Row row : visible) {
-                if (Thread.currentThread().isInterrupted()) return;
-                updates.put(row, service.hydrate(row));
-                if (System.nanoTime() - publishedAt >= 100_000_000L) {
-                    publishHydratedRows(request, updates);
-                    updates.clear(); publishedAt = System.nanoTime();
+            try {
+                for (LiveGuideApplicationService.Row row : visible) {
+                    if (Thread.currentThread().isInterrupted()) return;
+                    updates.put(row, service.hydrate(row));
+                    if (System.nanoTime() - publishedAt >= 100_000_000L) {
+                        publishHydratedRows(request, updates);
+                        updates.clear(); publishedAt = System.nanoTime();
+                    }
                 }
+                if (!updates.isEmpty()) publishHydratedRows(request, updates);
+            } finally {
+                Thread owner = Thread.currentThread();
+                Platform.runLater(() -> {
+                    if (nativeWorker != owner) return;
+                    nativeWorker = null; nativeWindow = "";
+                    if (request == generation.get() && getScene() != null && renderedStart >= 0)
+                        hydrateViewport(renderedStart, renderedEnd);
+                });
             }
-            if (!updates.isEmpty()) publishHydratedRows(request, updates);
         });
     }
 

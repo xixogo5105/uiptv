@@ -30,7 +30,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
             factory.setProperty("jdk.xml.totalEntitySizeLimit", "8388608");
         factory.setProperty("javax.xml.stream.isSupportingExternalEntities", false);
         factory.setXMLResolver((publicId, systemId, base, namespace) -> { throw new javax.xml.stream.XMLStreamException("External entities disabled"); });
-        Map<String, List<EpgProgramme>> programmes = new HashMap<>();
+        CompactProgrammeMap.Builder programmes = new CompactProgrammeMap.Builder();
         Map<String, String> names = new HashMap<>();
         Set<String> ambiguous = new HashSet<>();
         Map<String, String> qualityNames = new HashMap<>();
@@ -74,10 +74,8 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                             && start.isBefore(now.plus(Duration.ofDays(7)))
                             && (stop == null || stop.isAfter(now.minus(Duration.ofHours(6))))
                             && start.isAfter(now.minus(Duration.ofDays(1)))) {
-                        retainedBytes += 192L + 2L * (title.length() + description.length() + channel.length());
-                        if (retainedBytes > 32L * 1024 * 1024) throw new IllegalArgumentException("Guide exceeds size limit");
                         if (++count > 200_000) throw new IllegalArgumentException("Guide exceeds programme limit");
-                        programmes.computeIfAbsent(channel, _ -> new ArrayList<>()).add(new EpgProgramme(title, description,
+                        programmes.add(channel, new EpgProgramme(title, description,
                                 start.toEpochMilli(), stop == null ? 0 : stop.toEpochMilli()));
                     }
                     channel = null;
@@ -87,23 +85,14 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         ambiguous.forEach(names::remove);
         ambiguousQuality.forEach(qualityNames::remove);
         qualityNames.remove("");
-        programmes.replaceAll((key, list) -> {
-            list.sort(Comparator.comparingLong(EpgProgramme::start));
-            List<EpgProgramme> completed = new ArrayList<>();
-            for (int i = 0; i < list.size(); i++) {
-                EpgProgramme p = list.get(i);
-                long end = p.stop() == 0 && i + 1 < list.size() ? list.get(i + 1).start() : p.stop();
-                if (end > p.start()) completed.add(new EpgProgramme(p.title(), p.description(), p.start(), end));
-            }
-            return EpgSchedules.normalize(completed);
-        });
-        return new XmltvGuide(Map.copyOf(programmes), Map.copyOf(names), Map.copyOf(qualityNames));
+        return new XmltvGuide(programmes.build(), Map.copyOf(names), Map.copyOf(qualityNames));
     }
 
     /** Conservative retained-size estimate, including strings, lists and map entries. */
     long estimatedBytes() {
         long bytes = 256;
-        for (var entry : programmes.entrySet()) {
+        if (programmes instanceof CompactProgrammeMap compact) bytes += compact.estimatedBytes();
+        else for (var entry : programmes.entrySet()) {
             bytes += 192L + 2L * entry.getKey().length();
             for (var p : entry.getValue()) bytes += 192L + 2L * (p.title().length() + p.description().length());
         }
@@ -129,10 +118,14 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
     }
 
     public List<EpgProgramme> forChannel(String providerId, String name) {
-        if (providerId != null && programmes.containsKey(providerId)) return programmes.get(providerId);
-        String exact = names.get(normalize(name));
-        if (exact != null) return programmes.getOrDefault(exact, List.of());
-        return programmes.getOrDefault(qualityNames.getOrDefault(normalizeQuality(name), ""), List.of());
+        return forChannel(providerId, name, true);
+    }
+
+    List<EpgProgramme> forChannel(String providerId, String name, boolean expand) {
+        String id = providerId != null && programmes.containsKey(providerId) ? providerId : names.get(normalize(name));
+        if (id == null) id = qualityNames.getOrDefault(normalizeQuality(name), "");
+        if (!expand && programmes instanceof CompactProgrammeMap compact) return compact.cached(id);
+        return programmes.getOrDefault(id, List.of());
     }
 
     static String normalize(String name) { return name == null ? "" : WHITESPACE.matcher(name.strip().toLowerCase(Locale.ROOT)).replaceAll(" "); }
