@@ -118,6 +118,13 @@ class EpgApplicationServiceTest extends DbBackedTest {
         }
     }
 
+    @Test void standardEscapedXmltvTextCanExceedTheJdkDefaultEntityBudget() throws Exception {
+        String escaped = "&amp;".repeat(120_000);
+        String xml = xml("Escaped text").replace("<title>Escaped text</title>", "<title>Escaped text</title><desc>" + escaped + "</desc>");
+        XmltvGuide parsed = XmltvGuide.read(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)), Instant.now());
+        assertEquals("&".repeat(120_000), parsed.programmes().get("guide-id").getFirst().description());
+    }
+
     @Test void missingSourceDoesNotBreakChannelsAndExternalEntitiesAreNotResolved() throws Exception {
         Account account = account("Missing", AccountType.STALKER_PORTAL);
         account.setEpg(tempDir.resolve("missing.xml").toString());

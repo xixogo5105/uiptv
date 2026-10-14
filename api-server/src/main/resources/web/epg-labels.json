@@ -8,7 +8,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ur": {
     "settings": "ترتیبات",
@@ -19,7 +20,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "pt_PT": {
     "settings": "Definições",
@@ -30,7 +32,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "pt": {
     "settings": "Definições",
@@ -41,7 +44,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "en_US": {
     "settings": "Settings",
@@ -52,7 +56,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "en": {
     "settings": "Settings",
@@ -63,7 +68,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "bn_BD": {
     "settings": "সেটিংস",
@@ -74,7 +80,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "bn": {
     "settings": "সেটিংস",
@@ -85,7 +92,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ml_IN": {
     "settings": "ക്രമീകരണങ്ങൾ",
@@ -96,7 +104,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ml": {
     "settings": "ക്രമീകരണങ്ങൾ",
@@ -107,7 +116,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "vi_VN": {
     "settings": "Cài đặt",
@@ -118,7 +128,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "vi": {
     "settings": "Cài đặt",
@@ -129,7 +140,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "zh_TW": {
     "settings": "設定",
@@ -140,7 +152,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "zh": {
     "settings": "設定",
@@ -151,7 +164,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "pt_BR": {
     "settings": "Configurações",
@@ -162,7 +176,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ja_JP": {
     "settings": "設定",
@@ -173,7 +188,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ja": {
     "settings": "設定",
@@ -184,7 +200,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "de_DE": {
     "settings": "Einstellungen",
@@ -195,7 +212,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "de": {
     "settings": "Einstellungen",
@@ -206,7 +224,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "te_IN": {
     "settings": "సెట్టింగ్‌లు",
@@ -217,7 +236,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "te": {
     "settings": "సెట్టింగ్‌లు",
@@ -228,7 +248,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "fr_FR": {
     "settings": "Paramètres",
@@ -239,7 +260,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "fr": {
     "settings": "Paramètres",
@@ -250,7 +272,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "zh_CN": {
     "settings": "设置",
@@ -261,7 +284,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ta_IN": {
     "settings": "அமைப்புகள்",
@@ -272,7 +296,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ta": {
     "settings": "அமைப்புகள்",
@@ -283,7 +308,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "id_ID": {
     "settings": "Pengaturan",
@@ -294,7 +320,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "id": {
     "settings": "Pengaturan",
@@ -305,7 +332,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "it_IT": {
     "settings": "Impostazioni",
@@ -316,7 +344,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "it": {
     "settings": "Impostazioni",
@@ -327,7 +356,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ko_KR": {
     "settings": "설정",
@@ -338,7 +368,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ko": {
     "settings": "설정",
@@ -349,7 +380,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "tr_TR": {
     "settings": "Ayarlar",
@@ -360,7 +392,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "tr": {
     "settings": "Ayarlar",
@@ -371,7 +404,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "en_GB": {
     "settings": "Settings",
@@ -382,7 +416,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "hi_IN": {
     "settings": "सेटिंग्स",
@@ -393,7 +428,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "hi": {
     "settings": "सेटिंग्स",
@@ -404,7 +440,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "pa_IN": {
     "settings": "ਸੈਟਿੰਗਾਂ",
@@ -415,7 +452,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "pa": {
     "settings": "ਸੈਟਿੰਗਾਂ",
@@ -426,7 +464,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "th_TH": {
     "settings": "การตั้งค่า",
@@ -437,7 +476,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "th": {
     "settings": "การตั้งค่า",
@@ -448,7 +488,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "uk_UA": {
     "settings": "Налаштування",
@@ -459,7 +500,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "uk": {
     "settings": "Налаштування",
@@ -470,7 +512,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ru_RU": {
     "settings": "Настройки",
@@ -481,7 +524,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ru": {
     "settings": "Настройки",
@@ -492,7 +536,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ar_SA": {
     "settings": "الإعدادات",
@@ -503,7 +548,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "ar": {
     "settings": "الإعدادات",
@@ -514,7 +560,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "es_ES": {
     "settings": "Configuración",
@@ -525,7 +572,8 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   },
   "es": {
     "settings": "Configuración",
@@ -536,6 +584,7 @@
     "epgSourceProgrammeLimit": "An EPG source contains too many programmes. Use smaller regional feeds.",
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
-    "refresh": "Refresh EPG"
+    "refresh": "Refresh EPG",
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
   }
 }

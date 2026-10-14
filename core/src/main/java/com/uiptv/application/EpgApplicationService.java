@@ -41,6 +41,10 @@ public class EpgApplicationService {
             if (cause.getMessage() != null && cause.getMessage().contains("Guide exceeds size limit")) return "epgSourceTooLarge";
             if (cause.getMessage() != null && cause.getMessage().contains("Guide exceeds programme limit")) return "epgSourceProgrammeLimit";
         }
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause.getMessage() != null && cause.getMessage().contains("JAXP000100")) return "epgSourceXmlLimit";
+            if (cause instanceof IOException) return "epgSourceUnavailable";
+        }
         if (error instanceof javax.xml.stream.XMLStreamException) return "epgSourceInvalid";
         return "epgSourceUnavailable";
     }

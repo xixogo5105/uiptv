@@ -38,6 +38,13 @@ class EpgResolutionTest extends DbBackedTest {
         }
     }
 
+    @Test void xmlProcessingLimitsAndIoFailuresAreNotMisreportedAsMalformedXml() throws Exception {
+        var warning = EpgApplicationService.class.getDeclaredMethod("warning", Exception.class); warning.setAccessible(true);
+        assertEquals("epgSourceXmlLimit", warning.invoke(null, new javax.xml.stream.XMLStreamException("JAXP00010004: entity budget exceeded")));
+        assertEquals("epgSourceUnavailable", warning.invoke(null, new javax.xml.stream.XMLStreamException("Read error", new java.io.IOException("Guide loading deadline exceeded"))));
+        assertEquals("epgSourceInvalid", warning.invoke(null, new javax.xml.stream.XMLStreamException("Malformed XML")));
+    }
+
     @Test void wrappedSizeLimitReportsOversizeInsteadOfInvalidXml() throws Exception {
         var warning = EpgApplicationService.class.getDeclaredMethod("warning", Exception.class);
         warning.setAccessible(true);
