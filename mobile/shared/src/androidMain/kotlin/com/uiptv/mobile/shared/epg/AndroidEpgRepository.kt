@@ -149,17 +149,19 @@ class AndroidEpgRepository(
                 val limited = LimitedStream(xml)
                 GuideCache(if (remote) disk.parseAndSave(source, limited, now) else AndroidXmltvReader.read(limited, now), now + 24 * 3600_000L, false)
             }
-        } catch (error: Exception) {
-            val message = when (error.message) {
-                "Guide exceeds size limit" -> "XMLTV exceeds the 200 MiB decompressed limit. Use a smaller regional feed."
-                "Programme limit exceeded" -> "XMLTV exceeds the programme limit. Use a smaller regional feed."
-                else -> "Guide source unavailable or invalid."
+        } catch (error: Throwable) {
+            val message = when (error) {
+                is OutOfMemoryError -> "Out of memory reading EPG guide. Clear the cache and use a smaller regional feed."
+                else -> when (error.message) {
+                    "Guide exceeds size limit" -> "XMLTV exceeds the 200 MiB decompressed limit. Use a smaller regional feed."
+                    "Programme limit exceeded" -> "XMLTV exceeds the programme limit. Use a smaller regional feed."
+                    else -> "Guide source unavailable or invalid."
+                }
             }
             val fallback = previous?.guide ?: if (remote) disk.read(source, now, stale = true) else null
             GuideCache(fallback, now + 30 * 60_000L, fallback != null, message)
         }
         guides[source] = cached
-        while (guides.size > 32) guides.remove(guides.keys.first())
         return cached
     }
     private fun open(source: String): InputStream {
@@ -212,7 +214,7 @@ class AndroidEpgRepository(
         }
         fun text(value: String) = if (account.type == MobileAccountType.XTREME_API)
             runCatching { Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(Base64.decode(value, Base64.DEFAULT))).toString() }.getOrDefault(value) else value
-        return MobileEpgSchedules.normalize((0 until minOf(list.length(), 2000)).mapNotNull { index ->
+        return MobileEpgSchedules.normalize((0 until minOf(list.length(), MAX_NATIVE_PROGRAMMES)).mapNotNull { index ->
             val p = list.optJSONObject(index) ?: return@mapNotNull null
             fun field(vararg keys: String) = keys.map { p.optString(it) }.firstOrNull { it.isNotBlank() }.orEmpty()
             val associated = field("ch_id", "channel_id", "stream_id")
@@ -243,10 +245,17 @@ class AndroidEpgRepository(
             }.getOrDefault(source)
         }
 
+        const val MAX_NATIVE_PROGRAMMES = 2000
         private val mutex = Mutex()
-        private val guides = linkedMapOf<String, GuideCache>()
-        private val discovered = linkedMapOf<String, Pair<String, Long>>()
-        private val native = linkedMapOf<Pair<MobileAccount, String>, NativeCache>()
+        private val guides = object : LinkedHashMap<String, GuideCache>(6, 0.75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<String, GuideCache>): Boolean = size > 6
+        }
+        private val discovered = object : LinkedHashMap<String, Pair<String, Long>>(16, 0.75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<String, Pair<String, Long>>): Boolean = size > 16
+        }
+        private val native = object : LinkedHashMap<Pair<MobileAccount, String>, NativeCache>(64, 0.75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<Pair<MobileAccount, String>, NativeCache>): Boolean = size > 64
+        }
     }
 
 }

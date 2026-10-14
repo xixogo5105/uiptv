@@ -71,15 +71,36 @@ class MpvEmbeddedPlayerActivityControlTest {
         org.junit.Assert.assertEquals("On-air movie description", (waitForControl(player, "On-air programme description") as android.widget.TextView).text.toString())
         clickControl(player, "Close programme guide")
         org.junit.Assert.assertEquals(View.GONE, panel.visibility)
-        instrumentation.runOnMainSync {
-            val root = player.javaClass.getDeclaredField("rootLayout").apply { isAccessible = true }.get(player) as View
-            val time = android.os.SystemClock.uptimeMillis()
-            val down = android.view.MotionEvent.obtain(time, time, android.view.MotionEvent.ACTION_DOWN, root.width * 0.8f, root.height * 0.2f, 0)
-            val up = android.view.MotionEvent.obtain(time, time + 100, android.view.MotionEvent.ACTION_UP, root.width * 0.2f, root.height * 0.2f, 0)
-            player.dispatchTouchEvent(down); player.dispatchTouchEvent(up); down.recycle(); up.recycle()
-        }
+        val root = player.javaClass.getDeclaredField("rootLayout").apply { isAccessible = true }.get(player) as View
+        swipe(player, root.width - 1f, root.height * 0.2f, root.width * 0.2f, root.height * 0.2f, jitterX = -10f, jitterY = 40f)
         org.junit.Assert.assertEquals(View.VISIBLE, panel.visibility)
-        clickControl(player, "Close programme guide")
+        org.junit.Assert.assertEquals(android.view.Gravity.END, (panel.layoutParams as android.widget.FrameLayout.LayoutParams).gravity)
+        Thread.sleep(1_500)
+        org.junit.Assert.assertEquals(View.VISIBLE, panel.visibility)
+        swipe(player, root.width * 0.5f, root.height * 0.5f, root.width - 1f, root.height * 0.5f)
+        org.junit.Assert.assertEquals(View.GONE, panel.visibility)
+        swipe(player, 1f, root.height * 0.2f, root.width * 0.3f, root.height * 0.2f)
+        org.junit.Assert.assertEquals(View.VISIBLE, panel.visibility)
+        org.junit.Assert.assertEquals(android.view.Gravity.START, (panel.layoutParams as android.widget.FrameLayout.LayoutParams).gravity)
+        tap(player, root.width * 0.95f, root.height * 0.5f)
+        org.junit.Assert.assertEquals(View.GONE, panel.visibility)
+    }
+
+    @Test
+    fun onAirProgrammeDrawerOpensWhileGuideLoads() {
+        val player = launchPlayer("LIVE")
+        waitForAnyControl(player, listOf("Pause", "Play", "Play/pause"))
+        instrumentation.runOnMainSync {
+            val job = player.javaClass.getDeclaredField("epgJob").apply { isAccessible = true }.get(player) as? kotlinx.coroutines.Job
+            job?.cancel()
+            player.javaClass.getDeclaredField("epgResult").apply { isAccessible = true }.set(player, null)
+        }
+        val root = player.javaClass.getDeclaredField("rootLayout").apply { isAccessible = true }.get(player) as View
+        swipe(player, root.width - 1f, root.height * 0.2f, root.width * 0.2f, root.height * 0.2f)
+        val panel = waitForControl(player, "Programme details panel")
+        org.junit.Assert.assertEquals(View.VISIBLE, panel.visibility)
+        org.junit.Assert.assertEquals(android.view.Gravity.END, (panel.layoutParams as android.widget.FrameLayout.LayoutParams).gravity)
+        waitForText(player, "Loading programme guide…")
     }
 
     @Test
@@ -130,6 +151,70 @@ class MpvEmbeddedPlayerActivityControlTest {
 
     private fun waitForControl(activity: Activity, description: String): View {
         return waitForAnyControl(activity, listOf(description))
+    }
+
+    private fun waitForText(activity: Activity, text: String): View {
+        val deadline = System.currentTimeMillis() + ControlWaitMs
+        do {
+            findViewByText(activity.window.decorView, text)?.let { return it }
+            Thread.sleep(ControlPollIntervalMs)
+        } while (System.currentTimeMillis() < deadline)
+        val found = collectTexts(activity.window.decorView).joinToString()
+        assertNotNull("Text '$text' not found. Visible texts: $found", null)
+        error("unreachable")
+    }
+
+    private fun findViewByText(view: View, text: String): View? {
+        if (view is android.widget.TextView && view.text?.toString() == text) {
+            return view
+        }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                findViewByText(view.getChildAt(index), text)?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun collectTexts(view: View): List<String> {
+        val texts = mutableListOf<String>()
+        if (view is android.widget.TextView) {
+            view.text?.toString()?.takeIf { it.isNotBlank() }?.let(texts::add)
+        }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                texts += collectTexts(view.getChildAt(index))
+            }
+        }
+        return texts
+    }
+
+    private fun swipe(
+        activity: Activity,
+        startX: Float,
+        startY: Float,
+        endX: Float,
+        endY: Float,
+        jitterX: Float = 0f,
+        jitterY: Float = 0f
+    ) {
+        instrumentation.runOnMainSync {
+            val time = android.os.SystemClock.uptimeMillis()
+            val events = mutableListOf<android.view.MotionEvent>()
+            events += android.view.MotionEvent.obtain(time, time, android.view.MotionEvent.ACTION_DOWN, startX, startY, 0)
+            if (jitterX != 0f || jitterY != 0f) {
+                events += android.view.MotionEvent.obtain(time, time + 20, android.view.MotionEvent.ACTION_MOVE, startX + jitterX, startY + jitterY, 0)
+            }
+            events += android.view.MotionEvent.obtain(time, time + 70, android.view.MotionEvent.ACTION_MOVE, endX, endY, 0)
+            events += android.view.MotionEvent.obtain(time, time + 100, android.view.MotionEvent.ACTION_UP, endX, endY, 0)
+            events.forEach(activity::dispatchTouchEvent)
+            events.forEach(android.view.MotionEvent::recycle)
+        }
+        instrumentation.waitForIdleSync()
+    }
+
+    private fun tap(activity: Activity, x: Float, y: Float) {
+        swipe(activity, x, y, x, y)
     }
 
     private fun waitForAnyControl(activity: Activity, descriptions: List<String>): View {

@@ -73,9 +73,13 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private lateinit var streamInfoLabel: TextView
     private lateinit var epgLabel: TextView
     private lateinit var epgPanel: ScrollView
+    private lateinit var epgScrim: View
     private lateinit var epgDetails: LinearLayout
     private lateinit var epgGuideButton: TextView
     private var epgResult: com.uiptv.mobile.shared.epg.MobileEpgResult? = null
+    private var epgPanelSide = Gravity.END
+    private var epgLoadedKey: String? = null
+    private var edgeSwipeSide = 0
     private var panelTouchX = 0f
     private var panelTouchY = 0f
     private var epgJob: kotlinx.coroutines.Job? = null
@@ -313,6 +317,12 @@ class MpvEmbeddedPlayerActivity : Activity() {
         messageView.bringToFront()
         epgPanel = createEpgPanel()
         rootLayout.addView(epgPanel, FrameLayout.LayoutParams(minOf(dp(360), resources.displayMetrics.widthPixels * 4 / 5), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.END))
+        epgScrim = View(this).apply {
+            setBackgroundColor(Color.argb(150, 0, 0, 0))
+            visibility = View.GONE
+        }
+        rootLayout.addView(epgScrim, 1, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        epgPanel.bringToFront()
         unlockButton = TextView(this).apply {
             text = "\uD83D\uDD13"
             contentDescription = "Unlock"
@@ -362,6 +372,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         stoppingForLifecycle = false
         startPlayback()
         startProgressUpdates()
+        epgLoadedKey = null
         refreshEpg()
         showControlsTemporarily()
     }
@@ -565,6 +576,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             MotionEvent.ACTION_DOWN -> {
                 touchStartX = event.x
                 touchStartY = event.y
+                edgeSwipeSide = edgeSideAt(event.x)
                 initialBrightness = currentBrightness()
                 initialVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
                 activeGesture = PlayerGesture.None
@@ -590,10 +602,23 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 }
                 val dx = event.x - touchStartX
                 val dy = event.y - touchStartY
+                if (activeGesture == PlayerGesture.Guide) return true
+                if (isLiveStream() && abs(dx) > dp(EdgeSwipeTravelDp) && abs(dx) > abs(dy)) {
+                    if (epgPanel.visibility == View.VISIBLE) {
+                        if ((epgPanelSide == Gravity.START && dx < 0) || (epgPanelSide == Gravity.END && dx > 0)) hideEpgPanel()
+                    } else if (edgeSwipeSide == Gravity.START && dx > 0) showEpgPanel(Gravity.START)
+                    else if (edgeSwipeSide == Gravity.END && dx < 0) showEpgPanel(Gravity.END)
+                    activeGesture = PlayerGesture.Guide
+                    return true
+                }
                 if (activeGesture == PlayerGesture.None) {
                     if (abs(dy) <= GestureSlopPx || abs(dy) <= abs(dx)) {
                         return true
                     }
+                    if (edgeSwipeSide != 0 && !(abs(dy) > dp(EdgeVerticalClaimDp) && abs(dy) > abs(dx) * 2f)) {
+                        return true
+                    }
+                    edgeSwipeSide = 0
                     activeGesture = if (touchStartX < videoSurface.width / 2f) {
                         PlayerGesture.Brightness
                     } else {
@@ -607,6 +632,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
                     PlayerGesture.Brightness -> setBrightness(initialBrightness + delta)
                     PlayerGesture.Volume -> setVolumeLevel(initialVolume + (delta * maxMusicVolume()).roundToInt())
                     PlayerGesture.Zoom -> Unit
+                    PlayerGesture.Guide -> Unit
                     PlayerGesture.None -> Unit
                 }
                 return true
@@ -614,25 +640,46 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
             MotionEvent.ACTION_UP,
             MotionEvent.ACTION_CANCEL -> {
+                val dx = event.x - touchStartX
+                val dy = event.y - touchStartY
                 if (event.actionMasked == MotionEvent.ACTION_UP && activeGesture == PlayerGesture.None &&
-                    abs(event.x - touchStartX) > dp(64) && abs(event.x - touchStartX) > abs(event.y - touchStartY)) {
-                    if (event.x < touchStartX) showEpgPanel() else hideEpgPanel()
+                    abs(dx) > dp(EdgeSwipeTravelDp) && abs(dx) > abs(dy)) {
+                    if (epgPanel.visibility == View.VISIBLE) {
+                        if ((epgPanelSide == Gravity.START && dx < 0) || (epgPanelSide == Gravity.END && dx > 0)) hideEpgPanel()
+                    } else if (edgeSwipeSide == Gravity.START && dx > 0) showEpgPanel(Gravity.START)
+                    else if (edgeSwipeSide == Gravity.END && dx < 0) showEpgPanel(Gravity.END)
+                    edgeSwipeSide = 0
                     return true
                 }
                 val wasTap = activeGesture == PlayerGesture.None &&
-                    abs(event.x - touchStartX) < TapSlopPx &&
-                    abs(event.y - touchStartY) < TapSlopPx
-                if (wasTap) {
+                    abs(dx) < TapSlopPx &&
+                    abs(dy) < TapSlopPx
+                if (wasTap && epgPanel.visibility == View.VISIBLE && !event.isInsideVisibleOverlay(epgPanel)) {
+                    hideEpgPanel()
+                } else if (wasTap) {
                     toggleControls()
                 } else {
                     hidePlaylistOverlay()
                     enterImmersiveMode()
                 }
                 activeGesture = PlayerGesture.None
+                edgeSwipeSide = 0
                 return true
             }
         }
         return true
+    }
+
+    private fun edgeSideAt(x: Float): Int {
+        if (!isLiveStream() || !::rootLayout.isInitialized || rootLayout.width <= 0) {
+            return 0
+        }
+        val edge = dp(EdgeSwipeZoneDp)
+        return when {
+            x <= edge -> Gravity.START
+            x >= rootLayout.width - edge -> Gravity.END
+            else -> 0
+        }
     }
 
     private fun startTwoFingerZoomGesture(event: MotionEvent) {
@@ -1511,6 +1558,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun refreshEpg() {
         if (!::epgLabel.isInitialized) return
+        epgLoadedKey = epgTargetKey()
         epgJob?.cancel()
         epgLabel.visibility = View.GONE
         epgResult = null
@@ -1531,6 +1579,12 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
     }
 
+    private fun epgTargetKey(): String? {
+        val target = currentTarget ?: return null
+        if (target.mode != BrowseMode.LIVE) return null
+        return listOf(target.accountId, target.mode.name, target.categoryProviderId, target.channelId).joinToString("|")
+    }
+
     private fun createEpgPanel(): ScrollView {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1547,7 +1601,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> { panelTouchX = event.x; panelTouchY = event.y; false }
                     MotionEvent.ACTION_UP -> {
-                        if (event.x - panelTouchX > dp(64) && abs(event.x - panelTouchX) > abs(event.y - panelTouchY)) {
+                        val dx = event.x - panelTouchX
+                        if (abs(dx) > dp(32) && abs(dx) > abs(event.y - panelTouchY) &&
+                            ((epgPanelSide == Gravity.START && dx < 0) || (epgPanelSide == Gravity.END && dx > 0))) {
                             hideEpgPanel(); true
                         } else false
                     }
@@ -1557,16 +1613,32 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
     }
 
-    private fun showEpgPanel() {
-        if (locked || !isLiveStream() || epgResult == null || epgResult?.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) return
+    private fun showEpgPanel(side: Int = Gravity.END) {
+        if (locked || !isLiveStream() || epgResult?.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.DISABLED) return
         controlsOverlay.visibility = View.GONE; controlsVisible = false
-        hidePlaylistOverlay(); renderEpgDetails()
+        hidePlaylistOverlay(); epgPanelSide = side
+        (epgPanel.layoutParams as FrameLayout.LayoutParams).apply { gravity = side }
+        epgPanel.requestLayout(); renderEpgDetails()
         epgPanel.visibility = View.VISIBLE; epgPanel.bringToFront()
-        epgPanel.translationX = epgPanel.layoutParams.width.toFloat()
+        epgPanel.translationX = epgPanel.layoutParams.width.toFloat() * if (side == Gravity.START) -1 else 1
         epgPanel.animate().translationX(0f).setDuration(180).start()
+        if (::epgScrim.isInitialized) {
+            epgScrim.visibility = View.VISIBLE
+            epgScrim.bringToFront()
+            epgPanel.bringToFront()
+        }
     }
 
-    private fun hideEpgPanel() { if (::epgPanel.isInitialized) { epgPanel.animate().cancel(); epgPanel.visibility = View.GONE } }
+    private fun hideEpgPanel() {
+        if (::epgPanel.isInitialized) {
+            epgPanel.animate().cancel()
+            epgPanel.visibility = View.GONE
+            epgPanel.translationX = 0f
+        }
+        if (::epgScrim.isInitialized) {
+            epgScrim.visibility = View.GONE
+        }
+    }
 
     private fun displayEpg(result: com.uiptv.mobile.shared.epg.MobileEpgResult) {
         epgResult = result
@@ -1599,12 +1671,11 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 contentDescription = "Programme progress"
             })
             text(current.description.ifBlank { "No programme description available" }, 16f, "On-air programme description")
-        } else text(result?.message?.takeIf { it.isNotBlank() } ?: "No on-air programme guide available", 16f)
+        } else text(result?.message?.takeIf { it.isNotBlank() } ?: if (result == null) "Loading programme guide…" else "No on-air programme guide available", 16f)
         result?.next(now)?.let { next ->
             text("Up next", 13f); text(next.title, 18f)
             text("${format.format(java.util.Date(next.start))} – ${format.format(java.util.Date(next.stop))}", 14f)
         }
-        text("Swipe right to close", 12f)
     }
 
     private fun updateStreamInfo() {
@@ -1617,7 +1688,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
                 ?: intent.getStringExtra(NativePlayerActivity.EXTRA_TITLE).orEmpty().ifBlank { "Embedded player" }
         }
         streamInfoLabel.text = buildStreamInfoLabel()
-        refreshEpg()
+        if (epgTargetKey() != epgLoadedKey) {
+            refreshEpg()
+        }
     }
 
     private fun handleMpvEvent(eventId: Int) {
@@ -2133,6 +2206,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         None,
         Brightness,
         Volume,
+        Guide,
         Zoom
     }
 
@@ -2161,6 +2235,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
         private const val DefaultBrightness = 0.50f
         private const val MinimumBrightness = 0.05f
         private const val GestureSlopPx = 18f
+        private const val EdgeSwipeZoneDp = 24
+        private const val EdgeSwipeTravelDp = 16
+        private const val EdgeVerticalClaimDp = 20
         private const val TwoFingerZoomSlopDp = 56
         private const val TapSlopPx = 14f
         private const val LiveTimeLabel = "Live"

@@ -9,6 +9,7 @@ import java.security.MessageDigest
 internal class AndroidEpgDiskCache(context: Context) {
     private val directory = File(context.filesDir, "epg")
     private val ttl = 24 * 3600_000L
+    private val maxDiskBytes = 64L * 1024 * 1024
     internal fun file(source: String): File {
         check(directory.isDirectory || directory.mkdirs())
         val hash = MessageDigest.getInstance("SHA-256").digest(source.toByteArray(Charsets.UTF_8))
@@ -16,22 +17,37 @@ internal class AndroidEpgDiskCache(context: Context) {
         return File(directory, "epg-$hash.xml")
     }
     fun expires(source: String): Long = file(source).lastModified() + ttl
-    fun read(source: String, now: Long, stale: Boolean = false): MobileXmltvGuide? = runCatching {
+    fun read(source: String, now: Long, stale: Boolean = false): MobileXmltvGuide? {
         val file = file(source)
-        if (!file.isFile || (!stale && now >= file.lastModified() + ttl)) null
-        else file.inputStream().use { AndroidXmltvReader.read(AndroidEpgRepository.LimitedStream(it), now) }
-    }.getOrNull()
+        if (!file.isFile || (!stale && now >= file.lastModified() + ttl)) return null
+        return try {
+            file.inputStream().use { AndroidXmltvReader.read(AndroidEpgRepository.LimitedStream(it), now) }
+        } catch (error: OutOfMemoryError) { null }
+    }
     fun parseAndSave(source: String, xml: InputStream, now: Long): MobileXmltvGuide {
         val target = runCatching { file(source) }.getOrElse { return AndroidXmltvReader.read(xml, now) }
         val temporary = runCatching { File.createTempFile("epg-", ".part", directory) }
             .getOrElse { return AndroidXmltvReader.read(xml, now) }
         try {
             temporary.outputStream().buffered(256 * 1024).use { xml.copyTo(it) }
-            val guide = temporary.inputStream().use { AndroidXmltvReader.read(it, now) }
-            // Same-directory rename is atomic, keeping the previous valid feed until validation succeeds.
+            val guide = try {
+                temporary.inputStream().use { AndroidXmltvReader.read(it, now) }
+            } catch (error: OutOfMemoryError) {
+                temporary.delete(); throw error
+            }
             temporary.renameTo(target)
+            pruneDirectory()
             return guide
         } finally { temporary.delete() }
+    }
+    private fun pruneDirectory() {
+        val files = directory.listFiles { it.extension == "xml" } ?: return
+        var total = files.sumOf { it.length() }
+        if (total <= maxDiskBytes) return
+        files.sortedBy { it.lastModified() }.forEach { file ->
+            if (total <= maxDiskBytes) return@forEach
+            total -= if (file.delete()) file.length() else 0
+        }
     }
     fun clear() { directory.listFiles()?.filter { it.name.startsWith("epg-") && it.extension == "xml" }?.forEach { it.delete() } }
 }
