@@ -2247,3 +2247,7 @@ a[href] {
 .epg-settings-popover { position: absolute; right: 0; top: 100%; z-index: 20; min-width: 190px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 8px 24px #0004; }
 .epg-settings-popover button { width: 100%; padding: 10px; text-align: left; color: var(--text); background: transparent; border: 0; cursor: pointer; }
 .live-guide-name .broadcast-icon { width: 24px; height: 24px; }
+
+.live-guide-axis { height: 48px; box-sizing: border-box; }
+.live-guide-row, .live-guide-row > .live-guide-name { height: 96px; min-height: 96px; max-height: 96px; box-sizing: border-box; }
+.live-guide-spacer { width: 1px; pointer-events: none; }

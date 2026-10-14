@@ -1,4 +1,4 @@
-const {createApp, ref, computed, onMounted, nextTick, watch} = Vue;
+const {createApp, ref, shallowRef, computed, onMounted, nextTick, watch} = Vue;
 
 createApp({
     setup() {
@@ -24,7 +24,7 @@ createApp({
         const epgLabels = ref({settings: 'Settings', enable: 'Enable EPG mode', disable: 'Disable EPG mode'});
         const epgGuideVisible = computed(() => epgModeEnabled.value && (activeTab.value === 'bookmarks' || activeTab.value === 'accounts' && viewState.value === 'channels' && contentMode.value === 'itv'));
         const toggleEpgMode = () => { epgModeEnabled.value = !epgModeEnabled.value; epgSettingsOpen.value = false; };
-        const liveGuideRows = ref([]);
+        const liveGuideRows = shallowRef([]);
         const showAllGuideChannels = ref(false);
         const liveGuideLoading = ref(false);
         const liveGuideError = ref('');
@@ -35,12 +35,42 @@ createApp({
         const zoomGuide = delta => { liveGuideHourWidth.value = Math.max(240, Math.min(720, liveGuideHourWidth.value + delta)); };
         let liveGuideRequest = 0;
         const filteredLiveGuideRows = computed(() => {
-            const bookmarkIds = new Set(filteredBookmarks.value.map(b => String(b.dbId)));
-            const channelIds = new Set(filteredChannels.value.map(c => String(c.channelId)));
+            const bookmarkContext = activeTab.value === 'bookmarks';
+            const allowedIds = new Set(bookmarkContext
+                ? filteredBookmarks.value.map(b => String(b.dbId))
+                : filteredChannels.value.map(c => String(c.channelId)));
             return liveGuideRows.value.filter(row =>
-                (activeTab.value === 'bookmarks' ? bookmarkIds.has(String(row.bookmarkId)) : channelIds.has(String(row.channel?.channelId)))
+                allowedIds.has(String(bookmarkContext ? row.bookmarkId : row.channel?.channelId))
                 && (showAllGuideChannels.value || (row.programmes || []).some(p => p.stop > Date.now()))
                 && String(row.channel?.name || '').toLowerCase().includes(searchQuery.value.toLowerCase()));
+        });
+        const guideScrollElement = ref(null);
+        const guideScrollTop = ref(0);
+        const guideViewportHeight = ref(480);
+        const GUIDE_ROW_HEIGHT = 96, GUIDE_HEADER_HEIGHT = 48, GUIDE_BUFFER = 4;
+        const guideWindow = computed(() => {
+            const count = filteredLiveGuideRows.value.length;
+            const visible = Math.ceil(guideViewportHeight.value / GUIDE_ROW_HEIGHT);
+            const maximumStart = Math.max(0, count - visible - GUIDE_BUFFER * 2);
+            const start = Math.min(maximumStart, Math.max(0, Math.floor(Math.max(0, guideScrollTop.value - GUIDE_HEADER_HEIGHT) / GUIDE_ROW_HEIGHT) - GUIDE_BUFFER));
+            const end = Math.min(count, start + visible + GUIDE_BUFFER * 2);
+            return {start, end, top: start * GUIDE_ROW_HEIGHT, bottom: (count - end) * GUIDE_ROW_HEIGHT};
+        });
+        const visibleLiveGuideRows = computed(() => filteredLiveGuideRows.value.slice(guideWindow.value.start, guideWindow.value.end));
+        let guideScrollFrame = 0, guideResizeObserver;
+        const onGuideScroll = event => {
+            const element = event.currentTarget;
+            if (guideScrollFrame) return;
+            guideScrollFrame = requestAnimationFrame(() => { guideScrollFrame = 0; guideScrollTop.value = element.scrollTop; });
+        };
+        watch(guideScrollElement, element => {
+            guideResizeObserver?.disconnect();
+            if (guideScrollFrame) { cancelAnimationFrame(guideScrollFrame); guideScrollFrame = 0; }
+            if (!element) return;
+            guideScrollTop.value = element.scrollTop;
+            guideViewportHeight.value = element.clientHeight || 480;
+            guideResizeObserver = new ResizeObserver(() => { guideViewportHeight.value = element.clientHeight || 480; });
+            guideResizeObserver.observe(element);
         });
         const liveGuideTicks = computed(() => Array.from({length: 6}, (_, hour) => liveGuideStart.value + hour * 3600000));
         const guideDate = computed(() => new Date(liveGuideStart.value).toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}));
@@ -4937,6 +4967,10 @@ createApp({
             }
         });
 
+        watch(filteredLiveGuideRows, () => {
+            guideScrollTop.value = 0;
+            if (guideScrollElement.value) guideScrollElement.value.scrollTop = 0;
+        });
         watch([epgGuideVisible, activeTab, selectedAccountId, viewState], () => {
             ++liveGuideRequest;
             liveGuideRows.value = []; selectedGuideProgramme.value = null; liveGuideLoading.value = false;
@@ -4969,6 +5003,7 @@ createApp({
         }, {immediate: true});
 
         return {
+            guideScrollElement, guideWindow, visibleLiveGuideRows, onGuideScroll,
             isActiveGuideRow, epgModeEnabled, epgSettingsOpen, epgGuideVisible, epgLabels, toggleEpgMode,
             thumbnailsEnabled, liveGuideHourWidth, selectedGuideProgramme, zoomGuide,
             playerEpg, playerProgrammeTime, showAllGuideChannels,

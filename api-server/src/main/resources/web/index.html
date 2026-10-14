@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/video.js@8.24.1/dist/video-js.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20261013epgActivate" rel="stylesheet">
+    <link href="/css/spa.css?v=20261014epgVirtualFinal" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.43/dist/vue.global.prod.js"></script>
@@ -122,9 +122,10 @@
                         <div class="live-guide-selected-programme" v-if="selectedGuideProgramme"><strong>{{ selectedGuideProgramme.channelName }} · {{ selectedGuideProgramme.title }}</strong><small>{{ guideTime(selectedGuideProgramme.start) }} – {{ guideTime(selectedGuideProgramme.stop) }}</small></div>
                         <p v-if="liveGuideLoading">Loading programme guide…</p>
                         <p role="alert" v-if="liveGuideError">{{ liveGuideError }}</p>
-                        <div class="live-guide-scroll" v-if="!liveGuideLoading">
+                        <div class="live-guide-scroll" tabindex="0" ref="guideScrollElement" @scroll.passive="onGuideScroll" v-if="!liveGuideLoading">
                             <div class="live-guide-axis" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}"><strong class="live-guide-name">Channel</strong><div class="live-guide-hours" :style="{width: liveGuideHourWidth * 6 + 'px'}"><span v-for="tick in liveGuideTicks" :key="tick" :style="{flexBasis: liveGuideHourWidth + 'px'}">{{ guideTime(tick) }}</span></div></div>
-                            <div class="live-guide-row" v-for="row in filteredLiveGuideRows" :key="row.accountId + ':' + row.channel.channelId" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}">
+                            <div class="live-guide-spacer" :style="{height: guideWindow.top + 'px'}" aria-hidden="true"></div>
+                            <div class="live-guide-row" v-for="row in visibleLiveGuideRows" :key="row.bookmarkId || row.accountId + ':' + row.channel.channelId" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}">
                                 <button class="live-guide-name" :title="row.accountName" @click="playGuideRow(row)"><img v-if="thumbnailsEnabled && row.channel.logo" :src="row.channel.logo" @error="imageError" alt="">{{ row.channel.name }}<span class="live-marker active" v-if="isActiveGuideRow(row)"><img alt="Broadcasting" :src="broadcastIndicatorSrc(true)" class="broadcast-icon"></span></button>
                                 <div class="live-guide-track" :style="{width: liveGuideHourWidth * 6 + 'px'}">
                                     <span class="live-guide-empty" v-if="!guideBlocks(row).length">No programme guide available</span>
@@ -133,6 +134,7 @@
                                     </button>
                                 </div>
                             </div>
+                            <div class="live-guide-spacer" :style="{height: guideWindow.bottom + 'px'}" aria-hidden="true"></div>
                             <p v-if="!filteredLiveGuideRows.length">No channels with programme guide data. Enable “Show all channels” to see the others.</p>
                         </div>
                     </section>
@@ -328,9 +330,10 @@
                         <div class="live-guide-selected-programme" v-if="selectedGuideProgramme"><strong>{{ selectedGuideProgramme.channelName }} · {{ selectedGuideProgramme.title }}</strong><small>{{ guideTime(selectedGuideProgramme.start) }} – {{ guideTime(selectedGuideProgramme.stop) }}</small></div>
                         <p v-if="liveGuideLoading">Loading programme guide…</p>
                         <p role="alert" v-if="liveGuideError">{{ liveGuideError }}</p>
-                        <div class="live-guide-scroll" v-if="!liveGuideLoading">
+                        <div class="live-guide-scroll" tabindex="0" ref="guideScrollElement" @scroll.passive="onGuideScroll" v-if="!liveGuideLoading">
                             <div class="live-guide-axis" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}"><strong class="live-guide-name">Channel</strong><div class="live-guide-hours" :style="{width: liveGuideHourWidth * 6 + 'px'}"><span v-for="tick in liveGuideTicks" :key="tick" :style="{flexBasis: liveGuideHourWidth + 'px'}">{{ guideTime(tick) }}</span></div></div>
-                            <div class="live-guide-row" v-for="row in filteredLiveGuideRows" :key="row.accountId + ':' + row.channel.channelId" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}">
+                            <div class="live-guide-spacer" :style="{height: guideWindow.top + 'px'}" aria-hidden="true"></div>
+                            <div class="live-guide-row" v-for="row in visibleLiveGuideRows" :key="row.bookmarkId || row.accountId + ':' + row.channel.channelId" :style="{width: (200 + liveGuideHourWidth * 6) + 'px'}">
                                 <button class="live-guide-name" :title="row.accountName" @click="playGuideRow(row)"><img v-if="thumbnailsEnabled && row.channel.logo" :src="row.channel.logo" @error="imageError" alt="">{{ row.channel.name }}<span class="live-marker active" v-if="isActiveGuideRow(row)"><img alt="Broadcasting" :src="broadcastIndicatorSrc(true)" class="broadcast-icon"></span></button>
                                 <div class="live-guide-track" :style="{width: liveGuideHourWidth * 6 + 'px'}">
                                     <span class="live-guide-empty" v-if="!guideBlocks(row).length">No programme guide available</span>
@@ -339,6 +342,7 @@
                                     </button>
                                 </div>
                             </div>
+                            <div class="live-guide-spacer" :style="{height: guideWindow.bottom + 'px'}" aria-hidden="true"></div>
                             <p v-if="!filteredLiveGuideRows.length">No channels with programme guide data. Enable “Show all channels” to see the others.</p>
                         </div>
                     </section>
@@ -802,7 +806,7 @@
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261013epgActivate"></script>
+    <script src="/javascript/spa.js?v=20261014epgVirtualFinal"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;
