@@ -51,7 +51,8 @@ class AndroidEpgRepository(
         }
     }
     override suspend fun schedule(accountId: Long, providerChannelId: String, name: String): MobileEpgResult = withContext(Dispatchers.IO) {
-        if (!preferences.load().epgEnabled) return@withContext MobileEpgResult()
+        val devicePreferences = preferences.load()
+        if (!devicePreferences.epgEnabled) return@withContext MobileEpgResult()
         mutex.withLock {
             ensureActive()
             if (!preferences.load().epgEnabled) return@withLock MobileEpgResult()
@@ -80,7 +81,7 @@ class AndroidEpgRepository(
             var message = ""
             for (source in sources.filter { it.isNotBlank() }) {
                 ensureActive()
-                val guide = loadGuide(source, now)
+                val guide = loadGuide(resolveDesktopSource(source, devicePreferences.remoteEndpoint.host), now)
                 if (guide.guide == null) { failed = true; message = guide.message; continue }
                 val programmes = guide.guide.forChannel(id, if (override.isBlank()) name else "")
                 if (programmes.any { it.stop > now }) return@withLock MobileEpgResult(
@@ -89,6 +90,7 @@ class AndroidEpgRepository(
             MobileEpgResult(if (failed) MobileEpgStatus.UNAVAILABLE else MobileEpgStatus.NO_MATCH, message = message)
         }
     }
+
     private fun config(column: String): String = databaseHelper.readableDatabase.rawQuery("SELECT $column FROM Configuration LIMIT 1", null)
         .use { if (it.moveToFirst()) it.getString(0).orEmpty() else "" }
     private fun saveConfig(column: String, value: String) {
@@ -223,7 +225,24 @@ class AndroidEpgRepository(
                 MobileEpgProgramme(title, text(field("description", "descr", "desc")), start, stop) else null
         }.sortedBy { it.start }
     }
-    private companion object {
+    companion object {
+        fun resolveDesktopSource(source: String, desktopHost: String): String {
+            if (desktopHost.isBlank()) return source
+            return runCatching {
+                val uri = URI(source)
+                if (uri.scheme?.lowercase() !in setOf("http", "https") || uri.host?.lowercase() !in setOf("localhost", "127.0.0.1", "::1", "[::1]")) source
+                else {
+                    val authority = uri.rawAuthority
+                    val offset = authority.lastIndexOf('@') + 1
+                    val hostPart = authority.substring(offset)
+                    val length = if (hostPart.startsWith("[")) hostPart.indexOf(']') + 1 else hostPart.substringBefore(':').length
+                    val start = source.indexOf("://") + 3 + offset
+                    val replacement = desktopHost.trim().let { if (it.contains(':') && !it.startsWith("[")) "[$it]" else it }
+                    source.replaceRange(start, start + length, replacement)
+                }
+            }.getOrDefault(source)
+        }
+
         private val mutex = Mutex()
         private val guides = linkedMapOf<String, GuideCache>()
         private val discovered = linkedMapOf<String, Pair<String, Long>>()

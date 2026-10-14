@@ -34,11 +34,26 @@ class AndroidEpgTest {
         assertTrue(result.isFailure || result.getOrNull()?.names?.values?.none { it.contains("secret") } == true)
         assertEquals(0L, AndroidXmltvReader.time("20260230180000 +0000"))
     }
+    @Test fun standardXmltvDoctypeIsIgnoredButInternalEntitiesAreRejected() {
+        val xml = "<!DOCTYPE tv SYSTEM 'http://127.0.0.1:1/xmltv.dtd'><tv><channel id='IN4000600Q'><display-name>Bollygold</display-name></channel></tv>"
+        assertEquals("IN4000600Q", AndroidXmltvReader.read(ByteArrayInputStream(xml.toByteArray()), System.currentTimeMillis()).names["bollygold"])
+        val internal = "<!DOCTYPE tv [<!ENTITY secret 'secret'>]><tv/>"
+        assertTrue(runCatching { AndroidXmltvReader.read(ByteArrayInputStream(internal.toByteArray()), System.currentTimeMillis()) }.isFailure)
+    }
+    @Test fun desktopLoopbackEpgAddressesUseSyncHostWithoutChangingEscapedCredentials() {
+        assertEquals("http://192.0.2.10:8181/epg.xml?key=a%2Bb", AndroidEpgRepository.resolveDesktopSource("http://127.0.0.1:8181/epg.xml?key=a%2Bb", "192.0.2.10"))
+        assertEquals("https://user%2Bname:secret%26value@desktop.example:8181/epg.xml", AndroidEpgRepository.resolveDesktopSource("https://user%2Bname:secret%26value@localhost:8181/epg.xml", "desktop.example"))
+        assertEquals("http://192.0.2.10:8181/epg.xml", AndroidEpgRepository.resolveDesktopSource("http://[::1]:8181/epg.xml", "192.0.2.10"))
+        assertEquals("https://example.test/epg.xml", AndroidEpgRepository.resolveDesktopSource("https://example.test/epg.xml", "desktop.example"))
+        assertEquals("http://127.0.0.1/epg.xml", AndroidEpgRepository.resolveDesktopSource("http://127.0.0.1/epg.xml", ""))
+    }
+
     @Test fun nativeXtremeUsesStreamIdentityCachesAndFallsBackBetweenActions() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val helper = AndroidUiptvDatabaseHelper(context)
         val preferences = AndroidDataStorePreferencesRepository(context)
         preferences.saveEpgEnabled(true)
+        preferences.saveRemoteEndpoint("", 8888)
         val now = System.currentTimeMillis() / 1000
         val body = "{\"epg_listings\":[{\"title\":\"TmF0aXZl\",\"start_timestamp\":${now - 60},\"stop_timestamp\":${now + 3600}}]}"
         com.uiptv.mobile.android.AndroidUiptvDatabaseCompatibilityTest.TestHttpServer(
@@ -78,6 +93,7 @@ class AndroidEpgTest {
         val helper = AndroidUiptvDatabaseHelper(context)
         val preferences = AndroidDataStorePreferencesRepository(context)
         preferences.saveEpgEnabled(true)
+        preferences.saveRemoteEndpoint("", 8888)
         val now = Instant.now(); val format = DateTimeFormatter.ofPattern("uuuuMMddHHmmss xx").withZone(ZoneOffset.UTC)
         val xml = "<tv><programme channel='stream-id' start='${format.format(now.minusSeconds(60))}' stop='${format.format(now.plusSeconds(3600))}'><title>Disk fixture</title></programme></tv>"
         val responses = mutableMapOf("xml" to xml)
@@ -148,6 +164,7 @@ class AndroidEpgTest {
             repository.saveGlobalSource(globalSources)
             assertEquals(MobileEpgStatus.DISABLED, repository.schedule(account.id!!, "stream-id", "Station").status)
             preferences.saveEpgEnabled(true)
+        preferences.saveRemoteEndpoint("", 8888)
             assertEquals(MobileEpgStatus.NO_MATCH, repository.schedule(account.id!!, "stream-id", "Station").status)
             repository.saveMapping(account.id!!, "stream-id", "mapped")
             val fresh = AndroidEpgRepository(context, helper, AndroidDataStorePreferencesRepository(context))

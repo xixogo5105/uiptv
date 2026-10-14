@@ -28,7 +28,10 @@ object AndroidXmltvReader {
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
             if (Thread.currentThread().isInterrupted) throw InterruptedException()
-            require(event != XmlPullParser.DOCDECL) { "DTD disabled" }
+            if (event == XmlPullParser.DOCDECL) {
+                // Ignore an external XMLTV DOCTYPE without fetching it; reject internal declarations.
+                require(!parser.text.orEmpty().contains("[")) { "Internal DTD declarations disabled" }
+            }
             if (event == XmlPullParser.ENTITY_REF) require(parser.text != null) { "External entities disabled" }
             if (event == XmlPullParser.START_TAG) when (parser.name) {
                 "channel" -> id = parser.getAttributeValue(null, "id").orEmpty()
