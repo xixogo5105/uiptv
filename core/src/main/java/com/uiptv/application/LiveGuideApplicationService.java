@@ -15,6 +15,21 @@ public class LiveGuideApplicationService {
             this(accountId, accountName, bookmarkId, channel, programmes, nativePending, nativePending);
         }
     }
+    /** Resolve a live bookmark using local identity, retaining embedded XMLTV metadata. */
+    public Row bookmarkRow(String bookmarkId) {
+        Bookmark bookmark = BookmarkApplicationService.getInstance().getBookmark(bookmarkId);
+        if (bookmark == null) return null;
+        var resolved = new BookmarkResolver().resolveBookmarks(List.of(bookmark)).getFirst();
+        Account account = resolved.getAccount();
+        if (account == null || resolved.getAccountAction() != Account.AccountAction.itv) return null;
+        Channel channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId(), false);
+        if (channel == null) channel = Channel.fromJson(bookmark.getChannelJson());
+        if (channel == null) channel = new Channel();
+        channel.setChannelId(bookmark.getChannelId());
+        if (channel.getName() == null || channel.getName().isBlank()) channel.setName(bookmark.getChannelName());
+        return new Row(account.getDbId(), account.getAccountName(), bookmarkId, channel, List.of());
+    }
+
     public Row hydrate(Row row) {
         Account account = AccountService.getInstance().getById(row.accountId());
         if (account == null) return row;

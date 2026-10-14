@@ -5091,3 +5091,36 @@
     -fx-padding: 0 16;
 }
 .live-guide-empty-message { -fx-text-fill: -uiptv-text-secondary; }
+
+.live-guide-card {
+    -fx-background-color: -uiptv-card-bg;
+    -fx-background-radius: 10;
+    -fx-border-color: -uiptv-card-border;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+.live-guide-card .live-guide-channel { -fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 0; -fx-effect: none; }
+.live-guide-card-title { -fx-font-weight: bold; -fx-text-fill: -uiptv-text-primary; }
+.live-guide-card-link { -fx-padding: 4 0 4 8; }
+.epg-guide-popup { -fx-background-color: -uiptv-app-bg; -fx-background-radius: 12; -fx-border-radius: 12; -fx-border-color: -uiptv-card-border; -fx-border-width: 1; -fx-padding: 16; }
+.epg-guide-popup-heading { -fx-font-size: 16; -fx-font-weight: bold; -fx-text-fill: -uiptv-text-primary; }
+.epg-guide-popup .list-view, .epg-guide-popup .list-cell { -fx-background-color: transparent; -fx-padding: 0; }
+.epg-guide-popup-programme { -fx-background-color: -uiptv-card-bg; -fx-background-radius: 8; -fx-border-radius: 8; -fx-border-width: 1; -fx-border-color: -uiptv-card-border; -fx-padding: 12; }
+.epg-guide-popup-programme.current-programme { -fx-border-color: #32b8dd; }
+
+.virtual-card-epg { -fx-padding: 8 0 0 0; -fx-border-color: -uiptv-card-border; -fx-border-width: 1 0 0 0; }
+.virtual-card-epg-title { -fx-font-weight: bold; -fx-text-fill: -uiptv-text-primary; -fx-font-size: 12; }
+.epg-guide-popup .epg-guide-popup-programme { -fx-padding: 14; -fx-background-radius: 10; -fx-border-radius: 10; }
+.epg-guide-popup .list-cell { -fx-alignment: top-left; }
+
+.epg-summary-card { -fx-alignment: top-left; }
+.epg-card-header { -fx-alignment: top-left; }
+.player-guide-icon { -fx-fill: transparent; -fx-stroke: white; -fx-stroke-width: 1.4; }
+.player-guide-overlay .epg-guide-popup {
+    -uiptv-text-primary: #eeeeee; -uiptv-text-secondary: #bcbcbc;
+    -uiptv-card-bg: #242424; -uiptv-card-border: #444444; -uiptv-app-bg: #191919;
+    -fx-background-color: rgba(20,20,20,0.97);
+}
+
+.virtual-card-epg-empty { -fx-text-fill: -uiptv-text-secondary; -fx-font-size: 12; -fx-padding: 4 0 4 0; }

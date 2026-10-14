@@ -23,6 +23,7 @@ public class PlayerEpgUI extends VBox {
     private final Label expandedTitle = new Label(), expandedDescription = new Label();
     private boolean compact;
     private PlayerEpgApplicationService.Result displayed;
+    private Thread guideWorker;
     private final AtomicInteger generation = new AtomicInteger();
     private final ChangeListener<MediaPlayerFactory.GuideContext> listener = (_, _, context) -> refresh(context, true);
     private final javafx.animation.Timeline clock = new javafx.animation.Timeline(new javafx.animation.KeyFrame(javafx.util.Duration.minutes(1),
@@ -61,28 +62,33 @@ public class PlayerEpgUI extends VBox {
         EpgModeUI.observe(this, () -> refresh(MediaPlayerFactory.guideContextProperty().get(), true));
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
         sceneProperty().addListener((_, oldScene, newScene) -> {
-            if (oldScene != null) { MediaPlayerFactory.guideContextProperty().removeListener(listener); clock.stop(); generation.incrementAndGet(); }
+            if (oldScene != null) { MediaPlayerFactory.guideContextProperty().removeListener(listener); clock.stop(); generation.incrementAndGet(); if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; } display(null); }
             if (newScene != null) { MediaPlayerFactory.guideContextProperty().addListener(listener); refresh(MediaPlayerFactory.guideContextProperty().get(), true); clock.play(); }
         });
     }
 
     private void refresh(MediaPlayerFactory.GuideContext context, boolean clear) {
         int request = generation.incrementAndGet();
+        if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; }
         if (clear) { setVisible(false); setManaged(false); }
-        if (!EpgModeUI.isFeatureEnabled()) { setVisible(false); setManaged(false); return; }
-        if (context == null || context.account() == null || context.account().action() != com.uiptv.model.Account.AccountAction.itv) return;
-        Thread.ofVirtual().start(() -> {
+        if (!EpgModeUI.isFeatureEnabled()) { MediaPlayerFactory.publishGuideSummary(null); display(null); return; }
+        if (context == null || context.account() == null || context.account().action() != com.uiptv.model.Account.AccountAction.itv) { display(null); return; }
+        guideWorker = Thread.ofVirtual().start(() -> {
             PlayerEpgApplicationService.Result result;
             try { result = new PlayerEpgApplicationService().current(context.account().toAccount(), context.channel()); }
             catch (Exception e) { return; }
-            Platform.runLater(() -> { if (request == generation.get()) display(result); });
+            Platform.runLater(() -> { if (request == generation.get()) { guideWorker = null; MediaPlayerFactory.publishGuideSummary(result); display(result); } });
         });
     }
 
     void display(PlayerEpgApplicationService.Result result) {
         boolean available = result != null && (result.now() != null || result.next() != null);
         setVisible(available); setManaged(available);
-        if (!available) { closeDetails(); return; }
+        if (!available) {
+            displayed = null; heading.setText("");
+            for (Label label : new Label[]{nowTitle, nowTime, nowDescription, nextTitle, nextTime, nextDescription}) label.setText("");
+            progress.setProgress(0); closeDetails(); return;
+        }
         if (displayed != null && !displayed.equals(result)) closeDetails();
         displayed = result;
         heading.setText(result.channelName());

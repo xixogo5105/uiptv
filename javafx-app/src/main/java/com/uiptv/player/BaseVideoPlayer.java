@@ -142,6 +142,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected Button btnAspectRatio;
     protected Button btnHideBar;
     protected Button btnTracks;
+    protected Button btnGuide;
+    private final BooleanProperty guideWideMode = new SimpleBooleanProperty();
+    protected com.uiptv.ui.PlayerGuideOverlay guideOverlay;
     protected ContextMenu tracksContextMenu;
     protected ImageView playIcon;
     protected ImageView pauseIcon;
@@ -303,7 +306,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         buttonRow.setAlignment(Pos.CENTER_LEFT);
         buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnLayoutMode, btnAspectRatio);
         buttonRow.getChildren().add(btnTracks);
-        buttonRow.getChildren().add(btnHideBar);
+        SVGPath guideIcon = new SVGPath();
+        guideIcon.setContent("M2 2H14V14H2Z M5 5H11 M5 8H11 M5 11H9");
+        guideIcon.getStyleClass().add("player-guide-icon");
+        btnGuide = createIconButton(guideIcon);
+        btnGuide.getStyleClass().add("player-guide-button");
+        buttonRow.getChildren().addAll(btnGuide, btnHideBar);
 
         timeSlider = new Slider(0, 1, 0);
         timeSlider.getStyleClass().add("video-player-slider");
@@ -420,6 +428,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             playerContainer.getChildren().add(videoView);
         }
         playerContainer.getChildren().addAll(overlayWrapper, loadingSpinner, errorLabel, hiddenBarMessage);
+        guideOverlay = new com.uiptv.ui.PlayerGuideOverlay(playerContainer, btnGuide, fullscreen, guideWideMode);
+        StackPane.setAlignment(guideOverlay, Pos.CENTER);
+        playerContainer.getChildren().add(guideOverlay);
         Platform.runLater(layoutControlOverlay);
     }
 
@@ -1008,6 +1019,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
 
         try {
+            if (guideOverlay != null) guideOverlay.close();
             // Clear UI components
             if (playerContainer != null) {
                 playerContainer.getChildren().clear();
@@ -1167,6 +1179,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private void updateLayoutModeButton() {
         Configuration configuration = readConfigurationSafely();
         boolean available = configuration != null && configuration.isEmbeddedPlayer();
+        guideWideMode.set(available && configuration.isWideView());
         applyLayoutModeButtonState(available, available && configuration.isWideView());
     }
 
@@ -1821,7 +1834,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             java.net.URL resourceUrl = getClass().getResource(iconPath);
             if (resourceUrl == null) return new ImageView();
 
-            Image image = new Image(resourceUrl.toExternalForm());
+            Image image = new Image(resourceUrl.toExternalForm(), 40, 40, true, true);
             ImageView imageView = new ImageView(image);
             imageView.setFitHeight(20);
             imageView.setFitWidth(20);

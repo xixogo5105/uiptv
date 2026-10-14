@@ -52,10 +52,12 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     void disposeStopsGuideClockAndPendingRefreshes() throws Exception {
         runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
-            Field clockField = ChannelListUI.class.getDeclaredField("epgCardClock"); clockField.setAccessible(true);
-            var clock = (javafx.animation.Timeline) clockField.get(ui);
-            Field pulseField = ChannelListUI.class.getDeclaredField("epgCardPulse"); pulseField.setAccessible(true);
-            var pulse = (javafx.animation.PauseTransition) pulseField.get(ui);
+            Field supportField = ChannelListUI.class.getDeclaredField("cardEpg"); supportField.setAccessible(true);
+            Object support = supportField.get(ui);
+            Field clockField = CardEpgSupport.class.getDeclaredField("clock"); clockField.setAccessible(true);
+            var clock = (javafx.animation.Timeline) clockField.get(support);
+            Field pulseField = CardEpgSupport.class.getDeclaredField("pulse"); pulseField.setAccessible(true);
+            var pulse = (javafx.animation.PauseTransition) pulseField.get(support);
             clock.play(); pulse.play();
             ui.dispose();
             assertEquals(javafx.animation.Animation.Status.STOPPED, clock.getStatus());

@@ -73,7 +73,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private final LoadingStateView bookmarkLoadingOverlay = new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS));
     private final PillBar<BookmarkCategory> categoryPillBar =
             new PillBar<>(BookmarkCategory::getName, BookmarkCategory::getId);
-    private LiveGuideUI epgGuide;
+    private final CardEpgSupport cardEpg = new CardEpgSupport(this);
     private final VBox listPanel = new VBox(8);
     private final ObservableList<BookmarkItem> filteredItems = FXCollections.observableArrayList();
     private final List<BookmarkItem> allBookmarkItems = new ArrayList<>();
@@ -155,7 +155,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     public void forceReload() {
-        if (epgGuide != null) { epgGuide.invalidate(); epgGuide.refreshIfNeeded(); }
+        cardEpg.queue();
         loadedOnce = true;
         reloadRequestedWhileReloading = false;
         long generation = reloadGeneration.incrementAndGet();
@@ -490,6 +490,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private void releaseTransientState() {
+        cardEpg.stop();
         reloadGeneration.incrementAndGet();
         reloadInProgress = false;
         loadedOnce = false;
@@ -553,17 +554,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private void applyEpgMode() {
-        if (EpgModeUI.isEnabled()) {
-            if (epgGuide == null) epgGuide = new LiveGuideUI();
-            bookmarkPageScroll.setVisible(false); bookmarkPageScroll.setManaged(false);
-            if (!listPanel.getChildren().contains(epgGuide)) listPanel.getChildren().add(epgGuide);
-            VBox.setVgrow(epgGuide, Priority.ALWAYS);
-            epgGuide.setVisible(true); epgGuide.setManaged(true);
-            filterView(); epgGuide.refreshIfNeeded();
-        } else {
-            bookmarkPageScroll.setVisible(true); bookmarkPageScroll.setManaged(true);
-            if (epgGuide != null) { listPanel.getChildren().remove(epgGuide); epgGuide.dispose(); epgGuide = null; }
-        }
+        bookmarkPageScroll.setVisible(true); bookmarkPageScroll.setManaged(true);
+        applyBookmarkGridDisplayMode(thumbnailsEnabled); bookmarkGrid.refresh(); cardEpg.queue();
     }
 
     private VBox createHeaderArea() {
@@ -827,10 +819,10 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
     private Region createBookmarkCard(BookmarkItem item) {
         if (!thumbnailsEnabled) {
-            return createPlainTextBookmarkCard(item);
+            return trackBookmarkEpg(createPlainTextBookmarkCard(item), item);
         }
 
-        return new BookmarkCard(
+        return trackBookmarkEpg(new BookmarkCard(
                 item == null ? "" : item.getChannelName(),
                 bookmarkAccountName(item),
                 item == null ? "" : item.getLogo(),
@@ -838,7 +830,16 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 BOOKMARK_CACHE,
                 isDrmProtected(item),
                 createBookmarkPlayMenuButton(item)
-        );
+        ), item);
+    }
+
+    private Region trackBookmarkEpg(Region card, BookmarkItem item) {
+        if (item == null || item.getAccountAction() != Account.AccountAction.itv) return card;
+        return cardEpg.bind(card, () -> guideRow(item));
+    }
+
+    private com.uiptv.application.LiveGuideApplicationService.Row guideRow(BookmarkItem item) {
+        return new com.uiptv.application.LiveGuideApplicationService().bookmarkRow(item.getBookmarkId());
     }
 
     /**
@@ -962,7 +963,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
     private void applyThumbnailMode(boolean enabled) {
         thumbnailsEnabled = enabled;
-        if (epgGuide != null) epgGuide.refreshIfNeeded();
+        cardEpg.queue();
         applyBookmarkGridDisplayMode(enabled);
         bookmarkGrid.refresh();
     }
@@ -971,7 +972,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         // Plain-text cards use the same responsive column strategy as thumbnail cards;
         // only the card height and vertical gap differ between the two modes.
         bookmarkGrid.setSingleColumn(false);
-        bookmarkGrid.setCardMinHeight(thumbnailsEnabled
+        bookmarkGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && filteredItems.stream().anyMatch(item -> item.getAccountAction() == Account.AccountAction.itv) ? 168 : thumbnailsEnabled
                 ? GRID_NORMAL_CARD_MIN_HEIGHT
                 : GRID_PLAIN_TEXT_CARD_MIN_HEIGHT);
         bookmarkGrid.setGaps(16, thumbnailsEnabled
@@ -1023,13 +1024,11 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 })
                 .collect(Collectors.toCollection(ArrayList::new));
         applyBookmarkSort(filteredList);
-        if (epgGuide != null) {
-            Set<String> bookmarkIds = filteredList.stream().map(BookmarkItem::getBookmarkId).collect(Collectors.toSet());
-            epgGuide.setRowFilter(row -> bookmarkIds.contains(row.bookmarkId()));
-        }
+
 
         if (!sameFilteredItems(filteredList)) {
             filteredItems.setAll(filteredList);
+            applyBookmarkGridDisplayMode(thumbnailsEnabled);
         }
         if (filteredList.isEmpty()) {
             if (reloadInProgress && allBookmarkItems.isEmpty()) {
@@ -1281,6 +1280,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         rowMenu.getItems().add(addToMenu);
         rowMenu.getItems().add(new SeparatorMenuItem());
         rowMenu.getItems().add(editItem);
+        if (item != null && item.getAccountAction() == Account.AccountAction.itv && selectedItems.size() == 1)
+            cardEpg.addGuideMenu(rowMenu, owner, () -> guideRow(item));
         return rowMenu;
     }
 

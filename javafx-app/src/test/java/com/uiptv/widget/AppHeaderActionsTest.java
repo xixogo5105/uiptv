@@ -65,6 +65,8 @@ class AppHeaderActionsTest extends DbBackedUiTest {
 
     @Test
     void gearMenuUsesRequestedOptionOrder() throws Exception {
+        new com.uiptv.application.EpgSettingsApplicationService().setEnabled(false);
+        awaitEpg(false);
         Configuration configuration = ConfigurationService.getInstance().read();
         configuration.setEnableThumbnails(true);
         configuration.setPauseFiltering(false);
@@ -119,7 +121,7 @@ class AppHeaderActionsTest extends DbBackedUiTest {
     }
 
     @Test
-    void epgGearActionPersistsTheSettingsFlagAndSwitchesLiveViews() throws Exception {
+    void epgGearActionPersistsTheSettingsFlagWithoutReplacingVirtualGrids() throws Exception {
         new com.uiptv.application.EpgSettingsApplicationService().setEnabled(false);
         awaitEpg(false);
         var root = runOnFxThread(() -> {
@@ -139,8 +141,8 @@ class AppHeaderActionsTest extends DbBackedUiTest {
             awaitEpg(true); assertTrue(ConfigurationService.getInstance().read().isEpgEnabled());
             runOnFxThread(() -> {
                 root.applyCss(); root.layout();
-                assertEquals(1, root.getChildren().get(0).lookupAll(".live-guide").size());
-                assertEquals(1, root.getChildren().get(1).lookupAll(".live-guide").size());
+                assertTrue(root.getChildren().get(0).lookupAll(".live-guide").isEmpty());
+                assertTrue(root.getChildren().get(1).lookupAll(".live-guide").isEmpty());
                 assertTrue(root.getChildren().get(2).lookupAll(".live-guide").isEmpty());
                 var actions = new AppHeaderActions(null, null, null);
                 actions.createGearMenu().getItems().stream().filter(item -> I18n.tr("epgDisableMode").equals(item.getText())).findFirst().orElseThrow().fire();

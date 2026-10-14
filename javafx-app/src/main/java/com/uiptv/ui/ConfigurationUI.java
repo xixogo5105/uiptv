@@ -161,6 +161,7 @@ public class ConfigurationUI extends VBox {
     private final Hyperlink openServerLink = new Hyperlink(I18n.tr("configOpenWebApp"));
     private final Hyperlink openSecureServerLink = new Hyperlink(I18n.tr("configOpenSecureWebApp"));
     private final Button publishM3u8Button = new Button(I18n.tr("configPublishM3u8"));
+    private final Button refreshEpgButton = new Button(I18n.tr("epgRefreshGuide"));
     private final Button clearCacheButton = new Button(I18n.tr("configClearCache"));
     private final Button clearWatchingNowButton = new Button(I18n.tr("configClearWatchingNow"));
     private final Button reloadCacheButton = new Button(I18n.tr("configReloadAccountsCache"));
@@ -377,7 +378,11 @@ public class ConfigurationUI extends VBox {
 
         VBox themeOverridesGroup = buildThemeOverrideGroup();
 
-        FlowPane clearButtons = createWrappingRow(10, 6, clearCacheButton, clearWatchingNowButton);
+        refreshEpgButton.setOnAction(_ -> {
+            refreshEpgButton.setDisable(true);
+            EpgModeUI.refreshGuides(() -> refreshEpgButton.setDisable(false));
+        });
+        FlowPane clearButtons = createWrappingRow(10, 6, clearCacheButton, clearWatchingNowButton, refreshEpgButton);
         reloadCacheButton.setMaxWidth(Region.USE_PREF_SIZE);
         VBox cacheGroup = new VBox(10, cacheExpiryRow, clearButtons, reloadCacheButton);
         refreshConfigurationBlockTitles();
@@ -414,7 +419,7 @@ public class ConfigurationUI extends VBox {
                 new SettingsSection("players", I18n.tr("configVideoPlayers"), null, playersGroup, videoPlayersHelpLink, "players video playback embedded vlc wide view redirects"),
                 new SettingsSection("filters", I18n.tr("configFilters"), filtersGroupStatusIcon, filtersGroup, filtersHelpLink, "filters parental lock categories channels censor hidden protected"),
                 new SettingsSection("appearance", I18n.tr("configDarkTheme"), null, themeOverridesGroup, themeHelpLink, "appearance theme language thumbnails zoom epg guide programme sources counts"),
-                new SettingsSection("cache", I18n.tr("configCacheFiltering"), null, cacheGroup, cacheFilteringHelpLink, "cache clear reload watching now"),
+                new SettingsSection("cache", I18n.tr("configCacheFiltering"), null, cacheGroup, cacheFilteringHelpLink, "cache clear reload watching now epg guide programme refresh"),
                 new SettingsSection("sync", I18n.tr("configDatabaseSyncTitle"), null, databaseSyncGroup, databaseSyncHelpLink, "database sync import export backup remote"),
                 new SettingsSection("server", I18n.tr("configWebServer"), null, serverGroup, webServerHelpLink, "web server https port m3u publish startup"),
                 new SettingsSection("tmdb", I18n.tr("configTmdbMetadata"), null, tmdbConfigSection, tmdbMetadataHelpLink, "tmdb metadata api token")

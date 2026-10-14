@@ -24,7 +24,7 @@ On desktop, right-click a guide channel and choose **Guide ID override**. On And
 
 ## Guide and player views
 
-Desktop gear **Enable EPG / Disable EPG** and Settings update the same persistent feature setting. Bookmarks shows the current group's live channels; an account guide uses the selected category and search filters. Native schedules load for visible rows, rather than the entire catalogue. **Show all channels** retains unmatched XMLTV-only channels; ordinary lists always retain all channels. Native-provider guide rows stay present while loading and when unmatched, so filtering does not automatically pull successive unseen channels into the viewport and request the whole catalogue.
+Desktop gear **Enable EPG / Disable EPG** and Settings update the same persistent feature setting. Bookmarks and account channel lists always use their normal virtual cards and retain every channel. With EPG enabled, visible live cards add Now/Next titles, times and progress when a schedule is available; View Guide appears in right-click and “…” menus. There is no separate browse guide screen or Show all channels control. The existing Now/Next panel beneath the player remains available in narrow layouts. With EPG disabled, the original cards, heights and menus are restored. Refresh EPG lives in Settings beside the cache refresh controls; it clears guide caches and visible consumers fetch replacements on demand.
 
 Double-click a channel or programme to play on desktop; the web uses single-click playback. A desktop single click selects programme details. Both guides retain six-hour navigation, **Now**, zoom, search/category filters, logos controlled by the thumbnail setting, playing indicators and virtualized rows. Background updates preserve scroll position. Client times render locally from UTC epoch milliseconds.
 
@@ -80,6 +80,18 @@ Schedule refresh runs every 30 minutes; minute clock/progress updates reuse cach
 
 ### Desktop loading and memory limits
 
-Channel catalogs render using already cached EPG metadata; they do not wait for XMLTV discovery, downloads or parsing. The desktop guide loads schedules for its visible rows after showing channels. XMLTV schedules are compressed in memory as they are parsed, expanding only requested channels. Parsed feeds share an estimated 64 MiB memory budget, native schedules 16 MiB, and decoded cached images a 48 MiB pixel budget. XMLTV parsing bounds compressed data per feed and shortens descriptions to 2,048 characters. The 200 MiB decompressed-input limit remains active. EPG-only mode hides checked channels with no usable schedule, regardless of provider type or a warning from another source. Pending rows show a loading state; enabling Show all channels displays aligned empty schedule cells.
+Channel catalogs render without waiting for XMLTV discovery, downloads or parsing. Visible virtual cards resolve schedules in the background; detached and off-screen cards do not initiate guide requests. XMLTV schedules are compressed in memory as they are parsed, expanding only requested channels. Parsed feeds share an estimated 64 MiB memory budget, native schedules 16 MiB, and decoded cached images a 48 MiB pixel budget. XMLTV parsing bounds compressed data per feed and shortens descriptions to 2,048 characters. The 200 MiB decompressed-input limit remains active. Cards retain only the two Now/Next records; the full schedule loads on demand when View Guide is selected.
 
 Packaged desktop launchers cap the Java heap at 512 MiB and enable periodic idle collection. The build property `uiptv.desktop.max.heap` overrides the heap setting. Native JavaFX/VLC memory is additional. See [the desktop memory audit](docs/EPG_MEMORY_AUDIT.md) for measurements and validation limits.
+
+### Virtual-card guide details
+
+EPG adds details inside the existing virtual cards at every width; it does not replace bookmark or account browsing. View Guide in the existing context/“…” menu opens a separately owned native popup. Its horizontally virtualized programme cards use the same badge, title, time, progress and description styling as the panel beneath the player. All available schedule entries remain accessible by horizontal scrolling or arrow controls. The popup adapts from one card on narrow windows to several cards across wider windows, closes on Escape or outside interaction, and releases its contents on close. The separate browse timeline and its refresh/show-all controls have been removed.
+
+### Strict viewport loading and player overlay
+
+Guide loading requires a measured, visible scroll viewport and a non-empty card rectangle. Cards are checked again on the JavaFX thread immediately before each background lookup, so a queued card cannot start a lookup after scrolling off-screen. Now/Next summaries are reused until a programme transition or the 30-minute refresh point; minute progress updates reuse those summaries. Cards returning from the detached cache restore their summaries without another lookup.
+
+With EPG enabled, a compact header keeps the thumbnail beside the title/account; the summary below spans the full card width. Plain-text mode uses the same full-width summary below its text header. EPG-off cards retain their original structure.
+
+When the playing channel has a guide, wide player mode and fullscreen include a View Guide control. It opens the selected channel's virtualized schedule inside the JavaFX video area, using the same overlay approach as the hidden-control-bar hint. The X button or Escape closes it. The full schedule loads only on opening, and closing or changing channels releases it. The Guide control reuses the player-adjacent summary's availability instead of making another background guide request.

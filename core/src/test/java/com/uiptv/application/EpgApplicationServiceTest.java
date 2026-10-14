@@ -34,6 +34,11 @@ class EpgApplicationServiceTest extends DbBackedTest {
         bookmark = BookmarkService.getInstance().read().getFirst();
         result = service.lookup(new PlayerEpgApplicationService.Query("", "", "", bookmark.getDbId()));
         assertEquals("Second channel", result.channelName()); assertEquals("Current", result.now().title());
+        var bookmarkRow = new LiveGuideApplicationService().bookmarkRow(bookmark.getDbId());
+        assertEquals(second.getDbId(), bookmarkRow.accountId());
+        assertEquals("guide-id", bookmarkRow.channel().getChannelId());
+        assertEquals("Current", new LiveGuideApplicationService().hydrate(bookmarkRow).programmes().getFirst().title());
+        assertNull(new LiveGuideApplicationService().bookmarkRow("missing-local-bookmark"));
         java.util.concurrent.atomic.AtomicBoolean channelsPublished = new java.util.concurrent.atomic.AtomicBoolean();
         var rows = new LiveGuideApplicationService().list("", initial -> {
             assertFalse(initial.isEmpty()); assertTrue(initial.stream().allMatch(row -> row.programmes().isEmpty()));

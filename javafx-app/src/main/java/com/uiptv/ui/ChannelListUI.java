@@ -76,19 +76,13 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private static final String I18N_AUTO_IN_PROGRESS = "autoInProgress";
     private static final String I18N_AUTO_LOADING_CHANNELS_FOR = "autoLoadingChannelsFor";
 
-    private LiveGuideUI epgGuide;
+    private final CardEpgSupport cardEpg = new CardEpgSupport(this);
     private final AccountMediaContext mediaContext;
     private final Account account;
     private final Account.AccountAction listAction;
     private final String categoryTitle;
     private final String categoryId;
     private final SearchableTableView<ChannelItem> table = new SearchableTableView<>();
-    private final Map<Node, Long> epgCardRefreshAt = new WeakHashMap<>();
-    private Thread epgCardWorker;
-    private int epgCardGeneration;
-    private final PauseTransition epgCardPulse = new PauseTransition(Duration.millis(250));
-    private final javafx.animation.Timeline epgCardClock = new javafx.animation.Timeline(
-            new javafx.animation.KeyFrame(Duration.minutes(30), _ -> refreshVisibleCardEpg()));
     private final ResponsiveCardGrid<ChannelItem> channelGrid = new ResponsiveCardGrid<>(this::createChannelCard, true);
     private final ScrollPane channelGridScroll = new ScrollPane();
     private final TableColumn<ChannelItem, String> channelName = new TableColumn<>(I18n.tr("autoChannels"));
@@ -178,14 +172,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         preloadAllCategoryContextAsync();
         initWidgets();
         registerSceneLifecycleListener();
-        epgCardPulse.setOnFinished(_ -> refreshVisibleCardEpg());
-        epgCardClock.setCycleCount(javafx.animation.Animation.INDEFINITE);
-        EpgModeUI.observe(this, () -> { applyListContentMode(); channelGrid.refresh(); queueCardEpg(); });
-        sceneProperty().addListener((_, _, scene) -> {
-            if (scene == null) { epgCardClock.stop(); epgCardPulse.stop(); epgCardGeneration++; if (epgCardWorker != null) epgCardWorker.interrupt(); }
-            else { epgCardClock.play(); queueCardEpg(); }
-        });
-        table.getSearchTextField().textProperty().addListener((_, _, query) -> { if (epgGuide != null) epgGuide.setSearchQuery(query); });
+        EpgModeUI.observe(this, () -> { applyListContentMode(); applyChannelGridSizing(); channelGrid.refresh(); cardEpg.queue(); });
         table.setPlaceholder(new Label(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle)));
     }
 
@@ -215,7 +202,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
     @Override
     public void setSearchQuery(String searchText) {
         String value = searchText == null ? "" : searchText;
-        if (epgGuide != null) epgGuide.setSearchQuery(value);
         TextField searchField = table.getSearchTextField();
         if (!Objects.equals(searchField.getText(), value)) {
             searchField.setText(value);
@@ -329,7 +315,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
         if (!itemBatch.isEmpty()) {
             channelItems.addAll(itemBatch);
-            updateEpgFilter();
             table.setPlaceholder(null);
             channelGrid.setPlaceholderText("");
         }
@@ -666,12 +651,12 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private void applyChannelGridSizing() {
         channelGrid.setSingleColumn(mediaDrawerMode || !thumbnailsEnabled);
         if (!thumbnailsEnabled) {
-            channelGrid.setCardMinHeight(42);
+            channelGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && listAction == Account.AccountAction.itv ? 150 : 42);
             channelGrid.setCardWidthRange(240, 760);
             channelGrid.setGaps(16, 6);
             return;
         }
-        channelGrid.setCardMinHeight(76);
+        channelGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && listAction == Account.AccountAction.itv ? 168 : 76);
         if (mediaDrawerMode) {
             channelGrid.setCardWidthRange(260, 520);
             channelGrid.setGaps(7, 7);
@@ -741,10 +726,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
         table.getSearchTextField().setVisible(true);
         table.getSearchTextField().setManaged(true);
         Node content = channelGridScroll;
-        if (listAction == Account.AccountAction.itv && EpgModeUI.isEnabled()) {
-            if (epgGuide == null) { epgGuide = new LiveGuideUI(); epgGuide.setContext(account.getDbId()); }
-            updateEpgFilter(); content = epgGuide;
-        } else if (epgGuide != null) { epgGuide.dispose(); epgGuide = null; }
         if (content instanceof Region region) {
             region.setMinWidth(0);
             region.setMaxWidth(Double.MAX_VALUE);
@@ -752,14 +733,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
         listPane.getChildren().setAll(searchBox, content);
         VBox.setVgrow(content, Priority.ALWAYS);
-        if (epgGuide != null && getScene() != null) epgGuide.refreshIfNeeded();
-    }
-
-    private void updateEpgFilter() {
-        if (epgGuide == null) return;
-        Set<String> ids = channelItems == null ? Set.of() : channelItems.stream().map(item -> item.getChannel().getChannelId()).collect(java.util.stream.Collectors.toSet());
-        epgGuide.setRowFilter(row -> ids.contains(row.channel().getChannelId()));
-        epgGuide.setSearchQuery(table.getSearchTextField().getText());
     }
 
     private void initDetailPane() {
@@ -892,7 +865,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         Node titleAction = listAction == series ? createSeriesWatchingBadge(item) : createPlayMenuAction(item);
         BookmarkCard card = new BookmarkCard(
                 item == null ? "" : item.getChannelName(),
-                epgSummary(item),
+                "",
                 item == null ? "" : item.getLogo(),
                 thumbnailsEnabled,
                 IMAGE_CACHE_KEY_CHANNEL,
@@ -905,57 +878,11 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private Region trackEpgCard(Region card, ChannelItem item) {
         if (listAction != Account.AccountAction.itv || item == null) return card;
-        card.getProperties().put("epgChannelItem", item);
-        card.sceneProperty().addListener((_, _, _) -> queueCardEpg());
-        return card;
-    }
-    private void queueCardEpg() {
-        epgCardGeneration++;
-        if (epgCardWorker != null) epgCardWorker.interrupt();
-        epgCardPulse.playFromStart();
-    }
-    private boolean cardViewVisible() {
-        if (getScene() == null || disposed.get() || EpgModeUI.isEnabled() || !EpgModeUI.isFeatureEnabled()) return false;
-        for (Node node = this; node != null; node = node.getParent()) if (!node.isVisible()) return false;
-        return true;
-    }
-    private void refreshVisibleCardEpg() {
-        if (!cardViewVisible() || listAction != Account.AccountAction.itv) return;
-        Account requestAccount = mediaContext.toAccount();
-        if (requestAccount.getType() != com.uiptv.util.AccountType.STALKER_PORTAL && requestAccount.getType() != com.uiptv.util.AccountType.XTREME_API) return;
-        Set<Node> candidates = new LinkedHashSet<>(channelGrid.lookupAll(".bookmark-card"));
-        candidates.addAll(channelGrid.lookupAll(".account-drawer-channel-row"));
-        long now = System.currentTimeMillis();
-        List<Node> cards = candidates.stream().filter(card -> card.getProperties().containsKey("epgChannelItem")
-                && now >= epgCardRefreshAt.getOrDefault(card, 0L)).limit(32).toList();
-        if (cards.isEmpty()) return;
-        int request = ++epgCardGeneration;
-        if (epgCardWorker != null) epgCardWorker.interrupt();
-        Map<Node, ChannelItem> items = new LinkedHashMap<>();
-        for (Node card : cards) { items.put(card, (ChannelItem) card.getProperties().get("epgChannelItem")); epgCardRefreshAt.put(card, now + 30 * 60_000L); }
-        epgCardWorker = Thread.ofVirtual().start(() -> {
-            for (var entry : items.entrySet()) {
-                if (Thread.currentThread().isInterrupted()) return;
-                var result = new com.uiptv.application.PlayerEpgApplicationService().current(requestAccount, entry.getValue().getChannel());
-                Platform.runLater(() -> {
-                    if (request != epgCardGeneration || !cardViewVisible() || entry.getKey().getScene() == null) return;
-                    Channel channel = entry.getValue().getChannel(); channel.setEpgNow(result.now()); channel.setEpgNext(result.next());
-                    Label label = (Label) entry.getKey().lookup(entry.getKey() instanceof BookmarkCard ? ".bookmark-channel-account" : ".account-drawer-channel-meta");
-                    if (label != null) {
-                        label.setText(entry.getKey() instanceof BookmarkCard ? epgSummary(entry.getValue()) : drawerChannelMeta(entry.getValue()));
-                        label.setVisible(!label.getText().isBlank()); label.setManaged(label.isVisible());
-                    } else Tooltip.install(entry.getKey(), new Tooltip(epgSummary(entry.getValue())));
-                });
-            }
-        });
+        return cardEpg.bind(card, () -> guideRow(item));
     }
 
-    private String epgSummary(ChannelItem item) {
-        Channel channel = item == null ? null : item.getChannel();
-        if (!EpgModeUI.isFeatureEnabled() || channel == null || listAction != Account.AccountAction.itv) return "";
-        String now = channel.getEpgNow() == null ? "" : I18n.tr("epgNow") + ": " + channel.getEpgNow().title();
-        String next = channel.getEpgNext() == null ? "" : I18n.tr("epgNext") + ": " + channel.getEpgNext().title();
-        return now + (now.isEmpty() || next.isEmpty() ? "" : " · ") + next;
+    private com.uiptv.application.LiveGuideApplicationService.Row guideRow(ChannelItem item) {
+        return new com.uiptv.application.LiveGuideApplicationService.Row(account.getDbId(), account.getAccountName(), "", item.getChannel(), List.of());
     }
 
     private Node createPlayMenuAction(ChannelItem item) {
@@ -1050,8 +977,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
         title.setMaxWidth(Double.MAX_VALUE);
 
         card.getChildren().add(title);
-        String guide = epgSummary(item);
-        if (!guide.isBlank()) Tooltip.install(card, new Tooltip(guide));
         Region titleRowSpacer = new Region();
         HBox.setHgrow(titleRowSpacer, Priority.ALWAYS);
         card.getChildren().add(titleRowSpacer);
@@ -1128,8 +1053,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private String drawerChannelMeta(ChannelItem item) {
         List<String> parts = new ArrayList<>();
-        String guide = epgSummary(item);
-        if (!guide.isBlank()) parts.add(guide);
         if (listAction == vod) {
             parts.add(I18n.tr("autoVod"));
         } else if (listAction == series) {
@@ -1374,6 +1297,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
 
         populateChannelContextMenu(menu, item, selectedItems);
+        if (listAction == Account.AccountAction.itv && selectedItems.size() == 1) cardEpg.addGuideMenu(menu, owner, () -> guideRow(item));
         return menu;
     }
 
@@ -1617,7 +1541,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private void applyThumbnailMode(boolean enabled) {
         thumbnailsEnabled = enabled;
-        if (epgGuide != null) epgGuide.refreshIfNeeded();
+        cardEpg.queue();
         if (enabled) {
             channelName.setCellFactory(column -> createThumbnailCell());
         } else {
@@ -1638,7 +1562,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     public void dispose() {
-        if (epgGuide != null) epgGuide.dispose();
+        cardEpg.stop();
         if (!disposed.compareAndSet(false, true)) {
             return;
         }
@@ -1651,11 +1575,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void releaseTransientState() {
-        epgCardClock.stop();
-        epgCardPulse.stop();
-        epgCardGeneration++;
-        if (epgCardWorker != null) { epgCardWorker.interrupt(); epgCardWorker = null; }
-        epgCardRefreshAt.clear();
         pendingChannelChanges.clear();
         channelChangePulse.stop();
         channelChangeDrainScheduled.set(false);
