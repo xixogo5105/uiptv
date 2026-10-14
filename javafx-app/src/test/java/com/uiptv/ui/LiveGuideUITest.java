@@ -32,7 +32,8 @@ class LiveGuideUITest extends DbBackedUiTest {
                 fixture.add(new LiveGuideApplicationService.Row("account-1", "Example account", "", channel, List.of(
                         new EpgProgramme("Evening News", "Illustrative test data", hour - 3_600_000, hour + 3_600_000),
                         new EpgProgramme("Documentary", "Illustrative test data", hour + 3_600_000, hour + 2 * 3_600_000),
-                        new EpgProgramme("Film", "Illustrative test data", hour + 2 * 3_600_000, hour + 4 * 3_600_000))));
+                        new EpgProgramme("Film", "Illustrative test data", hour + 2 * 3_600_000, hour + 4 * 3_600_000),
+                        new EpgProgramme("Morphle", "Short programme", hour + 4 * 3_600_000, hour + 4 * 3_600_000 + 180_000))));
             }
             LiveGuideUI guide = new LiveGuideUI(); guide.setContext("account-1");
             fixture.getFirst().channel().setLogo(Objects.requireNonNull(getClass().getResource("/icon.png")).toExternalForm());
@@ -56,6 +57,12 @@ class LiveGuideUITest extends DbBackedUiTest {
             assertEquals(javafx.geometry.Insets.EMPTY, programmeBlock.getBackground().getFills().getFirst().getInsets());
             assertEquals(programmeBlock.getBackground().getFills().getFirst().getRadii(), programmeBlock.getBorder().getStrokes().getFirst().getRadii());
             assertNull(programmeBlock.getEffect());
+            Button shortBlock = (Button) first.getChildren().get(3);
+            assertEquals("", shortBlock.getText());
+            assertEquals("Morphle", shortBlock.getAccessibleText());
+            assertTrue(shortBlock.getTooltip().getText().startsWith("Morphle"));
+            assertFalse(programmeBlock.isWrapText());
+            assertEquals(javafx.scene.control.OverrunStyle.ELLIPSIS, programmeBlock.getTextOverrun());
             assertNotNull(((Button) ((HBox) rows.getChildren().get(1)).getChildren().getFirst()).getGraphic().lookup(".channel-logo-view"));
             ThumbnailAwareUI.notifyThumbnailModeChanged(false); guide.refreshIfNeeded();
             assertNull(((Button) ((HBox) rows.getChildren().get(1)).getChildren().getFirst()).getGraphic().lookup(".channel-logo-view"));

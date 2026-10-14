@@ -185,8 +185,13 @@ public class LiveGuideUI extends VBox implements SearchTarget {
                 if (p.start() <= System.currentTimeMillis() && p.stop() > System.currentTimeMillis()) block.getStyleClass().add("current-programme");
                 block.setLayoutX((left - windowStart) / 3_600_000.0 * hourWidth);
                 block.setLayoutY(3);
-                block.setPrefSize(Math.max(1, (right - left) / 3_600_000.0 * hourWidth - 3), 84);
-                block.setMinWidth(0); block.setWrapText(true); block.setTextOverrun(OverrunStyle.CLIP);
+                double blockWidth = Math.max(1, (right - left) / 3_600_000.0 * hourWidth - 3);
+                block.setPrefSize(blockWidth, 84);
+                block.setMinWidth(0); block.setMaxWidth(blockWidth);
+                block.setWrapText(false); block.setTextOverrun(OverrunStyle.ELLIPSIS);
+                // Tiny time slots remain selectable without misleading one-letter labels.
+                if (blockWidth < 60) block.setText("");
+                block.setAccessibleText(p.title());
                 block.setTooltip(new Tooltip(p.title() + "\n" + formatTime(p.start()) + " – " + formatTime(p.stop()) + "\n" + p.description()));
                 block.setOnAction(_ -> {
                     selectedProgramme.setText(channel.getName() + " · " + p.title() + " · " + formatTime(p.start()) + " – " + formatTime(p.stop()));

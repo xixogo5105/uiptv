@@ -2238,7 +2238,10 @@ a[href] {
 .guide-toolbar { flex-wrap: wrap; gap: 8px; }
 .live-guide-track { height: 96px; }
 .live-guide-programme { height: 90px; }
-.live-guide-programme strong { white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+.live-guide-programme { container-type: inline-size; }
+.live-guide-programme strong, .live-guide-programme small { white-space: nowrap; overflow-wrap: normal; overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 40px) { .live-guide-programme strong { visibility: hidden; } }
+@container (max-width: 100px) { .live-guide-programme small { display: none; } }
 .live-guide-name { white-space: normal; }
 .live-guide-selected-programme { margin: 10px 0; padding: 10px 12px; border-radius: 8px; background: var(--surface-high); overflow-wrap: anywhere; }
 .live-guide-selected-programme small { display: block; color: var(--muted); margin-top: 4px; }
