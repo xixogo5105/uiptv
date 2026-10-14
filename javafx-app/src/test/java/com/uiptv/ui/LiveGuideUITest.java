@@ -51,6 +51,11 @@ class LiveGuideUITest extends DbBackedUiTest {
             Pane second = (Pane) ((HBox) rows.getChildren().get(2)).getChildren().get(1);
             assertEquals(first.getChildren().getFirst().getLayoutX(), second.getChildren().getFirst().getLayoutX());
             assertEquals(477, ((Button) first.getChildren().getFirst()).getPrefWidth(), .01);
+            Button programmeBlock = (Button) first.getChildren().getFirst();
+            assertEquals(1, programmeBlock.getBackground().getFills().size());
+            assertEquals(javafx.geometry.Insets.EMPTY, programmeBlock.getBackground().getFills().getFirst().getInsets());
+            assertEquals(programmeBlock.getBackground().getFills().getFirst().getRadii(), programmeBlock.getBorder().getStrokes().getFirst().getRadii());
+            assertNull(programmeBlock.getEffect());
             assertNotNull(((Button) ((HBox) rows.getChildren().get(1)).getChildren().getFirst()).getGraphic().lookup(".channel-logo-view"));
             ThumbnailAwareUI.notifyThumbnailModeChanged(false); guide.refreshIfNeeded();
             assertNull(((Button) ((HBox) rows.getChildren().get(1)).getChildren().getFirst()).getGraphic().lookup(".channel-logo-view"));
@@ -236,6 +241,45 @@ class LiveGuideUITest extends DbBackedUiTest {
                     for (int y = 0; y < image.getHeight(); y++) for (int x = 0; x < image.getWidth(); x++) image.setRGB(x, y, snapshot.getPixelReader().getArgb(x, y));
                     ImageIO.write(image, "png", Path.of("target/epg-single-column-preview.png").toFile());
                 }
+            }
+            return null;
+        });
+    }
+
+    @Test void playerCardsAlignAndExtraDetailsStayInsideTheAppInBothThemes() throws Exception {
+        runOnFxThread(() -> {
+            com.uiptv.widget.AppFonts.load();
+            for (boolean dark : new boolean[]{false, true}) {
+                var ui = new com.uiptv.ui.main.MainApplicationUI(null, null, null, null, 470, 750, true);
+                Method create = ui.getClass().getDeclaredMethod("createPlayerAdjacentControls"); create.setAccessible(true);
+                VBox controls = (VBox) create.invoke(ui); controls.setVisible(true); controls.setManaged(true);
+                PlayerEpgUI panel = (PlayerEpgUI) controls.getChildren().getFirst();
+                Region videoSurface = new Region(); videoSurface.setPrefHeight(180); videoSurface.setStyle("-fx-background-color: black;");
+                VBox videoContainer = new VBox(videoSurface); videoContainer.setPadding(new javafx.geometry.Insets(5));
+                VBox root = new VBox(8, videoContainer, controls); Scene scene = new Scene(root, 470, 750);
+                scene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/application.css")).toExternalForm());
+                if (dark) scene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/dark-application.css")).toExternalForm());
+                long now = System.currentTimeMillis();
+                panel.display(new PlayerEpgApplicationService.Result("Sample channel", new EpgProgramme("Current programme", "Full description already visible.", now - 1000, now + 100000),
+                        new EpgProgramme("Next programme", "", now + 100000, now + 200000)));
+                root.resize(470, 750); root.applyCss(); root.layout(); root.layout();
+                Node card = panel.lookup(".epg-current-card");
+                assertEquals(videoSurface.localToScene(videoSurface.getBoundsInLocal()).getMinX(), card.localToScene(card.getBoundsInLocal()).getMinX(), .1);
+                assertEquals(videoSurface.localToScene(videoSurface.getBoundsInLocal()).getMaxX(), card.localToScene(card.getBoundsInLocal()).getMaxX(), .1);
+                assertTrue(panel.lookupAll(".hyperlink").stream().noneMatch(Node::isManaged));
+                String fullDescription = "Additional programme information. ".repeat(30);
+                panel.display(new PlayerEpgApplicationService.Result("Sample channel", new EpgProgramme("Current programme", fullDescription, now - 1000, now + 100000), null));
+                root.applyCss(); root.layout();
+                Hyperlink link = (Hyperlink) panel.lookup(".hyperlink"); assertTrue(link.isManaged());
+                int windows = javafx.stage.Window.getWindows().size(); link.fire(); root.applyCss(); root.layout();
+                Node inline = panel.lookup(".epg-inline-details"); assertTrue(inline.isManaged()); assertFalse(link.isManaged()); assertEquals(panel, inline.getParent());
+                assertEquals(windows, javafx.stage.Window.getWindows().size());
+                WritableImage screenshot = root.snapshot(null, null);
+                BufferedImage image = new BufferedImage((int) screenshot.getWidth(), (int) screenshot.getHeight(), BufferedImage.TYPE_INT_ARGB);
+                for (int y = 0; y < image.getHeight(); y++) for (int x = 0; x < image.getWidth(); x++) image.setRGB(x, y, screenshot.getPixelReader().getArgb(x, y));
+                ImageIO.write(image, "png", Path.of("target/epg-inline-details-" + (dark ? "dark" : "light") + "-preview.png").toFile());
+                assertTrue(inline.lookupAll(".label").stream().anyMatch(node -> node instanceof Label label && fullDescription.equals(label.getText())));
+                ((Button) inline.lookup(".uiptv-circular-close-button")).fire(); assertFalse(inline.isManaged()); assertTrue(link.isManaged());
             }
             return null;
         });

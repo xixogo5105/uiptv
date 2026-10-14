@@ -47,7 +47,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
     private static final double STACKED_EMBEDDED_PLAYER_MIN_HEIGHT = 210;
     private static final double STACKED_EMBEDDED_PLAYER_MAX_HEIGHT = 305;
     private static final double PLAYER_ADJACENT_CONTROLS_MIN_WIDTH = 720;
-    private static final double PLAYER_ADJACENT_CONTROLS_RIGHT_INSET = 14;
     private static final double ACCOUNT_BROWSER_DRAWER_WIDTH_THRESHOLD = 900;
     private final boolean embeddedEnabled;
     private final ConfigurationChangeListener embeddedLayoutChangeListener =
@@ -669,7 +668,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         controls.getChildren().add(new com.uiptv.ui.PlayerEpgUI());
         controls.getStyleClass().add("player-adjacent-page-controls");
         controls.setFillWidth(true);
-        controls.setPadding(new Insets(0, PLAYER_ADJACENT_CONTROLS_RIGHT_INSET, 0, 0));
+        controls.setPadding(new Insets(0, 5, 0, 5));
         controls.setMinSize(0, 0);
         controls.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         controls.setVisible(false);

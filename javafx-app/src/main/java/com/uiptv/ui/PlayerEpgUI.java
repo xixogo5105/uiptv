@@ -19,6 +19,8 @@ public class PlayerEpgUI extends VBox {
     private final VBox nowCard = new VBox(6), nextCard = new VBox(6);
     private final ProgressBar progress = new ProgressBar();
     private final Hyperlink nowDetails = new Hyperlink(I18n.tr("epgProgrammeDetails")), nextDetails = new Hyperlink(I18n.tr("epgProgrammeDetails"));
+    private final VBox expandedDetails = new VBox(8);
+    private final Label expandedTitle = new Label(), expandedDescription = new Label();
     private boolean compact;
     private PlayerEpgApplicationService.Result displayed;
     private final AtomicInteger generation = new AtomicInteger();
@@ -47,9 +49,15 @@ public class PlayerEpgUI extends VBox {
         nextDetails.setOnAction(_ -> showDetails(displayed == null ? null : displayed.next()));
         cards.getChildren().addAll(nowCard, nextCard); cards.setMinWidth(0);
         nowCard.setPrefWidth(300); nextCard.setPrefWidth(300);
-        cards.prefWrapLengthProperty().bind(javafx.beans.binding.Bindings.max(300, widthProperty().subtract(24)));
+        cards.prefWrapLengthProperty().bind(javafx.beans.binding.Bindings.max(300, widthProperty()));
         widthProperty().addListener((_, _, _) -> sizeCards());
-        getChildren().addAll(heading, cards); setVisible(false); setManaged(false);
+        expandedTitle.setMinWidth(0); expandedTitle.setWrapText(true); expandedTitle.setMaxWidth(Double.MAX_VALUE); expandedTitle.getStyleClass().add("epg-programme-title");
+        expandedDescription.setMinWidth(0); expandedDescription.setWrapText(true); expandedDescription.setMaxWidth(Double.MAX_VALUE); expandedDescription.getStyleClass().add("epg-programme-description");
+        var close = new com.uiptv.widget.CloseIconButton(I18n.tr("autoClose")); close.setOnAction(_ -> closeDetails());
+        HBox detailsHeader = new HBox(8, expandedTitle, close); HBox.setHgrow(expandedTitle, Priority.ALWAYS);
+        expandedDetails.getStyleClass().addAll("epg-programme-card", "epg-inline-details");
+        expandedDetails.getChildren().add(detailsHeader); closeDetails();
+        getChildren().addAll(heading, cards, expandedDetails); setVisible(false); setManaged(false);
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
         sceneProperty().addListener((_, oldScene, newScene) -> {
             if (oldScene != null) { MediaPlayerFactory.guideContextProperty().removeListener(listener); clock.stop(); generation.incrementAndGet(); }
@@ -72,7 +80,8 @@ public class PlayerEpgUI extends VBox {
     void display(PlayerEpgApplicationService.Result result) {
         boolean available = result != null && (result.now() != null || result.next() != null);
         setVisible(available); setManaged(available);
-        if (!available) return;
+        if (!available) { closeDetails(); return; }
+        if (displayed != null && !displayed.equals(result)) closeDetails();
         displayed = result;
         heading.setText(result.channelName());
         nowCard.setVisible(result.now() != null); nowCard.setManaged(result.now() != null);
@@ -97,7 +106,7 @@ public class PlayerEpgUI extends VBox {
     }
 
     private void sizeCards() {
-        double available = Math.max(0, getWidth() - 24);
+        double available = Math.max(0, getWidth());
         if (available == 0) return;
         boolean paired = available >= (compact ? 300 : 680) && nowCard.isManaged() && nextCard.isManaged();
         double width = paired ? (available - 10) / 2 : available;
@@ -109,24 +118,34 @@ public class PlayerEpgUI extends VBox {
             boolean visible = !compact && !description.getText().isBlank() && description.getText().length() <= 220;
             description.setVisible(visible); description.setManaged(visible);
         }
-        for (Hyperlink link : new Hyperlink[]{nowDetails, nextDetails}) { link.setVisible(true); link.setManaged(true); }
+        updateDetailsLink(nowDetails, nowDescription);
+        updateDetailsLink(nextDetails, nextDescription);
         for (Label title : new Label[]{nowTitle, nextTitle}) {
             Tooltip tooltip = new Tooltip(title.getText()); tooltip.setWrapText(true); tooltip.setMaxWidth(460); title.setTooltip(tooltip);
         }
     }
 
-    private void showDetails(EpgProgramme programme) {
-        if (programme == null) return;
-        Alert details = new Alert(Alert.AlertType.INFORMATION);
-        if (getScene() != null) details.initOwner(getScene().getWindow());
-        details.setTitle(I18n.tr("epgProgrammeDetails"));
-        Label title = new Label(programme.title()); title.setWrapText(true); title.getStyleClass().add("epg-programme-title");
-        details.getDialogPane().setHeader(title);
-        Label description = new Label(programme.description()); description.setWrapText(true); description.setMaxWidth(520);
-        ScrollPane body = new ScrollPane(description); body.setFitToWidth(true); body.setPrefViewportHeight(300);
-        details.getDialogPane().setContent(body); details.getDialogPane().setPrefWidth(560);
-        if (getScene() != null) details.getDialogPane().getStylesheets().setAll(getScene().getStylesheets());
-        details.show();
+    private void updateDetailsLink(Hyperlink link, Label description) {
+        boolean hasMore = !description.getText().isBlank() && !description.isManaged()
+                && !(expandedDetails.isManaged() && description.getText().equals(expandedDescription.getText()));
+        link.setVisible(hasMore); link.setManaged(hasMore);
     }
 
+    private void closeDetails() {
+        expandedDetails.setVisible(false); expandedDetails.setManaged(false);
+        expandedTitle.setText(""); expandedDescription.setText("");
+        if (expandedDetails.getChildren().size() > 1) expandedDetails.getChildren().remove(1, expandedDetails.getChildren().size());
+        updateDescriptions();
+    }
+
+    private void showDetails(EpgProgramme programme) {
+        if (programme == null || programme.description().isBlank()) return;
+        expandedTitle.setText(programme.title()); expandedDescription.setText(programme.description());
+        if (expandedDetails.getChildren().size() == 1) {
+            ScrollPane body = new ScrollPane(expandedDescription); body.setFitToWidth(true); body.setPrefViewportHeight(180); body.setMaxHeight(220);
+            body.getStyleClass().add("epg-inline-details-scroll"); expandedDetails.getChildren().add(body);
+        }
+        expandedDetails.setVisible(true); expandedDetails.setManaged(true);
+        updateDescriptions();
+    }
 }

@@ -12,7 +12,7 @@ Matching uses the playlist/provider channel ID first. If it does not match, a un
 
 ## Current scope
 
-- Desktop Now/Next uses wrapping programme cards without an inner scrollbar; compact single-column mode keeps full titles and offers a programme-details link. Both guides wrap programme titles, offer timeline zoom, and show the selected programme's full title above the timeline.
+- Desktop Now/Next uses wrapping programme cards without an inner scrollbar; compact single-column mode keeps full titles and offers a programme-details link only when description text is hidden. Extra details expand in a closable panel inside the app, below the cards; no separate window opens. Both guides wrap programme titles, offer timeline zoom, and show the selected programme's full title above the timeline.
 - Desktop guide rows are also virtualized: only visible channel controls and a small buffer are created, including when Show all channels reveals a large bookmark list. Playing indicators are rebuilt from playback identity as rows return.
 - The web guide virtualizes rows, rendering only the viewport plus a small buffer. Immutable guide responses avoid deep reactive wrapping of every programme. Scrolling retains access to the whole filtered list and restores the playing indicator when its row returns.
 - Channel logos in both guides follow the existing thumbnail setting. Plain-text mode omits logos.

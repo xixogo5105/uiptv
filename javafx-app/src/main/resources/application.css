@@ -5063,3 +5063,20 @@
 .epg-programme-card .hyperlink { -fx-padding: 0; -fx-font-size: 11; }
 
 .live-guide-channel .playing-card-indicator { -fx-opacity: 1; }
+
+/* Flat guide surfaces avoid inherited button layers and mismatched corner radii. */
+.live-guide-programme, .live-guide-programme:hover, .live-guide-programme:focused, .live-guide-programme:pressed {
+    -fx-background-insets: 0;
+    -fx-background-color: -uiptv-card-bg;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: -uiptv-card-border;
+    -fx-border-width: 1;
+    -fx-effect: none;
+}
+.live-guide-programme.current-programme, .live-guide-programme.current-programme:hover, .live-guide-programme.current-programme:focused {
+    -fx-border-color: #32b8dd;
+    -fx-border-width: 0 0 3 0;
+}
+.player-epg-panel { -fx-padding: 0; -fx-background-color: transparent; }
+.epg-inline-details-scroll, .epg-inline-details-scroll > .viewport { -fx-background-color: transparent; -fx-background-insets: 0; }
