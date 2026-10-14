@@ -4620,7 +4620,6 @@ private fun RemoteSyncScreen(
     ) {
         Text("Config", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         ConfigurationIntro()
-        MobileEpgSettings()
         CompactOutlinedTextField(
             value = host,
             onValueChange = ::updateHost,
@@ -4783,6 +4782,7 @@ private fun RemoteSyncScreen(
                 Text("Change", color = DeepNightPrimary, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
             }
         }
+        MobileEpgSettings()
         Text("Playback History", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         OutlinedButton(
             modifier = Modifier.semantics { contentDescription = "Clear recently played bookmark channels" },
@@ -5074,7 +5074,6 @@ private fun WideRemoteSyncContent(
             ) {
                 Text("Config", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 ConfigurationIntro(compact = compactWide)
-                MobileEpgSettings()
                 CompactOutlinedTextField(
                     value = host,
                     onValueChange = onHostChange,
@@ -5198,6 +5197,7 @@ private fun WideRemoteSyncContent(
                         Text("Change", color = DeepNightPrimary, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     }
                 }
+                MobileEpgSettings()
                 Text("Playback History", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 OutlinedButton(
                     modifier = Modifier
