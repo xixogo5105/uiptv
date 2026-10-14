@@ -24,13 +24,14 @@ class AndroidEpgRepository(
     private val databaseHelper: AndroidUiptvDatabaseHelper,
     private val preferences: AndroidPreferencesRepository
 ) : MobileEpgRepository {
+    private val disk = AndroidEpgDiskCache(context)
     private val stalker = AndroidStalkerCacheReloader(databaseHelper)
     private val xtreme = AndroidXtremeCacheReloader(databaseHelper)
     private data class GuideCache(val guide: MobileXmltvGuide?, val expires: Long, val stale: Boolean, val message: String = "")
     private data class NativeCache(val programmes: List<MobileEpgProgramme>, val expires: Long, val stale: Boolean)
 
     override suspend fun clearCache() = withContext(Dispatchers.IO) {
-        mutex.withLock { guides.clear(); discovered.clear(); native.clear(); stalker.clearEpgSessions() }
+        mutex.withLock { guides.clear(); disk.clear(); discovered.clear(); native.clear(); stalker.clearEpgSessions() }
     }
     override suspend fun globalSource(): String = withContext(Dispatchers.IO) { config("globalEpgSource") }
     override suspend fun saveGlobalSource(source: String) = withContext(Dispatchers.IO) {
@@ -133,19 +134,27 @@ class AndroidEpgRepository(
     private fun loadGuide(source: String, now: Long): GuideCache {
         val previous = guides[source]
         if (previous != null && now < previous.expires) return previous
+        val remote = source.startsWith("http://", true) || source.startsWith("https://", true)
+        val persisted = if (remote) disk.read(source, now) else null
+        if (persisted != null) return GuideCache(persisted, disk.expires(source), false).also {
+            guides[source] = it
+            while (guides.size > 8) guides.remove(guides.keys.first())
+        }
         val cached = try {
             open(source).buffered().use { buffered ->
                 buffered.mark(2); val first = buffered.read(); val second = buffered.read(); buffered.reset()
                 val xml = if (first == 0x1f && second == 0x8b) GZIPInputStream(buffered) else buffered
-                GuideCache(AndroidXmltvReader.read(LimitedStream(xml), now), now + 6 * 3600_000L, false)
+                val limited = LimitedStream(xml)
+                GuideCache(if (remote) disk.parseAndSave(source, limited, now) else AndroidXmltvReader.read(limited, now), now + 24 * 3600_000L, false)
             }
         } catch (error: Exception) {
             val message = when (error.message) {
-                "Guide exceeds size limit" -> "XMLTV exceeds the 100 MiB limit. Use a smaller regional feed."
+                "Guide exceeds size limit" -> "XMLTV exceeds the 200 MiB decompressed limit. Use a smaller regional feed."
                 "Programme limit exceeded" -> "XMLTV exceeds the programme limit. Use a smaller regional feed."
                 else -> "Guide source unavailable or invalid."
             }
-            GuideCache(previous?.guide, now + 300_000, previous?.guide != null, message)
+            val fallback = previous?.guide ?: if (remote) disk.read(source, now, stale = true) else null
+            GuideCache(fallback, now + 300_000, fallback != null, message)
         }
         guides[source] = cached
         while (guides.size > 8) guides.remove(guides.keys.first())
@@ -164,8 +173,8 @@ class AndroidEpgRepository(
         val input = connection.inputStream
         return object : FilterInputStream(input) { override fun close() { try { super.close() } finally { connection.disconnect() } } }
     }
-    private class LimitedStream(input: InputStream) : FilterInputStream(input) {
-        private var remaining = 100L * 1024 * 1024
+    internal class LimitedStream(input: InputStream) : FilterInputStream(input) {
+        private var remaining = 200L * 1024 * 1024
         override fun read(): Int = `in`.read().also { if (it >= 0) if (--remaining < 0) throw IOException("Guide exceeds size limit") }
         override fun read(b: ByteArray, off: Int, len: Int): Int = `in`.read(b, off, len).also { if (it > 0) { remaining -= it; if (remaining < 0) throw IOException("Guide exceeds size limit") } }
     }

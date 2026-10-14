@@ -57,6 +57,60 @@ class AndroidEpgTest {
             } finally { preferences.saveEpgEnabled(false); accounts.deleteAccount(account.id!!); helper.close() }
         }
     }
+    @Test fun decompressedStreamAllows200MiBThenRejectsAdditionalBytes() {
+        val type = AndroidEpgRepository::class.java.declaredClasses.first { it.simpleName == "LimitedStream" }
+        val constructor = type.getDeclaredConstructor(java.io.InputStream::class.java).apply { isAccessible = true }
+        val synthetic = object : java.io.InputStream() {
+            override fun read(): Int = 0
+            override fun read(bytes: ByteArray, offset: Int, length: Int): Int = length
+        }
+        val stream = constructor.newInstance(synthetic) as java.io.InputStream
+        stream.use {
+            val buffer = ByteArray(64 * 1024)
+            repeat(3200) { assertEquals(buffer.size, stream.read(buffer)) }
+            try { stream.read(); fail("Expected the 200 MiB decompressed limit") }
+            catch (error: java.io.IOException) { assertEquals("Guide exceeds size limit", error.message) }
+        }
+    }
+
+    @Test fun downloadedXmltvPersistsAcrossRestartExpiresAndRetainsLastValidFeed() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val helper = AndroidUiptvDatabaseHelper(context)
+        val preferences = AndroidDataStorePreferencesRepository(context)
+        preferences.saveEpgEnabled(true)
+        val now = Instant.now(); val format = DateTimeFormatter.ofPattern("uuuuMMddHHmmss xx").withZone(ZoneOffset.UTC)
+        val xml = "<tv><programme channel='stream-id' start='${format.format(now.minusSeconds(60))}' stop='${format.format(now.plusSeconds(3600))}'><title>Disk fixture</title></programme></tv>"
+        val responses = mutableMapOf("xml" to xml)
+        com.uiptv.mobile.android.AndroidUiptvDatabaseCompatibilityTest.TestHttpServer(responses).use { server ->
+            val accounts = AndroidSQLiteAccountRepository(helper)
+            val account = accounts.saveAccount(MobileAccount(accountName = "Disk EPG fixture", type = MobileAccountType.M3U8_LOCAL))
+            val repository = AndroidEpgRepository(context, helper, preferences)
+            val source = "http://127.0.0.1:${server.port}/guide?action=xml&secret=private"
+            val field = AndroidEpgRepository::class.java.getDeclaredField("guides").apply { isAccessible = true }
+            fun discardMemory() { (field.get(null) as MutableMap<*, *>).clear() }
+            val hash = java.security.MessageDigest.getInstance("SHA-256").digest(source.toByteArray())
+                .joinToString("") { "%02x".format(it.toInt() and 255) }
+            val cached = File(context.filesDir, "epg/epg-$hash.xml")
+            try {
+                repository.clearCache(); repository.saveGlobalSource(source)
+                assertEquals("Disk fixture", repository.schedule(account.id!!, "stream-id", "Station").programmes.first().title)
+                assertTrue(cached.isFile); assertFalse(cached.name.contains("private"))
+                discardMemory()
+                val restarted = AndroidEpgRepository(context, helper, preferences)
+                assertEquals("Disk fixture", restarted.schedule(account.id!!, "stream-id", "Station").programmes.first().title)
+                assertEquals(1, server.requests.size)
+                cached.setLastModified(System.currentTimeMillis() - 25 * 3600_000L); discardMemory()
+                assertEquals("Disk fixture", restarted.schedule(account.id!!, "stream-id", "Station").programmes.first().title)
+                assertEquals(2, server.requests.size)
+                responses["xml"] = "invalid XML"
+                cached.setLastModified(System.currentTimeMillis() - 25 * 3600_000L); discardMemory()
+                assertEquals(MobileEpgStatus.STALE, restarted.schedule(account.id!!, "stream-id", "Station").status)
+                assertEquals(xml, cached.readText())
+                restarted.clearCache(); assertFalse(cached.exists())
+            } finally { repository.clearCache(); preferences.saveEpgEnabled(false); accounts.deleteAccount(account.id!!); helper.close() }
+        }
+    }
+
     @Test fun olderConfigurationMigratesEveryEpgColumnOff() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val helper = AndroidUiptvDatabaseHelper(context)
