@@ -21,6 +21,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.text.TextUtils
 import android.util.Rational
 import android.view.Gravity
 import android.view.KeyEvent
@@ -1660,8 +1661,24 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private fun displayEpg(result: com.uiptv.mobile.shared.epg.MobileEpgResult) {
         epgResult = result
         val now = System.currentTimeMillis()
-        epgLabel.text = listOfNotNull(result.now(now)?.let { "Now: ${it.title}" }, result.next(now)?.let { "Next: ${it.title}" }).joinToString("\n")
-        epgLabel.visibility = if (epgLabel.text.isBlank()) View.VISIBLE else View.VISIBLE
+        val current = result?.now(now)
+        val next = result?.next(now)
+        val channelTitle = currentTarget?.title.orEmpty()
+        val parts = mutableListOf<String>()
+        if (current != null) parts.add("Now: ${current.title}")
+        if (next != null) parts.add("Next: ${next.title}")
+        val epgInfo = if (parts.isNotEmpty()) parts.joinToString(" - ") else ""
+        val sb = StringBuilder()
+        if (channelTitle.isNotBlank()) {
+            sb.append(channelTitle)
+            if (epgInfo.isNotBlank()) sb.append(" - ").append(epgInfo)
+        } else {
+            sb.append(epgInfo)
+        }
+        epgLabel.text = sb.toString()
+        epgLabel.maxLines = 3
+        epgLabel.ellipsize = TextUtils.TruncateAt.END
+        epgLabel.visibility = if (epgLabel.text.isBlank()) View.GONE else View.VISIBLE
         val available = result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.AVAILABLE ||
             result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.STALE
         epgGuideButton.visibility = if (available) View.VISIBLE else View.GONE
