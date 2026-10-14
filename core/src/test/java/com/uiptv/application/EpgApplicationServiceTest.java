@@ -34,6 +34,12 @@ class EpgApplicationServiceTest extends DbBackedTest {
         bookmark = BookmarkService.getInstance().read().getFirst();
         result = service.lookup(new PlayerEpgApplicationService.Query("", "", "", bookmark.getDbId()));
         assertEquals("Second channel", result.channelName()); assertEquals("Current", result.now().title());
+        java.util.concurrent.atomic.AtomicBoolean channelsPublished = new java.util.concurrent.atomic.AtomicBoolean();
+        var rows = new LiveGuideApplicationService().list("", initial -> {
+            assertFalse(initial.isEmpty()); assertTrue(initial.stream().allMatch(row -> row.programmes().isEmpty()));
+            channelsPublished.set(true);
+        });
+        assertTrue(channelsPublished.get()); assertFalse(rows.getFirst().programmes().isEmpty());
     }
     @Test void discoversRemotePlaylistAndCachesCompressedHttpGuide() throws Exception {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();

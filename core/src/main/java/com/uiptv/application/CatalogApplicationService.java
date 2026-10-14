@@ -77,6 +77,10 @@ public class CatalogApplicationService {
     }
 
     public List<Channel> listChannels(CatalogChannelsQuery query) throws IOException {
+        return listChannels(query, true);
+    }
+
+    List<Channel> listChannels(CatalogChannelsQuery query, boolean enrichEpg) throws IOException {
         Account account = query == null ? null : resolveAccount(query.accountId(), query.mode());
         if (account == null) {
             return List.of();
@@ -98,7 +102,7 @@ public class CatalogApplicationService {
             applySeriesRowsWatched(account, categoryApiId, channels);
         }
         List<Channel> result = dedupeChannels(channels);
-        if (account.getAction() == Account.AccountAction.itv) new EpgApplicationService().enrich(account, result);
+        if (enrichEpg && account.getAction() == Account.AccountAction.itv) new EpgApplicationService().enrich(account, result);
         return result;
     }
 

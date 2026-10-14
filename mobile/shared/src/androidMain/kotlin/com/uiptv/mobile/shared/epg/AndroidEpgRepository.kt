@@ -138,7 +138,7 @@ class AndroidEpgRepository(
         val persisted = if (remote) disk.read(source, now) else null
         if (persisted != null) return GuideCache(persisted, disk.expires(source), false).also {
             guides[source] = it
-            while (guides.size > 8) guides.remove(guides.keys.first())
+            while (guides.size > 32) guides.remove(guides.keys.first())
         }
         val cached = try {
             open(source).buffered().use { buffered ->
@@ -157,7 +157,7 @@ class AndroidEpgRepository(
             GuideCache(fallback, now + 300_000, fallback != null, message)
         }
         guides[source] = cached
-        while (guides.size > 8) guides.remove(guides.keys.first())
+        while (guides.size > 32) guides.remove(guides.keys.first())
         return cached
     }
     private fun open(source: String): InputStream {

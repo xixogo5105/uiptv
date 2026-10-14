@@ -47,7 +47,9 @@ final class EpgDiskCache {
         try { temporary = Files.createTempFile(target.getParent(), "epg-", ".part"); }
         catch (IOException _) { return XmltvGuide.read(xml, Instant.now()); }
         try {
-            Files.copy(xml, temporary, StandardCopyOption.REPLACE_EXISTING);
+            try (OutputStream output = new BufferedOutputStream(Files.newOutputStream(temporary), 256 * 1024)) {
+                xml.transferTo(output);
+            }
             XmltvGuide guide;
             try (InputStream input = Files.newInputStream(temporary)) { guide = XmltvGuide.read(input, Instant.now()); }
             try {

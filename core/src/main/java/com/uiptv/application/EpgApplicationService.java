@@ -235,14 +235,20 @@ public class EpgApplicationService {
 
     private static <T> void putBounded(Map<String, T> cache, String key, T value) {
         cache.put(key, value);
-        while (cache.size() > 8) cache.remove(cache.keySet().iterator().next());
+        int capacity = cache == (Object) GUIDES ? 32 : 8;
+        while (cache.size() > capacity) cache.remove(cache.keySet().iterator().next());
     }
     private record CachedGuide(XmltvGuide guide, long retryAt, String warning) { }
     private record DiscoveredSource(String source, long retryAt) { }
     static class LimitedInputStream extends FilterInputStream {
         private long remaining;
+        private final long deadline = System.nanoTime() + Duration.ofSeconds(60).toNanos();
         LimitedInputStream(InputStream input, long limit) { super(input); remaining = limit; }
-        private void consumed(int count) throws IOException { if (count > 0 && (remaining -= count) < 0) throw new IOException("Guide exceeds size limit"); }
+        private void consumed(int count) throws IOException {
+            if (Thread.currentThread().isInterrupted()) throw new InterruptedIOException("Guide loading cancelled");
+            if (System.nanoTime() > deadline) throw new IOException("Guide loading deadline exceeded");
+            if (count > 0 && (remaining -= count) < 0) throw new IOException("Guide exceeds size limit");
+        }
         @Override public int read() throws IOException { int value = in.read(); consumed(value < 0 ? 0 : 1); return value; }
         @Override public int read(byte[] bytes, int offset, int length) throws IOException { int count = in.read(bytes, offset, length); consumed(count); return count; }
     }

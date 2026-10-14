@@ -44,6 +44,21 @@ class EpgResolutionTest extends DbBackedTest {
         assertEquals("epgSourceTooLarge", warning.invoke(null,
                 new javax.xml.stream.XMLStreamException("Parse error", new java.io.IOException("Guide exceeds size limit"))));
     }
+    @Test void elevenConfiguredFeedsAreNotEvictedDuringChannelMatching() throws Exception {
+        java.util.ArrayList<String> sources = new java.util.ArrayList<>();
+        for (int i = 0; i < 11; i++) sources.add(source("regional-" + i, "other-" + i, "Other"));
+        config.setGlobalEpgSource(String.join("\n", sources)); ConfigurationService.getInstance().save(config);
+        var service = new EpgApplicationService(); service.clearCache();
+        assertTrue(service.schedule(account, channel).isEmpty());
+        var field = EpgApplicationService.class.getDeclaredField("GUIDES"); field.setAccessible(true);
+        java.util.Map<?, ?> cache = (java.util.Map<?, ?>) field.get(null);
+        assertTrue(cache.keySet().containsAll(sources));
+        java.util.Map<String, Object> first = new java.util.HashMap<>();
+        for (String source : sources) first.put(source, cache.get(source));
+        service.schedule(account, channel);
+        for (String source : sources) assertSame(first.get(source), cache.get(source), "Feed was unnecessarily reloaded");
+    }
+
     @Test void multipleGlobalSourcesFallThroughAndRefreshReplacesCachedSchedules() throws Exception {
         String first = source("global-first", "other", "Unmatched");
         String second = source("global-second", channel.getChannelId(), "Second");

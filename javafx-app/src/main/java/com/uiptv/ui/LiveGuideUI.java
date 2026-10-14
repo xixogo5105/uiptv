@@ -109,7 +109,10 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         String requestedId = accountId;
         Thread.ofVirtual().start(() -> {
             try {
-                List<LiveGuideApplicationService.Row> loaded = new LiveGuideApplicationService().list(requestedId);
+                List<LiveGuideApplicationService.Row> loaded = new LiveGuideApplicationService().list(requestedId, channels -> Platform.runLater(() -> {
+                    if (request != generation.get()) return;
+                    data = channels; render(); status.setText(I18n.tr("epgLoading"));
+                }));
                 String warning = new EpgApplicationService().globalWarning();
                 Platform.runLater(() -> {
                     if (request != generation.get()) return;
@@ -254,7 +257,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
     }
 
     private void hydrateViewport(int start, int end) {
-        if (getScene() == null || !EpgModeUI.isFeatureEnabled()) return;
+        if (loading || getScene() == null || !EpgModeUI.isFeatureEnabled()) return;
         List<LiveGuideApplicationService.Row> visible = filteredRows.subList(start, end).stream().filter(LiveGuideApplicationService.Row::nativePending).toList();
         if (visible.isEmpty()) return;
         String window = generation.get() + ":" + start + ":" + end;

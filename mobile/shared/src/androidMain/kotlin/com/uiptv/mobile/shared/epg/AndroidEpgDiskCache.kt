@@ -26,7 +26,7 @@ internal class AndroidEpgDiskCache(context: Context) {
         val temporary = runCatching { File.createTempFile("epg-", ".part", directory) }
             .getOrElse { return AndroidXmltvReader.read(xml, now) }
         try {
-            temporary.outputStream().use { xml.copyTo(it) }
+            temporary.outputStream().buffered(256 * 1024).use { xml.copyTo(it) }
             val guide = temporary.inputStream().use { AndroidXmltvReader.read(it, now) }
             // Same-directory rename is atomic, keeping the previous valid feed until validation succeeds.
             temporary.renameTo(target)

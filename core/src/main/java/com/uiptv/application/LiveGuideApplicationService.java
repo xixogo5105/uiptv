@@ -37,6 +37,10 @@ public class LiveGuideApplicationService {
     }
 
     public List<Row> list(String accountId) throws IOException {
+        return list(accountId, _ -> { });
+    }
+
+    public List<Row> list(String accountId, java.util.function.Consumer<List<Row>> channelsReady) throws IOException {
         if (!new EpgApplicationService().isEnabled()) return List.of();
         EpgApplicationService epg = new EpgApplicationService();
         List<Row> rows = new ArrayList<>();
@@ -45,7 +49,8 @@ public class LiveGuideApplicationService {
             if (account == null) return List.of();
             account.setAction(Account.AccountAction.itv);
             List<Channel> channels = CatalogApplicationService.getInstance().listChannels(
-                    new CatalogChannelsQuery(accountId, CatalogMode.ITV, CategoryType.ALL.displayName(), ""));
+                    new CatalogChannelsQuery(accountId, CatalogMode.ITV, CategoryType.ALL.displayName(), ""), false);
+            channelsReady.accept(channels.stream().map(channel -> new Row(accountId, account.getAccountName(), "", channel, List.of(), false, nativeProvider(account))).toList());
             Map<Channel, List<EpgProgramme>> schedules = epg.catalogSchedules(account, channels);
             for (Channel channel : channels) rows.add(new Row(accountId, account.getAccountName(), "", channel, schedules.getOrDefault(channel, List.of()), nativeProvider(account) && !new NativeEpgApplicationService().fresh(account, channel), nativeProvider(account)));
         } else {
@@ -65,8 +70,21 @@ public class LiveGuideApplicationService {
                     channel.setCmd(bookmark.getCmd());
                     channel.setLogo(bookmark.getLogo());
                 }
-                rows.add(new Row(account.getDbId(), account.getAccountName(), bookmark.getDbId(), channel, epg.cachedSchedule(account, channel), nativeProvider(account) && !new NativeEpgApplicationService().fresh(account, channel), nativeProvider(account)));
+                rows.add(new Row(account.getDbId(), account.getAccountName(), bookmark.getDbId(), channel, List.of(), nativeProvider(account) && !new NativeEpgApplicationService().fresh(account, channel), nativeProvider(account)));
             }
+        }
+        if (accountId == null || accountId.isBlank()) {
+            channelsReady.accept(List.copyOf(rows));
+            List<Row> loaded = new ArrayList<>();
+            for (Row row : rows) {
+                if (Thread.currentThread().isInterrupted()) break;
+                Account account = AccountService.getInstance().getById(row.accountId());
+                if (account == null) continue;
+                account.setAction(Account.AccountAction.itv);
+                loaded.add(new Row(row.accountId(), row.accountName(), row.bookmarkId(), row.channel(),
+                        epg.cachedSchedule(account, row.channel()), row.nativePending(), row.nativeProvider()));
+            }
+            return List.copyOf(loaded);
         }
         return List.copyOf(rows);
     }
