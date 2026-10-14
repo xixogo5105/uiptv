@@ -48,6 +48,24 @@ class ImageCacheManagerTest {
     }
 
     @Test
+    void decodedPixelBudgetEvictsLargeImagesBeforeEntryLimit() throws Exception {
+        ImageCacheManager.clearCache();
+        Method store = ImageCacheManager.class.getDeclaredMethod("cacheImage", String.class, Image.class);
+        store.setAccessible(true);
+        for (int i = 0; i < 100; i++) {
+            Image image = mock(Image.class);
+            org.mockito.Mockito.when(image.getWidth()).thenReturn(640.0);
+            org.mockito.Mockito.when(image.getHeight()).thenReturn(640.0);
+            store.invoke(null, "channel:large-" + i, image);
+        }
+        Map<String, Image> cache = imageCache();
+        assertTrue(cache.size() < 100);
+        assertFalse(cache.containsKey("channel:large-0"));
+        assertTrue(cache.containsKey("channel:large-99"));
+        assertTrue(cache.values().stream().mapToDouble(image -> image.getWidth() * image.getHeight() * 4).sum() <= 48L * 1024 * 1024);
+    }
+
+    @Test
     void scopedClearRemovesMatchingMemoryAndLoadingEntriesOnly() throws Exception {
         Map<String, Image> cache = imageCache();
         Map<String, CompletableFuture<Image>> loadingTasks = loadingTasks();

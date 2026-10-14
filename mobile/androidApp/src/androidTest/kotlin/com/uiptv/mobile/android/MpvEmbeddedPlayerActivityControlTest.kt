@@ -95,25 +95,37 @@ class MpvEmbeddedPlayerActivityControlTest {
             val job = player.javaClass.getDeclaredField("epgJob").apply { isAccessible = true }.get(player) as? kotlinx.coroutines.Job
             job?.cancel()
             player.javaClass.getDeclaredField("epgResult").apply { isAccessible = true }.set(player, null)
+            // Ensure panel is hidden since epgResult is cleared
+            player.javaClass.getDeclaredMethod("hideEpgPanel").apply { isAccessible = true }.invoke(player)
         }
         val root = player.javaClass.getDeclaredField("rootLayout").apply { isAccessible = true }.get(player) as View
+        // 1) Right-edge swipe while loading: drawer must NOT open
         swipe(player, root.width - 1f, root.height * 0.2f, root.width * 0.2f, root.height * 0.2f)
         val panel = player.javaClass.getDeclaredField("epgPanel").apply { isAccessible = true }.get(player) as View
         org.junit.Assert.assertEquals(View.GONE, panel.visibility)
         val guideButton = player.javaClass.getDeclaredField("epgGuideButton").apply { isAccessible = true }.get(player) as View
         org.junit.Assert.assertEquals(View.GONE, guideButton.visibility)
+        // Load EPG data
         val now = System.currentTimeMillis()
         val programme = com.uiptv.mobile.shared.epg.MobileEpgProgramme("Godzilla", "On-air movie description", now - 60_000, now + 3_600_000)
         instrumentation.runOnMainSync {
             player.javaClass.getDeclaredMethod("displayEpg", com.uiptv.mobile.shared.epg.MobileEpgResult::class.java).apply { isAccessible = true }
                 .invoke(player, com.uiptv.mobile.shared.epg.MobileEpgResult(com.uiptv.mobile.shared.epg.MobileEpgStatus.AVAILABLE, listOf(programme)))
         }
-        org.junit.Assert.assertEquals(View.VISIBLE, guideButton.visibility)
+        org.junit.Assert.assertEquals(View.GONE, guideButton.visibility)
+        // 2) Right-edge swipe AFTER data loaded: drawer MUST open on the right
         swipe(player, root.width - 1f, root.height * 0.2f, root.width * 0.2f, root.height * 0.2f)
         org.junit.Assert.assertEquals(View.VISIBLE, panel.visibility)
         org.junit.Assert.assertEquals(android.view.Gravity.END, (panel.layoutParams as android.widget.FrameLayout.LayoutParams).gravity)
         org.junit.Assert.assertEquals("Godzilla", (waitForControl(player, "On-air programme title") as android.widget.TextView).text.toString())
         clickControl(player, "Close programme guide")
+        org.junit.Assert.assertEquals(View.GONE, panel.visibility)
+        // 3) Left-edge swipe: drawer opens on the left
+        swipe(player, 1f, root.height * 0.2f, root.width * 0.3f, root.height * 0.2f)
+        org.junit.Assert.assertEquals(View.VISIBLE, panel.visibility)
+        org.junit.Assert.assertEquals(android.view.Gravity.START, (panel.layoutParams as android.widget.FrameLayout.LayoutParams).gravity)
+        // 4) Tap outside closes drawer
+        tap(player, root.width * 0.95f, root.height * 0.5f)
         org.junit.Assert.assertEquals(View.GONE, panel.visibility)
     }
 

@@ -13,6 +13,10 @@
     <artifactId>uiptv-gui</artifactId>
     <name>UIPTV GUI</name>
 
+    <properties>
+        <uiptv.desktop.max.heap>512m</uiptv.desktop.max.heap>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -205,7 +209,7 @@
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.ico</icon>
                             <appVersion>${project.version}</appVersion>
-                            <javaOptions><option>-Duser.dir=$APPDIR</option></javaOptions>
+                            <javaOptions><option>-Duser.dir=$APPDIR</option><option>-Xmx${uiptv.desktop.max.heap}</option><option>-XX:G1PeriodicGCInterval=30000</option></javaOptions>
                             <winMenu>true</winMenu>
                             <winShortcut>true</winShortcut>
                         </configuration>
@@ -240,7 +244,7 @@
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.ico</icon>
                             <appVersion>${project.version}</appVersion>
-                            <javaOptions><option>-Duser.dir=$APPDIR</option></javaOptions>
+                            <javaOptions><option>-Duser.dir=$APPDIR</option><option>-Xmx${uiptv.desktop.max.heap}</option><option>-XX:G1PeriodicGCInterval=30000</option></javaOptions>
                             <winMenu>true</winMenu>
                             <winShortcut>true</winShortcut>
                         </configuration>
@@ -282,7 +286,7 @@
                             <icon>src/main/resources/icon.icns</icon>
                             <appVersion>${project.version}</appVersion>
                             <javaOptions>
-                                <option>-Duser.dir=$APPDIR</option>
+                                <option>-Duser.dir=$APPDIR</option><option>-Xmx${uiptv.desktop.max.heap}</option><option>-XX:G1PeriodicGCInterval=30000</option>
                                 <option>-Xdock:name=UIPTV</option>
                             </javaOptions>
                         </configuration>
@@ -349,7 +353,7 @@
                             <icon>src/main/resources/icon.icns</icon>
                             <appVersion>${project.version}</appVersion>
                             <javaOptions>
-                                <option>-Duser.dir=$APPDIR</option>
+                                <option>-Duser.dir=$APPDIR</option><option>-Xmx${uiptv.desktop.max.heap}</option><option>-XX:G1PeriodicGCInterval=30000</option>
                                 <option>-Xdock:name=UIPTV</option>
                             </javaOptions>
                         </configuration>
@@ -437,7 +441,7 @@
                             <linuxPackageName>uiptv</linuxPackageName>
                             <linuxMenuGroup>Video</linuxMenuGroup>
                             <appVersion>${project.version}</appVersion>
-                            <javaOptions><option>-Duser.dir=$APPDIR</option></javaOptions>
+                            <javaOptions><option>-Duser.dir=$APPDIR</option><option>-Xmx${uiptv.desktop.max.heap}</option><option>-XX:G1PeriodicGCInterval=30000</option></javaOptions>
                             <linuxAppCategory>Video;AudioVideo;Player;</linuxAppCategory>
                             <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
                         </configuration>
@@ -472,7 +476,7 @@
                             <linuxPackageName>uiptv</linuxPackageName>
                             <linuxMenuGroup>Video</linuxMenuGroup>
                             <appVersion>${project.version}</appVersion>
-                            <javaOptions><option>-Duser.dir=$APPDIR</option></javaOptions>
+                            <javaOptions><option>-Duser.dir=$APPDIR</option><option>-Xmx${uiptv.desktop.max.heap}</option><option>-XX:G1PeriodicGCInterval=30000</option></javaOptions>
                             <linuxAppCategory>Video;AudioVideo;Player;</linuxAppCategory>
                             <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
                         </configuration>
@@ -504,7 +508,7 @@
                             <destination>target/dist</destination>
                             <icon>src/main/resources/icon.png</icon>
                             <appVersion>${project.version}</appVersion>
-                            <javaOptions><option>-Duser.dir=$APPDIR</option></javaOptions>
+                            <javaOptions><option>-Duser.dir=$APPDIR</option><option>-Xmx${uiptv.desktop.max.heap}</option><option>-XX:G1PeriodicGCInterval=30000</option></javaOptions>
                             <resourceDir>${project.basedir}/src/main/resources/jpackage/linux</resourceDir>
                         </configuration>
                     </plugin>

@@ -1675,13 +1675,18 @@ class MpvEmbeddedPlayerActivity : Activity() {
         } else {
             sb.append(epgInfo)
         }
-        epgLabel.text = sb.toString()
-        epgLabel.maxLines = 3
-        epgLabel.ellipsize = TextUtils.TruncateAt.END
-        epgLabel.visibility = if (epgLabel.text.isBlank()) View.GONE else View.VISIBLE
+        val displayText = sb.toString()
+        // Update titleLabel with combined channel + EPG info, hide separate epgLabel
+        if (::titleLabel.isInitialized) {
+            titleLabel.text = displayText
+            titleLabel.maxLines = 3
+            titleLabel.ellipsize = TextUtils.TruncateAt.END
+            titleLabel.visibility = if (displayText.isBlank()) View.GONE else View.VISIBLE
+        }
+        epgLabel.visibility = View.GONE
         val available = result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.AVAILABLE ||
             result.status == com.uiptv.mobile.shared.epg.MobileEpgStatus.STALE
-        epgGuideButton.visibility = if (available) View.VISIBLE else View.GONE
+        epgGuideButton.visibility = View.GONE
         if (!available) hideEpgPanel()
         else if (::epgPanel.isInitialized && epgPanel.visibility == View.VISIBLE) renderEpgDetails()
     }

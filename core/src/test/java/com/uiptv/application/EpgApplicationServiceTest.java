@@ -41,6 +41,24 @@ class EpgApplicationServiceTest extends DbBackedTest {
         });
         assertTrue(channelsPublished.get()); assertFalse(rows.getFirst().programmes().isEmpty());
     }
+    @Test void desktopCatalogDoesNotFetchXmlUntilViewportHydration() throws Exception {
+        Account account = saveCatalog("Deferred", "Channel");
+        EpgApplicationService epg = new EpgApplicationService();
+        epg.clearCache();
+        var rows = new LiveGuideApplicationService().list(account.getDbId(), initial -> assertFalse(initial.isEmpty()), false);
+        assertTrue(rows.getFirst().programmes().isEmpty());
+        assertTrue(rows.getFirst().nativePending());
+        assertTrue(epg.memorySchedule(account, rows.getFirst().channel()).isEmpty());
+        Channel channel = rows.getFirst().channel();
+        epg.enrichMemory(account, List.of(channel));
+        assertNull(channel.getEpgNow());
+        var hydrated = new LiveGuideApplicationService().hydrate(rows.getFirst());
+        assertFalse(hydrated.nativePending());
+        assertEquals("Current", hydrated.programmes().getFirst().title());
+        epg.enrichMemory(account, List.of(channel));
+        assertEquals("Current", channel.getEpgNow().title());
+    }
+
     @Test void discoversRemotePlaylistAndCachesCompressedHttpGuide() throws Exception {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (GZIPOutputStream gzip = new GZIPOutputStream(bytes)) { gzip.write(xml("Remote current").getBytes(StandardCharsets.UTF_8)); }
@@ -124,7 +142,7 @@ class EpgApplicationServiceTest extends DbBackedTest {
         String escaped = "&amp;".repeat(2_100_000);
         String xml = xml("Escaped text").replace("<title>Escaped text</title>", "<title>Escaped text</title><desc>" + escaped + "</desc>");
         XmltvGuide parsed = XmltvGuide.read(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)), Instant.now());
-        assertEquals("&".repeat(2_100_000), parsed.programmes().get("guide-id").getFirst().description());
+        assertEquals("&".repeat(2048), parsed.programmes().get("guide-id").getFirst().description());
     }
 
     @Test void missingSourceDoesNotBreakChannelsAndExternalEntitiesAreNotResolved() throws Exception {

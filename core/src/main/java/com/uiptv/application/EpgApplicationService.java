@@ -16,14 +16,23 @@ import java.util.zip.GZIPInputStream;
 
 /** Shared guide loading; callers run this service off the UI thread. */
 public class EpgApplicationService {
+    private static final java.util.concurrent.locks.ReentrantLock SOURCE_LOAD_LOCK = new java.util.concurrent.locks.ReentrantLock();
+    private static final java.util.concurrent.locks.ReentrantLock GUIDE_LOAD_LOCK = new java.util.concurrent.locks.ReentrantLock();
+    static final long GUIDE_CACHE_BYTES = 64L * 1024 * 1024;
     private static final Map<String, CachedGuide> GUIDES = new LinkedHashMap<>();
     private static final Map<String, DiscoveredSource> SOURCES = new LinkedHashMap<>();
     private static final HttpUtil.RequestOptions OPTIONS = new HttpUtil.RequestOptions(true, true, 10, 10, 20);
     private static final XmltvGuide EMPTY = new XmltvGuide(Map.of(), Map.of());
 
     public void clearCache() {
-        synchronized (GUIDES) { GUIDES.clear(); EpgDiskCache.clear(); }
-        synchronized (SOURCES) { SOURCES.clear(); }
+        GUIDE_LOAD_LOCK.lock();
+        try {
+            synchronized (GUIDES) { GUIDES.clear(); }
+            EpgDiskCache.clear();
+        } finally { GUIDE_LOAD_LOCK.unlock(); }
+        SOURCE_LOAD_LOCK.lock();
+        try { synchronized (SOURCES) { SOURCES.clear(); } }
+        finally { SOURCE_LOAD_LOCK.unlock(); }
         new NativeEpgApplicationService().clearCache();
     }
     public String globalWarning() {
@@ -64,6 +73,15 @@ public class EpgApplicationService {
     }
 
     public void enrich(Account account, List<Channel> channels) {
+        enrich(account, channels, true);
+    }
+
+    /** Catalog rendering must never wait for playlist discovery, disk parsing or HTTP. */
+    public void enrichMemory(Account account, List<Channel> channels) {
+        enrich(account, channels, false);
+    }
+
+    private void enrich(Account account, List<Channel> channels, boolean load) {
         if (channels == null) return;
         for (Channel channel : channels) {
             channel.setEpgNow(null);
@@ -72,7 +90,7 @@ public class EpgApplicationService {
         if (!supportsGuide(account) || channels.isEmpty()) return;
         // Catalog enrichment shares XMLTV sources; native schedules are requested on guide/player demand.
         long now = System.currentTimeMillis();
-        boolean loadXml = account.getType() != AccountType.STALKER_PORTAL && account.getType() != AccountType.XTREME_API;
+        boolean loadXml = load && account.getType() != AccountType.STALKER_PORTAL && account.getType() != AccountType.XTREME_API;
         ResolutionContext context = context(account, loadXml);
         for (Channel channel : channels) {
             List<EpgProgramme> nativeSchedule = new NativeEpgApplicationService().cached(account, channel);
@@ -173,42 +191,51 @@ public class EpgApplicationService {
     }
 
     private XmltvGuide guide(String source) {
-            synchronized (GUIDES) {
-                CachedGuide cached = GUIDES.get(source);
-                long now = System.currentTimeMillis();
-                if (cached != null && now < cached.retryAt()) return cached.guide();
-                boolean remote = source.matches("(?i)^https?://.*");
-                XmltvGuide disk = remote ? EpgDiskCache.read(source, false) : null;
-                if (disk != null) {
-                    putBounded(GUIDES, source, new CachedGuide(disk, EpgDiskCache.freshUntil(source), ""));
-                    return disk;
-                }
-                try (InputStream raw = open(source); BufferedInputStream buffered = new BufferedInputStream(raw)) {
-                    buffered.mark(2);
-                    int first = buffered.read(), second = buffered.read();
-                    buffered.reset();
-                    InputStream xml = first == 0x1f && second == 0x8b ? new GZIPInputStream(buffered) : buffered;
-                    InputStream limited = new LimitedInputStream(xml, sourceSizeLimit());
-                    XmltvGuide parsed = remote ? EpgDiskCache.parseAndSave(source, limited) : XmltvGuide.read(limited, Instant.now());
-                    putBounded(GUIDES, source, new CachedGuide(parsed, now + EpgDiskCache.ttlMillis(), ""));
-                    return parsed;
-                } catch (Exception e) {
-                    if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-                    XmltvGuide previous = cached == null ? (remote ? EpgDiskCache.read(source, true) : null) : cached.guide();
-                    if (previous == null) previous = EMPTY;
-                    putBounded(GUIDES, source, new CachedGuide(previous, now + Duration.ofMinutes(30).toMillis(), warning(e)));
-                    AppLog.addWarningLog(EpgApplicationService.class, "EPG source unavailable: " + com.uiptv.util.I18n.tr(warning(e)) + " Retaining previous guide.");
-                    return previous;
-                }
+        try { GUIDE_LOAD_LOCK.lockInterruptibly(); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); return EMPTY; }
+        try {
+            CachedGuide cached;
+            synchronized (GUIDES) { cached = GUIDES.get(source); }
+            long now = System.currentTimeMillis();
+            if (cached != null && now < cached.retryAt()) return cached.guide();
+            boolean remote = source.matches("(?i)^https?://.*");
+            XmltvGuide disk = remote ? EpgDiskCache.read(source, false) : null;
+            if (disk != null) {
+                putGuide(source, new CachedGuide(disk, EpgDiskCache.freshUntil(source), ""));
+                return disk;
             }
+            try (InputStream raw = open(source); BufferedInputStream buffered = new BufferedInputStream(raw)) {
+                buffered.mark(2);
+                int first = buffered.read(), second = buffered.read();
+                buffered.reset();
+                InputStream xml = first == 0x1f && second == 0x8b ? new GZIPInputStream(buffered) : buffered;
+                InputStream limited = new LimitedInputStream(xml, sourceSizeLimit());
+                XmltvGuide parsed = remote ? EpgDiskCache.parseAndSave(source, limited) : XmltvGuide.read(limited, Instant.now());
+                putGuide(source, new CachedGuide(parsed, now + EpgDiskCache.ttlMillis(), ""));
+                return parsed;
+            } catch (Exception e) {
+                if (e instanceof InterruptedException || Thread.currentThread().isInterrupted()) {
+                    Thread.currentThread().interrupt();
+                    return cached == null ? EMPTY : cached.guide();
+                }
+                XmltvGuide previous = cached == null ? (remote ? EpgDiskCache.read(source, true) : null) : cached.guide();
+                if (previous == null) previous = EMPTY;
+                putGuide(source, new CachedGuide(previous, now + Duration.ofMinutes(30).toMillis(), warning(e)));
+                AppLog.addWarningLog(EpgApplicationService.class, "EPG source unavailable: " + com.uiptv.util.I18n.tr(warning(e)) + " Retaining previous guide.");
+                return previous;
+            }
+        } finally { GUIDE_LOAD_LOCK.unlock(); }
     }
 
     private String discover(Account account) throws IOException {
         if (account.getType() != AccountType.M3U8_LOCAL && account.getType() != AccountType.M3U8_URL) return "";
         String playlist = account.getM3u8Path();
         if (playlist == null || playlist.isBlank()) return "";
-        synchronized (SOURCES) {
-            DiscoveredSource cached = SOURCES.get(playlist);
+        try { SOURCE_LOAD_LOCK.lockInterruptibly(); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new InterruptedIOException("Playlist discovery cancelled"); }
+        try {
+            DiscoveredSource cached;
+            synchronized (SOURCES) { cached = SOURCES.get(playlist); }
             long now = System.currentTimeMillis();
             if (cached != null && now < cached.retryAt()) return cached.source();
             String found = "";
@@ -234,7 +261,7 @@ public class EpgApplicationService {
             }
             putBounded(SOURCES, playlist, new DiscoveredSource(found, now + Duration.ofMinutes(15).toMillis()));
             return found;
-        }
+        } finally { SOURCE_LOAD_LOCK.unlock(); }
     }
 
     private static URI sourceUri(String source) {
@@ -257,12 +284,29 @@ public class EpgApplicationService {
         };
     }
 
-    private static <T> void putBounded(Map<String, T> cache, String key, T value) {
-        cache.put(key, value);
-        int capacity = cache == (Object) GUIDES ? 32 : 8;
-        while (cache.size() > capacity) cache.remove(cache.keySet().iterator().next());
+    private static void putGuide(String source, CachedGuide value) {
+        synchronized (GUIDES) {
+            GUIDES.put(source, value);
+            long bytes = GUIDES.values().stream().mapToLong(entry -> entry.bytes()).sum();
+            var entries = GUIDES.entrySet().iterator();
+            while (entries.hasNext() && (bytes > GUIDE_CACHE_BYTES || GUIDES.size() > 32)) {
+                bytes -= entries.next().getValue().bytes();
+                entries.remove();
+            }
+        }
     }
-    private record CachedGuide(XmltvGuide guide, long retryAt, String warning) { }
+
+    private static <T> void putBounded(Map<String, T> cache, String key, T value) {
+        synchronized (cache) {
+            cache.put(key, value);
+            while (cache.size() > 8) cache.remove(cache.keySet().iterator().next());
+        }
+    }
+    private record CachedGuide(XmltvGuide guide, long retryAt, String warning, long bytes) {
+        CachedGuide(XmltvGuide guide, long retryAt, String warning) {
+            this(guide, retryAt, warning, guide.estimatedBytes());
+        }
+    }
     private record DiscoveredSource(String source, long retryAt) { }
     static class LimitedInputStream extends FilterInputStream {
         private long remaining;

@@ -53,6 +53,7 @@ public class ImageCacheManager {
     private static final long NEGATIVE_CACHE_MS_404 = 5L * 60L * 1000L;
     private static final long NEGATIVE_CACHE_MS_ERROR = 15L * 1000L;
     private static final long NEGATIVE_CACHE_MS_429_DEFAULT = 90L * 1000L;
+    private static final long MAX_MEMORY_IMAGE_BYTES = 48L * 1024 * 1024;
     private static final int MAX_MEMORY_IMAGES = Integer.getInteger("uiptv.image.cache.max.entries", 512);
     private static final int MAX_IMAGE_DECODE_WIDTH = Integer.getInteger("uiptv.image.decode.max.width", 640);
     private static final int MAX_IMAGE_DECODE_HEIGHT = Integer.getInteger("uiptv.image.decode.max.height", 640);
@@ -184,6 +185,19 @@ public class ImageCacheManager {
         return loadImageAsync(url, caller, null);
     }
 
+    private static void cacheImage(String key, Image image) {
+        synchronized (IMAGE_CACHE) {
+            IMAGE_CACHE.put(key, image);
+            double bytes = IMAGE_CACHE.values().stream().mapToDouble(value -> value.getWidth() * value.getHeight() * 4).sum();
+            var entries = IMAGE_CACHE.entrySet().iterator();
+            while (entries.hasNext() && bytes > MAX_MEMORY_IMAGE_BYTES) {
+                Image removed = entries.next().getValue();
+                bytes -= removed.getWidth() * removed.getHeight() * 4;
+                entries.remove();
+            }
+        }
+    }
+
     public static Image getCachedImage(String cacheKey) {
         return IMAGE_CACHE.get(cacheKey);
     }
@@ -269,7 +283,7 @@ public class ImageCacheManager {
         if (startsWithScheme(url, "data")) {
             Image decoded = decodeInlineImage(url);
             if (decoded != null) {
-                IMAGE_CACHE.put(cacheKey, decoded);
+                cacheImage(cacheKey, decoded);
                 NEGATIVE_CACHE_UNTIL.remove(cacheKey);
             } else {
                 NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
@@ -279,7 +293,7 @@ public class ImageCacheManager {
         if (startsWithScheme(url, "file")) {
             Image decoded = decodeLocalImage(url);
             if (decoded != null) {
-                IMAGE_CACHE.put(cacheKey, decoded);
+                cacheImage(cacheKey, decoded);
                 NEGATIVE_CACHE_UNTIL.remove(cacheKey);
             } else {
                 NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
@@ -289,7 +303,7 @@ public class ImageCacheManager {
 
         Image diskCached = loadImageFromDisk(cacheKey, normalizedCaller);
         if (diskCached != null) {
-            IMAGE_CACHE.put(cacheKey, diskCached);
+            cacheImage(cacheKey, diskCached);
             NEGATIVE_CACHE_UNTIL.remove(cacheKey);
             return diskCached;
         }
@@ -372,7 +386,7 @@ public class ImageCacheManager {
             if (payload == null || payload.image == null) {
                 return null;
             }
-            IMAGE_CACHE.put(cacheKey, payload.image);
+            cacheImage(cacheKey, payload.image);
             persistImageToDisk(cacheKey, caller, payload.bytes);
             NEGATIVE_CACHE_UNTIL.remove(cacheKey);
             return payload.image;

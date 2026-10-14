@@ -77,3 +77,9 @@ The desktop XML reader uses bounded 8 MiB general/total entity-text budgets to s
 On mobile, XMLTV URLs pointing to desktop loopback (`localhost`, `127.0.0.1`, or `::1`) use the configured desktop sync host for fetching, preserving their port, credentials and query string. The saved source remains unchanged. The desktop service must be reachable on that port. Standard external XMLTV DOCTYPE declarations are ignored without fetching the DTD; internal DTD declarations remain rejected.
 
 Schedule refresh runs every 30 minutes; minute clock/progress updates reuse cached data. Native-provider catalogues do not download XMLTV feeds before visible channels attempt their native guide. A usable native guide stops resolution; only unavailable native schedules try account/embedded sources and then global sources, taking one schedule without merging. Overlapping entries within a source are normalized, retaining named programmes over generic Movie/Film placeholders. Manual Refresh EPG is an explicit cache reset for source changes or provider corrections; it is not needed during ordinary viewing.
+
+### Desktop loading and memory limits
+
+Channel catalogs render using already cached EPG metadata; they do not wait for XMLTV discovery, downloads or parsing. The desktop guide loads schedules for its visible rows after showing channels. Parsed XMLTV feeds share an estimated 64 MiB memory budget, native schedules 16 MiB, and decoded cached images a 48 MiB pixel budget. XMLTV parsing also bounds retained data per feed and shortens descriptions to 2,048 characters. Oversized feeds continue to use the existing source warning.
+
+Packaged desktop launchers cap the Java heap at 512 MiB and enable periodic idle collection. The build property `uiptv.desktop.max.heap` overrides the heap setting. Native JavaFX/VLC memory is additional. See [the desktop memory audit](docs/EPG_MEMORY_AUDIT.md) for measurements and validation limits.

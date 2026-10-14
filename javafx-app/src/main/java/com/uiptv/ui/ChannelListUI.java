@@ -239,7 +239,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void addItemsIncrementally(List<Channel> newChannels) {
-        if (listAction == Account.AccountAction.itv) new com.uiptv.application.EpgApplicationService().enrich(mediaContext.toAccount(), newChannels);
         List<Bookmark> accountBookmarks = loadBookmarksForAccount();
         Set<String> savedVodKeys = loadVodWatchStateKeys();
         Map<String, SeriesWatchState> seriesWatchStates = loadSeriesWatchStates();
@@ -1645,10 +1644,18 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
         unregisterBookmarkListener();
         unregisterThumbnailModeListener();
+        ScheduledFuture<?> refresh = refreshFuture.getAndSet(null);
+        if (refresh != null) refresh.cancel(true);
+        refreshExecutor.shutdownNow();
         releaseTransientState();
     }
 
     private void releaseTransientState() {
+        epgCardClock.stop();
+        epgCardPulse.stop();
+        epgCardGeneration++;
+        if (epgCardWorker != null) { epgCardWorker.interrupt(); epgCardWorker = null; }
+        epgCardRefreshAt.clear();
         pendingChannelChanges.clear();
         channelChangePulse.stop();
         channelChangeDrainScheduled.set(false);
@@ -1694,6 +1701,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void scheduleBookmarkRefresh() {
+        if (disposed.get() || refreshExecutor.isShutdown()) return;
         ScheduledFuture<?> future = refreshFuture.get();
         if (future != null && !future.isDone()) {
             future.cancel(false);

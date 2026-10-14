@@ -49,6 +49,24 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     @Test
+    void disposeStopsGuideClockAndPendingRefreshes() throws Exception {
+        runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            Field clockField = ChannelListUI.class.getDeclaredField("epgCardClock"); clockField.setAccessible(true);
+            var clock = (javafx.animation.Timeline) clockField.get(ui);
+            Field pulseField = ChannelListUI.class.getDeclaredField("epgCardPulse"); pulseField.setAccessible(true);
+            var pulse = (javafx.animation.PauseTransition) pulseField.get(ui);
+            clock.play(); pulse.play();
+            ui.dispose();
+            assertEquals(javafx.animation.Animation.Status.STOPPED, clock.getStatus());
+            assertEquals(javafx.animation.Animation.Status.STOPPED, pulse.getStatus());
+            Field executorField = ChannelListUI.class.getDeclaredField("refreshExecutor"); executorField.setAccessible(true);
+            assertTrue(((java.util.concurrent.ExecutorService) executorField.get(ui)).isShutdown());
+            return null;
+        });
+    }
+
+    @Test
     void liveChannelContextMenuShowsPlayersBeforeBookmarkMenu() throws Exception {
         List<String> menuOrder = runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);

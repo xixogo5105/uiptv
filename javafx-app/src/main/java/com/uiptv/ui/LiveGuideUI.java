@@ -34,6 +34,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
     private long windowStart;
     private boolean loading;
     private Thread nativeWorker;
+    private Thread catalogWorker;
     private String nativeWindow = "";
     private String sourceWarning = "";
     private long loadedAt;
@@ -78,7 +79,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
         sceneProperty().addListener((_, oldScene, scene) -> {
             if (oldScene != null) com.uiptv.player.MediaPlayerFactory.guideContextProperty().removeListener(playbackListener);
-            if (scene == null) { if (nativeWorker != null) nativeWorker.interrupt(); clock.stop(); hidePlayingIndicators(); }
+            if (scene == null) { generation.incrementAndGet(); loading = false; if (catalogWorker != null) catalogWorker.interrupt(); if (nativeWorker != null) nativeWorker.interrupt(); clock.stop(); hidePlayingIndicators(); }
             else { com.uiptv.player.MediaPlayerFactory.guideContextProperty().addListener(playbackListener); updatePlayingIndicators(); clock.play(); }
         });
     }
@@ -92,6 +93,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         if (Objects.equals(accountId, next)) return;
         accountId = next;
         hourOffset = 0;
+        if (catalogWorker != null) catalogWorker.interrupt();
         generation.incrementAndGet();
         if (nativeWorker != null) nativeWorker.interrupt();
         nativeWindow = "";
@@ -107,12 +109,13 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         status.setText(I18n.tr("epgLoading"));
         int request = generation.incrementAndGet();
         String requestedId = accountId;
-        Thread.ofVirtual().start(() -> {
+        if (catalogWorker != null) catalogWorker.interrupt();
+        catalogWorker = Thread.ofVirtual().start(() -> {
             try {
                 List<LiveGuideApplicationService.Row> loaded = new LiveGuideApplicationService().list(requestedId, channels -> Platform.runLater(() -> {
                     if (request != generation.get()) return;
                     data = channels; render(); status.setText(I18n.tr("epgLoading"));
-                }));
+                }), false);
                 String warning = new EpgApplicationService().globalWarning();
                 Platform.runLater(() -> {
                     if (request != generation.get()) return;
@@ -129,7 +132,10 @@ public class LiveGuideUI extends VBox implements SearchTarget {
 
     public void invalidate() { loadedAt = 0; }
     public void dispose() {
-        generation.incrementAndGet(); if (nativeWorker != null) nativeWorker.interrupt(); loading = false; clock.stop(); hidePlayingIndicators();
+        generation.incrementAndGet(); if (nativeWorker != null) nativeWorker.interrupt();
+        if (catalogWorker != null) catalogWorker.interrupt();
+        loading = false; clock.stop(); hidePlayingIndicators();
+        data = List.of(); filteredRows = List.of(); playingIndicators.clear(); rows.getChildren().clear();
         com.uiptv.player.MediaPlayerFactory.guideContextProperty().removeListener(playbackListener);
     }
     @Override public void setSearchQuery(String text) { query = text == null ? "" : text.toLowerCase(Locale.ROOT); render(); }
@@ -140,7 +146,7 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         long now = System.currentTimeMillis();
         boolean noGuideData = data.stream().noneMatch(candidate -> candidate.programmes().stream().anyMatch(p -> p.stop() > now));
         filteredRows = data.stream().filter(rowFilter)
-                .filter(row -> showAllChannels.isSelected() || !sourceWarning.isBlank() || noGuideData || row.nativeProvider() || row.programmes().stream().anyMatch(p -> p.stop() > now))
+                .filter(row -> showAllChannels.isSelected() || !sourceWarning.isBlank() || noGuideData || row.nativePending() || row.nativeProvider() || row.programmes().stream().anyMatch(p -> p.stop() > now))
                 .filter(row -> row.channel().getName() != null && row.channel().getName().toLowerCase(Locale.ROOT).contains(query))
                 .toList();
         renderViewport(true);
@@ -267,15 +273,28 @@ public class LiveGuideUI extends VBox implements SearchTarget {
         int request = generation.get();
         nativeWorker = Thread.ofVirtual().start(() -> {
             LiveGuideApplicationService service = new LiveGuideApplicationService();
+            Map<LiveGuideApplicationService.Row, LiveGuideApplicationService.Row> updates = new IdentityHashMap<>();
+            long publishedAt = System.nanoTime();
             for (LiveGuideApplicationService.Row row : visible) {
                 if (Thread.currentThread().isInterrupted()) return;
-                LiveGuideApplicationService.Row hydrated = service.hydrate(row);
-                Platform.runLater(() -> {
-                    if (request != generation.get() || getScene() == null) return;
-                    data = data.stream().map(item -> item == row ? hydrated : item).toList();
-                    render();
-                });
+                updates.put(row, service.hydrate(row));
+                if (System.nanoTime() - publishedAt >= 100_000_000L) {
+                    publishHydratedRows(request, updates);
+                    updates.clear(); publishedAt = System.nanoTime();
+                }
             }
+            if (!updates.isEmpty()) publishHydratedRows(request, updates);
+        });
+    }
+
+    private void publishHydratedRows(int request, Map<LiveGuideApplicationService.Row, LiveGuideApplicationService.Row> updates) {
+        Map<LiveGuideApplicationService.Row, LiveGuideApplicationService.Row> batch = new IdentityHashMap<>(updates);
+        String warning = new EpgApplicationService().globalWarning();
+        Platform.runLater(() -> {
+            if (request != generation.get() || getScene() == null) return;
+            sourceWarning = warning.isBlank() ? "" : I18n.tr(warning);
+            data = data.stream().map(item -> batch.getOrDefault(item, item)).toList();
+            render();
         });
     }
 

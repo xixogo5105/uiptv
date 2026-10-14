@@ -10,6 +10,12 @@ import java.util.*;
 
 /** Streaming XMLTV reader. External DTDs and entities are never fetched. */
 public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names, Map<String, String> qualityNames) {
+    private static final java.util.regex.Pattern WHITESPACE = java.util.regex.Pattern.compile("\\s+");
+    private static final java.util.regex.Pattern QUALITY = java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}])(?:fhd|uhd|hd|sd|4k|8k|720p|1080p|2160p)(?![\\p{L}\\p{N}])");
+    private static final java.util.regex.Pattern EMPTY_BRACKETS = java.util.regex.Pattern.compile("\\([\\s|/,-]*\\)|\\[[\\s|/,-]*\\]");
+    private static final java.util.regex.Pattern EDGE_SEPARATORS = java.util.regex.Pattern.compile("^[\\s|/,-]+|[\\s|/,-]+$");
+    private static final DateTimeFormatter XMLTV_TIME = DateTimeFormatter.ofPattern("uuuuMMddHHmmss").withResolverStyle(java.time.format.ResolverStyle.STRICT);
+
     public XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names) {
         this(programmes, names, qualityAliases(names));
     }
@@ -33,6 +39,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         String id = null, channel = null, title = "", description = "";
         Instant start = null, stop = null;
         int count = 0;
+        long retainedBytes = 0;
         try {
             while (reader.hasNext()) {
                 if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
@@ -41,7 +48,9 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                     switch (reader.getLocalName()) {
                         case "channel" -> id = reader.getAttributeValue(null, "id");
                         case "display-name" -> {
-                            String name = normalize(reader.getElementText());
+                            String name = normalize(boundedText(reader, 512));
+                            retainedBytes += 256L + name.length() * 4L;
+                            if (retainedBytes > 32L * 1024 * 1024) throw new IllegalArgumentException("Guide exceeds size limit");
                             if (id != null && !name.isBlank()) {
                                 String previous = names.putIfAbsent(name, id);
                                 if (previous != null && !previous.equals(id)) ambiguous.add(name);
@@ -56,8 +65,8 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                             stop = time(reader.getAttributeValue(null, "stop"));
                             title = ""; description = "";
                         }
-                        case "title" -> { String text = reader.getElementText(); if (title.isEmpty()) title = text.strip(); }
-                        case "desc" -> { String text = reader.getElementText(); if (description.isEmpty()) description = text.strip(); }
+                        case "title" -> { String text = boundedText(reader, 512); if (title.isEmpty()) title = text.strip(); }
+                        case "desc" -> { String text = boundedText(reader, 2048); if (description.isEmpty()) description = text.strip(); }
                         default -> { }
                     }
                 } else if (event == XMLStreamConstants.END_ELEMENT && reader.getLocalName().equals("programme")) {
@@ -65,6 +74,8 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                             && start.isBefore(now.plus(Duration.ofDays(7)))
                             && (stop == null || stop.isAfter(now.minus(Duration.ofHours(6))))
                             && start.isAfter(now.minus(Duration.ofDays(1)))) {
+                        retainedBytes += 192L + 2L * (title.length() + description.length() + channel.length());
+                        if (retainedBytes > 32L * 1024 * 1024) throw new IllegalArgumentException("Guide exceeds size limit");
                         if (++count > 200_000) throw new IllegalArgumentException("Guide exceeds programme limit");
                         programmes.computeIfAbsent(channel, _ -> new ArrayList<>()).add(new EpgProgramme(title, description,
                                 start.toEpochMilli(), stop == null ? 0 : stop.toEpochMilli()));
@@ -89,6 +100,34 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         return new XmltvGuide(Map.copyOf(programmes), Map.copyOf(names), Map.copyOf(qualityNames));
     }
 
+    /** Conservative retained-size estimate, including strings, lists and map entries. */
+    long estimatedBytes() {
+        long bytes = 256;
+        for (var entry : programmes.entrySet()) {
+            bytes += 192L + 2L * entry.getKey().length();
+            for (var p : entry.getValue()) bytes += 192L + 2L * (p.title().length() + p.description().length());
+        }
+        for (var aliases : List.of(names, qualityNames))
+            for (var entry : aliases.entrySet()) bytes += 128L + 2L * (entry.getKey().length() + entry.getValue().length());
+        return bytes;
+    }
+
+    // Consume the whole element without ever building an unbounded description string.
+    private static String boundedText(XMLStreamReader reader, int limit) throws javax.xml.stream.XMLStreamException {
+        StringBuilder text = new StringBuilder();
+        while (reader.hasNext()) {
+            int event = reader.next();
+            if (event == XMLStreamConstants.END_ELEMENT) return text.toString();
+            if (event == XMLStreamConstants.CHARACTERS || event == XMLStreamConstants.CDATA || event == XMLStreamConstants.SPACE) {
+                int length = Math.min(limit - text.length(), reader.getTextLength());
+                if (length > 0) text.append(reader.getTextCharacters(), reader.getTextStart(), length);
+            } else if (event == XMLStreamConstants.START_ELEMENT || event == XMLStreamConstants.ENTITY_REFERENCE) {
+                throw new javax.xml.stream.XMLStreamException("Invalid XMLTV text element");
+            }
+        }
+        throw new javax.xml.stream.XMLStreamException("Unterminated XMLTV text element");
+    }
+
     public List<EpgProgramme> forChannel(String providerId, String name) {
         if (providerId != null && programmes.containsKey(providerId)) return programmes.get(providerId);
         String exact = names.get(normalize(name));
@@ -96,11 +135,11 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         return programmes.getOrDefault(qualityNames.getOrDefault(normalizeQuality(name), ""), List.of());
     }
 
-    static String normalize(String name) { return name == null ? "" : name.strip().toLowerCase(Locale.ROOT).replaceAll("\\s+", " "); }
+    static String normalize(String name) { return name == null ? "" : WHITESPACE.matcher(name.strip().toLowerCase(Locale.ROOT)).replaceAll(" "); }
 
     static String normalizeQuality(String name) {
-        String value = normalize(name).replaceAll("(?<![\\p{L}\\p{N}])(?:fhd|uhd|hd|sd|4k|8k|720p|1080p|2160p)(?![\\p{L}\\p{N}])", " ");
-        value = value.replaceAll("\\([\\s|/,-]*\\)|\\[[\\s|/,-]*\\]", " ").replaceAll("^[\\s|/,-]+|[\\s|/,-]+$", "");
+        String value = QUALITY.matcher(normalize(name)).replaceAll(" ");
+        value = EDGE_SEPARATORS.matcher(EMPTY_BRACKETS.matcher(value).replaceAll(" ")).replaceAll("");
         return normalize(value);
     }
     private static Map<String, String> qualityAliases(Map<String, String> names) {
@@ -125,7 +164,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                 case "BST" -> ZoneOffset.ofHours(1);
                 default -> ZoneOffset.of(parts[1]);
             };
-            return LocalDateTime.parse(digits, DateTimeFormatter.ofPattern("uuuuMMddHHmmss").withResolverStyle(java.time.format.ResolverStyle.STRICT)).toInstant(offset);
+            return LocalDateTime.parse(digits, XMLTV_TIME).toInstant(offset);
         } catch (RuntimeException e) { return null; }
     }
 }

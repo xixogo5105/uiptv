@@ -19,7 +19,12 @@ public class NativeEpgApplicationService {
     private static final java.util.concurrent.Semaphore REQUESTS = new java.util.concurrent.Semaphore(2);
     private static final HttpUtil.RequestOptions OPTIONS = new HttpUtil.RequestOptions(true, true, 5, 5, 10);
     private record Key(String account, AccountType type, String endpoint, String user, String session, String channel) { }
-    private record Cached(List<EpgProgramme> programmes, long retryAt) { }
+    private record Cached(List<EpgProgramme> programmes, long retryAt, long bytes) {
+        Cached(List<EpgProgramme> programmes, long retryAt) {
+            this(programmes, retryAt, 256L + programmes.stream()
+                    .mapToLong(p -> 192L + 2L * (p.title().length() + p.description().length())).sum());
+        }
+    }
 
     public void clearCache() {
         synchronized (CACHE) {
@@ -77,7 +82,11 @@ public class NativeEpgApplicationService {
             synchronized (CACHE) {
                 if (revision != cacheRevision) return List.of();
                 CACHE.put(key, new Cached(result, now + 30 * 60_000L));
-                while (CACHE.size() > 256) CACHE.remove(CACHE.keySet().iterator().next());
+                long bytes = CACHE.values().stream().mapToLong(Cached::bytes).sum();
+                var entries = CACHE.entrySet().iterator();
+                while (entries.hasNext() && (CACHE.size() > 256 || bytes > 16L * 1024 * 1024)) {
+                    bytes -= entries.next().getValue().bytes(); entries.remove();
+                }
             }
             return result;
         } catch (InterruptedException e) {
@@ -153,13 +162,17 @@ public class NativeEpgApplicationService {
                     long duration = p.optLong("duration", 0);
                     if (duration > 0 && duration < 86400) stop = start + duration * 1000;
                 }
-                String title = text(first(p, "title", "name"), encoded);
+                String title = truncate(text(first(p, "title", "name"), encoded), 512);
                 if (start > now - 86400_000L && start < now + 7 * 86400_000L && stop > start && !title.isBlank())
-                    result.add(new EpgProgramme(title, text(first(p, "description", "descr", "desc"), encoded), start, stop));
+                    result.add(new EpgProgramme(title, truncate(text(first(p, "description", "descr", "desc"), encoded), 2048), start, stop));
             }
             result.sort(Comparator.comparingLong(EpgProgramme::start));
             return EpgSchedules.normalize(result);
         } catch (Exception ignored) { return List.of(); }
+    }
+
+    private static String truncate(String text, int limit) {
+        return text.length() <= limit ? text : text.substring(0, limit);
     }
 
     private static String first(JSONObject p, String... fields) {
