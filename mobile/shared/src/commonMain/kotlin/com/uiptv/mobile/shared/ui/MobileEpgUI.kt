@@ -87,21 +87,20 @@ internal fun MobileEpgSettings() {
         }
         val now = result?.now(state.time)
         val next = result?.next(state.time)
-        Column {
-            if (now != null) {
-                Text("Now: ${now.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
+        val available = result?.status == MobileEpgStatus.AVAILABLE || result?.status == MobileEpgStatus.STALE
+        if (available) {
+            Column {
+                if (now != null) {
+                    Text("Now: ${now.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall)
+                    Text("${programmeTime(now.start)} – ${programmeTime(now.stop)}", style = MaterialTheme.typography.labelSmall)
+                    LinearProgressIndicator(progress = { ((state.time - now.start).toFloat() / (now.stop - now.start)).coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth())
+                }
+                if (next != null) Text("Next: ${next.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall)
-                Text("${programmeTime(now.start)} – ${programmeTime(now.stop)}", style = MaterialTheme.typography.labelSmall)
-                LinearProgressIndicator(progress = { ((state.time - now.start).toFloat() / (now.stop - now.start)).coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth())
+                TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) { Text("View Guide") }
             }
-            if (next != null) Text("Next: ${next.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall)
-            if (result == null) Text("Loading guide…", style = MaterialTheme.typography.bodySmall)
-            else if (result?.status == MobileEpgStatus.STALE) Text("Cached guide", style = MaterialTheme.typography.labelSmall)
-            else if (now == null && next == null) Text(result?.message?.takeIf { it.isNotBlank() } ?: if (result?.status == MobileEpgStatus.UNAVAILABLE) "Guide source unavailable" else "No matching programme",
-                style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) { Text("View Guide") }
         }
         if (details) Dialog(onDismissRequest = { details = false }) {
             Surface(shape = MaterialTheme.shapes.large) {
