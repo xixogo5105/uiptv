@@ -103,7 +103,10 @@ class AndroidEpgTest {
             val repository = AndroidEpgRepository(context, helper, preferences)
             val source = "http://127.0.0.1:${server.port}/guide?action=xml&secret=private"
             val field = AndroidEpgRepository::class.java.getDeclaredField("guides").apply { isAccessible = true }
-            fun discardMemory() { (field.get(null) as MutableMap<*, *>).clear() }
+            fun discardMemory() {
+                (field.get(null) as MutableMap<*, *>).clear()
+                com.uiptv.mobile.shared.epg.MobileEpgCache.clear(account.id!!, "stream-id")
+            }
             val hash = java.security.MessageDigest.getInstance("SHA-256").digest(source.toByteArray())
                 .joinToString("") { "%02x".format(it.toInt() and 255) }
             val cached = File(context.filesDir, "epg/epg-$hash.xml")

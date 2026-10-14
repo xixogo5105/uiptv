@@ -45,7 +45,19 @@ interface MobileEpgRepository {
 }
 
 object MobileEpgSchedules {
-    private fun generic(title: String) = title.trim().lowercase() in setOf("movie", "film", "programme", "program")
+    /** Generic filler titles that say nothing about the programme. They are only used as a last
+     * resort when every overlapping programme has one of these titles; a real title always wins. */
+    private val genericTitles = setOf(
+        "movie", "film", "programme", "program", "video", "movies", "films", "videos",
+        "programmes", "programs", "programme name", "program name", "channel", "channels",
+        "live", "show", "shows", "tv", "tv show", "tv shows", "broadcast", "broadcasts",
+        "content", "contents", "stream", "streaming", "event", "events", "episode", "episodes",
+        "series", "special", "specials", "movie night", "movie time", "watch now", "now playing",
+        "feature", "features", "presentation", "presentation", "unknown", "untitled", "title",
+        "title name", "name", "default", "default title", "placeholder", "tbd", "n/a", "na",
+        "movie of the day", "movie of the week", "feature presentation", "feature film"
+    )
+    private fun generic(title: String) = title.trim().lowercase() in genericTitles
     fun normalize(input: List<MobileEpgProgramme>): List<MobileEpgProgramme> {
         val ordered = input.filter { it.stop > it.start }.distinct().sortedWith(
             compareBy<MobileEpgProgramme> { generic(it.title) }.thenByDescending { it.start }

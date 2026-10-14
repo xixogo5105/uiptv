@@ -32,6 +32,7 @@ class AndroidEpgRepository(
 
     override suspend fun clearCache() = withContext(Dispatchers.IO) {
         mutex.withLock { guides.clear(); disk.clear(); discovered.clear(); native.clear(); stalker.clearEpgSessions() }
+        com.uiptv.mobile.shared.epg.MobileEpgCache.clear()
     }
     override suspend fun globalSource(): String = withContext(Dispatchers.IO) { config("globalEpgSource") }
     override suspend fun saveGlobalSource(source: String) = withContext(Dispatchers.IO) {
@@ -51,26 +52,37 @@ class AndroidEpgRepository(
         }
     }
     override suspend fun schedule(accountId: Long, providerChannelId: String, name: String): MobileEpgResult = withContext(Dispatchers.IO) {
-        val devicePreferences = preferences.load()
-        if (!devicePreferences.epgEnabled) return@withContext MobileEpgResult()
+        if (!preferences.load().epgEnabled) return@withContext MobileEpgResult()
+        val now = System.currentTimeMillis()
+        val desktopHost = preferences.load().remoteEndpoint.host
+        // Only serve results that carry real programme data. A cached DISABLED/NO_MATCH/UNAVAILABLE
+        // verdict would be stale the moment EPG is enabled, a mapping is saved or a source is
+        // updated, so those are recomputed every time (cheap: the guide parse and native schedule
+        // caches are still hit).
+        MobileEpgCache.peek(accountId, providerChannelId, now)?.let {
+            if (it.status == MobileEpgStatus.AVAILABLE || it.status == MobileEpgStatus.STALE) return@withContext it
+        }
         mutex.withLock {
             ensureActive()
             if (!preferences.load().epgEnabled) return@withLock MobileEpgResult()
             val account = AndroidSQLiteAccountRepository(databaseHelper).listAccounts().firstOrNull { it.id == accountId }
                 ?: return@withLock MobileEpgResult(MobileEpgStatus.NO_MATCH)
-            val now = System.currentTimeMillis()
             val key = account to providerChannelId
             val cached = native[key]
             val schedules = if (cached != null && now < cached.expires) cached else {
                 val programmes = try { nativeSchedule(account, providerChannelId, now) }
                 catch (e: CancellationException) { throw e }
                 catch (_: Exception) { emptyList() }
-                val stale = programmes.isEmpty() && cached?.programmes?.any { it.stop > now } == true
-                NativeCache(if (stale) cached!!.programmes else programmes, now + 30 * 60_000L, stale)
-                    .also { native[key] = it; while (native.size > 256) native.remove(native.keys.first()) }
+                val stale = programmes.isEmpty() && cached != null && cached.programmes.any { it.stop > now }
+                NativeCache(if (stale) cached.programmes else programmes, now + 30 * 60_000L, stale)
+                    .also { native[key] = it }
             }
-            if (schedules.programmes.any { it.stop > now }) return@withLock MobileEpgResult(
-                if (schedules.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, schedules.programmes)
+            if (schedules.programmes.any { it.stop > now }) {
+                val result = MobileEpgResult(
+                    if (schedules.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, schedules.programmes)
+                MobileEpgCache.put(accountId, providerChannelId, result, now)
+                return@withLock result
+            }
             val override = runCatching { JSONObject(config("epgMappingsJson")).optJSONObject(accountId.toString())?.optString(providerChannelId) }
                 .getOrNull().orEmpty()
             val id = override.ifBlank { guideId(account, providerChannelId) }
@@ -79,15 +91,22 @@ class AndroidEpgRepository(
             }
             var failed = false
             var message = ""
+            var result: MobileEpgResult = MobileEpgResult(MobileEpgStatus.NO_MATCH, message = message)
             for (source in sources.filter { it.isNotBlank() }) {
                 ensureActive()
-                val guide = loadGuide(resolveDesktopSource(source, devicePreferences.remoteEndpoint.host), now)
+                val guide = loadGuide(resolveDesktopSource(source, desktopHost), now)
                 if (guide.guide == null) { failed = true; message = guide.message; continue }
                 val programmes = guide.guide.forChannel(id, if (override.isBlank()) name else "")
-                if (programmes.any { it.stop > now }) return@withLock MobileEpgResult(
-                    if (guide.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, programmes)
+                if (programmes.any { it.stop > now }) {
+                    result = MobileEpgResult(if (guide.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, programmes)
+                    break
+                }
             }
-            MobileEpgResult(if (failed) MobileEpgStatus.UNAVAILABLE else MobileEpgStatus.NO_MATCH, message = message)
+            if (result.status == MobileEpgStatus.NO_MATCH && failed) result = MobileEpgResult(MobileEpgStatus.UNAVAILABLE, message = message)
+            if (result.status == MobileEpgStatus.AVAILABLE || result.status == MobileEpgStatus.STALE) {
+                MobileEpgCache.put(accountId, providerChannelId, result, now)
+            }
+            return@withLock result
         }
     }
 
