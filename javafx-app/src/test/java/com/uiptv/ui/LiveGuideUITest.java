@@ -111,6 +111,74 @@ class LiveGuideUITest extends DbBackedUiTest {
                 false, false, false, false, false, true, null));
     }
 
+    @Test void largeDesktopGuideOnlyCreatesViewportRowsAndRestoresPlayingIndicator() throws Exception {
+        final LiveGuideUI[] guideRef = new LiveGuideUI[1];
+        final StackPane[] rootRef = new StackPane[1];
+        runOnFxThread(() -> {
+            long now = System.currentTimeMillis();
+            List<LiveGuideApplicationService.Row> fixture = new ArrayList<>();
+            for (int i = 0; i < 5000; i++) {
+                Channel channel = new Channel(); channel.setName("Sample channel " + i); channel.setChannelId("provider-" + i);
+                fixture.add(new LiveGuideApplicationService.Row("account-one", "Sample account", "bookmark-" + i, channel,
+                        i < 10 ? List.of(new EpgProgramme("Sample programme", "", now - 60_000, now + 3_600_000)) : List.of()));
+            }
+            LiveGuideUI guide = new LiveGuideUI(); guide.setContext("account-one");
+            field("data").set(guide, fixture); field("loadedAt").setLong(guide, now); guide.refreshIfNeeded();
+            StackPane root = new StackPane(guide); Scene scene = new Scene(root, 1100, 500);
+            scene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/application.css")).toExternalForm());
+            scene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/dark-application.css")).toExternalForm());
+            root.resize(1100, 500); root.applyCss(); root.layout();
+            assertEquals(10, ((List<?>) field("filteredRows").get(guide)).size());
+            ((CheckBox) field("showAllChannels").get(guide)).fire();
+            root.applyCss(); root.layout();
+            assertEquals(5000, ((List<?>) field("filteredRows").get(guide)).size());
+            assertTrue(((Map<?, ?>) field("playingIndicators").get(guide)).size() <= 20);
+            ScrollPane scroll = (ScrollPane) field("scroll").get(guide); scroll.setVvalue(1);
+            guideRef[0] = guide; rootRef[0] = root;
+            return null;
+        });
+        runOnFxThread(() -> {
+            LiveGuideUI guide = guideRef[0]; StackPane root = rootRef[0];
+            root.applyCss(); root.layout();
+            try {
+                Map<LiveGuideApplicationService.Row, com.uiptv.widget.PlayingCardIndicator> indicators =
+                        (Map<LiveGuideApplicationService.Row, com.uiptv.widget.PlayingCardIndicator>) field("playingIndicators").get(guide);
+                assertTrue(indicators.size() <= 20);
+                assertTrue(indicators.keySet().stream().anyMatch(row -> row.channel().getChannelId().equals("provider-4999")));
+                var account = new com.uiptv.model.Account(); account.setDbId("account-one"); account.setAction(com.uiptv.model.Account.AccountAction.itv);
+                Channel playing = new Channel(); playing.setChannelId("provider-4999");
+                com.uiptv.player.MediaPlayerFactory.updateGuideContext(account, playing);
+                assertEquals(1, indicators.values().stream().filter(Node::isVisible).count());
+                root.applyCss(); root.layout();
+                var activeIndicator = indicators.values().stream().filter(Node::isVisible).findFirst().orElseThrow();
+                assertEquals(1.0, activeIndicator.getOpacity(), .001);
+                assertTrue(activeIndicator.getBoundsInParent().getWidth() >= 28);
+                WritableImage snapshot = root.snapshot(null, null);
+                BufferedImage png = new BufferedImage((int) snapshot.getWidth(), (int) snapshot.getHeight(), BufferedImage.TYPE_INT_ARGB);
+                for (int y = 0; y < png.getHeight(); y++) for (int x = 0; x < png.getWidth(); x++) png.setRGB(x, y, snapshot.getPixelReader().getArgb(x, y));
+                ImageIO.write(png, "png", Path.of("target/epg-desktop-virtual-preview.png").toFile());
+                ((ScrollPane) field("scroll").get(guide)).setVvalue(0);
+            } catch (Throwable failure) { guide.dispose(); root.getChildren().clear(); throw failure; }
+            return null;
+        });
+        runOnFxThread(() -> {
+            LiveGuideUI guide = guideRef[0];
+            assertTrue(((Map<LiveGuideApplicationService.Row, ?>) field("playingIndicators").get(guide)).keySet().stream()
+                    .anyMatch(row -> row.channel().getChannelId().equals("provider-0")));
+            ((ScrollPane) field("scroll").get(guide)).setVvalue(1);
+            return null;
+        });
+        runOnFxThread(() -> {
+            LiveGuideUI guide = guideRef[0];
+            try {
+                Map<?, com.uiptv.widget.PlayingCardIndicator> indicators = (Map<?, com.uiptv.widget.PlayingCardIndicator>) field("playingIndicators").get(guide);
+                assertEquals(1, indicators.values().stream().filter(Node::isVisible).count());
+                assertTrue(indicators.size() <= 20);
+            } finally { guide.dispose(); rootRef[0].getChildren().clear(); com.uiptv.player.MediaPlayerFactory.updateGuideContext(null, null); }
+            return null;
+        });
+    }
+
     @Test void playerDetailsAppearBelowVideoAndHideWhenGuideIsAbsent() throws Exception {
         runOnFxThread(() -> {
             com.uiptv.widget.AppFonts.load();

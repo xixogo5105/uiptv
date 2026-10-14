@@ -5061,3 +5061,5 @@
 
 .player-epg-panel.compact .epg-programme-title { -fx-font-size: 14; }
 .epg-programme-card .hyperlink { -fx-padding: 0; -fx-font-size: 11; }
+
+.live-guide-channel .playing-card-indicator { -fx-opacity: 1; }
