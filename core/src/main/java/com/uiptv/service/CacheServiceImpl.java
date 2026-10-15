@@ -51,7 +51,6 @@ public class CacheServiceImpl implements CacheService {
              var requests = com.uiptv.util.ReloadRequestScope.catalogue(phaseAwareAdapter::log)) {
             reloaderFactory.get(reloadAccount.getType()).reloadCache(reloadAccount, phaseAwareAdapter);
             requests.check();
-            phaseAwareAdapter.log("Catalogue network requests: " + requests.requests());
             publishReloadOutcome(account, reloadAccount);
         }
     }

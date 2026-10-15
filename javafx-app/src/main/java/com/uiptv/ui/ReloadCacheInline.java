@@ -956,6 +956,7 @@ public class ReloadCacheInline extends VBox {
             automaticGlobalFailureDecision = null;
             reloadInProgress.set(false);
             reloadThread.compareAndSet(Thread.currentThread(), null);
+            showReloadButton();
             requestPostReloadMemoryCleanup(selectedAccounts.size());
         }
     }
@@ -1059,7 +1060,8 @@ public class ReloadCacheInline extends VBox {
             failed = true;
             logMessage(account, LOG_MARKED_BAD_AND_SKIPPED);
             addIssue(accountIssues, I18n.tr("reloadMarkedBadByUser"));
-        } catch (Exception e) {
+        } catch (Exception | OutOfMemoryError | StackOverflowError e) {
+            if (e instanceof Error) stopRequested = true;
             failed = true;
             logMessage(account, LOG_RELOAD_FAILED_PREFIX + " " + shortFailure(e.getMessage()));
             addIssue(accountIssues, I18n.tr("reloadFailedReason", shortFailure(e.getMessage())));

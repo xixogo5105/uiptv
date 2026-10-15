@@ -107,7 +107,12 @@ public class HttpUtil {
 
         try (var deadline = ReloadRequestScope.watch(request)) {
             return HTTP_CLIENT.execute(request, context, response -> {
-                String responseBody = readResponseBody(response, options);
+                String responseBody;
+                try { responseBody = readResponseBody(response, options); }
+                catch (ReloadRequestScope.LimitExceeded failure) {
+                    request.cancel();
+                    throw failure;
+                }
                 return new HttpResult(
                         request.getMethod(),
                         getFinalUri(request, context),
@@ -294,6 +299,25 @@ public class HttpUtil {
                 return "";
             }
             try {
+                if (ReloadRequestScope.active()) {
+                    // Bound decoded data too: compressed/chunked bodies have no useful wire-size limit.
+                    int limit = 16 * 1024 * 1024;
+                    java.nio.charset.Charset charset = StandardCharsets.UTF_8;
+                    if (entity.getContentType() != null) {
+                        java.nio.charset.Charset declared = ContentType.parse(entity.getContentType()).getCharset();
+                        if (declared != null) charset = declared;
+                    }
+                    var reader = new java.io.InputStreamReader(entity.getContent(), charset);
+                    StringBuilder text = new StringBuilder();
+                    char[] chunk = new char[8192];
+                    int count;
+                    while ((count = reader.read(chunk)) != -1) {
+                        ReloadRequestScope.checkCurrent();
+                        if (count > limit - text.length()) ReloadRequestScope.responseTooLarge();
+                        text.append(chunk, 0, count);
+                    }
+                    return text.toString();
+                }
                 return EntityUtils.toString(entity);
             } catch (ParseException ex) {
                 throw new IOException("Unable to parse HTTP response body", ex);

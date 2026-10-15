@@ -16,13 +16,12 @@ public final class ReloadRequestScope implements AutoCloseable {
     private final Thread owner = Thread.currentThread();
     private final long deadline, requestNanos;
     private final int maxRequests;
-    private final Consumer<String> log;
     private volatile String failure;
     private int requests;
 
     public ReloadRequestScope(Duration total, Duration perRequest, int maxRequests, Consumer<String> log) {
         previous = ACTIVE.get(); this.deadline = total.isZero() || total.isNegative() ? Long.MAX_VALUE : System.nanoTime() + total.toNanos();
-        this.requestNanos = perRequest.toNanos(); this.maxRequests = maxRequests; this.log = log;
+        this.requestNanos = perRequest.toNanos(); this.maxRequests = maxRequests;
         ACTIVE.set(this);
     }
     public static ReloadRequestScope catalogue(Consumer<String> log) {
@@ -45,7 +44,6 @@ public final class ReloadRequestScope implements AutoCloseable {
             scope.failure = "Catalogue refresh request limit reached (" + scope.maxRequests + ")"; scope.check();
         }
         scope.requests++;
-        if (scope.log != null) scope.log.accept("Catalogue request " + scope.requests + "/" + scope.maxRequests);
         long end = Math.min(scope.deadline, System.nanoTime() + scope.requestNanos);
         ScheduledFuture<?> watchdog = WATCHDOG.scheduleAtFixedRate(() -> {
             if (scope.owner.isInterrupted() || System.nanoTime() >= end) {
@@ -54,6 +52,13 @@ public final class ReloadRequestScope implements AutoCloseable {
             }
         }, 0, 50, TimeUnit.MILLISECONDS);
         return () -> watchdog.cancel(false);
+    }
+    public static void responseTooLarge() {
+        ReloadRequestScope scope = ACTIVE.get();
+        if (scope != null) {
+            scope.failure = "Catalogue response exceeds the safe size limit";
+            scope.check();
+        }
     }
     public int requests() { return requests; }
     @Override public void close() { ACTIVE.set(previous); }

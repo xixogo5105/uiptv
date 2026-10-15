@@ -66,7 +66,8 @@ class CacheReloadNetworkTest extends DbBackedTest {
                 else assertThrows(IllegalStateException.class, () -> new CacheServiceImpl().reloadCache(target, logs::add));
             }
             assertEquals(rejectDefaultShape ? 5 : 4, calls.get(), "Bulk refresh must use a fixed number of calls, never one per category/channel");
-            if (successfulBulk) assertTrue(logs.contains("Catalogue network requests: " + (rejectDefaultShape ? 5 : 4)));
+            assertFalse(logs.stream().anyMatch(line -> line.startsWith("Catalogue request ")
+                    || line.startsWith("Catalogue network requests:")), "Routine network counters must not reach the user log");
             assertEquals(0, pages.get());
             assertEquals(successfulBulk ? 2000 : 1, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
             if (!successfulBulk) assertEquals("Existing", CategoryDb.get().getCategories(account).getFirst().getTitle());
