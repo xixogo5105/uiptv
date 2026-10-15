@@ -19,7 +19,7 @@ import java.util.function.Supplier;
 final class CardEpgSupport {
     private final Node owner;
     private final Map<Region, Binding> attached = new IdentityHashMap<>();
-    private final PauseTransition pulse = new PauseTransition(Duration.millis(250));
+    private final PauseTransition pulse = new PauseTransition(Duration.millis(40));
     private final Timeline clock = new Timeline(new KeyFrame(Duration.minutes(1), _ -> { restoreSummaries(); queue(); }));
     private final Map<ScrollPane, javafx.beans.value.ChangeListener<Number>> scrollListeners = new IdentityHashMap<>();
     private Thread worker;
@@ -51,10 +51,10 @@ final class CardEpgSupport {
             }
         });
         owner.layoutBoundsProperty().addListener((_, _, _) -> queue());
-        EpgModeUI.observe(owner, () -> {
+        EpgModeUI.observeCache(owner, () -> {
             if (!EpgModeUI.isFeatureEnabled()) stop();
             else { clock.play(); queue(); }
-            attached.values().forEach(binding -> { binding.refreshAt = 0; binding.panel.setVisible(false); binding.panel.setManaged(false); });
+            attached.values().forEach(binding -> { binding.refreshAt = 0; });
         });
     }
 
@@ -122,13 +122,27 @@ final class CardEpgSupport {
         if (cards.isEmpty()) return;
         worker = Thread.ofVirtual().start(() -> {
             try {
+                List<LiveGuideApplicationService.Row> sources=new ArrayList<>();
+                List<Map.Entry<Region,Binding>> permitted=new ArrayList<>();
                 for (var entry : cards) {
                     if (Thread.currentThread().isInterrupted()) return;
                     var allowed = new java.util.concurrent.CompletableFuture<Boolean>();
                     Platform.runLater(() -> allowed.complete(request == revision && attached.containsKey(entry.getKey()) && visible(entry.getKey())));
                     if (!allowed.get()) continue;
-                    LiveGuideApplicationService.Row source = entry.getValue().source.get();
-                    LiveGuideApplicationService.Row loaded = source == null ? null : new LiveGuideApplicationService().hydrate(source);
+                    LiveGuideApplicationService.Row source=entry.getValue().source.get();
+                    if(source!=null) { sources.add(source); permitted.add(entry); }
+                    else Platform.runLater(() -> {
+                        if(request==revision && attached.containsKey(entry.getKey()) && visible(entry.getKey())) {
+                            entry.getValue().refreshAt=System.currentTimeMillis()+30*60_000L;
+                            display(entry.getValue().panel,null,null);
+                        }
+                    });
+                }
+                var summaries=new LiveGuideApplicationService().cachedSummaries(sources);
+                var icons=new LiveGuideApplicationService().cachedIcons(summaries);
+                for(int i=0;i<summaries.size();i++) {
+                    var entry=permitted.get(i);
+                    LiveGuideApplicationService.Row loaded=summaries.get(i);
                     long time = System.currentTimeMillis();
                     EpgProgramme current = loaded == null ? null : loaded.programmes().stream().filter(p -> p.start() <= time && time < p.stop()).findFirst().orElse(null);
                     EpgProgramme next = loaded == null ? null : loaded.programmes().stream().filter(p -> p.start() > time).findFirst().orElse(null);
@@ -139,7 +153,9 @@ final class CardEpgSupport {
                         if (next != null) refreshAt = Math.min(refreshAt, next.start());
                         entry.getValue().refreshAt = Math.max(System.currentTimeMillis() + 30_000, refreshAt);
                         entry.getValue().current = current; entry.getValue().next = next;
-                        display(entry.getValue().panel, current, next);
+                        display(entry.getValue().panel,current,next);
+                        if(entry.getKey().lookup(".channel-logo-view") instanceof com.uiptv.widget.AsyncImageView image)
+                            image.setFallbackImage(icons.getOrDefault(loaded,""),"channel");
                     });
                 }
             } catch (InterruptedException interrupted) {

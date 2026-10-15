@@ -158,6 +158,7 @@ public class ConfigurationDb extends BaseDb {
         c.setShowBookmarkAndAccountCounts(safeBoolean(resultSet, "showBookmarkAndAccountCounts"));
         c.setEpgMappingsJson(nullSafeString(resultSet, "epgMappingsJson"));
         c.setEpgEnabled(safeBoolean(resultSet, "epgEnabled"));
+        c.setEpgRefreshIntervalHours(nullSafeString(resultSet,"epgRefreshIntervalHours"));
         c.setGlobalEpgSource(nullSafeString(resultSet, "globalEpgSource"));
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
@@ -177,7 +178,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(39, current.getDbId());
+                statement.setString(40, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -233,6 +234,7 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(36, configuration.isEpgEnabled() ? "1" : "0");
         statement.setString(37, configuration.getGlobalEpgSource());
         statement.setString(38, configuration.getEpgMappingsJson());
+        statement.setString(39, String.valueOf(configuration.normalizedEpgRefreshHours()));
      }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {

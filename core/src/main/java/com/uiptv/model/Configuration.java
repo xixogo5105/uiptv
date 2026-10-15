@@ -53,6 +53,11 @@ import lombok.NoArgsConstructor;
     private boolean epgEnabled;
     private String globalEpgSource = "";
     private String epgMappingsJson = "{}";
+    private String epgRefreshIntervalHours = "2";
+    public int normalizedEpgRefreshHours() {
+        try { return Math.clamp(Integer.parseInt(epgRefreshIntervalHours),1,24); }
+        catch(RuntimeException ignored) { return 2; }
+    }
 
 
     @SuppressWarnings("java:S107")

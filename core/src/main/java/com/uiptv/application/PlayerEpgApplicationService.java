@@ -22,7 +22,9 @@ public class PlayerEpgApplicationService {
             if (account == null || resolved.getAccountAction() != Account.AccountAction.itv) return new Result("", null, null);
             channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId(), false);
             if (channel == null) {
-                channel = new Channel(); channel.setChannelId(bookmark.getChannelId()); channel.setName(bookmark.getChannelName());
+                channel=Channel.fromJson(bookmark.getChannelJson());
+                if(channel==null) channel=new Channel();
+                channel.setChannelId(bookmark.getChannelId()); channel.setName(bookmark.getChannelName());
             }
         } else {
             account = AccountService.getInstance().getById(query.accountId());
@@ -35,7 +37,7 @@ public class PlayerEpgApplicationService {
 
     public Result current(Account account, Channel channel) {
         if (account == null || channel == null || account.getAction() != Account.AccountAction.itv) return new Result("", null, null);
-        List<EpgProgramme> programmes = new EpgApplicationService().schedule(account, channel);
+        List<EpgProgramme> programmes = new EpgCacheApplicationService().schedule(account, channel);
         long time = System.currentTimeMillis();
         EpgProgramme now = null, next = null;
         for (EpgProgramme programme : programmes) {

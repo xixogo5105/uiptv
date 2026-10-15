@@ -41,7 +41,7 @@ class UiptvSyncSchemaTest {
 
     @Test
     fun desktopOnlyTablesArePreservedButHidden() {
-        assertEquals(emptyList(), UiptvSyncSchema.desktopTablesPreservedButHiddenInV1)
+        assertEquals(listOf("epg_source", "epg_programme", "epg_alias", "epg_channel_mapping", "epg_channel_icon"), UiptvSyncSchema.desktopTablesPreservedButHiddenInV1)
     }
 
     @Test
@@ -86,7 +86,8 @@ class UiptvSyncSchemaTest {
                 "themeMode",
                 "epgEnabled",
                 "globalEpgSource",
-                "epgMappingsJson"
+                "epgMappingsJson",
+                "epgRefreshIntervalHours"
             ),
             UiptvSyncSchema.configurationColumns
         )

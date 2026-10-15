@@ -23,12 +23,13 @@ class EpgMemoryBudgetTest extends DbBackedTest {
         config.setEpgEnabled(true);
         ConfigurationService.getInstance().save(config);
         Account account = new Account();
+        account.setDbId("memory-account");
         account.setType(AccountType.M3U8_LOCAL);
         account.setAction(Account.AccountAction.itv);
         return account;
     }
 
-    @Test void loadingASlowFeedDoesNotBlockMemoryOnlyCatalogReads() throws Exception {
+    @Test void loadingASlowFeedDoesNotBlockDatabaseCatalogReads() throws Exception {
         Account account = account();
         var entered = new CountDownLatch(1);
         var release = new CountDownLatch(1);
@@ -46,10 +47,10 @@ class EpgMemoryBudgetTest extends DbBackedTest {
         account.setEpg("http://127.0.0.1:" + server.getAddress().getPort() + "/guide");
         Channel channel = new Channel(); channel.setChannelId("one"); channel.setName("One");
         EpgApplicationService service = new EpgApplicationService(); service.clearCache();
-        Thread worker = Thread.ofVirtual().start(() -> service.cachedSchedule(account, channel));
+        Thread worker = Thread.ofVirtual().start(() -> new EpgCacheRefreshService().refreshAccount(account, List.of(channel)));
         try {
             assertTrue(entered.await(5, TimeUnit.SECONDS));
-            var result = java.util.concurrent.CompletableFuture.runAsync(() -> service.enrichMemory(account, List.of(channel)));
+            var result = java.util.concurrent.CompletableFuture.runAsync(() -> service.enrichCached(account, List.of(channel)));
             result.get(1, TimeUnit.SECONDS);
             assertNull(channel.getEpgNow());
         } finally {
@@ -69,7 +70,8 @@ class EpgMemoryBudgetTest extends DbBackedTest {
         }
         xml.append("</tv>");
         var parsed = XmltvGuide.read(new java.io.ByteArrayInputStream(xml.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)), now);
-        assertTrue(parsed.forChannel("station", "", false).isEmpty(), "Reading a feed must not expand schedules eagerly");
+        var decoded = CompactProgrammeMap.class.getDeclaredField("decoded"); decoded.setAccessible(true);
+        assertTrue(((java.util.Map<?, ?>) decoded.get(parsed.programmes())).isEmpty(), "Reading a feed must not expand schedules eagerly");
         var schedule = parsed.forChannel("station", "");
         assertEquals(600, schedule.size());
         assertEquals("Show 0", schedule.getFirst().title());
@@ -79,7 +81,7 @@ class EpgMemoryBudgetTest extends DbBackedTest {
         assertTrue(parsed.estimatedBytes() < 1024 * 1024);
     }
 
-    @Test void repeatedLargeFeedsStayCompactWithoutExpandingEveryChannel() throws Exception {
+    @Test void multipleLargeFeedsPersistWithoutRetainingParsedGuides() throws Exception {
         Account account = account();
         EpgApplicationService service = new EpgApplicationService(); service.clearCache();
         var formatter = DateTimeFormatter.ofPattern("uuuuMMddHHmmss xx").withZone(ZoneOffset.UTC);
@@ -98,10 +100,13 @@ class EpgMemoryBudgetTest extends DbBackedTest {
                 Files.writeString(source, xml);
                 if (first == null) first = source.toString();
                 account.setEpg(source.toString());
-                assertFalse(service.cachedSchedule(account, channel).isEmpty());
+                new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
+                assertFalse(new EpgCacheApplicationService().schedule(account, channel).isEmpty());
+                Files.delete(source);
             }
             account.setEpg(first);
-            assertFalse(service.memorySchedule(account, channel).isEmpty(), "Compressed feeds should fit without discarding useful regional sources");
+            new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
+            assertFalse(new EpgCacheApplicationService().schedule(account, channel).isEmpty(), "Persisted sources survive without their original XML files");
         } finally { service.clearCache(); }
     }
 }

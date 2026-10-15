@@ -14,38 +14,30 @@ import java.time.*;
 import java.util.*;
 import java.util.zip.GZIPInputStream;
 
-/** Shared guide loading; callers run this service off the UI thread. */
+/** XMLTV source discovery and streaming import; callers run this service off the UI thread. */
 public class EpgApplicationService {
     private static final java.util.concurrent.locks.ReentrantLock SOURCE_LOAD_LOCK = new java.util.concurrent.locks.ReentrantLock();
-    private static final java.util.concurrent.locks.ReentrantLock GUIDE_LOAD_LOCK = new java.util.concurrent.locks.ReentrantLock();
-    static final long GUIDE_CACHE_BYTES = 64L * 1024 * 1024;
-    private static final Map<String, CachedGuide> GUIDES = new LinkedHashMap<>();
     private static final Map<String, DiscoveredSource> SOURCES = new LinkedHashMap<>();
     private static final HttpUtil.RequestOptions OPTIONS = new HttpUtil.RequestOptions(true, true, 10, 10, 20);
-    private static final XmltvGuide EMPTY = new XmltvGuide(Map.of(), Map.of());
 
     public void clearCache() {
-        GUIDE_LOAD_LOCK.lock();
-        try {
-            synchronized (GUIDES) { GUIDES.clear(); }
-            EpgDiskCache.clear();
-        } finally { GUIDE_LOAD_LOCK.unlock(); }
         SOURCE_LOAD_LOCK.lock();
         try { synchronized (SOURCES) { SOURCES.clear(); } }
         finally { SOURCE_LOAD_LOCK.unlock(); }
         new NativeEpgApplicationService().clearCache();
+        EpgCacheRefreshService.invalidate();
     }
     public String globalWarning() {
+        if (!isEnabled()) return "";
         String source = com.uiptv.service.ConfigurationService.getInstance().read().getGlobalEpgSource();
-        synchronized (GUIDES) {
-            for (String entry : globalSources(source)) {
-                CachedGuide cached = GUIDES.get(entry);
-                if (cached != null && !cached.warning().isBlank()) return cached.warning();
-            }
-            return "";
+        var cache = new com.uiptv.db.EpgCacheDb();
+        for (String entry : globalSources(source)) {
+            String warning = cache.sourceState(EpgCacheApplicationService.sourceId(entry)).warning();
+            if (!warning.isBlank()) return warning;
         }
+        return "";
     }
-    private static String warning(Exception error) {
+    static String warning(Exception error) {
         for (Throwable cause = error; cause != null; cause = cause.getCause()) {
             if (cause.getMessage() != null && cause.getMessage().contains("Guide exceeds size limit")) return "epgSourceTooLarge";
             if (cause.getMessage() != null && cause.getMessage().contains("Guide exceeds programme limit")) return "epgSourceProgrammeLimit";
@@ -68,108 +60,18 @@ public class EpgApplicationService {
         return com.uiptv.service.ConfigurationService.getInstance().read().isEpgEnabled();
     }
 
-    public boolean supportsGuide(Account account) {
-        return isEnabled() && account != null && account.getAction() == Account.AccountAction.itv;
-    }
-
-    public void enrich(Account account, List<Channel> channels) {
-        enrich(account, channels, true);
-    }
-
     /** Catalog rendering must never wait for playlist discovery, disk parsing or HTTP. */
-    public void enrichMemory(Account account, List<Channel> channels) {
-        enrich(account, channels, false);
-    }
-
-    private void enrich(Account account, List<Channel> channels, boolean load) {
-        if (channels == null) return;
-        for (Channel channel : channels) {
-            channel.setEpgNow(null);
-            channel.setEpgNext(null);
-        }
-        if (!supportsGuide(account) || channels.isEmpty()) return;
-        // Catalog enrichment shares XMLTV sources; native schedules are requested on guide/player demand.
-        long now = System.currentTimeMillis();
-        boolean loadXml = load && account.getType() != AccountType.STALKER_PORTAL && account.getType() != AccountType.XTREME_API;
-        ResolutionContext context = context(account, loadXml);
-        for (Channel channel : channels) {
-            List<EpgProgramme> nativeSchedule = new NativeEpgApplicationService().cached(account, channel);
-            for (EpgProgramme p : usable(nativeSchedule) ? nativeSchedule : xmlSchedule(account, channel, context, loadXml)) {
-                if (p.start() <= now && now < p.stop()) channel.setEpgNow(p);
-                if (p.start() > now) { channel.setEpgNext(p); break; }
+    public void enrichCached(Account account, List<Channel> channels) {
+        if(channels==null) return;
+        var summaries=new EpgCacheApplicationService().summaries(account,channels);
+        long now=System.currentTimeMillis();
+        for(Channel channel:channels) {
+            channel.setEpgNow(null); channel.setEpgNext(null);
+            for(EpgProgramme p:summaries.getOrDefault(channel,List.of())) {
+                if(p.start()<=now && now<p.stop()) channel.setEpgNow(p);
+                if(p.start()>now) { channel.setEpgNext(p); break; }
             }
         }
-    }
-
-    public List<EpgProgramme> cachedSchedule(Account account, Channel channel) {
-        if (!supportsGuide(account) || channel == null) return List.of();
-        List<EpgProgramme> nativeSchedule = new NativeEpgApplicationService().cached(account, channel);
-        return usable(nativeSchedule) ? nativeSchedule : xmlSchedule(account, channel);
-    }
-
-    public List<EpgProgramme> memorySchedule(Account account, Channel channel) {
-        if (!supportsGuide(account) || channel == null) return List.of();
-        var nativeSchedule = new NativeEpgApplicationService().cached(account, channel);
-        return usable(nativeSchedule) ? nativeSchedule : xmlSchedule(account, channel, context(account, false), false);
-    }
-
-    public List<EpgProgramme> schedule(Account account, Channel channel) {
-        if (!supportsGuide(account) || channel == null || Thread.currentThread().isInterrupted()) return List.of();
-        List<EpgProgramme> nativeSchedule = new NativeEpgApplicationService().schedule(account, channel);
-        return usable(nativeSchedule) ? nativeSchedule : xmlSchedule(account, channel);
-    }
-
-    public Map<Channel, List<EpgProgramme>> catalogSchedules(Account account, List<Channel> channels) {
-        return catalogSchedules(account, channels, true);
-    }
-    public Map<Channel, List<EpgProgramme>> catalogSchedules(Account account, List<Channel> channels, boolean loadXml) {
-        if (!supportsGuide(account)) return Map.of();
-        ResolutionContext context = context(account, loadXml);
-        Map<Channel, List<EpgProgramme>> result = new IdentityHashMap<>();
-        for (Channel channel : channels) {
-            List<EpgProgramme> nativeSchedule = new NativeEpgApplicationService().cached(account, channel);
-            result.put(channel, usable(nativeSchedule) ? nativeSchedule : xmlSchedule(account, channel, context, loadXml));
-        }
-        return result;
-    }
-    private record ResolutionContext(List<String> sources, org.json.JSONObject mappings) { }
-    private ResolutionContext context(Account account) { return context(account, true); }
-    private ResolutionContext context(Account account, boolean load) {
-        LinkedHashSet<String> sources = new LinkedHashSet<>();
-        try {
-            if (load) sources.add(discover(account));
-            else if (account.getType() == AccountType.M3U8_LOCAL || account.getType() == AccountType.M3U8_URL) synchronized (SOURCES) { var source = SOURCES.get(account.getM3u8Path()); if (source != null) sources.add(source.source()); }
-        }
-        catch (Exception e) { AppLog.addWarningLog(EpgApplicationService.class, "Playlist EPG discovery unavailable."); }
-        sources.add(account.getEpg());
-        var config = com.uiptv.service.ConfigurationService.getInstance().read();
-        sources.addAll(globalSources(config.getGlobalEpgSource()));
-        org.json.JSONObject mappings;
-        try { mappings = new org.json.JSONObject(config.getEpgMappingsJson()); }
-        catch (Exception ignored) { mappings = new org.json.JSONObject(); }
-        return new ResolutionContext(sources.stream().filter(source -> source != null && !source.isBlank()).toList(), mappings);
-    }
-    private List<EpgProgramme> xmlSchedule(Account account, Channel channel) {
-        return xmlSchedule(account, channel, context(account));
-    }
-    private List<EpgProgramme> xmlSchedule(Account account, Channel channel, ResolutionContext context) {
-        return xmlSchedule(account, channel, context, true);
-    }
-    private List<EpgProgramme> xmlSchedule(Account account, Channel channel, ResolutionContext context, boolean load) {
-        org.json.JSONObject mappings = account.getDbId() == null ? null : context.mappings().optJSONObject(account.getDbId());
-        String override = mappings == null ? "" : mappings.optString(channel.getChannelId(), "");
-        String id = override.isBlank() ? guideId(account, channel) : override;
-        List<String> sources = context.sources();
-        for (String source : sources) {
-            if (Thread.currentThread().isInterrupted()) return List.of();
-            if (source == null || source.isBlank()) continue;
-            XmltvGuide selected;
-            if (load) selected = guide(source.strip());
-            else synchronized (GUIDES) { var cached = GUIDES.get(source.strip()); selected = cached == null ? EMPTY : cached.guide(); }
-            List<EpgProgramme> programmes = selected.forChannel(id, override.isBlank() ? channel.getName() : "", load);
-            if (usable(programmes)) return programmes;
-        }
-        return List.of();
     }
 
     static boolean usable(List<EpgProgramme> programmes) {
@@ -190,41 +92,33 @@ public class EpgApplicationService {
         return account.getType() == AccountType.XTREME_API ? "" : channel.getChannelId();
     }
 
-    private XmltvGuide guide(String source) {
-        try { GUIDE_LOAD_LOCK.lockInterruptibly(); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); return EMPTY; }
-        try {
-            CachedGuide cached;
-            synchronized (GUIDES) { cached = GUIDES.get(source); }
-            long now = System.currentTimeMillis();
-            if (cached != null && now < cached.retryAt()) return cached.guide();
-            boolean remote = source.matches("(?i)^https?://.*");
-            XmltvGuide disk = remote ? EpgDiskCache.read(source, false) : null;
-            if (disk != null) {
-                putGuide(source, new CachedGuide(disk, EpgDiskCache.freshUntil(source), ""));
-                return disk;
-            }
-            try (InputStream raw = open(source); BufferedInputStream buffered = new BufferedInputStream(raw)) {
-                buffered.mark(2);
-                int first = buffered.read(), second = buffered.read();
-                buffered.reset();
-                InputStream xml = first == 0x1f && second == 0x8b ? new GZIPInputStream(buffered) : buffered;
-                InputStream limited = new LimitedInputStream(xml, sourceSizeLimit());
-                XmltvGuide parsed = remote ? EpgDiskCache.parseAndSave(source, limited) : XmltvGuide.read(limited, Instant.now());
-                putGuide(source, new CachedGuide(parsed, now + EpgDiskCache.ttlMillis(), ""));
-                return parsed;
-            } catch (Exception e) {
-                if (e instanceof InterruptedException || Thread.currentThread().isInterrupted()) {
-                    Thread.currentThread().interrupt();
-                    return cached == null ? EMPTY : cached.guide();
-                }
-                XmltvGuide previous = cached == null ? (remote ? EpgDiskCache.read(source, true) : null) : cached.guide();
-                if (previous == null) previous = EMPTY;
-                putGuide(source, new CachedGuide(previous, now + Duration.ofMinutes(30).toMillis(), warning(e)));
-                AppLog.addWarningLog(EpgApplicationService.class, "EPG source unavailable: " + com.uiptv.util.I18n.tr(warning(e)) + " Retaining previous guide.");
-                return previous;
-            }
-        } finally { GUIDE_LOAD_LOCK.unlock(); }
+    List<String> cacheSources(Account account) {
+        LinkedHashSet<String> sources = new LinkedHashSet<>();
+        try { sources.add(discover(account)); }
+        catch (IOException | RuntimeException error) {
+            AppLog.addWarningLog(EpgApplicationService.class, "Playlist EPG discovery unavailable.");
+        }
+        sources.add(account.getEpg());
+        sources.addAll(globalSources(com.uiptv.service.ConfigurationService.getInstance().read().getGlobalEpgSource()));
+        return sources.stream().filter(source -> source != null && !source.isBlank()).toList();
+    }
+
+    /** Stream one bounded source for the background database importer. */
+    XmltvGuide downloadSource(String source) throws Exception {
+        try (InputStream raw=open(source); BufferedInputStream buffered=new BufferedInputStream(raw)) {
+            buffered.mark(2); int first=buffered.read(),second=buffered.read(); buffered.reset();
+            InputStream xml=first==0x1f && second==0x8b ? new GZIPInputStream(buffered) : buffered;
+            XmltvGuide guide=XmltvGuide.read(new LimitedInputStream(xml,sourceSizeLimit()),Instant.now());
+            Map<String,String> icons=new HashMap<>(); URI base=sourceUri(source);
+            guide.icons().forEach((id,icon) -> {
+                try {
+                    URI resolved=base.resolve(icon); String scheme=resolved.getScheme();
+                    if("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)
+                            || "file".equalsIgnoreCase(scheme) && "file".equalsIgnoreCase(base.getScheme())) icons.put(id,resolved.toString());
+                } catch(IllegalArgumentException ignored) { /* Ignore malformed optional artwork. */ }
+            });
+            return new XmltvGuide(guide.programmes(),guide.names(),guide.qualityNames(),Map.copyOf(icons));
+        }
     }
 
     private String discover(Account account) throws IOException {
@@ -284,27 +178,10 @@ public class EpgApplicationService {
         };
     }
 
-    private static void putGuide(String source, CachedGuide value) {
-        synchronized (GUIDES) {
-            GUIDES.put(source, value);
-            long bytes = GUIDES.values().stream().mapToLong(entry -> entry.bytes()).sum();
-            var entries = GUIDES.entrySet().iterator();
-            while (entries.hasNext() && (bytes > GUIDE_CACHE_BYTES || GUIDES.size() > 32)) {
-                bytes -= entries.next().getValue().bytes();
-                entries.remove();
-            }
-        }
-    }
-
     private static <T> void putBounded(Map<String, T> cache, String key, T value) {
         synchronized (cache) {
             cache.put(key, value);
             while (cache.size() > 8) cache.remove(cache.keySet().iterator().next());
-        }
-    }
-    private record CachedGuide(XmltvGuide guide, long retryAt, String warning, long bytes) {
-        CachedGuide(XmltvGuide guide, long retryAt, String warning) {
-            this(guide, retryAt, warning, guide.estimatedBytes());
         }
     }
     private record DiscoveredSource(String source, long retryAt) { }

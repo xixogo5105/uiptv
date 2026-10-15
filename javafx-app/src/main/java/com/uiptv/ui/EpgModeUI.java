@@ -11,6 +11,12 @@ public final class EpgModeUI {
     private static final javafx.beans.property.LongProperty cacheRevision = new javafx.beans.property.SimpleLongProperty();
     private static final BooleanProperty featureEnabled = new SimpleBooleanProperty(false);
     static {
+        var pending=new java.util.concurrent.atomic.AtomicBoolean();
+        com.uiptv.application.EpgCacheRefreshService.addListener(() -> {
+            if(pending.compareAndSet(false,true)) javafx.application.Platform.runLater(() -> {
+                pending.set(false); cacheRevision.set(cacheRevision.get()+1);
+            });
+        });
         com.uiptv.service.ConfigurationService.getInstance().addChangeListener(_ -> reloadFeature());
         reloadFeature();
     }
@@ -29,20 +35,24 @@ public final class EpgModeUI {
     }
     public static void refreshGuides(Runnable finished) {
         Thread.ofVirtual().start(() -> {
-            try { new com.uiptv.application.EpgApplicationService().clearCache(); }
+            try { new com.uiptv.application.EpgCacheRefreshService().clearAndRefresh(); }
             finally { javafx.application.Platform.runLater(() -> {
                 cacheRevision.set(cacheRevision.get() + 1);
                 if (finished != null) finished.run();
             }); }
         });
     }
-    public static void observe(Node owner, Runnable refresh) {
-        ChangeListener<Boolean> listener = (_, _, _) -> refresh.run();
-        ChangeListener<Number> cacheListener = (_, _, _) -> refresh.run();
-        owner.sceneProperty().addListener((_, oldScene, newScene) -> {
-            if (oldScene != null) { featureEnabled.removeListener(listener); cacheRevision.removeListener(cacheListener); }
-            if (newScene != null) { featureEnabled.addListener(listener); cacheRevision.addListener(cacheListener); refresh.run(); }
+    /** Feature observers may rebuild layout only when the saved enable switch changes. */
+    public static void observe(Node owner,Runnable refresh) { observe(owner,refresh,false); }
+    /** Data observers update existing nodes when cached records change; never rebuild a catalog. */
+    public static void observeCache(Node owner,Runnable refresh) { observe(owner,refresh,true); }
+    private static void observe(Node owner,Runnable refresh,boolean cacheUpdates) {
+        ChangeListener<Boolean> listener=(_,_,_) -> refresh.run();
+        ChangeListener<Number> cacheListener=(_,_,_) -> refresh.run();
+        owner.sceneProperty().addListener((_,oldScene,newScene) -> {
+            if(oldScene!=null) { featureEnabled.removeListener(listener); if(cacheUpdates) cacheRevision.removeListener(cacheListener); }
+            if(newScene!=null) { featureEnabled.addListener(listener); if(cacheUpdates) cacheRevision.addListener(cacheListener); refresh.run(); }
         });
-        if (owner.getScene() != null) { featureEnabled.addListener(listener); cacheRevision.addListener(cacheListener); }
+        if(owner.getScene()!=null) { featureEnabled.addListener(listener); if(cacheUpdates) cacheRevision.addListener(cacheListener); }
     }
 }

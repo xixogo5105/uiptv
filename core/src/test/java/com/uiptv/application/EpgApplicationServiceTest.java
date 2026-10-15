@@ -46,21 +46,23 @@ class EpgApplicationServiceTest extends DbBackedTest {
         });
         assertTrue(channelsPublished.get()); assertFalse(rows.getFirst().programmes().isEmpty());
     }
-    @Test void desktopCatalogDoesNotFetchXmlUntilViewportHydration() throws Exception {
+    @Test void desktopCatalogAndHydrationReadDatabaseUntilBackgroundRefresh() throws Exception {
         Account account = saveCatalog("Deferred", "Channel");
         EpgApplicationService epg = new EpgApplicationService();
         epg.clearCache();
-        var rows = new LiveGuideApplicationService().list(account.getDbId(), initial -> assertFalse(initial.isEmpty()), false);
+        var rows = new LiveGuideApplicationService().list(account.getDbId(), initial -> assertFalse(initial.isEmpty()));
         assertTrue(rows.getFirst().programmes().isEmpty());
         assertTrue(rows.getFirst().nativePending());
-        assertTrue(epg.memorySchedule(account, rows.getFirst().channel()).isEmpty());
+        assertTrue(new EpgCacheApplicationService().schedule(account, rows.getFirst().channel()).isEmpty());
         Channel channel = rows.getFirst().channel();
-        epg.enrichMemory(account, List.of(channel));
+        epg.enrichCached(account, List.of(channel));
         assertNull(channel.getEpgNow());
+        assertTrue(new LiveGuideApplicationService().hydrate(rows.getFirst()).programmes().isEmpty(), "Card reads never fetch a missing source");
+        new EpgCacheRefreshService().refreshAccount(account,List.of(channel));
         var hydrated = new LiveGuideApplicationService().hydrate(rows.getFirst());
         assertFalse(hydrated.nativePending());
         assertEquals("Current", hydrated.programmes().getFirst().title());
-        epg.enrichMemory(account, List.of(channel));
+        epg.enrichCached(account, List.of(channel));
         assertEquals("Current", channel.getEpgNow().title());
     }
 
@@ -82,18 +84,16 @@ class EpgApplicationServiceTest extends DbBackedTest {
             Account account = account("Remote", AccountType.M3U8_URL);
             account.setM3u8Path("http://127.0.0.1:" + server.getAddress().getPort() + "/playlist");
             Channel channel = channel("guide-id", "Test"); EpgApplicationService service = new EpgApplicationService();
-            service.enrich(account, List.of(channel)); service.enrich(account, List.of(channel));
+            new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
+            service.enrichCached(account, List.of(channel));
             assertEquals("Remote current", channel.getEpgNow().title()); assertEquals(1, downloads.get());
-            // Simulate a process restart: discard parsed memory state, retain the feed on disk.
-            var cacheField = EpgApplicationService.class.getDeclaredField("GUIDES"); cacheField.setAccessible(true);
-            ((java.util.Map<?, ?>) cacheField.get(null)).clear();
-            service.enrich(account, List.of(channel));
+            // New service instances read persisted rows without downloading the feed again.
+            new EpgApplicationService().enrichCached(account, List.of(channel));
+            new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
             assertEquals("Remote current", channel.getEpgNow().title()); assertEquals(1, downloads.get());
-            String guideUrl = "http://127.0.0.1:" + server.getAddress().getPort() + "/guide";
-            java.nio.file.Files.setLastModifiedTime(EpgDiskCache.path(guideUrl),
-                    java.nio.file.attribute.FileTime.from(java.time.Instant.now().minus(java.time.Duration.ofHours(25))));
-            ((java.util.Map<?, ?>) cacheField.get(null)).clear();
-            service.enrich(account, List.of(channel));
+            service.clearCache();
+            new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
+            service.enrichCached(account, List.of(channel));
             assertEquals("Remote current", channel.getEpgNow().title()); assertEquals(2, downloads.get());
         } finally { server.stop(0); }
     }
@@ -126,20 +126,18 @@ class EpgApplicationServiceTest extends DbBackedTest {
         Channel channel = channel("guide-id", "Test");
         channel.setDbId("different-local-id");
         channel.setExtraJson("{\"epg_channel_id\":\"guide-id\"}");
-        EpgApplicationService service = new EpgApplicationService();
-        service.enrich(account, List.of(channel));
+        refreshAndEnrich(account, channel);
         assertEquals("Automatic", channel.getEpgNow().title());
         assertEquals("Next", channel.getEpgNext().title());
         Path manual = tempDir.resolve("manual.xml"); Files.writeString(manual, xml("Manual"));
         account.setEpg(manual.toString());
-        service.enrich(account, List.of(channel));
+        refreshAndEnrich(account, channel);
         assertEquals("Automatic", channel.getEpgNow().title());
         assertEquals("guide-id", channel.getChannelId());
         assertEquals("different-local-id", channel.getDbId());
         for (AccountType type : AccountType.values()) {
-            account.setType(type); service.enrich(account, List.of(channel));
-            if (type == AccountType.XTREME_API || type == AccountType.STALKER_PORTAL) assertNull(channel.getEpgNow());
-            else assertEquals(type == AccountType.M3U8_LOCAL || type == AccountType.M3U8_URL ? "Automatic" : "Manual", channel.getEpgNow().title());
+            account.setType(type); refreshAndEnrich(account, channel);
+            assertEquals(type == AccountType.M3U8_LOCAL || type == AccountType.M3U8_URL ? "Automatic" : "Manual", channel.getEpgNow().title());
         }
     }
 
@@ -154,7 +152,7 @@ class EpgApplicationServiceTest extends DbBackedTest {
         Account account = account("Missing", AccountType.STALKER_PORTAL);
         account.setEpg(tempDir.resolve("missing.xml").toString());
         Channel channel = channel("guide-id", "Test");
-        new EpgApplicationService().enrich(account, List.of(channel));
+        new EpgApplicationService().enrichCached(account, List.of(channel));
         assertNull(channel.getEpgNow()); assertNull(channel.getEpgNext());
         Path secret = tempDir.resolve("secret.txt"); Files.writeString(secret, "must-not-appear");
         String xml = "<!DOCTYPE tv [<!ENTITY leak SYSTEM '" + secret.toUri() + "'>]><tv><channel id='x'><display-name>&leak;</display-name></channel></tv>";
@@ -182,17 +180,22 @@ class EpgApplicationServiceTest extends DbBackedTest {
         assertTrue(service.list("nonexistent").isEmpty());
     }
 
+    private void refreshAndEnrich(Account account, Channel channel) {
+        new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
+        new EpgApplicationService().enrichCached(account, List.of(channel));
+    }
     private Account saveCatalog(String name, String channelName) throws Exception {
         Account account = account(name, AccountType.M3U8_LOCAL);
         Path guide = tempDir.resolve(name + ".xml"); Files.writeString(guide, xml("Current")); account.setEpg(guide.toString());
-        AccountDb.get().save(account); account = AccountService.getInstance().getByName(name);
+        account.setDbId(null); AccountDb.get().save(account); account = AccountService.getInstance().getByName(name);
         CategoryDb.get().saveAll(List.of(new Category("provider-category", "Group", "Group", false, 0)), account);
         Category category = CategoryDb.get().getCategories(account).getFirst();
         ChannelDb.get().saveAll(List.of(channel("guide-id", channelName)), category.getDbId(), account);
+        new EpgCacheRefreshService().refreshAccount(account,ChannelDb.get().getCachedLiveChannels(account.getDbId()));
         return account;
     }
     private Account account(String name, AccountType type) {
-        Account account = new Account(); account.setAccountName(name); account.setType(type); account.setAction(Account.AccountAction.itv); return account;
+        Account account = new Account(); account.setDbId(UUID.randomUUID().toString()); account.setAccountName(name); account.setType(type); account.setAction(Account.AccountAction.itv); return account;
     }
     private Channel channel(String id, String name) { Channel c = new Channel(); c.setChannelId(id); c.setName(name); c.setCmd("http://example.invalid/live"); return c; }
     private String xml(String title) {

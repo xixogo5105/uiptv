@@ -44,7 +44,7 @@ public final class PlayerGuideOverlay extends StackPane {
                 MediaPlayerFactory.guideSummaryProperty().addListener(summaryListener); updateAvailability();
             }
         });
-        EpgModeUI.observe(this, this::updateAvailability);
+        EpgModeUI.observeCache(this, this::updateAvailability);
         addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
             if (event.getCode() == javafx.scene.input.KeyCode.ESCAPE && isVisible()) { close(); event.consume(); }
         });
@@ -67,7 +67,7 @@ public final class PlayerGuideOverlay extends StackPane {
         VBox loading = new VBox(10, cancel, new Label(I18n.tr("epgLoading")));
         loading.getStyleClass().add("epg-guide-popup"); getChildren().setAll(loading); setVisible(true); setManaged(true);
         worker = Thread.ofVirtual().start(() -> {
-            var programmes = new EpgApplicationService().schedule(context.account().toAccount(), context.channel());
+            var programmes = new EpgCacheApplicationService().schedule(context.account().toAccount(), context.channel());
             var row = new LiveGuideApplicationService.Row(context.account().dbId(), "", "", context.channel(), programmes);
             Platform.runLater(() -> { if (request == generation && getScene() != null && EpgModeUI.isFeatureEnabled()) show(row); });
         });

@@ -59,7 +59,7 @@ public class PlayerEpgUI extends VBox {
         expandedDetails.getStyleClass().addAll("epg-programme-card", "epg-inline-details");
         expandedDetails.getChildren().add(detailsHeader); closeDetails();
         getChildren().addAll(heading, cards, expandedDetails); setVisible(false); setManaged(false);
-        EpgModeUI.observe(this, () -> refresh(MediaPlayerFactory.guideContextProperty().get(), true));
+        EpgModeUI.observeCache(this, () -> refresh(MediaPlayerFactory.guideContextProperty().get(), true));
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
         sceneProperty().addListener((_, oldScene, newScene) -> {
             if (oldScene != null) { MediaPlayerFactory.guideContextProperty().removeListener(listener); clock.stop(); generation.incrementAndGet(); if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; } display(null); }

@@ -35,7 +35,34 @@ public class LiveGuideApplicationService {
         if (account == null) return row;
         account.setAction(Account.AccountAction.itv);
         return new Row(row.accountId(), row.accountName(), row.bookmarkId(), row.channel(),
-                new EpgApplicationService().schedule(account, row.channel()), false, row.nativeProvider());
+                new EpgCacheApplicationService().schedule(account, row.channel()), false, row.nativeProvider());
+    }
+    /** Visible-card batch: resolve each account once, then query only persisted summaries. */
+    public List<Row> cachedSummaries(List<Row> rows) {
+        Map<String,List<Row>> groups=new LinkedHashMap<>();
+        rows.forEach(row -> groups.computeIfAbsent(row.accountId(),_ -> new ArrayList<>()).add(row));
+        Map<Row,Row> loaded=new IdentityHashMap<>();
+        for(var group:groups.entrySet()) {
+            Account account=AccountService.getInstance().getById(group.getKey());
+            if(account==null) continue;
+            account.setAction(Account.AccountAction.itv);
+            var summaries=new EpgCacheApplicationService().summaries(account,group.getValue().stream().map(Row::channel).toList());
+            for(Row row:group.getValue()) loaded.put(row,new Row(row.accountId(),row.accountName(),row.bookmarkId(),row.channel(),
+                    summaries.getOrDefault(row.channel(),List.of()),false,row.nativeProvider()));
+        }
+        return rows.stream().map(row -> loaded.getOrDefault(row,row)).toList();
+    }
+
+    public Map<Row,String> cachedIcons(List<Row> rows) {
+        Map<Row,String> result=new IdentityHashMap<>(); Map<String,List<Row>> groups=new LinkedHashMap<>();
+        rows.forEach(row -> groups.computeIfAbsent(row.accountId(),_ -> new ArrayList<>()).add(row));
+        for(var group:groups.entrySet()) {
+            Account account=AccountService.getInstance().getById(group.getKey()); if(account==null) continue;
+            account.setAction(Account.AccountAction.itv);
+            var icons=new EpgCacheApplicationService().icons(account,group.getValue().stream().map(Row::channel).toList());
+            group.getValue().forEach(row -> result.put(row,icons.getOrDefault(row.channel(),"")));
+        }
+        return result;
     }
     private boolean nativeProvider(Account account) {
         return account.getType() == com.uiptv.util.AccountType.XTREME_API || account.getType() == com.uiptv.util.AccountType.STALKER_PORTAL;
@@ -56,13 +83,7 @@ public class LiveGuideApplicationService {
     }
 
     public List<Row> list(String accountId, java.util.function.Consumer<List<Row>> channelsReady) throws IOException {
-        return list(accountId, channelsReady, true);
-    }
-
-    /** Desktop guides hydrate only the viewport after publishing the catalog. */
-    public List<Row> list(String accountId, java.util.function.Consumer<List<Row>> channelsReady, boolean loadXml) throws IOException {
         if (!new EpgApplicationService().isEnabled()) return List.of();
-        EpgApplicationService epg = new EpgApplicationService();
         List<Row> rows = new ArrayList<>();
         if (accountId != null && !accountId.isBlank()) {
             Account account = AccountService.getInstance().getById(accountId);
@@ -71,8 +92,8 @@ public class LiveGuideApplicationService {
             List<Channel> channels = CatalogApplicationService.getInstance().listChannels(
                     new CatalogChannelsQuery(accountId, CatalogMode.ITV, CategoryType.ALL.displayName(), ""), false);
             channelsReady.accept(channels.stream().map(channel -> new Row(accountId, account.getAccountName(), "", channel, List.of(), false, nativeProvider(account))).toList());
-            Map<Channel, List<EpgProgramme>> schedules = epg.catalogSchedules(account, channels, loadXml && !nativeProvider(account));
-            for (Channel channel : channels) rows.add(new Row(accountId, account.getAccountName(), "", channel, schedules.getOrDefault(channel, List.of()), (!loadXml && !nativeProvider(account)) || nativeProvider(account) && !new NativeEpgApplicationService().fresh(account, channel), nativeProvider(account)));
+            Map<Channel, List<EpgProgramme>> schedules = new EpgCacheApplicationService().summaries(account, channels);
+            for (Channel channel : channels) rows.add(new Row(accountId, account.getAccountName(), "", channel, schedules.getOrDefault(channel, List.of()), true, nativeProvider(account)));
         } else {
             Set<String> seen = new HashSet<>();
             for (BookmarkResolver.ResolvedBookmark resolved : new BookmarkResolver().resolveBookmarks(BookmarkService.getInstance().read())) {
@@ -90,7 +111,7 @@ public class LiveGuideApplicationService {
                     channel.setCmd(bookmark.getCmd());
                     channel.setLogo(bookmark.getLogo());
                 }
-                rows.add(new Row(account.getDbId(), account.getAccountName(), bookmark.getDbId(), channel, List.of(), (!loadXml && !nativeProvider(account)) || nativeProvider(account) && !new NativeEpgApplicationService().fresh(account, channel), nativeProvider(account)));
+                rows.add(new Row(account.getDbId(), account.getAccountName(), bookmark.getDbId(), channel, List.of(), true, nativeProvider(account)));
             }
         }
         if (accountId == null || accountId.isBlank()) {
@@ -102,7 +123,7 @@ public class LiveGuideApplicationService {
                 if (account == null) continue;
                 account.setAction(Account.AccountAction.itv);
                 loaded.add(new Row(row.accountId(), row.accountName(), row.bookmarkId(), row.channel(),
-                        (!loadXml || nativeProvider(account) ? epg.memorySchedule(account, row.channel()) : epg.cachedSchedule(account, row.channel())), row.nativePending(), row.nativeProvider()));
+                        new EpgCacheApplicationService().summaries(account,List.of(row.channel())).getOrDefault(row.channel(),List.of()), row.nativePending(), row.nativeProvider()));
             }
             return List.copyOf(loaded);
         }

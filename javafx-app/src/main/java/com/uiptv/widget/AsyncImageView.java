@@ -24,7 +24,12 @@ public class AsyncImageView extends StackPane {
     private final ImageView imageView = new ImageView();
     private final Region defaultIcon = new Region();
     @SuppressWarnings("java:S1450")
-    private String currentUrl;
+    private volatile String currentUrl;
+    private String primaryUrl;
+    private String primaryType;
+    private volatile String fallbackUrl;
+    private volatile String fallbackType;
+    private volatile boolean primaryFailed;
     private volatile javafx.animation.PauseTransition loadDebounce;
     private static volatile boolean scrolling = false;
     private static final ConcurrentLinkedQueue<AsyncImageView> PENDING_UI_UPDATES = new ConcurrentLinkedQueue<>();
@@ -64,9 +69,25 @@ public class AsyncImageView extends StackPane {
         getChildren().addAll(defaultIcon, imageView);
     }
 
-    public void loadImage(String url, String type) {
+    public void loadImage(String url,String type) {
+        primaryUrl=url; primaryType=type; primaryFailed=false; fallbackUrl=null; fallbackType=null;
+        loadImageUrl(url,type);
+    }
+
+    /** Optional EPG artwork, supplied only for enabled live cards; primary images always win. */
+    public void setFallbackImage(String url,String type) {
+        String previous=fallbackUrl;
+        fallbackUrl=url==null ? "" : url; fallbackType=type;
+        if(fallbackUrl.isBlank()) {
+            if(previous!=null && !previous.isBlank() && Objects.equals(currentUrl,previous)) loadImageUrl(primaryUrl,primaryType);
+        } else if(currentUrl==null || currentUrl.isBlank() || primaryFailed || Objects.equals(currentUrl,previous)) {
+            loadImageUrl(fallbackUrl,type);
+        }
+    }
+
+    private void loadImageUrl(String url,String type) {
         if (url == null || url.isEmpty()) {
-            clearImage();
+            clearImageState();
             return;
         }
         if (Objects.equals(url, this.currentUrl) && imageView.getImage() != null) {
@@ -123,12 +144,16 @@ public class AsyncImageView extends StackPane {
 
     private void loadImageAsync(String url, String type) {
         ImageCacheManager.loadImageAsync(url, type)
-                .thenAccept(image -> {
-                    if (image != null && Objects.equals(url, this.currentUrl)) {
-                        pendingImage = image;
-                        pendingUrl = url;
-                        queueUiUpdate();
+                .handle((image,error) -> {
+                    if(image!=null && Objects.equals(url,currentUrl)) {
+                        pendingImage=image; pendingUrl=url; queueUiUpdate();
+                    } else if(Objects.equals(url,currentUrl) && !Objects.equals(url,fallbackUrl)) {
+                        primaryFailed=true;
+                        Platform.runLater(() -> {
+                            if(Objects.equals(url,currentUrl) && fallbackUrl!=null && !fallbackUrl.isBlank()) loadImageUrl(fallbackUrl,fallbackType);
+                        });
                     }
+                    return null;
                 });
     }
 
@@ -170,6 +195,10 @@ public class AsyncImageView extends StackPane {
     }
 
     public void clearImage() {
+        primaryUrl=null; primaryType=null; primaryFailed=false; fallbackUrl=null; fallbackType=null;
+        clearImageState();
+    }
+    private void clearImageState() {
         if (loadDebounce != null) {
             loadDebounce.stop();
         }

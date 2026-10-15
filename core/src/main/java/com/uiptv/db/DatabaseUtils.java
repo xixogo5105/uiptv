@@ -91,7 +91,8 @@ public class DatabaseUtils {
                 new DataColumn("themeMode", "TEXT"),
                 new DataColumn("epgEnabled", "TEXT"),
                 new DataColumn("globalEpgSource", "TEXT"),
-                new DataColumn("epgMappingsJson", "TEXT")
+                new DataColumn("epgMappingsJson", "TEXT"),
+                new DataColumn("epgRefreshIntervalHours", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
@@ -342,6 +343,39 @@ public class DatabaseUtils {
                 new DataColumn("category_id", "TEXT"), // Can be null for "All"
                 new DataColumn("display_order", INTEGER_TYPE)
         )));
+        dbStructure.put(DbTable.EPG_SOURCE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("source_id", "TEXT"),
+                new DataColumn("refreshed_at", "INTEGER"),
+                new DataColumn("retry_at", "INTEGER"),
+                new DataColumn("warning", "TEXT")
+        )));
+        dbStructure.put(DbTable.EPG_PROGRAMME_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("source_id", "TEXT"),
+                new DataColumn("guide_channel_id", "TEXT"),
+                new DataColumn("starts_at", "INTEGER"),
+                new DataColumn("stops_at", "INTEGER"),
+                new DataColumn("title", "TEXT"),
+                new DataColumn("description", "BLOB")
+        )));
+        dbStructure.put(DbTable.EPG_ALIAS_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("source_id", "TEXT"),
+                new DataColumn("kind", "INTEGER"),
+                new DataColumn("name", "TEXT"),
+                new DataColumn("guide_channel_id", "TEXT")
+        )));
+        dbStructure.put(DbTable.EPG_CHANNEL_MAPPING_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("account_id", "TEXT"),
+                new DataColumn("provider_channel_id", "TEXT"),
+                new DataColumn("signature", "TEXT"),
+                new DataColumn("source_id", "TEXT"),
+                new DataColumn("guide_channel_id", "TEXT"),
+                new DataColumn("priority", "INTEGER")
+        )));
+        dbStructure.put(DbTable.EPG_CHANNEL_ICON_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("source_id", "TEXT"),
+                new DataColumn("guide_channel_id", "TEXT"),
+                new DataColumn("icon_url", "TEXT")
+        )));
         KNOWN_TABLE_NAMES.addAll(dbStructure.keySet());
     }
 
@@ -433,7 +467,12 @@ public class DatabaseUtils {
         PUBLISHED_M3U_CATEGORY_SELECTION_TABLE("PublishedM3uCategorySelection"),
         PUBLISHED_M3U_CHANNEL_SELECTION_TABLE("PublishedM3uChannelSelection"),
         BOOKMARK_CATEGORY_TABLE("BookmarkCategory"),
-        BOOKMARK_ORDER_TABLE("BookmarkOrder"); // Added new table
+        BOOKMARK_ORDER_TABLE("BookmarkOrder"),
+        EPG_SOURCE_TABLE("epg_source"),
+        EPG_PROGRAMME_TABLE("epg_programme"),
+        EPG_ALIAS_TABLE("epg_alias"),
+        EPG_CHANNEL_MAPPING_TABLE("epg_channel_mapping"),
+        EPG_CHANNEL_ICON_TABLE("epg_channel_icon");
 
         private final String tableName;
 

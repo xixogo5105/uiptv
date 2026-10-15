@@ -27,6 +27,10 @@ class EpgResolutionTest extends DbBackedTest {
         Files.writeString(path, "<tv><programme channel='" + id + "' start='" + format.format(now.minusSeconds(60)) + "' stop='" + format.format(now.plusSeconds(3600)) + "'><title>" + title + "</title></programme></tv>");
         return path.toString();
     }
+    private List<EpgProgramme> schedule(Account account, Channel channel) {
+        new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
+        return new EpgCacheApplicationService().summaries(account, List.of(channel)).getOrDefault(channel, List.of());
+    }
     @Test void namedProgrammesKeepTheirDurationWhenGenericPlaceholdersOverlap() {
         var godzilla = new EpgProgramme("Godzilla", "", 1000, 3000);
         var movie = new EpgProgramme("Movie", "", 1500, 4000);
@@ -38,8 +42,8 @@ class EpgResolutionTest extends DbBackedTest {
         account.setType(AccountType.XTREME_API); account.setEpg("https://example.invalid/account.xml");
         config.setGlobalEpgSource("https://example.invalid/global.xml"); ConfigurationService.getInstance().save(config);
         try (var http = mockStatic(HttpUtil.class)) {
-            var service = new EpgApplicationService(); service.enrich(account, List.of(channel));
-            assertTrue(service.catalogSchedules(account, List.of(channel), false).get(channel).isEmpty());
+            var service = new EpgApplicationService(); service.enrichCached(account, List.of(channel));
+            assertTrue(new EpgCacheApplicationService().summaries(account, List.of(channel)).get(channel).isEmpty());
             http.verifyNoInteractions();
         }
     }
@@ -68,19 +72,35 @@ class EpgResolutionTest extends DbBackedTest {
         assertEquals("epgSourceTooLarge", warning.invoke(null,
                 new javax.xml.stream.XMLStreamException("Parse error", new java.io.IOException("Guide exceeds size limit"))));
     }
+    @Test void globalWarningsComeFromPersistedSourceStateAndRespectEnableSwitch() {
+        String source = "https://example.invalid/guide.xml";
+        config.setGlobalEpgSource(source); ConfigurationService.getInstance().save(config);
+        var service = new EpgApplicationService();
+        assertEquals("", service.globalWarning());
+        new EpgCacheDb().failed(EpgCacheApplicationService.sourceId(source), System.currentTimeMillis() + 60_000, "epgSourceTooLarge");
+        assertEquals("epgSourceTooLarge", new EpgApplicationService().globalWarning());
+        config.setEpgEnabled(false); ConfigurationService.getInstance().save(config);
+        assertEquals("", service.globalWarning());
+        config.setEpgEnabled(true); ConfigurationService.getInstance().save(config);
+        service.clearCache();
+        assertEquals("", service.globalWarning());
+    }
+
     @Test void elevenConfiguredFeedsAreNotEvictedDuringChannelMatching() throws Exception {
         java.util.ArrayList<String> sources = new java.util.ArrayList<>();
         for (int i = 0; i < 11; i++) sources.add(source("regional-" + i, "other-" + i, "Other"));
         config.setGlobalEpgSource(String.join("\n", sources)); ConfigurationService.getInstance().save(config);
         var service = new EpgApplicationService(); service.clearCache();
-        assertTrue(service.schedule(account, channel).isEmpty());
-        var field = EpgApplicationService.class.getDeclaredField("GUIDES"); field.setAccessible(true);
-        java.util.Map<?, ?> cache = (java.util.Map<?, ?>) field.get(null);
-        assertTrue(cache.keySet().containsAll(sources));
-        java.util.Map<String, Object> first = new java.util.HashMap<>();
-        for (String source : sources) first.put(source, cache.get(source));
-        service.schedule(account, channel);
-        for (String source : sources) assertSame(first.get(source), cache.get(source), "Feed was unnecessarily reloaded");
+        assertTrue(schedule(account, channel).isEmpty());
+        var cache = new EpgCacheDb();
+        Map<String, EpgCacheDb.SourceState> first = new HashMap<>();
+        for (String source : sources) {
+            var state = cache.sourceState(EpgCacheApplicationService.sourceId(source));
+            assertTrue(state.refreshedAt() > 0); first.put(source, state);
+            Files.delete(Path.of(source));
+        }
+        schedule(account, channel);
+        for (String source : sources) assertEquals(first.get(source), cache.sourceState(EpgCacheApplicationService.sourceId(source)), "Feed was unnecessarily reloaded");
     }
 
     @Test void multipleGlobalSourcesFallThroughAndRefreshReplacesCachedSchedules() throws Exception {
@@ -90,11 +110,11 @@ class EpgResolutionTest extends DbBackedTest {
         ConfigurationService.getInstance().save(config);
         assertEquals(List.of(first, second), EpgApplicationService.globalSources(config.getGlobalEpgSource()));
         var service = new EpgApplicationService();
-        assertEquals("Second", service.schedule(account, channel).getFirst().title());
+        assertEquals("Second", schedule(account, channel).getFirst().title());
         source("global-second", channel.getChannelId(), "Updated");
-        assertEquals("Second", service.schedule(account, channel).getFirst().title());
+        assertEquals("Second", schedule(account, channel).getFirst().title());
         service.clearCache();
-        assertEquals("Updated", service.schedule(account, channel).getFirst().title());
+        assertEquals("Updated", schedule(account, channel).getFirst().title());
         assertEquals(config.getGlobalEpgSource(), ConfigurationService.getInstance().read().getGlobalEpgSource());
     }
     @Test void unmatchedAndInvalidSourcesFallThroughPerChannel() throws Exception {
@@ -103,19 +123,19 @@ class EpgResolutionTest extends DbBackedTest {
         account.setM3u8Path(playlist.toString());
         account.setEpg(source("account", channel.getChannelId(), "Account"));
         config.setGlobalEpgSource(source("global", channel.getChannelId(), "Global")); ConfigurationService.getInstance().save(config);
-        assertEquals("Account", new EpgApplicationService().schedule(account, channel).getFirst().title());
+        assertEquals("Account", schedule(account, channel).getFirst().title());
         account.setEpg(source("unmatched", "other", "Other"));
-        assertEquals("Global", new EpgApplicationService().schedule(account, channel).getFirst().title());
+        assertEquals("Global", schedule(account, channel).getFirst().title());
         Path broken = tempDir.resolve("broken.xml"); Files.writeString(broken, "not XML"); account.setEpg(broken.toString());
-        assertEquals("Global", new EpgApplicationService().schedule(account, channel).getFirst().title());
+        assertEquals("Global", schedule(account, channel).getFirst().title());
     }
     @Test void disabledClearsTransientDataAndDoesNotOpenSourcesOrProviders() throws Exception {
         config.setEpgEnabled(false); ConfigurationService.getInstance().save(config);
         account.setType(AccountType.XTREME_API); account.setEpg("https://example.invalid/never-request");
         channel.setEpgNow(new EpgProgramme("Old", "", 1, 2));
         try (var provider = mockStatic(XtremeApiParser.class)) {
-            EpgApplicationService service = new EpgApplicationService(); service.enrich(account, List.of(channel));
-            assertNull(channel.getEpgNow()); assertTrue(service.schedule(account, channel).isEmpty());
+            EpgApplicationService service = new EpgApplicationService(); service.enrichCached(account, List.of(channel));
+            assertNull(channel.getEpgNow()); assertTrue(schedule(account, channel).isEmpty());
             assertTrue(new LiveGuideApplicationService().list(account.getDbId()).isEmpty());
             assertNull(new PlayerEpgApplicationService().lookup(null).now()); provider.verifyNoInteractions();
         }
@@ -129,8 +149,8 @@ class EpgResolutionTest extends DbBackedTest {
         try (var provider = mockStatic(XtremeApiParser.class)) {
             provider.when(() -> XtremeApiParser.fetchEpg(account, "get_simple_data_table", "provider-stream")).thenThrow(new java.io.IOException("unsupported"));
             provider.when(() -> XtremeApiParser.fetchEpg(account, "get_short_epg", "provider-stream")).thenReturn(json);
-            assertEquals("Native", new EpgApplicationService().schedule(account, channel).getFirst().title());
-            assertEquals("Native", new EpgApplicationService().schedule(account, channel).getFirst().title());
+            assertEquals("Native", schedule(account, channel).getFirst().title());
+            assertEquals("Native", schedule(account, channel).getFirst().title());
             provider.verify(() -> XtremeApiParser.fetchEpg(account, "get_short_epg", "provider-stream"), times(1));
         }
     }
@@ -147,7 +167,7 @@ class EpgResolutionTest extends DbBackedTest {
         assertEquals(channel.getExtraJson(), cached.getExtraJson());
         assertEquals("correct-guide", new EpgMappingApplicationService().read(account.getDbId(), cached.getChannelId()));
         account.setEpg(source("mapped", "correct-guide", "Mapped"));
-        assertEquals("Mapped", new EpgApplicationService().schedule(account, cached).getFirst().title());
+        assertEquals("Mapped", schedule(account, cached).getFirst().title());
         assertEquals("correct-guide", new org.json.JSONObject(ConfigurationDb.get().getConfiguration().getEpgMappingsJson()).getJSONObject(account.getDbId()).getString("provider-stream"));
     }
     @Test void stalkerUsesAuthenticatedSessionAndUnsupportedActionsFallBackWithoutChangingCommand() throws Exception {
@@ -158,7 +178,7 @@ class EpgResolutionTest extends DbBackedTest {
         var response = FetchAPI.FetchResult.success(payload, 200);
         try (var portal = mockStatic(FetchAPI.class); var handshakes = mockStatic(HandshakeService.class)) {
             portal.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), eq(account), any())).thenReturn(response);
-            assertEquals("Portal current", new EpgApplicationService().schedule(account, channel).getFirst().title());
+            assertEquals("Portal current", schedule(account, channel).getFirst().title());
             handshakes.verifyNoInteractions();
             var request = org.mockito.ArgumentCaptor.forClass(Map.class);
             portal.verify(() -> FetchAPI.fetchWithDiagnostics(request.capture(), eq(account), any()));
@@ -170,7 +190,7 @@ class EpgResolutionTest extends DbBackedTest {
         account.setDbId(UUID.randomUUID().toString());
         try (var portal = mockStatic(FetchAPI.class)) {
             portal.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), eq(account), any())).thenReturn(FetchAPI.FetchResult.success("{\"js\":false}", 200));
-            assertEquals("XMLTV fallback", new EpgApplicationService().schedule(account, channel).getFirst().title());
+            assertEquals("XMLTV fallback", schedule(account, channel).getFirst().title());
             assertEquals("original-playback-command", channel.getCmd());
         }
     }
@@ -182,7 +202,7 @@ class EpgResolutionTest extends DbBackedTest {
         try (var portal = mockStatic(FetchAPI.class); var handshakes = mockStatic(HandshakeService.class)) {
             handshakes.when(HandshakeService::getInstance).thenReturn(handshake);
             portal.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), eq(account), any())).thenReturn(FetchAPI.FetchResult.transportFailure("", 401, "Unauthorized"));
-            assertEquals("Account fallback", new EpgApplicationService().schedule(account, channel).getFirst().title());
+            assertEquals("Account fallback", schedule(account, channel).getFirst().title());
             verify(handshake).connect(account);
         }
     }

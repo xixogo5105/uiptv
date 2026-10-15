@@ -77,6 +77,18 @@ public class ChannelDb extends BaseDb {
         return getAll(" WHERE categoryId=?", new String[]{dbId});
     }
 
+    /** Local live catalog only; never invokes provider APIs. */
+    public List<Channel> getCachedLiveChannels(String accountId) {
+        String sql="SELECT c.* FROM " + validatedTableName(CHANNEL_TABLE) + " c JOIN " + validatedTableName(CATEGORY_TABLE)
+                + " cat ON cat.id=c.categoryId WHERE cat.accountId=? ORDER BY c.id";
+        List<Channel> result=new ArrayList<>();
+        try(Connection connection=connect(); var query=connection.prepareStatement(sql)) {
+            query.setString(1,accountId);
+            try(var rows=query.executeQuery()) { while(rows.next()) result.add(populate(rows)); }
+        } catch(SQLException error) { throw new DatabaseAccessException("Unable to read local live catalog",error); }
+        return result;
+    }
+
     public int getChannelCountForAccount(String accountId) {
         String sql = "SELECT COUNT(*) FROM " + validatedTableName(CHANNEL_TABLE) +
                 " WHERE categoryId IN (" +
@@ -192,6 +204,7 @@ public class ChannelDb extends BaseDb {
                 }
                 statement.executeBatch();
                 conn.commit();
+                com.uiptv.application.EpgCacheRefreshService.requestRefresh();
             } catch (SQLException e) {
                 conn.rollback();
                 throw new DatabaseAccessException("Unable to execute saveAll query", e);

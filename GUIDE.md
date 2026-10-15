@@ -461,17 +461,10 @@ To correct an ID mismatch, right-click a desktop guide channel or open Android *
 
 ### Global EPG sources and refresh
 
-Settings accepts multiple global XMLTV sources, one URL or local file per line. Put regional feeds (for example India, UK, USA and Australia) in priority order. Existing single-source settings remain compatible and sync uses the same configuration field. Each channel uses the first source with a usable matching schedule after provider/account sources; schedules are not combined. Duplicate names within a feed remain ambiguous. Unique matches can ignore standalone quality labels such as HD or 4K while retaining region names.
+Settings accepts multiple global XMLTV sources, one URL or local file per line. Put regional feeds (for example India, UK, USA and Australia) in priority order. Existing single-source settings remain compatible and sync uses the same configuration field. Desktop schedules prefer embedded/provider, account and then global sources; specific titles replace generic placeholders for overlapping intervals. Duplicate names within a feed remain ambiguous. Unique matches can ignore standalone quality labels such as HD or 4K while retaining region names.
 
 The desktop gear and Settings enable controls update the same persistent EPG flag. Refresh EPG clears transient guide, discovery and provider caches and reloads schedules, preserving accounts, bookmarks and saved mappings. Oversized feeds report a warning; use regional feeds instead of an oversized worldwide feed.
 
-Desktop EPG cache uses the same INI directory and TTL conventions as thumbnails:
-
-```ini
-epg.tmp.cache.dir=/Volumes/backup/uiptv-database/epg/
-epg.cache.ttl=24h
-```
-
-Downloaded XMLTV remains cached across restarts. The default TTL is 24 hours. Refresh EPG clears this cache and downloads again. Native provider schedules have a separate short-lived cache.
+Desktop EPG records persist in dedicated tables within the existing application database. Set the background refresh interval in Settings. Refresh EPG clears those records and fetches fresh data when EPG is enabled. No separate cache directory or INI TTL setting is required.
 
 In the mobile embedded mpv player, swipe inward from the far left or far right edge of the video to open a panel on that side, or tap **Guide** to open it on the right with the on-air programme title, local times, progress and full description, followed by Up next. Swipe outward toward the same edge or tap **Close guide** to close it. The panel uses cached EPG data and respects player locking and the mobile EPG enable switch.

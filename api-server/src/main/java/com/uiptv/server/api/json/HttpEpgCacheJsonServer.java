@@ -1,7 +1,6 @@
 package com.uiptv.server.api.json;
 
 import com.sun.net.httpserver.*;
-import com.uiptv.application.EpgApplicationService;
 import org.json.JSONObject;
 import java.io.IOException;
 import static com.uiptv.util.ServerUtils.writeJsonResponse;
@@ -12,7 +11,7 @@ public class HttpEpgCacheJsonServer implements HttpHandler {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             exchange.getResponseHeaders().set("Allow", "POST"); exchange.sendResponseHeaders(405, -1); return;
         }
-        new EpgApplicationService().clearCache();
+        new com.uiptv.application.EpgCacheRefreshService().clearAndRefresh();
         writeJsonResponse(exchange, 200, new JSONObject().put("cleared", true).toString());
     }
 }

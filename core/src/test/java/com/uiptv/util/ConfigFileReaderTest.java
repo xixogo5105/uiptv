@@ -81,19 +81,6 @@ class ConfigFileReaderTest {
         assertEquals(expectedHours, ConfigFileReader.getThumbnailCacheTtlHours());
     }
 
-    @Test void epgUsesSameDirectoryAndTtlConventions(@TempDir Path tempDir) throws Exception {
-        setConfigFilePath(tempDir.resolve("missing.ini").toString());
-        assertNull(ConfigFileReader.getEpgTmpCacheDir());
-        assertEquals(24, ConfigFileReader.getEpgCacheTtlHours());
-        File ini = writeIni(tempDir.resolve("uiptv.ini"), "epg.tmp.cache.dir=" + tempDir.toString().replace('\\', '/') + "\nepg.cache.ttl=24h\n");
-        setConfigFilePath(ini.toString());
-        assertEquals(tempDir.toFile().getAbsolutePath(), ConfigFileReader.getEpgTmpCacheDir());
-        assertEquals(24, ConfigFileReader.getEpgCacheTtlHours());
-        writeIni(ini.toPath(), "epg.tmp.cache.dir=relative/path\nepg.cache.ttl=2d\n");
-        assertNull(ConfigFileReader.getEpgTmpCacheDir());
-        assertEquals(48, ConfigFileReader.getEpgCacheTtlHours());
-    }
-
     static Stream<Arguments> ttlTestCases() {
         return Stream.of(
                 Arguments.of("14", 14 * 24),

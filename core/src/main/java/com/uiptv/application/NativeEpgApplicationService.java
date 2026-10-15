@@ -33,18 +33,7 @@ public class NativeEpgApplicationService {
             IN_FLIGHT.values().forEach(future -> future.complete(List.of())); IN_FLIGHT.clear();
         }
     }
-    public boolean fresh(Account account, Channel channel) {
-        synchronized (CACHE) {
-            Cached value = CACHE.get(key(account, channel));
-            return value != null && System.currentTimeMillis() < value.retryAt();
-        }
-    }
-    public List<EpgProgramme> cached(Account account, Channel channel) {
-        synchronized (CACHE) {
-            Cached value = CACHE.get(key(account, channel));
-            return value == null ? List.of() : value.programmes();
-        }
-    }
+    void expire(Account account,Channel channel) { synchronized(CACHE) { CACHE.remove(key(account,channel)); } }
     private Key key(Account account, Channel channel) {
         return new Key(account.getDbId(), account.getType(), account.getUrl() + "|" + account.getM3u8Path() + "|" + account.getServerPortalUrl(),
                 account.getUsername(), account.getType() == AccountType.STALKER_PORTAL ? account.getMacAddress() : account.getPassword(), channel.getChannelId());

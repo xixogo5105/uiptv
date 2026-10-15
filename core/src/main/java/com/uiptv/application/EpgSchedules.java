@@ -5,7 +5,56 @@ import java.util.*;
 /** Resolve overlaps within one source, without combining schedules from different sources. */
 public final class EpgSchedules {
     private EpgSchedules() { }
-    private static boolean generic(String title) { return Set.of("movie", "film", "programme", "program").contains(title.strip().toLowerCase(Locale.ROOT)); }
+    private static final Set<String> GENERIC_TITLES = Set.of(
+            "movie", "movies", "film", "films", "cinema", "drama", "series", "tv series", "episode",
+            "programme", "program", "programming", "tv programme", "tv program", "show", "tv show",
+            "entertainment", "general entertainment", "music", "sports", "sport", "news", "live", "live tv",
+            "documentary", "comedy", "cartoon", "children", "kids", "religious", "teleshopping", "shopping",
+            "action", "romance", "thriller", "adventure", "horror", "family", "suspense", "musical", "serial", "serials",
+            "reality", "reality show", "lifestyle", "travel", "cooking", "animation", "soap", "soap opera", "talk show",
+            "infomercial", "paid programming", "cricket", "football", "tennis", "hockey", "basketball", "baseball", "rugby",
+            "motor sport", "motorsport", "sports programme", "religious programme", "news bulletin", "news update",
+            "tba", "tbc", "t b a", "t b c", "to be announced", "to be confirmed", "no information", "no info", "no data",
+            "no programme information", "no program information", "programme information unavailable",
+            "program information unavailable", "schedule unavailable", "not available", "unknown",
+            "película", "pelicula", "películas", "filme", "filmes", "émission", "emission", "programm",
+            "фильм", "программа", "фільм", "програма", "फिल्म", "फ़िल्म", "कार्यक्रम", "فلم", "پروگرام",
+            "电影", "電影", "节目", "節目", "映画", "番組", "영화", "프로그램");
+    private static final java.util.regex.Pattern GENERIC_SEPARATORS=java.util.regex.Pattern.compile("[\\s\\p{Punct}]+");
+    public static boolean isGenericTitle(String title) {
+        if (title == null || title.isBlank()) return true;
+        String normalized=GENERIC_SEPARATORS.matcher(title.strip().toLowerCase(Locale.ROOT)).replaceAll(" ").strip();
+        return GENERIC_TITLES.contains(normalized);
+    }
+    private static boolean generic(String title) { return isGenericTitle(title); }
+    /** Source order wins unless its entry is generic. Resolve each time interval independently. */
+    public static List<EpgProgramme> preferSources(List<List<EpgProgramme>> sources) {
+        record Candidate(EpgProgramme programme,int source) { }
+        var priority=Comparator.comparing((Candidate c) -> generic(c.programme().title())).thenComparingInt(Candidate::source)
+                .thenComparing(Comparator.comparingLong((Candidate c) -> c.programme().start()).reversed())
+                .thenComparingLong(c -> c.programme().stop()).thenComparing(c -> c.programme().title()).thenComparing(c -> c.programme().description());
+        Map<Long,List<Candidate>> starts=new HashMap<>(),stops=new HashMap<>(); TreeSet<Long> boundaries=new TreeSet<>();
+        for(int source=0;source<sources.size();source++) for(EpgProgramme p:sources.get(source)) {
+            if(p.stop()<=p.start()) continue;
+            Candidate candidate=new Candidate(p,source);
+            starts.computeIfAbsent(p.start(),_ -> new ArrayList<>()).add(candidate);
+            stops.computeIfAbsent(p.stop(),_ -> new ArrayList<>()).add(candidate);
+            boundaries.add(p.start()); boundaries.add(p.stop());
+        }
+        var times=new ArrayList<>(boundaries); var active=new TreeSet<>(priority); List<EpgProgramme> result=new ArrayList<>(); Candidate previous=null;
+        for(int i=0;i+1<times.size();i++) {
+            long start=times.get(i),stop=times.get(i+1);
+            active.removeAll(stops.getOrDefault(start,List.of())); active.addAll(starts.getOrDefault(start,List.of()));
+            if(active.isEmpty()) { previous=null; continue; }
+            Candidate winner=active.first(); EpgProgramme p=winner.programme();
+            if(winner.equals(previous) && !result.isEmpty() && result.getLast().stop()==start) {
+                EpgProgramme last=result.getLast(); result.set(result.size()-1,new EpgProgramme(last.title(),last.description(),last.start(),stop));
+            } else result.add(new EpgProgramme(p.title(),p.description(),start,stop));
+            previous=winner;
+        }
+        return List.copyOf(result);
+    }
+
     public static List<EpgProgramme> normalize(List<EpgProgramme> input) {
         var priority = Comparator.comparing((EpgProgramme p) -> generic(p.title()))
                 .thenComparing(Comparator.comparingLong(EpgProgramme::start).reversed())

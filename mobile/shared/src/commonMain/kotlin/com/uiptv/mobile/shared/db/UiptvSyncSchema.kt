@@ -45,7 +45,10 @@ object UiptvSyncSchema {
         "Configuration"
     )
 
-    val desktopTablesPreservedButHiddenInV1: List<String> = emptyList()
+    // Disposable desktop/server guide caches share the cloned database but are not editable mobile catalogs.
+    val desktopTablesPreservedButHiddenInV1: List<String> = listOf(
+        "epg_source", "epg_programme", "epg_alias", "epg_channel_mapping", "epg_channel_icon"
+    )
 
     /**
      * Configuration columns that never travel between a desktop and an Android device.

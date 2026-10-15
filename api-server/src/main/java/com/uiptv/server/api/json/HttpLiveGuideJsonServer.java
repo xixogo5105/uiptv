@@ -18,9 +18,12 @@ public class HttpLiveGuideJsonServer implements HttpHandler {
         String visible = getParam(exchange, "visibleIds");
         var result = visible == null || visible.isBlank() ? service.list(getParam(exchange, "accountId"))
                 : service.visible(getParam(exchange, "accountId"), visible);
+        var icons=service.cachedIcons(result);
         for (LiveGuideApplicationService.Row row : result) {
+            JSONObject channel=new JSONObject(row.channel());
+            if(channel.optString("logo","").isBlank() && !icons.getOrDefault(row,"").isBlank()) channel.put("logo",icons.get(row));
             rows.put(new JSONObject().put("accountId", row.accountId()).put("accountName", row.accountName())
-                    .put("nativePending", row.nativePending()).put("nativeProvider", row.nativeProvider()).put("bookmarkId", row.bookmarkId()).put("channel", new JSONObject(row.channel()))
+                    .put("nativePending", row.nativePending()).put("nativeProvider", row.nativeProvider()).put("bookmarkId", row.bookmarkId()).put("channel",channel)
                     .put("programmes", new JSONArray(row.programmes())));
         }
         String warning = new com.uiptv.application.EpgApplicationService().globalWarning();

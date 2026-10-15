@@ -418,6 +418,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
     }
 
+    private var playerOwnsTouchGesture = false
+
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (locked && ::unlockButton.isInitialized) {
             if (unlockButton.visibility == View.VISIBLE &&
@@ -429,11 +431,17 @@ class MpvEmbeddedPlayerActivity : Activity() {
             }
             return true
         }
-        if (event.isInsideVisibleOverlay(epgPanel)) return super.dispatchTouchEvent(event)
-        if (event.isInsideVisibleOverlay(controlsOverlay) || event.isInsideVisibleOverlay(playlistOverlay)) {
-            return super.dispatchTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            playerOwnsTouchGesture = !event.isInsideVisibleOverlay(epgPanel) &&
+                !event.isInsideVisibleOverlay(controlsOverlay) && !event.isInsideVisibleOverlay(playlistOverlay)
         }
-        return handlePlayerTouch(event)
+        // Keep the original target for the whole gesture, even when it crosses an overlay edge.
+        // Otherwise a video swipe loses its UP event to the drawer it is trying to dismiss.
+        val ownedByPlayer = playerOwnsTouchGesture
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            playerOwnsTouchGesture = false
+        }
+        return if (ownedByPlayer) handlePlayerTouch(event) else super.dispatchTouchEvent(event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean =

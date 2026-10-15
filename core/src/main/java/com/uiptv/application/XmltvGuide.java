@@ -9,7 +9,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /** Streaming XMLTV reader. External DTDs and entities are never fetched. */
-public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names, Map<String, String> qualityNames) {
+public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names, Map<String, String> qualityNames, Map<String,String> icons) {
     private static final java.util.regex.Pattern WHITESPACE = java.util.regex.Pattern.compile("\\s+");
     private static final java.util.regex.Pattern QUALITY = java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}])(?:fhd|uhd|hd|sd|4k|8k|720p|1080p|2160p)(?![\\p{L}\\p{N}])");
     private static final java.util.regex.Pattern EMPTY_BRACKETS = java.util.regex.Pattern.compile("\\([\\s|/,-]*\\)|\\[[\\s|/,-]*\\]");
@@ -17,7 +17,10 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
     private static final DateTimeFormatter XMLTV_TIME = DateTimeFormatter.ofPattern("uuuuMMddHHmmss").withResolverStyle(java.time.format.ResolverStyle.STRICT);
 
     public XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names) {
-        this(programmes, names, qualityAliases(names));
+        this(programmes,names,qualityAliases(names),Map.of());
+    }
+    public XmltvGuide(Map<String,List<EpgProgramme>> programmes,Map<String,String> names,Map<String,String> qualityNames) {
+        this(programmes,names,qualityNames,Map.of());
     }
     public static XmltvGuide read(InputStream input, Instant now) throws Exception {
         XMLInputFactory factory = XMLInputFactory.newFactory();
@@ -32,6 +35,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         factory.setXMLResolver((publicId, systemId, base, namespace) -> { throw new javax.xml.stream.XMLStreamException("External entities disabled"); });
         CompactProgrammeMap.Builder programmes = new CompactProgrammeMap.Builder();
         Map<String, String> names = new HashMap<>();
+        Map<String,String> icons=new HashMap<>();
         Set<String> ambiguous = new HashSet<>();
         Map<String, String> qualityNames = new HashMap<>();
         Set<String> ambiguousQuality = new HashSet<>();
@@ -59,6 +63,13 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                                 if (qualityPrevious != null && !qualityPrevious.equals(id)) ambiguousQuality.add(qualityName);
                             }
                         }
+                        case "icon" -> {
+                            String icon=reader.getAttributeValue(null,"src");
+                            if(id!=null && channel==null && icon!=null && !icon.isBlank() && icon.length()<=4096) {
+                                icons.putIfAbsent(id,icon.strip()); retainedBytes+=256L+icon.length()*4L;
+                                if(retainedBytes>32L*1024*1024) throw new IllegalArgumentException("Guide exceeds size limit");
+                            }
+                        }
                         case "programme" -> {
                             channel = reader.getAttributeValue(null, "channel");
                             start = time(reader.getAttributeValue(null, "start"));
@@ -69,6 +80,8 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                         case "desc" -> { String text = boundedText(reader, 2048); if (description.isEmpty()) description = text.strip(); }
                         default -> { }
                     }
+                } else if(event==XMLStreamConstants.END_ELEMENT && reader.getLocalName().equals("channel")) {
+                    id=null;
                 } else if (event == XMLStreamConstants.END_ELEMENT && reader.getLocalName().equals("programme")) {
                     if (channel != null && start != null && !title.isBlank()
                             && start.isBefore(now.plus(Duration.ofDays(7)))
@@ -85,7 +98,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         ambiguous.forEach(names::remove);
         ambiguousQuality.forEach(qualityNames::remove);
         qualityNames.remove("");
-        return new XmltvGuide(programmes.build(), Map.copyOf(names), Map.copyOf(qualityNames));
+        return new XmltvGuide(programmes.build(),Map.copyOf(names),Map.copyOf(qualityNames),Map.copyOf(icons));
     }
 
     /** Conservative retained-size estimate, including strings, lists and map entries. */
@@ -96,7 +109,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
             bytes += 192L + 2L * entry.getKey().length();
             for (var p : entry.getValue()) bytes += 192L + 2L * (p.title().length() + p.description().length());
         }
-        for (var aliases : List.of(names, qualityNames))
+        for (var aliases : List.of(names,qualityNames,icons))
             for (var entry : aliases.entrySet()) bytes += 128L + 2L * (entry.getKey().length() + entry.getValue().length());
         return bytes;
     }
@@ -118,13 +131,8 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
     }
 
     public List<EpgProgramme> forChannel(String providerId, String name) {
-        return forChannel(providerId, name, true);
-    }
-
-    List<EpgProgramme> forChannel(String providerId, String name, boolean expand) {
         String id = providerId != null && programmes.containsKey(providerId) ? providerId : names.get(normalize(name));
         if (id == null) id = qualityNames.getOrDefault(normalizeQuality(name), "");
-        if (!expand && programmes instanceof CompactProgrammeMap compact) return compact.cached(id);
         return programmes.getOrDefault(id, List.of());
     }
 

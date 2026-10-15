@@ -1,0 +1,1 @@
+--@add_column Configuration epgRefreshIntervalHours TEXT DEFAULT '2'
