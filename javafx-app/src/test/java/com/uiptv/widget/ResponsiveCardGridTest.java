@@ -929,6 +929,50 @@ class ResponsiveCardGridTest {
     }
 
     @Test
+    void activatedCardStaysVisibleWhenPlayerCollapsesGridToOneColumn() throws Exception {
+        for (int count : new int[]{60, 600}) {
+            ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
+                ResponsiveCardGrid<String> cards = new ResponsiveCardGrid<>(item -> {
+                    Label label = new Label(item); label.setMinHeight(76); return label;
+                });
+                ObservableList<String> items = FXCollections.observableArrayList();
+                for (int i = 0; i < count; i++) items.add("item-" + i);
+                cards.setItems(items); cards.setCardWidthRange(220, 320);
+                ScrollPane scroll = new ScrollPane(cards); scroll.setFitToWidth(true);
+                StackPane root = new StackPane(scroll); new Scene(root, 1000, 400);
+                root.resize(1000, 400); root.applyCss(); root.layout();
+                cards.selectItems(List.of("item-40")); cards.scrollFocusedItemIntoView();
+                return cards;
+            });
+            for (int i = 0; i < 4; i++) waitForFxEvents();
+            runOnFxThread(() -> {
+                var root = (StackPane) grid.getScene().getRoot(); root.layout();
+                Region card = grid.lookupAll(".uiptv-responsive-card").stream()
+                        .filter(node -> node instanceof Label label && label.getText().equals("item-40"))
+                        .map(Region.class::cast).findFirst().orElseThrow();
+                grid.setOnItemActivated(_ -> { root.resize(300, 400); root.layout(); });
+                Event.fireEvent(card, mouseClick(card, 2, false, false));
+                return null;
+            });
+            for (int i = 0; i < 5; i++) waitForFxEvents();
+            runOnFxThread(() -> {
+                grid.getScene().getRoot().layout();
+                Region card = grid.lookupAll(".uiptv-responsive-card").stream()
+                        .filter(node -> node instanceof Label label && label.getText().equals("item-40"))
+                        .map(Region.class::cast).findFirst().orElseThrow();
+                ScrollPane scroll = ancestorScrollPane(grid);
+                Node viewport = scroll.lookup(".viewport");
+                var bounds = card.localToScene(card.getBoundsInLocal());
+                var view = viewport.localToScene(viewport.getBoundsInLocal());
+                assertTrue(bounds.getMinY() >= view.getMinY() - 4, "Activated card top must remain visible");
+                assertTrue(bounds.getMaxY() <= view.getMaxY() + 4, "Activated card bottom must remain visible: " + bounds + " viewport=" + view + " count=" + count + " scroll=" + scroll.getVvalue() + " contentHeight=" + grid.getHeight());
+                assertEquals(List.of("item-40"), List.copyOf(grid.getSelectedItems()));
+                return null;
+            });
+        }
+    }
+
+    @Test
     void scrollFocusedItemIntoViewKeepsSelectionVisibleAfterRefresh() throws Exception {
         ResponsiveCardGrid<String> grid = runOnFxThread(() -> {
             ResponsiveCardGrid<String> cardGrid = new ResponsiveCardGrid<>(item -> {

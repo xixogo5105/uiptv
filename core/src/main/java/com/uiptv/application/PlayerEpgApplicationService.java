@@ -35,9 +35,17 @@ public class PlayerEpgApplicationService {
         return current(account, channel);
     }
 
+    /** Playback snapshots can predate the catalogue metadata used to key the EPG cache. */
+    public List<EpgProgramme> schedule(Account account, Channel channel) {
+        if (account == null || channel == null || account.getAction() != Account.AccountAction.itv) return List.of();
+        Channel catalogChannel = ChannelService.getInstance().getChannelByChannelIdAndAccount(
+                channel.getChannelId(), account.getDbId(), false);
+        return new EpgCacheApplicationService().schedule(account, catalogChannel == null ? channel : catalogChannel);
+    }
+
     public Result current(Account account, Channel channel) {
         if (account == null || channel == null || account.getAction() != Account.AccountAction.itv) return new Result("", null, null);
-        List<EpgProgramme> programmes = new EpgCacheApplicationService().schedule(account, channel);
+        List<EpgProgramme> programmes = schedule(account, channel);
         long time = System.currentTimeMillis();
         EpgProgramme now = null, next = null;
         for (EpgProgramme programme : programmes) {

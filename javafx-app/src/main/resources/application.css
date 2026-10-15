@@ -5120,5 +5120,45 @@
 .player-guide-overlay .epg-guide-popup {
     -uiptv-text-primary: #eeeeee; -uiptv-text-secondary: #bcbcbc;
     -uiptv-card-bg: #242424; -uiptv-card-border: #444444; -uiptv-app-bg: #191919;
+    -uiptv-surface: #303030; -uiptv-surface-muted: #3a3a3a;
+    -uiptv-surface-hover: #444444; -uiptv-border-subtle: #555555;
     -fx-background-color: rgba(20,20,20,0.97);
+}
+
+/* Programme summaries must follow the selected card palette in either theme. */
+.uiptv-responsive-card:selected .virtual-card-epg-title,
+.uiptv-responsive-card.selected .virtual-card-epg-title,
+.bookmark-card:selected .virtual-card-epg-title,
+.bookmark-card.selected .virtual-card-epg-title {
+    -fx-text-fill: -uiptv-selected-card-fg;
+}
+.uiptv-responsive-card:selected .epg-programme-time,
+.uiptv-responsive-card.selected .epg-programme-time,
+.bookmark-card:selected .epg-programme-time,
+.bookmark-card.selected .epg-programme-time {
+    -fx-text-fill: -uiptv-selected-card-muted-fg;
+}
+
+.epg-guide-popup .epg-guide-action {
+    -fx-min-width: 30; -fx-pref-width: 30; -fx-max-width: 30;
+    -fx-min-height: 30; -fx-pref-height: 30; -fx-max-height: 30;
+    -fx-padding: 0; -fx-alignment: center;
+    -fx-background-radius: 999; -fx-border-radius: 999;
+}
+.epg-guide-navigation-icon {
+    -fx-fill: transparent; -fx-stroke: -uiptv-text-primary;
+    -fx-stroke-width: 1.8; -fx-stroke-line-cap: round; -fx-stroke-line-join: round;
+}
+.player-guide-overlay .epg-guide-action:hover,
+.player-guide-overlay .epg-guide-action:focused {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: #32b8dd; -fx-effect: none;
+}
+.player-guide-overlay .epg-guide-action:pressed {
+    -fx-background-color: #202020; -fx-border-color: #32b8dd; -fx-effect: none;
+}
+
+.epg-guide-popup .epg-guide-now-button {
+    -fx-min-width: 56; -fx-pref-width: -1; -fx-max-width: infinity;
+    -fx-padding: 0 12; -fx-text-fill: -uiptv-text-primary;
 }

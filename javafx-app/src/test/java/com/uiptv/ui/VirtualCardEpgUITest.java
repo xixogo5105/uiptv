@@ -60,16 +60,17 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                             assertEquals(enabled, savedMenu.getItems().stream().anyMatch(entry -> I18n.tr("epgOpenGuide").equals(entry.getText())));
                             if (enabled) {
                                 VBox panel = (VBox) card.lookup(".virtual-card-epg");
-                                CardEpgSupport.display(panel, null, null);
+                                long placeholderNow = java.time.ZonedDateTime.of(2026, 10, 15, 8, 45, 0, 0, java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                                CardEpgSupport.display(panel, null, null, placeholderNow);
                                 assertTrue(panel.isManaged()); assertTrue(panel.isVisible()); assertTrue(card.isManaged());
                                 assertEquals(3, panel.getChildren().size());
                                 var nowPlaceholder = (VBox) panel.getChildren().getFirst();
                                 var nextPlaceholder = (VBox) panel.getChildren().getLast();
                                 assertEquals(I18n.tr("epgNow") + ": " + I18n.tr("epgNoProgrammeDetails"), ((Label) nowPlaceholder.getChildren().getFirst()).getText());
                                 assertEquals(I18n.tr("epgNext") + ": " + I18n.tr("epgNoProgrammeDetails"), ((Label) nextPlaceholder.getChildren().getFirst()).getText());
-                                assertEquals("—", ((Label) nowPlaceholder.getChildren().getLast()).getText());
-                                assertEquals("—", ((Label) nextPlaceholder.getChildren().getLast()).getText());
-                                assertEquals(0, ((ProgressBar) panel.getChildren().get(1)).getProgress());
+                                assertEquals("08:00 – 09:00", ((Label) nowPlaceholder.getChildren().getLast()).getText());
+                                assertEquals("09:00 – 10:00", ((Label) nextPlaceholder.getChildren().getLast()).getText());
+                                assertEquals(.75, ((ProgressBar) panel.getChildren().get(1)).getProgress(), .0001);
                                 long now = System.currentTimeMillis();
                                 CardEpgSupport.display(panel, new EpgProgramme("Current film", "", now - 60_000, now + 60_000),
                                         new EpgProgramme("Next film", "", now + 60_000, now + 3_600_000));
@@ -115,7 +116,7 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                     List.of(current, next, new EpgProgramme("Overnight cinema", "More films overnight.", now + 7_200_000, now + 12_600_000)));
             for (boolean dark : new boolean[]{false, true}) {
                 VBox panel = new VBox(5); panel.getStyleClass().add("virtual-card-epg"); CardEpgSupport.display(panel, current, next);
-                Label title = new Label("Example Cinema"); title.getStyleClass().add("epg-programme-title");
+                Label title = new Label("Example Cinema"); title.getStyleClass().add("bookmark-channel-title");
                 Button anchor = new Button("⋯"); HBox header = new HBox(12, title, anchor);
                 VBox card = new VBox(12, header, panel); card.getStyleClass().add("bookmark-card");
                 VBox root = new VBox(card); root.setStyle("-fx-padding: 16; -fx-background-color: -uiptv-app-bg");
@@ -128,6 +129,16 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                     root.applyCss(); root.layout();
                     assertEquals(2, panel.lookupAll(".virtual-card-epg-title").size());
                     save(root, "target/epg-virtual-card-" + (dark ? "dark" : "light") + ".png");
+                    card.getStyleClass().add("selected");
+                    root.applyCss(); root.layout();
+                    for (Node label : panel.lookupAll(".virtual-card-epg-title")) {
+                        assertEquals(javafx.scene.paint.Color.web(dark ? "#f7f7f7" : "#ffffff"), ((Label) label).getTextFill());
+                    }
+                    save(root, "target/epg-selected-card-" + (dark ? "dark" : "light") + ".png");
+                    CardEpgSupport.display(panel, null, null,
+                            java.time.ZonedDateTime.of(2026, 10, 15, 8, 45, 0, 0, java.time.ZoneId.systemDefault()).toInstant().toEpochMilli());
+                    root.applyCss(); root.layout();
+                    save(root, "target/epg-selected-placeholder-" + (dark ? "dark" : "light") + ".png");
                     popup = ChannelGuidePopup.show(anchor, row);
                     assertTrue(popup.isShowing()); assertSame(stage, popup.getOwnerWindow());
                     Parent body = (Parent) popup.getContent().getFirst(); body.applyCss(); body.layout();
@@ -207,6 +218,30 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                 assertSame(video, overlay.getParent()); assertTrue(overlay.isVisible());
                 assertEquals(windows, javafx.stage.Window.getWindows().size());
                 save(video, "target/epg-inline-player-guide.png");
+                var past = new EpgProgramme("Earlier film", "Previous programme.", now - 7_200_000, now - 60_000);
+                for (boolean dark : new boolean[]{false, true}) {
+                    video.getScene().getStylesheets().setAll(getClass().getResource("/application.css").toExternalForm());
+                    if (dark) video.getScene().getStylesheets().add(getClass().getResource("/dark-application.css").toExternalForm());
+                    overlay.show(new LiveGuideApplicationService.Row("account", "Account", "", channel, List.of(past, programme)));
+                    video.applyCss(); video.layout();
+                    assertEquals(4, overlay.lookupAll(".epg-guide-action").size());
+                    for (Node node : overlay.lookupAll(".epg-guide-action")) {
+                        Button action = (Button) node;
+                        assertEquals(javafx.scene.paint.Color.web("#303030"), action.getBackground().getFills().getFirst().getFill());
+                        if (action.getStyleClass().contains("epg-guide-now-button")) assertTrue(action.getWidth() >= 56);
+                        else { assertEquals(30, action.getWidth(), .1); assertNotNull(action.getGraphic()); }
+                        action.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("hover"), true);
+                        video.applyCss();
+                        assertEquals(javafx.scene.paint.Color.web("#444444"), action.getBackground().getFills().getFirst().getFill());
+                        action.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("hover"), false);
+                    }
+                    for (Node node : overlay.lookupAll(".epg-programme-badge")) {
+                        if (node.getStyleClass().contains("epg-now-badge")) continue;
+                        Label badge = (Label) node;
+                        assertEquals(javafx.scene.paint.Color.web("#3a3a3a"), badge.getBackground().getFills().getFirst().getFill());
+                    }
+                    save(video, "target/epg-player-controls-" + (dark ? "dark" : "light") + ".png");
+                }
                 ((Button) overlay.lookup(".uiptv-circular-close-button")).fire();
                 assertFalse(overlay.isVisible()); assertTrue(overlay.getChildren().isEmpty());
                 video.resize(1100, 260); video.layout();
@@ -222,6 +257,35 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                 com.uiptv.player.MediaPlayerFactory.publishGuideSummary(null); assertFalse(button.isManaged());
                 overlay.close(); video.getChildren().clear();
             } finally { com.uiptv.player.MediaPlayerFactory.updateGuideContext(null, null); }
+            return null;
+        });
+    }
+
+    @Test void guideNowButtonReturnsToCurrentCardAndResetsArrowPosition() throws Exception {
+        runOnFxThread(() -> {
+            long now = System.currentTimeMillis();
+            var programmes = new java.util.ArrayList<EpgProgramme>();
+            for (int i = 0; i < 10; i++) programmes.add(new EpgProgramme("Film " + i, "",
+                    now + (i - 4) * 3_600_000L - 60_000, now + (i - 3) * 3_600_000L - 60_000));
+            Channel channel = new Channel(); channel.setName("Cinema");
+            VBox body = ChannelGuidePopup.content(new LiveGuideApplicationService.Row("a", "A", "", channel, programmes), 960, () -> {});
+            new Scene(body, 960, 370); body.resize(960, 370); body.applyCss(); body.layout();
+            ListView<?> list = (ListView<?>) body.getChildren().get(1);
+            var target = new java.util.concurrent.atomic.AtomicInteger(-1);
+            list.setOnScrollTo(event -> target.set(event.getScrollTarget()));
+            HBox navigation = (HBox) body.getChildren().getLast();
+            Button previous = (Button) navigation.getChildren().getFirst();
+            Button nowButton = (Button) navigation.getChildren().get(1);
+            Button next = (Button) navigation.getChildren().getLast();
+            assertEquals(I18n.tr("epgNow"), nowButton.getText());
+            previous.fire(); assertEquals(3, target.get());
+            previous.fire(); assertEquals(2, target.get());
+            nowButton.fire(); assertEquals(4, target.get());
+            next.fire(); assertEquals(5, target.get());
+            assertEquals(5, ChannelGuidePopup.nowIndex(programmes, programmes.get(4).stop()));
+            assertEquals(0, ChannelGuidePopup.nowIndex(programmes, now - 24 * 3_600_000L));
+            assertEquals(9, ChannelGuidePopup.nowIndex(programmes, now + 24 * 3_600_000L));
+            assertEquals(-1, ChannelGuidePopup.nowIndex(List.of(), now));
             return null;
         });
     }

@@ -46,6 +46,24 @@ class EpgApplicationServiceTest extends DbBackedTest {
         });
         assertTrue(channelsPublished.get()); assertFalse(rows.getFirst().programmes().isEmpty());
     }
+    @Test void playerGuideUsesCatalogueMetadataForStaleBookmarkSnapshots() throws Exception {
+        Account account = saveCatalog("Snapshot", "Catalogue channel");
+        Channel catalog = ChannelService.getInstance().getChannelByChannelIdAndAccount("guide-id", account.getDbId(), false);
+        Channel snapshot = channel("guide-id", "Old bookmark title");
+        snapshot.setExtraJson("{\"epg_channel_id\":\"old-station\"}");
+        assertTrue(new EpgCacheApplicationService().schedule(account, snapshot).isEmpty());
+        PlayerEpgApplicationService service = new PlayerEpgApplicationService();
+        assertEquals("Current", service.current(account, snapshot).now().title());
+        assertEquals(new EpgCacheApplicationService().schedule(account, catalog), service.schedule(account, snapshot));
+        Account other = saveCatalog("SnapshotOther", "Other catalogue channel");
+        assertEquals(new EpgCacheApplicationService().schedule(other,
+                ChannelService.getInstance().getChannelByChannelIdAndAccount("guide-id", other.getDbId(), false)),
+                service.schedule(other, snapshot));
+        ChannelDb.get().delete(catalog.getDbId());
+        assertEquals("Current", service.current(account, catalog).now().title(),
+                "Bookmarks must still use their snapshot when the catalogue entry has been removed");
+    }
+
     @Test void desktopCatalogAndHydrationReadDatabaseUntilBackgroundRefresh() throws Exception {
         Account account = saveCatalog("Deferred", "Channel");
         EpgApplicationService epg = new EpgApplicationService();

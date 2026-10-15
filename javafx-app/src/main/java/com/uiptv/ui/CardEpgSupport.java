@@ -176,10 +176,22 @@ final class CardEpgSupport {
     }
 
     static void display(VBox panel, EpgProgramme current, EpgProgramme next) {
+        display(panel, current, next, System.currentTimeMillis());
+    }
+
+    static void display(VBox panel, EpgProgramme current, EpgProgramme next, long now) {
+        // Presentation-only placeholders: never publish invented schedules to the cache.
+        long hourStart = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault())
+                .truncatedTo(java.time.temporal.ChronoUnit.HOURS).toInstant().toEpochMilli();
+        if (current == null) current = new EpgProgramme(I18n.tr("epgNoProgrammeDetails"), "", hourStart, hourStart + 3_600_000);
+        if (next == null) {
+            long start = current.stop();
+            next = new EpgProgramme(I18n.tr("epgNoProgrammeDetails"), "", start, start + 3_600_000);
+        }
         panel.getChildren().clear();
         panel.getChildren().add(programme(I18n.tr("epgNow"), current));
         double fraction = current == null || current.stop() <= current.start() ? 0
-                : Math.clamp((System.currentTimeMillis() - current.start()) / (double) (current.stop() - current.start()), 0, 1);
+                : Math.clamp((now - current.start()) / (double) (current.stop() - current.start()), 0, 1);
         ProgressBar progress = new ProgressBar(fraction);
         progress.getStyleClass().add("epg-programme-progress");
         progress.setMaxWidth(Double.MAX_VALUE);

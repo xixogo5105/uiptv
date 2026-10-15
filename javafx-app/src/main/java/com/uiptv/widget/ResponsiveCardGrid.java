@@ -49,7 +49,6 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private static final double INLINE_INDICATOR_RIGHT_MARGIN = 8;
     private static WeakReference<ResponsiveCardGrid<?>> activePlayingIndicatorGrid = new WeakReference<>(null);
     private static final double SCROLL_VISIBILITY_TOLERANCE = 4.0;
-    private static final double SCROLL_VALUE_TOLERANCE = 0.001;
     private static final int DEFAULT_VIRTUALIZATION_THRESHOLD =
             Integer.getInteger("uiptv.cardGrid.virtualizationThreshold", 100);
     /**
@@ -1688,6 +1687,11 @@ selectedItemsInternal.add(item);
     }
 
     private void updateVirtualLayoutAfterWidthChange(int previousColumnCount, double previousCardWidth) {
+        // Opening the wide player reflows both bookmark and channel grids. Anchor to
+        // the activated card after layout rather than retaining the old scroll fraction.
+        if (previousColumnCount > 1 && columnCount == 1 && activatedItem != null) {
+            scrollItemIntoViewAfterLayout(activatedItem, 2);
+        }
         if (!virtualizedActive) {
             return;
         }
@@ -1857,7 +1861,8 @@ selectedItemsInternal.add(item);
             nextPixels = Math.min(scrollableHeight, cardBottom - viewportHeight + verticalGap);
         }
         double nextValue = Math.clamp(nextPixels / scrollableHeight, 0, 1);
-        if (Math.abs(nextValue - pageScrollPane.getVvalue()) >= SCROLL_VALUE_TOLERANCE) {
+        // A tiny scroll fraction can still hide an entire card in a large catalogue.
+        if (Math.abs(nextPixels - currentPixels) >= 1) {
             pageScrollPane.setVvalue(nextValue);
         }
     }
@@ -1906,6 +1911,13 @@ selectedItemsInternal.add(item);
 
     private void scrollItemIntoViewAfterLayout(T item, int remainingPasses) {
         Platform.runLater(() -> {
+            if (getScene() != null) {
+                requestLayout();
+                ScrollPane scrollPane = findAncestorScrollPane();
+                if (scrollPane != null) scrollPane.requestLayout();
+                getScene().getRoot().applyCss();
+                getScene().getRoot().layout();
+            }
             nextScrollRestoreGeneration();
             scrollItemIntoView(item);
             if (remainingPasses > 0) {
@@ -1922,6 +1934,8 @@ selectedItemsInternal.add(item);
             int itemIndex = items.indexOf(item);
             scrollItemIndexIntoEstimatedView(itemIndex);
             updateVirtualWindow();
+            cardPane.applyCss();
+            cardPane.layout();
         }
         Region card = cardsByItem.get(item);
         if (card != null) {

@@ -47,7 +47,7 @@ final class ChannelGuidePopup {
         Label heading = new Label(row.channel().getName());
         heading.getStyleClass().add("epg-guide-popup-heading");
         heading.setMaxWidth(Double.MAX_VALUE); HBox.setHgrow(heading, Priority.ALWAYS);
-        Button close = new com.uiptv.widget.CloseIconButton(I18n.tr("autoClose")); close.setOnAction(_ -> onClose.run());
+        Button close = new com.uiptv.widget.CloseIconButton(I18n.tr("autoClose")); close.getStyleClass().add("epg-guide-action"); close.setOnAction(_ -> onClose.run());
         HBox header = new HBox(12, heading, close); header.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         ListView<EpgProgramme> programmes = new ListView<>(FXCollections.observableArrayList(row.programmes()));
         programmes.setOrientation(Orientation.HORIZONTAL);
@@ -92,19 +92,41 @@ final class ChannelGuidePopup {
                 Tooltip.install(card, details); setGraphic(card);
             }
         });
-        Button previous = new Button("‹"), next = new Button("›");
+        Button previous = navigationButton("M10 3 L4 9 L10 15"), next = navigationButton("M4 3 L10 9 L4 15");
         previous.setAccessibleText(I18n.tr("autoBack")); next.setAccessibleText(I18n.tr("epgNext"));
         var position = new java.util.concurrent.atomic.AtomicInteger();
         previous.setOnAction(_ -> { int index = Math.max(0, position.decrementAndGet()); position.set(index); programmes.scrollTo(index); });
         next.setOnAction(_ -> { int index = Math.min(Math.max(0, row.programmes().size() - 1), position.incrementAndGet()); position.set(index); programmes.scrollTo(index); });
-        HBox navigation = new HBox(8, previous, next); navigation.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
+        Button nowButton = new Button(I18n.tr("epgNow"));
+        nowButton.getStyleClass().addAll("epg-guide-action", "epg-guide-now-button");
+        nowButton.setOnAction(_ -> {
+            int index = nowIndex(row.programmes(), System.currentTimeMillis());
+            if (index >= 0) { position.set(index); programmes.scrollTo(index); }
+        });
+        HBox navigation = new HBox(8, previous, nowButton, next); navigation.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
         VBox body = new VBox(12, header, programmes, navigation); body.getStyleClass().addAll("root", "epg-guide-popup");
         body.setPrefWidth(width); body.setMaxWidth(width);
-        long now = System.currentTimeMillis();
-        for (int i = 0; i < row.programmes().size(); i++) {
-            if (row.programmes().get(i).stop() > now) { position.set(i); programmes.scrollTo(i); break; }
-        }
+        int index = nowIndex(row.programmes(), System.currentTimeMillis());
+        if (index >= 0) { position.set(index); programmes.scrollTo(index); }
         return body;
+    }
+
+    static int nowIndex(java.util.List<EpgProgramme> programmes, long now) {
+        for (int i = 0; i < programmes.size(); i++) {
+            EpgProgramme programme = programmes.get(i);
+            if (programme.start() <= now && now < programme.stop()) return i;
+        }
+        for (int i = 0; i < programmes.size(); i++) if (programmes.get(i).start() > now) return i;
+        return programmes.isEmpty() ? -1 : programmes.size() - 1;
+    }
+
+    private static Button navigationButton(String path) {
+        javafx.scene.shape.SVGPath icon = new javafx.scene.shape.SVGPath();
+        icon.setContent(path); icon.getStyleClass().add("epg-guide-navigation-icon");
+        icon.setMouseTransparent(true);
+        Button button = new Button(); button.setGraphic(icon);
+        button.getStyleClass().add("epg-guide-action");
+        return button;
     }
 
     static void release(Parent content) {

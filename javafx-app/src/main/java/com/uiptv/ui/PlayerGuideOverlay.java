@@ -63,11 +63,11 @@ public final class PlayerGuideOverlay extends StackPane {
         var context = MediaPlayerFactory.guideContextProperty().get();
         if (context == null || !EpgModeUI.isFeatureEnabled()) return;
         close(); int request = ++generation;
-        Button cancel = new Button("×"); cancel.setAccessibleText(I18n.tr("autoClose")); cancel.setOnAction(_ -> close());
+        Button cancel = new com.uiptv.widget.CloseIconButton(I18n.tr("autoClose")); cancel.getStyleClass().add("epg-guide-action"); cancel.setOnAction(_ -> close());
         VBox loading = new VBox(10, cancel, new Label(I18n.tr("epgLoading")));
         loading.getStyleClass().add("epg-guide-popup"); getChildren().setAll(loading); setVisible(true); setManaged(true);
         worker = Thread.ofVirtual().start(() -> {
-            var programmes = new EpgCacheApplicationService().schedule(context.account().toAccount(), context.channel());
+            var programmes = new PlayerEpgApplicationService().schedule(context.account().toAccount(), context.channel());
             var row = new LiveGuideApplicationService.Row(context.account().dbId(), "", "", context.channel(), programmes);
             Platform.runLater(() -> { if (request == generation && getScene() != null && EpgModeUI.isFeatureEnabled()) show(row); });
         });
