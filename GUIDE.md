@@ -459,6 +459,24 @@ Guide resolution is **channel/embedded/provider-native → account EPG → globa
 
 To correct an ID mismatch, right-click a desktop guide channel or open Android **View Guide** and save a **Guide ID override**. It survives cache reloads and database sync; clear it to return to provider matching. No global worldwide feed is bundled. Native support varies by provider. See [EPG.md](EPG.md) for matching, caching, privacy and troubleshooting details.
 
+### Optional standalone EPG Builder
+
+UIPTV desktop builds do not require Python. Platform packaging skips the standalone EPG utility by default:
+
+```sh
+./mvnw clean package -P mac-aarch64
+```
+
+To also build the utility, install Python 3.11+ with venv/pip and opt in explicitly:
+
+```sh
+./mvnw clean package -P mac-aarch64 -Depg.native.skip=false
+```
+
+The same flag applies to the other platform profiles. Build on the matching OS and CPU architecture. Utility archives are written under `python/util/epg_builder/target/dist/`; the packaged utility includes Python and Java runtimes, so users running it do not need either installed separately.
+
+Run the utility as the same OS user as UIPTV. It automatically resolves UIPTV's existing database; no separate database path is configured. Configure source feeds and review a dry-run before using `--apply`. Keep EPG enabled in UIPTV to display imported schedules. See the [utility instructions](python/util/epg_builder/README.md) and [config.toml reference](python/util/epg_builder/CONFIGURATION.md) for setup and scheduling details.
+
 ### Global EPG sources and refresh
 
 Settings accepts multiple global XMLTV sources, one URL or local file per line. Put regional feeds (for example India, UK, USA and Australia) in priority order. Existing single-source settings remain compatible and sync uses the same configuration field. Desktop schedules prefer embedded/provider, account and then global sources; specific titles replace generic placeholders for overlapping intervals. Duplicate names within a feed remain ambiguous. Unique matches can ignore standalone quality labels such as HD or 4K while retaining region names.

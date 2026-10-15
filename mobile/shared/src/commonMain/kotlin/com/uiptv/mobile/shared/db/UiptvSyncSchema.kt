@@ -20,7 +20,8 @@ object UiptvSyncSchema {
         "PublishedM3uSelection",
         "PublishedM3uCategorySelection",
         "PublishedM3uChannelSelection",
-        "Configuration"
+        "Configuration",
+        "epg_name_exclusion"
     )
 
     val androidRequiredTables: List<String> = listOf(
@@ -42,7 +43,8 @@ object UiptvSyncSchema {
         "PublishedM3uSelection",
         "PublishedM3uCategorySelection",
         "PublishedM3uChannelSelection",
-        "Configuration"
+        "Configuration",
+        "epg_name_exclusion"
     )
 
     // Guide caches travel in cloned snapshots and Android reads valid schedules from them.

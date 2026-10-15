@@ -28,7 +28,8 @@ class UiptvSyncSchemaTest {
                 "PublishedM3uSelection",
                 "PublishedM3uCategorySelection",
                 "PublishedM3uChannelSelection",
-                "Configuration"
+                "Configuration",
+                "epg_name_exclusion"
             ),
             UiptvSyncSchema.syncableTables
         )

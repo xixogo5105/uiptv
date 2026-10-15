@@ -89,3 +89,4 @@
 0209_add_channel_epg_metadata.sql
 0210_add_epg_refresh_interval.sql
 0211_add_epg_cache_tables.sql
+0212_add_epg_name_exclusions.sql

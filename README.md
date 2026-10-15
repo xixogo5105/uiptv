@@ -32,6 +32,8 @@ UIPTV now builds as a Maven reactor with separated runtime modules:
 - `javafx-app/`: JavaFX desktop application, players, widgets, dialogs, desktop CSS, icons, and native packaging configuration.
 - `lightweight-ui/`: server-only control window for the lightweight (no-desktop-browsing) mode.
 - `coverage-aggregate/`: JaCoCo/Kover report aggregation across modules.
+- `epg-bridge/`: headless Java bridge reusing core inventory, parsing and cache publication.
+- `python/util/epg_builder/`: external guide preparation utility and Maven native-binary packaging.
 - `website/`: static project website published separately to GitHub Pages.
 
 Build from the repository root. Maven resolves the module graph automatically.
@@ -103,9 +105,12 @@ Before compiling, please ensure you have:
     - `C:\Program Files (x86)\WiX Toolset v3.14\bin`
 
 4.  **Linux DEB packaging (Debian/Ubuntu):** `fakeroot` must be installed for `.deb` builds.
+5.  **Optional EPG utility builds only:** Python 3.11+ with venv/pip. UIPTV desktop builds do not require Python. Maven creates its isolated build environment automatically.
 
 
 To compile the project, use Maven profiles from the repository root to target specific operating systems and package formats. Native packaging output is generated in `javafx-app/target/dist`. Each module also writes its own intermediate build output under its local `target/` directory.
+
+Platform builds skip the Python EPG utility by default. To build it alongside the desktop app, add `-Depg.native.skip=false` (for example, `./mvnw clean package -P mac-aarch64 -Depg.native.skip=false`). This produces the standalone EPG utility under `python/util/epg_builder/target/dist/` (`.tar.gz` on macOS/Linux, `.zip` on Windows), including Python and Java runtimes. Build on the matching OS/CPU architecture. See [EPG utility native packaging](python/util/epg_builder/README.md#native-binaries-from-maven).
 
 ### Build Commands
 Here are some examples of how to build the application for different targets.

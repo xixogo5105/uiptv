@@ -15,6 +15,39 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 class AndroidEpgTest {
+    @Test fun databaseNameRulesDriveClonedMatchingAndRuleEditsInvalidateAliasIndexes() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val file=File.createTempFile("epg-rules-fixture", ".db", context.cacheDir)
+        val db=android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(file,null)
+        try {
+            AndroidUiptvDatabaseHelper(context).use { it.applyMigrations(db) }
+            val source="https://example.invalid/rules.xml"
+            val sourceId=java.security.MessageDigest.getInstance("SHA-256").digest("xml:$source".toByteArray())
+                .joinToString("") { "%02x".format(it.toInt() and 255) }
+            val now=System.currentTimeMillis()
+            db.execSQL("INSERT INTO Configuration(globalEpgSource,epgMappingsJson) VALUES(?,?)",arrayOf(source,"{}"))
+            db.execSQL("INSERT INTO Account(id,accountName,type,epg) VALUES(?,?,?,?)",arrayOf("999","Fixture","M3U8_LOCAL",""))
+            db.execSQL("INSERT INTO epg_source VALUES(?,?,?,?)",arrayOf<Any>(sourceId,now,now+3600000,""))
+            db.execSQL("INSERT INTO epg_alias VALUES(?,?,?,?)",arrayOf<Any>(sourceId,0,"station","guide-station"))
+            val output=java.io.ByteArrayOutputStream()
+            java.util.zip.DeflaterOutputStream(output).use { it.write("Description".toByteArray()) }
+            db.execSQL("INSERT INTO epg_programme VALUES(?,?,?,?,?,?)",arrayOf<Any>(sourceId,"guide-station",now-60000,now+3600000,"Named programme",output.toByteArray()))
+            val cache=AndroidSyncedEpgCache(db)
+            assertEquals("Named programme",cache.matchCloned(999,"playlist-id","Station (504p) [Not 24/7]",now)?.result?.programmes?.first()?.title)
+            assertNull(cache.matchCloned(999,"playlist-id","Station [Trial]",now))
+            db.execSQL("INSERT INTO epg_name_exclusion VALUES('trial','annotation',1)")
+            assertEquals("Named programme",cache.matchCloned(999,"playlist-id","Station [Trial]",now)?.result?.programmes?.first()?.title)
+            db.execSQL("UPDATE epg_name_exclusion SET enabled=0 WHERE term='trial'")
+            assertNull(cache.matchCloned(999,"playlist-id","Station [Trial]",now))
+            assertNull(cache.matchCloned(999,"playlist-id","Station +1 (504p)",now))
+            assertNull(cache.matchCloned(999,"playlist-id","Station West (504p)",now))
+            assertEquals("Named programme",cache.matchCloned(999,"guide-station","Unrelated name",now)?.result?.programmes?.first()?.title)
+            db.execSQL("DELETE FROM schema_migrations WHERE name='0212_add_epg_name_exclusions.sql'")
+            AndroidUiptvDatabaseHelper(context).use { it.applyMigrations(db) }
+            assertEquals(0,db.rawQuery("SELECT enabled FROM epg_name_exclusion WHERE term='trial'",null).use { it.moveToFirst();it.getInt(0) })
+        } finally { db.close(); file.delete() }
+    }
+
     @Test fun clonedSpacedAliasesServeRealProgrammesWithoutChannelMappings() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val file = File.createTempFile("epg-clone-fixture", ".db", context.cacheDir)
@@ -78,7 +111,7 @@ class AndroidEpgTest {
                 "name" to "Synced station", "extraJson" to "{\"xmltv_id\":\"station\"}"))
             db.execSQL("INSERT INTO epg_source VALUES(?,?,?,?)", arrayOf<Any>(source, now, now + 1_800_000, ""))
             // Golden signature is verified by the Java EpgPersistentCacheTest as well.
-            val signature = "548dda9e1899e1fcfe11ee92d3cb3fbde21b90134919a43be8299b5aeaf37e5b"
+            val signature = "334ee2df7cc0db5ed62ccfc23a0c03755edebcf8fd7a76396f12a26dcdac39e1"
             db.execSQL("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)", arrayOf<Any>(accountId.toString(), "provider-stream", signature, source, "station", 0))
             db.execSQL("INSERT INTO epg_programme VALUES(?,?,?,?,?,?)", arrayOf<Any>(source, "station", now - 60_000, now + 3_600_000, "Synced film", compress("Synced full description")))
             db.execSQL("INSERT INTO epg_channel_icon VALUES(?,?,?)", arrayOf<Any>(source, "station", "https://example.invalid/station.png"))

@@ -376,6 +376,11 @@ public class DatabaseUtils {
                 new DataColumn("guide_channel_id", "TEXT"),
                 new DataColumn("icon_url", "TEXT")
         )));
+        dbStructure.put(DbTable.EPG_NAME_EXCLUSION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("term", "TEXT"),
+                new DataColumn("scope", "TEXT"),
+                new DataColumn("enabled", "INTEGER")
+        )));
         KNOWN_TABLE_NAMES.addAll(dbStructure.keySet());
     }
 
@@ -472,7 +477,8 @@ public class DatabaseUtils {
         EPG_PROGRAMME_TABLE("epg_programme"),
         EPG_ALIAS_TABLE("epg_alias"),
         EPG_CHANNEL_MAPPING_TABLE("epg_channel_mapping"),
-        EPG_CHANNEL_ICON_TABLE("epg_channel_icon");
+        EPG_CHANNEL_ICON_TABLE("epg_channel_icon"),
+        EPG_NAME_EXCLUSION_TABLE("epg_name_exclusion");
 
         private final String tableName;
 

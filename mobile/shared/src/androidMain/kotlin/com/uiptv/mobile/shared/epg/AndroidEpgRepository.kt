@@ -58,10 +58,11 @@ class AndroidEpgRepository(
             Triple(id, if (override.isBlank()) name else "", sources.filter { it.isNotBlank() })
         }
         val host = preferences.load().remoteEndpoint.host
+        val nameRules=AndroidEpgNameRules.read(databaseHelper.readableDatabase)
         for (source in request.third) {
             ensureActive()
             val guide = sharedGuide(resolveDesktopSource(source, host), System.currentTimeMillis()).await().guide ?: continue
-            guide.iconForChannel(request.first, request.second).takeIf { it.isNotBlank() }?.let { return@withContext it }
+            guide.withNameRules(nameRules).iconForChannel(request.first, request.second).takeIf { it.isNotBlank() }?.let { return@withContext it }
         }
         ""
     }
@@ -136,6 +137,7 @@ class AndroidEpgRepository(
             Triple(id, sources.filter { it.isNotBlank() }.map { resolveDesktopSource(it, desktopHost) }, override)
         }
         val (id, sources, override) = request
+            val nameRules=AndroidEpgNameRules.read(databaseHelper.readableDatabase)
             var failed = false
             var message = ""
             var result: MobileEpgResult = MobileEpgResult(MobileEpgStatus.NO_MATCH, message = message)
@@ -143,7 +145,7 @@ class AndroidEpgRepository(
                 ensureActive()
                 val guide = sharedGuide(source, now).await()
                 if (guide.guide == null) { failed = true; message = guide.message; continue }
-                val programmes = guide.guide.forChannel(id, if (override.isBlank()) name else "")
+                val programmes = guide.guide.withNameRules(nameRules).forChannel(id, if (override.isBlank()) name else "")
                 if (programmes.any { it.stop > now }) {
                     result = MobileEpgResult(if (guide.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, programmes)
                     break

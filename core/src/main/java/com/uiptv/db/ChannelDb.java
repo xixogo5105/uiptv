@@ -79,14 +79,19 @@ public class ChannelDb extends BaseDb {
 
     /** Local live catalog only; never invokes provider APIs. */
     public List<Channel> getCachedLiveChannels(String accountId) {
+        List<Channel> result = new ArrayList<>();
+        visitCachedLiveChannels(accountId, result::add);
+        return result;
+    }
+
+    /** Visits cached rows without retaining the entire account catalogue. */
+    public void visitCachedLiveChannels(String accountId, java.util.function.Consumer<Channel> visitor) {
         String sql="SELECT c.* FROM " + validatedTableName(CHANNEL_TABLE) + " c JOIN " + validatedTableName(CATEGORY_TABLE)
                 + " cat ON cat.id=c.categoryId WHERE cat.accountId=? ORDER BY c.id";
-        List<Channel> result=new ArrayList<>();
         try(Connection connection=connect(); var query=connection.prepareStatement(sql)) {
             query.setString(1,accountId);
-            try(var rows=query.executeQuery()) { while(rows.next()) result.add(populate(rows)); }
+            try(var rows=query.executeQuery()) { while(rows.next()) visitor.accept(populate(rows)); }
         } catch(SQLException error) { throw new DatabaseAccessException("Unable to read local live catalog",error); }
-        return result;
     }
 
     public int getChannelCountForAccount(String accountId) {

@@ -41,6 +41,7 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
 
     /** Match against the cloned XMLTV index before downloading any regional feeds. */
     fun matchCloned(accountId: Long, providerId: String, name: String, now: Long): Entry? = runCatching {
+        val rules=AndroidEpgNameRules.read(db)
         val config = db.rawQuery("SELECT globalEpgSource,epgMappingsJson FROM Configuration LIMIT 1", null).use {
             if (it.moveToFirst()) it.getString(0).orEmpty() to it.getString(1).orEmpty() else "" to ""
         }
@@ -60,19 +61,19 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
             var id = db.rawQuery("SELECT guide_channel_id FROM epg_programme WHERE source_id=? AND guide_channel_id=? AND stops_at>? LIMIT 1",
                 arrayOf(sourceId, guideId, now.toString())).use { if (it.moveToFirst()) it.getString(0) else "" }
             if (id.isBlank() && override.isBlank()) {
-                val cacheKey = "${db.path}|$sourceId|${refreshed.first}|${now / 1_800_000}"
+                val cacheKey = "${db.path}|$sourceId|${refreshed.first}|${now / 1_800_000}|${rules.canonical}"
                 val aliases = synchronized(aliasIndexes) {
                     aliasIndexes[cacheKey] ?: run {
                         val names = mutableMapOf<String,String>()
                         db.rawQuery("SELECT a.name,a.guide_channel_id FROM epg_alias a WHERE a.source_id=? AND a.kind=0 AND EXISTS(SELECT 1 FROM epg_programme p WHERE p.source_id=a.source_id AND p.guide_channel_id=a.guide_channel_id AND p.stops_at>?)", arrayOf(sourceId,now.toString())).use {
                             while (it.moveToNext()) names[it.getString(0)] = it.getString(1)
                         }
-                        (names to MobileXmltvGuide.qualityAliases(names)).also { aliasIndexes[cacheKey] = it }
+                        Triple(names.toMap(),rules.aliases(names,false),rules.aliases(names,true)).also { aliasIndexes[cacheKey] = it }
                     }
                 }
                 id = aliases.first[MobileXmltvGuide.normalize(name)]
-                    ?: aliases.first[MobileXmltvGuide.normalizeDisplayName(name)]
-                    ?: aliases.second[MobileXmltvGuide.normalizeQuality(name)].orEmpty()
+                    ?: aliases.second[rules.display(name)]
+                    ?: aliases.third[rules.quality(name)].orEmpty()
             }
             if (id.isBlank()) continue
             val programmes = mutableListOf<MobileEpgProgramme>()
@@ -91,8 +92,8 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
         private val artworkIndexes = object : LinkedHashMap<String,MobileXmltvGuide>(32,.75f,true) {
             override fun removeEldestEntry(eldest: Map.Entry<String,MobileXmltvGuide>): Boolean = size > 32
         }
-        private val aliasIndexes = object : LinkedHashMap<String,Pair<Map<String,String>,Map<String,String>>>(32, .75f, true) {
-            override fun removeEldestEntry(eldest: Map.Entry<String,Pair<Map<String,String>,Map<String,String>>>): Boolean = size > 32
+        private val aliasIndexes = object : LinkedHashMap<String,Triple<Map<String,String>,Map<String,String>,Map<String,String>>>(32, .75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<String,Triple<Map<String,String>,Map<String,String>,Map<String,String>>>): Boolean = size > 32
         }
     }
 
@@ -109,6 +110,7 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
     }.getOrDefault("")
 
     fun matchedIcon(accountId: Long, providerId: String, name: String): String = runCatching {
+        val rules=AndroidEpgNameRules.read(db)
         val config = db.rawQuery("SELECT globalEpgSource,epgMappingsJson FROM Configuration LIMIT 1", null).use {
             if (it.moveToFirst()) it.getString(0).orEmpty() to it.getString(1).orEmpty() else "" to ""
         }
@@ -123,7 +125,7 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
             val refreshed = db.rawQuery("SELECT refreshed_at FROM epg_source WHERE source_id=?",arrayOf(sourceId)).use {
                 if (it.moveToFirst()) it.getLong(0) else null
             } ?: continue
-            val key = "${db.path}|$sourceId|$refreshed"
+            val key = "${db.path}|$sourceId|$refreshed|${rules.canonical}"
             val guide = synchronized(artworkIndexes) {
                 artworkIndexes[key] ?: run {
                     val icons = mutableMapOf<String,String>()
@@ -134,7 +136,7 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
                     if (icons.isNotEmpty()) db.rawQuery("SELECT name,guide_channel_id FROM epg_alias WHERE source_id=? AND kind=0",arrayOf(sourceId)).use {
                         while (it.moveToNext()) names[it.getString(0)] = it.getString(1)
                     }
-                    MobileXmltvGuide(emptyMap(),names,icons=icons).also { artworkIndexes[key] = it }
+                    MobileXmltvGuide(emptyMap(),names,icons=icons,nameRules=rules).also { artworkIndexes[key] = it }
                 }
             }
             val icon = guide.iconForChannel(override.ifBlank { providerId },if (override.isBlank()) name else "")
@@ -153,6 +155,7 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
             if (!row.moveToFirst()) return null
             List(10) { row.getString(it).orEmpty() }
         }
+        val rules=AndroidEpgNameRules.read(db)
         val config = db.rawQuery("SELECT globalEpgSource,epgMappingsJson FROM Configuration LIMIT 1", null).use { row ->
             if (row.moveToFirst()) row.getString(0).orEmpty() to row.getString(1).orEmpty() else "" to ""
         }
@@ -160,7 +163,7 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
             .getOrNull().orEmpty().trim()
         val native = hash("native:utc-v2:$accountId|${fields[0].ifBlank { "STALKER_PORTAL" }}|" +
             "${fields[1].ifBlank { fields[2] }}|${fields[3]}|${fields[4]}|${fields[5]}|$providerId")
-        return hash("$native|${fields[6]}|${fields[7]}|${config.first}|$override|${fields[8]}|${fields[9]}")
+        return hash("$native|${fields[6]}|${fields[7]}|${config.first}|$override|${fields[8]}|${fields[9]}|${AndroidEpgNameRules.fingerprint(rules)}")
     }
 
     private fun hash(value: String) = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))

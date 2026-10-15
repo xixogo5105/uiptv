@@ -73,7 +73,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         Channel channel = channel("provider-stream", "Synced station");
         channel.setExtraJson("{\"xmltv_id\":\"station\"}");
         var match = EpgCacheApplicationService.matches(account, List.of(channel), List.of()).getFirst();
-        assertEquals("548dda9e1899e1fcfe11ee92d3cb3fbde21b90134919a43be8299b5aeaf37e5b", match.identity().signature());
+        assertEquals("334ee2df7cc0db5ed62ccfc23a0c03755edebcf8fd7a76396f12a26dcdac39e1", match.identity().signature());
     }
 
     @Test void missingCacheReadsDoNotCreateFilesOrPerformNetworkCalls() {
@@ -95,7 +95,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
             http.verifyNoInteractions();
         }
         try(var connection=DriverManager.getConnection("jdbc:sqlite:"+EpgCacheDb.path());var statement=connection.createStatement();var tables=statement.executeQuery("SELECT count(*) FROM sqlite_master WHERE type='table' AND name LIKE 'epg_%'")) {
-            assertTrue(tables.next()); assertEquals(5,tables.getInt(1));
+            assertTrue(tables.next()); assertEquals(6,tables.getInt(1));
         }
         channel.setDbId("rebuilt-local-row"); assertFalse(cache.schedule(account,channel).isEmpty(),"Provider identity survives catalog row replacement");
     }

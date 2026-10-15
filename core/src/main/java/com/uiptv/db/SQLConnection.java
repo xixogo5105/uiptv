@@ -18,14 +18,19 @@ public class SQLConnection {
     private static final int INIT_RETRY_ATTEMPTS = Math.max(1, Integer.getInteger("uiptv.sql.init.retry.attempts", 6));
     private static final long INIT_RETRY_DELAY_MS = Math.max(0L, Long.getLong("uiptv.sql.init.retry.delay.ms", 250L));
 
-    private static String databasePathFromConfigFile = ConfigFileReader.getDbPathFromConfigFile();
-    private static String dbPath = isNotBlank(databasePathFromConfigFile) ? databasePathFromConfigFile : getUserHomeDirPath() + File.separator + "uiptv.db";
+    private static String dbPath = resolveConfiguredDatabasePath();
+
+    /** Resolve UIPTV's location without opening, creating or migrating a database. */
+    public static String resolveConfiguredDatabasePath() {
+        String configured = ConfigFileReader.getDbPathFromConfigFile();
+        return isNotBlank(configured) ? configured : getUserHomeDirPath() + File.separator + "uiptv.db";
+    }
 
     private SQLConnection() {
     }
 
     static {
-        init();
+        if (!Boolean.getBoolean("uiptv.sql.external")) init();
     }
 
     @SuppressWarnings("java:S1141")
@@ -64,6 +69,14 @@ public class SQLConnection {
     public static synchronized void setDatabasePath(String path) {
         dbPath = path;
         init();
+    }
+
+    /** Select an already validated database without running migrations or creating files. */
+    public static synchronized void useExistingDatabase(String path) {
+        if (!java.nio.file.Files.isRegularFile(java.nio.file.Path.of(path))) {
+            throw new IllegalArgumentException("Database must already exist");
+        }
+        dbPath = path;
     }
 
     public static synchronized String getDatabasePath() {

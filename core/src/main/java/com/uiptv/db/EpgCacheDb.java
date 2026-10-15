@@ -10,6 +10,7 @@ public final class EpgCacheDb {
     public record Identity(String accountId, String providerId, String signature) { }
     public record Match(Identity identity, String guideId, String name, String qualityName, boolean explicit,
                         List<String> sources, String nativeSource) { }
+    public record BuilderMatch(Identity identity, String source, String guide, int priority) { }
     public record SourceState(long refreshedAt, long retryAt, String warning) { }
     public static Path path() { return Path.of(SQLConnection.getDatabasePath()); }
 
@@ -46,37 +47,76 @@ public final class EpgCacheDb {
         try (Connection c = open(true)) {
             c.setAutoCommit(false);
             try {
-                deleteSourceRows(c,"epg_programme",sourceId); deleteSourceRows(c,"epg_alias",sourceId); deleteSourceRows(c,"epg_channel_icon",sourceId);
-                try (var insert = c.prepareStatement("INSERT INTO epg_programme VALUES(?,?,?,?,?,?)")) {
-                    int batch = 0;
-                    for (var entry : programmes.entrySet()) for (var p : entry.getValue()) {
-                        if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
-                        if (p.stop() <= p.start() || p.title().isBlank() || p.stop() <= now - 6 * 3_600_000L || p.start() >= now + 7 * 86_400_000L) continue;
-                        insert.setString(1, sourceId); insert.setString(2, entry.getKey()); insert.setLong(3, p.start()); insert.setLong(4, p.stop());
-                        insert.setString(5, p.title()); insert.setBytes(6, compress(p.description())); insert.addBatch();
-                        if (++batch % 500 == 0) insert.executeBatch();
-                    }
-                    insert.executeBatch();
-                }
-                try (var insert = c.prepareStatement("INSERT INTO epg_alias VALUES(?,?,?,?)")) {
-                    int batch = 0;
-                    for (int kind = 0; kind < 2; kind++) for (var alias : (kind == 0 ? aliases : qualityAliases).entrySet()) {
-                        insert.setString(1, sourceId); insert.setInt(2, kind); insert.setString(3, alias.getKey()); insert.setString(4, alias.getValue()); insert.addBatch();
-                        if (++batch % 500 == 0) insert.executeBatch();
-                    }
-                    insert.executeBatch();
-                }
-                try(var insert=c.prepareStatement("INSERT INTO epg_channel_icon VALUES(?,?,?)")) {
-                    int batch=0;
-                    for(var icon:icons.entrySet()) {
-                        insert.setString(1,sourceId); insert.setString(2,icon.getKey()); insert.setString(3,icon.getValue()); insert.addBatch();
-                        if(++batch%500==0) insert.executeBatch();
-                    }
-                    insert.executeBatch();
-                }
-                state(c, sourceId, now, retryAt, ""); c.commit();
+                replaceSource(c, sourceId, programmes, aliases, qualityAliases, icons, now, retryAt);
+                c.commit();
             } catch (Exception error) { c.rollback(); throw error; }
         } catch (Exception error) { if (error instanceof InterruptedException) Thread.currentThread().interrupt(); throw failure(error); }
+    }
+
+    private void replaceSource(Connection c, String sourceId, Map<String,List<EpgProgramme>> programmes,
+                       Map<String,String> aliases, Map<String,String> qualityAliases,
+                       Map<String,String> icons, long now, long retryAt) throws Exception {
+        deleteSourceRows(c,"epg_programme",sourceId); deleteSourceRows(c,"epg_alias",sourceId); deleteSourceRows(c,"epg_channel_icon",sourceId);
+        try (var insert = c.prepareStatement("INSERT INTO epg_programme VALUES(?,?,?,?,?,?)")) {
+            int batch = 0;
+            for (var entry : programmes.entrySet()) for (var p : entry.getValue()) {
+                if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
+                if (p.stop() <= p.start() || p.title().isBlank() || p.stop() <= now - 6 * 3_600_000L || p.start() >= now + 7 * 86_400_000L) continue;
+                insert.setString(1, sourceId); insert.setString(2, entry.getKey()); insert.setLong(3, p.start()); insert.setLong(4, p.stop());
+                insert.setString(5, p.title()); insert.setBytes(6, compress(p.description())); insert.addBatch();
+                if (++batch % 500 == 0) insert.executeBatch();
+            }
+            insert.executeBatch();
+        }
+        try (var insert = c.prepareStatement("INSERT INTO epg_alias VALUES(?,?,?,?)")) {
+            int batch = 0;
+            for (int kind = 0; kind < 2; kind++) for (var alias : (kind == 0 ? aliases : qualityAliases).entrySet()) {
+                insert.setString(1, sourceId); insert.setInt(2, kind); insert.setString(3, alias.getKey()); insert.setString(4, alias.getValue()); insert.addBatch();
+                if (++batch % 500 == 0) insert.executeBatch();
+            }
+            insert.executeBatch();
+        }
+        try(var insert=c.prepareStatement("INSERT INTO epg_channel_icon VALUES(?,?,?)")) {
+            int batch=0;
+            for(var icon:icons.entrySet()) {
+                insert.setString(1,sourceId); insert.setString(2,icon.getKey()); insert.setString(3,icon.getValue()); insert.addBatch();
+                if(++batch%500==0) insert.executeBatch();
+            }
+            insert.executeBatch();
+        }
+        state(c, sourceId, now, retryAt, "");
+    }
+
+    /** Publish external data and exact mappings together, below all application-owned sources.
+     * Validation runs after taking SQLite's writer lock, preventing concurrent catalog/config writes.
+     * Sources absent from this build and higher-priority mappings are retained.
+     */
+    public void publishBuilder(Map<String,Map<String,List<EpgProgramme>>> sources, List<BuilderMatch> matches,
+                               long now, Runnable validateCurrentInventory) {
+        try (Connection c = open(true)) {
+            c.setAutoCommit(false);
+            try {
+                // Reserve the writer before validation; no application rows are changed.
+                try (var lock = c.createStatement()) { lock.executeUpdate("UPDATE epg_source SET retry_at=retry_at WHERE 0"); }
+                validateCurrentInventory.run();
+                for (var source : sources.entrySet()) {
+                    if (!source.getKey().startsWith("builder:")) throw new IllegalArgumentException("Unowned source");
+                    replaceSource(c, source.getKey(), source.getValue(), Map.of(), Map.of(), Map.of(), now, now + 7_200_000L);
+                }
+                try (var delete = c.prepareStatement("DELETE FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=? AND source_id=?");
+                     var insert = c.prepareStatement("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)")) {
+                    for (BuilderMatch match : matches) {
+                        String source = match.source();
+                        delete.setString(1, match.identity().accountId()); delete.setString(2, match.identity().providerId());
+                        delete.setString(3, source); delete.executeUpdate();
+                        insert.setString(1, match.identity().accountId()); insert.setString(2, match.identity().providerId());
+                        insert.setString(3, match.identity().signature()); insert.setString(4, source);
+                        insert.setString(5, match.guide()); insert.setInt(6, 10000 + match.priority()); insert.executeUpdate();
+                    }
+                }
+                c.commit();
+            } catch (Exception error) { c.rollback(); throw error; }
+        } catch (Exception error) { throw failure(error); }
     }
 
     private void deleteSourceRows(Connection c, String table, String source) throws SQLException {
@@ -97,6 +137,12 @@ public final class EpgCacheDb {
     private record Link(String signature,String source,String guide,int priority) { }
     public boolean mapChannels(List<Match> matches,long now) { return mapChannels(matches,now,false); }
     public boolean mapChannels(List<Match> matches,long now,boolean preserveExistingMappings) {
+        // A provider channel may be cached in multiple categories. Queue just one
+        // mapping per logical channel, or deferred inserts collide at batch commit
+        // and roll back every channel in the account after a signature change.
+        record ChannelKey(String account,String provider) { }
+        Map<ChannelKey,Match> unique=new LinkedHashMap<>();
+        for (Match match:matches) unique.putIfAbsent(new ChannelKey(match.identity().accountId(),match.identity().providerId()),match);
         boolean changed=false;
         try (Connection c = open(true)) {
             c.setAutoCommit(false);
@@ -105,8 +151,10 @@ public final class EpgCacheDb {
                  var existing=c.prepareStatement("SELECT signature,source_id,guide_channel_id,priority FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=? ORDER BY priority");
                  var delete = c.prepareStatement("DELETE FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=?");
                  var insert = c.prepareStatement("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)")) {
-                Map<String,Map<String,String>> compactAliases = new HashMap<>();
-                for (Match match : matches) {
+                var rules = new EpgNameRulesDb().read(c);
+                record Aliases(Map<String,String> display, Map<String,String> quality) { }
+                Map<String,Aliases> indexes = new HashMap<>();
+                for (Match match : unique.values()) {
                     List<Link> previous=new ArrayList<>();
                     existing.setString(1,match.identity().accountId()); existing.setString(2,match.identity().providerId());
                     try(var rows=existing.executeQuery()) { while(rows.next()) previous.add(new Link(rows.getString(1),rows.getString(2),rows.getString(3),rows.getInt(4))); }
@@ -117,43 +165,36 @@ public final class EpgCacheDb {
                         String guide="";
                         direct.setString(1,candidate); direct.setString(2,candidate.equals(match.nativeSource()) ? match.identity().providerId() : match.guideId()); direct.setLong(3,now);
                         try (var row = direct.executeQuery()) { if (row.next()) guide = row.getString(1); }
-                        if (guide.isBlank() && !match.explicit()) for (int kind=0; kind<2 && guide.isBlank(); kind++) {
-                            alias.setString(1,candidate); alias.setInt(2,kind);
-                            var names = kind == 0
-                                    ? new LinkedHashSet<>(List.of(match.name(), com.uiptv.application.XmltvGuide.normalizeDisplayName(match.name())))
-                                    : Set.of(match.qualityName());
-                            for (String name : names) {
-                                alias.setString(3, name);
-                                try (var row=alias.executeQuery()) { if (row.next()) {
-                                    String id = row.getString(1); direct.setString(2,id);
-                                    try (var programmes = direct.executeQuery()) { if (programmes.next()) guide=id; }
-                                } }
-                                if (!guide.isBlank()) break;
-                            }
-                        }
                         if (guide.isBlank() && !match.explicit()) {
-                            // Older imported feeds retain spaced aliases until their next download.
-                            // Rebuild only the small name index, once per source for this batch.
-                            Map<String,String> compact = compactAliases.get(candidate);
-                            if (compact == null) {
-                                Map<String,String> names = new HashMap<>();
-                                try (var query = c.prepareStatement("SELECT a.name,a.guide_channel_id FROM epg_alias a WHERE a.source_id=? AND a.kind=0 AND EXISTS(SELECT 1 FROM epg_programme p WHERE p.source_id=a.source_id AND p.guide_channel_id=a.guide_channel_id AND p.stops_at>?)")) {
-                                    query.setString(1,candidate); query.setLong(2,now);
-                                    try (var rows = query.executeQuery()) { while (rows.next()) names.put(rows.getString(1),rows.getString(2)); }
-                                }
-                                compact = new com.uiptv.application.XmltvGuide(Map.of(),names).qualityNames();
-                                compactAliases.put(candidate,compact);
+                            alias.setString(1,candidate); alias.setInt(2,0); alias.setString(3,match.name());
+                            try (var row=alias.executeQuery()) { if (row.next()) guide=row.getString(1); }
+                            if (!guide.isBlank()) {
+                                direct.setString(2,guide);
+                                try (var row=direct.executeQuery()) { if (!row.next()) guide=""; }
                             }
-                            String id = compact.get(match.qualityName());
-                            if (id != null) {
-                                direct.setString(2,id);
-                                try (var rows = direct.executeQuery()) { if (rows.next()) guide=id; }
+                            if (guide.isBlank()) {
+                                Aliases index=indexes.get(candidate);
+                                if (index==null) {
+                                    Map<String,String> names=new HashMap<>();
+                                    try (var query=c.prepareStatement("SELECT a.name,a.guide_channel_id FROM epg_alias a WHERE a.source_id=? AND a.kind=0 AND (EXISTS(SELECT 1 FROM epg_programme p WHERE p.source_id=a.source_id AND p.guide_channel_id=a.guide_channel_id AND p.stops_at>?) OR EXISTS(SELECT 1 FROM epg_channel_icon i WHERE i.source_id=a.source_id AND i.guide_channel_id=a.guide_channel_id))")) {
+                                        query.setString(1,candidate); query.setLong(2,now);
+                                        try (var rows=query.executeQuery()) { while(rows.next()) names.put(rows.getString(1),rows.getString(2)); }
+                                    }
+                                    index=new Aliases(rules.aliases(names,false),rules.aliases(names,true));
+                                    indexes.put(candidate,index);
+                                }
+                                guide=index.display().getOrDefault(rules.display(match.name()),"");
+                                if (guide.isBlank()) guide=index.quality().getOrDefault(rules.quality(match.name()),"");
                             }
                         }
                         if (!guide.isBlank()) {
                             links.add(new Link(match.identity().signature(),candidate,guide,priority));
                         }
                         priority++;
+                    }
+                    for (Link prior : previous) {
+                        if (prior.source().startsWith("builder:") && prior.signature().equals(match.identity().signature())
+                                && links.stream().noneMatch(link -> link.source().equals(prior.source()))) links.add(prior);
                     }
                     if(previous.equals(links)) continue;
                     changed=true;
@@ -175,7 +216,7 @@ public final class EpgCacheDb {
         for(int offset=0;offset<identities.size();offset+=128) {
             List<Identity> batch=identities.subList(offset,Math.min(offset+128,identities.size()));
             String values=String.join(",",java.util.stream.IntStream.range(0,batch.size()).mapToObj(i -> "("+i+",?,?,?)").toList());
-            String sql="WITH requested(n,account_id,provider_id,signature) AS (VALUES "+values+") SELECT r.n,m.source_id,p.title,p.starts_at,p.stops_at FROM requested r JOIN epg_channel_mapping m ON m.account_id=r.account_id AND m.provider_channel_id=r.provider_id AND m.signature=r.signature JOIN epg_programme p ON p.source_id=m.source_id AND p.guide_channel_id=m.guide_channel_id AND p.starts_at IN (SELECT q.starts_at FROM epg_programme q WHERE q.source_id=m.source_id AND q.guide_channel_id=m.guide_channel_id AND q.stops_at>? ORDER BY q.starts_at LIMIT 2) ORDER BY r.n,m.priority,p.starts_at";
+            String sql="WITH requested(n,account_id,provider_id,signature) AS (VALUES "+values+") SELECT r.n,m.source_id,p.title,p.starts_at,p.stops_at FROM requested r JOIN epg_channel_mapping m ON m.account_id=r.account_id AND m.provider_channel_id=r.provider_id AND m.signature=r.signature JOIN epg_programme p ON p.source_id=m.source_id AND p.guide_channel_id=m.guide_channel_id AND p.starts_at IN (SELECT q.starts_at FROM epg_programme q WHERE q.source_id=m.source_id AND q.guide_channel_id=m.guide_channel_id AND q.stops_at>? ORDER BY q.starts_at LIMIT 2) ORDER BY r.n,m.priority,m.source_id,p.starts_at";
             Map<Integer,Map<String,List<EpgProgramme>>> candidates=new HashMap<>();
             try(var query=c.prepareStatement(sql)) {
                 int parameter=1;
@@ -205,7 +246,7 @@ public final class EpgCacheDb {
     public List<EpgProgramme> schedule(Identity identity, long now, long from, long until) {
         try (Connection c=open(false)) {
             if(c==null) return List.of();
-            try(var query=c.prepareStatement("SELECT m.source_id,p.title,p.description,p.starts_at,p.stops_at FROM epg_channel_mapping m JOIN epg_programme p ON p.source_id=m.source_id AND p.guide_channel_id=m.guide_channel_id WHERE m.account_id=? AND m.provider_channel_id=? AND m.signature=? AND p.stops_at>? AND p.starts_at<? ORDER BY m.priority,p.starts_at LIMIT 8000")) {
+            try(var query=c.prepareStatement("SELECT m.source_id,p.title,p.description,p.starts_at,p.stops_at FROM epg_channel_mapping m JOIN epg_programme p ON p.source_id=m.source_id AND p.guide_channel_id=m.guide_channel_id WHERE m.account_id=? AND m.provider_channel_id=? AND m.signature=? AND p.stops_at>? AND p.starts_at<? ORDER BY m.priority,m.source_id,p.starts_at LIMIT 8000")) {
                 query.setString(1,identity.accountId()); query.setString(2,identity.providerId()); query.setString(3,identity.signature()); query.setLong(4,from); query.setLong(5,until);
                 Map<String,List<EpgProgramme>> sources=new LinkedHashMap<>();
                 try(var rows=query.executeQuery()) { while(rows.next()) sources.computeIfAbsent(rows.getString(1),_ -> new ArrayList<>()).add(new EpgProgramme(rows.getString(2),expand(rows.getBytes(3)),rows.getLong(4),rows.getLong(5))); }
@@ -221,7 +262,7 @@ public final class EpgCacheDb {
             for(int offset=0;offset<identities.size();offset+=128) {
                 var batch=identities.subList(offset,Math.min(offset+128,identities.size()));
                 String values=String.join(",",java.util.stream.IntStream.range(0,batch.size()).mapToObj(i -> "("+i+",?,?,?)").toList());
-                String sql="WITH requested(n,account_id,provider_id,signature) AS (VALUES "+values+") SELECT r.n,i.icon_url FROM requested r JOIN epg_channel_mapping m ON m.account_id=r.account_id AND m.provider_channel_id=r.provider_id AND m.signature=r.signature JOIN epg_channel_icon i ON i.source_id=m.source_id AND i.guide_channel_id=m.guide_channel_id ORDER BY r.n,m.priority";
+                String sql="WITH requested(n,account_id,provider_id,signature) AS (VALUES "+values+") SELECT r.n,i.icon_url FROM requested r JOIN epg_channel_mapping m ON m.account_id=r.account_id AND m.provider_channel_id=r.provider_id AND m.signature=r.signature JOIN epg_channel_icon i ON i.source_id=m.source_id AND i.guide_channel_id=m.guide_channel_id ORDER BY r.n,m.priority,m.source_id";
                 try(var query=c.prepareStatement(sql)) {
                     int parameter=1;
                     for(var id:batch) { query.setString(parameter++,id.accountId()); query.setString(parameter++,id.providerId()); query.setString(parameter++,id.signature()); }

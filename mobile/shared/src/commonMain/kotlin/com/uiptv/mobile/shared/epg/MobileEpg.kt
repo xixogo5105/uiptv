@@ -15,15 +15,28 @@ data class MobileXmltvGuide(
     val programmes: Map<String, List<MobileEpgProgramme>>,
     val names: Map<String, String>,
     val qualityNames: Map<String, String> = qualityAliases(names),
-    val icons: Map<String, String> = emptyMap()
+    val icons: Map<String, String> = emptyMap(),
+    val nameRules: MobileEpgNameRules? = null
 ) {
+    private var rulesView: MobileXmltvGuide? = null
+    fun withNameRules(rules: MobileEpgNameRules): MobileXmltvGuide {
+        if (nameRules?.canonical == rules.canonical) return this
+        rulesView?.takeIf { it.nameRules?.canonical == rules.canonical }?.let { return it }
+        return copy(nameRules=rules).also { rulesView=it }
+    }
+    private val displayAliases by lazy { nameRules?.aliases(names,false).orEmpty() }
+    private val ruleQualityAliases by lazy { nameRules?.aliases(names,true).orEmpty() }
+    private fun nameId(name: String): String? = names[normalize(name)] ?: if (nameRules != null)
+        displayAliases[nameRules.display(name)] ?: ruleQualityAliases[nameRules.quality(name)]
+        else names[normalizeDisplayName(name)] ?: qualityNames[normalizeQuality(name)]
     fun forChannel(id: String, name: String): List<MobileEpgProgramme> =
-        programmes[id] ?: names[normalize(name)]?.let { programmes[it].orEmpty() }
-            ?: names[normalizeDisplayName(name)]?.let { programmes[it].orEmpty() }
-            ?: programmes[qualityNames[normalizeQuality(name)]].orEmpty()
+        programmes[id] ?: nameId(name)?.let { programmes[it].orEmpty() }.orEmpty()
     private val iconAliases by lazy { qualityAliases(names.filterValues { icons.containsKey(it) }) }
-    fun iconForChannel(id: String, name: String): String = icons[id]
-        ?: icons[names[normalize(name)]] ?: icons[names[normalizeDisplayName(name)]] ?: icons[iconAliases[normalizeQuality(name)]].orEmpty()
+    private val ruleIconDisplayAliases by lazy { nameRules?.aliases(names.filterValues { icons.containsKey(it) },false).orEmpty() }
+    private val ruleIconQualityAliases by lazy { nameRules?.aliases(names.filterValues { icons.containsKey(it) },true).orEmpty() }
+    fun iconForChannel(id: String, name: String): String = icons[id] ?: icons[names[normalize(name)]]
+        ?: if (nameRules==null) icons[nameId(name)] ?: icons[iconAliases[normalizeQuality(name)]].orEmpty()
+        else icons[ruleIconDisplayAliases[nameRules.display(name)]] ?: icons[ruleIconQualityAliases[nameRules.quality(name)]].orEmpty()
     companion object {
         fun normalize(value: String) = value.trim().lowercase().replace(Regex("\\s+"), " ")
         fun normalizeDisplayName(value: String): String = normalize(value)

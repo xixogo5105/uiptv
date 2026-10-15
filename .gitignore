@@ -7007,3 +7007,10 @@ mobile/**/compile_commands.json
 /.continue/
 /.junie/
 /.mvn/
+
+# Python EPG Builder generated files
+python/**/__pycache__/
+python/**/.pytest_cache/
+python/**/*.egg-info/
+python/**/.venv/
+python/**/build/
