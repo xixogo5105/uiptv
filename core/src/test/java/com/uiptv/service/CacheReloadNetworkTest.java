@@ -14,8 +14,12 @@ import static org.mockito.Mockito.*;
 class CacheReloadNetworkTest extends DbBackedTest {
     @Test void hundredsOfGenresDoNotCauseHundredsOfFallbackRequestsOrDestroyExistingCache() throws Exception { exercise(false, false); }
     @Test void bulkRefreshOfTwoThousandChannelsUsesFourRequestsAndNoArtworkRequests() throws Exception { exercise(true, false); }
-    @Test void partialBulkResponseCannotReplaceExistingCatalogue() throws Exception { exercise(false, true); }
-    private void exercise(boolean successfulBulk, boolean partialBulk) throws Exception {
+    @Test void bulkResponseWithOverstatedTotalStillRefreshesUsingFourRequests() throws Exception { exercise(true, true); }
+    @Test void rejectedDefaultBulkShapeRetriesWithExplicitPagination() throws Exception { exercise(true, false, true); }
+    private void exercise(boolean successfulBulk, boolean overstatedTotal) throws Exception {
+        exercise(successfulBulk, overstatedTotal, false);
+    }
+    private void exercise(boolean successfulBulk, boolean overstatedTotal, boolean rejectDefaultShape) throws Exception {
         List<String> logs = new ArrayList<>();
         AtomicInteger calls = new AtomicInteger(), pages = new AtomicInteger();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -27,13 +31,18 @@ class CacheReloadNetworkTest extends DbBackedTest {
                 for (int i = 1; i <= 568; i++) categories.put(new org.json.JSONObject().put("id", "" + i).put("title", "Category " + i).put("alias", "category-" + i));
                 body = new org.json.JSONObject().put("js", categories).toString();
             }
-            if ((successfulBulk || partialBulk) && query.contains("get_all_channels")) {
+            if (rejectDefaultShape && query.contains("get_all_channels") && !query.contains("p=")) {
+                exchange.sendResponseHeaders(400, -1);
+                exchange.close();
+                return;
+            }
+            if (successfulBulk && query.contains("get_all_channels")) {
                 var channels = new org.json.JSONArray();
                 for (int i = 1; i <= 2000; i++) channels.put(new org.json.JSONObject()
                         .put("id", "stream-" + i).put("name", "Fixture channel " + i).put("number", "" + i)
                         .put("cmd", "http://example.invalid/stream").put("cmd_1", "").put("cmd_2", "").put("cmd_3", "")
                         .put("logo", "").put("tv_genre_id", "1"));
-                body = new org.json.JSONObject().put("js", new org.json.JSONObject().put("data", channels).put("total_items", partialBulk ? 4000 : 2000)).toString();
+                body = new org.json.JSONObject().put("js", new org.json.JSONObject().put("data", channels).put("total_items", overstatedTotal ? 4000 : 2000)).toString();
             }
             if (query.contains("get_ordered_list")) pages.incrementAndGet();
             byte[] bytes = body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -56,8 +65,8 @@ class CacheReloadNetworkTest extends DbBackedTest {
                 if (successfulBulk) new CacheServiceImpl().reloadCache(target, logs::add);
                 else assertThrows(IllegalStateException.class, () -> new CacheServiceImpl().reloadCache(target, logs::add));
             }
-            assertEquals(4, calls.get(), "Bulk refresh must use a fixed number of calls, never one per category/channel");
-            if (successfulBulk) assertTrue(logs.contains("Catalogue network requests: 4"));
+            assertEquals(rejectDefaultShape ? 5 : 4, calls.get(), "Bulk refresh must use a fixed number of calls, never one per category/channel");
+            if (successfulBulk) assertTrue(logs.contains("Catalogue network requests: " + (rejectDefaultShape ? 5 : 4)));
             assertEquals(0, pages.get());
             assertEquals(successfulBulk ? 2000 : 1, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
             if (!successfulBulk) assertEquals("Existing", CategoryDb.get().getCategories(account).getFirst().getTitle());

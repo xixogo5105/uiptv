@@ -417,11 +417,14 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             }
             FetchAPI.FetchResult result = FetchAPI.fetchWithDiagnostics(params, account, HttpUtil.RequestOptions.defaults());
             if (result.transportFailure()) {
-                // A transport-level failure means the endpoint is not serving. The remaining
-                // parameter shapes would fail the same way, each burning a full response timeout,
-                // so stop here rather than paying the timeout twice more.
                 logTransportFailure("get_all_channels", result, logger);
-                return Collections.emptyList();
+                // A failed connection cannot be repaired by changing pagination parameters.
+                // An HTTP response (including an empty 200) can be shape-specific, so retain
+                // main's bounded compatibility retries under the same request/time limits.
+                if (result.statusCode() < 0) {
+                    return Collections.emptyList();
+                }
+                continue;
             }
             String json = result.body();
             if (isBlank(json)) {
@@ -430,12 +433,8 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             try {
                 List<Channel> channels = ChannelService.getInstance().parseItvChannels(json, false);
                 if (!channels.isEmpty()) {
-                    JSONObject root = new JSONObject(json);
-                    JSONObject payload = root.optJSONObject("js", root);
-                    if (payload.optLong("total_items", channels.size()) > channels.size()) {
-                        log(logger, "Bulk response contains only part of the catalogue; trying the remaining bulk request shapes.");
-                        continue;
-                    }
+                    // Portal totals may include duplicate or filtered rows. Match the established
+                    // bulk contract: usable parsed channels are sufficient; totals are advisory.
                     return channels;
                 }
             } catch (Exception _) {
