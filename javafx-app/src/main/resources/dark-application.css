@@ -5191,5 +5191,3 @@
     -uiptv-card-bg: #242424; -uiptv-card-border: #444444; -uiptv-app-bg: #191919;
     -fx-background-color: rgba(20,20,20,0.97);
 }
-
-.virtual-card-epg-empty { -fx-text-fill: -uiptv-text-secondary; -fx-font-size: 12; -fx-padding: 4 0 4 0; }

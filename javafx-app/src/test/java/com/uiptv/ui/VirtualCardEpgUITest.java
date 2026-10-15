@@ -62,8 +62,14 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                                 VBox panel = (VBox) card.lookup(".virtual-card-epg");
                                 CardEpgSupport.display(panel, null, null);
                                 assertTrue(panel.isManaged()); assertTrue(panel.isVisible()); assertTrue(card.isManaged());
-                                assertEquals(I18n.tr("epgNoProgrammeDetails"), ((Label) panel.getChildren().getFirst()).getText());
-                                assertNotNull(panel.lookup(".virtual-card-epg-empty"));
+                                assertEquals(3, panel.getChildren().size());
+                                var nowPlaceholder = (VBox) panel.getChildren().getFirst();
+                                var nextPlaceholder = (VBox) panel.getChildren().getLast();
+                                assertEquals(I18n.tr("epgNow") + ": " + I18n.tr("epgNoProgrammeDetails"), ((Label) nowPlaceholder.getChildren().getFirst()).getText());
+                                assertEquals(I18n.tr("epgNext") + ": " + I18n.tr("epgNoProgrammeDetails"), ((Label) nextPlaceholder.getChildren().getFirst()).getText());
+                                assertEquals("—", ((Label) nowPlaceholder.getChildren().getLast()).getText());
+                                assertEquals("—", ((Label) nextPlaceholder.getChildren().getLast()).getText());
+                                assertEquals(0, ((ProgressBar) panel.getChildren().get(1)).getProgress());
                                 long now = System.currentTimeMillis();
                                 CardEpgSupport.display(panel, new EpgProgramme("Current film", "", now - 60_000, now + 60_000),
                                         new EpgProgramme("Next film", "", now + 60_000, now + 3_600_000));

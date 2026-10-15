@@ -177,28 +177,22 @@ final class CardEpgSupport {
 
     static void display(VBox panel, EpgProgramme current, EpgProgramme next) {
         panel.getChildren().clear();
-        if (current != null) {
-            panel.getChildren().add(programme(I18n.tr("epgNow"), current));
-            ProgressBar progress = new ProgressBar(Math.clamp((System.currentTimeMillis() - current.start()) / (double) (current.stop() - current.start()), 0, 1));
-            progress.getStyleClass().add("epg-programme-progress"); progress.setMaxWidth(Double.MAX_VALUE); panel.getChildren().add(progress);
-        }
-        if (next != null) panel.getChildren().add(programme(I18n.tr("epgNext"), next));
-        if (current == null && next == null) {
-            Label empty = new Label(I18n.tr("epgNoProgrammeDetails"));
-            empty.getStyleClass().add("virtual-card-epg-empty");
-            empty.setWrapText(true);
-            empty.setMinWidth(0);
-            empty.setMaxWidth(Double.MAX_VALUE);
-            panel.getChildren().add(empty);
-        }
+        panel.getChildren().add(programme(I18n.tr("epgNow"), current));
+        double fraction = current == null || current.stop() <= current.start() ? 0
+                : Math.clamp((System.currentTimeMillis() - current.start()) / (double) (current.stop() - current.start()), 0, 1);
+        ProgressBar progress = new ProgressBar(fraction);
+        progress.getStyleClass().add("epg-programme-progress");
+        progress.setMaxWidth(Double.MAX_VALUE);
+        panel.getChildren().addAll(progress, programme(I18n.tr("epgNext"), next));
         panel.setVisible(true); panel.setManaged(true);
     }
 
     private static VBox programme(String badge, EpgProgramme programme) {
-        Label title = new Label(badge + ": " + programme.title()); title.getStyleClass().add("virtual-card-epg-title");
+        String text = programme == null ? I18n.tr("epgNoProgrammeDetails") : programme.title();
+        Label title = new Label(badge + ": " + text); title.getStyleClass().add("virtual-card-epg-title");
         title.setMinWidth(0); title.setMaxWidth(Double.MAX_VALUE); title.setTextOverrun(OverrunStyle.ELLIPSIS);
-        Tooltip tooltip = new Tooltip(programme.title()); tooltip.setWrapText(true); tooltip.setMaxWidth(400); title.setTooltip(tooltip);
-        Label time = new Label(TIME.format(Instant.ofEpochMilli(programme.start()).atZone(ZoneId.systemDefault())) + " – "
+        Tooltip tooltip = new Tooltip(text); tooltip.setWrapText(true); tooltip.setMaxWidth(400); title.setTooltip(tooltip);
+        Label time = new Label(programme == null ? "—" : TIME.format(Instant.ofEpochMilli(programme.start()).atZone(ZoneId.systemDefault())) + " – "
                 + TIME.format(Instant.ofEpochMilli(programme.stop()).atZone(ZoneId.systemDefault())));
         time.getStyleClass().add("epg-programme-time"); return new VBox(2, title, time);
     }
