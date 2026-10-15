@@ -25,7 +25,7 @@ data class EpgUiActions(
     val saveGlobalSource: suspend (String) -> Unit = {},
     val schedule: suspend (Long, String, String) -> MobileEpgResult = { _, _, _ -> MobileEpgResult() },
     val saveMapping: suspend (Long, String, String) -> Unit = { _, _, _ -> },
-    val icon: suspend (Long, String) -> String = { _, _ -> "" }
+    val icon: suspend (Long, String, String) -> String = { _, _, _ -> "" }
 )
 internal data class EpgUiState(
     val enabled: Boolean = false,
@@ -34,16 +34,15 @@ internal data class EpgUiState(
     val onEnabled: (Boolean) -> Unit = {}
 )
 val LocalThumbnailFallback = staticCompositionLocalOf { "" }
+val LocalThumbnailFallbackLoader = staticCompositionLocalOf<(suspend () -> String)?> { null }
 internal val LocalEpgState = staticCompositionLocalOf { EpgUiState() }
 
 @Composable
-internal fun epgThumbnail(accountId: Long, providerId: String, enabled: Boolean): String {
+internal fun epgThumbnail(accountId: Long, providerId: String, name: String, enabled: Boolean): (suspend () -> String)? {
     val state = LocalEpgState.current
-    var fallback by remember(accountId, providerId) { mutableStateOf("") }
-    LaunchedEffect(accountId, providerId, enabled, state.enabled, state.time / (30 * 60_000)) {
-        fallback = if (enabled && state.enabled) state.actions.icon(accountId, providerId) else ""
+    return remember(accountId, providerId, name, enabled, state.enabled, state.actions, state.time / (30 * 60_000)) {
+        if (enabled && state.enabled) suspend { state.actions.icon(accountId, providerId, name) } else null
     }
-    return if (enabled && state.enabled) fallback else ""
 }
 
 @Composable

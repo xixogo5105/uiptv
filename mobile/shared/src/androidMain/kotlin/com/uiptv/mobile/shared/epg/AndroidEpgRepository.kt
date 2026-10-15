@@ -41,9 +41,29 @@ class AndroidEpgRepository(
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
     }
-    suspend fun icon(accountId: Long, providerChannelId: String): String = withContext(Dispatchers.IO) {
-        if (!preferences.load().epgEnabled) ""
-        else AndroidSyncedEpgCache(databaseHelper.readableDatabase).icon(accountId, providerChannelId)
+    suspend fun icon(accountId: Long, providerChannelId: String, name: String = ""): String = withContext(Dispatchers.IO) {
+        if (!preferences.load().epgEnabled) return@withContext ""
+        val cloned = AndroidSyncedEpgCache(databaseHelper.readableDatabase)
+        cloned.icon(accountId, providerChannelId).takeIf { it.isNotBlank() }?.let { return@withContext it }
+        cloned.matchedIcon(accountId, providerChannelId, name).takeIf { it.isNotBlank() }?.let { return@withContext it }
+        val request = mutex.withLock {
+            val account = AndroidSQLiteAccountRepository(databaseHelper).listAccounts().firstOrNull { it.id == accountId }
+                ?: return@withContext ""
+            val override = runCatching { JSONObject(config("epgMappingsJson")).optJSONObject(accountId.toString())?.optString(providerChannelId) }
+                .getOrNull().orEmpty().trim()
+            val id = override.ifBlank { guideId(account, providerChannelId) }
+            val sources = linkedSetOf(discover(account), account.epg).apply {
+                addAll(config("globalEpgSource").lineSequence().map { it.trim() }.filter { it.isNotBlank() })
+            }
+            Triple(id, if (override.isBlank()) name else "", sources.filter { it.isNotBlank() })
+        }
+        val host = preferences.load().remoteEndpoint.host
+        for (source in request.third) {
+            ensureActive()
+            val guide = sharedGuide(resolveDesktopSource(source, host), System.currentTimeMillis()).await().guide ?: continue
+            guide.iconForChannel(request.first, request.second).takeIf { it.isNotBlank() }?.let { return@withContext it }
+        }
+        ""
     }
     override suspend fun globalSource(): String = withContext(Dispatchers.IO) { config("globalEpgSource") }
     override suspend fun saveGlobalSource(source: String) = withContext(Dispatchers.IO) {
@@ -202,7 +222,7 @@ class AndroidEpgRepository(
                 buffered.mark(2); val first = buffered.read(); val second = buffered.read(); buffered.reset()
                 val xml = if (first == 0x1f && second == 0x8b) GZIPInputStream(buffered) else buffered
                 val limited = LimitedStream(xml)
-                GuideCache(if (remote) disk.parseAndSave(source, limited, now) else AndroidXmltvReader.read(limited, now), now + 24 * 3600_000L, false)
+                GuideCache(if (remote) disk.parseAndSave(source, limited, now) else AndroidXmltvReader.read(limited, now, source), now + 24 * 3600_000L, false)
             }
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
@@ -313,7 +333,8 @@ class AndroidEpgRepository(
         private fun trimGuides() {
             fun bytes(entry: GuideCache): Long = entry.guide?.let { guide ->
                 guide.programmes.values.sumOf { list -> list.sumOf { 160L + 2L * (it.title.length + it.description.length) } } +
-                    (guide.names.size + guide.qualityNames.size) * 192L
+                    (guide.names.size + guide.qualityNames.size) * 192L +
+                    guide.icons.entries.sumOf { 192L + 2L * (it.key.length + it.value.length) }
             } ?: 0L
             var retained = guides.values.sumOf { bytes(it) }
             val iterator = guides.entries.iterator()

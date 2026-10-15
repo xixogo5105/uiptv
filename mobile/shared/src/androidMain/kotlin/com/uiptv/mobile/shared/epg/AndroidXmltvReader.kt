@@ -8,13 +8,14 @@ import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
 
 object AndroidXmltvReader {
-    fun read(input: InputStream, now: Long): MobileXmltvGuide {
+    fun read(input: InputStream, now: Long, source: String = ""): MobileXmltvGuide {
         val parser = XmlPullParserFactory.newInstance().newPullParser()
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
         parser.setFeature("http://xmlpull.org/v1/doc/features.html#process-docdecl", false)
         parser.setInput(input, null)
         val programmes = mutableMapOf<String, MutableList<MobileEpgProgramme>>()
         val names = mutableMapOf<String, String>()
+        val icons = mutableMapOf<String, String>()
         val ambiguous = mutableSetOf<String>()
         val qualityNames = mutableMapOf<String, String>()
         val ambiguousQuality = mutableSetOf<String>()
@@ -45,6 +46,14 @@ object AndroidXmltvReader {
                         if (qualityPrevious != null && qualityPrevious != id) ambiguousQuality += key
                     }
                 }
+                "icon" -> if (id.isNotBlank() && channel.isBlank()) {
+                    val raw = parser.getAttributeValue(null, "src").orEmpty().trim()
+                    if (raw.isNotBlank() && raw.length <= 4096) runCatching {
+                        val uri = java.net.URI(raw).let { if (it.isAbsolute) it else java.net.URI(source).resolve(it) }
+                        if (uri.scheme?.lowercase() in listOf("http", "https") && !uri.host.isNullOrBlank())
+                            icons.putIfAbsent(id, uri.toString())
+                    }
+                }
                 "programme" -> {
                     channel = parser.getAttributeValue(null, "channel").orEmpty()
                     start = time(parser.getAttributeValue(null, "start"))
@@ -54,6 +63,7 @@ object AndroidXmltvReader {
                 "title" -> { val text = parser.nextText().trim(); if (title.isEmpty()) title = text }
                 "desc" -> { val text = parser.nextText().trim(); if (description.isEmpty()) description = text }
             }
+            if (event == XmlPullParser.END_TAG && parser.name == "channel") id = ""
             if (event == XmlPullParser.END_TAG && parser.name == "programme") {
                 if (channel.isNotBlank() && start > now - 86400_000L && start < now + 7 * 86400_000L &&
                     (stop == 0L || stop > now - 6 * 3600_000L) && title.isNotBlank()) {
@@ -74,7 +84,7 @@ object AndroidXmltvReader {
                 if (end > p.start) p.copy(stop = end) else null
             })
         }
-        return MobileXmltvGuide(completed, names.toMap(), qualityNames.toMap())
+        return MobileXmltvGuide(completed, names.toMap(), qualityNames.toMap(), icons.toMap())
     }
     fun time(value: String?): Long = runCatching {
         val parts = value.orEmpty().trim().split(Regex("\\s+"))

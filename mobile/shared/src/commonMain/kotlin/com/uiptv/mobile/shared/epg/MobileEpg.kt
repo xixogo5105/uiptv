@@ -14,11 +14,15 @@ data class MobileEpgResult(
 data class MobileXmltvGuide(
     val programmes: Map<String, List<MobileEpgProgramme>>,
     val names: Map<String, String>,
-    val qualityNames: Map<String, String> = qualityAliases(names)
+    val qualityNames: Map<String, String> = qualityAliases(names),
+    val icons: Map<String, String> = emptyMap()
 ) {
     fun forChannel(id: String, name: String): List<MobileEpgProgramme> =
         programmes[id] ?: names[normalize(name)]?.let { programmes[it].orEmpty() }
             ?: programmes[qualityNames[normalizeQuality(name)]].orEmpty()
+    private val iconAliases by lazy { qualityAliases(names.filterValues { icons.containsKey(it) }) }
+    fun iconForChannel(id: String, name: String): String = icons[id]
+        ?: icons[names[normalize(name)]] ?: icons[iconAliases[normalizeQuality(name)]].orEmpty()
     companion object {
         fun normalize(value: String) = value.trim().lowercase().replace(Regex("\\s+"), " ")
         fun normalizeQuality(value: String): String = normalize(normalize(value)

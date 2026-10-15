@@ -87,6 +87,9 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
     }.getOrNull()
 
     companion object {
+        private val artworkIndexes = object : LinkedHashMap<String,MobileXmltvGuide>(32,.75f,true) {
+            override fun removeEldestEntry(eldest: Map.Entry<String,MobileXmltvGuide>): Boolean = size > 32
+        }
         private val aliasIndexes = object : LinkedHashMap<String,Pair<Map<String,String>,Map<String,String>>>(32, .75f, true) {
             override fun removeEldestEntry(eldest: Map.Entry<String,Pair<Map<String,String>,Map<String,String>>>): Boolean = size > 32
         }
@@ -102,6 +105,41 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
         """.trimIndent(), arrayOf(accountId.toString(), providerId, signature)).use {
             if (it.moveToFirst()) it.getString(0).orEmpty() else ""
         }
+    }.getOrDefault("")
+
+    fun matchedIcon(accountId: Long, providerId: String, name: String): String = runCatching {
+        val config = db.rawQuery("SELECT globalEpgSource,epgMappingsJson FROM Configuration LIMIT 1", null).use {
+            if (it.moveToFirst()) it.getString(0).orEmpty() to it.getString(1).orEmpty() else "" to ""
+        }
+        val accountSource = db.rawQuery("SELECT epg FROM Account WHERE id=?", arrayOf(accountId.toString())).use {
+            if (!it.moveToFirst()) return ""
+            it.getString(0).orEmpty()
+        }
+        val override = runCatching { JSONObject(config.second).optJSONObject(accountId.toString())?.optString(providerId) }
+            .getOrNull().orEmpty().trim()
+        for (source in (listOf(accountSource) + config.first.lineSequence().toList()).map { it.trim() }.filter { it.isNotBlank() }.distinct()) {
+            val sourceId = hash("xml:$source")
+            val refreshed = db.rawQuery("SELECT refreshed_at FROM epg_source WHERE source_id=?",arrayOf(sourceId)).use {
+                if (it.moveToFirst()) it.getLong(0) else null
+            } ?: continue
+            val key = "${db.path}|$sourceId|$refreshed"
+            val guide = synchronized(artworkIndexes) {
+                artworkIndexes[key] ?: run {
+                    val icons = mutableMapOf<String,String>()
+                    db.rawQuery("SELECT guide_channel_id,icon_url FROM epg_channel_icon WHERE source_id=?",arrayOf(sourceId)).use {
+                        while (it.moveToNext()) icons[it.getString(0)] = it.getString(1)
+                    }
+                    val names = mutableMapOf<String,String>()
+                    if (icons.isNotEmpty()) db.rawQuery("SELECT name,guide_channel_id FROM epg_alias WHERE source_id=? AND kind=0",arrayOf(sourceId)).use {
+                        while (it.moveToNext()) names[it.getString(0)] = it.getString(1)
+                    }
+                    MobileXmltvGuide(emptyMap(),names,icons=icons).also { artworkIndexes[key] = it }
+                }
+            }
+            val icon = guide.iconForChannel(override.ifBlank { providerId },if (override.isBlank()) name else "")
+            if (icon.isNotBlank()) return icon
+        }
+        ""
     }.getOrDefault("")
 
     /** Must match EpgCacheApplicationService.identity, including the raw catalogue metadata. */

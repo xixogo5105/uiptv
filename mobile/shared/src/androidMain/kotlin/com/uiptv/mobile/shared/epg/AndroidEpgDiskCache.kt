@@ -21,17 +21,17 @@ internal class AndroidEpgDiskCache(context: Context) {
         val file = file(source)
         if (!file.isFile || (!stale && now >= file.lastModified() + ttl)) return null
         return try {
-            file.inputStream().use { AndroidXmltvReader.read(AndroidEpgRepository.LimitedStream(it), now) }
+            file.inputStream().use { AndroidXmltvReader.read(AndroidEpgRepository.LimitedStream(it), now, source) }
         } catch (error: OutOfMemoryError) { null }
     }
     fun parseAndSave(source: String, xml: InputStream, now: Long): MobileXmltvGuide {
-        val target = runCatching { file(source) }.getOrElse { return AndroidXmltvReader.read(xml, now) }
+        val target = runCatching { file(source) }.getOrElse { return AndroidXmltvReader.read(xml, now, source) }
         val temporary = runCatching { File.createTempFile("epg-", ".part", directory) }
-            .getOrElse { return AndroidXmltvReader.read(xml, now) }
+            .getOrElse { return AndroidXmltvReader.read(xml, now, source) }
         try {
             temporary.outputStream().buffered(256 * 1024).use { xml.copyTo(it) }
             val guide = try {
-                temporary.inputStream().use { AndroidXmltvReader.read(it, now) }
+                temporary.inputStream().use { AndroidXmltvReader.read(it, now, source) }
             } catch (error: OutOfMemoryError) {
                 temporary.delete(); throw error
             }

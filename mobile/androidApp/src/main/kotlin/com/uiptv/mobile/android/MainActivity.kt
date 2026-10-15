@@ -223,7 +223,8 @@ class MainActivity : ComponentActivity() {
                     ),
                     logoRenderer = { logoUrl, description, modifier ->
                         RemoteLogoImage(logoUrl, description, modifier,
-                            fallbackLogoUrl = com.uiptv.mobile.shared.ui.LocalThumbnailFallback.current)
+                            fallbackLogoUrl = com.uiptv.mobile.shared.ui.LocalThumbnailFallback.current,
+                            fallbackLoader = com.uiptv.mobile.shared.ui.LocalThumbnailFallbackLoader.current)
                     },
                     playerIconRenderer = { choice, modifier ->
                         AndroidPlayerIcon(choice, modifier)

@@ -34,7 +34,10 @@ class AndroidEpgTest {
             val output = java.io.ByteArrayOutputStream()
             java.util.zip.DeflaterOutputStream(output).use { it.write("Real description".toByteArray()) }
             db.execSQL("INSERT INTO epg_programme VALUES(?,?,?,?,?,?)", arrayOf<Any>(sourceId,"BBC.Two.HD.uk",now-60000,now+3600000,"Real UK programme",output.toByteArray()))
+            db.execSQL("INSERT INTO epg_channel_icon VALUES(?,?,?)", arrayOf(sourceId,"BBC.Two.HD.uk","https://example.invalid/station.png"))
             val cache = AndroidSyncedEpgCache(db)
+            assertEquals("https://example.invalid/station.png",cache.matchedIcon(999,"BBCTwo.uk","BBC Two Ⓖ"))
+            assertTrue(cache.matchedIcon(999,"other","BBC Two +1").isEmpty())
             val result = cache.matchCloned(999,"BBCTwo.uk","bBc Two Ⓖ",now)
             assertNotNull(result)
             assertEquals("Real UK programme",result!!.result.now(now)!!.title)
@@ -125,6 +128,30 @@ class AndroidEpgTest {
         val validLogo = "https://example.invalid/valid-logo-fixture.png"
         cache.put(validLogo, primary)
         assertSame(primary, com.uiptv.mobile.android.loadLogoBitmap(cache, validLogo, iconUrl))
+        var resolutions = 0
+        val resolve: suspend () -> String = { resolutions++; iconUrl }
+        assertSame(primary, com.uiptv.mobile.android.loadLogoBitmap(cache, validLogo, "", resolve))
+        assertEquals(0,resolutions)
+        assertSame(fallback, com.uiptv.mobile.android.loadLogoBitmap(cache, logoUrl, "", resolve))
+        assertEquals(1,resolutions)
+        assertSame(fallback, com.uiptv.mobile.android.loadLogoBitmap(cache, "", "", resolve))
+        assertEquals(2,resolutions)
+    }
+
+    @Test fun xmltvChannelIconsResolveRelativeUrlsWithoutTakingProgrammeArtwork() {
+        val xml = """<tv>
+            <channel id="station"><display-name>Station HD</display-name><icon src="../logos/station.png"/></channel>
+            <channel id="invalid"><display-name>Invalid</display-name><icon src="javascript:bad"/></channel>
+            <programme channel="station" start="20261015120000 +0000" stop="20261015140000 +0000">
+                <title>Film</title><icon src="https://example.invalid/programme.png"/>
+            </programme></tv>"""
+        val guide = AndroidXmltvReader.read(ByteArrayInputStream(xml.toByteArray()),
+            Instant.parse("2026-10-15T12:30:00Z").toEpochMilli(),"https://example.invalid/guides/uk.xml")
+        assertEquals("https://example.invalid/logos/station.png",guide.iconForChannel("stream","STATION Ⓖ"))
+        assertEquals("https://example.invalid/logos/station.png",guide.iconForChannel("station","other"))
+        assertTrue(guide.iconForChannel("invalid","Invalid").isEmpty())
+        assertEquals(1,guide.icons.size)
+        assertTrue(guide.iconForChannel("other","Station +1").isEmpty())
     }
 
     @Test fun identicalDesktopFixturePinsDstMatchingAndMissingStops() {

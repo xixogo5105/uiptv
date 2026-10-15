@@ -26,15 +26,16 @@ fun RemoteLogoImage(
     logoUrl: String,
     contentDescription: String,
     modifier: Modifier = Modifier,
-    fallbackLogoUrl: String = ""
+    fallbackLogoUrl: String = "",
+    fallbackLoader: (suspend () -> String)? = null
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val cache = remember(context) { ThumbnailCache.getInstance(context) }
 
-    var bitmap by remember(logoUrl, fallbackLogoUrl) { mutableStateOf<Bitmap?>(null) }
+    var bitmap by remember(logoUrl, fallbackLogoUrl, fallbackLoader) { mutableStateOf<Bitmap?>(null) }
 
-    LaunchedEffect(logoUrl, fallbackLogoUrl) {
-        bitmap = loadLogoBitmap(cache, logoUrl, fallbackLogoUrl)
+    LaunchedEffect(logoUrl, fallbackLogoUrl, fallbackLoader) {
+        bitmap = loadLogoBitmap(cache, logoUrl, fallbackLogoUrl, fallbackLoader)
     }
 
     val loadedBitmap = bitmap?.asImageBitmap()
@@ -62,7 +63,7 @@ fun RemoteLogoImage(
     }
 }
 
-internal suspend fun loadLogoBitmap(cache: ThumbnailCache, primary: String, fallback: String): Bitmap? =
+internal suspend fun loadLogoBitmap(cache: ThumbnailCache, primary: String, fallback: String, fallbackLoader: (suspend () -> String)? = null): Bitmap? =
     withContext(kotlinx.coroutines.Dispatchers.IO) {
         for (source in listOf(primary, fallback).filter { it.isNotBlank() }.distinct()) {
             val cached = cache.get(source) ?: cache.getFromDisk(source)
@@ -70,7 +71,11 @@ internal suspend fun loadLogoBitmap(cache: ThumbnailCache, primary: String, fall
             cache.fetchAsync(source).join()
             cache.get(source)?.let { return@withContext it }
         }
-        null
+        val resolved = try { fallbackLoader?.invoke().orEmpty() }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { "" }
+        if (resolved.isBlank() || resolved == primary || resolved == fallback) null
+        else loadLogoBitmap(cache, resolved, "")
     }
 
 private fun fallbackInitials(contentDescription: String): String {
