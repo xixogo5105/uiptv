@@ -19,14 +19,18 @@ data class MobileXmltvGuide(
 ) {
     fun forChannel(id: String, name: String): List<MobileEpgProgramme> =
         programmes[id] ?: names[normalize(name)]?.let { programmes[it].orEmpty() }
+            ?: names[normalizeDisplayName(name)]?.let { programmes[it].orEmpty() }
             ?: programmes[qualityNames[normalizeQuality(name)]].orEmpty()
     private val iconAliases by lazy { qualityAliases(names.filterValues { icons.containsKey(it) }) }
     fun iconForChannel(id: String, name: String): String = icons[id]
-        ?: icons[names[normalize(name)]] ?: icons[iconAliases[normalizeQuality(name)]].orEmpty()
+        ?: icons[names[normalize(name)]] ?: icons[names[normalizeDisplayName(name)]] ?: icons[iconAliases[normalizeQuality(name)]].orEmpty()
     companion object {
         fun normalize(value: String) = value.trim().lowercase().replace(Regex("\\s+"), " ")
-        fun normalizeQuality(value: String): String = normalize(normalize(value)
-            .replace(Regex("(?<![\\p{L}\\p{N}])(?:fhd|uhd|hd|sd|4k|8k|720p|1080p|2160p)(?![\\p{L}\\p{N}])"), " ")
+        fun normalizeDisplayName(value: String): String = normalize(value)
+            .replace(Regex("\\s*\\((?:144|240|360|480|540|576|720|1080|1440|2160|4320)[pi]\\)"), "")
+            .replace(Regex("\\s*\\[geo-blocked\\]"), "").trim()
+        fun normalizeQuality(value: String): String = normalize(normalizeDisplayName(value)
+            .replace(Regex("(?<![\\p{L}\\p{N}])(?:fhd|uhd|hd|sd|4k|8k|(?:144|240|360|480|540|576|720|1080|1440|2160|4320)[pi])(?![\\p{L}\\p{N}])"), " ")
             .replace(Regex("\\([\\s|/,-]*\\)|\\[[\\s|/,-]*\\]"), " ")
             .replace(Regex("^[\\s|/,-]+|[\\s|/,-]+$"), "")
             .replace(Regex("[Ⓐ-Ⓩⓐ-ⓩ]"), "")

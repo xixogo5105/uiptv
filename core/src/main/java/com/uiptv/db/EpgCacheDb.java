@@ -118,11 +118,18 @@ public final class EpgCacheDb {
                         direct.setString(1,candidate); direct.setString(2,candidate.equals(match.nativeSource()) ? match.identity().providerId() : match.guideId()); direct.setLong(3,now);
                         try (var row = direct.executeQuery()) { if (row.next()) guide = row.getString(1); }
                         if (guide.isBlank() && !match.explicit()) for (int kind=0; kind<2 && guide.isBlank(); kind++) {
-                            alias.setString(1,candidate); alias.setInt(2,kind); alias.setString(3,kind==0 ? match.name() : match.qualityName());
-                            try (var row=alias.executeQuery()) { if (row.next()) {
-                                String id = row.getString(1); direct.setString(2,id);
-                                try (var programmes = direct.executeQuery()) { if (programmes.next()) guide=id; }
-                            } }
+                            alias.setString(1,candidate); alias.setInt(2,kind);
+                            var names = kind == 0
+                                    ? new LinkedHashSet<>(List.of(match.name(), com.uiptv.application.XmltvGuide.normalizeDisplayName(match.name())))
+                                    : Set.of(match.qualityName());
+                            for (String name : names) {
+                                alias.setString(3, name);
+                                try (var row=alias.executeQuery()) { if (row.next()) {
+                                    String id = row.getString(1); direct.setString(2,id);
+                                    try (var programmes = direct.executeQuery()) { if (programmes.next()) guide=id; }
+                                } }
+                                if (!guide.isBlank()) break;
+                            }
                         }
                         if (guide.isBlank() && !match.explicit()) {
                             // Older imported feeds retain spaced aliases until their next download.

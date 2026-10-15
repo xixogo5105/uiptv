@@ -71,6 +71,7 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
                     }
                 }
                 id = aliases.first[MobileXmltvGuide.normalize(name)]
+                    ?: aliases.first[MobileXmltvGuide.normalizeDisplayName(name)]
                     ?: aliases.second[MobileXmltvGuide.normalizeQuality(name)].orEmpty()
             }
             if (id.isBlank()) continue

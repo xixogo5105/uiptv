@@ -3,6 +3,17 @@ package com.uiptv.mobile.shared.epg
 import kotlin.test.*
 
 class MobileEpgTest {
+    @Test fun playlistResolutionLabelsRetainExactHdSdAndRegionalIdentity() {
+        val sd = MobileEpgProgramme("SD programme", "", 1000, 2000)
+        val hd = sd.copy(title = "HD programme")
+        val guide = MobileXmltvGuide(mapOf("sd" to listOf(sd), "hd" to listOf(hd)),
+            mapOf("b4u kadak" to "sd", "b4u kadak hd" to "hd"))
+        assertEquals(listOf(sd), guide.forChannel("playlist-id", "B4U Kadak (576p)"))
+        assertEquals(listOf(hd), guide.forChannel("playlist-id", "B4U Kadak HD (1080p) [Geo-blocked]"))
+        assertTrue(guide.forChannel("playlist-id", "B4U Kadak International (576p)").isEmpty())
+        assertTrue(guide.forChannel("playlist-id", "B4U Kadak +1 (576p)").isEmpty())
+    }
+
     @Test fun annotatedNamesIgnoreCaseAndSpacingButKeepTimeshiftsAndRegions() {
         val aliases = MobileXmltvGuide.qualityAliases(mapOf("bbc one" to "bbc"))
         for (name in listOf("BBC One Ⓖ", "bbcONE", "BBC-One HD"))

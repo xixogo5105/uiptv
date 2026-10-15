@@ -11,7 +11,9 @@ import java.util.*;
 /** Streaming XMLTV reader. External DTDs and entities are never fetched. */
 public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names, Map<String, String> qualityNames, Map<String,String> icons) {
     private static final java.util.regex.Pattern WHITESPACE = java.util.regex.Pattern.compile("\\s+");
-    private static final java.util.regex.Pattern QUALITY = java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}])(?:fhd|uhd|hd|sd|4k|8k|720p|1080p|2160p)(?![\\p{L}\\p{N}])");
+    private static final java.util.regex.Pattern QUALITY = java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}])(?:fhd|uhd|hd|sd|4k|8k|(?:144|240|360|480|540|576|720|1080|1440|2160|4320)[pi])(?![\\p{L}\\p{N}])");
+    private static final java.util.regex.Pattern DISPLAY_RESOLUTION = java.util.regex.Pattern.compile("\\s*\\((?:144|240|360|480|540|576|720|1080|1440|2160|4320)[pi]\\)");
+    private static final java.util.regex.Pattern AVAILABILITY = java.util.regex.Pattern.compile("\\s*\\[geo-blocked\\]");
     private static final java.util.regex.Pattern EMPTY_BRACKETS = java.util.regex.Pattern.compile("\\([\\s|/,-]*\\)|\\[[\\s|/,-]*\\]");
     private static final java.util.regex.Pattern EDGE_SEPARATORS = java.util.regex.Pattern.compile("^[\\s|/,-]+|[\\s|/,-]+$");
     private static final DateTimeFormatter XMLTV_TIME = DateTimeFormatter.ofPattern("uuuuMMddHHmmss").withResolverStyle(java.time.format.ResolverStyle.STRICT);
@@ -132,14 +134,20 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
 
     public List<EpgProgramme> forChannel(String providerId, String name) {
         String id = providerId != null && programmes.containsKey(providerId) ? providerId : names.get(normalize(name));
+        if (id == null) id = names.get(normalizeDisplayName(name));
         if (id == null) id = qualityNames.getOrDefault(normalizeQuality(name), "");
         return programmes.getOrDefault(id, List.of());
     }
 
     static String normalize(String name) { return name == null ? "" : WHITESPACE.matcher(name.strip().toLowerCase(Locale.ROOT)).replaceAll(" "); }
 
+    /** Strip playlist presentation labels, retaining HD/SD, regions and time shifts. */
+    public static String normalizeDisplayName(String name) {
+        return AVAILABILITY.matcher(DISPLAY_RESOLUTION.matcher(normalize(name)).replaceAll("")).replaceAll("").strip();
+    }
+
     static String normalizeQuality(String name) {
-        String value = QUALITY.matcher(normalize(name)).replaceAll(" ");
+        String value = QUALITY.matcher(normalizeDisplayName(name)).replaceAll(" ");
         value = EDGE_SEPARATORS.matcher(EMPTY_BRACKETS.matcher(value).replaceAll(" ")).replaceAll("");
         // Playlist availability annotations are not part of the broadcast name.
         value = value.replaceAll("[Ⓐ-Ⓩⓐ-ⓩ]", "");

@@ -31,6 +31,25 @@ class EpgResolutionTest extends DbBackedTest {
         new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
         return new EpgCacheApplicationService().summaries(account, List.of(channel)).getOrDefault(channel, List.of());
     }
+    @Test void globalGuideMatchesPlaylistResolutionLabelsWithoutLosingHdSdIdentity() throws Exception {
+        String global = source("resolution-guide", "B4U.Kadak.in", "Kadak programme");
+        config.setGlobalEpgSource(global); ConfigurationService.getInstance().save(config);
+        long now = System.currentTimeMillis();
+        new EpgCacheDb().replaceSource(EpgCacheApplicationService.sourceId(global),
+                Map.of("B4U.Kadak.in", List.of(new EpgProgramme("SD programme", "", now-60_000, now+3_600_000)),
+                        "B4U.Kadak.HD.in", List.of(new EpgProgramme("HD programme", "", now-60_000, now+3_600_000))),
+                Map.of("b4u kadak", "B4U.Kadak.in", "b4u kadak hd", "B4U.Kadak.HD.in"),
+                Map.of(), now, now+3_600_000);
+        channel.setChannelId("B4UKadak.in@SD"); channel.setName("B4U Kadak (576p)");
+        assertEquals("SD programme", schedule(account,channel).getFirst().title());
+        channel.setName("B4U Kadak HD (1080p) [Geo-blocked]");
+        assertEquals("HD programme", schedule(account,channel).getFirst().title());
+        channel.setName("B4U Kadak International (576p)");
+        assertTrue(schedule(account,channel).isEmpty());
+        channel.setName("B4U Kadak +1 (576p)");
+        assertTrue(schedule(account,channel).isEmpty());
+    }
+
     @Test void namedProgrammesKeepTheirDurationWhenGenericPlaceholdersOverlap() {
         var godzilla = new EpgProgramme("Godzilla", "", 1000, 3000);
         var movie = new EpgProgramme("Movie", "", 1500, 4000);
