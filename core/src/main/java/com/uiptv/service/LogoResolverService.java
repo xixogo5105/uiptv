@@ -35,7 +35,9 @@ public class LogoResolverService {
     private final ConcurrentHashMap<String, String> catalog = new ConcurrentHashMap<>();
     private final File localCacheFile;
     private volatile long lastCatalogRefreshAt = 0L;
+    private volatile long nextCatalogAttemptAt = 0L;
     private volatile boolean refreshInProgress = false;
+    private final java.util.concurrent.atomic.AtomicBoolean catalogQueued = new java.util.concurrent.atomic.AtomicBoolean();
 
     private LogoResolverService() {
         this.localCacheFile = new File(System.getProperty("java.io.tmpdir"), "uiptv-logo-cache.json");
@@ -51,6 +53,7 @@ public class LogoResolverService {
     }
 
     public String resolve(String channelName, String providerLogo) {
+        if (com.uiptv.util.ReloadRequestScope.active()) return providerLogo == null ? "" : providerLogo;
         if (isNotBlank(providerLogo)) {
             return providerLogo;
         }
@@ -74,10 +77,11 @@ public class LogoResolverService {
 
     private synchronized void ensureCatalogLoaded() {
         long now = System.currentTimeMillis();
-        if (isCatalogFresh(now) || refreshInProgress) {
+        if (isCatalogFresh(now) || now < nextCatalogAttemptAt || refreshInProgress) {
             return;
         }
         refreshInProgress = true;
+        nextCatalogAttemptAt = now + 5 * 60_000L;
         try {
             HttpUtil.HttpResult response = fetchChannelsCatalog();
             if (response.statusCode() != HttpUtil.STATUS_OK) {
@@ -215,10 +219,12 @@ public class LogoResolverService {
 
     private void triggerCatalogRefreshAsync() {
         long now = System.currentTimeMillis();
-        if ((!catalog.isEmpty() && now - lastCatalogRefreshAt < CATALOG_REFRESH_MS) || refreshInProgress) {
+        if (now < nextCatalogAttemptAt || isCatalogFresh(now) || refreshInProgress || !catalogQueued.compareAndSet(false, true)) {
             return;
         }
-        Thread loader = new Thread(this::ensureCatalogLoaded, "uiptv-logo-catalog-refresh");
+        Thread loader = new Thread(() -> {
+            try { ensureCatalogLoaded(); } finally { catalogQueued.set(false); }
+        }, "uiptv-logo-catalog-refresh");
         loader.setDaemon(true);
         loader.start();
     }

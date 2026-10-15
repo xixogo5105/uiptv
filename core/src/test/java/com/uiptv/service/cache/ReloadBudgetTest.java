@@ -49,13 +49,4 @@ class ReloadBudgetTest {
         assertFalse(ReloadBudget.start(Duration.ofSeconds(-5)).expired());
     }
 
-    @Test
-    void defaultLastResortCategoryLimit_doesNotTruncateLargePortals() {
-        // The per-account time budget is the real bound on the last-resort fan-out; the category
-        // count is only a runaway guard for when the budget is disabled. It must therefore sit far
-        // above the category count of any realistic portal, or a healthy reload loses channels.
-        int limit = Integer.getInteger("uiptv.reload.lastresort.category.limit", 500);
-        assertTrue(limit >= 500,
-                "Last-resort category limit must not truncate normal portals; got " + limit);
-    }
 }

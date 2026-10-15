@@ -105,17 +105,22 @@ public class HttpUtil {
         HttpUriRequestBase request = buildRequest(url, headers, method, body, options);
         HttpClientContext context = HttpClientContext.create();
 
-        return HTTP_CLIENT.execute(request, context, response -> {
-            String responseBody = readResponseBody(response, options);
-            return new HttpResult(
-                    request.getMethod(),
-                    getFinalUri(request, context),
-                    response.getCode(),
-                    responseBody,
-                    headersToMap(request.getHeaders()),
-                    headersToMap(response.getHeaders())
-            );
-        });
+        try (var deadline = ReloadRequestScope.watch(request)) {
+            return HTTP_CLIENT.execute(request, context, response -> {
+                String responseBody = readResponseBody(response, options);
+                return new HttpResult(
+                        request.getMethod(),
+                        getFinalUri(request, context),
+                        response.getCode(),
+                        responseBody,
+                        headersToMap(request.getHeaders()),
+                        headersToMap(response.getHeaders())
+                );
+            });
+        } catch (IOException error) {
+            ReloadRequestScope.checkCurrent(); throw error;
+        } catch (RuntimeException error) { throw error; }
+        catch (Exception error) { throw new IOException(error); }
     }
 
     public static HttpResult sendFileRequest(String url,
@@ -143,18 +148,29 @@ public class HttpUtil {
     public static StreamResult openStream(String url, Map<String, String> headers, String method, String body, RequestOptions options) throws IOException {
         HttpUriRequestBase request = buildRequest(url, headers, method, body, options);
         HttpClientContext context = HttpClientContext.create();
-        CloseableHttpResponse response = HTTP_CLIENT.execute(request, context);
-        HttpEntity entity = response.getEntity();
-        InputStream bodyStream = entity == null ? InputStream.nullInputStream() : entity.getContent();
-        return new StreamResult(
-                request.getMethod(),
-                getFinalUri(request, context),
-                response.getCode(),
-                headersToMap(request.getHeaders()),
-                headersToMap(response.getHeaders()),
-                bodyStream,
-                response
-        );
+        AutoCloseable deadline = ReloadRequestScope.watch(request);
+        try {
+            CloseableHttpResponse response = HTTP_CLIENT.execute(request, context);
+            HttpEntity entity = response.getEntity();
+            InputStream bodyStream = entity == null ? InputStream.nullInputStream() : entity.getContent();
+            StreamResult stream = new StreamResult(
+                    request.getMethod(),
+                    getFinalUri(request, context),
+                    response.getCode(),
+                    headersToMap(request.getHeaders()),
+                    headersToMap(response.getHeaders()),
+                    bodyStream,
+                    response
+            );
+            stream.deadline = deadline;
+            return stream;
+        } catch (Exception error) {
+            try { deadline.close(); } catch (Exception ignored) { }
+            ReloadRequestScope.checkCurrent();
+            if (error instanceof IOException io) throw io;
+            if (error instanceof RuntimeException runtime) throw runtime;
+            throw new IOException(error);
+        }
     }
 
     public static String formatHttpLog(String requestUrl, HttpResult response, Map<String, String> requestParams) {
@@ -374,7 +390,7 @@ public class HttpUtil {
                 .setConnectionRequestTimeout(connectionRequestTimeout)
                 .setResponseTimeout(responseTimeout)
                 .setRedirectsEnabled(effective.followRedirects())
-                .setMaxRedirects(effective.followRedirects() ? MAX_REDIRECTS : 0)
+                .setMaxRedirects(effective.followRedirects() ? (ReloadRequestScope.active() ? Math.min(2, MAX_REDIRECTS) : MAX_REDIRECTS) : 0)
                 .build();
     }
 
@@ -462,6 +478,7 @@ public class HttpUtil {
         private final Map<String, List<String>> responseHeaders;
         private final InputStream bodyStream;
         private final CloseableHttpResponse response;
+        private AutoCloseable deadline = () -> {};
 
         public StreamResult(String requestMethod,
                             String requestUri,
@@ -505,7 +522,10 @@ public class HttpUtil {
 
         @Override
         public void close() throws IOException {
-            response.close();
+            try { response.close(); }
+            finally {
+                try { deadline.close(); } catch (Exception error) { throw new IOException(error); }
+            }
         }
     }
 

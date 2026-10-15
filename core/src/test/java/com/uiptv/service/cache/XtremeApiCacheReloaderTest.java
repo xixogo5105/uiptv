@@ -86,7 +86,7 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
     }
 
     @Test
-    void reloadCache_fallsBackToCategoryFetchWhenGlobalLookupIsUncategorizedOnly() {
+    void reloadCache_keepsBulkUncategorizedRowsWithoutCategoryFetch() {
         Account account = persistAccount("xtreme-itv-category", Account.AccountAction.itv);
         CategoryService categoryService = mock(CategoryService.class);
         List<Category> liveCategories = List.of(
@@ -108,10 +108,12 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
             xtremeStatic.when(() -> XtremeApiParser.parseChannels("20", account)).thenReturn(List.of(channel("sports-1", "20", "Sports A")));
 
             new XtremeApiCacheReloader().reloadCache(account, null);
+            xtremeStatic.verify(() -> XtremeApiParser.parseChannels("10", account), org.mockito.Mockito.never());
+            xtremeStatic.verify(() -> XtremeApiParser.parseChannels("20", account), org.mockito.Mockito.never());
         }
 
-        assertEquals(2, CategoryDb.get().getCategories(account).size());
-        assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+        assertEquals(3, CategoryDb.get().getCategories(account).size());
+        assertEquals(1, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
     }
 
     private Account persistAccount(String name, Account.AccountAction action) {

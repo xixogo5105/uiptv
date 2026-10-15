@@ -113,14 +113,7 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
      *    - Reload live cache and assert categories/channels persisted in DB.
      *    - Assert at least 2 channels for live flows where expected.
      *
-     *    Stalker fallback scenario (critical cache refresh branch):
-     *    - For one specific Stalker account (MAC 00:11:22:33:44:53), mock
-     *      get_all_channels returns empty payload.
-     *    - Service must fallback to category-by-category ordered-list fetch.
-     *    - Assert fallback log markers are present:
-     *      "Trying last-resort category-by-category fetch"
-     *      "Last-resort fetch succeeded"
-     *    - Assert fallback still caches live categories/channels in DB.
+     *    Stalker bulk failure: refresh must retain existing channels and never fetch by category.
      *
      *    VOD/Series (Stalker + Xtreme):
      *    - Fetch VOD categories and channels for at least two categories.
@@ -488,20 +481,18 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
     private void cacheLiveWithFallbackAssertion(Account account, CacheService cacheService) throws IOException {
         account.setAction(itv);
         AccountService.getInstance().save(account);
-        List<String> logs = new ArrayList<>();
-        cacheService.reloadCache(account, logs::add);
-
-        List<Category> categories = CategoryDb.get().getCategories(account);
-        assertTrue(categories.size() >= 2, "Expected live categories for fallback account");
-
-        List<Channel> channels = allLiveChannels(account);
-        assertTrue(channels.size() >= 2, "Expected fallback channels to be cached");
-        assertTrue(countLiveChannelRowsByAccount(account.getDbId()) >= 2);
-
-        assertTrue(logs.stream().anyMatch(m -> m.contains("Trying last-resort category-by-category fetch")),
-                "Expected get_all_channels fallback log");
-        assertTrue(logs.stream().anyMatch(m -> m.contains("Last-resort fetch succeeded")),
-                "Expected fallback success log");
+        CategoryDb.get().saveAll(List.of(new Category("10", "News", "news", true, 0),
+                new Category("20", "Sports", "sports", true, 0)), account);
+        for (Category category : CategoryDb.get().getCategories(account)) {
+            Channel channel = new Channel(); channel.setChannelId("10".equals(category.getCategoryId()) ? "1001" : "2001");
+            channel.setName("Cached " + category.getTitle()); channel.setCmd(baseUrl + "/live/play/live.php?stream=" + channel.getChannelId());
+            ChannelDb.get().saveAll(List.of(channel), category.getDbId(), account);
+        }
+        List<Channel> before = allLiveChannels(account);
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> cacheService.reloadCache(account, _ -> {}));
+        assertEquals(before.stream().map(Channel::getChannelId).toList(), allLiveChannels(account).stream().map(Channel::getChannelId).toList());
+        assertEquals(2, countLiveChannelRowsByAccount(account.getDbId()));
     }
 
     private void cacheVod(Account account) throws IOException {

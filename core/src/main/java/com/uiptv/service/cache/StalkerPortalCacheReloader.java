@@ -10,7 +10,6 @@ import com.uiptv.model.Channel;
 import com.uiptv.service.CategoryService;
 import com.uiptv.service.ChannelService;
 import com.uiptv.service.HandshakeService;
-import com.uiptv.shared.Pagination;
 import com.uiptv.util.AppLog;
 import com.uiptv.util.FetchAPI;
 import com.uiptv.util.HttpUtil;
@@ -41,14 +40,11 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
      */
     private ReloadBudget budget = ReloadBudget.start();
     private long startNanos = System.nanoTime();
-    /** Set when get_all_channels failed at the transport level, not just with an empty payload. */
-    private boolean globalChannelsUnreachable = false;
 
     @Override
     public void reloadCache(Account account, LoggerCallback logger) {
         budget = ReloadBudget.start();
         startNanos = System.nanoTime();
-        globalChannelsUnreachable = false;
 
         boolean applyCategoryCensoring = shouldApplyCategoryCensoring(account);
         boolean applyChannelCensoring = shouldApplyChannelCensoring(account);
@@ -98,7 +94,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         List<Channel> prefetched = liveCategories.prefetchedChannels();
         List<Channel> rawChannels = (prefetched != null && !prefetched.isEmpty())
                 ? prefetched
-                : loadStalkerLiveChannels(account, liveCategories, visibleCategoryIds, logger);
+                : loadStalkerLiveChannels(account, logger);
         if (rawChannels.isEmpty()) {
             return liveCategories.summary();
         }
@@ -346,33 +342,11 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
                 "All categories removed by active censoring. Clearing existing cache.");
     }
 
-    private List<Channel> loadStalkerLiveChannels(Account account, LiveCategories liveCategories,
-                                                  Set<String> visibleCategoryIds, LoggerCallback logger) {
-        globalChannelsUnreachable = false;
-        List<Channel> rawChannels = parseGlobalLiveChannels(account, logger);
-        if (!rawChannels.isEmpty()) {
-            return rawChannels;
-        }
-
-        if (globalChannelsUnreachable) {
-            // The endpoint is not serving at all. Paging every category would issue several
-            // requests per category, each paying the same full response timeout, so skip it.
-            log(logger, "Skipping last-resort category-by-category fetch: the portal endpoint did not respond.");
-            log(logger, "No channels found. Keeping existing cache.");
-            return List.of();
-        }
-
-        log(logger, "Global Stalker get_all_channels failed. Trying last-resort category-by-category fetch.");
-        List<Category> fallbackCategories = categoriesMatchingVisibleIds(liveCategories.rawCategories(), visibleCategoryIds,
-                liveCategories.categoryNormalization());
-        List<Channel> fallbackChannels = fetchAllChannelsByCategoryLastResort(account, fallbackCategories,
-                liveCategories.categoryNormalization(), logger);
-        if (fallbackChannels.isEmpty()) {
-            log(logger, "No channels found. Keeping existing cache.");
-        } else {
-            log(logger, "Last-resort fetch succeeded. Collected " + fallbackChannels.size() + " channels.");
-        }
-        return fallbackChannels;
+    private List<Channel> loadStalkerLiveChannels(Account account, LoggerCallback logger) {
+        List<Channel> channels = parseGlobalLiveChannels(account, logger);
+        if (channels.isEmpty()) throw new IllegalStateException(
+                "Bulk Stalker channel fetch failed or returned no channels. Category fan-out is disabled; keeping existing cache.");
+        return channels;
     }
 
     private boolean handleEmptyLiveChannels(Account account, List<Category> categories, List<Channel> rawChannels,
@@ -419,19 +393,6 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         log(logger, savedCategories.size() + " Categories & " + allChannels.size() + " Channels saved Successfully \u2713");
     }
 
-    private List<Category> categoriesMatchingVisibleIds(List<Category> rawCategories, Set<String> visibleCategoryIds,
-                                                        CategoryNormalization categoryNormalization) {
-        if (rawCategories == null || rawCategories.isEmpty()) {
-            return List.of();
-        }
-        return rawCategories.stream()
-                .filter(category -> category != null
-                        && (isBlank(category.getCategoryId())
-                        || visibleCategoryIds.contains(canonicalCategoryId(category.getCategoryId(),
-                        categoryNormalization.canonicalCategoryIdByOriginalId()))))
-                .toList();
-    }
-
     private void saveLiveCacheWithNoChannels(Account account, List<Category> categories, LoggerCallback logger, String reason) {
         log(logger, reason);
         clearCache(account);
@@ -460,10 +421,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
                 // parameter shapes would fail the same way, each burning a full response timeout,
                 // so stop here rather than paying the timeout twice more.
                 logTransportFailure("get_all_channels", result, logger);
-                if (result.statusCode() < 0) {
-                    globalChannelsUnreachable = true;
-                    return Collections.emptyList();
-                }
+                return Collections.emptyList();
             }
             String json = result.body();
             if (isBlank(json)) {
@@ -472,6 +430,12 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             try {
                 List<Channel> channels = ChannelService.getInstance().parseItvChannels(json, false);
                 if (!channels.isEmpty()) {
+                    JSONObject root = new JSONObject(json);
+                    JSONObject payload = root.optJSONObject("js", root);
+                    if (payload.optLong("total_items", channels.size()) > channels.size()) {
+                        log(logger, "Bulk response contains only part of the catalogue; trying the remaining bulk request shapes.");
+                        continue;
+                    }
                     return channels;
                 }
             } catch (Exception _) {
@@ -500,120 +464,6 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         AppLog.addWarningLog(StalkerPortalCacheReloader.class, message);
     }
 
-    private List<Channel> fetchAllChannelsByCategoryLastResort(Account account, List<Category> categories,
-                                                               CategoryNormalization categoryNormalization,
-                                                               LoggerCallback logger) {
-        Map<String, Channel> uniqueChannels = new LinkedHashMap<>();
-        if (categories == null || categories.isEmpty()) {
-            return new ArrayList<>(uniqueChannels.values());
-        }
-
-        int limit = lastResortCategoryLimit();
-        int processed = 0;
-        int skipped = 0;
-        boolean hitCategoryLimit = false;
-        for (Category category : categories) {
-            if (category == null || isBlank(category.getCategoryId())) {
-                continue;
-            }
-            if (processed >= limit) {
-                skipped++;
-                hitCategoryLimit = true;
-                continue;
-            }
-            // Each category costs several requests, so honour the account budget between them.
-            if (budget.expired()) {
-                logBudgetExhausted("last-resort category fetch", logger);
-                skipped += countRemainingNamedCategories(categories, processed);
-                break;
-            }
-            processed++;
-
-            List<Channel> channelsForCategory = fetchStalkerCategoryChannelsLastResort(account, category.getCategoryId(), logger);
-            for (Channel channel : channelsForCategory) {
-                if (channel == null || isBlank(channel.getChannelId())) {
-                    continue;
-                }
-                String canonicalCategoryId = canonicalCategoryId(category.getCategoryId(), categoryNormalization.canonicalCategoryIdByOriginalId());
-                if (isBlank(channel.getCategoryId())) {
-                    channel.setCategoryId(canonicalCategoryId);
-                } else {
-                    channel.setCategoryId(canonicalCategoryId(channel.getCategoryId(), categoryNormalization.canonicalCategoryIdByOriginalId()));
-                }
-                uniqueChannels.putIfAbsent(normalizeCaseInsensitiveKey(channel.getChannelId()), channel);
-            }
-        }
-        if (skipped > 0) {
-            log(logger, "Last-resort fetch covered " + processed + " of " + (processed + skipped)
-                    + " categories; " + skipped + " were not fetched"
-                    + (hitCategoryLimit ? " (reached the safety limit of " + limit + ")" : " (time budget reached)")
-                    + ". Those categories will be cached empty.");
-        }
-        return new ArrayList<>(uniqueChannels.values());
-    }
-
-    private int countRemainingNamedCategories(List<Category> categories, int alreadyProcessed) {
-        int named = 0;
-        for (Category category : categories) {
-            if (category != null && isNotBlank(category.getCategoryId())) {
-                named++;
-            }
-        }
-        return Math.max(0, named - alreadyProcessed);
-    }
-
-    /**
-     * Runaway guard for the last-resort fan-out, not the primary bound.
-     * <p>
-     * The per-account {@link ReloadBudget} is what actually limits this loop: against a stalling
-     * endpoint a single category can already cost several response timeouts, so the budget expires
-     * long before any category count is reached. This limit only matters if the budget is disabled
-     * ({@code uiptv.reload.budget.seconds=0}), so it is set high enough that a responsive portal
-     * with many categories is never truncated.
-     */
-    private static int lastResortCategoryLimit() {
-        int configured = Integer.getInteger("uiptv.reload.lastresort.category.limit", 500);
-        return configured > 0 ? configured : Integer.MAX_VALUE;
-    }
-
-    private List<Channel> fetchStalkerCategoryChannelsLastResort(Account account, String categoryId, LoggerCallback logger) {
-        List<Channel> channels = fetchStalkerCategoryChannelsFromPage(account, categoryId, 0, logger);
-        if (!channels.isEmpty()) {
-            return channels;
-        }
-        return fetchStalkerCategoryChannelsFromPage(account, categoryId, 1, logger);
-    }
-
-    @SuppressWarnings("java:S135")
-    private List<Channel> fetchStalkerCategoryChannelsFromPage(Account account, String categoryId, int startPage, LoggerCallback logger) {
-        List<Channel> aggregated = new ArrayList<>();
-        int maxAdditionalPages = 2;
-
-        for (int page = startPage; page <= startPage + maxAdditionalPages; page++) {
-            String json = FetchAPI.fetch(ChannelService.getChannelOrSeriesParams(categoryId, page, itv, null, null), account);
-            if (isBlank(json)) {
-                break;
-            }
-
-            try {
-                if (page == startPage) {
-                    maxAdditionalPages = resolveMaxAdditionalPages(json, maxAdditionalPages);
-                }
-
-                List<Channel> pageChannels = ChannelService.getInstance().parseItvChannels(json, false);
-                if (pageChannels.isEmpty()) {
-                    break;
-                }
-                aggregated.addAll(pageChannels);
-            } catch (Exception e) {
-                log(logger, "Last-resort fetch failed for category " + categoryId + " at page " + page + ": " + e.getMessage());
-                break;
-            }
-        }
-
-        return dedupeChannels(aggregated);
-    }
-
     private List<Category> loadOfficialLiveCategories(Account account, LoggerCallback logger) {
         FetchAPI.FetchResult result = FetchAPI.fetchWithDiagnostics(getCategoryParams(account.getAction()), account,
                 HttpUtil.RequestOptions.defaults());
@@ -629,6 +479,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
     private List<Channel> parseGlobalLiveChannels(Account account, LoggerCallback logger) {
         try {
             return fetchAllStalkerChannels(account, logger);
+        } catch (com.uiptv.util.ReloadRequestScope.LimitExceeded e) { throw e;
         } catch (Exception e) {
             log(logger, "Failed to parse channels from get_all_channels: " + e.getMessage());
             return Collections.emptyList();
@@ -669,25 +520,6 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
                 .filter(this::isUncategorizedCategory)
                 .findFirst()
                 .orElse(null);
-    }
-
-    private int resolveMaxAdditionalPages(String json, int defaultValue) {
-        Pagination pagination = ChannelService.getInstance().parsePagination(json, null);
-        if (pagination == null) {
-            return defaultValue;
-        }
-        return Math.max(pagination.getPageCount() + 1, 2);
-    }
-
-    private List<Channel> dedupeChannels(List<Channel> aggregated) {
-        Map<String, Channel> uniqueChannels = new LinkedHashMap<>();
-        for (Channel channel : aggregated) {
-            if (channel == null || isBlank(channel.getChannelId())) {
-                continue;
-            }
-            uniqueChannels.putIfAbsent(normalizeCaseInsensitiveKey(channel.getChannelId()), channel);
-        }
-        return new ArrayList<>(uniqueChannels.values());
     }
 
     private record ChannelGrouping(Map<String, List<Channel>> matchedChannelsByCatId, List<Channel> orphanedChannels) {

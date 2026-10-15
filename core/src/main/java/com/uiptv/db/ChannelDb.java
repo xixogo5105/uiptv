@@ -204,7 +204,6 @@ public class ChannelDb extends BaseDb {
                 }
                 statement.executeBatch();
                 conn.commit();
-                com.uiptv.application.EpgCacheRefreshService.requestRefresh();
             } catch (SQLException e) {
                 conn.rollback();
                 throw new DatabaseAccessException("Unable to execute saveAll query", e);

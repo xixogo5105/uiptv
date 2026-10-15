@@ -40,6 +40,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
     protected static final String UNCATEGORIZED_NAME = CategoryType.UNCATEGORIZED.displayName();
 
     protected void clearCache(Account account) {
+        com.uiptv.util.ReloadRequestScope.checkCurrent();
         String existingPortalUrl = account != null ? account.getServerPortalUrl() : "";
         ConfigurationService.getInstance().clearCache(account);
         // During cache reloads we intentionally keep the discovered Stalker API endpoint.
@@ -161,6 +162,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
     }
 
     protected void saveVodOrSeriesCategories(Account account, List<Category> categories) {
+        com.uiptv.util.ReloadRequestScope.checkCurrent();
         List<Category> normalizedCategories = normalizeCategoriesByTitle(categories).categories();
         if (account.getAction() == vod) {
             VodCategoryDb.get().saveAll(normalizedCategories, account);

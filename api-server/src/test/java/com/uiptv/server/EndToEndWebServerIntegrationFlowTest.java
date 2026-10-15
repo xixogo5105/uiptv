@@ -1171,12 +1171,16 @@ class EndToEndWebServerIntegrationFlowTest extends DbBackedTest {
                       {"category_id":"402","category_name":"X Live B"}
                     ]
                     """;
-            case "get_live_streams" -> """
-                    [
-                      {"stream_id":"%s1","name":"X Live %s One","stream_icon":"%s/xtreme/live/%s1.png","container_extension":"ts"},
-                      {"stream_id":"%s2","name":"X Live %s Two","stream_icon":"%s/xtreme/live/%s2.png","container_extension":"ts"}
-                    ]
-                    """.formatted(categoryId, categoryId, providerBaseUrl, categoryId, categoryId, categoryId, providerBaseUrl, categoryId);
+            case "get_live_streams" -> {
+                JSONArray streams = new JSONArray();
+                for (String category : categoryId.isBlank() ? List.of("401", "402") : List.of(categoryId)) {
+                    for (int i = 1; i <= 2; i++) streams.put(new JSONObject()
+                            .put("stream_id", category + i).put("name", "X Live " + category + " " + i)
+                            .put("category_id", category).put("stream_icon", providerBaseUrl + "/xtreme/live/" + category + i + ".png")
+                            .put("container_extension", "ts"));
+                }
+                yield streams.toString();
+            }
             case "get_vod_categories" -> """
                     [
                       {"category_id":"501","category_name":"X Vod A"},

@@ -140,7 +140,7 @@ class CacheServiceImplTest extends DbBackedTest {
     }
 
     @Test
-    void reloadCache_stalkerPortal_usesCategoryFallback_whenGetAllChannelsIsBlank() throws IOException {
+    void reloadCache_stalkerPortal_refusesCategoryFanOut_whenGetAllChannelsIsBlank() throws IOException {
         Account account = createStalkerAccount("acc-stalker-fallback");
         List<String> logs = new ArrayList<>();
         AtomicInteger orderedListCalls = new AtomicInteger();
@@ -150,13 +150,11 @@ class CacheServiceImplTest extends DbBackedTest {
             mockSuccessfulHandshake(handshakeMock);
             stubStalkerFetch(fetchMock, account, true, orderedListCalls);
 
-            new CacheServiceImpl().reloadCache(account, logs::add);
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new CacheServiceImpl().reloadCache(account, logs::add));
         }
 
-        assertTrue(orderedListCalls.get() > 0, "Fallback API should be used when get_all_channels is blank");
-        assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
-        assertTrue(logs.stream().anyMatch(m -> m.contains("Trying last-resort category-by-category fetch")));
-        assertTrue(logs.stream().anyMatch(m -> m.contains("Last-resort fetch succeeded")));
+        assertEquals(0, orderedListCalls.get(), "Cache refresh must never fan out by category");
+        assertEquals(0, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
     }
 
     @Test
@@ -452,7 +450,7 @@ class CacheServiceImplTest extends DbBackedTest {
                         return "";
                     });
 
-            new CacheServiceImpl().reloadCache(account, logs::add);
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new CacheServiceImpl().reloadCache(account, logs::add));
         }
 
         assertEquals(1, getAllChannelsCalls.get(),

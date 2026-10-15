@@ -37,6 +37,25 @@ class EpgPersistentCacheTest extends DbBackedTest {
         return path;
     }
 
+    @Test void catalogueReloadPausesEpgWithoutClearingItsCacheAndResumesIndependently() throws Exception {
+        var account = account("catalogue-pause");
+        var channel = channel("station", "Station");
+        account.setEpg(xml("pause.xml", "Cached title").toString());
+        refresh.refreshAccount(account, List.of(channel));
+        xml("pause.xml", "New title");
+        try (var outer = EpgCacheRefreshService.pauseForCatalogueReload()) {
+            try (var inner = EpgCacheRefreshService.pauseForCatalogueReload()) {
+                assertEquals("Cached title", cache.schedule(account, channel).getFirst().title());
+            }
+            try (var http = mockStatic(HttpUtil.class)) {
+                refresh.refreshAccount(account, List.of(channel));
+                http.verifyNoInteractions();
+            }
+            assertEquals("Cached title", cache.schedule(account, channel).getFirst().title());
+        }
+        assertEquals("Cached title", cache.schedule(account, channel).getFirst().title());
+    }
+
     @Test void androidSyncedCacheSignatureGoldenMatchesDesktop() {
         Account account = account("987654321");
         account.setUrl(""); account.setUsername(""); account.setPassword(""); account.setMacAddress("");

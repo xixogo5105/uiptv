@@ -62,6 +62,7 @@ public class FetchAPI {
             }
             return FetchResult.transportFailure(requestUrl, response.statusCode(),
                     "Unexpected HTTP status " + response.statusCode());
+        } catch (ReloadRequestScope.LimitExceeded ex) { throw ex;
         } catch (Exception ex) {
             String reason = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
             AppLog.addWarningLog(FetchAPI.class, "Network Error: " + reason);

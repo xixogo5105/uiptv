@@ -31,10 +31,20 @@ public class EpgCacheRefreshService {
     }
     private static final Set<Thread> WORKERS=ConcurrentHashMap.newKeySet();
     private static final AtomicBoolean QUEUED=new AtomicBoolean();
+    private static final java.util.concurrent.atomic.AtomicInteger CATALOGUE_RELOADS = new java.util.concurrent.atomic.AtomicInteger();
+    public static CataloguePause pauseForCatalogueReload() {
+        CATALOGUE_RELOADS.incrementAndGet();
+        WORKERS.forEach(Thread::interrupt);
+        return new CataloguePause();
+    }
+    public static final class CataloguePause implements AutoCloseable {
+        private boolean closed;
+        @Override public void close() { if (!closed) { closed = true; CATALOGUE_RELOADS.decrementAndGet(); } }
+    }
     private static final Map<String,Integer> CURSORS=new HashMap<>();
     private record Token(String path,long epoch) { }
     private static Token token() { return new Token(SQLConnection.getDatabasePath(),EPOCH.get()); }
-    private static boolean current(Token token) { return token.epoch()==EPOCH.get() && token.path().equals(SQLConnection.getDatabasePath()) && !Thread.currentThread().isInterrupted(); }
+    private static boolean current(Token token) { return CATALOGUE_RELOADS.get() == 0 && token.epoch()==EPOCH.get() && token.path().equals(SQLConnection.getDatabasePath()) && !Thread.currentThread().isInterrupted(); }
     private static void commit(Token token,Runnable write) {
         synchronized(COMMIT_LOCK) { if(current(token)) write.run(); }
     }
@@ -136,7 +146,7 @@ public class EpgCacheRefreshService {
     }
     private static void runScheduled() {
         synchronized (EpgCacheRefreshService.class) {
-            if (!lifecycleStarted || Thread.currentThread().isInterrupted()) return;
+            if (!lifecycleStarted || CATALOGUE_RELOADS.get() > 0 || Thread.currentThread().isInterrupted()) return;
             WORKERS.add(Thread.currentThread());
         }
         try {
@@ -191,7 +201,7 @@ public class EpgCacheRefreshService {
         Map<String,Channel> unique=new LinkedHashMap<>();
         input.forEach(channel -> unique.putIfAbsent(channel.getChannelId(),channel));
         List<Channel> channels=new ArrayList<>(unique.values());
-        if(account==null || channels.isEmpty() || !new EpgApplicationService().isEnabled()) return;
+        if(account==null || channels.isEmpty() || !current(token) || !new EpgApplicationService().isEnabled()) return;
         var loader=new EpgApplicationService();
         List<String> sources=loader.cacheSources(account);
         publishMappings(account,channels,sources,token);
