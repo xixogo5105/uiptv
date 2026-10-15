@@ -1,0 +1,85 @@
+package com.uiptv.application;
+
+import com.uiptv.model.Channel;
+import com.uiptv.service.ChannelService;
+import com.uiptv.util.ReloadRequestScope;
+import org.json.*;
+import java.io.Reader;
+import java.util.*;
+
+/** Reads a bulk catalogue one channel at a time, without retaining the response JSON tree. */
+public final class StalkerCatalogueReader {
+    public List<Channel> read(Reader source) {
+        JSONTokener input = new JSONTokener(source);
+        Map<String, Channel> channels = new LinkedHashMap<>();
+        object(input, channels);
+        return new ArrayList<>(channels.values());
+    }
+
+    private void object(JSONTokener input, Map<String, Channel> channels) {
+        expect(input, '{');
+        if (input.nextClean() == '}') return;
+        input.back();
+        do {
+            ReloadRequestScope.checkCurrent();
+            String key = String.valueOf(input.nextValue());
+            expect(input, ':');
+            if ("js".equals(key)) {
+                char next = input.nextClean(); input.back();
+                if (next == '{') object(input, channels);
+                else if (next == '[') array(input, channels);
+                else skip(input);
+            } else if ("data".equals(key)) {
+                char next = input.nextClean(); input.back();
+                if (next == '[') array(input, channels); else skip(input);
+            } else skip(input);
+            char next = input.nextClean();
+            if (next == '}') return;
+            if (next != ',') throw input.syntaxError("Expected catalogue object separator");
+        } while (true);
+    }
+
+    private void array(JSONTokener input, Map<String, Channel> channels) {
+        expect(input, '[');
+        if (input.nextClean() == ']') return;
+        input.back();
+        do {
+            ReloadRequestScope.checkCurrent();
+            JSONObject row = new JSONObject(input);
+            Channel channel = ChannelService.getInstance().parseItvChannel(row);
+            String key = String.join("|", value(channel.getChannelId()), value(channel.getCmd()),
+                    value(channel.getName()).toLowerCase());
+            channels.putIfAbsent(key, channel);
+            char next = input.nextClean();
+            if (next == ']') return;
+            if (next != ',') throw input.syntaxError("Expected channel separator");
+        } while (true);
+    }
+
+    private String value(String value) { return value == null || value.isBlank() ? "" : value.trim(); }
+    private void expect(JSONTokener input, char expected) {
+        if (input.nextClean() != expected) throw input.syntaxError("Expected " + expected);
+    }
+
+    /** Skip unrelated envelope metadata without constructing potentially large JSON objects. */
+    private void skip(JSONTokener input) {
+        int depth = 0;
+        boolean quoted = false, escaped = false;
+        char quote = 0;
+        do {
+            ReloadRequestScope.checkCurrent();
+            char next = input.next();
+            if (next == 0) throw input.syntaxError("Unexpected end of catalogue");
+            if (quoted) {
+                if (escaped) escaped = false;
+                else if (next == '\\') escaped = true;
+                else if (next == quote) quoted = false;
+            } else if (next == '"' || next == '\'') { quoted = true; quote = next; }
+            else if (next == '[' || next == '{') depth++;
+            else if (next == ']' || next == '}') {
+                if (depth == 0) { input.back(); return; }
+                depth--;
+            } else if (next == ',' && depth == 0) { input.back(); return; }
+        } while (true);
+    }
+}

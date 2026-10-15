@@ -32,27 +32,6 @@ class ReloadRequestScopeTest {
             assertEquals(1, scope.requests());
         } finally { server.stop(0); }
     }
-    @Test void oversizedDecodedResponseStopsWithoutDrainingOrRetrying() throws Exception {
-        HttpServer server = server(exchange -> {
-            try {
-                exchange.getResponseHeaders().set("Content-Encoding", "gzip");
-                exchange.sendResponseHeaders(200, 0);
-                var output = new java.util.zip.GZIPOutputStream(exchange.getResponseBody());
-                byte[] chunk = new byte[8192];
-                java.util.Arrays.fill(chunk, (byte) 'x');
-                for (int i = 0; i < 16384; i++) { output.write(chunk); }
-                output.close();
-            } catch (Exception ignored) { } finally { exchange.close(); }
-        });
-        try (var scope = new ReloadRequestScope(Duration.ofSeconds(10), Duration.ofSeconds(8), 4, null)) {
-            var error = assertThrows(ReloadRequestScope.LimitExceeded.class,
-                    () -> HttpUtil.sendRequest(url(server), null, "GET"));
-            assertTrue(error.getMessage().contains("size limit"));
-            assertThrows(ReloadRequestScope.LimitExceeded.class,
-                    () -> HttpUtil.sendRequest(url(server), null, "GET"));
-            assertEquals(1, scope.requests());
-        } finally { server.stop(0); }
-    }
     @Test void accountDeadlineAlsoBoundsAnInFlightRequest() throws Exception {
         HttpServer server = server(this::trickle);
         try (var scope = new ReloadRequestScope(Duration.ofMillis(250), Duration.ofSeconds(3), 4, null)) {

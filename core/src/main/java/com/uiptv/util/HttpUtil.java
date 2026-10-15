@@ -168,6 +168,7 @@ public class HttpUtil {
                     response
             );
             stream.deadline = deadline;
+            stream.request = request;
             return stream;
         } catch (Exception error) {
             try { deadline.close(); } catch (Exception ignored) { }
@@ -299,25 +300,6 @@ public class HttpUtil {
                 return "";
             }
             try {
-                if (ReloadRequestScope.active()) {
-                    // Bound decoded data too: compressed/chunked bodies have no useful wire-size limit.
-                    int limit = 16 * 1024 * 1024;
-                    java.nio.charset.Charset charset = StandardCharsets.UTF_8;
-                    if (entity.getContentType() != null) {
-                        java.nio.charset.Charset declared = ContentType.parse(entity.getContentType()).getCharset();
-                        if (declared != null) charset = declared;
-                    }
-                    var reader = new java.io.InputStreamReader(entity.getContent(), charset);
-                    StringBuilder text = new StringBuilder();
-                    char[] chunk = new char[8192];
-                    int count;
-                    while ((count = reader.read(chunk)) != -1) {
-                        ReloadRequestScope.checkCurrent();
-                        if (count > limit - text.length()) ReloadRequestScope.responseTooLarge();
-                        text.append(chunk, 0, count);
-                    }
-                    return text.toString();
-                }
                 return EntityUtils.toString(entity);
             } catch (ParseException ex) {
                 throw new IOException("Unable to parse HTTP response body", ex);
@@ -449,6 +431,7 @@ public class HttpUtil {
     public static final class RequestOptions {
         private final boolean followRedirects;
         private final boolean readBody;
+        private final boolean streamBody;
         private final Integer connectTimeoutSeconds;
         private final Integer connectionRequestTimeoutSeconds;
         private final Integer responseTimeoutSeconds;
@@ -462,6 +445,12 @@ public class HttpUtil {
                               Integer connectTimeoutSeconds,
                               Integer connectionRequestTimeoutSeconds,
                               Integer responseTimeoutSeconds) {
+            this(followRedirects, readBody, connectTimeoutSeconds, connectionRequestTimeoutSeconds, responseTimeoutSeconds, false);
+        }
+
+        private RequestOptions(boolean followRedirects, boolean readBody, Integer connectTimeoutSeconds,
+                               Integer connectionRequestTimeoutSeconds, Integer responseTimeoutSeconds, boolean streamBody) {
+            this.streamBody = streamBody;
             this.followRedirects = followRedirects;
             this.readBody = readBody;
             this.connectTimeoutSeconds = connectTimeoutSeconds;
@@ -472,6 +461,13 @@ public class HttpUtil {
         public static RequestOptions defaults() {
             return new RequestOptions(true, true);
         }
+
+        /** Caller owns and must close the returned FetchResult catalogue stream. */
+        public static RequestOptions streamingCatalogue() {
+            return new RequestOptions(true, true, null, null, null, true);
+        }
+
+        public boolean streamBody() { return streamBody; }
 
         public boolean followRedirects() {
             return followRedirects;
@@ -503,6 +499,7 @@ public class HttpUtil {
         private final InputStream bodyStream;
         private final CloseableHttpResponse response;
         private AutoCloseable deadline = () -> {};
+        private HttpUriRequestBase request;
 
         public StreamResult(String requestMethod,
                             String requestUri,
@@ -542,6 +539,11 @@ public class HttpUtil {
 
         public InputStream bodyStream() {
             return bodyStream;
+        }
+
+        public void abort() throws IOException {
+            if (request != null) request.cancel();
+            close();
         }
 
         @Override

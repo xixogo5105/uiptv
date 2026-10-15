@@ -831,11 +831,7 @@ public class ChannelService {
             List<Channel> channelList = new ArrayList<>();
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonChannel = list.getJSONObject(i);
-                Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), normalizeLogoUrl(null, jsonChannel.getString("logo")), nullSafeInteger(jsonChannel, FIELD_CENSORED), nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
-                channel.setCategoryId(nullSafeString(jsonChannel, "tv_genre_id"));
-                channel.setRating(nullSafeString(jsonChannel, "rating"));
-                channel.setExtraJson(jsonChannel.toString());
-                resolveLogoIfNeeded(channel);
+                Channel channel = parseItvChannel(jsonChannel);
                 channelList.add(channel);
             }
             return maybeFilterChannels(dedupeChannels(channelList), censor);
@@ -844,6 +840,16 @@ public class ChannelService {
             AppLog.addErrorLog(ChannelService.class, "Error while processing itv response data");
         }
         return Collections.emptyList();
+    }
+
+    /** Maps one provider row; shared by buffered and streaming catalogue readers. */
+    public Channel parseItvChannel(JSONObject jsonChannel) {
+        Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), jsonChannel.getString("name"), jsonChannel.getString("number"), jsonChannel.getString("cmd"), jsonChannel.getString("cmd_1"), jsonChannel.getString("cmd_2"), jsonChannel.getString("cmd_3"), normalizeLogoUrl(null, jsonChannel.getString("logo")), nullSafeInteger(jsonChannel, FIELD_CENSORED), nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+        channel.setCategoryId(nullSafeString(jsonChannel, "tv_genre_id"));
+        channel.setRating(nullSafeString(jsonChannel, "rating"));
+        channel.setExtraJson(jsonChannel.toString());
+        resolveLogoIfNeeded(channel);
+        return channel;
     }
 
     public List<Channel> parseVodChannels(Account account, String json, boolean censor) {

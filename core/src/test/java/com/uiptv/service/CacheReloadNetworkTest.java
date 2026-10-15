@@ -19,7 +19,11 @@ class CacheReloadNetworkTest extends DbBackedTest {
     private void exercise(boolean successfulBulk, boolean overstatedTotal) throws Exception {
         exercise(successfulBulk, overstatedTotal, false);
     }
+    @Test void catalogueLargerThanFormerResponseCapStillLoadsInFourRequests() throws Exception { exercise(true, false, false, true); }
     private void exercise(boolean successfulBulk, boolean overstatedTotal, boolean rejectDefaultShape) throws Exception {
+        exercise(successfulBulk, overstatedTotal, rejectDefaultShape, false);
+    }
+    private void exercise(boolean successfulBulk, boolean overstatedTotal, boolean rejectDefaultShape, boolean large) throws Exception {
         List<String> logs = new ArrayList<>();
         AtomicInteger calls = new AtomicInteger(), pages = new AtomicInteger();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -34,6 +38,23 @@ class CacheReloadNetworkTest extends DbBackedTest {
             if (rejectDefaultShape && query.contains("get_all_channels") && !query.contains("p=")) {
                 exchange.sendResponseHeaders(400, -1);
                 exchange.close();
+                return;
+            }
+            if (large && query.contains("get_all_channels")) {
+                try {
+                    exchange.getResponseHeaders().set("Content-Encoding", "gzip");
+                    exchange.sendResponseHeaders(200, 0);
+                    var writer = new java.io.OutputStreamWriter(new java.util.zip.GZIPOutputStream(exchange.getResponseBody()), java.nio.charset.StandardCharsets.UTF_8);
+                    writer.write("{\"js\":{\"data\":[");
+                    for (int i = 1; i <= 2000; i++) {
+                        if (i > 1) writer.write(",");
+                        writer.write(new org.json.JSONObject().put("id", "stream-" + i).put("name", "Fixture channel " + i)
+                            .put("number", "" + i).put("cmd", "http://example.invalid/stream").put("cmd_1", "")
+                            .put("cmd_2", "").put("cmd_3", "").put("logo", "").put("tv_genre_id", "1")
+                            .put("provider_metadata", "x".repeat(12000)).toString());
+                    }
+                    writer.write("]},\"metadata\":{\"ignored\":[1,2,3]}}"); writer.close();
+                } finally { exchange.close(); }
                 return;
             }
             if (successfulBulk && query.contains("get_all_channels")) {

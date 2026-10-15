@@ -53,13 +53,6 @@ public final class ReloadRequestScope implements AutoCloseable {
         }, 0, 50, TimeUnit.MILLISECONDS);
         return () -> watchdog.cancel(false);
     }
-    public static void responseTooLarge() {
-        ReloadRequestScope scope = ACTIVE.get();
-        if (scope != null) {
-            scope.failure = "Catalogue response exceeds the safe size limit";
-            scope.check();
-        }
-    }
     public int requests() { return requests; }
     @Override public void close() { ACTIVE.set(previous); }
     public static final class LimitExceeded extends IllegalStateException {

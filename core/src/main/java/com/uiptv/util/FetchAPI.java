@@ -50,6 +50,15 @@ public class FetchAPI {
             }
 
             Map<String, String> headers = headers(account, isPost);
+            if (options != null && options.streamBody()) {
+                HttpUtil.StreamResult stream = HttpUtil.openStream(requestUrl, headers, httpMethod, isPost ? payload : null, options);
+                if (stream.statusCode() == HttpUtil.STATUS_OK) {
+                    return new FetchResult("", false, stream.statusCode(), "", "", stream);
+                }
+                int status = stream.statusCode();
+                stream.abort();
+                return FetchResult.transportFailure(requestUrl, status, "Unexpected HTTP status " + status);
+            }
             HttpUtil.HttpResult response = HttpUtil.sendRequest(requestUrl, headers, httpMethod, isPost ? payload : null, options);
 
             httpLog(requestUrl, response, params);
@@ -79,9 +88,13 @@ public class FetchAPI {
      * @param statusCode     HTTP status, or -1 when the request never completed
      * @param endpoint       the URL that was contacted, for diagnostics
      * @param failureReason  human-readable cause, empty on success
+     * @param catalogueStream explicitly requested streaming body; the caller must close it
      */
     public record FetchResult(String body, boolean transportFailure, int statusCode,
-                              String endpoint, String failureReason) {
+                              String endpoint, String failureReason, HttpUtil.StreamResult catalogueStream) {
+        public FetchResult(String body, boolean transportFailure, int statusCode, String endpoint, String failureReason) {
+            this(body, transportFailure, statusCode, endpoint, failureReason, null);
+        }
         public static FetchResult success(String body, int statusCode) {
             return new FetchResult(body == null ? StringUtils.EMPTY : body, false, statusCode, "", "");
         }

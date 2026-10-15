@@ -415,7 +415,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
                 logBudgetExhausted("get_all_channels", logger);
                 return Collections.emptyList();
             }
-            FetchAPI.FetchResult result = FetchAPI.fetchWithDiagnostics(params, account, HttpUtil.RequestOptions.defaults());
+            FetchAPI.FetchResult result = FetchAPI.fetchWithDiagnostics(params, account, HttpUtil.RequestOptions.streamingCatalogue());
             if (result.transportFailure()) {
                 logTransportFailure("get_all_channels", result, logger);
                 // A failed connection cannot be repaired by changing pagination parameters.
@@ -423,6 +423,25 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
                 // main's bounded compatibility retries under the same request/time limits.
                 if (result.statusCode() < 0) {
                     return Collections.emptyList();
+                }
+                continue;
+            }
+            if (result.catalogueStream() != null) {
+                var stream = result.catalogueStream();
+                boolean complete = false;
+                try {
+                    List<Channel> channels = new com.uiptv.application.StalkerCatalogueReader().read(
+                            new java.io.InputStreamReader(stream.bodyStream(), java.nio.charset.StandardCharsets.UTF_8));
+                    complete = true;
+                    if (!channels.isEmpty()) return channels;
+                } catch (Exception failure) {
+                    com.uiptv.util.ReloadRequestScope.checkCurrent();
+                    log(logger, "Unable to read bulk channel response: " + failure.getMessage());
+                } finally {
+                    // Abort before closing a rejected body; closing first may drain the entire
+                    // remaining response. This also releases the deadline after JVM errors.
+                    try { if (complete) stream.close(); else stream.abort(); }
+                    catch (java.io.IOException ignored) { }
                 }
                 continue;
             }
