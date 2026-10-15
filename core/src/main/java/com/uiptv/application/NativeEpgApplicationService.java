@@ -35,7 +35,7 @@ public class NativeEpgApplicationService {
     }
     void expire(Account account,Channel channel) { synchronized(CACHE) { CACHE.remove(key(account,channel)); } }
     private Key key(Account account, Channel channel) {
-        return new Key(account.getDbId(), account.getType(), account.getUrl() + "|" + account.getM3u8Path() + "|" + account.getServerPortalUrl(),
+        return new Key(account.getDbId(), account.getType(), account.getUrl() + "|" + account.getM3u8Path() + "|" + account.getServerPortalUrl() + "|epg-utc-v2",
                 account.getUsername(), account.getType() == AccountType.STALKER_PORTAL ? account.getMacAddress() : account.getPassword(), channel.getChannelId());
     }
     public List<EpgProgramme> schedule(Account account, Channel channel) {
@@ -103,15 +103,15 @@ public class NativeEpgApplicationService {
                     else {
                         Map<String, String> params = Map.of("type", "itv", "action", action, "ch_id", channel.getChannelId(),
                                 "period", "24", "size", "100", "JsHttpRequest", "1-xml");
-                        var response = FetchAPI.fetchWithDiagnostics(params, account, OPTIONS);
+                        var response = FetchAPI.fetchWithDiagnostics(params, utcRequestAccount(account), OPTIONS);
                         if (response.statusCode() == 401 || response.statusCode() == 403) {
                             synchronized (account) { HandshakeService.getInstance().connect(account); }
                             if (account.isNotConnected()) return List.of();
-                            response = FetchAPI.fetchWithDiagnostics(params, account, OPTIONS);
+                            response = FetchAPI.fetchWithDiagnostics(params, utcRequestAccount(account), OPTIONS);
                         }
                         body = response.body();
                     }
-                    List<EpgProgramme> result = parse(body, account.getType() == AccountType.XTREME_API, account.getTimezone(), channel.getChannelId());
+                    List<EpgProgramme> result = parse(body, account.getType() == AccountType.XTREME_API, "UTC", channel.getChannelId());
                     if (EpgApplicationService.usable(result)) return result;
                 } catch (Exception ignored) {
                     AppLog.addWarningLog(NativeEpgApplicationService.class, "Provider EPG action unavailable; trying fallback.");
@@ -123,11 +123,30 @@ public class NativeEpgApplicationService {
         return List.of();
     }
 
-    static List<EpgProgramme> parse(String json, boolean encoded, String timezone, String channelId) {
+    private static Account utcRequestAccount(Account account) {
+        Account request = AccountCopyUtil.detachedCopy(account);
+        request.setTimezone("UTC");
+        return request;
+    }
+    private static ZoneId sourceZone(Object data, ZoneId fallback) {
+        if (!(data instanceof JSONObject object)) return fallback;
+        String name = object.optString("timezone", "");
+        JSONObject server = object.optJSONObject("server_info");
+        if (server != null) name = server.optString("timezone", name);
+        try { return name.isBlank() ? fallback : ZoneId.of(name); }
+        catch (DateTimeException ignored) { return fallback; }
+    }
+
+    static List<EpgProgramme> parse(String json, boolean encoded, String sourceTimezone, String channelId) {
         if (json == null || json.isBlank() || json.length() > 10 * 1024 * 1024) return List.of();
         try {
             Object data = new JSONTokener(json).nextValue();
+            ZoneId zone;
+            try { zone = ZoneId.of(sourceTimezone == null || sourceTimezone.isBlank() ? "UTC" : sourceTimezone); }
+            catch (Exception ignored) { zone = ZoneOffset.UTC; }
+            zone = sourceZone(data, zone);
             for (int depth = 0; depth < 5 && data instanceof JSONObject object; depth++) {
+                zone = sourceZone(object, zone);
                 if (object.has("js")) data = object.opt("js");
                 else if (object.has("epg_listings")) data = object.opt("epg_listings");
                 else if (object.has("data")) data = object.opt("data");
@@ -135,9 +154,6 @@ public class NativeEpgApplicationService {
                 else return List.of();
             }
             if (!(data instanceof JSONArray array)) return List.of();
-            ZoneId zone;
-            try { zone = ZoneId.of(timezone == null || timezone.isBlank() ? "UTC" : timezone); }
-            catch (Exception ignored) { zone = ZoneOffset.UTC; }
             List<EpgProgramme> result = new ArrayList<>();
             long now = System.currentTimeMillis();
             for (int i = 0; i < Math.min(array.length(), 2000); i++) {
@@ -145,8 +161,8 @@ public class NativeEpgApplicationService {
                 if (p == null) continue;
                 String associated = first(p, "ch_id", "channel_id", "stream_id");
                 if (!associated.isBlank() && !associated.equals(channelId)) continue;
-                long start = time(first(p, "start_timestamp", "start", "time", "start_time"), zone);
-                long stop = time(first(p, "stop_timestamp", "end_timestamp", "end", "stop", "end_time"), zone);
+                long start = programmeTime(p, sourceZone(p, zone), "start_timestamp", "start", "time", "start_time", "start_datetime");
+                long stop = programmeTime(p, sourceZone(p, zone), "stop_timestamp", "end_timestamp", "end", "stop", "end_time", "time_to", "stop_datetime");
                 if (stop == 0 && start > 0) {
                     long duration = p.optLong("duration", 0);
                     if (duration > 0 && duration < 86400) stop = start + duration * 1000;
@@ -158,6 +174,14 @@ public class NativeEpgApplicationService {
             result.sort(Comparator.comparingLong(EpgProgramme::start));
             return EpgSchedules.normalize(result);
         } catch (Exception ignored) { return List.of(); }
+    }
+
+    private static long programmeTime(JSONObject programme, ZoneId zone, String... fields) {
+        for (String field : fields) {
+            long value = time(programme.optString(field, ""), zone);
+            if (value > 0) return value;
+        }
+        return 0;
     }
 
     private static String truncate(String text, int limit) {
@@ -178,11 +202,12 @@ public class NativeEpgApplicationService {
     }
     static long time(String value, ZoneId zone) {
         if (value == null || value.isBlank()) return 0;
+        value = value.strip();
         try { long n = Long.parseLong(value); return n < 100_000_000_000L ? Math.multiplyExact(n, 1000) : n; }
         catch (Exception ignored) { }
         try { return Instant.parse(value).toEpochMilli(); } catch (Exception ignored) { }
         try { return OffsetDateTime.parse(value.replace(' ', 'T')).toInstant().toEpochMilli(); } catch (Exception ignored) { }
-        try { return LocalDateTime.parse(value, DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss")).atZone(zone).toInstant().toEpochMilli(); }
+        try { return LocalDateTime.parse(value.replace(' ', 'T'), DateTimeFormatter.ISO_LOCAL_DATE_TIME).atZone(zone).toInstant().toEpochMilli(); }
         catch (Exception ignored) { return 0; }
     }
 }

@@ -177,11 +177,16 @@ class EpgResolutionTest extends DbBackedTest {
         String payload = "{\"js\":{\"data\":[{\"name\":\"Portal current\",\"time\":" + (now / 1000 - 60) + ",\"duration\":3600}]}}";
         var response = FetchAPI.FetchResult.success(payload, 200);
         try (var portal = mockStatic(FetchAPI.class); var handshakes = mockStatic(HandshakeService.class)) {
-            portal.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), eq(account), any())).thenReturn(response);
+            portal.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), any(Account.class), any())).thenReturn(response);
             assertEquals("Portal current", schedule(account, channel).getFirst().title());
             handshakes.verifyNoInteractions();
             var request = org.mockito.ArgumentCaptor.forClass(Map.class);
-            portal.verify(() -> FetchAPI.fetchWithDiagnostics(request.capture(), eq(account), any()));
+            var requestAccount = org.mockito.ArgumentCaptor.forClass(Account.class);
+            portal.verify(() -> FetchAPI.fetchWithDiagnostics(request.capture(), requestAccount.capture(), any()));
+            assertEquals("UTC", requestAccount.getValue().getTimezone());
+            assertEquals(account.getDbId(), requestAccount.getValue().getDbId());
+            assertEquals(account.getToken(), requestAccount.getValue().getToken());
+            assertEquals("Europe/London", account.getTimezone(), "EPG requests must not mutate account settings");
             assertEquals("provider-stream", request.getValue().get("ch_id"));
             assertEquals("get_short_epg", request.getValue().get("action"));
             assertEquals("original-playback-command", channel.getCmd());
@@ -189,7 +194,7 @@ class EpgResolutionTest extends DbBackedTest {
         // A different account context cannot reuse the numeric/provider channel's cached schedule.
         account.setDbId(UUID.randomUUID().toString());
         try (var portal = mockStatic(FetchAPI.class)) {
-            portal.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), eq(account), any())).thenReturn(FetchAPI.FetchResult.success("{\"js\":false}", 200));
+            portal.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), any(Account.class), any())).thenReturn(FetchAPI.FetchResult.success("{\"js\":false}", 200));
             assertEquals("XMLTV fallback", schedule(account, channel).getFirst().title());
             assertEquals("original-playback-command", channel.getCmd());
         }
@@ -201,7 +206,7 @@ class EpgResolutionTest extends DbBackedTest {
         doAnswer(invocation -> { account.setToken(null); return null; }).when(handshake).connect(account);
         try (var portal = mockStatic(FetchAPI.class); var handshakes = mockStatic(HandshakeService.class)) {
             handshakes.when(HandshakeService::getInstance).thenReturn(handshake);
-            portal.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), eq(account), any())).thenReturn(FetchAPI.FetchResult.transportFailure("", 401, "Unauthorized"));
+            portal.when(() -> FetchAPI.fetchWithDiagnostics(anyMap(), any(Account.class), any())).thenReturn(FetchAPI.FetchResult.transportFailure("", 401, "Unauthorized"));
             assertEquals("Account fallback", schedule(account, channel).getFirst().title());
             verify(handshake).connect(account);
         }

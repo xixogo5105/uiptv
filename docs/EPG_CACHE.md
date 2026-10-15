@@ -16,6 +16,8 @@ Existing catalog logos remain authoritative. EPG artwork is a fallback for missi
 
 Provider/embedded or M3U-declared EPG comes first, account EPG second, and global feeds last in their configured order. Each time interval retains that order unless a preferred entry is generic (for example Movie, Drama, Programme, TBA or TBC) and a lower-priority source supplies a specific title. If every available source is generic, the generic entry remains visible. Titles such as “Movie: A Real Title” are not reduced to their genre.
 
+Epoch timestamps and dates carrying offsets remain absolute. Provider local dates without offsets use the saved including daylight saving. Invalid preferred timestamp fields fall back to other valid date/end-time fields. Account timezone changes do not change guide cache identities. The native cache key carries a parser version to prevent reuse of records imported under the earlier account-timezone policy.
+
 The cache stores UTC timestamps rather than flags saying “now” or “next”. Read-time interval selection, Now/Next boundaries, timezone display and progress are computed from those timestamps. Future intervals can therefore choose a different source without an import or remapping pass.
 
 ## Reads and refresh lifecycle
@@ -25,6 +27,8 @@ Cards use read-only connections and indexed batches of up to 128 identities. The
 Only an enabled EPG feature owns a scheduled executor. Disabling it immediately shuts down the timer, interrupts its work and invalidates obsolete imports. Lightweight configuration observers remain so enabling EPG can start the service again; they do not poll or fetch guides while it is off.
 
 Settings → Appearance → EPG refresh interval allows 1–24 hours, default 2. Short provider schedules refresh earlier, before coverage ends. A background minute tick checks persisted due times; a fresh source is not downloaded on each tick. Account/catalog changes wake the importer. Native requests are bounded by count and time, give bookmarks priority, then rotate through cached live channels. Catalog browsing does not fetch provider channel catalogs for the importer.
+
+Each completed source is mapped and published immediately, so later slow fallback feeds cannot delay already available summaries. Native bookmark requests precede bulk native rotation, while imported XMLTV records are mapped to all cached channels for that account.
 
 XMLTV imports validate the feed before replacing its rows in one transaction. SQLite WAL keeps existing rows readable during refresh. Failed refreshes keep the last good programmes and use a five-minute retry backoff. Settings → Cache → Refresh EPG clears only EPG cache rows and transient discovery/provider state, invalidates old in-flight imports and queues a fresh background import when enabled. It preserves accounts, bookmarks, catalog rows and explicit guide overrides.
 

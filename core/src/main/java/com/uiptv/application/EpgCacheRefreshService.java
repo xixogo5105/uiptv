@@ -121,14 +121,20 @@ public class EpgCacheRefreshService {
             channel.setChannelId(bookmark.getChannelId()); channel.setName(bookmark.getChannelName());
             bookmarked.computeIfAbsent(resolved.getAccount().getDbId(),_ -> new ArrayList<>()).add(channel);
         }
-        for(Account account:AccountService.getInstance().getAllById().values()) {
+        List<Account> accounts = new ArrayList<>(AccountService.getInstance().getAllById().values());
+        accounts.sort(Comparator.comparing(account -> bookmarked.getOrDefault(account.getDbId(),List.of()).isEmpty()));
+        // Publish shared XMLTV to every cached channel while native bookmark requests get priority.
+        // Bulk native rotation follows only after each account has had its initial guide pass.
+        for(boolean bulk : new boolean[]{false,true}) for(Account account:accounts) {
             if(!current(token) || !new EpgApplicationService().isEnabled()) return;
             account.setAction(Account.AccountAction.itv);
             Map<String,Channel> channels=new LinkedHashMap<>();
-            bookmarked.getOrDefault(account.getDbId(),List.of()).forEach(c -> channels.put(c.getChannelId(),c));
+            List<Channel> favourites = bookmarked.getOrDefault(account.getDbId(),List.of());
+            favourites.forEach(c -> channels.put(c.getChannelId(),c));
             ChannelDb.get().getCachedLiveChannels(account.getDbId()).forEach(c -> channels.put(c.getChannelId(),c));
-            refreshAccount(account,bookmarked.getOrDefault(account.getDbId(),List.of()),token,16);
-            refreshAccount(account,new ArrayList<>(channels.values()),token,64);
+            List<Channel> all = new ArrayList<>(channels.values());
+            List<Channel> nativeChannels = bulk ? all : favourites.stream().map(c -> channels.get(c.getChannelId())).toList();
+            refreshAccount(account,all,token,bulk ? 64 : 16,nativeChannels);
         }
         commit(token,() -> new EpgCacheDb().prune(System.currentTimeMillis()));
     }
@@ -141,30 +147,45 @@ public class EpgCacheRefreshService {
         refreshAccount(account,channels,token(),64);
     }
     private void refreshAccount(Account account,List<Channel> input,Token token,int nativeBudget) {
+        refreshAccount(account,input,token,nativeBudget,input);
+    }
+    private void refreshAccount(Account account,List<Channel> input,Token token,int nativeBudget,List<Channel> nativeChannels) {
         Map<String,Channel> unique=new LinkedHashMap<>();
         input.forEach(channel -> unique.putIfAbsent(channel.getChannelId(),channel));
         List<Channel> channels=new ArrayList<>(unique.values());
         if(account==null || channels.isEmpty() || !new EpgApplicationService().isEnabled()) return;
         var loader=new EpgApplicationService();
-        var db=new EpgCacheDb();
         List<String> sources=loader.cacheSources(account);
-        AtomicBoolean updated=new AtomicBoolean();
+        publishMappings(account,channels,sources,token);
+        if(EpgCacheApplicationService.nativeProvider(account) && !nativeChannels.isEmpty()) refreshNative(account,nativeChannels,sources,token,nativeBudget);
+        if(current(token)) refreshXml(account,channels,sources,token);
+    }
+    private void publishMappings(Account account,List<Channel> channels,List<String> sources,Token token) {
+        AtomicBoolean mapped = new AtomicBoolean();
+        commit(token,() -> mapped.set(new EpgCacheDb().mapChannels(EpgCacheApplicationService.matches(account,channels,sources),System.currentTimeMillis())));
+        if(current(token) && mapped.get()) changed();
+    }
+    private void refreshXml(Account account,List<Channel> channels,List<String> sources,Token token) {
+        var loader = new EpgApplicationService();
+        var db = new EpgCacheDb();
         for(String source:sources) {
             if(!current(token) || !loader.isEnabled()) return;
             String id=EpgCacheApplicationService.sourceId(source); long now=System.currentTimeMillis();
             if(!due(db.sourceState(id),now)) continue;
             try {
                 XmltvGuide guide=loader.downloadSource(source);
-                commit(token,() -> { db.replaceSource(id,guide.programmes(),guide.names(),guide.qualityNames(),guide.icons(),now,now+refreshMillis()); updated.set(true); });
+                commit(token,() -> { db.replaceSource(id,guide.programmes(),guide.names(),guide.qualityNames(),guide.icons(),now,now+refreshMillis()); db.mapChannels(EpgCacheApplicationService.matches(account,channels,sources),System.currentTimeMillis()); });
             } catch(Exception error) {
                 if(!current(token)) return;
                 commit(token,() -> db.failed(id,now+FAILURE_MS,EpgApplicationService.warning(error)));
                 AppLog.addWarningLog(EpgCacheRefreshService.class,"EPG source refresh failed; retaining cached programmes.");
             }
+            if(current(token)) changed();
         }
-        commit(token,() -> updated.set(db.mapChannels(EpgCacheApplicationService.matches(account,channels,sources),System.currentTimeMillis()) || updated.get()));
-        if(current(token) && updated.get()) changed();
-        if(!EpgCacheApplicationService.nativeProvider(account)) return;
+    }
+    private void refreshNative(Account account,List<Channel> channels,List<String> sources,Token token,int nativeBudget) {
+        var loader = new EpgApplicationService();
+        var db = new EpgCacheDb();
         int start;
         synchronized(CURSORS) { start=CURSORS.getOrDefault(account.getDbId()+"|"+nativeBudget,0)%channels.size(); }
         int attempted=0,visited=0;

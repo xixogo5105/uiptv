@@ -16,7 +16,7 @@ public class EpgCacheApplicationService {
     }
     static String sourceId(String source) { return hash("xml:"+source.strip()); }
     static String nativeSource(Account account, Channel channel) {
-        return hash("native:"+account.getDbId()+"|"+account.getType()+"|"+(account.getUrl()==null || account.getUrl().isBlank() ? account.getServerPortalUrl() : account.getUrl())+"|"+account.getUsername()+"|"+account.getPassword()+"|"+account.getMacAddress()+"|"+channel.getChannelId());
+        return hash("native:utc-v2:"+account.getDbId()+"|"+account.getType()+"|"+(account.getUrl()==null || account.getUrl().isBlank() ? account.getServerPortalUrl() : account.getUrl())+"|"+account.getUsername()+"|"+account.getPassword()+"|"+account.getMacAddress()+"|"+channel.getChannelId());
     }
     private static org.json.JSONObject overrides(Configuration config,Account account) {
         try {
