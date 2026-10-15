@@ -1996,12 +1996,14 @@ private fun BrowseItemRow(
                 }
             },
             supportingContent = {
-                Column {
-                    Text(item.subtitle(), color = DeepNightMutedText, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (item.mode == BrowseMode.LIVE) MobileEpgChannel(item.accountId, item.channelId, item.name)
-                }
+                Text(item.subtitle(), color = DeepNightMutedText, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         )
+        if (item.mode == BrowseMode.LIVE && LocalEpgState.current.enabled) {
+            Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
+                MobileEpgChannel(item.accountId, item.channelId, item.name)
+            }
+        }
     }
 }
 
@@ -2446,12 +2448,14 @@ private fun BookmarkRow(
                 }
             },
             supportingContent = {
-                Column {
-                    Text(bookmark.accountName, color = DeepNightMutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (bookmark.mode == BrowseMode.LIVE) MobileEpgChannel(bookmark.accountId, bookmark.channelId, bookmark.channelName)
-                }
+                Text(bookmark.accountName, color = DeepNightMutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         )
+        if (bookmark.mode == BrowseMode.LIVE && LocalEpgState.current.enabled) {
+            Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
+                MobileEpgChannel(bookmark.accountId, bookmark.channelId, bookmark.channelName)
+            }
+        }
     }
 }
 
