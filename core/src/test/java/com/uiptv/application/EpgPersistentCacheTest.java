@@ -37,6 +37,16 @@ class EpgPersistentCacheTest extends DbBackedTest {
         return path;
     }
 
+    @Test void oldSpacedAliasesMatchAnnotatedChannelsWithoutDownloadingAgain() {
+        long now = System.currentTimeMillis();
+        var identity = new EpgCacheDb.Identity("account", "BBCTwo.uk", "signature");
+        db.replaceSource("uk",Map.of("BBC.Two.HD.uk",List.of(p("Real UK programme",now-60000,now+3600000))),
+                Map.of("bbc two hd","BBC.Two.HD.uk","bbc two","empty-sd"),Map.of(),now,now+7200000);
+        assertTrue(db.mapChannels(List.of(new EpgCacheDb.Match(identity,"BBCTwo.uk",
+                XmltvGuide.normalize("BBC Two Ⓖ"),XmltvGuide.normalizeQuality("BBC Two Ⓖ"),false,List.of("uk"),"")),now));
+        assertEquals("Real UK programme",title(identity,now));
+    }
+
     @Test void catalogueReloadPausesEpgWithoutClearingItsCacheAndResumesIndependently() throws Exception {
         var account = account("catalogue-pause");
         var channel = channel("station", "Station");

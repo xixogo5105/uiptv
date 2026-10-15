@@ -87,32 +87,33 @@ internal fun MobileEpgSettings() {
         var mapping by remember(accountId, channelId) { mutableStateOf("") }
         var revision by remember { mutableIntStateOf(0) }
         var error by remember { mutableStateOf("") }
-        LaunchedEffect(accountId, channelId, state.time / (30 * 60_000), revision) {
+        LaunchedEffect(accountId, channelId, state.time / 60_000, revision) {
             // Peek first: the cache is shared with the embedded player, so a channel already fetched
             // elsewhere (or a moment ago) is shown without another XMLTV parse. Only fetch when the
             // cache is empty or expired.
             val cached = MobileEpgCache.peek(accountId, channelId, state.time)
-            if (cached != null) { result = cached; return@LaunchedEffect }
-            val fetched = state.actions.schedule(accountId, channelId, name)
+            if (cached?.status == MobileEpgStatus.AVAILABLE || cached?.status == MobileEpgStatus.STALE) { result = cached; return@LaunchedEffect }
+            val fetched = try { state.actions.schedule(accountId, channelId, name) }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { MobileEpgResult(MobileEpgStatus.UNAVAILABLE) }
             result = fetched
             MobileEpgCache.put(accountId, channelId, fetched, state.time)
         }
-        val now = result?.now(state.time)
-        val next = result?.next(state.time)
-        val available = result?.status == MobileEpgStatus.AVAILABLE || result?.status == MobileEpgStatus.STALE
-        if (available) {
-            Column {
-                if (now != null) {
-                    Text("Now: ${now.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall)
-                    Text("${programmeTime(now.start)} – ${programmeTime(now.stop)}", style = MaterialTheme.typography.labelSmall)
-                    LinearProgressIndicator(progress = { ((state.time - now.start).toFloat() / (now.stop - now.start)).coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth())
-                }
-                if (next != null) Text("Next: ${next.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) { Text("View Guide") }
-            }
+        // Placeholders belong only to presentation, never to the programme cache.
+        val hour = java.time.Instant.ofEpochMilli(state.time).atZone(java.time.ZoneId.systemDefault())
+            .truncatedTo(java.time.temporal.ChronoUnit.HOURS).toInstant().toEpochMilli()
+        val now = result?.now(state.time) ?: MobileEpgProgramme("No programme details available", "", hour, hour + 3_600_000)
+        val next = result?.next(state.time) ?: MobileEpgProgramme("No programme details available", "", now.stop, now.stop + 3_600_000)
+        Column {
+            Text("Now: ${now.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall)
+            Text("${programmeTime(now.start)} – ${programmeTime(now.stop)}", style = MaterialTheme.typography.labelSmall)
+            LinearProgressIndicator(progress = { ((state.time - now.start).toFloat() / (now.stop - now.start).coerceAtLeast(1)).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth())
+            Text("Next: ${next.title}", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall)
+            Text("${programmeTime(next.start)} – ${programmeTime(next.stop)}", style = MaterialTheme.typography.labelSmall)
+            TextButton(onClick = { details = true }, contentPadding = PaddingValues(0.dp)) { Text("View Guide") }
         }
         if (details) Dialog(onDismissRequest = { details = false }) {
             Surface(shape = MaterialTheme.shapes.large) {
@@ -125,7 +126,7 @@ internal fun MobileEpgSettings() {
                                 label = { Text("Guide ID override") }, modifier = Modifier.fillMaxWidth())
                             Text("Leave empty to use provider mapping.", style = MaterialTheme.typography.bodySmall)
                             TextButton(onClick = { scope.launch {
-                                runCatching { state.actions.saveMapping(accountId, channelId, mapping) }
+                                runCatching { state.actions.saveMapping(accountId, channelId, mapping); MobileEpgCache.clear(accountId, channelId) }
                                     .onSuccess { revision++ }.onFailure { error = "Unable to save mapping" }
                             } }) { Text("Save mapping") }
                             if (error.isNotBlank()) Text(error)

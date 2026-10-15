@@ -95,7 +95,8 @@ public final class EpgCacheDb {
 
     /** Persist every matched source in priority order; quality selection happens at query time. */
     private record Link(String signature,String source,String guide,int priority) { }
-    public boolean mapChannels(List<Match> matches,long now) {
+    public boolean mapChannels(List<Match> matches,long now) { return mapChannels(matches,now,false); }
+    public boolean mapChannels(List<Match> matches,long now,boolean preserveExistingMappings) {
         boolean changed=false;
         try (Connection c = open(true)) {
             c.setAutoCommit(false);
@@ -104,7 +105,12 @@ public final class EpgCacheDb {
                  var existing=c.prepareStatement("SELECT signature,source_id,guide_channel_id,priority FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=? ORDER BY priority");
                  var delete = c.prepareStatement("DELETE FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=?");
                  var insert = c.prepareStatement("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)")) {
+                Map<String,Map<String,String>> compactAliases = new HashMap<>();
                 for (Match match : matches) {
+                    List<Link> previous=new ArrayList<>();
+                    existing.setString(1,match.identity().accountId()); existing.setString(2,match.identity().providerId());
+                    try(var rows=existing.executeQuery()) { while(rows.next()) previous.add(new Link(rows.getString(1),rows.getString(2),rows.getString(3),rows.getInt(4))); }
+                    if (preserveExistingMappings && previous.stream().anyMatch(prior -> prior.signature().equals(match.identity().signature()))) continue;
                     List<Link> links=new ArrayList<>();
                     int priority=0;
                     for (String candidate : match.sources()) {
@@ -118,14 +124,30 @@ public final class EpgCacheDb {
                                 try (var programmes = direct.executeQuery()) { if (programmes.next()) guide=id; }
                             } }
                         }
+                        if (guide.isBlank() && !match.explicit()) {
+                            // Older imported feeds retain spaced aliases until their next download.
+                            // Rebuild only the small name index, once per source for this batch.
+                            Map<String,String> compact = compactAliases.get(candidate);
+                            if (compact == null) {
+                                Map<String,String> names = new HashMap<>();
+                                try (var query = c.prepareStatement("SELECT a.name,a.guide_channel_id FROM epg_alias a WHERE a.source_id=? AND a.kind=0 AND EXISTS(SELECT 1 FROM epg_programme p WHERE p.source_id=a.source_id AND p.guide_channel_id=a.guide_channel_id AND p.stops_at>?)")) {
+                                    query.setString(1,candidate); query.setLong(2,now);
+                                    try (var rows = query.executeQuery()) { while (rows.next()) names.put(rows.getString(1),rows.getString(2)); }
+                                }
+                                compact = new com.uiptv.application.XmltvGuide(Map.of(),names).qualityNames();
+                                compactAliases.put(candidate,compact);
+                            }
+                            String id = compact.get(match.qualityName());
+                            if (id != null) {
+                                direct.setString(2,id);
+                                try (var rows = direct.executeQuery()) { if (rows.next()) guide=id; }
+                            }
+                        }
                         if (!guide.isBlank()) {
                             links.add(new Link(match.identity().signature(),candidate,guide,priority));
                         }
                         priority++;
                     }
-                    List<Link> previous=new ArrayList<>();
-                    existing.setString(1,match.identity().accountId()); existing.setString(2,match.identity().providerId());
-                    try(var rows=existing.executeQuery()) { while(rows.next()) previous.add(new Link(rows.getString(1),rows.getString(2),rows.getString(3),rows.getInt(4))); }
                     if(previous.equals(links)) continue;
                     changed=true;
                     delete.setString(1,match.identity().accountId()); delete.setString(2,match.identity().providerId()); delete.executeUpdate();

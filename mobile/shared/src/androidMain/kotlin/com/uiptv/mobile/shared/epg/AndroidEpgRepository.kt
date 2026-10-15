@@ -10,6 +10,7 @@ import com.uiptv.mobile.shared.settings.AndroidPreferencesRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import org.json.*
 import java.io.*
 import java.net.*
@@ -31,7 +32,7 @@ class AndroidEpgRepository(
     private data class NativeCache(val programmes: List<MobileEpgProgramme>, val expires: Long, val stale: Boolean)
 
     override suspend fun clearCache() = withContext(Dispatchers.IO) {
-        mutex.withLock { guides.clear(); disk.clear(); discovered.clear(); native.clear(); stalker.clearEpgSessions() }
+        mutex.withLock { synchronized(guideLoads) { guideLoads.values.forEach { it.cancel() }; guideLoads.clear() }; synchronized(guides) { guides.clear() }; disk.clear(); discovered.clear(); native.clear(); stalker.clearEpgSessions() }
         com.uiptv.mobile.shared.epg.MobileEpgCache.clear()
         val db = databaseHelper.writableDatabase
         db.beginTransaction()
@@ -66,10 +67,15 @@ class AndroidEpgRepository(
     override suspend fun schedule(accountId: Long, providerChannelId: String, name: String): MobileEpgResult = withContext(Dispatchers.IO) {
         if (!preferences.load().epgEnabled) return@withContext MobileEpgResult()
         val now = System.currentTimeMillis()
-        val synced = AndroidSyncedEpgCache(databaseHelper.readableDatabase).read(accountId, providerChannelId, now)
-        if (synced?.result?.status == MobileEpgStatus.AVAILABLE) {
+        MobileEpgCache.peek(accountId, providerChannelId, now)?.let {
+            if (it.status == MobileEpgStatus.AVAILABLE || it.status == MobileEpgStatus.STALE) return@withContext it
+        }
+        val cloned = AndroidSyncedEpgCache(databaseHelper.readableDatabase)
+        val synced = cloned.read(accountId, providerChannelId, now)
+            ?: cloned.matchCloned(accountId, providerChannelId, name, now)
+        if (synced != null) {
             MobileEpgCache.put(MobileEpgCache.key(accountId, providerChannelId), synced.result, now,
-                minOf(MobileEpgCache.ttlFor(synced.result, now), synced.expiresAt - now))
+                MobileEpgCache.ttlFor(synced.result, now))
             return@withContext synced.result
         }
         val desktopHost = preferences.load().remoteEndpoint.host
@@ -80,11 +86,11 @@ class AndroidEpgRepository(
         MobileEpgCache.peek(accountId, providerChannelId, now)?.let {
             if (it.status == MobileEpgStatus.AVAILABLE || it.status == MobileEpgStatus.STALE) return@withContext it
         }
-        mutex.withLock {
+        val request = mutex.withLock {
             ensureActive()
-            if (!preferences.load().epgEnabled) return@withLock MobileEpgResult()
+            if (!preferences.load().epgEnabled) return@withContext MobileEpgResult()
             val account = AndroidSQLiteAccountRepository(databaseHelper).listAccounts().firstOrNull { it.id == accountId }
-                ?: return@withLock MobileEpgResult(MobileEpgStatus.NO_MATCH)
+                ?: return@withContext MobileEpgResult(MobileEpgStatus.NO_MATCH)
             val key = account to providerChannelId
             val cached = native[key]
             val schedules = if (cached != null && now < cached.expires) cached else {
@@ -99,7 +105,7 @@ class AndroidEpgRepository(
                 val result = MobileEpgResult(
                     if (schedules.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, schedules.programmes)
                 MobileEpgCache.put(accountId, providerChannelId, result, now)
-                return@withLock result
+                return@withContext result
             }
             val override = runCatching { JSONObject(config("epgMappingsJson")).optJSONObject(accountId.toString())?.optString(providerChannelId) }
                 .getOrNull().orEmpty()
@@ -107,12 +113,15 @@ class AndroidEpgRepository(
             val sources = linkedSetOf(discover(account), account.epg).apply {
                 addAll(config("globalEpgSource").lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList())
             }
+            Triple(id, sources.filter { it.isNotBlank() }.map { resolveDesktopSource(it, desktopHost) }, override)
+        }
+        val (id, sources, override) = request
             var failed = false
             var message = ""
             var result: MobileEpgResult = MobileEpgResult(MobileEpgStatus.NO_MATCH, message = message)
-            for (source in sources.filter { it.isNotBlank() }) {
+            for (source in sources) {
                 ensureActive()
-                val guide = loadGuide(resolveDesktopSource(source, desktopHost), now)
+                val guide = sharedGuide(source, now).await()
                 if (guide.guide == null) { failed = true; message = guide.message; continue }
                 val programmes = guide.guide.forChannel(id, if (override.isBlank()) name else "")
                 if (programmes.any { it.stop > now }) {
@@ -124,8 +133,17 @@ class AndroidEpgRepository(
             if (result.status == MobileEpgStatus.AVAILABLE || result.status == MobileEpgStatus.STALE) {
                 MobileEpgCache.put(accountId, providerChannelId, result, now)
             }
-            if (result.status != MobileEpgStatus.AVAILABLE && synced != null) return@withLock synced.result
-            return@withLock result
+            return@withContext result
+    }
+
+    private fun sharedGuide(source: String, now: Long): Deferred<GuideCache> = synchronized(guideLoads) {
+        guideLoads[source] ?: guideScope.async {
+            guidePermits.withPermit { sourceLocks[(source.hashCode() and Int.MAX_VALUE) % sourceLocks.size].withLock {
+                loadGuide(source, now)
+            } }
+        }.also { job ->
+            guideLoads[source] = job
+            job.invokeOnCompletion { synchronized(guideLoads) { if (guideLoads[source] === job) guideLoads.remove(source) } }
         }
     }
 
@@ -172,13 +190,12 @@ class AndroidEpgRepository(
         return found
     }
     private fun loadGuide(source: String, now: Long): GuideCache {
-        val previous = guides[source]
+        val previous = synchronized(guides) { guides[source] }
         if (previous != null && now < previous.expires) return previous
         val remote = source.startsWith("http://", true) || source.startsWith("https://", true)
         val persisted = if (remote) disk.read(source, now) else null
         if (persisted != null) return GuideCache(persisted, disk.expires(source), false).also {
-            guides[source] = it
-            while (guides.size > 32) guides.remove(guides.keys.first())
+            synchronized(guides) { guides[source] = it; trimGuides() }
         }
         val cached = try {
             open(source).buffered().use { buffered ->
@@ -188,6 +205,7 @@ class AndroidEpgRepository(
                 GuideCache(if (remote) disk.parseAndSave(source, limited, now) else AndroidXmltvReader.read(limited, now), now + 24 * 3600_000L, false)
             }
         } catch (error: Throwable) {
+            if (error is CancellationException) throw error
             val message = when (error) {
                 is OutOfMemoryError -> "Out of memory reading EPG guide. Clear the cache and use a smaller regional feed."
                 else -> when (error.message) {
@@ -199,7 +217,7 @@ class AndroidEpgRepository(
             val fallback = previous?.guide ?: if (remote) disk.read(source, now, stale = true) else null
             GuideCache(fallback, now + 30 * 60_000L, fallback != null, message)
         }
-        guides[source] = cached
+        synchronized(guides) { guides[source] = cached; trimGuides() }
         return cached
     }
     private fun open(source: String): InputStream {
@@ -285,8 +303,23 @@ class AndroidEpgRepository(
 
         const val MAX_NATIVE_PROGRAMMES = 2000
         private val mutex = Mutex()
-        private val guides = object : LinkedHashMap<String, GuideCache>(6, 0.75f, true) {
-            override fun removeEldestEntry(eldest: Map.Entry<String, GuideCache>): Boolean = size > 6
+        private val guideScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val guidePermits = kotlinx.coroutines.sync.Semaphore(2)
+        private val sourceLocks = Array(32) { Mutex() }
+        private val guideLoads = mutableMapOf<String,Deferred<GuideCache>>()
+        private val guides = object : LinkedHashMap<String, GuideCache>(32, 0.75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<String, GuideCache>): Boolean = size > 32
+        }
+        private fun trimGuides() {
+            fun bytes(entry: GuideCache): Long = entry.guide?.let { guide ->
+                guide.programmes.values.sumOf { list -> list.sumOf { 160L + 2L * (it.title.length + it.description.length) } } +
+                    (guide.names.size + guide.qualityNames.size) * 192L
+            } ?: 0L
+            var retained = guides.values.sumOf { bytes(it) }
+            val iterator = guides.entries.iterator()
+            while (retained > 48L * 1024 * 1024 && iterator.hasNext()) {
+                val entry = iterator.next(); retained -= bytes(entry.value); iterator.remove()
+            }
         }
         private val discovered = object : LinkedHashMap<String, Pair<String, Long>>(16, 0.75f, true) {
             override fun removeEldestEntry(eldest: Map.Entry<String, Pair<String, Long>>): Boolean = size > 16

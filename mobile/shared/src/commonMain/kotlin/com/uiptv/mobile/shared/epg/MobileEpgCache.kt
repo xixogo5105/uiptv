@@ -43,6 +43,7 @@ object MobileEpgCache {
     fun clear() = synchronized(lock) { results.clear() }
 
     fun ttlFor(result: MobileEpgResult, now: Long): Long {
+        if (result.status != MobileEpgStatus.AVAILABLE && result.status != MobileEpgStatus.STALE) return 30_000
         val boundary = result.programmes.filter { it.stop > now }.minOfOrNull { it.stop } ?: now + 3_600_000
         return (boundary - now + 2 * 60_000).coerceIn(60_000, 15 * 60_000)
     }

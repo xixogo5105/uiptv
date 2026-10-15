@@ -171,6 +171,20 @@ public class EpgCacheRefreshService {
         }
         List<Account> accounts = new ArrayList<>(AccountService.getInstance().getAllById().values());
         accounts.sort(Comparator.comparing(account -> bookmarked.getOrDefault(account.getDbId(),List.of()).isEmpty()));
+        // Publish already imported guides for every account before any provider/network work.
+        // Otherwise a later M3U account can wait behind many 30-second native refresh budgets.
+        List<String> global = EpgApplicationService.globalSources(ConfigurationService.getInstance().read().getGlobalEpgSource());
+        for (Account account : accounts) {
+            if (!current(token)) return;
+            account.setAction(Account.AccountAction.itv);
+            LinkedHashSet<String> cachedSources = new LinkedHashSet<>();
+            if (account.getEpg() != null && !account.getEpg().isBlank()) cachedSources.add(account.getEpg());
+            cachedSources.addAll(global);
+            List<Channel> cachedChannels = ChannelDb.get().getCachedLiveChannels(account.getDbId());
+            AtomicBoolean mapped = new AtomicBoolean();
+            commit(token,() -> mapped.set(new EpgCacheDb().mapChannels(EpgCacheApplicationService.matches(account,cachedChannels,List.copyOf(cachedSources)),System.currentTimeMillis(),true)));
+            if (mapped.get()) changed();
+        }
         // Publish shared XMLTV to every cached channel while native bookmark requests get priority.
         // Bulk native rotation follows only after each account has had its initial guide pass.
         for(boolean bulk : new boolean[]{false,true}) for(Account account:accounts) {

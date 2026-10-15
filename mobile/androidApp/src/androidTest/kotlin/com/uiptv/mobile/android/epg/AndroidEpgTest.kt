@@ -15,6 +15,35 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 class AndroidEpgTest {
+    @Test fun clonedSpacedAliasesServeRealProgrammesWithoutChannelMappings() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val file = File.createTempFile("epg-clone-fixture", ".db", context.cacheDir)
+        val db = android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(file, null)
+        try {
+            AndroidUiptvDatabaseHelper(context).use { it.applyMigrations(db) }
+            val source = "https://example.invalid/uk.xml"
+            val sourceId = java.security.MessageDigest.getInstance("SHA-256").digest("xml:$source".toByteArray())
+                .joinToString("") { "%02x".format(it.toInt() and 255) }
+            val now = System.currentTimeMillis()
+            db.execSQL("INSERT INTO Configuration(globalEpgSource,epgMappingsJson) VALUES(?,?)", arrayOf(source,"{}"))
+            db.execSQL("INSERT INTO Account(id,accountName,type,epg) VALUES(?,?,?,?)", arrayOf("999","Fixture","M3U8_LOCAL",""))
+            db.execSQL("INSERT INTO epg_source VALUES(?,?,?,?)", arrayOf<Any>(sourceId,now,now+3600000,""))
+            db.execSQL("INSERT INTO epg_alias VALUES(?,?,?,?)", arrayOf<Any>(sourceId,0,"bbc two hd","BBC.Two.HD.uk"))
+            db.execSQL("INSERT INTO epg_alias VALUES(?,?,?,?)", arrayOf<Any>(sourceId,1,"bbc two","BBC.Two.HD.uk"))
+            db.execSQL("INSERT INTO epg_alias VALUES(?,?,?,?)", arrayOf<Any>(sourceId,0,"bbc two","empty-sd"))
+            val output = java.io.ByteArrayOutputStream()
+            java.util.zip.DeflaterOutputStream(output).use { it.write("Real description".toByteArray()) }
+            db.execSQL("INSERT INTO epg_programme VALUES(?,?,?,?,?,?)", arrayOf<Any>(sourceId,"BBC.Two.HD.uk",now-60000,now+3600000,"Real UK programme",output.toByteArray()))
+            val cache = AndroidSyncedEpgCache(db)
+            val result = cache.matchCloned(999,"BBCTwo.uk","bBc Two Ⓖ",now)
+            assertNotNull(result)
+            assertEquals("Real UK programme",result!!.result.now(now)!!.title)
+            assertEquals("Real description",result.result.now(now)!!.description)
+            assertNull(cache.matchCloned(999,"other","BBC Two +1",now))
+            assertEquals(0, db.rawQuery("SELECT COUNT(*) FROM epg_channel_mapping",null).use { it.moveToFirst();it.getInt(0) })
+        } finally { db.close(); file.delete() }
+    }
+
     @Test fun syncedDesktopCacheServesSchedulesDescriptionsAndArtworkWithoutSourceFiles() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val helper = AndroidUiptvDatabaseHelper(context)
