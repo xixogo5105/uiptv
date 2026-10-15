@@ -24,7 +24,9 @@ data class MobileXmltvGuide(
         fun normalizeQuality(value: String): String = normalize(normalize(value)
             .replace(Regex("(?<![\\p{L}\\p{N}])(?:fhd|uhd|hd|sd|4k|8k|720p|1080p|2160p)(?![\\p{L}\\p{N}])"), " ")
             .replace(Regex("\\([\\s|/,-]*\\)|\\[[\\s|/,-]*\\]"), " ")
-            .replace(Regex("^[\\s|/,-]+|[\\s|/,-]+$"), ""))
+            .replace(Regex("^[\\s|/,-]+|[\\s|/,-]+$"), "")
+            .replace(Regex("[Ⓐ-Ⓩⓐ-ⓩ]"), "")
+            .replace(Regex("[^\\p{L}\\p{N}+]"), ""))
         fun qualityAliases(names: Map<String, String>): Map<String, String> {
             val result = mutableMapOf<String, String>(); val ambiguous = mutableSetOf<String>()
             names.forEach { (name, id) ->

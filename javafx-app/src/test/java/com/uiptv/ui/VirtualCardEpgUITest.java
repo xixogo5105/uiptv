@@ -128,6 +128,12 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                 try {
                     root.applyCss(); root.layout();
                     assertEquals(2, panel.lookupAll(".virtual-card-epg-title").size());
+                    ProgressBar progress = (ProgressBar) panel.getChildren().get(1);
+                    assertEquals(4, progress.minHeight(-1), .1);
+                    Region fill = (Region) progress.lookup(".bar");
+                    assertEquals(javafx.scene.paint.Color.web("#32b8dd"), fill.getBackground().getFills().getFirst().getFill());
+                    assertTrue(fill.getHeight() >= 4);
+                    assertTrue(fill.getWidth() > 0);
                     save(root, "target/epg-virtual-card-" + (dark ? "dark" : "light") + ".png");
                     card.getStyleClass().add("selected");
                     root.applyCss(); root.layout();

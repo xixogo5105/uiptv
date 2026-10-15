@@ -3,6 +3,15 @@ package com.uiptv.mobile.shared.epg
 import kotlin.test.*
 
 class MobileEpgTest {
+    @Test fun annotatedNamesIgnoreCaseAndSpacingButKeepTimeshiftsAndRegions() {
+        val aliases = MobileXmltvGuide.qualityAliases(mapOf("bbc one" to "bbc"))
+        for (name in listOf("BBC One Ⓖ", "bbcONE", "BBC-One HD"))
+            assertEquals("bbc", aliases[MobileXmltvGuide.normalizeQuality(name)])
+        assertEquals(null, aliases[MobileXmltvGuide.normalizeQuality("BBC One +1")])
+        assertEquals(null, aliases[MobileXmltvGuide.normalizeQuality("BBC One Scotland")])
+        val ambiguous = MobileXmltvGuide.qualityAliases(mapOf("bbc one" to "bbc", "bbcone" to "other"))
+        assertEquals(null, ambiguous[MobileXmltvGuide.normalizeQuality("BBC One Ⓖ")])
+    }
     @Test fun sourcePriorityAndMeaningfulFallbackMatchDesktopPolicy() {
         val native = MobileEpgProgramme("Native film", "", 1000, 2000)
         val generic = MobileEpgProgramme("Movie", "", 2000, 4000)

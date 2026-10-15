@@ -141,7 +141,10 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
     static String normalizeQuality(String name) {
         String value = QUALITY.matcher(normalize(name)).replaceAll(" ");
         value = EDGE_SEPARATORS.matcher(EMPTY_BRACKETS.matcher(value).replaceAll(" ")).replaceAll("");
-        return normalize(value);
+        // Playlist availability annotations are not part of the broadcast name.
+        value = value.replaceAll("[Ⓐ-Ⓩⓐ-ⓩ]", "");
+        // Keep + so time-shift channels never collapse into their parent station.
+        return value.replaceAll("[^\\p{L}\\p{N}+]", "");
     }
     private static Map<String, String> qualityAliases(Map<String, String> names) {
         Map<String, String> result = new HashMap<>(); Set<String> ambiguous = new HashSet<>();

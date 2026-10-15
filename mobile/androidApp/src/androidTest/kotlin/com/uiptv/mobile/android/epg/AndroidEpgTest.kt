@@ -109,6 +109,10 @@ class AndroidEpgTest {
             assertEquals(list, guide.forChannel("stream", " BBC  ONE HD "))
             assertTrue(guide.forChannel("local-row", "News").isEmpty())
             assertEquals(list, guide.forChannel("stream", "BBC One"))
+            assertEquals(list, guide.forChannel("stream", "bBc OnE Ⓖ"))
+            assertEquals(list, guide.forChannel("stream", "BBCOne"))
+            assertTrue(guide.forChannel("stream", "BBC One +1").isEmpty())
+            assertTrue(guide.forChannel("stream", "BBC One Scotland").isEmpty())
         }
     }
     @Test fun rejectsDtdAndInvalidCalendarDates() {
