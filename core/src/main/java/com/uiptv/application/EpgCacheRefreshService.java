@@ -20,16 +20,16 @@ public class EpgCacheRefreshService {
     private static ScheduledExecutorService scheduler;
     private static boolean applicationOwned;
     public static synchronized void startApplication() { applicationOwned=true; start(); }
-    public static synchronized void stopServer() { if(!applicationOwned) stop(); }
+    public static void stopServer() { stop(true); }
     private static final ConfigurationChangeListener CONFIG_CHANGED=_ -> settingsChanged();
     private static final AccountChangeListener ACCOUNTS_CHANGED=_ -> settingsChanged();
     private static void settingsChanged() {
         EPOCH.incrementAndGet();
-        Thread running=WORKER.get(); if(running!=null) running.interrupt();
+        WORKERS.forEach(Thread::interrupt);
         stopTimer();
         reconcileSoon();
     }
-    private static final AtomicReference<Thread> WORKER=new AtomicReference<>();
+    private static final Set<Thread> WORKERS=ConcurrentHashMap.newKeySet();
     private static final AtomicBoolean QUEUED=new AtomicBoolean();
     private static final Map<String,Integer> CURSORS=new HashMap<>();
     private record Token(String path,long epoch) { }
@@ -44,7 +44,7 @@ public class EpgCacheRefreshService {
     public static void removeListener(Runnable listener) { LISTENERS.remove(listener); }
 
     private static volatile boolean lifecycleStarted;
-    private static final AtomicBoolean RECONCILE_QUEUED=new AtomicBoolean();
+    private static final AtomicReference<Thread> RECONCILER=new AtomicReference<>();
     public static synchronized void start() {
         if(!lifecycleStarted) {
             lifecycleStarted=true;
@@ -53,34 +53,69 @@ public class EpgCacheRefreshService {
         }
         reconcileSoon();
     }
-    private static void reconcileSoon() {
-        if(!RECONCILE_QUEUED.compareAndSet(false,true)) return;
-        Thread.ofVirtual().start(() -> {
-            long epoch=EPOCH.get();
+    private static synchronized void reconcileSoon() {
+        if (!lifecycleStarted || RECONCILER.get() != null) return;
+        long epoch = EPOCH.get();
+        Thread task = Thread.ofVirtual().name("epg-cache-lifecycle").unstarted(() -> {
             try {
-                boolean enabled=new EpgApplicationService().isEnabled();
-                synchronized(EpgCacheRefreshService.class) {
-                    if(!lifecycleStarted || epoch!=EPOCH.get()) return;
-                    if(!enabled) stopTimer();
-                    else if(scheduler==null || scheduler.isShutdown()) {
-                        scheduler=Executors.newSingleThreadScheduledExecutor(r -> { Thread thread=new Thread(r,"epg-cache-refresh"); thread.setDaemon(true); return thread; });
+                if (!lifecycleStarted || epoch != EPOCH.get() || Thread.currentThread().isInterrupted()) return;
+                boolean enabled = new EpgApplicationService().isEnabled();
+                synchronized (EpgCacheRefreshService.class) {
+                    if (!lifecycleStarted || epoch != EPOCH.get() || Thread.currentThread().isInterrupted()) return;
+                    if (!enabled) stopTimer();
+                    else if (scheduler == null || scheduler.isShutdown()) {
+                        scheduler = Executors.newSingleThreadScheduledExecutor(r -> { Thread thread = new Thread(r,"epg-cache-refresh"); thread.setDaemon(true); return thread; });
                         scheduler.scheduleWithFixedDelay(EpgCacheRefreshService::runScheduled,0,60,TimeUnit.SECONDS);
                     }
                 }
+            } catch (DatabaseAccessException error) {
+                // A cancelled lifecycle must not report teardown as a database failure.
+                if (lifecycleStarted && epoch == EPOCH.get() && !Thread.currentThread().isInterrupted())
+                    AppLog.addWarningLog(EpgCacheRefreshService.class,"Unable to read EPG refresh settings; existing guide remains available.");
             } finally {
-                RECONCILE_QUEUED.set(false);
-                if(epoch!=EPOCH.get() && lifecycleStarted) reconcileSoon();
+                synchronized (EpgCacheRefreshService.class) {
+                    RECONCILER.compareAndSet(Thread.currentThread(), null);
+                    if (epoch != EPOCH.get() && lifecycleStarted) reconcileSoon();
+                }
             }
         });
+        RECONCILER.set(task);
+        task.start();
     }
     private static synchronized void stopTimer() {
         if(scheduler!=null) scheduler.shutdownNow(); scheduler=null; QUEUED.set(false);
     }
-    public static synchronized void stop() {
-        lifecycleStarted=false;
-        ConfigurationService.getInstance().removeChangeListener(CONFIG_CHANGED);
-        AccountService.getInstance().removeChangeListener(ACCOUNTS_CHANGED);
-        stopTimer(); applicationOwned=false;
+    public static void stop() { stop(false); }
+    private static void stop(boolean serverOnly) {
+        Thread lifecycleTask;
+        ScheduledExecutorService timer;
+        List<Thread> workers;
+        synchronized (EpgCacheRefreshService.class) {
+            if (serverOnly && applicationOwned) return;
+            lifecycleStarted = false;
+            EPOCH.incrementAndGet();
+            ConfigurationService.getInstance().removeChangeListener(CONFIG_CHANGED);
+            AccountService.getInstance().removeChangeListener(ACCOUNTS_CHANGED);
+            lifecycleTask = RECONCILER.get();
+            if (lifecycleTask != null) lifecycleTask.interrupt();
+            workers = new ArrayList<>(WORKERS);
+            workers.forEach(Thread::interrupt);
+            timer = scheduler;
+            stopTimer(); applicationOwned = false;
+        }
+        // Wait outside the lifecycle lock: finishing tasks need it to release ownership.
+        try {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            if (lifecycleTask != null) workers.add(lifecycleTask);
+            for (Thread task : workers) {
+                long remaining = deadline - System.nanoTime();
+                if (task != Thread.currentThread() && remaining > 0)
+                    task.join(java.time.Duration.ofNanos(remaining));
+            }
+            long remaining = deadline - System.nanoTime();
+            if (timer != null && !workers.contains(Thread.currentThread()) && remaining > 0)
+                timer.awaitTermination(remaining, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException error) { Thread.currentThread().interrupt(); }
     }
     /** Wake a running scheduler, but never create an unmanaged worker from a read path. */
     public static synchronized void requestRefresh() {
@@ -90,7 +125,7 @@ public class EpgCacheRefreshService {
     static void invalidate() {
         synchronized(COMMIT_LOCK) {
             EPOCH.incrementAndGet();
-            Thread running=WORKER.get(); if(running!=null && running!=Thread.currentThread()) running.interrupt();
+            WORKERS.forEach(thread -> { if(thread!=Thread.currentThread()) thread.interrupt(); });
             new EpgCacheDb().clear();
         }
         changed();
@@ -100,13 +135,16 @@ public class EpgCacheRefreshService {
         requestRefresh();
     }
     private static void runScheduled() {
-        WORKER.set(Thread.currentThread());
+        synchronized (EpgCacheRefreshService.class) {
+            if (!lifecycleStarted || Thread.currentThread().isInterrupted()) return;
+            WORKERS.add(Thread.currentThread());
+        }
         try {
             if(!new EpgApplicationService().isEnabled()) return;
             new EpgCacheRefreshService().refreshDue();
         } catch(Exception error) {
             if(!Thread.currentThread().isInterrupted()) AppLog.addWarningLog(EpgCacheRefreshService.class,"EPG background refresh failed; existing guide remains available.");
-        } finally { WORKER.compareAndSet(Thread.currentThread(),null); Thread.interrupted(); }
+        } finally { WORKERS.remove(Thread.currentThread()); Thread.interrupted(); }
     }
 
     public void refreshDue() {
