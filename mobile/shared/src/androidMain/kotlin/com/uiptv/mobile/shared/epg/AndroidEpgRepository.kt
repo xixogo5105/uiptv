@@ -33,6 +33,16 @@ class AndroidEpgRepository(
     override suspend fun clearCache() = withContext(Dispatchers.IO) {
         mutex.withLock { guides.clear(); disk.clear(); discovered.clear(); native.clear(); stalker.clearEpgSessions() }
         com.uiptv.mobile.shared.epg.MobileEpgCache.clear()
+        val db = databaseHelper.writableDatabase
+        db.beginTransaction()
+        try {
+            for (table in com.uiptv.mobile.shared.db.UiptvSyncSchema.desktopTablesPreservedButHiddenInV1) db.delete(table, null, null)
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
+    suspend fun icon(accountId: Long, providerChannelId: String): String = withContext(Dispatchers.IO) {
+        if (!preferences.load().epgEnabled) ""
+        else AndroidSyncedEpgCache(databaseHelper.readableDatabase).icon(accountId, providerChannelId)
     }
     override suspend fun globalSource(): String = withContext(Dispatchers.IO) { config("globalEpgSource") }
     override suspend fun saveGlobalSource(source: String) = withContext(Dispatchers.IO) {
@@ -41,19 +51,27 @@ class AndroidEpgRepository(
             "Use an XMLTV HTTP/HTTPS URL or local file."
         }
         saveConfig("globalEpgSource", source.trim())
+        MobileEpgCache.clear()
     }
-    override suspend fun saveMapping(accountId: Long, providerChannelId: String, guideId: String) = withContext(Dispatchers.IO) {
+    override suspend fun saveMapping(accountId: Long, providerChannelId: String, guideId: String): Unit = withContext(Dispatchers.IO) {
         mutex.withLock {
             val mappings = runCatching { JSONObject(config("epgMappingsJson")) }.getOrDefault(JSONObject())
             val account = mappings.optJSONObject(accountId.toString()) ?: JSONObject()
             if (guideId.isBlank()) account.remove(providerChannelId) else account.put(providerChannelId, guideId.trim())
             mappings.put(accountId.toString(), account)
             saveConfig("epgMappingsJson", mappings.toString())
+            MobileEpgCache.clear(accountId, providerChannelId)
         }
     }
     override suspend fun schedule(accountId: Long, providerChannelId: String, name: String): MobileEpgResult = withContext(Dispatchers.IO) {
         if (!preferences.load().epgEnabled) return@withContext MobileEpgResult()
         val now = System.currentTimeMillis()
+        val synced = AndroidSyncedEpgCache(databaseHelper.readableDatabase).read(accountId, providerChannelId, now)
+        if (synced?.result?.status == MobileEpgStatus.AVAILABLE) {
+            MobileEpgCache.put(MobileEpgCache.key(accountId, providerChannelId), synced.result, now,
+                minOf(MobileEpgCache.ttlFor(synced.result, now), synced.expiresAt - now))
+            return@withContext synced.result
+        }
         val desktopHost = preferences.load().remoteEndpoint.host
         // Only serve results that carry real programme data. A cached DISABLED/NO_MATCH/UNAVAILABLE
         // verdict would be stale the moment EPG is enabled, a mapping is saved or a source is
@@ -106,6 +124,7 @@ class AndroidEpgRepository(
             if (result.status == MobileEpgStatus.AVAILABLE || result.status == MobileEpgStatus.STALE) {
                 MobileEpgCache.put(accountId, providerChannelId, result, now)
             }
+            if (result.status != MobileEpgStatus.AVAILABLE && synced != null) return@withLock synced.result
             return@withLock result
         }
     }

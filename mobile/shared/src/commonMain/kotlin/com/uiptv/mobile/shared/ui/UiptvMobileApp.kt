@@ -1965,6 +1965,7 @@ private fun BrowseItemRow(
                 ChannelLogo(
                     label = item.number.ifBlank { item.name.take(2).uppercase() },
                     logo = item.logo,
+                    fallbackLogo = epgThumbnail(item.accountId, item.channelId, showThumbnail && item.mode == BrowseMode.LIVE),
                     showThumbnail = showThumbnail,
                     contentDescription = "Logo ${item.name}",
                     logoRenderer = logoRenderer
@@ -2010,7 +2011,8 @@ private fun ChannelLogo(
     logo: String,
     showThumbnail: Boolean,
     contentDescription: String,
-    logoRenderer: LogoRenderer
+    logoRenderer: LogoRenderer,
+    fallbackLogo: String = ""
 ) {
     Surface(
         modifier = Modifier
@@ -2021,14 +2023,16 @@ private fun ChannelLogo(
         color = DeepNightSurfaceHighest,
         contentColor = DeepNightPrimary
     ) {
-        if (showThumbnail && logo.isNotBlank()) {
-            logoRenderer(
-                logo,
-                contentDescription,
-                Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(12.dp))
-            )
+        if (showThumbnail && (logo.isNotBlank() || fallbackLogo.isNotBlank())) {
+            CompositionLocalProvider(LocalThumbnailFallback provides fallbackLogo) {
+                logoRenderer(
+                    logo.ifBlank { fallbackLogo },
+                    contentDescription,
+                    Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(12.dp))
+                )
+            }
         } else {
             Box(contentAlignment = Alignment.Center) {
                 Text(
@@ -2400,6 +2404,7 @@ private fun BookmarkRow(
                 ChannelLogo(
                     label = bookmark.channelName.take(2).uppercase(),
                     logo = bookmark.logo,
+                    fallbackLogo = epgThumbnail(bookmark.accountId, bookmark.channelId, showThumbnail && bookmark.mode == BrowseMode.LIVE),
                     showThumbnail = showThumbnail,
                     contentDescription = "Logo ${bookmark.channelName}",
                     logoRenderer = logoRenderer

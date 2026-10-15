@@ -3,6 +3,15 @@ package com.uiptv.mobile.shared.epg
 import kotlin.test.*
 
 class MobileEpgTest {
+    @Test fun sourcePriorityAndMeaningfulFallbackMatchDesktopPolicy() {
+        val native = MobileEpgProgramme("Native film", "", 1000, 2000)
+        val generic = MobileEpgProgramme("Movie", "", 2000, 4000)
+        val xml = MobileEpgProgramme("XMLTV film", "", 1000, 4000)
+        assertEquals(listOf(native, xml.copy(start = 2000)),
+            MobileEpgSchedules.preferSources(listOf(listOf(native, generic), listOf(xml))))
+        assertEquals(listOf(xml), MobileEpgSchedules.preferSources(listOf(listOf(xml), listOf(native))))
+    }
+
     @Test fun exactIdentityAndUniqueNameFallbackRetainSuffixes() {
         val p = MobileEpgProgramme("News", "Details", 1000, 2000)
         val guide = MobileXmltvGuide(mapOf("xmltv-id" to listOf(p)), mapOf("station hd" to "xmltv-id"))

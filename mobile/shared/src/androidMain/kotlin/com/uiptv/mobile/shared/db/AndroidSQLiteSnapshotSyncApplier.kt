@@ -43,6 +43,7 @@ class AndroidSQLiteSnapshotSyncApplier(
             databaseHelper.close()
             replaceLiveDatabase(stagedSnapshot)
             reopenAndValidateLiveDatabase()
+            com.uiptv.mobile.shared.epg.MobileEpgCache.clear()
             return report
         } finally {
             stagedSnapshot.delete()

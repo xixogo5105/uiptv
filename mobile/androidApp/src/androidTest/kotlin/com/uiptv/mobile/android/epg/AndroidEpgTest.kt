@@ -15,6 +15,89 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 class AndroidEpgTest {
+    @Test fun syncedDesktopCacheServesSchedulesDescriptionsAndArtworkWithoutSourceFiles() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val helper = AndroidUiptvDatabaseHelper(context)
+        val preferences = AndroidDataStorePreferencesRepository(context)
+        val db = helper.writableDatabase
+        val accountId = 987654321L
+        val source = "desktop-cache-fixture"
+        val repository = AndroidEpgRepository(context, helper, preferences)
+        val previousConfig = db.rawQuery("SELECT globalEpgSource,epgMappingsJson FROM Configuration LIMIT 1", null).use {
+            it.moveToFirst(); it.getString(0).orEmpty() to it.getString(1).orEmpty()
+        }
+        val wasEnabled = preferences.load().epgEnabled
+        val now = System.currentTimeMillis()
+        fun values(vararg pairs: Pair<String, String>) = android.content.ContentValues().apply {
+            pairs.forEach { (key, value) -> put(key, value) }
+        }
+        fun compress(text: String): ByteArray {
+            val output = java.io.ByteArrayOutputStream()
+            java.util.zip.DeflaterOutputStream(output).use { it.write(text.toByteArray()) }
+            return output.toByteArray()
+        }
+        try {
+            preferences.saveEpgEnabled(true)
+            db.update("Configuration", values("globalEpgSource" to "", "epgMappingsJson" to "{}"), null, null)
+            db.insertOrThrow("Account", null, values("id" to accountId.toString(), "accountName" to "Synced fixture",
+                "type" to "M3U8_LOCAL", "url" to "", "username" to "", "password" to "", "macAddress" to "", "epg" to "", "m3u8Path" to ""))
+            val categoryId = db.insertOrThrow("Category", null, values("accountId" to accountId.toString(), "categoryId" to "provider-category", "title" to "Fixture"))
+            val channelId = db.insertOrThrow("Channel", null, values("categoryId" to categoryId.toString(), "channelId" to "provider-stream",
+                "name" to "Synced station", "extraJson" to "{\"xmltv_id\":\"station\"}"))
+            db.execSQL("INSERT INTO epg_source VALUES(?,?,?,?)", arrayOf<Any>(source, now, now + 1_800_000, ""))
+            // Golden signature is verified by the Java EpgPersistentCacheTest as well.
+            val signature = "548dda9e1899e1fcfe11ee92d3cb3fbde21b90134919a43be8299b5aeaf37e5b"
+            db.execSQL("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)", arrayOf<Any>(accountId.toString(), "provider-stream", signature, source, "station", 0))
+            db.execSQL("INSERT INTO epg_programme VALUES(?,?,?,?,?,?)", arrayOf<Any>(source, "station", now - 60_000, now + 3_600_000, "Synced film", compress("Synced full description")))
+            db.execSQL("INSERT INTO epg_channel_icon VALUES(?,?,?)", arrayOf<Any>(source, "station", "https://example.invalid/station.png"))
+            MobileEpgCache.clear()
+            val result = repository.schedule(accountId, "provider-stream", "Old bookmark name")
+            assertEquals(MobileEpgStatus.AVAILABLE, result.status)
+            assertEquals("Synced film", result.programmes.first().title)
+            assertEquals("Synced full description", result.programmes.first().description)
+            assertEquals("https://example.invalid/station.png", repository.icon(accountId, "provider-stream"))
+            assertTrue(repository.icon(accountId + 1, "provider-stream").isEmpty())
+            assertTrue(repository.schedule(accountId, channelId.toString(), "Synced station").programmes.isEmpty())
+            MobileEpgCache.clear()
+            db.execSQL("UPDATE epg_source SET retry_at=? WHERE source_id=?", arrayOf<Any>(now - 1, source))
+            assertEquals(MobileEpgStatus.STALE, repository.schedule(accountId, "provider-stream", "Synced station").status)
+            db.update("Channel", values("extraJson" to "{\"xmltv_id\":\"changed\"}"), "id=?", arrayOf(channelId.toString()))
+            MobileEpgCache.clear()
+            assertTrue(repository.schedule(accountId, "provider-stream", "Synced station").programmes.isEmpty())
+            assertEquals("", repository.icon(accountId, "provider-stream"))
+            db.update("Channel", values("extraJson" to "{\"xmltv_id\":\"station\"}"), "id=?", arrayOf(channelId.toString()))
+            db.execSQL("UPDATE epg_programme SET starts_at=?,stops_at=? WHERE source_id=?", arrayOf<Any>(now - 7_200_000, now - 1, source))
+            MobileEpgCache.clear()
+            assertTrue(repository.schedule(accountId, "provider-stream", "Synced station").programmes.isEmpty())
+        } finally {
+            MobileEpgCache.clear()
+            db.delete("epg_channel_mapping", "account_id=?", arrayOf(accountId.toString()))
+            for (table in listOf("epg_programme", "epg_channel_icon", "epg_source")) db.delete(table, "source_id=?", arrayOf(source))
+            db.execSQL("DELETE FROM Channel WHERE categoryId IN (SELECT id FROM Category WHERE accountId=?)", arrayOf<Any>(accountId))
+            db.delete("Category", "accountId=?", arrayOf(accountId.toString()))
+            db.delete("Account", "id=?", arrayOf(accountId.toString()))
+            db.update("Configuration", values("globalEpgSource" to previousConfig.first, "epgMappingsJson" to previousConfig.second), null, null)
+            preferences.saveEpgEnabled(wasEnabled)
+            helper.close()
+        }
+    }
+
+    @Test fun epgIconIsUsedWhenPrimaryThumbnailIsMissingOrFails() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val cache = com.uiptv.mobile.android.ThumbnailCache.getInstance(context)
+        val fallback = android.graphics.Bitmap.createBitmap(2, 2, android.graphics.Bitmap.Config.ARGB_8888)
+        val primary = android.graphics.Bitmap.createBitmap(2, 2, android.graphics.Bitmap.Config.ARGB_8888)
+        val iconUrl = "https://example.invalid/epg-icon-fixture.png"
+        val logoUrl = "https://example.invalid/channel-logo-fixture.png"
+        cache.put(iconUrl, fallback)
+        assertSame(fallback, com.uiptv.mobile.android.loadLogoBitmap(cache, "", iconUrl))
+        cache.negativeCache(logoUrl, 404)
+        assertSame(fallback, com.uiptv.mobile.android.loadLogoBitmap(cache, logoUrl, iconUrl))
+        val validLogo = "https://example.invalid/valid-logo-fixture.png"
+        cache.put(validLogo, primary)
+        assertSame(primary, com.uiptv.mobile.android.loadLogoBitmap(cache, validLogo, iconUrl))
+    }
+
     @Test fun identicalDesktopFixturePinsDstMatchingAndMissingStops() {
         val context = InstrumentationRegistry.getInstrumentation().context
         context.assets.open("epg/parity.xml").use { input ->

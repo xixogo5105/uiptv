@@ -19,33 +19,22 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 
 @Composable
 fun RemoteLogoImage(
     logoUrl: String,
     contentDescription: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fallbackLogoUrl: String = ""
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val cache = remember(context) { ThumbnailCache.getInstance(context) }
 
-    var bitmap by remember(logoUrl) { mutableStateOf<Bitmap?>(null) }
+    var bitmap by remember(logoUrl, fallbackLogoUrl) { mutableStateOf<Bitmap?>(null) }
 
-    LaunchedEffect(logoUrl) {
-        if (logoUrl.isBlank()) return@LaunchedEffect
-        bitmap = cache.get(logoUrl) ?: cache.getFromDisk(logoUrl)
-        if (bitmap == null) {
-            try {
-                withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    cache.fetchAsync(logoUrl).join()
-                }
-                bitmap = cache.get(logoUrl)
-            } catch (_: CancellationException) {
-                // Composable left the composition before fetch completed
-            }
-        }
+    LaunchedEffect(logoUrl, fallbackLogoUrl) {
+        bitmap = loadLogoBitmap(cache, logoUrl, fallbackLogoUrl)
     }
 
     val loadedBitmap = bitmap?.asImageBitmap()
@@ -72,6 +61,17 @@ fun RemoteLogoImage(
         )
     }
 }
+
+internal suspend fun loadLogoBitmap(cache: ThumbnailCache, primary: String, fallback: String): Bitmap? =
+    withContext(kotlinx.coroutines.Dispatchers.IO) {
+        for (source in listOf(primary, fallback).filter { it.isNotBlank() }.distinct()) {
+            val cached = cache.get(source) ?: cache.getFromDisk(source)
+            if (cached != null) return@withContext cached
+            cache.fetchAsync(source).join()
+            cache.get(source)?.let { return@withContext it }
+        }
+        null
+    }
 
 private fun fallbackInitials(contentDescription: String): String {
     val label = contentDescription.removePrefix("Logo").trim()

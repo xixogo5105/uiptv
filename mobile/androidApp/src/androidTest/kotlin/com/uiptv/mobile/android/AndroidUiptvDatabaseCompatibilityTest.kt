@@ -38,6 +38,7 @@ import kotlin.concurrent.thread
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -121,14 +122,25 @@ class AndroidUiptvDatabaseCompatibilityTest {
                 source.execSQL("INSERT INTO BookmarkOrder(id, bookmark_db_id, category_id, display_order) VALUES(11, '9', '10', 1)")
                 source.execSQL("INSERT INTO Category(id, categoryId, accountId, accountType, title) VALUES(12, 'live-desktop', '7', 'itv', 'Live Desktop')")
                 source.execSQL("INSERT INTO Channel(id, channelId, categoryId, name, cmd) VALUES(13, 'live-one', '12', 'Live One', 'http://desktop/live-one')")
+                source.execSQL("INSERT INTO epg_source VALUES('synced-source',1,9999999999999,'')")
+                source.execSQL("INSERT INTO epg_channel_mapping VALUES('7','live-one','signature','synced-source','station',0)")
+                source.execSQL("INSERT INTO epg_programme VALUES('synced-source','station',1,9999999999999,'Synced film',X'789C030000000001')")
+                source.execSQL("INSERT INTO epg_channel_icon VALUES('synced-source','station','https://example.invalid/icon.png')")
                 source.execSQL("INSERT INTO Configuration(id, defaultPlayerPath, embeddedPlayer, filterCategoriesList, filterChannelsList, pauseFiltering, cacheExpiryDays, enableThumbnails, publishedM3uCategoryMode, filterLockUnlockDurationMinutes) VALUES(1, '/desktop/player', '1', 'sports,news', 'kids', '1', '9', '1', 'ALL', '30')")
             }
             helper.writableDatabase.execSQL("INSERT INTO Configuration(id, defaultPlayerPath, embeddedPlayer, enableThumbnails) VALUES(1, 'mobile-player', '0', '0')")
 
+            com.uiptv.mobile.shared.epg.MobileEpgCache.put(7, "live-one",
+                com.uiptv.mobile.shared.epg.MobileEpgResult(com.uiptv.mobile.shared.epg.MobileEpgStatus.NO_MATCH),
+                System.currentTimeMillis())
             val report = AndroidSQLiteSnapshotSyncApplier(helper, context.cacheDir).apply(snapshot)
             val target = helper.writableDatabase
 
             assertEquals(8, report.totalRowsSynced)
+            assertNull(com.uiptv.mobile.shared.epg.MobileEpgCache.peek(7, "live-one", System.currentTimeMillis()))
+            assertEquals(1, target.countRows("epg_programme", "title='Synced film'"))
+            assertEquals(1, target.countRows("epg_channel_mapping", "account_id='7' AND provider_channel_id='live-one'"))
+            assertEquals(1, target.countRows("epg_channel_icon", "icon_url='https://example.invalid/icon.png'"))
             assertEquals(1, target.countRows("Account", "id = 7 AND accountName = 'Desktop Account' AND type = 'M3U8_URL'"))
             assertEquals(1, target.countRows("Bookmark", "id = 9 AND channelName = 'News One'"))
             assertEquals(1, target.countRows("Category", "id = 12 AND accountId = '7' AND title = 'Live Desktop'"))

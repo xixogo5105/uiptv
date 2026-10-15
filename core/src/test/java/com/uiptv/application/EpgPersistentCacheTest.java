@@ -37,6 +37,16 @@ class EpgPersistentCacheTest extends DbBackedTest {
         return path;
     }
 
+    @Test void androidSyncedCacheSignatureGoldenMatchesDesktop() {
+        Account account = account("987654321");
+        account.setUrl(""); account.setUsername(""); account.setPassword(""); account.setMacAddress("");
+        account.setEpg(""); account.setM3u8Path(""); account.setServerPortalUrl("");
+        Channel channel = channel("provider-stream", "Synced station");
+        channel.setExtraJson("{\"xmltv_id\":\"station\"}");
+        var match = EpgCacheApplicationService.matches(account, List.of(channel), List.of()).getFirst();
+        assertEquals("548dda9e1899e1fcfe11ee92d3cb3fbde21b90134919a43be8299b5aeaf37e5b", match.identity().signature());
+    }
+
     @Test void missingCacheReadsDoNotCreateFilesOrPerformNetworkCalls() {
         var account=account("a"); var channel=channel("station","Station");
         try(var http=mockStatic(HttpUtil.class)) {

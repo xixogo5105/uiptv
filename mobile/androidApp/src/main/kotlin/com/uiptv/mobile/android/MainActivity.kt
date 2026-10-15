@@ -140,7 +140,8 @@ class MainActivity : ComponentActivity() {
                         globalSource = epgRepository::globalSource,
                         saveGlobalSource = epgRepository::saveGlobalSource,
                         schedule = epgRepository::schedule,
-                        saveMapping = epgRepository::saveMapping
+                        saveMapping = epgRepository::saveMapping,
+                        icon = epgRepository::icon
                     ),
                     syncActions = RemoteSyncUiActions(
                         loadPreferences = preferences::load,
@@ -221,7 +222,8 @@ class MainActivity : ComponentActivity() {
                         }
                     ),
                     logoRenderer = { logoUrl, description, modifier ->
-                        RemoteLogoImage(logoUrl, description, modifier)
+                        RemoteLogoImage(logoUrl, description, modifier,
+                            fallbackLogoUrl = com.uiptv.mobile.shared.ui.LocalThumbnailFallback.current)
                     },
                     playerIconRenderer = { choice, modifier ->
                         AndroidPlayerIcon(choice, modifier)

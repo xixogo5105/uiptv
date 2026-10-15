@@ -58,6 +58,36 @@ object MobileEpgSchedules {
         "movie of the day", "movie of the week", "feature presentation", "feature film"
     )
     private fun generic(title: String) = title.trim().lowercase() in genericTitles
+    /** Source priority wins unless an overlapping entry has a meaningful title. */
+    fun preferSources(sources: List<List<MobileEpgProgramme>>): List<MobileEpgProgramme> {
+        data class Candidate(val programme: MobileEpgProgramme, val source: Int)
+        val ordered = sources.flatMapIndexed { source, programmes -> programmes.map { Candidate(it, source) } }
+            .filter { it.programme.stop > it.programme.start }.sortedWith(
+                compareBy<Candidate> { generic(it.programme.title) }.thenBy { it.source }
+                    .thenByDescending { it.programme.start }.thenBy { it.programme.stop }
+                    .thenBy { it.programme.title }.thenBy { it.programme.description })
+        val starts = mutableMapOf<Long, MutableList<Int>>()
+        val stops = mutableMapOf<Long, MutableList<Int>>()
+        ordered.forEachIndexed { index, candidate ->
+            starts.getOrPut(candidate.programme.start) { mutableListOf() }.add(index)
+            stops.getOrPut(candidate.programme.stop) { mutableListOf() }.add(index)
+        }
+        val times = (starts.keys + stops.keys).sorted()
+        val active = mutableSetOf<Int>()
+        val result = mutableListOf<MobileEpgProgramme>()
+        var previousWinner: Int? = null
+        for (i in 0 until times.size - 1) {
+            val start = times[i]; val stop = times[i + 1]
+            active.removeAll(stops[start].orEmpty().toSet()); active.addAll(starts[start].orEmpty())
+            val winner = active.minOrNull()
+            if (winner == null) { previousWinner = null; continue }
+            if (winner == previousWinner && result.last().stop == start) result[result.lastIndex] = result.last().copy(stop = stop)
+            else result += ordered[winner].programme.copy(start = start, stop = stop)
+            previousWinner = winner
+        }
+        return result
+    }
+
     fun normalize(input: List<MobileEpgProgramme>): List<MobileEpgProgramme> {
         val ordered = input.filter { it.stop > it.start }.distinct().sortedWith(
             compareBy<MobileEpgProgramme> { generic(it.title) }.thenByDescending { it.start }
