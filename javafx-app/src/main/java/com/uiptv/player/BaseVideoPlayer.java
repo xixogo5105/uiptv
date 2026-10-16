@@ -312,12 +312,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         btnGuide = createIconButton(guideIcon);
         btnGuide.getStyleClass().add("player-guide-button");
         btnGuide.setText(I18n.tr("epgOpenGuide"));
-        // Keep the guide beside the primary transport controls. The control row is
-        // intentionally capped in width; placing it after the flexible spacer and
-        // volume/track controls allowed it to be laid out beyond the visible bar.
+        // Keep the guide as the final control, after the up/down navigation buttons.
+        // Narrow mode already shows EPG inline beside the player, so the overlay
+        // controls its visibility from the active layout mode.
         buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward,
-                btnRepeat, btnReload, btnFullscreen, btnPip, btnGuide, spacer, btnMute,
-                volumeSlider, btnLayoutMode, btnAspectRatio, btnTracks, btnHideBar);
+                btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute,
+                volumeSlider, btnLayoutMode, btnAspectRatio, btnTracks, btnHideBar, btnGuide);
 
         timeSlider = new Slider(0, 1, 0);
         timeSlider.getStyleClass().add("video-player-slider");

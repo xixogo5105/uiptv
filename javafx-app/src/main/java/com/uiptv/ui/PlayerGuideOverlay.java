@@ -57,7 +57,9 @@ public final class PlayerGuideOverlay extends StackPane {
         // it as the availability gate makes the control disappear during the
         // normal loading window (and whenever the adjacent EPG panel is not
         // mounted). Opening the guide performs its own schedule load.
-        boolean available = MediaPlayerFactory.guideContextProperty().get() != null
+        boolean wideLayout = wideMode == null || wideMode.get();
+        boolean available = wideLayout
+                && MediaPlayerFactory.guideContextProperty().get() != null
                 && (EpgModeUI.isFeatureEnabled() || MediaPlayerFactory.guideSummaryProperty().get() != null);
         button.setVisible(available); button.setManaged(available);
         if (!available) close();
