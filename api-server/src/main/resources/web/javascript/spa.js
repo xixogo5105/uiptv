@@ -1423,7 +1423,6 @@ createApp({
                 await loadConfig();
             } catch (_) { /* Keep the current setting when the desktop server is unavailable. */ }
         };
-        const toggleEpg = () => saveEpgSettings({epgEnabled: !epgEnabled.value});
         const toggleEpgPlaybackOnly = () => saveEpgSettings({epgPlaybackOnly: !epgPlaybackOnly.value});
 
         const findBookmarkForChannel = (channel) => {
@@ -4968,7 +4967,7 @@ createApp({
 
         return {
             observeChannelEpg, observeBookmarkEpg, epgEnabled, epgPlaybackOnly, epgLabels,
-            toggleEpg, toggleEpgPlaybackOnly,
+            toggleEpgPlaybackOnly,
             cardProgramme, cardProgrammeTime, cardProgrammeProgress, isLiveBookmark,
             thumbnailsEnabled, playerEpg, playerProgrammeTime,
             activeTab,

@@ -60,9 +60,8 @@ public class HttpConfigJsonServer implements HttpHandler {
         if (req.has(KEY_ENABLE_THUMBNAILS)) {
             config.setEnableThumbnails(req.getBoolean(KEY_ENABLE_THUMBNAILS));
         }
-        if (req.has("epgEnabled")) {
-            config.setEpgEnabled(req.getBoolean("epgEnabled"));
-        }
+        // EPG enablement is desktop-owned. The web client may observe it, but must not
+        // change the desktop scheduler's setting through this shared configuration endpoint.
         if (req.has("epgPlaybackOnly")) {
             config.setEpgPlaybackOnly(req.getBoolean("epgPlaybackOnly"));
         }

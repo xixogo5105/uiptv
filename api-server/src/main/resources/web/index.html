@@ -77,8 +77,8 @@
                 <button @click="clearWebCacheAndReload" class="soft-button icon-only" title="Clear cache and reload" type="button">
                     <i class="bi bi-arrow-repeat"></i>
                 </button>
-                <button @click="toggleEpg" class="soft-button" :title="epgEnabled ? 'Disable EPG' : 'Enable EPG'" type="button">
-                    {{ epgEnabled ? 'Disable EPG' : 'Enable EPG' }}
+                <button class="soft-button" disabled :title="epgEnabled ? 'EPG is enabled by desktop settings' : 'EPG is disabled by desktop settings'" type="button">
+                    {{ epgEnabled ? 'EPG enabled' : 'EPG disabled' }}
                 </button>
                 <button @click="toggleEpgPlaybackOnly" class="soft-button" :disabled="!epgEnabled" :title="epgPlaybackOnly ? 'Use full EPG mode' : 'Load EPG only for the channel being played'" type="button">
                     {{ epgPlaybackOnly ? 'Use full EPG' : 'Playback-only EPG' }}
