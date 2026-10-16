@@ -14,6 +14,7 @@ class AccountResolverTest extends DbBackedTest {
     void resolveAccounts_includesPinMetadata() {
         Account account = new Account("acc-pin", "user", "pass", "http://test", null, null, null, null, null, null,
                 AccountType.M3U8_URL, null, "http://test/list.m3u8", true);
+        account.setWebPlaybackProxy(true);
         AccountService.getInstance().save(account);
 
         AccountResolver resolver = new AccountResolver();
@@ -25,6 +26,7 @@ class AccountResolverTest extends DbBackedTest {
                 .orElseThrow();
 
         assertTrue(row.isPinToTop());
+        assertTrue(row.isWebPlaybackProxy());
         assertEquals(AccountResolver.PIN_SVG_HEAD_PATH, row.getPinSvgHeadPath());
         assertEquals(AccountResolver.PIN_SVG_STEM_PATH, row.getPinSvgStemPath());
         assertEquals(AccountResolver.PIN_SVG_HEAD_FILL, row.getPinSvgHeadFill());

@@ -38,6 +38,7 @@ public class AccountDb extends BaseDb {
         account.setDbId(nullSafeString(resultSet, "id"));
         account.setServerPortalUrl(nullSafeString(resultSet, "serverPortalUrl"));
         account.setResolveChainAndDeepRedirects(safeBoolean(resultSet, "resolveChainAndDeepRedirects"));
+        account.setWebPlaybackProxy(safeBoolean(resultSet, "webPlaybackProxy"));
         account.setHttpMethod(isNotBlank(nullSafeString(resultSet, "httpMethod")) ? nullSafeString(resultSet, "httpMethod") : "GET");
         account.setTimezone(isNotBlank(nullSafeString(resultSet, "timezone")) ? nullSafeString(resultSet, "timezone") : "Europe/London");
         account.setXtremeCredentialsJson(nullSafeString(resultSet, "xtremeCredentialsJson"));
@@ -81,12 +82,13 @@ public class AccountDb extends BaseDb {
             statement.setString(15, account.getServerPortalUrl());
             statement.setString(16, account.isPinToTop() ? "1" : "0");
             statement.setString(17, account.isResolveChainAndDeepRedirects() ? "1" : "0");
-            statement.setString(18, account.getHttpMethod());
-            statement.setString(19, account.getTimezone());
-            statement.setString(20, account.isParentalLock() ? "1" : "0");
+            statement.setString(18, account.isWebPlaybackProxy() ? "1" : "0");
+            statement.setString(19, account.getHttpMethod());
+            statement.setString(20, account.getTimezone());
+            statement.setString(21, account.isParentalLock() ? "1" : "0");
 
             if (accountExist) {
-                statement.setInt(21, Integer.valueOf(dbAccount.getDbId()));
+                statement.setInt(22, Integer.valueOf(dbAccount.getDbId()));
             }
             statement.execute();
         } catch (SQLException e) {

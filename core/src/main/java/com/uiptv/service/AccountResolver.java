@@ -31,6 +31,7 @@ public class AccountResolver {
         row.setDbId(account.getDbId());
         row.setType(account.getType() != null ? account.getType().name() : "");
         row.setPinToTop(account.isPinToTop());
+        row.setWebPlaybackProxy(account.isWebPlaybackProxy());
         row.setPinSvgStemPath(PIN_SVG_STEM_PATH);
         row.setPinSvgHeadPath(PIN_SVG_HEAD_PATH);
         row.setPinSvgStemFill(PIN_SVG_STEM_FILL);
@@ -45,6 +46,7 @@ public class AccountResolver {
         private String dbId;
         private String type;
         private boolean pinToTop;
+        private boolean webPlaybackProxy;
         private String pinSvgStemPath;
         private String pinSvgHeadPath;
         private String pinSvgStemFill;
@@ -82,6 +84,14 @@ public class AccountResolver {
 
         public void setPinToTop(boolean pinToTop) {
             this.pinToTop = pinToTop;
+        }
+
+        public boolean isWebPlaybackProxy() {
+            return webPlaybackProxy;
+        }
+
+        public void setWebPlaybackProxy(boolean webPlaybackProxy) {
+            this.webPlaybackProxy = webPlaybackProxy;
         }
 
         public String getPinSvgStemPath() {

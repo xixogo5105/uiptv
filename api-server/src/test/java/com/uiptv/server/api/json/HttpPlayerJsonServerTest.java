@@ -19,6 +19,7 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.AccountService;
+import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.PlayerService;
 import com.uiptv.testsupport.DbBackedTest;
 import com.uiptv.util.AccountType;
@@ -119,6 +120,9 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
         assertEquals("http://host/live/play/tokenized/9412", directVodResponse.getUrl());
 
         PlayerResponse proxyResponse = new PlayerResponse("https://host/play/movie.php?id=1");
+        Account proxyAccount = new Account();
+        proxyAccount.setWebPlaybackProxy(true);
+        proxyResponse.setAccount(proxyAccount);
         try (MockedStatic<ServerUrlUtil> serverUrlStatic = mockStatic(ServerUrlUtil.class)) {
             serverUrlStatic.when(ServerUrlUtil::getLocalServerUrl).thenReturn("http://127.0.0.1:9090");
 
@@ -130,6 +134,30 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
         assertEquals("", invoke(handler, "sanitizeParam", new Class[]{String.class}, (String) null));
         assertEquals("", invoke(handler, "sanitizeParam", new Class[]{String.class}, " undefined "));
         assertEquals("value", invoke(handler, "sanitizeParam", new Class[]{String.class}, " value "));
+    }
+
+    @Test
+    void webPlaybackProxy_requiresAccountOptIn_andHonoursGlobalKillSwitch() throws Exception {
+        HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
+        Account account = new Account();
+        account.setWebPlaybackProxy(true);
+        PlayerResponse response = new PlayerResponse("http://host/live/index.m3u8");
+        response.setAccount(account);
+
+        try (MockedStatic<ServerUrlUtil> serverUrlStatic = mockStatic(ServerUrlUtil.class)) {
+            serverUrlStatic.when(ServerUrlUtil::getLocalServerUrl).thenReturn("http://127.0.0.1:9090");
+            invoke(handler, "applyWebPlaybackProcessing", new Class[]{PlayerResponse.class, String.class}, response, "itv");
+            assertTrue(response.getUrl().startsWith("http://127.0.0.1:9090/proxy-stream?src="));
+        }
+
+        ConfigurationService configurationService = ConfigurationService.getInstance();
+        com.uiptv.model.Configuration configuration = new com.uiptv.model.Configuration();
+        configuration.setWebPlaybackProxyEnabled(false);
+        configurationService.save(configuration);
+        PlayerResponse disabled = new PlayerResponse("http://host/live/index.m3u8");
+        disabled.setAccount(account);
+        invoke(handler, "applyWebPlaybackProcessing", new Class[]{PlayerResponse.class, String.class}, disabled, "itv");
+        assertEquals("http://host/live/index.m3u8", disabled.getUrl());
     }
 
     @Test

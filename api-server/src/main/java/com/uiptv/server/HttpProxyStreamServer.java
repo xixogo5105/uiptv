@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.util.HttpUtil;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -50,6 +51,11 @@ public class HttpProxyStreamServer implements HttpHandler {
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
     private static final long UNKNOWN_CONTENT_LENGTH = 0L;
     private static final String PROXY_STREAM_PATH = "/proxy-stream?src=";
+    private static final int MAX_SOURCE_URL_LENGTH = 8192;
+    private static final int MAX_PLAYLIST_BYTES = 4 * 1024 * 1024;
+    private static final int MAX_PLAYLIST_LINES = 100_000;
+    private static final String METHOD_GET = "GET";
+    private static final String METHOD_HEAD = "HEAD";
     private final Predicate<String> targetUrlValidator;
 
     public HttpProxyStreamServer() {
@@ -62,8 +68,18 @@ public class HttpProxyStreamServer implements HttpHandler {
 
     @Override
     public void handle(HttpExchange ex) throws IOException {
+        writeCorsHeaders(ex);
+        if ("OPTIONS".equalsIgnoreCase(ex.getRequestMethod())) {
+            ex.sendResponseHeaders(204, -1);
+            return;
+        }
+        if (!METHOD_GET.equalsIgnoreCase(ex.getRequestMethod()) && !METHOD_HEAD.equalsIgnoreCase(ex.getRequestMethod())) {
+            ex.getResponseHeaders().set("Allow", "GET, HEAD, OPTIONS");
+            ex.sendResponseHeaders(405, -1);
+            return;
+        }
         String source = getParam(ex, "src");
-        if (isBlank(source)) {
+        if (isBlank(source) || source.length() > MAX_SOURCE_URL_LENGTH) {
             ex.sendResponseHeaders(400, -1);
             return;
         }
@@ -75,6 +91,7 @@ public class HttpProxyStreamServer implements HttpHandler {
         }
         List<String> cookies = new ArrayList<>();
         String requestMethod = ex.getRequestMethod();
+        boolean responseStarted = false;
 
         try {
             try (HttpUtil.StreamResult upstream = openResolvedStream(current, cookies, readForwardHeaders(ex), requestMethod)) {
@@ -85,11 +102,16 @@ public class HttpProxyStreamServer implements HttpHandler {
 
                 byte[] responseBody = null;
                 boolean rewriteHlsPlaylist = shouldRewriteHlsPlaylist(upstream);
-                if (rewriteHlsPlaylist && !"HEAD".equalsIgnoreCase(requestMethod)) {
-                    responseBody = rewriteHlsPlaylist(resolvedBodyStream(upstream).readAllBytes(), upstream.requestUri());
+                if (rewriteHlsPlaylist && !METHOD_HEAD.equalsIgnoreCase(requestMethod)) {
+                    long advertisedLength = resolveContentLength(firstHeader(upstream.responseHeaders(), HEADER_CONTENT_LENGTH));
+                    if (advertisedLength > MAX_PLAYLIST_BYTES) {
+                        throw new PlaylistTooLargeException();
+                    }
+                    responseBody = rewriteHlsPlaylist(readPlaylistBody(resolvedBodyStream(upstream)), upstream.requestUri());
                 }
 
                 writeResponseHeaders(ex, upstream.responseHeaders());
+                responseStarted = true;
                 ex.sendResponseHeaders(
                         upstream.statusCode(),
                         responseBody == null
@@ -97,7 +119,7 @@ public class HttpProxyStreamServer implements HttpHandler {
                                 : responseBody.length
                 );
 
-                if (!"HEAD".equalsIgnoreCase(requestMethod)) {
+                if (!METHOD_HEAD.equalsIgnoreCase(requestMethod)) {
                     try (OutputStream os = ex.getResponseBody()) {
                         if (responseBody == null) {
                             try (InputStream is = resolvedBodyStream(upstream)) {
@@ -109,13 +131,23 @@ public class HttpProxyStreamServer implements HttpHandler {
                     }
                 }
             }
-        } catch (Exception _) {
-            sendBadGateway(ex);
+        } catch (PlaylistTooLargeException _) {
+            if (!responseStarted) {
+                ex.sendResponseHeaders(413, -1);
+            }
+        } catch (IOException _) {
+            if (!responseStarted) {
+                sendBadGateway(ex);
+            }
+        } catch (RuntimeException _) {
+            if (!responseStarted) {
+                sendBadGateway(ex);
+            }
         }
     }
 
     private static boolean isAllowedTargetUrl(String rawUrl) {
-        if (isBlank(rawUrl)) {
+        if (isBlank(rawUrl) || rawUrl.length() > MAX_SOURCE_URL_LENGTH) {
             return false;
         }
         try {
@@ -147,7 +179,32 @@ public class HttpProxyStreamServer implements HttpHandler {
         return address.isAnyLocalAddress()
                 || address.isLoopbackAddress()
                 || address.isLinkLocalAddress()
-                || address.isSiteLocalAddress();
+                || address.isSiteLocalAddress()
+                || address.isMulticastAddress()
+                || isCarrierGradeNatAddress(address)
+                || isReservedIpv4Address(address)
+                || isUniqueLocalIpv6Address(address);
+    }
+
+    private static boolean isCarrierGradeNatAddress(InetAddress address) {
+        byte[] bytes = address.getAddress();
+        return bytes.length == 4 && (bytes[0] & 0xff) == 100 && (bytes[1] & 0xff) >= 64 && (bytes[1] & 0xff) <= 127;
+    }
+
+    private static boolean isReservedIpv4Address(InetAddress address) {
+        byte[] bytes = address.getAddress();
+        if (bytes.length != 4) {
+            return false;
+        }
+        int first = bytes[0] & 0xff;
+        int second = bytes[1] & 0xff;
+        return (first == 192 && second == 0)
+                || (first == 198 && (second == 18 || second == 19));
+    }
+
+    private static boolean isUniqueLocalIpv6Address(InetAddress address) {
+        byte[] bytes = address.getAddress();
+        return bytes.length == 16 && (bytes[0] & 0xfe) == 0xfc;
     }
 
     private HttpUtil.StreamResult openResolvedStream(String current,
@@ -180,7 +237,7 @@ public class HttpProxyStreamServer implements HttpHandler {
             if (status == HttpUtil.STATUS_NOT_ACCEPTABLE) {
                 try (upstream) {
                     String fallback = build406Fallback(current);
-                    if (!isBlank(fallback) && !fallback.equals(current)) {
+                    if (!isBlank(fallback) && !fallback.equals(current) && targetUrlValidator.test(fallback)) {
                         current = fallback;
                         continue;
                     }
@@ -414,7 +471,7 @@ public class HttpProxyStreamServer implements HttpHandler {
 
     private void writeResponseHeaders(HttpExchange ex, Map<String, List<String>> upstreamHeaders) {
         String contentType = firstHeader(upstreamHeaders, HEADER_CONTENT_TYPE);
-        ex.getResponseHeaders().add(HEADER_ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+        writeCorsHeaders(ex);
         ex.getResponseHeaders().add(HEADER_CACHE_CONTROL, "no-store");
         ex.getResponseHeaders().add(HEADER_CONTENT_TYPE, isBlank(contentType) ? "application/octet-stream" : contentType);
         copyHeaderIfPresent(ex, upstreamHeaders, HEADER_ACCEPT_RANGES);
@@ -449,7 +506,7 @@ public class HttpProxyStreamServer implements HttpHandler {
         }
     }
 
-    private byte[] rewriteHlsPlaylist(byte[] data, String playlistUrl) {
+    private byte[] rewriteHlsPlaylist(byte[] data, String playlistUrl) throws PlaylistTooLargeException {
         if (data == null || data.length == 0 || isBlank(playlistUrl)) {
             return data;
         }
@@ -459,6 +516,9 @@ public class HttpProxyStreamServer implements HttpHandler {
         }
 
         String[] lines = body.split("\\r?\\n", -1);
+        if (lines.length > MAX_PLAYLIST_LINES) {
+            throw new PlaylistTooLargeException();
+        }
         StringBuilder rewritten = new StringBuilder(body.length() + 128);
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
@@ -518,6 +578,11 @@ public class HttpProxyStreamServer implements HttpHandler {
         }
         try {
             URI resolved = URI.create(playlistUrl).resolve(trimmed);
+            String scheme = resolved.getScheme();
+            if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
+                    || isBlank(resolved.getHost())) {
+                return candidate;
+            }
             String absolute = resolved.toString();
             if (isBlank(absolute)) {
                 return candidate;
@@ -547,6 +612,31 @@ public class HttpProxyStreamServer implements HttpHandler {
 
     private void sendBadGateway(HttpExchange ex) throws IOException {
         ex.sendResponseHeaders(502, -1);
+    }
+
+    private void writeCorsHeaders(HttpExchange ex) {
+        ex.getResponseHeaders().set(HEADER_ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+        ex.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+        ex.getResponseHeaders().set("Access-Control-Allow-Headers", "Range, Origin, Accept");
+        ex.getResponseHeaders().set("Access-Control-Expose-Headers", "Accept-Ranges, Content-Length, Content-Range, Content-Type");
+    }
+
+    private byte[] readPlaylistBody(InputStream input) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream(Math.min(MAX_PLAYLIST_BYTES, 64 * 1024));
+        byte[] buffer = new byte[8192];
+        int total = 0;
+        int read;
+        while ((read = input.read(buffer)) != -1) {
+            total += read;
+            if (total > MAX_PLAYLIST_BYTES) {
+                throw new PlaylistTooLargeException();
+            }
+            output.write(buffer, 0, read);
+        }
+        return output.toByteArray();
+    }
+
+    private static final class PlaylistTooLargeException extends IOException {
     }
 
     private String downgradeHttpsToHttp(String url) {

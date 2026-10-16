@@ -31,7 +31,9 @@ class HttpAccountAndConfigJsonServerTest extends DbBackedTest {
     @Test
     void accountServer_returnsPersistedAccountsAsJson() throws Exception {
         AccountService.getInstance().save(new Account("acc-one", "user1", "pass", "http://a.test", "00:11:22:33:44:55", null, null, null, null, null, AccountType.M3U8_URL, null, "http://a.test/list.m3u8", false));
-        AccountService.getInstance().save(new Account("acc-two", "user2", "pass", "http://b.test", "00:11:22:33:44:56", null, null, null, null, null, AccountType.XTREME_API, null, "http://b.test/xtreme/", false));
+        Account second = new Account("acc-two", "user2", "pass", "http://b.test", "00:11:22:33:44:56", null, null, null, null, null, AccountType.XTREME_API, null, "http://b.test/xtreme/", false);
+        second.setWebPlaybackProxy(true);
+        AccountService.getInstance().save(second);
 
         HttpAccountJsonServer handler = new HttpAccountJsonServer();
         StubHttpExchange exchange = new StubHttpExchange("/account", "GET");
@@ -44,6 +46,7 @@ class HttpAccountAndConfigJsonServerTest extends DbBackedTest {
         assertEquals(2, response.length());
         assertEquals("acc-one", response.getJSONObject(0).getString("accountName"));
         assertEquals("acc-two", response.getJSONObject(1).getString("accountName"));
+        assertEquals("1", response.getJSONObject(1).getString("webPlaybackProxy"));
     }
 
     @Test
@@ -92,6 +95,7 @@ class HttpAccountAndConfigJsonServerTest extends DbBackedTest {
         assertEquals(200, exchange.getResponseCode());
         JSONObject response = new JSONObject(exchange.getResponseBodyText());
         assertTrue(response.getBoolean("enableThumbnails"));
+        assertTrue(response.getBoolean("webPlaybackProxyEnabled"));
     }
 
     private static class StubHttpExchange extends HttpExchange {

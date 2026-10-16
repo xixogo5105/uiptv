@@ -73,9 +73,11 @@ public class ManageAccountUI extends VBox {
     private final UIptvText signature = new UIptvText("signature", "manageSignaturePrompt", 5);
     private final CheckBox pinToTopCheckBox = new CheckBox(I18n.tr("autoPinAccountOnTop"));
     private final CheckBox resolveChainAndDeepRedirectsCheckBox = new CheckBox(I18n.tr("manageResolveChainAndDeepRedirects"));
+    private final CheckBox webPlaybackProxyCheckBox = new CheckBox(I18n.tr("manageWebPlaybackProxy"));
     private final SwitchToggle pinToTopSwitch = new SwitchToggle();
     private final SwitchToggle parentalLockSwitch = new SwitchToggle();
     private final SwitchToggle resolveChainAndDeepRedirectsSwitch = new SwitchToggle();
+    private final SwitchToggle webPlaybackProxySwitch = new SwitchToggle();
     private final UIptvCombo httpMethodCombo = new UIptvCombo("httpMethod", "manageHttpMethodPrompt", 150);
     private final UIptvCombo timezoneCombo = new UIptvCombo("timezone", "manageTimezonePrompt", 250);
     private final ProminentButton saveButton = new ProminentButton(I18n.tr("commonSave"));
@@ -96,6 +98,7 @@ public class ManageAccountUI extends VBox {
     private boolean actionLayoutWrapped;
     private Node pinToTopSwitchRow;
     private Node resolveChainAndDeepRedirectsSwitchRow;
+    private Node webPlaybackProxySwitchRow;
     private Node parentalLockSwitchRow;
     AccountService service = AccountService.getInstance();
     private String accountId;
@@ -201,10 +204,14 @@ public class ManageAccountUI extends VBox {
         pinToTopCheckBox.setVisible(false);
         resolveChainAndDeepRedirectsCheckBox.setManaged(false);
         resolveChainAndDeepRedirectsCheckBox.setVisible(false);
+        webPlaybackProxyCheckBox.setManaged(false);
+        webPlaybackProxyCheckBox.setVisible(false);
         pinToTopSwitch.selectedProperty().bindBidirectional(pinToTopCheckBox.selectedProperty());
         resolveChainAndDeepRedirectsSwitch.selectedProperty().bindBidirectional(resolveChainAndDeepRedirectsCheckBox.selectedProperty());
+        webPlaybackProxySwitch.selectedProperty().bindBidirectional(webPlaybackProxyCheckBox.selectedProperty());
         pinToTopSwitchRow = createManageAccountSwitchRow("autoPinAccountOnTop", pinToTopSwitch);
         resolveChainAndDeepRedirectsSwitchRow = createManageAccountSwitchRow("manageResolveChainAndDeepRedirects", resolveChainAndDeepRedirectsSwitch);
+        webPlaybackProxySwitchRow = createManageAccountSwitchRow("manageWebPlaybackProxy", webPlaybackProxySwitch);
         parentalLockSwitchRow = createManageAccountSwitchRow("filterLockStateToggleLabel", parentalLockSwitch);
 
         pipeLabel.visibleProperty().bind(verifyMacsLink.visibleProperty());
@@ -256,16 +263,16 @@ public class ManageAccountUI extends VBox {
         formContainer.getChildren().clear();
         switch (type) {
             case STALKER_PORTAL:
-                formContainer.getChildren().addAll(accountTypePillBar, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, epg, httpMethodCombo, timezoneCombo, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, url, macAddressContainer, macAddressList, serialNumber, deviceId1, deviceId2, signature, username, password, epg, httpMethodCombo, timezoneCombo, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
                 break;
             case M3U8_LOCAL:
-                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8PathBrowserRow, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8PathBrowserRow, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
                 break;
             case M3U8_URL:
-                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
                 break;
             case XTREME_API:
-                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, parentalLockSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
                 break;
         }
 
@@ -715,6 +722,7 @@ public class ManageAccountUI extends VBox {
         selectAccountType(STALKER_PORTAL);
         pinToTopCheckBox.setSelected(false);
         resolveChainAndDeepRedirectsCheckBox.setSelected(false);
+        webPlaybackProxyCheckBox.setSelected(false);
         httpMethodCombo.setValue("GET");
         timezoneCombo.setValue(DEFAULT_TIMEZONE);
         verifyMacsLink.setVisible(false);
@@ -748,6 +756,7 @@ public class ManageAccountUI extends VBox {
             account.setDbId(accountId);
         }
         account.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());
+        account.setWebPlaybackProxy(webPlaybackProxyCheckBox.isSelected());
         account.setHttpMethod(httpMethodCombo.getValue() != null ? httpMethodCombo.getValue() : "GET");
         account.setTimezone(timezoneCombo.getValue() != null ? timezoneCombo.getValue() : DEFAULT_TIMEZONE);
         account.setParentalLock(parentalLockSwitch.isSelected());
@@ -904,6 +913,7 @@ public class ManageAccountUI extends VBox {
         m3u8Path.setText(account.getM3u8Path());
         pinToTopCheckBox.setSelected(account.isPinToTop());
         resolveChainAndDeepRedirectsCheckBox.setSelected(account.isResolveChainAndDeepRedirects());
+        webPlaybackProxyCheckBox.setSelected(account.isWebPlaybackProxy());
         parentalLockSwitch.setSelected(account.isParentalLock());
         httpMethodCombo.setValue(isNotBlank(account.getHttpMethod()) ? account.getHttpMethod() : "GET");
         timezoneCombo.setValue(isNotBlank(account.getTimezone()) ? account.getTimezone() : DEFAULT_TIMEZONE);

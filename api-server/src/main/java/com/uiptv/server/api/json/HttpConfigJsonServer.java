@@ -16,6 +16,7 @@ import static com.uiptv.util.ServerUtils.generateJsonResponse;
 public class HttpConfigJsonServer implements HttpHandler {
     private static final String KEY_WIDE_VIEW = "wideView";
     private static final String KEY_ENABLE_THUMBNAILS = "enableThumbnails";
+    private static final String KEY_WEB_PLAYBACK_PROXY_ENABLED = "webPlaybackProxyEnabled";
     private static final String KEY_THEME_MODE = "themeMode";
 
     @Override
@@ -64,6 +65,7 @@ public class HttpConfigJsonServer implements HttpHandler {
     private JSONObject buildConfigResponse(Configuration config) {
         JSONObject response = new JSONObject();
         response.put(KEY_ENABLE_THUMBNAILS, config == null || config.isEnableThumbnails());
+        response.put(KEY_WEB_PLAYBACK_PROXY_ENABLED, config == null || config.isWebPlaybackProxyEnabled());
         response.put("epgEnabled", config != null && config.isEpgEnabled());
         response.put(KEY_WIDE_VIEW, config != null && config.isWideView());
         response.put("languageLocale", config == null ? "" : config.getLanguageLocale());

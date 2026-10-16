@@ -137,6 +137,7 @@ public class ConfigurationUI extends VBox {
     private Node wideViewRow;
     private final VBox filterAdminControls = new VBox(10);
     private final SwitchToggle autoRunServerOnStartupSwitch = new SwitchToggle();
+    private final SwitchToggle webPlaybackProxyEnabledSwitch = new SwitchToggle();
     private final CheckBox enableThumbnailsCheckBox = new CheckBox(I18n.tr("configEnableThumbnails"));
     private final CheckBox wideViewCheckBox = new CheckBox(I18n.tr("configWideView"));
     private final Hyperlink wideViewHelpLink = new Hyperlink("(?)");
@@ -406,6 +407,7 @@ public class ConfigurationUI extends VBox {
                 createServerPortRow("HTTP", serverPort, openServerLink),
                 createServerPortRow("HTTPS", httpsServerPort, openSecureServerLink),
                 createSettingSwitchRow("configAutoRunServerOnStartup", autoRunServerOnStartupSwitch),
+                createSettingSwitchRow("configWebPlaybackProxyEnabled", webPlaybackProxyEnabledSwitch),
                 createServerActionRow()
         );
         serverGroup.setFillWidth(true);
@@ -1711,6 +1713,7 @@ public class ConfigurationUI extends VBox {
                     ? defaultHttpsServerPort(configuration.getHttpsServerPort())
                     : "");
             autoRunServerOnStartupSwitch.setSelected(configuration.isAutoRunServerOnStartup());
+            webPlaybackProxyEnabledSwitch.setSelected(configuration.isWebPlaybackProxyEnabled());
             resolveChainAndDeepRedirectsCheckBox.setSelected(configuration.isResolveChainAndDeepRedirects());
             cacheExpiryDays.setText(String.valueOf(service.normalizeCacheExpiryDays(configuration.getCacheExpiryDays())));
             tmdbReadAccessToken.setText(configuration.getTmdbReadAccessToken());
@@ -1826,6 +1829,7 @@ public class ConfigurationUI extends VBox {
         configuration.setFilterLockUnlockDurationMinutes(saveDuration != null ? String.valueOf(saveDuration) : "15");
         configuration.setUiZoomPercent(String.valueOf(getSelectedThemeZoomPercent()));
         configuration.setAutoRunServerOnStartup(autoRunServerOnStartupSwitch.isSelected());
+        configuration.setWebPlaybackProxyEnabled(webPlaybackProxyEnabledSwitch.isSelected());
         configuration.setHttpsServerEnabled(isHttpsServerConfigured());
         configuration.setHttpsServerPort(httpsServerPort.getText() == null ? "" : httpsServerPort.getText().trim());
         configuration.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirectsCheckBox.isSelected());

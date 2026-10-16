@@ -25,6 +25,7 @@ public record AccountView(
         String token,
         boolean pinToTop,
         boolean resolveChainAndDeepRedirects,
+        boolean webPlaybackProxy,
         AccountType type,
         String httpMethod,
         String timezone,
@@ -53,6 +54,7 @@ public record AccountView(
                 account.getToken(),
                 account.isPinToTop(),
                 account.isResolveChainAndDeepRedirects(),
+                account.isWebPlaybackProxy(),
                 account.getType(),
                 account.getHttpMethod(),
                 account.getTimezone(),
@@ -86,6 +88,7 @@ public record AccountView(
         mutable.setDbId(dbId);
         mutable.setToken(token);
         mutable.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirects);
+        mutable.setWebPlaybackProxy(webPlaybackProxy);
         mutable.setHttpMethod(httpMethod == null || httpMethod.isBlank() ? "GET" : httpMethod);
         mutable.setTimezone(timezone == null || timezone.isBlank() ? "Europe/London" : timezone);
         mutable.setAction(action == null ? Account.AccountAction.itv : action);
@@ -113,6 +116,7 @@ public record AccountView(
                 token,
                 pinToTop,
                 resolveChainAndDeepRedirects,
+                webPlaybackProxy,
                 type,
                 httpMethod,
                 timezone,

@@ -20,6 +20,7 @@ createApp({
         const selectedWatchingNowKey = ref('');
         const watchingNowTab = ref('series');
         const epgEnabled = ref(false);
+        const webPlaybackProxyEnabled = ref(true);
         const epgLabels = ref({epgNow: 'Now', epgNext: 'Next', epgNoProgrammeDetails: 'No programme details'});
         const epgTime = ref(Date.now());
         const cardProgramme = (item, slot) => {
@@ -1053,7 +1054,20 @@ createApp({
         const isTsLikeUrl = (url, manifestType = '') => playbackUtils.isTsLikeUrl(url, manifestType);
         const canUseMpegts = () => playbackUtils.canUseMpegts();
         const resolvePlaybackModeLabel = (url, engine = '') => playbackUtils.resolvePlaybackModeLabel(url, engine);
-        const buildProxyStreamUrl = (url) => playbackUtils.buildProxyStreamUrl(url);
+        const isWebPlaybackProxyAllowed = (accountId = currentContext.value.accountId) => {
+            if (!webPlaybackProxyEnabled.value) return false;
+            const normalizedAccountId = String(accountId || '').trim();
+            if (!normalizedAccountId) return false;
+            return accounts.value.some(account =>
+                String(account?.dbId || '').trim() === normalizedAccountId
+                && (account?.webPlaybackProxy === true
+                    || account?.webPlaybackProxy === 1
+                    || String(account?.webPlaybackProxy || '').toLowerCase() === 'true'
+                    || String(account?.webPlaybackProxy || '') === '1')
+            );
+        };
+        const buildProxyStreamUrl = (url, accountId) =>
+            isWebPlaybackProxyAllowed(accountId) ? playbackUtils.buildProxyStreamUrl(url) : '';
         const resolveMpegTsPlaybackUrl = (url) => playbackUtils.resolveMpegTsPlaybackUrl(url);
         const describeMpegTsFailure = (error) => playbackUtils.describeMpegTsFailure(error);
         const isBrowserUnsupportedMediaError = (error) => playbackUtils.isBrowserUnsupportedMediaError(error);
@@ -1347,6 +1361,7 @@ createApp({
                 const config = await response.json();
                 if (request !== configRequest) return;
                 thumbnailsEnabled.value = config?.enableThumbnails !== false;
+                webPlaybackProxyEnabled.value = config?.webPlaybackProxyEnabled !== false;
                 applyDesktopEpgSetting(config?.epgEnabled === true);
                 const language = (config?.languageLocale || navigator.language || 'en').replaceAll('-', '_');
                 if (language !== epgLabelsLocale) {
@@ -3466,7 +3481,7 @@ createApp({
             const prefersNativeHls = canNative && (isIos || isSafari);
 
             if (override === 'proxy') {
-                const proxyUrl = buildProxyStreamUrl(uri) || uri;
+                const proxyUrl = buildProxyStreamUrl(uri, channel.accountId) || uri;
                 await loadNative({...channel, url: proxyUrl});
                 return;
             }
@@ -3532,7 +3547,7 @@ createApp({
 
         const tryProxyPlaybackFallback = async (channel, preferShaka, previousError) => {
             const sourceUrl = String(channel?.url || '').trim();
-            const proxyUrl = buildProxyStreamUrl(sourceUrl);
+            const proxyUrl = buildProxyStreamUrl(sourceUrl, channel.accountId);
             if (!proxyUrl || proxyUrl === sourceUrl) {
                 return false;
             }
@@ -3552,19 +3567,19 @@ createApp({
                 }
             }
             console.warn('Proxy playback fallback failed.', lastError);
-            const compatibilityIssue = await detectHlsBrowserCompatibilityIssue(sourceUrl);
+            const compatibilityIssue = await detectHlsBrowserCompatibilityIssue(sourceUrl, channel.accountId);
             if (compatibilityIssue) {
                 throw new Error(compatibilityIssue);
             }
             return false;
         };
 
-        const detectHlsBrowserCompatibilityIssue = async (url) => {
+        const detectHlsBrowserCompatibilityIssue = async (url, accountId) => {
             const sourceUrl = String(url || '').trim();
             if (!sourceUrl || /^(blob:|data:|file:)/i.test(sourceUrl)) {
                 return '';
             }
-            const probeUrl = buildProxyStreamUrl(sourceUrl) || sourceUrl;
+            const probeUrl = buildProxyStreamUrl(sourceUrl, accountId) || sourceUrl;
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000);
             try {
@@ -3609,7 +3624,7 @@ createApp({
             const engine = window.mpegts;
             if (!canUseMpegts()) {
                 console.warn('MPEG-TS playback requires mpegts.js, which is not available or not supported. Falling back to native playback, which will likely fail for MPEG-TS streams.');
-                const fallbackUrl = buildProxyStreamUrl(channel.url) || sourceUrl;
+                const fallbackUrl = buildProxyStreamUrl(channel.url, channel.accountId) || sourceUrl;
                 await loadNative({...channel, url: fallbackUrl});
                 return;
             }

@@ -18,7 +18,7 @@ package com.uiptv.mobile.shared.db
  * the build if this file is stale, so a hand edit cannot survive CI either.
  */
 internal object UiptvGeneratedSchema {
-    const val SCHEMA_VERSION: String = "0215"
+    const val SCHEMA_VERSION: String = "0216"
 
     /** Configuration columns, in `0000_baseline.sql` declaration order. */
     val configurationColumns: List<String> = listOf(
@@ -48,6 +48,7 @@ internal object UiptvGeneratedSchema {
         "enableVlcHttpUserAgent",
         "enableVlcHttpForwardCookies",
         "resolveChainAndDeepRedirects",
+        "webPlaybackProxyEnabled",
         "filterLockUnlockDurationMinutes",
         "vlcNoVideoTitleShow",
         "vlcQuiet",

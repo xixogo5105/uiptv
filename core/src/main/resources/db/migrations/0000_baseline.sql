@@ -64,6 +64,10 @@ CREATE TABLE IF NOT EXISTS Configuration
     TEXT
     default
        '0',
+    webPlaybackProxyEnabled
+    TEXT
+    default
+       '1',
     filterLockUnlockDurationMinutes
     TEXT
     default
@@ -151,6 +155,10 @@ CREATE TABLE IF NOT EXISTS Account
     TEXT
     default
     '0',
+    webPlaybackProxy
+    TEXT
+    default
+       '0',
     httpMethod
     TEXT,
     timezone

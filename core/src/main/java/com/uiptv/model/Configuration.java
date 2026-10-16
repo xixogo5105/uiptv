@@ -37,6 +37,7 @@ import lombok.NoArgsConstructor;
     private boolean enableVlcHttpUserAgent = true;
     private boolean enableVlcHttpForwardCookies = true;
     private boolean resolveChainAndDeepRedirects = false;
+    private boolean webPlaybackProxyEnabled = true;
     private boolean vlcNoVideoTitleShow = true;
     private boolean vlcQuiet = true;
     private boolean vlcHttpReconnect = true;

@@ -31,6 +31,10 @@ public class PlayerResponse {
         this.manifestType = channel.getManifestType();
     }
 
+    public void setAccount(Account account) {
+        this.account = account;
+    }
+
     public void setFromBookmark(Bookmark bookmark, Account account) {
         if (bookmark == null) {
             clearDrmMetadata();

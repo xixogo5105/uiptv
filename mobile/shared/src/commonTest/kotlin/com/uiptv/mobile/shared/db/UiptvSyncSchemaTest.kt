@@ -81,6 +81,7 @@ class UiptvSyncSchemaTest {
                 "enableVlcHttpUserAgent",
                 "enableVlcHttpForwardCookies",
                 "resolveChainAndDeepRedirects",
+                "webPlaybackProxyEnabled",
                 "filterLockUnlockDurationMinutes",
                 "vlcNoVideoTitleShow",
                 "vlcQuiet",

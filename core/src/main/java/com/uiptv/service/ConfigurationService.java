@@ -140,6 +140,14 @@ public class ConfigurationService {
         return account != null && account.isResolveChainAndDeepRedirects();
     }
 
+    public boolean isWebPlaybackProxyEnabled(Account account) {
+        Configuration configuration = read();
+        return configuration != null
+                && configuration.isWebPlaybackProxyEnabled()
+                && account != null
+                && account.isWebPlaybackProxy();
+    }
+
     public M3U8PublicationService.PublishedCategoryMode getPublishedM3uCategoryMode() {
         Configuration configuration = read();
         return M3U8PublicationService.PublishedCategoryMode.fromPersistedValue(

@@ -1,0 +1,2 @@
+--@add_column Configuration webPlaybackProxyEnabled TEXT DEFAULT '1'
+--@add_column Account webPlaybackProxy TEXT DEFAULT '0'

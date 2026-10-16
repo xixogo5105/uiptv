@@ -77,6 +77,7 @@ public class DatabaseUtils {
                 new DataColumn("enableVlcHttpUserAgent", "TEXT"),
                 new DataColumn("enableVlcHttpForwardCookies", "TEXT"),
                 new DataColumn("resolveChainAndDeepRedirects", "TEXT"),
+                new DataColumn("webPlaybackProxyEnabled", "TEXT"),
                 new DataColumn("filterLockUnlockDurationMinutes", "TEXT"),
                 new DataColumn("vlcNoVideoTitleShow", "TEXT"),
                 new DataColumn("vlcQuiet", "TEXT"),
@@ -113,6 +114,7 @@ public class DatabaseUtils {
                 new DataColumn("serverPortalUrl", "TEXT"),
                 new DataColumn("pinToTop", "TEXT"),
                 new DataColumn("resolveChainAndDeepRedirects", "TEXT"),
+                new DataColumn("webPlaybackProxy", "TEXT"),
                 new DataColumn("httpMethod", "TEXT"),
                 new DataColumn("timezone", "TEXT"),
                 new DataColumn("parentalLock", "TEXT")

@@ -93,3 +93,4 @@
 0213_expand_epg_name_exclusions.sql
 0214_add_shared_epg_sources.sql
 0215_add_epg_change_journal.sql
+0216_add_web_playback_proxy_settings.sql

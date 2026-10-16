@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -72,6 +73,48 @@ class HttpProxyStreamServerTest {
         assertEquals(200, connection.getResponseCode());
         assertEquals("HEAD", upstreamMethod.get());
         assertEquals(1, requestCount.get());
+    }
+
+    @Test
+    void optionsRequestsReturnCorsContractWithoutContactingUpstream() throws Exception {
+        proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        proxyServer.createContext("/proxy-stream", new HttpProxyStreamServer(url -> {
+            throw new AssertionError("OPTIONS must not contact the upstream");
+        }));
+        proxyServer.start();
+
+        String proxyUrl = "http://127.0.0.1:" + proxyServer.getAddress().getPort() + "/proxy-stream";
+        HttpURLConnection connection = (HttpURLConnection) URI.create(proxyUrl).toURL().openConnection();
+        connection.setRequestMethod("OPTIONS");
+
+        assertEquals(204, connection.getResponseCode());
+        assertEquals("*", connection.getHeaderField("Access-Control-Allow-Origin"));
+        assertTrue(connection.getHeaderField("Access-Control-Allow-Methods").contains("GET"));
+    }
+
+    @Test
+    void oversizedHlsPlaylistIsRejectedBeforeItCanConsumeUnboundedMemory() throws Exception {
+        upstreamServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        upstreamServer.createContext("/hls/large.m3u8", exchange -> {
+            byte[] body = ("#EXTM3U\n" + "a".repeat(4 * 1024 * 1024)).getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/vnd.apple.mpegurl");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(body);
+            }
+        });
+        upstreamServer.start();
+
+        proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        proxyServer.createContext("/proxy-stream", localUpstreamProxy());
+        proxyServer.start();
+
+        String upstreamUrl = "http://127.0.0.1:" + upstreamServer.getAddress().getPort() + "/hls/large.m3u8";
+        String proxyUrl = "http://127.0.0.1:" + proxyServer.getAddress().getPort() + "/proxy-stream?src="
+                + URLEncoder.encode(upstreamUrl, StandardCharsets.UTF_8);
+        HttpURLConnection connection = (HttpURLConnection) URI.create(proxyUrl).toURL().openConnection();
+
+        assertEquals(413, connection.getResponseCode());
     }
 
     @Test
@@ -211,6 +254,8 @@ class HttpProxyStreamServerTest {
         assertFalse((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://0.0.0.0:8080/player"));
         assertFalse((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://portal.test/player"));
         assertFalse((Boolean) invoke(handler, "isAllowedTargetUrl", new Class[]{String.class}, "http://127.0.0.1:8080/private"));
+        assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class}, InetAddress.getByName("100.64.0.1")));
+        assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class}, InetAddress.getByName("fc00::1")));
 
         assertEquals("A B", invoke(handler, "queryParam", new Class[]{String.class, String.class}, "http://x.test/path?mac=A+B&empty", "mac"));
         assertEquals("", invoke(handler, "queryParam", new Class[]{String.class, String.class}, "http://x.test/path", "mac"));

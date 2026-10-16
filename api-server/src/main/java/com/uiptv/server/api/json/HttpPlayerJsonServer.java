@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
+import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.*;
 import com.uiptv.util.AppLog;
@@ -110,6 +111,7 @@ public class HttpPlayerJsonServer implements HttpHandler {
     private ResolvedWebPlayback resolveDirectUrlPlayback(HttpExchange ex, String accountId, String channelId, String directUrl) {
         PlayerResponse response = new PlayerResponse(directUrl);
         Account account = isBlank(accountId) ? null : AccountService.getInstance().getById(accountId);
+        response.setAccount(account);
         Channel channel = buildRequestChannel(channelId, ex);
         if (hasChannelMetadata(channel)) {
             response.setFromChannel(channel, account);
@@ -158,12 +160,13 @@ public class HttpPlayerJsonServer implements HttpHandler {
         }
         String normalizedUrl = normalizeWebPlaybackUrl(mode, response.getUrl());
         response.setUrl(normalizedUrl);
+        if (!ConfigurationService.getInstance().isWebPlaybackProxyEnabled(response.getAccount())) {
+            return;
+        }
         if (shouldBypassLocalProxyWebPlayback(response, mode, normalizedUrl)) {
             return;
         }
-        if (shouldUseLocalProxyWebPlayback(mode, normalizedUrl)) {
-            response.setUrl(buildLocalProxyUrl(normalizedUrl));
-        }
+        response.setUrl(buildLocalProxyUrl(normalizedUrl));
     }
 
     private PlayerResponse resolveBookmarkPlayback(String bookmarkId, String mode, String seriesParentId) throws IOException {
@@ -376,17 +379,6 @@ public class HttpPlayerJsonServer implements HttpHandler {
         String lower = url.toLowerCase();
         return lower.contains(PATH_LIVE_PLAY)
                 || hasTrailingNumericPath(lower);
-    }
-
-    private boolean shouldUseLocalProxyWebPlayback(String mode, String url) {
-        if (isBlank(url)) {
-            return false;
-        }
-        String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
-        if (!MODE_VOD.equals(normalizedMode) && !MODE_SERIES.equals(normalizedMode)) {
-            return false;
-        }
-        return isForcedWebPath(url.toLowerCase());
     }
 
     private String sanitizeParam(String value) {

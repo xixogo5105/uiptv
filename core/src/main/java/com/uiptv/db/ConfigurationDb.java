@@ -147,6 +147,7 @@ public class ConfigurationDb extends BaseDb {
         c.setEnableVlcHttpUserAgent(missingOrTrue(resultSet, "enableVlcHttpUserAgent"));
         c.setEnableVlcHttpForwardCookies(missingOrTrue(resultSet, "enableVlcHttpForwardCookies"));
         c.setResolveChainAndDeepRedirects(safeBoolean(resultSet, "resolveChainAndDeepRedirects"));
+        c.setWebPlaybackProxyEnabled(missingOrTrue(resultSet, "webPlaybackProxyEnabled"));
         c.setFilterLockUnlockDurationMinutes(duration);
         c.setVlcNoVideoTitleShow(missingOrTrue(resultSet, "vlcNoVideoTitleShow"));
         c.setVlcQuiet(missingOrTrue(resultSet, "vlcQuiet"));
@@ -178,7 +179,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(40, current.getDbId());
+                statement.setString(41, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -221,20 +222,21 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(23, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
         statement.setString(24, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
         statement.setString(25, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
-        statement.setString(26, configuration.getFilterLockUnlockDurationMinutes());
-        statement.setString(27, configuration.isVlcNoVideoTitleShow() ? "1" : "0");
-        statement.setString(28, configuration.isVlcQuiet() ? "1" : "0");
-        statement.setString(29, configuration.isVlcHttpReconnect() ? "1" : "0");
-        statement.setString(30, configuration.isVlcAdaptiveUseAccess() ? "1" : "0");
-        statement.setString(31, configuration.getVlcVout());
-        statement.setString(32, configuration.getVlcAvcodecHw());
-        statement.setString(33, configuration.isLightweightModeEnabled() ? "1" : "0");
-        statement.setString(34, configuration.isShowBookmarkAndAccountCounts() ? "1" : "0");
-        statement.setString(35, configuration.resolveThemeMode().persistedValue());
-        statement.setString(36, configuration.isEpgEnabled() ? "1" : "0");
-        statement.setString(37, configuration.getGlobalEpgSource());
-        statement.setString(38, configuration.getEpgMappingsJson());
-        statement.setString(39, String.valueOf(configuration.normalizedEpgRefreshHours()));
+        statement.setString(26, configuration.isWebPlaybackProxyEnabled() ? "1" : "0");
+        statement.setString(27, configuration.getFilterLockUnlockDurationMinutes());
+        statement.setString(28, configuration.isVlcNoVideoTitleShow() ? "1" : "0");
+        statement.setString(29, configuration.isVlcQuiet() ? "1" : "0");
+        statement.setString(30, configuration.isVlcHttpReconnect() ? "1" : "0");
+        statement.setString(31, configuration.isVlcAdaptiveUseAccess() ? "1" : "0");
+        statement.setString(32, configuration.getVlcVout());
+        statement.setString(33, configuration.getVlcAvcodecHw());
+        statement.setString(34, configuration.isLightweightModeEnabled() ? "1" : "0");
+        statement.setString(35, configuration.isShowBookmarkAndAccountCounts() ? "1" : "0");
+        statement.setString(36, configuration.resolveThemeMode().persistedValue());
+        statement.setString(37, configuration.isEpgEnabled() ? "1" : "0");
+        statement.setString(38, configuration.getGlobalEpgSource());
+        statement.setString(39, configuration.getEpgMappingsJson());
+        statement.setString(40, String.valueOf(configuration.normalizedEpgRefreshHours()));
      }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {
