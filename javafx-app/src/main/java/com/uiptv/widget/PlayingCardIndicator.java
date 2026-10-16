@@ -46,8 +46,14 @@ public class PlayingCardIndicator extends StackPane {
         visibleProperty().addListener((_, _, visible) -> {
             if (visible) {
                 broadcastAnimation.playFromStart();
+                com.uiptv.util.AppLog.addWarningLog(PlayingCardIndicator.class,
+                        "[PLAYBACK-DIAG] card indicator animation START indicator="
+                                + Integer.toHexString(System.identityHashCode(this)));
             } else {
                 broadcastAnimation.stop();
+                com.uiptv.util.AppLog.addWarningLog(PlayingCardIndicator.class,
+                        "[PLAYBACK-DIAG] card indicator animation STOP indicator="
+                                + Integer.toHexString(System.identityHashCode(this)));
             }
         });
     }

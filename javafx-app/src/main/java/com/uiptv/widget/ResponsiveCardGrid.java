@@ -1175,6 +1175,21 @@ public class ResponsiveCardGrid<T> extends StackPane {
         updateSelectionStyles();
     }
 
+    /** Clear the card animation when embedded playback ends. */
+    public static void clearActivePlayingIndicator() {
+        ResponsiveCardGrid<?> grid = activePlayingIndicatorGrid.get();
+        activePlayingIndicatorGrid = new WeakReference<>(null);
+        if (grid != null) {
+            grid.clearActivatedItem();
+            com.uiptv.util.AppLog.addWarningLog(ResponsiveCardGrid.class,
+                    "[PLAYBACK-DIAG] cleared active playing-card indicator grid="
+                            + Integer.toHexString(System.identityHashCode(grid)));
+        } else {
+            com.uiptv.util.AppLog.addWarningLog(ResponsiveCardGrid.class,
+                    "[PLAYBACK-DIAG] stop requested with no active playing-card indicator");
+        }
+    }
+
     private void applyActivatedStyles(Map<T, Region> cards) {
         for (Map.Entry<T, Region> entry : cards.entrySet()) {
             Region card = entry.getValue();

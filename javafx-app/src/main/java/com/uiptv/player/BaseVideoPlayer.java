@@ -948,6 +948,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         isLiveLikeContent = true;
         updateTrackButtonVisibility();
         updateRepeatButtonVisibility();
+        com.uiptv.widget.ResponsiveCardGrid.clearActivePlayingIndicator();
         stopMedia();
         playerContainer.setMinHeight(0);
         playerContainer.setVisible(false);
