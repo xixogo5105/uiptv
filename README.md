@@ -37,6 +37,17 @@ Release assets are currently published for Windows (x86_64), Linux (x86_64 and a
 - Import format reference: [ACCOUNT_IMPORT_GUIDES.md](ACCOUNT_IMPORT_GUIDES.md)
 - Release notes: [GitHub Releases](https://github.com/xixogo5105/uiptv/releases)
 
+### EPG documentation
+
+- EPG overview and guide behaviour: [EPG.md](EPG.md)
+- Persistent cache design: [docs/EPG_CACHE.md](docs/EPG_CACHE.md)
+- Change-notification design: [docs/EPG_CHANGE_NOTIFICATIONS_PLAN.md](docs/EPG_CHANGE_NOTIFICATIONS_PLAN.md)
+- Desktop memory audit: [docs/EPG_MEMORY_AUDIT.md](docs/EPG_MEMORY_AUDIT.md)
+- EPG Builder implementation review: [docs/EPG_BUILDER_REVIEW.md](docs/EPG_BUILDER_REVIEW.md)
+- Channel-name exclusion audit: [docs/epg-name-exclusions.md](docs/epg-name-exclusions.md)
+- EPG Builder usage guide: [python/util/epg_builder/README.md](python/util/epg_builder/README.md)
+- EPG Builder configuration reference: [python/util/epg_builder/CONFIGURATION.md](python/util/epg_builder/CONFIGURATION.md)
+
 ## Project Layout
 
 UIPTV now builds as a Maven reactor with separated runtime modules:
