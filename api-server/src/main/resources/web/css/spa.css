@@ -2176,22 +2176,10 @@ a[href] {
 .player-epg-panel article + article { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--outline); }
 .player-epg-panel small { display: block; color: var(--muted); margin-top: 5px; }
 .player-epg-panel p { margin: 8px 0 0; line-height: 1.5; white-space: pre-line; }
+.player-epg-loading { display: block; color: var(--muted); min-height: 24px; }
 
-/* Keep the video and programme details inside the same player card. */
-.content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) {
- display: flex;
- flex-direction: column;
- gap: 0;
- height: max-content;
- max-height: none;
- overflow: visible;
- align-self: start;
-}
-.content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) > * { flex-shrink: 0; }
-.content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) #player-wrapper { height: auto; flex: 0 0 auto; }
+/* Keep the player column geometry stable while programme details refresh. */
 .content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) .player-epg-panel {
- max-height: none;
- overflow: visible;
  margin: 18px 0 0;
 }
 

@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/global.css" rel="stylesheet">
     <link href="/css/shared-player.css?v=20260921a" rel="stylesheet">
-    <link href="/css/spa.css?v=20261016epgScroll3" rel="stylesheet">
+    <link href="/css/spa.css?v=20261016playerStable1" rel="stylesheet">
     <style>
     </style>
     <script src="https://unpkg.com/vue@3.5.44/dist/vue.global.prod.js"></script>
@@ -767,10 +767,13 @@
                 </div>
 
                 <div class="uiptv-shared-player" data-uiptv-shared-player data-variant="stacked" v-if="!playerExpanded"></div>
-                <section class="player-epg-panel" aria-label="Now and Next" v-if="epgEnabled && playerEpg && !wideViewActive && !playerExpanded">
-                    <header><strong>Now &amp; Next</strong><span>{{ playerEpg.channelName }}</span></header>
-                    <article v-if="playerEpg.now"><strong>Now: {{ playerEpg.now.title }}</strong><small>{{ playerProgrammeTime(playerEpg.now.start) }} – {{ playerProgrammeTime(playerEpg.now.stop) }}</small><p v-if="playerEpg.now.description">{{ playerEpg.now.description }}</p></article>
-                    <article v-if="playerEpg.next"><strong>Next: {{ playerEpg.next.title }}</strong><small>{{ playerProgrammeTime(playerEpg.next.start) }} – {{ playerProgrammeTime(playerEpg.next.stop) }}</small><p v-if="playerEpg.next.description">{{ playerEpg.next.description }}</p></article>
+                <section class="player-epg-panel" aria-label="Now and Next" v-if="epgEnabled && !wideViewActive && !playerExpanded">
+                    <template v-if="playerEpg">
+                        <header><strong>Now &amp; Next</strong><span>{{ playerEpg.channelName }}</span></header>
+                        <article v-if="playerEpg.now"><strong>Now: {{ playerEpg.now.title }}</strong><small>{{ playerProgrammeTime(playerEpg.now.start) }} – {{ playerProgrammeTime(playerEpg.now.stop) }}</small><p v-if="playerEpg.now.description">{{ playerEpg.now.description }}</p></article>
+                        <article v-if="playerEpg.next"><strong>Next: {{ playerEpg.next.title }}</strong><small>{{ playerProgrammeTime(playerEpg.next.start) }} – {{ playerProgrammeTime(playerEpg.next.stop) }}</small><p v-if="playerEpg.next.description">{{ playerEpg.next.description }}</p></article>
+                    </template>
+                    <span class="player-epg-loading" v-else>Loading programme details…</span>
                 </section>
             </aside>
 
@@ -778,7 +781,7 @@
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261016proxyPolicy1"></script>
+    <script src="/javascript/spa.js?v=20261016playerStable1"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;
