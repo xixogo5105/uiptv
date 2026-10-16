@@ -2871,13 +2871,8 @@
     -fx-opacity: 1;
 }
 
-.playing-card-broadcast-arc {
-    -fx-fill: transparent;
-    -fx-stroke: -uiptv-text-primary;
-}
-
-.playing-card-broadcast-dot {
-    -fx-fill: -uiptv-text-primary;
+.playing-card-recording-dot {
+    -fx-fill: #e53935;
 }
 
 .uiptv-responsive-card:selected .bookmark-channel-title,

@@ -304,14 +304,17 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
         HBox buttonRow = new HBox(1.5);
         buttonRow.setAlignment(Pos.CENTER_LEFT);
-        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward, btnRepeat, btnReload, btnFullscreen, btnPip, spacer, btnMute, volumeSlider, btnLayoutMode, btnAspectRatio);
-        buttonRow.getChildren().add(btnTracks);
         SVGPath guideIcon = new SVGPath();
         guideIcon.setContent("M2 2H14V14H2Z M5 5H11 M5 8H11 M5 11H9");
         guideIcon.getStyleClass().add("player-guide-icon");
         btnGuide = createIconButton(guideIcon);
         btnGuide.getStyleClass().add("player-guide-button");
-        buttonRow.getChildren().addAll(btnGuide, btnHideBar);
+        // Keep the guide beside the primary transport controls. The control row is
+        // intentionally capped in width; placing it after the flexible spacer and
+        // volume/track controls allowed it to be laid out beyond the visible bar.
+        buttonRow.getChildren().addAll(btnPlayPause, btnStop, btnRewind, btnFastForward,
+                btnRepeat, btnReload, btnFullscreen, btnPip, btnGuide, spacer, btnMute,
+                volumeSlider, btnLayoutMode, btnAspectRatio, btnTracks, btnHideBar);
 
         timeSlider = new Slider(0, 1, 0);
         timeSlider.getStyleClass().add("video-player-slider");

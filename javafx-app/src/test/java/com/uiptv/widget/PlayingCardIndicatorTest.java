@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import static com.uiptv.testsupport.FxTestSupport.initJavaFx;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class PlayingCardIndicatorTest {
     @BeforeAll
@@ -15,13 +15,14 @@ class PlayingCardIndicatorTest {
     }
 
     @Test
-    void broadcastsOnlyWhileTheIndicatorIsVisible() throws Exception {
+    void recordingDotNeverStartsAnAnimation() throws Exception {
         runOnFxThread(() -> {
             PlayingCardIndicator indicator = new PlayingCardIndicator();
 
             assertFalse(indicator.isAnimationRunning());
             indicator.setVisible(true);
-            assertTrue(indicator.isAnimationRunning());
+            assertFalse(indicator.isAnimationRunning());
+            assertNotNull(indicator.lookup(".playing-card-recording-dot"));
             indicator.setVisible(false);
             assertFalse(indicator.isAnimationRunning());
             return null;

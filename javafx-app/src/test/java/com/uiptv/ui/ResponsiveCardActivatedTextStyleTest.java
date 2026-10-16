@@ -9,7 +9,6 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.Paint;
 import javafx.scene.shape.Circle;
-import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Text;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -74,13 +73,7 @@ class ResponsiveCardActivatedTextStyleTest {
 
             assertEquals(0, hidden.opacity(), 0.001, theme + ": indicator must start hidden");
             assertEquals(1, shown.opacity(), 0.001, theme + ": indicator must appear on activation");
-            if (theme.equals("/dark-application.css")) {
-                assertTrue(isLight(shown.arcStroke()), "dark theme broadcast arcs should be light");
-                assertTrue(isLight(shown.dotFill()), "dark theme broadcast dot should be light");
-            } else {
-                assertFalse(isLight(shown.arcStroke()), "light theme broadcast arcs should be dark");
-                assertFalse(isLight(shown.dotFill()), "light theme broadcast dot should be dark");
-            }
+            assertEquals(Color.web("#e53935"), shown.dotFill(), theme + ": recording dot should be red");
         }
     }
 
@@ -97,9 +90,8 @@ class ResponsiveCardActivatedTextStyleTest {
                 card.pseudoClassStateChanged(ACTIVATED, true);
                 root.applyCss();
             }
-            SVGPath arc = (SVGPath) indicator.lookup(".playing-card-broadcast-arc");
-            Circle dot = (Circle) indicator.lookup(".playing-card-broadcast-dot");
-            return new IndicatorSnapshot(indicator.getOpacity(), arc.getStroke(), dot.getFill());
+            Circle dot = (Circle) indicator.lookup(".playing-card-recording-dot");
+            return new IndicatorSnapshot(indicator.getOpacity(), dot.getFill());
         });
     }
 
@@ -169,6 +161,6 @@ class ResponsiveCardActivatedTextStyleTest {
     private record Snapshot(List<Paint> labelFills, List<Paint> textFills) {
     }
 
-    private record IndicatorSnapshot(double opacity, Paint arcStroke, Paint dotFill) {
+    private record IndicatorSnapshot(double opacity, Paint dotFill) {
     }
 }

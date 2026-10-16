@@ -258,7 +258,7 @@ class ResponsiveCardGridTest {
     }
 
     @Test
-    void broadcastIndicatorHidesAndStopsAnimatingWhenItsPageIsHidden() throws Exception {
+    void recordingDotHidesWithoutStartingAnAnimationWhenItsPageIsHidden() throws Exception {
         CardIndicatorVisibilitySnapshot snapshot = runOnFxThread(() -> {
             ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(_ -> new HBox(), true);
             grid.setItems(FXCollections.observableArrayList("one"));
@@ -293,7 +293,7 @@ class ResponsiveCardGridTest {
         });
 
         assertTrue(snapshot.visibleOnPage());
-        assertTrue(snapshot.animatingOnPage());
+        assertFalse(snapshot.animatingOnPage());
         assertTrue(snapshot.hiddenWithPage());
         assertTrue(snapshot.stoppedWithPage());
         assertTrue(snapshot.visibleWhenPageReturns());
