@@ -42,7 +42,13 @@ class UiptvSyncSchemaTest {
 
     @Test
     fun desktopOnlyTablesArePreservedButHidden() {
-        assertEquals(listOf("epg_source", "epg_programme", "epg_alias", "epg_channel_mapping", "epg_channel_icon", "epg_shared_source"), UiptvSyncSchema.desktopTablesPreservedButHiddenInV1)
+        assertEquals(
+            listOf(
+                "epg_source", "epg_programme", "epg_alias", "epg_channel_mapping", "epg_channel_icon", "epg_shared_source",
+                "epg_change_state", "epg_change_history"
+            ),
+            UiptvSyncSchema.desktopTablesPreservedButHiddenInV1
+        )
     }
 
     @Test

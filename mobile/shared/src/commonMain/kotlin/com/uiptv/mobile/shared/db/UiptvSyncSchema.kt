@@ -50,7 +50,8 @@ object UiptvSyncSchema {
     // Guide caches travel in cloned snapshots and Android reads valid schedules from them.
     // They remain disposable cache data, rather than editable mobile catalogues.
     val desktopTablesPreservedButHiddenInV1: List<String> = listOf(
-        "epg_source", "epg_programme", "epg_alias", "epg_channel_mapping", "epg_channel_icon", "epg_shared_source"
+        "epg_source", "epg_programme", "epg_alias", "epg_channel_mapping", "epg_channel_icon", "epg_shared_source",
+        "epg_change_state", "epg_change_history"
     )
 
     /**

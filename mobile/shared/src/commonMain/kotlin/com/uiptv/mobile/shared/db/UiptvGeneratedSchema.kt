@@ -18,7 +18,7 @@ package com.uiptv.mobile.shared.db
  * the build if this file is stale, so a hand edit cannot survive CI either.
  */
 internal object UiptvGeneratedSchema {
-    const val SCHEMA_VERSION: String = "0214"
+    const val SCHEMA_VERSION: String = "0215"
 
     /** Configuration columns, in `0000_baseline.sql` declaration order. */
     val configurationColumns: List<String> = listOf(
@@ -86,6 +86,8 @@ internal object UiptvGeneratedSchema {
         "VodChannel",
         "VodWatchState",
         "epg_alias",
+        "epg_change_history",
+        "epg_change_state",
         "epg_channel_icon",
         "epg_channel_mapping",
         "epg_name_exclusion",

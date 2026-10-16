@@ -81,12 +81,13 @@ internal fun MobileEpgSettings() {
         val state = LocalEpgState.current
         if (!state.enabled) return
         val scope = rememberCoroutineScope()
+        val cacheRevision by MobileEpgCache.revision.collectAsState()
         var result by remember(accountId, channelId) { mutableStateOf<MobileEpgResult?>(MobileEpgCache.peek(accountId, channelId, state.time)) }
         var details by remember(accountId, channelId) { mutableStateOf(false) }
         var mapping by remember(accountId, channelId) { mutableStateOf("") }
         var revision by remember { mutableIntStateOf(0) }
         var error by remember { mutableStateOf("") }
-        LaunchedEffect(accountId, channelId, state.time / 60_000, revision) {
+        LaunchedEffect(accountId, channelId, state.time / 60_000, revision, cacheRevision) {
             // Peek first: the cache is shared with the embedded player, so a channel already fetched
             // elsewhere (or a moment ago) is shown without another XMLTV parse. Only fetch when the
             // cache is empty or expired.

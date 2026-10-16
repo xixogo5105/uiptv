@@ -12,7 +12,7 @@ public final class EpgModeUI {
     private static final BooleanProperty featureEnabled = new SimpleBooleanProperty(false);
     static {
         var pending=new java.util.concurrent.atomic.AtomicBoolean();
-        com.uiptv.application.EpgCacheRefreshService.addListener(() -> {
+        com.uiptv.application.EpgChangeNotifications.subscribe(com.uiptv.application.EpgChangeNotifications.snapshot().revision(), _ -> {
             if(pending.compareAndSet(false,true)) javafx.application.Platform.runLater(() -> {
                 pending.set(false); cacheRevision.set(cacheRevision.get()+1);
             });

@@ -108,16 +108,15 @@ class PlayerEpgUITest extends DbBackedUiTest {
                 String fullDescription = "Additional programme information. ".repeat(30);
                 panel.display(new PlayerEpgApplicationService.Result("Sample channel", new EpgProgramme("Current programme", fullDescription, now - 1000, now + 100000), null));
                 root.applyCss(); root.layout();
-                Hyperlink link = (Hyperlink) panel.lookup(".hyperlink"); assertTrue(link.isManaged());
-                int windows = javafx.stage.Window.getWindows().size(); link.fire(); root.applyCss(); root.layout();
-                Node inline = panel.lookup(".epg-inline-details"); assertTrue(inline.isManaged()); assertFalse(link.isManaged()); assertEquals(panel, inline.getParent());
-                assertEquals(windows, javafx.stage.Window.getWindows().size());
+                Label inlineDescription = (Label) panel.lookup(".epg-current-card .epg-programme-description");
+                assertTrue(inlineDescription.isManaged()); assertEquals(fullDescription, inlineDescription.getText());
+                assertTrue(panel.lookupAll(".hyperlink").stream().noneMatch(Node::isManaged));
+                Node inline = panel.lookup(".epg-inline-details"); assertFalse(inline.isManaged());
                 WritableImage screenshot = root.snapshot(null, null);
                 BufferedImage image = new BufferedImage((int) screenshot.getWidth(), (int) screenshot.getHeight(), BufferedImage.TYPE_INT_ARGB);
                 for (int y = 0; y < image.getHeight(); y++) for (int x = 0; x < image.getWidth(); x++) image.setRGB(x, y, screenshot.getPixelReader().getArgb(x, y));
                 ImageIO.write(image, "png", Path.of("target/epg-inline-details-" + (dark ? "dark" : "light") + "-preview.png").toFile());
-                assertTrue(inline.lookupAll(".label").stream().anyMatch(node -> node instanceof Label label && fullDescription.equals(label.getText())));
-                ((Button) inline.lookup(".uiptv-circular-close-button")).fire(); assertFalse(inline.isManaged()); assertTrue(link.isManaged());
+                assertFalse(inline.isManaged());
             }
             return null;
         });
@@ -130,7 +129,10 @@ class PlayerEpgUITest extends DbBackedUiTest {
             var result = new PlayerEpgApplicationService.Result("Station",new EpgProgramme("Current", "Long description. ".repeat(40),now-60000,now+3600000),null);
             panel.display(result);
             var root = new VBox(panel); root.resize(390,650); root.applyCss(); root.layout();
-            ((Hyperlink)panel.lookup(".hyperlink")).fire(); root.layout();
+            Label description = (Label) panel.lookup(".epg-current-card .epg-programme-description");
+            assertTrue(description.isManaged(), "Available descriptions must remain visible in compact mode");
+            assertEquals(result.now().description(), description.getText());
+            assertTrue(panel.lookupAll(".hyperlink").stream().noneMatch(Node::isManaged));
             Node details = panel.lookup(".epg-inline-details");
             Label title = (Label)panel.lookup(".epg-current-card .epg-programme-title");
             Tooltip tooltip = title.getTooltip();
@@ -143,7 +145,7 @@ class PlayerEpgUITest extends DbBackedUiTest {
             }
             root.layout();
             assertSame(tooltip,title.getTooltip(),"Unchanged programmes must not recreate tooltips");
-            assertTrue(details.isManaged(),"Routine updates must preserve the expanded description");
+            assertFalse(details.isManaged(),"Inline descriptions do not need a replacement details panel");
             assertEquals(0,styleChanges.get(),"Repeated narrow-layout passes must not remove and re-add compact CSS");
             assertEquals(height,panel.prefHeight(390),.1);
             return null;

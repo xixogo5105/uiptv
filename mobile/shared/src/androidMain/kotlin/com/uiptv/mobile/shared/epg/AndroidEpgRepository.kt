@@ -74,6 +74,7 @@ class AndroidEpgRepository(
         }
         saveConfig("globalEpgSource", source.trim())
         MobileEpgCache.clear()
+        Unit
     }
     override suspend fun saveMapping(accountId: Long, providerChannelId: String, guideId: String): Unit = withContext(Dispatchers.IO) {
         mutex.withLock {

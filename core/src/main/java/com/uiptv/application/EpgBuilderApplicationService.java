@@ -39,7 +39,7 @@ public class EpgBuilderApplicationService {
         // Read-only preflight. Do not initialize/migrate an arbitrary SQLite file.
         try (var c = DriverManager.getConnection("jdbc:sqlite:" + Path.of(databasePath).toRealPath().toUri() + "?mode=ro");
              var query = c.createStatement()) {
-            for (String table : List.of("Account", "Channel", "Configuration", "epg_source", "epg_programme", "epg_channel_mapping", "epg_name_exclusion", "epg_shared_source")) {
+            for (String table : List.of("Account", "Channel", "Configuration", "epg_source", "epg_programme", "epg_channel_mapping", "epg_name_exclusion", "epg_shared_source", "epg_change_state", "epg_change_history")) {
                 query.executeQuery("SELECT * FROM " + table + " LIMIT 0").close();
             }
         }

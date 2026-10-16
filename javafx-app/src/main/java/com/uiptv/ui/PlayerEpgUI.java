@@ -11,7 +11,6 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 /** Adjacent to the video, never over its heavyweight native surface. */
 public class PlayerEpgUI extends VBox {
@@ -27,13 +26,17 @@ public class PlayerEpgUI extends VBox {
     private PlayerEpgApplicationService.Result displayed;
     private Thread guideWorker;
     private static final long CACHE_READ_INTERVAL_MS = 30_000;
+    private static final long CHANGE_COALESCE_MS = 100;
     private long lastReadNanos;
     private MediaPlayerFactory.GuideContext activeContext;
     private final javafx.animation.PauseTransition cacheRefresh = new javafx.animation.PauseTransition();
+    private final javafx.animation.PauseTransition boundaryWake = new javafx.animation.PauseTransition();
+    private volatile boolean pendingChange;
+    private EpgChangeNotifications.Subscription epgSubscription;
     private final AtomicInteger generation = new AtomicInteger();
     private final ChangeListener<MediaPlayerFactory.GuideContext> listener = (_, _, context) -> refresh(context, true);
     private final javafx.animation.Timeline clock = new javafx.animation.Timeline(new javafx.animation.KeyFrame(javafx.util.Duration.minutes(1),
-            _ -> { updateProgress(); refresh(MediaPlayerFactory.guideContextProperty().get(), false); }));
+            _ -> updateProgress()));
 
     public PlayerEpgUI() {
         getStyleClass().add("player-epg-panel");
@@ -66,11 +69,15 @@ public class PlayerEpgUI extends VBox {
         expandedDetails.getChildren().add(detailsHeader); closeDetails();
         getChildren().addAll(heading, cards, expandedDetails); setVisible(false); setManaged(false);
         cacheRefresh.setOnFinished(_ -> refresh(MediaPlayerFactory.guideContextProperty().get(), false));
+        boundaryWake.setOnFinished(_ -> refresh(MediaPlayerFactory.guideContextProperty().get(), false));
+        // Keep the existing UI cache-observer contract as a bridge for local cache updates. The typed
+        // notification subscription below remains the source for cross-process changes; both paths are
+        // coalesced by cacheChanged() and therefore never restore polling or duplicate reads.
         EpgModeUI.observeCache(this, this::cacheChanged);
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
         sceneProperty().addListener((_, oldScene, newScene) -> {
-            if (oldScene != null) { MediaPlayerFactory.guideContextProperty().removeListener(listener); clock.stop(); cacheRefresh.stop(); activeContext = null; lastReadNanos = 0; generation.incrementAndGet(); if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; } display(null); }
-            if (newScene != null) { MediaPlayerFactory.guideContextProperty().addListener(listener); refresh(MediaPlayerFactory.guideContextProperty().get(), true); clock.play(); }
+            if (oldScene != null) { MediaPlayerFactory.guideContextProperty().removeListener(listener); if (epgSubscription != null) { epgSubscription.close(); epgSubscription = null; } clock.stop(); cacheRefresh.stop(); boundaryWake.stop(); activeContext = null; pendingChange = false; generation.incrementAndGet(); if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; } display(null); }
+            if (newScene != null) { MediaPlayerFactory.guideContextProperty().addListener(listener); epgSubscription = EpgChangeNotifications.subscribe(EpgChangeNotifications.snapshot().revision(), event -> { var context = MediaPlayerFactory.guideContextProperty().get(); if (context != null && context.account() != null && context.channel() != null && event.affects(context.account().dbId(), context.channel().getChannelId())) Platform.runLater(this::cacheChanged); }); refresh(MediaPlayerFactory.guideContextProperty().get(), true); clock.play(); }
         });
     }
 
@@ -80,9 +87,12 @@ public class PlayerEpgUI extends VBox {
             refresh(MediaPlayerFactory.guideContextProperty().get(), false);
             return;
         }
-        if (getScene() == null || cacheRefresh.getStatus() == javafx.animation.Animation.Status.RUNNING) return;
-        long elapsed = lastReadNanos == 0 ? CACHE_READ_INTERVAL_MS : TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lastReadNanos);
-        cacheRefresh.setDuration(javafx.util.Duration.millis(Math.max(1000, CACHE_READ_INTERVAL_MS - elapsed)));
+        if (getScene() == null) return;
+        if (guideWorker != null) pendingChange = true;
+        long elapsed = lastReadNanos == 0 ? CACHE_READ_INTERVAL_MS
+                : java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lastReadNanos);
+        cacheRefresh.setDuration(javafx.util.Duration.millis(Math.max(CHANGE_COALESCE_MS,
+                CACHE_READ_INTERVAL_MS - elapsed)));
         cacheRefresh.playFromStart();
     }
 
@@ -98,17 +108,14 @@ public class PlayerEpgUI extends VBox {
         boolean changed = contextEvent && !sameChannel(context);
         if (changed || !EpgModeUI.isFeatureEnabled() || context == null || context.account() == null
                 || context.channel() == null || context.account().action() != com.uiptv.model.Account.AccountAction.itv) {
-            generation.incrementAndGet(); cacheRefresh.stop(); lastReadNanos = 0;
+            generation.incrementAndGet(); cacheRefresh.stop(); boundaryWake.stop(); lastReadNanos = 0;
             if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; }
             activeContext = context;
             MediaPlayerFactory.publishGuideSummary(null); display(null);
             if (!EpgModeUI.isFeatureEnabled() || context == null || context.account() == null || context.channel() == null
                     || context.account().action() != com.uiptv.model.Account.AccountAction.itv) return;
         }
-        if (guideWorker != null || lastReadNanos != 0
-                && TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lastReadNanos) < CACHE_READ_INTERVAL_MS) {
-            cacheChanged(); return;
-        }
+        if (guideWorker != null) { pendingChange = true; return; }
         cacheRefresh.stop(); activeContext = context; lastReadNanos = System.nanoTime();
         int request = generation.incrementAndGet();
         guideWorker = Thread.ofVirtual().start(() -> {
@@ -127,6 +134,10 @@ public class PlayerEpgUI extends VBox {
         if (!succeeded) return; // Keep the current panel stable during a transient read failure.
         if (!Objects.equals(MediaPlayerFactory.guideSummaryProperty().get(), result)) MediaPlayerFactory.publishGuideSummary(result);
         display(result);
+        if (pendingChange) {
+            pendingChange = false;
+            cacheChanged();
+        }
     }
 
     private void updateProgress() {
@@ -140,6 +151,7 @@ public class PlayerEpgUI extends VBox {
         boolean available = result != null && (result.now() != null || result.next() != null);
         setVisible(available); setManaged(available);
         if (!available) {
+            boundaryWake.stop();
             displayed = null; heading.setText("");
             for (Label label : new Label[]{nowTitle, nowTime, nowDescription, nextTitle, nextTime, nextDescription}) label.setText("");
             progress.setProgress(0); closeDetails(); return;
@@ -153,6 +165,15 @@ public class PlayerEpgUI extends VBox {
         programme(result.next(), I18n.tr("epgNext"), nextTitle, nextTime, nextDescription);
         updateProgress();
         updateDescriptions(); sizeCards();
+        scheduleBoundaryWake(result);
+    }
+
+    private void scheduleBoundaryWake(PlayerEpgApplicationService.Result result) {
+        long now = System.currentTimeMillis();
+        long boundary = result.now() != null ? result.now().stop() : result.next() == null ? 0 : result.next().start();
+        if (boundary <= now) boundary = now + 250;
+        boundaryWake.setDuration(javafx.util.Duration.millis(Math.min(boundary - now, Integer.MAX_VALUE)));
+        boundaryWake.playFromStart();
     }
 
     private void programme(EpgProgramme programme, String prefix, Label title, Label time, Label description) {
@@ -179,7 +200,7 @@ public class PlayerEpgUI extends VBox {
 
     private void updateDescriptions() {
         for (Label description : new Label[]{nowDescription, nextDescription}) {
-            boolean visible = !compact && !description.getText().isBlank() && description.getText().length() <= 220;
+            boolean visible = !description.getText().isBlank();
             description.setVisible(visible); description.setManaged(visible);
         }
         updateDetailsLink(nowDetails, nowDescription);

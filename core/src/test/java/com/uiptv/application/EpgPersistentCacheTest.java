@@ -115,7 +115,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
             http.verifyNoInteractions();
         }
         try(var connection=DriverManager.getConnection("jdbc:sqlite:"+EpgCacheDb.path());var statement=connection.createStatement();var tables=statement.executeQuery("SELECT count(*) FROM sqlite_master WHERE type='table' AND name LIKE 'epg_%'")) {
-            assertTrue(tables.next()); assertEquals(7,tables.getInt(1));
+            assertTrue(tables.next()); assertEquals(9,tables.getInt(1));
         }
         channel.setDbId("rebuilt-local-row"); assertFalse(cache.schedule(account,channel).isEmpty(),"Provider identity survives catalog row replacement");
     }

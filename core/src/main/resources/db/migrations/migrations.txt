@@ -92,3 +92,4 @@
 0212_add_epg_name_exclusions.sql
 0213_expand_epg_name_exclusions.sql
 0214_add_shared_epg_sources.sql
+0215_add_epg_change_journal.sql

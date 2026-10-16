@@ -1,6 +1,7 @@
 package com.uiptv.service;
 
 import com.uiptv.db.DatabasePatchesUtils;
+import com.uiptv.db.SQLConnection;
 import com.uiptv.service.remotesync.SecureTempFileSupport;
 import org.json.JSONObject;
 
@@ -97,6 +98,9 @@ public class DatabaseBackupArchiveService {
             stageRestoreDatabase(sourceBackup, stagedDatabase);
             migrateAndValidate(stagedDatabase);
             replaceLiveDatabase(stagedDatabase, targetDatabase);
+            if (Path.of(SQLConnection.getDatabasePath()).toAbsolutePath().normalize()
+                    .equals(targetDatabase.toAbsolutePath().normalize()))
+                com.uiptv.application.EpgChangeNotifications.databaseRestored();
             return new BackupArchiveReport(
                     sourceBackup.toAbsolutePath().toString(),
                     Files.size(targetDatabase),

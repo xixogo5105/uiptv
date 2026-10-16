@@ -15,8 +15,8 @@ public class EpgCacheRefreshService {
     }
     private static final long FAILURE_MS=TimeUnit.MINUTES.toMillis(5);
     private static final Object COMMIT_LOCK=new Object();
-    private static final AtomicLong EPOCH=new AtomicLong(), REVISION=new AtomicLong();
-    private static final CopyOnWriteArraySet<Runnable> LISTENERS=new CopyOnWriteArraySet<>();
+    private static final AtomicLong EPOCH=new AtomicLong();
+    private static final Map<Runnable,EpgChangeNotifications.Subscription> LEGACY_LISTENERS=new ConcurrentHashMap<>();
     private static ScheduledExecutorService scheduler;
     private static boolean applicationOwned;
     public static synchronized void startApplication() { applicationOwned=true; start(); }
@@ -77,16 +77,21 @@ public class EpgCacheRefreshService {
     private static void commit(Token token,Runnable write) {
         synchronized(COMMIT_LOCK) { if(current(token)) write.run(); }
     }
-    private static void changed() { REVISION.incrementAndGet(); LISTENERS.forEach(Runnable::run); }
-    public static long revision() { return REVISION.get(); }
-    public static void addListener(Runnable listener) { LISTENERS.add(listener); }
-    public static void removeListener(Runnable listener) { LISTENERS.remove(listener); }
+    public static long revision() { return EpgChangeNotifications.snapshot().revision(); }
+    public static void addListener(Runnable listener) {
+        LEGACY_LISTENERS.computeIfAbsent(listener, key -> EpgChangeNotifications.subscribe(revision(), _ -> key.run()));
+    }
+    public static void removeListener(Runnable listener) {
+        var subscription = LEGACY_LISTENERS.remove(listener);
+        if (subscription != null) subscription.close();
+    }
 
     private static volatile boolean lifecycleStarted;
     private static final AtomicReference<Thread> RECONCILER=new AtomicReference<>();
     public static synchronized void start() {
         if(!lifecycleStarted) {
             lifecycleStarted=true;
+            EpgChangeNotifications.startExternalWatcher();
             ConfigurationService.getInstance().addChangeListener(CONFIG_CHANGED);
             AccountService.getInstance().addChangeListener(ACCOUNTS_CHANGED);
         }
@@ -131,6 +136,7 @@ public class EpgCacheRefreshService {
         synchronized (EpgCacheRefreshService.class) {
             if (serverOnly && applicationOwned) return;
             lifecycleStarted = false;
+            EpgChangeNotifications.stopExternalWatcher();
             synchronized (VISIBLE) { VISIBLE.clear(); }
             EPOCH.incrementAndGet();
             ConfigurationService.getInstance().removeChangeListener(CONFIG_CHANGED);
@@ -161,7 +167,6 @@ public class EpgCacheRefreshService {
             WORKERS.forEach(thread -> { if(thread!=Thread.currentThread()) thread.interrupt(); });
             new EpgCacheDb().clear();
         }
-        changed();
     }
     public void clearAndRefresh() {
         new EpgApplicationService().clearCache();
@@ -207,7 +212,6 @@ public class EpgCacheRefreshService {
             List<Channel> cachedChannels = ChannelDb.get().getCachedLiveChannels(account.getDbId());
             AtomicBoolean mapped = new AtomicBoolean();
             commit(token,() -> mapped.set(new EpgCacheDb().mapChannels(EpgCacheApplicationService.matches(account,cachedChannels,List.copyOf(cachedSources)),System.currentTimeMillis(),true)));
-            if (mapped.get()) changed();
         }
         // Publish shared XMLTV to every cached channel while native bookmark requests get priority.
         // Bulk native rotation follows only after each account has had its initial guide pass.
@@ -250,7 +254,6 @@ public class EpgCacheRefreshService {
     private void publishMappings(Account account,List<Channel> channels,List<String> sources,Token token) {
         AtomicBoolean mapped = new AtomicBoolean();
         commit(token,() -> mapped.set(new EpgCacheDb().mapChannels(EpgCacheApplicationService.matches(account,channels,sources),System.currentTimeMillis())));
-        if(current(token) && mapped.get()) changed();
     }
     private void refreshXml(Account account,List<Channel> channels,List<String> sources,Token token) {
         var loader = new EpgApplicationService();
@@ -267,7 +270,6 @@ public class EpgCacheRefreshService {
                 commit(token,() -> db.failed(id,now+FAILURE_MS,EpgApplicationService.warning(error)));
                 AppLog.addWarningLog(EpgCacheRefreshService.class,"EPG source refresh failed; retaining cached programmes.");
             }
-            if(current(token)) changed();
         }
     }
     private void refreshNative(Account account,List<Channel> channels,List<String> sources,Token token,int nativeBudget) {
@@ -290,11 +292,11 @@ public class EpgCacheRefreshService {
             if(EpgApplicationService.usable(programmes)) {
                 long coverage=programmes.stream().mapToLong(EpgProgramme::stop).max().orElse(now);
                 long retry=Math.min(now+refreshMillis(),Math.max(now+FAILURE_MS,coverage-FAILURE_MS));
-                commit(token,() -> db.replaceSource(id,Map.of(channel.getChannelId(),programmes),Map.of(),Map.of(),now,retry));
+                commit(token,() -> db.replaceSource(id,Map.of(channel.getChannelId(),programmes),Map.of(),Map.of(),Map.of(),now,retry,
+                        Set.of(new EpgChangeNotifications.ProviderIdentity(account.getDbId(), channel.getChannelId()))));
             }
             else commit(token,() -> db.failed(id,now+FAILURE_MS,"epgNoGuide"));
             commit(token,() -> db.mapChannels(EpgCacheApplicationService.matches(account,List.of(channel),sources),System.currentTimeMillis()));
-            if(current(token)) changed();
         }
         synchronized(CURSORS) { CURSORS.put(account.getDbId()+"|"+nativeBudget,(start+visited)%channels.size()); }
     }

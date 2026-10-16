@@ -387,6 +387,19 @@ public class DatabaseUtils {
                 new DataColumn("countries", "TEXT"),
                 new DataColumn("languages", "TEXT")
         )));
+        dbStructure.put(DbTable.EPG_CHANGE_STATE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn("revision", "INTEGER"),
+                new DataColumn("database_generation", "TEXT")
+        )));
+        dbStructure.put(DbTable.EPG_CHANGE_HISTORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("revision", "INTEGER"),
+                new DataColumn("database_generation", "TEXT"),
+                new DataColumn("kind", "TEXT"),
+                new DataColumn("source_ids", "TEXT"),
+                new DataColumn("guide_ids", "TEXT"),
+                new DataColumn("account_provider_ids", "TEXT")
+        )));
         KNOWN_TABLE_NAMES.addAll(dbStructure.keySet());
     }
 
@@ -485,7 +498,9 @@ public class DatabaseUtils {
         EPG_CHANNEL_MAPPING_TABLE("epg_channel_mapping"),
         EPG_CHANNEL_ICON_TABLE("epg_channel_icon"),
         EPG_NAME_EXCLUSION_TABLE("epg_name_exclusion"),
-        EPG_SHARED_SOURCE_TABLE("epg_shared_source");
+        EPG_SHARED_SOURCE_TABLE("epg_shared_source"),
+        EPG_CHANGE_STATE_TABLE("epg_change_state"),
+        EPG_CHANGE_HISTORY_TABLE("epg_change_history");
 
         private final String tableName;
 

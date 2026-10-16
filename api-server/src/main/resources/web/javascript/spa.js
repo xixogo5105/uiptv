@@ -4774,6 +4774,19 @@ createApp({
                 if (!document.hidden && epgEnabled.value && currentChannel.value) refreshPlayerEpg();
             }, 30 * 60000);
             window.addEventListener('beforeunload', () => window.clearInterval(scheduleRefreshTimer), {once: true});
+            if (typeof EventSource !== 'undefined') {
+                const epgEvents = new EventSource(`${window.location.origin}/epg-events`);
+                epgEvents.onmessage = () => {
+                    if (!document.hidden && epgEnabled.value) {
+                        refreshPlayerEpg();
+                        clearTimeout(cardEpgTimer);
+                        cardEpgGeneration++;
+                        visibleEpgCards.forEach(record => { record.refreshAt = 0; });
+                        cardEpgTimer = setTimeout(refreshVisibleCardEpg, 100);
+                    }
+                };
+                window.addEventListener('beforeunload', () => epgEvents.close(), {once: true});
+            }
             loadRecentBookmarkHistory();
             if (document.fullscreenEnabled) {
                 document.addEventListener('fullscreenchange', () => {
