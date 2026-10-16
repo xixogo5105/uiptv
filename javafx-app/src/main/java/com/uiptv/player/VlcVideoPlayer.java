@@ -38,6 +38,8 @@ import org.apache.http.client.utils.URIBuilder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -65,6 +67,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private String lastStreamInfoLabel = "";
     private final AtomicLong audioStateRequestVersion = new AtomicLong();
     private final AtomicLong mediaRequestVersion = new AtomicLong();
+    private final AtomicLong lifecycleSequence = new AtomicLong();
 
     public VlcVideoPlayer() {
         this(null);
@@ -95,6 +98,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             configureEmbeddedPlayer();
             mediaPlayerEvents = createMediaPlayerEvents();
             mediaPlayer.events().addMediaPlayerEventListener(mediaPlayerEvents);
+            vlcDiagnostic("INITIALIZED player=" + identity(mediaPlayer)
+                    + " factory=" + identity(mediaPlayerFactory)
+                    + " surface=" + identity(renderingSurface));
         }
     }
 
@@ -540,8 +546,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                         if (playbackRequestVersion != mediaRequestVersion.get()
                                 || isDisposed.get() || mediaPlayer != player) {
                             stopNativePlayback(player);
-                            com.uiptv.util.AppLog.addInfoLog(VlcVideoPlayer.class,
-                                    "VLC stale start stopped request=" + playbackRequestVersion);
+                            vlcDiagnostic("STALE_START_STOPPED request=" + playbackRequestVersion
+                                    + " player=" + identity(player));
                         } else {
                             scheduleAudioStateStartupSync(audioRequestVersion);
                         }
@@ -604,7 +610,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void disposeMedia() {
-        mediaRequestVersion.incrementAndGet();
+        long stopSequence = lifecycleSequence.incrementAndGet();
+        long invalidatedRequest = mediaRequestVersion.incrementAndGet();
         audioStateRequestVersion.incrementAndGet();
         Future<?> task = playbackTask;
         playbackTask = null;
@@ -619,10 +626,12 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         EmbeddedMediaPlayer playerToCleanup;
         MediaPlayerFactory factoryToCleanup;
         MediaPlayerEventAdapter eventsToCleanup;
+        VlcImageViewVideoSurface surfaceToCleanup;
         synchronized (playerLock) {
             playerToCleanup = mediaPlayer;
             factoryToCleanup = mediaPlayerFactory;
             eventsToCleanup = mediaPlayerEvents;
+            surfaceToCleanup = renderingSurface;
             if (renderingSurface != null) {
                 renderingSurface.disable();
                 renderingSurface = null;
@@ -631,11 +640,22 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             mediaPlayerEvents = null;
             mediaPlayerFactory = null;
         }
+        vlcDiagnostic("STOP_BEGIN sequence=" + stopSequence
+                + " invalidatedRequest=" + invalidatedRequest
+                + " player=" + identity(playerToCleanup)
+                + " factory=" + identity(factoryToCleanup)
+                + " events=" + identity(eventsToCleanup)
+                + " surface=" + identity(surfaceToCleanup)
+                + " surfaceStats=" + (surfaceToCleanup == null ? "none" : surfaceToCleanup.stats()));
         detachNativeRendering(playerToCleanup, eventsToCleanup);
         // Stop immediately before queuing release. A native media.play() call can block while
         // opening a live stream; if stop were only queued behind it, hiding the JavaFX node would
         // leave libVLC decoding/networking until that call happened to return.
         stopNativePlayback(playerToCleanup);
+        vlcDiagnostic("STOP_AFTER_NATIVE_STOP sequence=" + stopSequence
+                + " player=" + identity(playerToCleanup)
+                + " surfaceStats=" + (surfaceToCleanup == null ? "none" : surfaceToCleanup.stats()));
+        scheduleStopDiagnostics(stopSequence, invalidatedRequest, playerToCleanup, surfaceToCleanup);
 
         // Serialize release with native startup, never with HTTP playlist resolution.
         // The UI detaches immediately; playbackReady lets URL resolution await cleanup off-thread.
@@ -646,6 +666,29 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         videoSourceWidth = 0;
         videoSourceHeight = 0;
         lastStreamInfoLabel = "";
+    }
+
+    private void scheduleStopDiagnostics(long stopSequence, long invalidatedRequest,
+                                         EmbeddedMediaPlayer stoppedPlayer,
+                                         VlcImageViewVideoSurface stoppedSurface) {
+        for (long delaySeconds : new long[]{2, 10}) {
+            CompletableFuture.delayedExecutor(delaySeconds, TimeUnit.SECONDS).execute(() ->
+                    vlcDiagnostic("STOP_CHECK +" + delaySeconds + "s sequence=" + stopSequence
+                            + " invalidatedRequest=" + invalidatedRequest
+                            + " currentPlayer=" + identity(mediaPlayer)
+                            + " stoppedPlayer=" + identity(stoppedPlayer)
+                            + " samePlayer=" + (mediaPlayer == stoppedPlayer)
+                            + " surfaceStats=" + (stoppedSurface == null ? "none" : stoppedSurface.stats())
+                            + " activeThreads=" + Thread.activeCount()));
+        }
+    }
+
+    private static String identity(Object value) {
+        return value == null ? "null" : value.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(value));
+    }
+
+    private static void vlcDiagnostic(String message) {
+        com.uiptv.util.AppLog.addWarningLog(VlcVideoPlayer.class, "[VLC-DIAG] " + message);
     }
 
     private void detachNativeRendering(EmbeddedMediaPlayer player, MediaPlayerEventAdapter events) {
@@ -686,6 +729,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 @Override public BufferFormat getBufferFormat(int width, int height) {
                     gate.sourceWidth = width;
                     gate.sourceHeight = height;
+                    gate.formatCalls.incrementAndGet();
                     return new RV32BufferFormat(width, height);
                 }
                 @Override public void newFormatSize(int bufferWidth, int bufferHeight, int displayWidth, int displayHeight) { }
@@ -694,19 +738,49 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     PixelBuffer<ByteBuffer> next = new PixelBuffer<>(gate.sourceWidth, gate.sourceHeight,
                             buffers[0], PixelFormat.getByteBgraPreInstance());
                     gate.pixelBuffer = next;
+                    gate.bufferAllocations.incrementAndGet();
+                    vlcDiagnostic("SURFACE_ALLOCATED surface=" + identity(this)
+                            + " size=" + gate.sourceWidth + "x" + gate.sourceHeight);
                     Platform.runLater(() -> {
-                        if (gate.enabled.get() && gate.pixelBuffer == next) imageView.setImage(new WritableImage(next));
+                        if (gate.enabled.get() && gate.pixelBuffer == next) {
+                            gate.fxImageUpdates.incrementAndGet();
+                            imageView.setImage(new WritableImage(next));
+                        } else {
+                            gate.fxImageUpdatesAfterDisable.incrementAndGet();
+                        }
                     });
                 }
             }, new RenderCallback() {
                 @Override public void lock(MediaPlayer mediaPlayer) { }
                 @Override public void display(MediaPlayer mediaPlayer, ByteBuffer[] nativeBuffers,
                                               BufferFormat bufferFormat, int displayWidth, int displayHeight) {
-                    if (!gate.enabled.get() || gate.pixelBuffer == null || !gate.updateQueued.compareAndSet(false, true)) return;
+                    long display = gate.displayCalls.incrementAndGet();
+                    if (!gate.enabled.get()) {
+                        long afterDisable = gate.displayCallsAfterDisable.incrementAndGet();
+                        if (afterDisable == 1 || afterDisable % 300 == 0) {
+                            vlcDiagnostic("SURFACE_FRAME_AFTER_DISABLE count=" + afterDisable
+                                    + " total=" + display + " surface=" + identity(this));
+                        }
+                        return;
+                    }
+                    if (gate.pixelBuffer == null || !gate.updateQueued.compareAndSet(false, true)) {
+                        gate.coalescedFrames.incrementAndGet();
+                        return;
+                    }
+                    if (display <= 3 || display % 300 == 0) {
+                        vlcDiagnostic("SURFACE_FRAME display=" + display
+                                + " coalesced=" + gate.coalescedFrames.get()
+                                + " surface=" + identity(this));
+                    }
                     Platform.runLater(() -> {
                         try {
                             PixelBuffer<ByteBuffer> current = gate.pixelBuffer;
-                            if (gate.enabled.get() && current != null) current.updateBuffer(_ -> null);
+                            if (gate.enabled.get() && current != null) {
+                                gate.fxBufferUpdates.incrementAndGet();
+                                current.updateBuffer(_ -> null);
+                            } else {
+                                gate.fxBufferUpdatesAfterDisable.incrementAndGet();
+                            }
                         } finally {
                             gate.updateQueued.set(false);
                         }
@@ -721,11 +795,35 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             gate.enabled.set(false);
             gate.pixelBuffer = null;
             gate.updateQueued.set(false);
+            vlcDiagnostic("SURFACE_DISABLED surface=" + identity(this) + " stats=" + stats());
+        }
+
+        private String stats() {
+            return "enabled=" + gate.enabled.get()
+                    + ",format=" + gate.formatCalls.get()
+                    + ",alloc=" + gate.bufferAllocations.get()
+                    + ",display=" + gate.displayCalls.get()
+                    + ",afterDisable=" + gate.displayCallsAfterDisable.get()
+                    + ",coalesced=" + gate.coalescedFrames.get()
+                    + ",fxBuffer=" + gate.fxBufferUpdates.get()
+                    + ",fxAfterDisable=" + gate.fxBufferUpdatesAfterDisable.get()
+                    + ",fxImage=" + gate.fxImageUpdates.get()
+                    + ",fxImageAfterDisable=" + gate.fxImageUpdatesAfterDisable.get()
+                    + ",queued=" + gate.updateQueued.get();
         }
 
         private static final class RenderGate {
             private final AtomicBoolean enabled = new AtomicBoolean(true);
             private final AtomicBoolean updateQueued = new AtomicBoolean();
+            private final AtomicLong formatCalls = new AtomicLong();
+            private final AtomicLong bufferAllocations = new AtomicLong();
+            private final AtomicLong displayCalls = new AtomicLong();
+            private final AtomicLong displayCallsAfterDisable = new AtomicLong();
+            private final AtomicLong coalescedFrames = new AtomicLong();
+            private final AtomicLong fxBufferUpdates = new AtomicLong();
+            private final AtomicLong fxBufferUpdatesAfterDisable = new AtomicLong();
+            private final AtomicLong fxImageUpdates = new AtomicLong();
+            private final AtomicLong fxImageUpdatesAfterDisable = new AtomicLong();
             private volatile PixelBuffer<ByteBuffer> pixelBuffer;
             private volatile int sourceWidth;
             private volatile int sourceHeight;
@@ -736,11 +834,15 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (player == null) {
             return;
         }
+        vlcDiagnostic("NATIVE_STOP_CALL_BEGIN player=" + identity(player)
+                + " thread=" + Thread.currentThread().getName());
         try {
             player.controls().stop();
-            com.uiptv.util.AppLog.addInfoLog(VlcVideoPlayer.class, "VLC stop request issued");
+            vlcDiagnostic("NATIVE_STOP_CALL_END player=" + identity(player)
+                    + " thread=" + Thread.currentThread().getName());
         } catch (Exception failure) {
-            com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VLC stop request failed", failure);
+            com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class,
+                    "[VLC-DIAG] NATIVE_STOP_CALL_FAILED player=" + identity(player), failure);
         }
     }
 
@@ -750,6 +852,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void releaseNativePlayer(EmbeddedMediaPlayer playerToCleanup, MediaPlayerFactory factoryToCleanup) {
+        vlcDiagnostic("RELEASE_BEGIN player=" + identity(playerToCleanup)
+                + " factory=" + identity(factoryToCleanup)
+                + " thread=" + Thread.currentThread().getName());
         if (playerToCleanup != null) {
             stopNativePlayback(playerToCleanup);
             try {
@@ -759,6 +864,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             }
             try {
                 playerToCleanup.release();
+                vlcDiagnostic("PLAYER_RELEASED player=" + identity(playerToCleanup));
             } catch (Exception _) {
                 // Best-effort: native VLC release can fail after partial teardown.
             }
@@ -766,10 +872,13 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (factoryToCleanup != null) {
             try {
                 factoryToCleanup.release();
+                vlcDiagnostic("FACTORY_RELEASED factory=" + identity(factoryToCleanup));
             } catch (Exception _) {
                 // Best-effort: factory cleanup should not block UI disposal.
             }
         }
+        vlcDiagnostic("RELEASE_END player=" + identity(playerToCleanup)
+                + " factory=" + identity(factoryToCleanup));
     }
 
     private void clearVideoImage() {
