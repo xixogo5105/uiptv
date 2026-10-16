@@ -46,6 +46,7 @@ Release assets are currently published for Windows (x86_64), Linux (x86_64 and a
 - EPG Builder implementation review: [docs/EPG_BUILDER_REVIEW.md](docs/EPG_BUILDER_REVIEW.md)
 - Channel-name exclusion audit: [docs/epg-name-exclusions.md](docs/epg-name-exclusions.md)
 - EPG Builder usage guide: [python/util/epg_builder/README.md](python/util/epg_builder/README.md)
+- EPG Builder build and packaging: [Build and install](python/util/epg_builder/README.md#build-and-install)
 - EPG Builder configuration reference: [python/util/epg_builder/CONFIGURATION.md](python/util/epg_builder/CONFIGURATION.md)
 
 ## Project Layout
