@@ -595,13 +595,16 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
         EmbeddedMediaPlayer playerToCleanup;
         MediaPlayerFactory factoryToCleanup;
+        MediaPlayerEventAdapter eventsToCleanup;
         synchronized (playerLock) {
             playerToCleanup = mediaPlayer;
             factoryToCleanup = mediaPlayerFactory;
+            eventsToCleanup = mediaPlayerEvents;
             mediaPlayer = null;
             mediaPlayerEvents = null;
             mediaPlayerFactory = null;
         }
+        detachNativeRendering(playerToCleanup, eventsToCleanup);
         // Stop immediately before queuing release. A native media.play() call can block while
         // opening a live stream; if stop were only queued behind it, hiding the JavaFX node would
         // leave libVLC decoding/networking until that call happened to return.
@@ -616,6 +619,24 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         videoSourceWidth = 0;
         videoSourceHeight = 0;
         lastStreamInfoLabel = "";
+    }
+
+    private void detachNativeRendering(EmbeddedMediaPlayer player, MediaPlayerEventAdapter events) {
+        if (player == null) {
+            return;
+        }
+        if (events != null) {
+            try {
+                player.events().removeMediaPlayerEventListener(events);
+            } catch (Exception _) {
+                // Best-effort: teardown must continue even if VLC is already closing.
+            }
+        }
+        try {
+            player.videoSurface().set(null);
+        } catch (Exception _) {
+            // Best-effort: the surface can already be detached during native teardown.
+        }
     }
 
     private void stopNativePlayback(EmbeddedMediaPlayer player) {
