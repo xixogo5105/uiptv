@@ -70,9 +70,22 @@ public final class EpgModeUI {
         ChangeListener<Boolean> listener=(_,_,_) -> refresh.run();
         ChangeListener<Number> cacheListener=(_,_,_) -> refresh.run();
         owner.sceneProperty().addListener((_,oldScene,newScene) -> {
-            if(oldScene!=null) { featureEnabled.removeListener(listener); if(cacheUpdates) cacheRevision.removeListener(cacheListener); }
-            if(newScene!=null) { featureEnabled.addListener(listener); if(cacheUpdates) cacheRevision.addListener(cacheListener); refresh.run(); }
+            if(oldScene!=null) {
+                featureEnabled.removeListener(listener);
+                playbackOnly.removeListener(listener);
+                if(cacheUpdates) cacheRevision.removeListener(cacheListener);
+            }
+            if(newScene!=null) {
+                featureEnabled.addListener(listener);
+                playbackOnly.addListener(listener);
+                if(cacheUpdates) cacheRevision.addListener(cacheListener);
+                refresh.run();
+            }
         });
-        if(owner.getScene()!=null) { featureEnabled.addListener(listener); if(cacheUpdates) cacheRevision.addListener(cacheListener); }
+        if(owner.getScene()!=null) {
+            featureEnabled.addListener(listener);
+            playbackOnly.addListener(listener);
+            if(cacheUpdates) cacheRevision.addListener(cacheListener);
+        }
     }
 }
