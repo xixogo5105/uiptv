@@ -57,15 +57,15 @@ public final class PlayerGuideOverlay extends StackPane {
         // it as the availability gate makes the control disappear during the
         // normal loading window (and whenever the adjacent EPG panel is not
         // mounted). Opening the guide performs its own schedule load.
-        boolean available = EpgModeUI.isFeatureEnabled()
-                && MediaPlayerFactory.guideContextProperty().get() != null;
+        boolean available = MediaPlayerFactory.guideContextProperty().get() != null
+                && (EpgModeUI.isFeatureEnabled() || MediaPlayerFactory.guideSummaryProperty().get() != null);
         button.setVisible(available); button.setManaged(available);
         if (!available) close();
     }
 
     private void open() {
         var context = MediaPlayerFactory.guideContextProperty().get();
-        if (context == null || !EpgModeUI.isFeatureEnabled()) return;
+        if (context == null || (!EpgModeUI.isFeatureEnabled() && MediaPlayerFactory.guideSummaryProperty().get() == null)) return;
         close(); int request = ++generation;
         Button cancel = new com.uiptv.widget.CloseIconButton(I18n.tr("autoClose")); cancel.getStyleClass().add("epg-guide-action"); cancel.setOnAction(_ -> close());
         VBox loading = new VBox(10, cancel, new Label(I18n.tr("epgLoading")));

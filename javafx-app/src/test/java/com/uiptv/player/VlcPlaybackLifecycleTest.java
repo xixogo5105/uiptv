@@ -64,7 +64,8 @@ class VlcPlaybackLifecycleTest extends DbBackedUiTest {
         when(nativePlayer.media().play(anyString(), any(String[].class))).thenAnswer(_ -> {
             entered.countDown(); assertTrue(finishStart.await(5, TimeUnit.SECONDS)); return true;
         });
-        doAnswer(_ -> { stopIssued.countDown(); return null; }).when(nativePlayer.controls()).stop();
+        var controls = nativePlayer.controls();
+        doAnswer(_ -> { stopIssued.countDown(); return null; }).when(controls).stop();
         VlcVideoPlayer player = runOnFxThread(() -> new VlcVideoPlayer(() -> factory));
         try {
             runOnFxThread(() -> { player.play(new PlayerResponse("file:///test-stream.ts")); return null; });

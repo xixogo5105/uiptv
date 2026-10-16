@@ -306,9 +306,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         buttonRow.setAlignment(Pos.CENTER_LEFT);
         SVGPath guideIcon = new SVGPath();
         guideIcon.setContent("M2 2H14V14H2Z M5 5H11 M5 8H11 M5 11H9");
+        guideIcon.setScaleX(1.15);
+        guideIcon.setScaleY(1.15);
         guideIcon.getStyleClass().add("player-guide-icon");
         btnGuide = createIconButton(guideIcon);
         btnGuide.getStyleClass().add("player-guide-button");
+        btnGuide.setText(I18n.tr("epgOpenGuide"));
         // Keep the guide beside the primary transport controls. The control row is
         // intentionally capped in width; placing it after the flexible spacer and
         // volume/track controls allowed it to be laid out beyond the visible bar.

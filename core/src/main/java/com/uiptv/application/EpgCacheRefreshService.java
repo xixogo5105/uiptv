@@ -44,6 +44,7 @@ public class EpgCacheRefreshService {
     }
     private static final Set<Thread> WORKERS=ConcurrentHashMap.newKeySet();
     private static final AtomicBoolean QUEUED=new AtomicBoolean();
+    private static final AtomicBoolean IMMEDIATE_REQUESTED=new AtomicBoolean();
     private static final java.util.concurrent.atomic.AtomicInteger CATALOGUE_RELOADS = new java.util.concurrent.atomic.AtomicInteger();
     public static CataloguePause pauseForCatalogueReload() {
         CATALOGUE_RELOADS.incrementAndGet();
@@ -126,7 +127,11 @@ public class EpgCacheRefreshService {
                     if (!enabled) stopTimer();
                     else if (scheduler == null || scheduler.isShutdown()) {
                         scheduler = Executors.newSingleThreadScheduledExecutor(r -> { Thread thread = new Thread(r,"epg-cache-refresh"); thread.setDaemon(true); return thread; });
-                        scheduler.scheduleWithFixedDelay(EpgCacheRefreshService::runScheduled,0,60,TimeUnit.SECONDS);
+                        // Do not compete with catalogue loading and first-paint. Visible cards
+                        // still wake the scheduler immediately through requestRefresh(); this
+                        // delay only moves the broad account sweep out of application startup.
+                        long initialDelay = IMMEDIATE_REQUESTED.getAndSet(false) ? 0 : 15;
+                        scheduler.scheduleWithFixedDelay(EpgCacheRefreshService::runScheduled,initialDelay,60,TimeUnit.SECONDS);
                     }
                 }
             } catch (DatabaseAccessException error) {
@@ -186,7 +191,12 @@ public class EpgCacheRefreshService {
     }
     /** Wake a running scheduler, but never create an unmanaged worker from a read path. */
     public static synchronized void requestRefresh() {
-        if(scheduler==null || scheduler.isShutdown() || !QUEUED.compareAndSet(false,true)) return;
+        if (scheduler == null || scheduler.isShutdown()) {
+            IMMEDIATE_REQUESTED.set(true);
+            if (lifecycleStarted) reconcileSoon();
+            return;
+        }
+        if(!QUEUED.compareAndSet(false,true)) return;
         scheduler.execute(() -> { QUEUED.set(false); runScheduled(); });
     }
     static void invalidate() {

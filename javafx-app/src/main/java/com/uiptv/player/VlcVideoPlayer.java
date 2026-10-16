@@ -38,6 +38,7 @@ import org.apache.http.client.utils.URIBuilder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -52,6 +53,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         t.setDaemon(true);
         return t;
     });
+    /** Native stop may race a blocked libVLC start, but never blocks JavaFX. */
+    private final ExecutorService nativeStopExecutor = Executors.newVirtualThreadPerTaskExecutor();
     private final java.util.function.Supplier<MediaPlayerFactory> nativeFactory;
     private MediaPlayerFactory mediaPlayerFactory;
     private volatile EmbeddedMediaPlayer mediaPlayer;
@@ -612,7 +615,10 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         Future<?> nativeTask = nativePlaybackTask;
         nativePlaybackTask = null;
         if (nativeTask != null) {
-            nativeTask.cancel(true);
+            // Never interrupt libVLC while media.play() is inside native code.
+            // The separate stop request below wakes it safely; release remains
+            // serialized behind the native start on nativeExecutor.
+            nativeTask.cancel(false);
         }
         EmbeddedMediaPlayer playerToCleanup;
         MediaPlayerFactory factoryToCleanup;
@@ -635,7 +641,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         // Stop immediately before queuing release. A native media.play() call can block while
         // opening a live stream; if stop were only queued behind it, hiding the JavaFX node would
         // leave libVLC decoding/networking until that call happened to return.
-        stopNativePlayback(playerToCleanup);
+        requestNativeStop(playerToCleanup);
 
         // Serialize release with native startup, never with HTTP playlist resolution.
         // The UI detaches immediately; playbackReady lets URL resolution await cleanup off-thread.
@@ -752,6 +758,17 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
     }
 
+    private void requestNativeStop(EmbeddedMediaPlayer player) {
+        if (player == null) {
+            return;
+        }
+        try {
+            nativeStopExecutor.submit(() -> stopNativePlayback(player));
+        } catch (RejectedExecutionException _) {
+            // The serialized release path performs a final stop before release.
+        }
+    }
+
     @Override
     public java.util.concurrent.CompletionStage<Void> playbackReady() {
         return java.util.concurrent.CompletableFuture.runAsync(this::ensurePlayerInitialized, nativeExecutor);
@@ -794,6 +811,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             super.disposePlayer();
         } finally {
             playExecutor.shutdownNow();
+            nativeStopExecutor.shutdown();
             nativeExecutor.shutdown(); // Drain queued native releases rather than discarding them.
         }
     }
