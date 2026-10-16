@@ -185,6 +185,14 @@ public class ProgressInline extends BorderPane {
         }, pauseLabel.fontProperty()));
         pauseLabel.setMinWidth(Region.USE_PREF_SIZE);
         pauseLabel.setMaxWidth(Region.USE_PREF_SIZE);
+        // Reserve a fixed slot for the whole widget (clock + "Paused: Ns" + padding) so the widgets to its
+        // right never shift when the timer appears or disappears.
+        pauseWidget.minWidthProperty().bind(javafx.beans.binding.Bindings.createDoubleBinding(() -> {
+            Text sample = new Text(I18n.tr("autoPausedSeconds", 8888));
+            sample.setFont(pauseLabel.getFont());
+            return Math.ceil(sample.getLayoutBounds().getWidth()) + 24 + 10 + 18;
+        }, pauseLabel.fontProperty()));
+        pauseWidget.setPrefWidth(Region.USE_PREF_SIZE);
         pauseWidget.setVisible(false);
 
         Label delayLabel = new Label(I18n.tr("autoDelay"));
