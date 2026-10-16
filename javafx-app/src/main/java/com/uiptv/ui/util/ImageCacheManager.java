@@ -53,8 +53,12 @@ public class ImageCacheManager {
     private static final long NEGATIVE_CACHE_MS_404 = 5L * 60L * 1000L;
     private static final long NEGATIVE_CACHE_MS_ERROR = 15L * 1000L;
     private static final long NEGATIVE_CACHE_MS_429_DEFAULT = 90L * 1000L;
-    private static final long MAX_MEMORY_IMAGE_BYTES = 48L * 1024 * 1024;
-    private static final int MAX_MEMORY_IMAGES = Integer.getInteger("uiptv.image.cache.max.entries", 512);
+    // Thumbnails are decoded into native JavaFX image storage as well as Java
+    // objects. Keep the process-wide cache deliberately small; disk cache and
+    // the normal async reload path still avoid repeated network work.
+    private static final long MAX_MEMORY_IMAGE_BYTES = Long.getLong(
+            "uiptv.image.cache.max.bytes", 24L * 1024 * 1024);
+    private static final int MAX_MEMORY_IMAGES = Integer.getInteger("uiptv.image.cache.max.entries", 256);
     private static final int MAX_IMAGE_DECODE_WIDTH = Integer.getInteger("uiptv.image.decode.max.width", 640);
     private static final int MAX_IMAGE_DECODE_HEIGHT = Integer.getInteger("uiptv.image.decode.max.height", 640);
     private static final int MAX_IMAGE_DOWNLOAD_BYTES = Math.max(64 * 1024,
