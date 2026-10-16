@@ -3508,6 +3508,7 @@ createApp({
             const isSafari = /Safari/i.test(userAgent) && !/Chrome|CriOS|Chromium|Edg|OPR|Firefox|FxiOS/i.test(userAgent);
             const canNative = Boolean(video.canPlayType('application/vnd.apple.mpegurl'));
             const hasDRM = channel.drm != null;
+            const strategyHint = String(channel.strategyHint || '').trim().toUpperCase();
             const normalizedUri = String(uri || '').toLowerCase();
             const manifestType = String(channel?.drm?.manifestType || channel?.manifestType || '').toLowerCase();
             const isTs = isTsLikeUrl(normalizedUri, manifestType);
@@ -3516,6 +3517,16 @@ createApp({
                 || normalizedUri.includes('.m3u8')
                 || normalizedUri.includes('.m3u?');
             const prefersNativeHls = canNative && (isIos || isSafari);
+
+            // The server has already selected a CORS-safe local proxy for this
+            // account.  Use the browser's native HLS path first so transient
+            // CDN playlist staleness reaches loadNative's cache-busting retry
+            // instead of going through Shaka/Video.js first.
+            if (strategyHint === 'NATIVE_PROXY' && !hasDRM && !isTs) {
+                const proxyUrl = buildProxyStreamUrl(uri, channel.accountId) || uri;
+                await loadNative({...channel, url: proxyUrl}, requestId);
+                return;
+            }
 
             if (override === 'proxy') {
                 const proxyUrl = buildProxyStreamUrl(uri, channel.accountId) || uri;

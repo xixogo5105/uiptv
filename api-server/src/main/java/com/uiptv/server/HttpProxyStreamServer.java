@@ -394,6 +394,13 @@ public class HttpProxyStreamServer implements HttpHandler {
         upstreamHeaders.put("User-Agent", stalkerStyle ? MAG_USER_AGENT : USER_AGENT);
         upstreamHeaders.put(HEADER_ACCEPT, isBlank(forwardedHeaders.get(HEADER_ACCEPT)) ? "*/*" : forwardedHeaders.get(HEADER_ACCEPT));
         upstreamHeaders.put("Accept-Encoding", "identity");
+        if (isHlsPlaylistUrl(currentUrl)) {
+            // Live manifests must not be served from an intermediary's stale cache.
+            // A stale playlist can reference segments that have already expired,
+            // causing the browser player to fail before it reaches the live edge.
+            upstreamHeaders.put(HEADER_CACHE_CONTROL, "no-cache");
+            upstreamHeaders.put(HEADER_PRAGMA, "no-cache");
+        }
         if (stalkerStyle) {
             upstreamHeaders.put(HEADER_X_USER_AGENT, "Model: MAG250; Link: WiFi");
             upstreamHeaders.put(HEADER_PRAGMA, "no-cache");
@@ -408,6 +415,10 @@ public class HttpProxyStreamServer implements HttpHandler {
             upstreamHeaders.computeIfAbsent(HEADER_COOKIE, _ -> String.join("; ", cookies));
         }
         return upstreamHeaders;
+    }
+
+    private boolean isHlsPlaylistUrl(String url) {
+        return !isBlank(url) && url.toLowerCase().contains(".m3u8");
     }
 
     private void addStalkerCookieFromUrl(Map<String, String> upstreamHeaders, String currentUrl, List<String> cookies) {

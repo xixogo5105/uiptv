@@ -212,8 +212,12 @@ class HttpProxyStreamServerTest {
 
     @Test
     void rewritesHlsPlaylistUrisThroughProxy() throws Exception {
+        AtomicReference<String> upstreamCacheControl = new AtomicReference<>();
+        AtomicReference<String> upstreamPragma = new AtomicReference<>();
         upstreamServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         upstreamServer.createContext("/hls/master.m3u8", exchange -> {
+            upstreamCacheControl.set(exchange.getRequestHeaders().getFirst("Cache-Control"));
+            upstreamPragma.set(exchange.getRequestHeaders().getFirst("Pragma"));
             byte[] body = """
                     #EXTM3U
                     #EXT-X-STREAM-INF:BANDWIDTH=1000
@@ -244,6 +248,8 @@ class HttpProxyStreamServerTest {
         assertEquals(200, connection.getResponseCode());
         String body = new String(connection.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 
+        assertEquals("no-cache", upstreamCacheControl.get());
+        assertEquals("no-cache", upstreamPragma.get());
         assertTrue(body.contains(PROXY_PREFIX + URLEncoder.encode(upstreamBase + "/hls/tracks/mono.m3u8?token=abc", StandardCharsets.UTF_8)));
         assertTrue(body.contains("URI=\"" + PROXY_PREFIX + URLEncoder.encode(upstreamBase + "/hls/keys/key.bin", StandardCharsets.UTF_8) + "\""));
         assertTrue(body.contains(PROXY_PREFIX + URLEncoder.encode(upstreamBase + "/hls/segments/one.ts?token=abc", StandardCharsets.UTF_8)));
