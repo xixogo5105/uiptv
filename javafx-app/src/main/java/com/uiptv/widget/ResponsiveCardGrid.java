@@ -1181,12 +1181,6 @@ public class ResponsiveCardGrid<T> extends StackPane {
         activePlayingIndicatorGrid = new WeakReference<>(null);
         if (grid != null) {
             grid.clearActivatedItem();
-            com.uiptv.util.AppLog.addWarningLog(ResponsiveCardGrid.class,
-                    "[PLAYBACK-DIAG] cleared active playing-card indicator grid="
-                            + Integer.toHexString(System.identityHashCode(grid)));
-        } else {
-            com.uiptv.util.AppLog.addWarningLog(ResponsiveCardGrid.class,
-                    "[PLAYBACK-DIAG] stop requested with no active playing-card indicator");
         }
     }
 

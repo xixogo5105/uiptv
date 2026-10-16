@@ -19,11 +19,6 @@ public class PlayingCardIndicator extends StackPane {
         recordingDot.getStyleClass().add("playing-card-recording-dot");
         getChildren().add(recordingDot);
 
-        visibleProperty().addListener((_, _, visible) -> {
-            com.uiptv.util.AppLog.addWarningLog(PlayingCardIndicator.class,
-                    "[PLAYBACK-DIAG] static recording dot " + (visible ? "VISIBLE" : "HIDDEN")
-                            + " indicator=" + Integer.toHexString(System.identityHashCode(this)));
-        });
     }
 
     /** Kept for existing callers; the replacement recording dot never animates. */
