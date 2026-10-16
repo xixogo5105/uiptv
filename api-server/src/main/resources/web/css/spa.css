@@ -2227,8 +2227,8 @@ body:has(.content-shell:not(.wide-view) .player-epg-panel) {
 /* EPG stays inside the existing channel and bookmark cards. */
 .media-card:has(> .card-epg) { flex: 0 0 auto; }
 .media-card > .card-epg { grid-column: 1 / -1; grid-row: 2; }
-.card-epg { display: grid; gap: 3px; min-width: 0; margin-top: 8px; }
-.card-epg-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .85rem; }
+.card-epg { display: grid; gap: 4px; min-width: 0; margin-top: 14px; padding-top: 9px; border-top: 1px solid var(--outline-soft); color: var(--text); }
+.card-epg-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .85rem; color: var(--text); }
 .card-epg small { color: var(--muted); font-size: .75rem; }
 .card-epg progress { display: block; width: 100%; height: 4px; margin: 3px 0 5px; accent-color: var(--accent); }
 
@@ -2521,6 +2521,7 @@ body {
 }
 
 .player-epg-panel {
+    margin-top: 10px;
     padding: 16px;
     border-radius: var(--radius-md);
     border-color: var(--outline-soft);

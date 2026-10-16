@@ -36,7 +36,13 @@ public class BookmarkApplicationService {
     }
 
     public List<Bookmark> listBookmarks(int offset, int limit) {
-        List<Bookmark> bookmarks = new ArrayList<>(bookmarkService.read());
+        // Keep the paged web endpoint genuinely paged. Resolving the complete
+        // bookmark catalogue for every 25-item request made the SPA startup
+        // cost grow with the total number of bookmarks and repeated fallback
+        // channel lookups could block the first visible cards.
+        List<Bookmark> bookmarks = limit > 0
+                ? new ArrayList<>(bookmarkService.readPage(Math.max(0, offset), limit))
+                : new ArrayList<>(bookmarkService.read());
         List<BookmarkResolver.ResolvedBookmark> resolved = new BookmarkResolver().resolveBookmarks(bookmarks);
         List<Bookmark> resolvedBookmarks = resolved.stream()
                 .map(BookmarkResolver.ResolvedBookmark::getBookmark)
@@ -44,13 +50,7 @@ public class BookmarkApplicationService {
         if (limit <= 0) {
             return resolvedBookmarks;
         }
-        int safeOffset = Math.max(0, offset);
-        int safeLimit = Math.max(0, limit);
-        if (safeOffset >= resolvedBookmarks.size()) {
-            return List.of();
-        }
-        int endIndex = Math.min(resolvedBookmarks.size(), safeOffset + safeLimit);
-        return resolvedBookmarks.subList(safeOffset, endIndex);
+        return resolvedBookmarks;
     }
 
     public List<BookmarkCategory> listCategories() {

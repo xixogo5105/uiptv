@@ -31,27 +31,6 @@
                 <path d="M3 5H21V19H3V5ZM5 7V17H14V7H5ZM16 7V17H19V7H16Z"></path>
             </svg>
         </button>
-        <div class="uiptv-control-menu" data-menu="quality">
-            <button id="quality-menu-btn" class="uiptv-control-btn" type="button" title="Resolutions" data-action="quality-menu" data-label="Quality">
-                <i class="bi bi-gear-fill"></i>
-                <span id="quality-label">Quality</span>
-            </button>
-            <div id="quality-menu" class="uiptv-menu top-menu" hidden></div>
-        </div>
-        <div class="uiptv-control-menu" data-menu="audio">
-            <button id="audio-menu-btn" class="uiptv-control-btn" type="button" title="Audio tracks" data-action="audio-menu" data-label="Audio">
-                <i class="bi bi-music-note-list"></i>
-                <span id="audio-label">Audio</span>
-            </button>
-            <div id="audio-menu" class="uiptv-menu top-menu" hidden></div>
-        </div>
-        <div class="uiptv-control-menu" data-menu="subtitle">
-            <button id="subtitle-menu-btn" class="uiptv-control-btn" type="button" title="Subtitles" data-action="subtitle-menu" data-label="Subtitles">
-                <i class="bi bi-badge-cc"></i>
-                <span id="subtitle-label">Subtitles</span>
-            </button>
-            <div id="subtitle-menu" class="uiptv-menu top-menu" hidden></div>
-        </div>
         <button id="stop-btn" class="uiptv-control-btn" type="button" title="Stop" data-action="stop" data-label="Stop">
             <i class="bi bi-stop-circle-fill"></i>
         </button>

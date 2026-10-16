@@ -49,6 +49,10 @@ public class UIptvServer {
         threadPool.setMinThreads(ioThreads);
         threadPool.setMaxThreads(workerThreads);
         httpServer = new Server(threadPool);
+        // Do not let an abandoned browser stream or long-lived SSE request make
+        // desktop shutdown wait indefinitely. Jetty still gets a short grace
+        // period to close active connections cleanly.
+        httpServer.setStopTimeout(1_000L);
 
         HttpConfiguration httpConfig = new HttpConfiguration();
         httpConfig.setSendServerVersion(false);
