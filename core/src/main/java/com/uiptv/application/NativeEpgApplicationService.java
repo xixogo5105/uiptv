@@ -17,7 +17,8 @@ public class NativeEpgApplicationService {
     private static long cacheRevision;
     private static final Map<Key, Thread> OWNERS = new HashMap<>();
     private static final java.util.concurrent.Semaphore REQUESTS = new java.util.concurrent.Semaphore(2);
-    private static final HttpUtil.RequestOptions OPTIONS = new HttpUtil.RequestOptions(true, true, 5, 5, 10);
+    private static final HttpUtil.RequestOptions OPTIONS = new HttpUtil.RequestOptions(true, true, 5, 5, 10)
+            .withMaxBodyChars(10 * 1024 * 1024);
     private record Key(String account, AccountType type, String endpoint, String user, String session, String channel) { }
     private record Cached(List<EpgProgramme> programmes, long retryAt, long bytes) {
         Cached(List<EpgProgramme> programmes, long retryAt) {

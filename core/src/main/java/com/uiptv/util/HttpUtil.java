@@ -26,10 +26,13 @@ import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.URI;
 import java.net.URL;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -300,6 +303,9 @@ public class HttpUtil {
                 return "";
             }
             try {
+                if (options != null && options.maxBodyChars() > 0) {
+                    return readBoundedResponseBody(entity, options.maxBodyChars());
+                }
                 return EntityUtils.toString(entity);
             } catch (ParseException ex) {
                 throw new IOException("Unable to parse HTTP response body", ex);
@@ -309,6 +315,33 @@ public class HttpUtil {
             EntityUtils.consumeQuietly(entity);
         }
         return "";
+    }
+
+    /**
+     * Read a response without allowing an unexpectedly large provider payload to become a
+     * multi-copy String/char[] allocation.  Callers that impose this limit cancel the request
+     * in the surrounding response handler when the limit is exceeded.
+     */
+    private static String readBoundedResponseBody(HttpEntity entity, int maxChars) throws IOException {
+        Charset charset = StandardCharsets.UTF_8;
+        try {
+            ContentType contentType = ContentType.parse(entity.getContentType());
+            if (contentType.getCharset() != null) charset = contentType.getCharset();
+        } catch (RuntimeException ignored) {
+            // Providers frequently omit or misstate the content type; UTF-8 is the safe default.
+        }
+        StringBuilder result = new StringBuilder(Math.min(maxChars, 64 * 1024));
+        char[] buffer = new char[8192];
+        try (Reader reader = new InputStreamReader(entity.getContent(), charset)) {
+            while (true) {
+                int read = reader.read(buffer);
+                if (read < 0) return result.toString();
+                if (result.length() + read > maxChars) {
+                    throw new ReloadRequestScope.LimitExceeded("HTTP response body exceeds " + maxChars + " characters");
+                }
+                result.append(buffer, 0, read);
+            }
+        }
     }
 
     private static HttpUriRequestBase buildRequest(String url, Map<String, String> headers, String method, String body, RequestOptions options) {
@@ -435,6 +468,7 @@ public class HttpUtil {
         private final Integer connectTimeoutSeconds;
         private final Integer connectionRequestTimeoutSeconds;
         private final Integer responseTimeoutSeconds;
+        private final int maxBodyChars;
 
         public RequestOptions(boolean followRedirects, boolean readBody) {
             this(followRedirects, readBody, null, null, null);
@@ -450,12 +484,20 @@ public class HttpUtil {
 
         private RequestOptions(boolean followRedirects, boolean readBody, Integer connectTimeoutSeconds,
                                Integer connectionRequestTimeoutSeconds, Integer responseTimeoutSeconds, boolean streamBody) {
+            this(followRedirects, readBody, connectTimeoutSeconds, connectionRequestTimeoutSeconds,
+                    responseTimeoutSeconds, streamBody, 0);
+        }
+
+        private RequestOptions(boolean followRedirects, boolean readBody, Integer connectTimeoutSeconds,
+                               Integer connectionRequestTimeoutSeconds, Integer responseTimeoutSeconds,
+                               boolean streamBody, int maxBodyChars) {
             this.streamBody = streamBody;
             this.followRedirects = followRedirects;
             this.readBody = readBody;
             this.connectTimeoutSeconds = connectTimeoutSeconds;
             this.connectionRequestTimeoutSeconds = connectionRequestTimeoutSeconds;
             this.responseTimeoutSeconds = responseTimeoutSeconds;
+            this.maxBodyChars = Math.max(0, maxBodyChars);
         }
 
         public static RequestOptions defaults() {
@@ -468,6 +510,14 @@ public class HttpUtil {
         }
 
         public boolean streamBody() { return streamBody; }
+
+        /** Return a copy that bounds materialized response text; zero means unlimited. */
+        public RequestOptions withMaxBodyChars(int maxChars) {
+            return new RequestOptions(followRedirects, readBody, connectTimeoutSeconds,
+                    connectionRequestTimeoutSeconds, responseTimeoutSeconds, streamBody, maxChars);
+        }
+
+        public int maxBodyChars() { return maxBodyChars; }
 
         public boolean followRedirects() {
             return followRedirects;

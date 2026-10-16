@@ -52,6 +52,8 @@ class HttpUtilTest {
         assertEquals(1, custom.connectTimeoutSeconds());
         assertEquals(2, custom.connectionRequestTimeoutSeconds());
         assertEquals(3, custom.responseTimeoutSeconds());
+        assertEquals(0, custom.maxBodyChars());
+        assertEquals(1024, custom.withMaxBodyChars(1024).maxBodyChars());
 
         RequestConfig requestConfig = (RequestConfig) invoke(
                 "buildRequestConfig", new Class[]{HttpUtil.RequestOptions.class}, custom);

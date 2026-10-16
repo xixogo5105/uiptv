@@ -60,6 +60,6 @@ public final class ReloadRequestScope implements AutoCloseable {
     public int requests() { return requests; }
     @Override public void close() { ACTIVE.set(previous); }
     public static final class LimitExceeded extends IllegalStateException {
-        private LimitExceeded(String message) { super(message); }
+        LimitExceeded(String message) { super(message); }
     }
 }
