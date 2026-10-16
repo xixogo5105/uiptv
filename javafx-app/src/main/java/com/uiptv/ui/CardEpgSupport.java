@@ -50,7 +50,12 @@ final class CardEpgSupport {
                 attached.keySet().forEach(this::observeScroll); restoreSummaries(); clock.play(); queue();
             }
         });
-        owner.layoutBoundsProperty().addListener((_, _, _) -> queue());
+        // Do not observe the owner's complete layout bounds here. Rendering an
+        // EPG panel changes the grid's layout bounds, which would queue another
+        // EPG refresh and rebuild the panel again. That feedback loop keeps
+        // the JavaFX pulse/render thread busy even when the window is idle.
+        // Scene, visibility, scroll, cache, and clock changes already cover
+        // the meaningful refresh boundaries.
         EpgModeUI.observeCache(owner, () -> {
             if (!EpgModeUI.isFeatureEnabled()) stop();
             else { clock.play(); queue(); }
