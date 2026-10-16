@@ -20,6 +20,7 @@ createApp({
         const selectedWatchingNowKey = ref('');
         const watchingNowTab = ref('series');
         const epgEnabled = ref(false);
+        const epgPlaybackOnly = ref(false);
         const webPlaybackProxyEnabled = ref(true);
         const epgLabels = ref({epgNow: 'Now', epgNext: 'Next', epgNoProgrammeDetails: 'No programme details'});
         const epgTime = ref(Date.now());
@@ -66,11 +67,11 @@ createApp({
         };
         const syncEpgEvents = () => {
             if (typeof EventSource === 'undefined') return;
-            if (!epgEnabled.value) { closeEpgEvents(); return; }
+            if (!epgEnabled.value || epgPlaybackOnly.value) { closeEpgEvents(); return; }
             if (epgEvents) return;
             epgEvents = new EventSource(`${window.location.origin}/epg-events`);
             epgEvents.onmessage = () => {
-                if (!document.hidden && epgEnabled.value) {
+                if (!document.hidden && epgEnabled.value && !epgPlaybackOnly.value) {
                     refreshPlayerEpg();
                     clearTimeout(cardEpgTimer);
                     cardEpgGeneration++;
@@ -84,7 +85,8 @@ createApp({
             if (playerEpgController) playerEpgController.abort();
             if (clear) playerEpg.value = null;
             const channel = currentChannel.value;
-            if (!epgEnabled.value || !channel || String(channel.mode || 'itv').toLowerCase() !== 'itv') { playerEpg.value = null; return; }
+            if (!epgEnabled.value || !channel || String(channel.mode || 'itv').toLowerCase() !== 'itv'
+                || (epgPlaybackOnly.value && !isPlaying.value)) { playerEpg.value = null; return; }
             const params = new URLSearchParams();
             const bookmarkId = channel.bookmarkId || (channel.type === 'bookmark' ? channel.id : '');
             if (bookmarkId) params.set('bookmarkId', bookmarkId);
@@ -100,7 +102,7 @@ createApp({
                 if (request === playerEpgRequest && epgEnabled.value) playerEpg.value = result.now || result.next ? result : null;
             } catch (_) { if (request === playerEpgRequest) playerEpg.value = null; }
         };
-        watch(currentChannel, () => refreshPlayerEpg(true));
+        watch(currentChannel, () => { if (!epgPlaybackOnly.value) refreshPlayerEpg(true); });
         const playbackMode = ref('');
         const isPlaying = ref(false);
         const playbackError = ref('');
@@ -1372,9 +1374,10 @@ createApp({
             logo: resolveLogoUrl(bookmark.logo)
         });
 
-        const applyDesktopEpgSetting = (enabled) => {
-            const changed = epgEnabled.value !== enabled;
+        const applyDesktopEpgSetting = (enabled, playbackOnly = false) => {
+            const changed = epgEnabled.value !== enabled || epgPlaybackOnly.value !== playbackOnly;
             epgEnabled.value = enabled;
+            epgPlaybackOnly.value = enabled && playbackOnly;
             syncEpgEvents();
             if (!enabled) {
                 ++playerEpgRequest; playerEpgController?.abort(); playerEpg.value = null;
@@ -1383,7 +1386,10 @@ createApp({
                 cardEpgObserver = null; cardEpgBindings = new WeakMap(); visibleEpgCards.clear();
                 for (const item of [...channels.value, ...bookmarks.value]) { item.epgNow = null; item.epgNext = null; }
             } else if (changed) {
-                nextTick(() => { refreshPlayerEpg(true); refreshVisibleCardEpg(); });
+                nextTick(() => {
+                    refreshPlayerEpg(true);
+                    if (!epgPlaybackOnly.value) refreshVisibleCardEpg();
+                });
             }
         };
         let configRequest = 0;
@@ -1397,7 +1403,7 @@ createApp({
                 if (request !== configRequest) return;
                 thumbnailsEnabled.value = config?.enableThumbnails !== false;
                 webPlaybackProxyEnabled.value = config?.webPlaybackProxyEnabled !== false;
-                applyDesktopEpgSetting(config?.epgEnabled === true);
+                applyDesktopEpgSetting(config?.epgEnabled === true, config?.epgPlaybackOnly === true);
                 const language = (config?.languageLocale || navigator.language || 'en').replaceAll('-', '_');
                 if (language !== epgLabelsLocale) {
                     try {
@@ -1409,6 +1415,16 @@ createApp({
                 }
             } catch (_) { /* Retain the last desktop setting while the server is unreachable. */ }
         };
+        const saveEpgSettings = async patch => {
+            try {
+                await fetch(window.location.origin + '/config', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patch)
+                });
+                await loadConfig();
+            } catch (_) { /* Keep the current setting when the desktop server is unavailable. */ }
+        };
+        const toggleEpg = () => saveEpgSettings({epgEnabled: !epgEnabled.value});
+        const toggleEpgPlaybackOnly = () => saveEpgSettings({epgPlaybackOnly: !epgPlaybackOnly.value});
 
         const findBookmarkForChannel = (channel) => {
             if (!channel) return null;
@@ -3312,6 +3328,7 @@ createApp({
             if (requestId !== playbackRequestId) return;
             currentChannel.value = targetChannel;
             isPlaying.value = true;
+            if (epgPlaybackOnly.value) refreshPlayerEpg(true);
 
             try {
                 const channelData = await channelDataPromise;
@@ -4806,7 +4823,7 @@ createApp({
         let cardEpgObserver = null, cardEpgBindings = new WeakMap(), cardEpgTimer;
         const visibleEpgCards = new Map();
         let cardEpgController = null, cardEpgRunning = false, cardEpgActiveKey = '', cardEpgGeneration = 0;
-        const cardEpgContext = () => epgEnabled.value && (activeTab.value === 'bookmarks'
+        const cardEpgContext = () => epgEnabled.value && !epgPlaybackOnly.value && (activeTab.value === 'bookmarks'
             || activeTab.value === 'accounts' && viewState.value === 'channels' && contentMode.value === 'itv');
         const refreshVisibleCardEpg = async () => {
             if (!cardEpgContext() || cardEpgRunning) return;
@@ -4858,7 +4875,7 @@ createApp({
         };
         const observeChannelEpg = (element, channel) => observeEpgCard(element, channel);
         const observeBookmarkEpg = (element, bookmark) => observeEpgCard(element, bookmark, true);
-        watch([epgEnabled, activeTab, selectedAccountId, viewState, contentMode], () => {
+        watch([epgEnabled, epgPlaybackOnly, activeTab, selectedAccountId, viewState, contentMode], () => {
             ++cardEpgGeneration;
             clearTimeout(cardEpgTimer); cardEpgController?.abort(); cardEpgObserver?.disconnect();
             cardEpgObserver = null; cardEpgBindings = new WeakMap(); visibleEpgCards.clear();
@@ -4866,7 +4883,11 @@ createApp({
         onMounted(async () => {
             window.addEventListener('keydown', handleGlobalKeydown);
             const desktopSettingsTimer = window.setInterval(async () => {
-                if (!document.hidden) { epgTime.value = Date.now(); await loadConfig(); refreshVisibleCardEpg(); }
+                if (!document.hidden) {
+                    if (!epgPlaybackOnly.value) epgTime.value = Date.now();
+                    await loadConfig();
+                    if (!epgPlaybackOnly.value) refreshVisibleCardEpg();
+                }
 
             }, 5000);
             const refreshDesktopSettings = () => { if (!document.hidden) void loadConfig(); };
@@ -4874,7 +4895,7 @@ createApp({
             document.addEventListener('visibilitychange', refreshDesktopSettings);
             window.addEventListener('beforeunload', () => window.clearInterval(desktopSettingsTimer), {once: true});
             const scheduleRefreshTimer = window.setInterval(() => {
-                if (!document.hidden && epgEnabled.value && currentChannel.value) refreshPlayerEpg();
+                if (!document.hidden && epgEnabled.value && !epgPlaybackOnly.value && currentChannel.value) refreshPlayerEpg();
             }, 30 * 60000);
             window.addEventListener('beforeunload', () => window.clearInterval(scheduleRefreshTimer), {once: true});
             loadRecentBookmarkHistory();
@@ -4946,7 +4967,8 @@ createApp({
         }, {immediate: true});
 
         return {
-            observeChannelEpg, observeBookmarkEpg, epgEnabled, epgLabels,
+            observeChannelEpg, observeBookmarkEpg, epgEnabled, epgPlaybackOnly, epgLabels,
+            toggleEpg, toggleEpgPlaybackOnly,
             cardProgramme, cardProgrammeTime, cardProgrammeProgress, isLiveBookmark,
             thumbnailsEnabled, playerEpg, playerProgrammeTime,
             activeTab,

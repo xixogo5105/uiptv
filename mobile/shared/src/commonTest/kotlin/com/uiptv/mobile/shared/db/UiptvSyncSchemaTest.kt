@@ -93,6 +93,7 @@ class UiptvSyncSchemaTest {
                 "showBookmarkAndAccountCounts",
                 "themeMode",
                 "epgEnabled",
+                "epgPlaybackOnly",
                 "globalEpgSource",
                 "epgMappingsJson",
                 "epgRefreshIntervalHours"

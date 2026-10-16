@@ -159,6 +159,7 @@ public class ConfigurationDb extends BaseDb {
         c.setShowBookmarkAndAccountCounts(safeBoolean(resultSet, "showBookmarkAndAccountCounts"));
         c.setEpgMappingsJson(nullSafeString(resultSet, "epgMappingsJson"));
         c.setEpgEnabled(safeBoolean(resultSet, "epgEnabled"));
+        c.setEpgPlaybackOnly(safeBoolean(resultSet, "epgPlaybackOnly"));
         c.setEpgRefreshIntervalHours(nullSafeString(resultSet,"epgRefreshIntervalHours"));
         c.setGlobalEpgSource(nullSafeString(resultSet, "globalEpgSource"));
         c.setDbId(nullSafeString(resultSet, "id"));
@@ -179,7 +180,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(41, current.getDbId());
+                statement.setString(42, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -234,9 +235,10 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(35, configuration.isShowBookmarkAndAccountCounts() ? "1" : "0");
         statement.setString(36, configuration.resolveThemeMode().persistedValue());
         statement.setString(37, configuration.isEpgEnabled() ? "1" : "0");
-        statement.setString(38, configuration.getGlobalEpgSource());
-        statement.setString(39, configuration.getEpgMappingsJson());
-        statement.setString(40, String.valueOf(configuration.normalizedEpgRefreshHours()));
+        statement.setString(38, configuration.isEpgPlaybackOnly() ? "1" : "0");
+        statement.setString(39, configuration.getGlobalEpgSource());
+        statement.setString(40, configuration.getEpgMappingsJson());
+        statement.setString(41, String.valueOf(configuration.normalizedEpgRefreshHours()));
      }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {

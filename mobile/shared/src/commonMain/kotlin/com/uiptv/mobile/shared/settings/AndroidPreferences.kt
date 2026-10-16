@@ -43,6 +43,7 @@ data class AndroidPreferenceSnapshot(
     val embeddedPlayerPreference: EmbeddedPlayerPreference = EmbeddedPlayerPreference(),
     val panelVisibilityPreference: PanelVisibilityPreference = PanelVisibilityPreference(),
     val epgEnabled: Boolean = false,
+    val epgPlaybackOnly: Boolean = false,
     val firstRunCompleted: Boolean = false
 )
 
@@ -61,6 +62,8 @@ interface AndroidPreferencesRepository {
 
     suspend fun saveEpgEnabled(enabled: Boolean)
 
+    suspend fun saveEpgPlaybackOnly(enabled: Boolean)
+
     suspend fun setFirstRunCompleted(completed: Boolean)
 }
 
@@ -78,6 +81,7 @@ object AndroidOnlyPreferenceKeys {
     const val PANEL_WATCHING_NOW_DETAILS_VISIBLE = "panel_watching_now_details_visible"
     const val PANEL_ACCOUNTS_ACTIONS_VISIBLE = "panel_accounts_actions_visible"
     const val EPG_ENABLED = "epg_enabled"
+    const val EPG_PLAYBACK_ONLY = "epg_playback_only"
     const val FIRST_RUN_COMPLETED = "first_run_completed"
 
     val all: Set<String> = setOf(
@@ -94,6 +98,7 @@ object AndroidOnlyPreferenceKeys {
         PANEL_WATCHING_NOW_DETAILS_VISIBLE,
         PANEL_ACCOUNTS_ACTIONS_VISIBLE,
         EPG_ENABLED,
+        EPG_PLAYBACK_ONLY,
         FIRST_RUN_COMPLETED
     )
 }

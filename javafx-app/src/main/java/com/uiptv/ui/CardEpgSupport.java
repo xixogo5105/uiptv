@@ -42,11 +42,11 @@ final class CardEpgSupport {
         pulse.setOnFinished(_ -> refresh()); clock.setCycleCount(Animation.INDEFINITE);
         owner.sceneProperty().addListener((_, _, scene) -> {
             if (scene == null) stop();
-            else if (EpgModeUI.isFeatureEnabled()) { clock.play(); queue(); }
+            else if (EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) { clock.play(); queue(); }
         });
         owner.visibleProperty().addListener((_, _, visible) -> {
             if (!visible) stop();
-            else if (EpgModeUI.isFeatureEnabled()) {
+            else if (EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) {
                 attached.keySet().forEach(this::observeScroll); restoreSummaries(); clock.play(); queue();
             }
         });
@@ -57,14 +57,14 @@ final class CardEpgSupport {
         // Scene, visibility, scroll, cache, and clock changes already cover
         // the meaningful refresh boundaries.
         EpgModeUI.observeCache(owner, () -> {
-            if (!EpgModeUI.isFeatureEnabled()) stop();
+            if (!EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) stop();
             else { clock.play(); queue(); }
             attached.values().forEach(binding -> { binding.refreshAt = 0; });
         });
     }
 
     Region bind(Region card, Supplier<LiveGuideApplicationService.Row> source) {
-        if (!EpgModeUI.isFeatureEnabled()) return card;
+        if (!EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return card;
         VBox panel = new VBox(5); panel.getStyleClass().add("virtual-card-epg");
         panel.setMinWidth(0); panel.setMaxWidth(Double.MAX_VALUE); panel.setVisible(false); panel.setManaged(false);
         card.getStyleClass().add("epg-summary-card");
@@ -98,7 +98,7 @@ final class CardEpgSupport {
     }
 
     void queue() {
-        if (owner.getScene() == null || !EpgModeUI.isFeatureEnabled()) return;
+        if (owner.getScene() == null || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return;
         revision++; if (worker != null) worker.interrupt(); pulse.playFromStart();
     }
 
@@ -120,7 +120,7 @@ final class CardEpgSupport {
     }
 
     private void refresh() {
-        if (owner.getScene() == null || !EpgModeUI.isFeatureEnabled()) return;
+        if (owner.getScene() == null || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return;
         long now = System.currentTimeMillis(), request = revision;
         var cards = attached.entrySet().stream().filter(entry -> visible(entry.getKey()) && now >= entry.getValue().refreshAt)
                 .limit(16).map(entry -> Map.entry(entry.getKey(), entry.getValue())).toList();
@@ -152,7 +152,7 @@ final class CardEpgSupport {
                     EpgProgramme current = loaded == null ? null : loaded.programmes().stream().filter(p -> p.start() <= time && time < p.stop()).findFirst().orElse(null);
                     EpgProgramme next = loaded == null ? null : loaded.programmes().stream().filter(p -> p.start() > time).findFirst().orElse(null);
                     Platform.runLater(() -> {
-                        if (request != revision || !EpgModeUI.isFeatureEnabled() || !attached.containsKey(entry.getKey()) || !visible(entry.getKey())) return;
+                        if (request != revision || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly() || !attached.containsKey(entry.getKey()) || !visible(entry.getKey())) return;
                         long refreshAt = System.currentTimeMillis() + 30 * 60_000L;
                         if (current != null) refreshAt = Math.min(refreshAt, current.stop());
                         if (next != null) refreshAt = Math.min(refreshAt, next.start());

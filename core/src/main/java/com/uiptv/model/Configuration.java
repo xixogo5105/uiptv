@@ -52,6 +52,7 @@ import lombok.NoArgsConstructor;
      */
     private String themeMode;
     private boolean epgEnabled;
+    private boolean epgPlaybackOnly;
     private String globalEpgSource = "";
     private String epgMappingsJson = "{}";
     private String epgRefreshIntervalHours = "2";

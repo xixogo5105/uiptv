@@ -77,6 +77,12 @@
                 <button @click="clearWebCacheAndReload" class="soft-button icon-only" title="Clear cache and reload" type="button">
                     <i class="bi bi-arrow-repeat"></i>
                 </button>
+                <button @click="toggleEpg" class="soft-button" :title="epgEnabled ? 'Disable EPG' : 'Enable EPG'" type="button">
+                    {{ epgEnabled ? 'Disable EPG' : 'Enable EPG' }}
+                </button>
+                <button @click="toggleEpgPlaybackOnly" class="soft-button" :disabled="!epgEnabled" :title="epgPlaybackOnly ? 'Use full EPG mode' : 'Load EPG only for the channel being played'" type="button">
+                    {{ epgPlaybackOnly ? 'Use full EPG' : 'Playback-only EPG' }}
+                </button>
                 <a class="soft-button icon-only" download href="/bookmarks.m3u8" title="Download Favorites Playlist">
                     <i class="bi bi-download"></i>
                 </a>
@@ -161,7 +167,7 @@
                                         <button @click.stop="removeRecentlyPlayedBookmark(bookmark)" class="row-action-button" title="Clear from recently played" type="button" v-if="isRecentlyPlayedBookmarksSelected">
                                             <i class="bi bi-trash3"></i>
                                         </button>
-                                    <div class="card-epg" v-if="epgEnabled && isLiveBookmark(bookmark)">
+                                    <div class="card-epg" v-if="epgEnabled && !epgPlaybackOnly && isLiveBookmark(bookmark)">
                                                 <strong class="card-epg-title" :title="cardProgramme(bookmark, 'epgNow').title">{{ epgLabels.epgNow || 'Now' }}: {{ cardProgramme(bookmark, 'epgNow').title }}</strong>
                                                 <small>{{ cardProgrammeTime(cardProgramme(bookmark, 'epgNow')) }}</small>
                                                 <progress :value="cardProgrammeProgress(bookmark)" max="1" :aria-label="epgLabels.epgNow || 'Now'"></progress>
@@ -342,7 +348,7 @@
 
                                             <div class="meta-line clamp" v-if="contentMode === 'vod' && getVodPlot(channel)">{{ getVodPlot(channel) }}</div>
                                         </div>
-                                    <div class="card-epg" v-if="epgEnabled && contentMode === 'itv'">
+                                    <div class="card-epg" v-if="epgEnabled && !epgPlaybackOnly && contentMode === 'itv'">
                                                 <strong class="card-epg-title" :title="cardProgramme(channel, 'epgNow').title">{{ epgLabels.epgNow || 'Now' }}: {{ cardProgramme(channel, 'epgNow').title }}</strong>
                                                 <small>{{ cardProgrammeTime(cardProgramme(channel, 'epgNow')) }}</small>
                                                 <progress :value="cardProgrammeProgress(channel)" max="1" :aria-label="epgLabels.epgNow || 'Now'"></progress>
@@ -781,7 +787,7 @@
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261016foxPlayback2"></script>
+    <script src="/javascript/spa.js?v=20261016playbackOnly1"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;

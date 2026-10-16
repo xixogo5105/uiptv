@@ -21,6 +21,8 @@ data class EpgUiActions(
     val clearCache: suspend () -> Unit = {},
     val loadEnabled: suspend () -> Boolean = { false },
     val saveEnabled: suspend (Boolean) -> Unit = {},
+    val loadPlaybackOnly: suspend () -> Boolean = { false },
+    val savePlaybackOnly: suspend (Boolean) -> Unit = {},
     val globalSource: suspend () -> String = { "" },
     val saveGlobalSource: suspend (String) -> Unit = {},
     val schedule: suspend (Long, String, String) -> MobileEpgResult = { _, _, _ -> MobileEpgResult() },
@@ -29,9 +31,11 @@ data class EpgUiActions(
 )
 internal data class EpgUiState(
     val enabled: Boolean = false,
+    val playbackOnly: Boolean = false,
     val time: Long = 0,
     val actions: EpgUiActions = EpgUiActions(),
-    val onEnabled: (Boolean) -> Unit = {}
+    val onEnabled: (Boolean) -> Unit = {},
+    val onPlaybackOnly: (Boolean) -> Unit = {}
 )
 val LocalThumbnailFallback = staticCompositionLocalOf { "" }
 val LocalThumbnailFallbackLoader = staticCompositionLocalOf<(suspend () -> String)?> { null }
@@ -40,8 +44,8 @@ internal val LocalEpgState = staticCompositionLocalOf { EpgUiState() }
 @Composable
 internal fun epgThumbnail(accountId: Long, providerId: String, name: String, enabled: Boolean): (suspend () -> String)? {
     val state = LocalEpgState.current
-    return remember(accountId, providerId, name, enabled, state.enabled, state.actions, state.time / (30 * 60_000)) {
-        if (enabled && state.enabled) suspend { state.actions.icon(accountId, providerId, name) } else null
+    return remember(accountId, providerId, name, enabled, state.enabled, state.playbackOnly, state.actions, state.time / (30 * 60_000)) {
+        if (enabled && state.enabled && !state.playbackOnly) suspend { state.actions.icon(accountId, providerId, name) } else null
     }
 }
 
@@ -63,6 +67,18 @@ internal fun MobileEpgSettings() {
             })
             Text("Enable EPG on this device")
         }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            var playbackOnly by remember { mutableStateOf(false) }
+            LaunchedEffect(state.actions) { playbackOnly = state.actions.loadPlaybackOnly() }
+            Switch(checked = playbackOnly, onCheckedChange = { value ->
+                scope.launch {
+                    runCatching { state.actions.savePlaybackOnly(value) }
+                        .onSuccess { playbackOnly = value; state.onPlaybackOnly(value) }
+                        .onFailure { status = "Unable to save EPG display mode" }
+                }
+            })
+            Text("Load EPG only for the channel being played")
+        }
         OutlinedTextField(value = source, onValueChange = { source = it }, label = { Text("Global EPG sources") },
             modifier = Modifier.fillMaxWidth(), minLines = 4)
         Text("Shared through database sync. Used after provider and account guides. One XMLTV URL or local file per line, in priority order. Gzip is supported.",
@@ -79,7 +95,7 @@ internal fun MobileEpgSettings() {
 @Composable
     internal fun MobileEpgChannel(accountId: Long, channelId: String, name: String) {
         val state = LocalEpgState.current
-        if (!state.enabled) return
+        if (!state.enabled || state.playbackOnly) return
         val scope = rememberCoroutineScope()
         val cacheRevision by MobileEpgCache.revision.collectAsState()
         var result by remember(accountId, channelId) { mutableStateOf<MobileEpgResult?>(MobileEpgCache.peek(accountId, channelId, state.time)) }
@@ -159,7 +175,7 @@ internal fun MobileLiveGuideButton(
     onPlay: (com.uiptv.mobile.shared.browse.MobileBrowseItem) -> Unit
 ) {
     val state = LocalEpgState.current
-    if (!state.enabled || channels.isEmpty() || channels.first().mode != com.uiptv.mobile.shared.browse.BrowseMode.LIVE) return
+    if (!state.enabled || state.playbackOnly || channels.isEmpty() || channels.first().mode != com.uiptv.mobile.shared.browse.BrowseMode.LIVE) return
     var open by remember { mutableStateOf(false) }
     var selected by remember(channels) { mutableStateOf(channels.first()) }
     var result by remember { mutableStateOf<MobileEpgResult?>(null) }

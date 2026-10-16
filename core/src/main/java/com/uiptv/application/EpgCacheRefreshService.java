@@ -36,7 +36,7 @@ public class EpgCacheRefreshService {
         else EpgChangeNotifications.stopExternalWatcher();
     }
     private static boolean isEnabled() {
-        try { return new EpgApplicationService().isEnabled(); }
+        try { return new EpgApplicationService().isBackgroundRefreshEnabled(); }
         catch (RuntimeException error) {
             if (lifecycleStarted) AppLog.addWarningLog(EpgCacheRefreshService.class, "Unable to read EPG refresh settings; guide refresh remains stopped.");
             return false;
@@ -59,7 +59,8 @@ public class EpgCacheRefreshService {
     private static final Map<VisibleChannel,Channel> VISIBLE = new LinkedHashMap<>();
     /** Queue visible channels for the lifecycle-owned importer; reads never fetch providers. */
     static void requestVisible(Account account, List<Channel> channels) {
-        if (!lifecycleStarted || account.getDbId() == null || channels.isEmpty()) return;
+        if (!lifecycleStarted || !new EpgApplicationService().isBackgroundRefreshEnabled()
+                || account.getDbId() == null || channels.isEmpty()) return;
         synchronized (VISIBLE) {
             for (Channel channel : channels) {
                 if (channel.getChannelId() == null || channel.getChannelId().isBlank()) continue;

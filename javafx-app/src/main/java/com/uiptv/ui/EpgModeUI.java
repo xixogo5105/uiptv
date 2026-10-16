@@ -10,6 +10,7 @@ public final class EpgModeUI {
     private static final java.util.concurrent.atomic.AtomicLong featureRevision = new java.util.concurrent.atomic.AtomicLong();
     private static final javafx.beans.property.LongProperty cacheRevision = new javafx.beans.property.SimpleLongProperty();
     private static final BooleanProperty featureEnabled = new SimpleBooleanProperty(false);
+    private static final BooleanProperty playbackOnly = new SimpleBooleanProperty(false);
     static {
         var pending=new java.util.concurrent.atomic.AtomicBoolean();
         com.uiptv.application.EpgChangeNotifications.subscribe(com.uiptv.application.EpgChangeNotifications.snapshot().revision(), _ -> {
@@ -23,15 +24,34 @@ public final class EpgModeUI {
     private static void reloadFeature() {
         long revision = featureRevision.incrementAndGet();
         Thread.ofVirtual().start(() -> {
-            boolean value = new com.uiptv.application.EpgApplicationService().isEnabled();
-            javafx.application.Platform.runLater(() -> { if (revision != featureRevision.get()) return; featureEnabled.set(value); });
+            boolean value = false;
+            boolean playerOnly = false;
+            try {
+                var configuration = com.uiptv.service.ConfigurationService.getInstance().read();
+                value = configuration != null && configuration.isEpgEnabled();
+                playerOnly = value && configuration.isEpgPlaybackOnly();
+            } catch (RuntimeException ignored) {
+                // A transient configuration read failure must not leave the UI in an active mode.
+            }
+            boolean finalValue = value;
+            boolean finalPlayerOnly = playerOnly;
+            javafx.application.Platform.runLater(() -> {
+                if (revision != featureRevision.get()) return;
+                featureEnabled.set(finalValue);
+                playbackOnly.set(finalPlayerOnly);
+            });
         });
     }
     public static boolean isFeatureEnabled() { return featureEnabled.get(); }
     private EpgModeUI() { }
     public static boolean isEnabled() { return featureEnabled.get(); }
+    public static boolean isPlaybackOnly() { return featureEnabled.get() && playbackOnly.get(); }
+    public static boolean isCardsEnabled() { return featureEnabled.get() && !playbackOnly.get(); }
     public static void setEnabled(boolean value) {
         Thread.ofVirtual().start(() -> new com.uiptv.application.EpgSettingsApplicationService().setEnabled(value));
+    }
+    public static void setPlaybackOnly(boolean value) {
+        Thread.ofVirtual().start(() -> new com.uiptv.application.EpgSettingsApplicationService().setPlaybackOnly(value));
     }
     public static void refreshGuides(Runnable finished) {
         Thread.ofVirtual().start(() -> {

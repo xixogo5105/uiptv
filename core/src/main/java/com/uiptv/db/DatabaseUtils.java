@@ -91,6 +91,7 @@ public class DatabaseUtils {
                 // 0206 backfilled into this column and 0207 then dropped.
                 new DataColumn("themeMode", "TEXT"),
                 new DataColumn("epgEnabled", "TEXT"),
+                new DataColumn("epgPlaybackOnly", "TEXT"),
                 new DataColumn("globalEpgSource", "TEXT"),
                 new DataColumn("epgMappingsJson", "TEXT"),
                 new DataColumn("epgRefreshIntervalHours", "TEXT")

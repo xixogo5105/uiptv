@@ -309,10 +309,14 @@ fun UiptvMobileApp(
     backHandler: @Composable (enabled: Boolean, onBack: () -> Unit) -> Unit = { _, _ -> }
 ) {
     var epgEnabled by remember { mutableStateOf(false) }
+    var epgPlaybackOnly by remember { mutableStateOf(false) }
     var epgTime by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(epgActions, resumeSignal) { epgEnabled = epgActions.loadEnabled() }
+    LaunchedEffect(epgActions, resumeSignal) {
+        epgEnabled = epgActions.loadEnabled()
+        epgPlaybackOnly = epgActions.loadPlaybackOnly()
+    }
     LaunchedEffect(epgEnabled, isForeground) {
-        while (epgEnabled && isForeground) { epgTime = System.currentTimeMillis(); kotlinx.coroutines.delay(60_000) }
+        while (epgEnabled && !epgPlaybackOnly && isForeground) { epgTime = System.currentTimeMillis(); kotlinx.coroutines.delay(60_000) }
     }
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var selectedBrowseAccount by remember { mutableStateOf<MobileAccount?>(null) }
@@ -346,7 +350,8 @@ fun UiptvMobileApp(
     val useDarkTheme = isSystemInDarkTheme()
     val palette = if (useDarkTheme) DarkUiptvPalette else LightUiptvPalette
     CompositionLocalProvider(LocalUiptvPalette provides palette,
-        LocalEpgState provides EpgUiState(epgEnabled && isForeground, epgTime, epgActions, { epgEnabled = it })) {
+        LocalEpgState provides EpgUiState(epgEnabled && isForeground, epgPlaybackOnly, epgTime, epgActions,
+            { epgEnabled = it }, { epgPlaybackOnly = it })) {
         MaterialTheme(colorScheme = if (useDarkTheme) UiptvDarkColorScheme else UiptvLightColorScheme) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val layoutMode = remember(maxWidth, maxHeight) {
@@ -2003,7 +2008,7 @@ private fun BrowseItemRow(
                 Text(item.subtitle(), color = DeepNightMutedText, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         )
-        if (item.mode == BrowseMode.LIVE && LocalEpgState.current.enabled) {
+        if (item.mode == BrowseMode.LIVE && LocalEpgState.current.enabled && !LocalEpgState.current.playbackOnly) {
             Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
                 MobileEpgChannel(item.accountId, item.channelId, item.name)
             }
@@ -2469,7 +2474,7 @@ private fun BookmarkRow(
                 Text(bookmark.accountName, color = DeepNightMutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         )
-        if (bookmark.mode == BrowseMode.LIVE && LocalEpgState.current.enabled) {
+        if (bookmark.mode == BrowseMode.LIVE && LocalEpgState.current.enabled && !LocalEpgState.current.playbackOnly) {
             Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
                 MobileEpgChannel(bookmark.accountId, bookmark.channelId, bookmark.channelName)
             }

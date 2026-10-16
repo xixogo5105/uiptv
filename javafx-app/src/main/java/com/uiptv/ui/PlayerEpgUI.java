@@ -77,12 +77,16 @@ public class PlayerEpgUI extends VBox {
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
         sceneProperty().addListener((_, oldScene, newScene) -> {
             if (oldScene != null) { MediaPlayerFactory.guideContextProperty().removeListener(listener); if (epgSubscription != null) { epgSubscription.close(); epgSubscription = null; } clock.stop(); cacheRefresh.stop(); boundaryWake.stop(); activeContext = null; pendingChange = false; generation.incrementAndGet(); if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; } display(null); }
-            if (newScene != null) { MediaPlayerFactory.guideContextProperty().addListener(listener); epgSubscription = EpgChangeNotifications.subscribe(EpgChangeNotifications.snapshot().revision(), event -> { var context = MediaPlayerFactory.guideContextProperty().get(); if (context != null && context.account() != null && context.channel() != null && event.affects(context.account().dbId(), context.channel().getChannelId())) Platform.runLater(this::cacheChanged); }); refresh(MediaPlayerFactory.guideContextProperty().get(), true); clock.play(); }
+            if (newScene != null) { MediaPlayerFactory.guideContextProperty().addListener(listener); epgSubscription = EpgChangeNotifications.subscribe(EpgChangeNotifications.snapshot().revision(), event -> { var context = MediaPlayerFactory.guideContextProperty().get(); if (context != null && context.account() != null && context.channel() != null && event.affects(context.account().dbId(), context.channel().getChannelId())) Platform.runLater(this::cacheChanged); }); refresh(MediaPlayerFactory.guideContextProperty().get(), true); if (EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) clock.play(); }
         });
     }
 
     /** Coalesce unrelated importer events without temporarily removing the player panel. */
     private void cacheChanged() {
+        if (EpgModeUI.isPlaybackOnly()) {
+            clock.stop(); cacheRefresh.stop(); boundaryWake.stop(); pendingChange = false;
+            return;
+        }
         if (!EpgModeUI.isFeatureEnabled()) {
             refresh(MediaPlayerFactory.guideContextProperty().get(), false);
             return;
@@ -105,6 +109,9 @@ public class PlayerEpgUI extends VBox {
     }
 
     private void refresh(MediaPlayerFactory.GuideContext context, boolean contextEvent) {
+        // Playback-only mode has no background/cache polling. The context event is
+        // emitted by the player immediately before playback; that is the sole fetch.
+        if (EpgModeUI.isPlaybackOnly() && !contextEvent) return;
         boolean changed = contextEvent && !sameChannel(context);
         if (changed || !EpgModeUI.isFeatureEnabled() || context == null || context.account() == null
                 || context.channel() == null || context.account().action() != com.uiptv.model.Account.AccountAction.itv) {
@@ -169,6 +176,7 @@ public class PlayerEpgUI extends VBox {
     }
 
     private void scheduleBoundaryWake(PlayerEpgApplicationService.Result result) {
+        if (EpgModeUI.isPlaybackOnly()) return;
         long now = System.currentTimeMillis();
         long boundary = result.now() != null ? result.now().stop() : result.next() == null ? 0 : result.next().start();
         if (boundary <= now) boundary = now + 250;

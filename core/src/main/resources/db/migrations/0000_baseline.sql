@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS Configuration
     default
     'light',
     epgEnabled TEXT default '0',
+    epgPlaybackOnly TEXT default '0',
     globalEpgSource TEXT default '',
     epgMappingsJson TEXT default '{}',
     epgRefreshIntervalHours TEXT default '2'

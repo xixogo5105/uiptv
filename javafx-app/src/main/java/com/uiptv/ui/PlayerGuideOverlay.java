@@ -66,12 +66,16 @@ public final class PlayerGuideOverlay extends StackPane {
     private void open() {
         var context = MediaPlayerFactory.guideContextProperty().get();
         if (context == null || (!EpgModeUI.isFeatureEnabled() && MediaPlayerFactory.guideSummaryProperty().get() == null)) return;
+        if (EpgModeUI.isPlaybackOnly() && MediaPlayerFactory.guideSummaryProperty().get() == null) return;
         close(); int request = ++generation;
         Button cancel = new com.uiptv.widget.CloseIconButton(I18n.tr("autoClose")); cancel.getStyleClass().add("epg-guide-action"); cancel.setOnAction(_ -> close());
         VBox loading = new VBox(10, cancel, new Label(I18n.tr("epgLoading")));
         loading.getStyleClass().add("epg-guide-popup"); getChildren().setAll(loading); setVisible(true); setManaged(true);
         worker = Thread.ofVirtual().start(() -> {
-            var programmes = new PlayerEpgApplicationService().schedule(context.account().toAccount(), context.channel());
+            var summary = MediaPlayerFactory.guideSummaryProperty().get();
+            var programmes = EpgModeUI.isPlaybackOnly() && summary != null
+                    ? java.util.stream.Stream.of(summary.now(), summary.next()).filter(java.util.Objects::nonNull).toList()
+                    : new PlayerEpgApplicationService().schedule(context.account().toAccount(), context.channel());
             var row = new LiveGuideApplicationService.Row(context.account().dbId(), "", "", context.channel(), programmes);
             Platform.runLater(() -> { if (request == generation && getScene() != null && EpgModeUI.isFeatureEnabled()) show(row); });
         });

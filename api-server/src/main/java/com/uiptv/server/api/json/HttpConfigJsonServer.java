@@ -60,6 +60,12 @@ public class HttpConfigJsonServer implements HttpHandler {
         if (req.has(KEY_ENABLE_THUMBNAILS)) {
             config.setEnableThumbnails(req.getBoolean(KEY_ENABLE_THUMBNAILS));
         }
+        if (req.has("epgEnabled")) {
+            config.setEpgEnabled(req.getBoolean("epgEnabled"));
+        }
+        if (req.has("epgPlaybackOnly")) {
+            config.setEpgPlaybackOnly(req.getBoolean("epgPlaybackOnly"));
+        }
     }
 
     private JSONObject buildConfigResponse(Configuration config) {
@@ -67,6 +73,7 @@ public class HttpConfigJsonServer implements HttpHandler {
         response.put(KEY_ENABLE_THUMBNAILS, config == null || config.isEnableThumbnails());
         response.put(KEY_WEB_PLAYBACK_PROXY_ENABLED, config == null || config.isWebPlaybackProxyEnabled());
         response.put("epgEnabled", config != null && config.isEpgEnabled());
+        response.put("epgPlaybackOnly", config != null && config.isEpgPlaybackOnly());
         response.put(KEY_WIDE_VIEW, config != null && config.isWideView());
         response.put("languageLocale", config == null ? "" : config.getLanguageLocale());
         // Read-only: reports the stored selection as light/dark/system. Replaces the removed darkTheme flag,

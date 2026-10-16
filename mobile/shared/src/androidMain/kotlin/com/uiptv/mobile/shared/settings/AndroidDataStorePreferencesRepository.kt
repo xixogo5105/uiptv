@@ -44,6 +44,7 @@ class AndroidDataStorePreferencesRepository(
                 accountsActionsPanelVisible = values[PANEL_ACCOUNTS_ACTIONS_VISIBLE] ?: false
             ),
             epgEnabled = values[EPG_ENABLED] ?: false,
+            epgPlaybackOnly = values[EPG_PLAYBACK_ONLY] ?: false,
             firstRunCompleted = values[FIRST_RUN_COMPLETED] ?: false
         )
     }
@@ -89,6 +90,10 @@ class AndroidDataStorePreferencesRepository(
         dataStore.edit { it[EPG_ENABLED] = enabled }
     }
 
+    override suspend fun saveEpgPlaybackOnly(enabled: Boolean) {
+        dataStore.edit { it[EPG_PLAYBACK_ONLY] = enabled }
+    }
+
     override suspend fun setFirstRunCompleted(completed: Boolean) {
         dataStore.edit { values ->
             values[FIRST_RUN_COMPLETED] = completed
@@ -109,6 +114,7 @@ class AndroidDataStorePreferencesRepository(
         val PANEL_WATCHING_NOW_DETAILS_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_WATCHING_NOW_DETAILS_VISIBLE)
         val PANEL_ACCOUNTS_ACTIONS_VISIBLE = booleanPreferencesKey(AndroidOnlyPreferenceKeys.PANEL_ACCOUNTS_ACTIONS_VISIBLE)
         val EPG_ENABLED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EPG_ENABLED)
+        val EPG_PLAYBACK_ONLY = booleanPreferencesKey(AndroidOnlyPreferenceKeys.EPG_PLAYBACK_ONLY)
         val FIRST_RUN_COMPLETED = booleanPreferencesKey(AndroidOnlyPreferenceKeys.FIRST_RUN_COMPLETED)
     }
 }

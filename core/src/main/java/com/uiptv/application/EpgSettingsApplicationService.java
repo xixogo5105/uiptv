@@ -11,4 +11,12 @@ public class EpgSettingsApplicationService {
             ConfigurationService.getInstance().save(configuration);
         }
     }
+
+    public void setPlaybackOnly(boolean enabled) {
+        synchronized (ConfigurationService.getInstance()) {
+            var configuration = ConfigurationService.getInstance().read();
+            configuration.setEpgPlaybackOnly(enabled);
+            ConfigurationService.getInstance().save(configuration);
+        }
+    }
 }

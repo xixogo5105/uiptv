@@ -60,9 +60,24 @@ public class EpgApplicationService {
         return com.uiptv.service.ConfigurationService.getInstance().read().isEpgEnabled();
     }
 
+    /** Full EPG card/timer/background refreshes are disabled in playback-only mode. */
+    public boolean isPlaybackOnly() {
+        return isEnabled() && com.uiptv.service.ConfigurationService.getInstance().read().isEpgPlaybackOnly();
+    }
+
+    public boolean isBackgroundRefreshEnabled() {
+        return isEnabled() && !isPlaybackOnly();
+    }
+
     /** Catalog rendering must never wait for playlist discovery, disk parsing or HTTP. */
     public void enrichCached(Account account, List<Channel> channels) {
         if(channels==null) return;
+        if (isPlaybackOnly()) {
+            // Lightweight mode deliberately renders plain catalogue cards. Do not even scan the
+            // EPG cache here: the player is the only allowed entry point for EPG work.
+            channels.forEach(channel -> { channel.setEpgNow(null); channel.setEpgNext(null); });
+            return;
+        }
         var summaries=new EpgCacheApplicationService().summaries(account,channels);
         long now=System.currentTimeMillis();
         for(Channel channel:channels) {

@@ -55,6 +55,25 @@ class ConfigurationServiceTest extends DbBackedTest {
     }
 
     @Test
+    void epgPlaybackOnly_persistsWithoutShiftingOtherEpgSettings() {
+        ConfigurationService service = ConfigurationService.getInstance();
+        Configuration configuration = service.read();
+        configuration.setEpgEnabled(true);
+        configuration.setEpgPlaybackOnly(true);
+        configuration.setGlobalEpgSource("https://example.test/guide.xml");
+        configuration.setEpgMappingsJson("{\"account\":{\"channel\":\"guide\"}}");
+        configuration.setEpgRefreshIntervalHours("6");
+        service.save(configuration);
+
+        Configuration saved = service.read();
+        assertTrue(saved.isEpgEnabled());
+        assertTrue(saved.isEpgPlaybackOnly());
+        assertEquals("https://example.test/guide.xml", saved.getGlobalEpgSource());
+        assertEquals("{\"account\":{\"channel\":\"guide\"}}", saved.getEpgMappingsJson());
+        assertEquals("6", saved.getEpgRefreshIntervalHours());
+    }
+
+    @Test
     void httpsServerSettings_defaultDisabled_andPersistWhenEnabled() {
         ConfigurationService service = ConfigurationService.getInstance();
         assertFalse(service.read().isHttpsServerEnabled());

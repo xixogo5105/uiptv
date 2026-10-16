@@ -1,0 +1,1 @@
+--@add_column Configuration epgPlaybackOnly TEXT DEFAULT '0'

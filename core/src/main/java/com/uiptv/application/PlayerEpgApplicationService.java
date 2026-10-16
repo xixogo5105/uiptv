@@ -40,7 +40,13 @@ public class PlayerEpgApplicationService {
         if (account == null || channel == null || account.getAction() != Account.AccountAction.itv) return List.of();
         Channel catalogChannel = ChannelService.getInstance().getChannelByChannelIdAndAccount(
                 channel.getChannelId(), account.getDbId(), false);
-        return new EpgCacheApplicationService().schedule(account, catalogChannel == null ? channel : catalogChannel);
+        Channel resolved = catalogChannel == null ? channel : catalogChannel;
+        if (new EpgApplicationService().isPlaybackOnly()) {
+            // Lightweight mode bypasses the scheduler and visible-card prefetch.
+            // This is the single on-demand refresh made for the playing channel.
+            new EpgCacheRefreshService().refreshAccount(account, List.of(resolved));
+        }
+        return new EpgCacheApplicationService().schedule(account, resolved);
     }
 
     public Result current(Account account, Channel channel) {

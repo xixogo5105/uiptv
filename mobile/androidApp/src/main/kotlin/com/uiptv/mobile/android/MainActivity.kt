@@ -137,6 +137,8 @@ class MainActivity : ComponentActivity() {
                         clearCache = epgRepository::clearCache,
                         loadEnabled = { preferences.load().epgEnabled },
                         saveEnabled = preferences::saveEpgEnabled,
+                        loadPlaybackOnly = { preferences.load().epgPlaybackOnly },
+                        savePlaybackOnly = preferences::saveEpgPlaybackOnly,
                         globalSource = epgRepository::globalSource,
                         saveGlobalSource = epgRepository::saveGlobalSource,
                         schedule = epgRepository::schedule,
