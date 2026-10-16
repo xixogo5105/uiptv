@@ -331,6 +331,14 @@ public class RootApplication extends Application {
     @Override
     public void stop() {
         unregisterTitleStatusUpdater();
+        // Stop EPG workers before tearing down the scene and media player. With EPG enabled,
+        // leaving this to the JVM shutdown hook makes JavaFX close while cache refreshes and
+        // the filesystem watcher are still active, which makes the window feel stuck.
+        try {
+            com.uiptv.application.EpgCacheRefreshService.stopForApplicationExit();
+        } catch (Exception _) {
+            // Best-effort shutdown: EPG cleanup must not prevent the application from exiting.
+        }
         try {
             MediaPlayerFactory.release();
         } catch (Exception _) {

@@ -259,8 +259,9 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                 overlay.close();
                 video.resize(480, 400); video.layout(); assertTrue(button.isManaged());
                 wideMode.set(false); assertFalse(button.isManaged(), "Guide control must be hidden in narrow mode");
+                fullscreen.set(true); assertTrue(button.isManaged(), "Guide control must return in fullscreen");
+                fullscreen.set(false); assertFalse(button.isManaged());
                 wideMode.set(true); assertTrue(button.isManaged());
-                fullscreen.set(true); assertTrue(button.isManaged());
                 mode.when(EpgModeUI::isFeatureEnabled).thenReturn(false);
                 com.uiptv.player.MediaPlayerFactory.publishGuideSummary(null); assertFalse(button.isManaged());
                 overlay.close(); video.getChildren().clear();

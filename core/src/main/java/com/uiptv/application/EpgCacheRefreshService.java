@@ -160,7 +160,8 @@ public class EpgCacheRefreshService {
         synchronized (EpgCacheRefreshService.class) {
             if (serverOnly && applicationOwned) return;
             lifecycleStarted = false;
-            EpgChangeNotifications.stopExternalWatcher();
+            if (awaitLifecycle) EpgChangeNotifications.stopExternalWatcher();
+            else EpgChangeNotifications.stopExternalWatcherForApplicationExit();
             synchronized (VISIBLE) { VISIBLE.clear(); }
             EPOCH.incrementAndGet();
             ConfigurationService.getInstance().removeChangeListener(CONFIG_CHANGED);

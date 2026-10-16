@@ -175,10 +175,20 @@ public final class EpgChangeNotifications {
     }
 
     public static synchronized void stopExternalWatcher() {
+        stopExternalWatcher(true);
+    }
+
+    /** Interrupt the watcher during JVM exit without making the UI shutdown wait on it. */
+    public static synchronized void stopExternalWatcherForApplicationExit() {
+        stopExternalWatcher(false);
+    }
+
+    private static void stopExternalWatcher(boolean awaitTermination) {
         Thread current = watcher;
         watcher = null;
         if (current == null || current == Thread.currentThread()) return;
         current.interrupt();
+        if (!awaitTermination) return;
         try {
             current.join(1000);
         } catch (InterruptedException error) {
