@@ -2192,36 +2192,21 @@ a[href] {
 .content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) .player-epg-panel {
  max-height: none;
  overflow: visible;
- margin: 0;
+ margin: 18px 0 0;
 }
 
-/* In narrow-player mode, let the page grow and use the document scrollbar. */
-html:has(.content-shell:not(.wide-view) .player-epg-panel),
-body:has(.content-shell:not(.wide-view) .player-epg-panel) {
- height: auto;
- min-height: 100%;
- overflow-x: hidden;
- overflow-y: auto;
-}
-
-.app-shell:has(.content-shell:not(.wide-view) .player-epg-panel),
-.workspace:has(.content-shell:not(.wide-view) .player-epg-panel),
+/* Keep the catalogue pane independently scrollable when the narrow player
+   also displays its EPG. The page itself remains a fixed application shell;
+   only the catalogue pane should consume the available scroll area. */
 .content-shell:not(.wide-view):has(.player-epg-panel) {
- height: auto;
- min-height: 100vh;
- overflow: visible;
-}
-
-.content-shell:not(.wide-view):has(.player-epg-panel) {
- height: auto;
+ height: 100%;
  min-height: 0;
- overflow: visible;
- grid-template-rows: auto auto;
+ overflow: hidden;
 }
 
 .content-shell:not(.wide-view):has(.player-epg-panel) .content-stage {
- height: auto;
- overflow: visible;
+ height: 100%;
+ overflow-y: auto;
 }
 
 /* EPG stays inside the existing channel and bookmark cards. */
