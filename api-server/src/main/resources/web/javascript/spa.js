@@ -185,6 +185,21 @@ createApp({
         // Prevent overlapping startPlayback runs; if one is stuck, abort it so the next click can proceed.
         let playbackInFlight = false;
         let currentPlaybackRequestId = 0;
+        const isCurrentPlaybackRequest = (requestId) => requestId == null || requestId === playbackRequestId;
+        const throwIfPlaybackSuperseded = (requestId) => {
+            if (isCurrentPlaybackRequest(requestId)) return;
+            const error = new Error('Playback request superseded');
+            error.name = 'AbortError';
+            throw error;
+        };
+        const PLAYBACK_STARTUP_TIMEOUT_MS = 15000;
+        const withPlaybackStartupTimeout = (promise, label) => {
+            let timeoutId;
+            const timeout = new Promise((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error(`${label} startup timed out`)), PLAYBACK_STARTUP_TIMEOUT_MS);
+            });
+            return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+        };
         // UI debounce flag to briefly disable play buttons after a click to give feedback and avoid rapid duplicates.
         const playClicksDisabled = ref(false);
         const languageNames = typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
@@ -3282,7 +3297,7 @@ createApp({
                 const channelData = await channelDataPromise;
                 if (requestId !== playbackRequestId) return;
                 syncBingeWatchState(channelData);
-                await initPlayer(channelData);
+                await initPlayer(channelData, requestId);
                 if (currentChannel.value?.mode === 'series') {
                     await refreshSeriesEpisodeWatchState();
                     await ensureSeriesWatchingNow();
@@ -3438,7 +3453,8 @@ createApp({
             await stopPlayback(false);
         };
 
-        const initPlayer = async (channel) => {
+        const initPlayer = async (channel, requestId = playbackRequestId) => {
+            throwIfPlaybackSuperseded(requestId);
             const uri = channel.url;
             if (!uri) {
                 console.error('No URL provided for playback.');
@@ -3449,6 +3465,7 @@ createApp({
 
             const initRequestId = playbackRequestId;
             await nextTick();
+            throwIfPlaybackSuperseded(requestId);
             try {
                 await window.UIPTVModernPlayer.ready();
             } catch (error) {
@@ -3482,36 +3499,36 @@ createApp({
 
             if (override === 'proxy') {
                 const proxyUrl = buildProxyStreamUrl(uri, channel.accountId) || uri;
-                await loadNative({...channel, url: proxyUrl});
+                await loadNative({...channel, url: proxyUrl}, requestId);
                 return;
             }
             if (override === 'direct') {
-                await loadNative(channel);
+                await loadNative(channel, requestId);
                 return;
             }
             if (override === 'mpegts') {
-                await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)});
+                await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)}, requestId);
                 return;
             }
             if (override === 'videojs') {
-                if (hasDRM) await loadShaka(channel);
-                else await loadVideoJs(channel);
+                if (hasDRM) await loadShaka(channel, requestId);
+                else await loadVideoJs(channel, requestId);
                 return;
             }
             if (override === 'shaka') {
-                await loadShaka(channel);
+                await loadShaka(channel, requestId);
                 return;
             }
             if (override === 'native') {
-                await loadNative(channel);
+                await loadNative(channel, requestId);
                 return;
             }
             // 'hls' override — route to Native or Shaka (with native inline video controls)
             if (override === 'hls') {
                 if (prefersNativeHls) {
-                    await loadNative(channel);
+                    await loadNative(channel, requestId);
                 } else {
-                    await loadVideoJs(channel);
+                    await loadVideoJs(channel, requestId);
                 }
                 return;
             }
@@ -3519,33 +3536,34 @@ createApp({
             const preferHlsFallback = isHls && !prefersNativeHls;
             try {
                 if (hasDRM) {
-                    await loadShaka(channel);
+                    await loadShaka(channel, requestId);
                 } else if (isTs) {
-                    await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)});
+                    await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)}, requestId);
                 } else if (isHls && prefersNativeHls) {
-                    await loadNative(channel);
+                    await loadNative(channel, requestId);
                 } else if (isHls) {
                     // Modern HLS controls and adaptive tracks; Shaka remains an independent fallback.
                     try {
-                        await loadVideoJs(channel);
+                        await loadVideoJs(channel, requestId);
                     } catch (videoJsError) {
                         console.warn('Video.js HLS playback failed, trying Shaka fallback', videoJsError);
-                        await loadShaka(channel);
+                        await loadShaka(channel, requestId);
                     }
                 } else if (canNative) {
-                    await loadNative(channel);
+                    await loadNative(channel, requestId);
                 } else {
-                    await loadShaka(channel);
+                    await loadShaka(channel, requestId);
                 }
             } catch (e) {
-                if (!hasDRM && !isTs && await tryProxyPlaybackFallback(channel, preferHlsFallback, e)) {
+                if (!hasDRM && !isTs && await tryProxyPlaybackFallback(channel, preferHlsFallback, e, requestId)) {
                     return;
                 }
                 throw e;
             }
         };
 
-        const tryProxyPlaybackFallback = async (channel, preferShaka, previousError) => {
+        const tryProxyPlaybackFallback = async (channel, preferShaka, previousError, requestId = playbackRequestId) => {
+            throwIfPlaybackSuperseded(requestId);
             const sourceUrl = String(channel?.url || '').trim();
             const proxyUrl = buildProxyStreamUrl(sourceUrl, channel.accountId);
             if (!proxyUrl || proxyUrl === sourceUrl) {
@@ -3557,12 +3575,15 @@ createApp({
                 : [loadNative, loadVideoJs];
             let lastError = previousError;
             for (const attempt of attempts) {
+                throwIfPlaybackSuperseded(requestId);
                 await stopPlayback(true);
                 await new Promise(resolve => setTimeout(resolve, 80));
                 try {
-                    await attempt({...channel, url: proxyUrl});
+                    await attempt({...channel, url: proxyUrl}, requestId);
+                    throwIfPlaybackSuperseded(requestId);
                     return true;
                 } catch (e) {
+                    if (e?.name === 'AbortError') throw e;
                     lastError = e;
                 }
             }
@@ -3604,8 +3625,10 @@ createApp({
             }
         };
 
-        const loadMpegTs = async (channel) => {
+        const loadMpegTs = async (channel, requestId = playbackRequestId) => {
+            throwIfPlaybackSuperseded(requestId);
             await nextTick();
+            throwIfPlaybackSuperseded(requestId);
             const video = ensureVideoElement();
             if (!video) return;
             window.UIPTVModernPlayer.syncControls(video);
@@ -3625,7 +3648,7 @@ createApp({
             if (!canUseMpegts()) {
                 console.warn('MPEG-TS playback requires mpegts.js, which is not available or not supported. Falling back to native playback, which will likely fail for MPEG-TS streams.');
                 const fallbackUrl = buildProxyStreamUrl(channel.url, channel.accountId) || sourceUrl;
-                await loadNative({...channel, url: fallbackUrl});
+                await loadNative({...channel, url: fallbackUrl}, requestId);
                 return;
             }
 
@@ -3644,12 +3667,12 @@ createApp({
                 mpegtsPlayer.value = player;
                 player.on(engine.Events.ERROR, async (_, detail) => {
                     const message = detail?.msg || detail?.message || 'MPEGTS error';
-                    playbackError.value = `Playback error: ${message}`;
                     // If this player was already destroyed by stopPlayback (e.g. user switched channels),
                     // do NOT reset the video element — it may now belong to a newer stream.
-                    if (mpegtsPlayer.value !== player) {
+                    if (mpegtsPlayer.value !== player || !isCurrentPlaybackRequest(requestId)) {
                         return;
                     }
+                    playbackError.value = `Playback error: ${message}`;
                     mpegtsPlayer.value = null;
                     try {
                         player.destroy();
@@ -3670,7 +3693,8 @@ createApp({
                 player.attachMediaElement(video);
                 player.load();
                 const playAction = typeof player.play === 'function' ? () => player.play() : () => video.play();
-                await playWithGestureFallback(playAction);
+                await withPlaybackStartupTimeout(playWithGestureFallback(playAction), 'MPEG-TS');
+                throwIfPlaybackSuperseded(requestId);
                 playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'mpegts');
             } catch (e) {
                 const message = describeMpegTsFailure(e);
@@ -3682,7 +3706,7 @@ createApp({
                     }
                     mpegtsPlayer.value = null;
                 }
-                clearVideoElement(video);
+                if (isCurrentPlaybackRequest(requestId) && mpegtsPlayer.value === null) clearVideoElement(video);
                 if (isBrowserUnsupportedMediaError(e)) {
                     console.warn(message);
                 } else {
@@ -3692,8 +3716,10 @@ createApp({
             }
         };
 
-        const loadNative = async (channel) => {
+        const loadNative = async (channel, requestId = playbackRequestId) => {
+            throwIfPlaybackSuperseded(requestId);
             await nextTick();
+            throwIfPlaybackSuperseded(requestId);
             const video = ensureVideoElement();
             if (!video) return;
             window.UIPTVModernPlayer.syncControls(video);
@@ -3702,10 +3728,12 @@ createApp({
             let sourceUrl = normalizeWebPlaybackUrl(channel.url);
             video.src = sourceUrl;
             try {
-                const started = await playWithGestureFallback(() => video.play());
+                const started = await withPlaybackStartupTimeout(playWithGestureFallback(() => video.play()), 'Native');
+                throwIfPlaybackSuperseded(requestId);
                 playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
                 if (!started) return;
             } catch (e) {
+                throwIfPlaybackSuperseded(requestId);
                 if (String(strategyOverride.value || 'auto') !== 'auto') {
                     playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
                     console.warn('Native playback failed.', e);
@@ -3720,11 +3748,13 @@ createApp({
                         parsed.searchParams.set('_retry', String(Date.now()));
                         sourceUrl = parsed.toString();
                         video.src = sourceUrl;
-                        const started = await playWithGestureFallback(() => video.play());
+                        const started = await withPlaybackStartupTimeout(playWithGestureFallback(() => video.play()), 'Proxy');
+                        throwIfPlaybackSuperseded(requestId);
                         playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
                         if (!started) return;
                         return;
                     } catch (retryProxyErr) {
+                        if (retryProxyErr?.name === 'AbortError') throw retryProxyErr;
                         console.warn('Proxy retry failed.', retryProxyErr);
                     }
                 }
@@ -3735,18 +3765,20 @@ createApp({
                     try {
                         sourceUrl = downgraded;
                         video.src = sourceUrl;
-                        const started = await playWithGestureFallback(() => video.play());
+                        const started = await withPlaybackStartupTimeout(playWithGestureFallback(() => video.play()), 'HTTP fallback');
+                        throwIfPlaybackSuperseded(requestId);
                         playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
                         if (!started) return;
                         return;
                     } catch (retryErr) {
+                        if (retryErr?.name === 'AbortError') throw retryErr;
                         console.warn('HTTP fallback failed.', retryErr);
                     }
                 }
 
                 playbackError.value = `Playback failed: ${e?.message || 'No supported source found'}`;
                 console.warn('Native playback failed.', e);
-                clearVideoElement(video);
+                    if (isCurrentPlaybackRequest(requestId)) clearVideoElement(video);
                 throw e;
             }
         };
@@ -3754,9 +3786,10 @@ createApp({
         const normalizeWebPlaybackUrl = (rawUrl) => playbackUtils.normalizeWebPlaybackUrl(rawUrl);
         const downgradeHttpsToHttpForKnownPaths = (url) => playbackUtils.downgradeHttpsToHttpForKnownPaths(url);
 
-        const loadVideoJs = async (channel) => {
+        const loadVideoJs = async (channel, requestId = playbackRequestId) => {
             await window.UIPTVModernPlayer.ready();
             await nextTick();
+            throwIfPlaybackSuperseded(requestId);
             if (videoJsPlayer.value) {
                 videoJsPlayer.value.dispose();
                 videoJsPlayer.value = null;
@@ -3775,7 +3808,7 @@ createApp({
             player.maxPreferencePending = isMaxQualityEnabled();
             video.addEventListener('error', () => {
                 // A disposed adapter must never clear a newer channel's media.
-                if (videoJsPlayer.value !== player) return;
+                if (videoJsPlayer.value !== player || !isCurrentPlaybackRequest(requestId)) return;
                 playbackError.value = `Playback error: ${video.error?.message || 'Video.js error'}`;
             });
             if (isHls || isDash) {
@@ -3784,7 +3817,8 @@ createApp({
                 video.src = sourceUrl;
             }
             try {
-                await playWithGestureFallback(() => video.play());
+                await withPlaybackStartupTimeout(playWithGestureFallback(() => video.play()), 'Video.js');
+                throwIfPlaybackSuperseded(requestId);
                 playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'videojs');
                 refreshVideoJsTracks(player);
             } catch (error) {
@@ -3826,8 +3860,10 @@ createApp({
             selectedTextTrackId.value = String(nextTextTracks.find(track => track.active)?.id || 'off');
         };
 
-        const loadShaka = async (channel) => {
+        const loadShaka = async (channel, requestId = playbackRequestId) => {
+            throwIfPlaybackSuperseded(requestId);
             await nextTick();
+            throwIfPlaybackSuperseded(requestId);
             const video = ensureVideoElement();
             if (!video) return;
             window.UIPTVModernPlayer.syncControls(video);
@@ -3854,12 +3890,12 @@ createApp({
 
             player.addEventListener('error', (event) => {
                 console.error('Shaka Player Error:', event.detail);
-                playbackError.value = `Playback error: ${event?.detail?.message || 'Shaka error'}`;
                 // If this player was already destroyed by stopPlayback (e.g. user switched channels),
                 // do NOT reset the video element — it may now belong to a newer stream.
-                if (playerInstance.value !== player) {
+                if (playerInstance.value !== player || !isCurrentPlaybackRequest(requestId)) {
                     return;
                 }
+                playbackError.value = `Playback error: ${event?.detail?.message || 'Shaka error'}`;
                 playerInstance.value = null;
                 const video = ensureVideoElement();
                 if (video) {
@@ -3891,8 +3927,9 @@ createApp({
 
             try {
                 await player.attach(video);
-                await player.load(channel.url);
-                await playWithGestureFallback(() => video.play());
+                await withPlaybackStartupTimeout(player.load(channel.url), 'Shaka');
+                await withPlaybackStartupTimeout(playWithGestureFallback(() => video.play()), 'Shaka');
+                throwIfPlaybackSuperseded(requestId);
                 playbackMode.value = resolvePlaybackModeLabel(channel.url, 'shaka');
                 refreshShakaTracks(player);
                 player.addEventListener('trackschanged', () => refreshShakaTracks(player));
@@ -3900,16 +3937,19 @@ createApp({
                 player.addEventListener('adaptation', () => refreshShakaTracks(player));
             } catch (e) {
                 console.error('Shaka: Error loading video:', e);
+                if (!isCurrentPlaybackRequest(requestId)) {
+                    throwIfPlaybackSuperseded(requestId);
+                }
                 playbackError.value = `Playback failed: ${e?.message || 'Unable to load stream'}`;
-                if (playerInstance.value) {
+                if (playerInstance.value === player) {
                     try {
-                        await playerInstance.value.destroy();
+                        await player.destroy();
                     } catch (destroyErr) {
                         console.warn('Error destroying Shaka player after failure', destroyErr);
                     }
                     playerInstance.value = null;
                 }
-                clearVideoElement(video);
+                if (isCurrentPlaybackRequest(requestId)) clearVideoElement(video);
                 throw e;
             }
         };

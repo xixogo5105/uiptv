@@ -40,6 +40,7 @@ public class HttpProxyStreamServer implements HttpHandler {
     private static final String HEADER_CONTENT_RANGE = "Content-Range";
     private static final String HEADER_CONTENT_TYPE = "Content-Type";
     private static final String HEADER_COOKIE = "Cookie";
+    private static final String HEADER_HOST = "Host";
     private static final String HEADER_LOCATION = "Location";
     private static final String HEADER_ORIGIN = "Origin";
     private static final String HEADER_PRAGMA = "Pragma";
@@ -156,7 +157,7 @@ public class HttpProxyStreamServer implements HttpHandler {
             if (scheme == null || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
                 return false;
             }
-            String host = uri.getHost();
+            String host = hostOf(uri);
             if (isBlank(host)) {
                 return false;
             }
@@ -186,6 +187,31 @@ public class HttpProxyStreamServer implements HttpHandler {
                 || isUniqueLocalIpv6Address(address);
     }
 
+    private static String hostOf(URI uri) {
+        if (uri == null) {
+            return "";
+        }
+        String host = uri.getHost();
+        if (!isBlank(host)) {
+            return host;
+        }
+        String authority = uri.getRawAuthority();
+        if (isBlank(authority)) {
+            return "";
+        }
+        int userInfoEnd = authority.lastIndexOf('@');
+        String hostPort = userInfoEnd >= 0 ? authority.substring(userInfoEnd + 1) : authority;
+        if (hostPort.startsWith("[")) {
+            int closingBracket = hostPort.indexOf(']');
+            return closingBracket > 1 ? hostPort.substring(1, closingBracket) : "";
+        }
+        int portSeparator = hostPort.lastIndexOf(':');
+        if (portSeparator > 0 && isAsciiDigits(hostPort.substring(portSeparator + 1))) {
+            return hostPort.substring(0, portSeparator);
+        }
+        return hostPort;
+    }
+
     private static boolean isCarrierGradeNatAddress(InetAddress address) {
         byte[] bytes = address.getAddress();
         return bytes.length == 4 && (bytes[0] & 0xff) == 100 && (bytes[1] & 0xff) >= 64 && (bytes[1] & 0xff) <= 127;
@@ -211,8 +237,13 @@ public class HttpProxyStreamServer implements HttpHandler {
                                                      List<String> cookies,
                                                      Map<String, String> forwardHeaders,
                                                      String requestMethod) throws IOException {
+        String originalAuthority = authorityOf(current);
         for (int i = 0; i < 6; i++) {
             Map<String, String> upstreamHeaders = buildUpstreamHeaders(current, cookies, forwardHeaders);
+            String redirectHost = redirectHostHeader(originalAuthority, current);
+            if (!isBlank(redirectHost)) {
+                upstreamHeaders.put(HEADER_HOST, redirectHost);
+            }
 
             String upstreamMethod = "HEAD".equalsIgnoreCase(requestMethod) ? "HEAD" : "GET";
             HttpUtil.StreamResult upstream = HttpUtil.openStream(current, upstreamHeaders, upstreamMethod, null, new HttpUtil.RequestOptions(false, true));
@@ -246,6 +277,60 @@ public class HttpProxyStreamServer implements HttpHandler {
             return upstream;
         }
         return null;
+    }
+
+    private String redirectHostHeader(String originalAuthority, String currentUrl) {
+        if (isBlank(originalAuthority) || isBlank(currentUrl)) {
+            return "";
+        }
+        try {
+            URI current = URI.create(currentUrl.trim());
+            String host = current.getHost();
+            if (isBlank(host) || !isNumericHost(host)) {
+                return "";
+            }
+            return originalAuthority;
+        } catch (IllegalArgumentException _) {
+            return "";
+        }
+    }
+
+    private String authorityOf(String url) {
+        if (isBlank(url)) {
+            return "";
+        }
+        try {
+            return URI.create(url.trim()).getRawAuthority();
+        } catch (IllegalArgumentException _) {
+            return "";
+        }
+    }
+
+    private boolean isNumericHost(String host) {
+        if (isBlank(host)) {
+            return false;
+        }
+        String value = host.trim();
+        if (value.contains(":")) {
+            return true;
+        }
+        String[] octets = value.split("\\.", -1);
+        if (octets.length != 4) {
+            return false;
+        }
+        for (String octet : octets) {
+            if (!isAsciiDigits(octet)) {
+                return false;
+            }
+            try {
+                if (Integer.parseInt(octet) > 255) {
+                    return false;
+                }
+            } catch (NumberFormatException _) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void collectCookies(Map<String, List<String>> responseHeaders, List<String> cookies) {
@@ -722,7 +807,7 @@ public class HttpProxyStreamServer implements HttpHandler {
         return isAsciiDigits(pathOnly.substring(lastSlash + 1));
     }
 
-    private boolean isAsciiDigits(String value) {
+    private static boolean isAsciiDigits(String value) {
         if (isBlank(value)) {
             return false;
         }

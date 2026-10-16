@@ -76,6 +76,45 @@ class HttpProxyStreamServerTest {
     }
 
     @Test
+    void preservesOriginalHostWhenProviderRedirectsToNumericAddress() throws Exception {
+        AtomicReference<String> finalHost = new AtomicReference<>();
+        upstreamServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        upstreamServer.createContext("/redirect", exchange -> {
+            exchange.getResponseHeaders().add("Location", "http://127.0.0.1:" + upstreamServer.getAddress().getPort() + "/final");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        upstreamServer.createContext("/final", exchange -> {
+            finalHost.set(exchange.getRequestHeaders().getFirst("Host"));
+            byte[] body = "stream".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "video/mp4");
+            exchange.getResponseHeaders().add("Content-Length", String.valueOf(body.length));
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(body);
+            }
+        });
+        upstreamServer.start();
+
+        proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        proxyServer.createContext("/proxy-stream", new HttpProxyStreamServer(url -> {
+            URI uri = URI.create(url);
+            return "http".equalsIgnoreCase(uri.getScheme())
+                    && ("localhost".equalsIgnoreCase(uri.getHost()) || "127.0.0.1".equals(uri.getHost()))
+                    && uri.getPort() == upstreamServer.getAddress().getPort();
+        }));
+        proxyServer.start();
+
+        String upstreamUrl = "http://localhost:" + upstreamServer.getAddress().getPort() + "/redirect";
+        String proxyUrl = "http://127.0.0.1:" + proxyServer.getAddress().getPort() + "/proxy-stream?src="
+                + URLEncoder.encode(upstreamUrl, StandardCharsets.UTF_8);
+        HttpURLConnection connection = (HttpURLConnection) URI.create(proxyUrl).toURL().openConnection();
+
+        assertEquals(200, connection.getResponseCode());
+        assertEquals("localhost:" + upstreamServer.getAddress().getPort(), finalHost.get());
+    }
+
+    @Test
     void optionsRequestsReturnCorsContractWithoutContactingUpstream() throws Exception {
         proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         proxyServer.createContext("/proxy-stream", new HttpProxyStreamServer(url -> {
@@ -254,6 +293,8 @@ class HttpProxyStreamServerTest {
         assertFalse((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://0.0.0.0:8080/player"));
         assertFalse((Boolean) invoke(handler, "isLocalOrigin", new Class[]{String.class}, "http://portal.test/player"));
         assertFalse((Boolean) invoke(handler, "isAllowedTargetUrl", new Class[]{String.class}, "http://127.0.0.1:8080/private"));
+        assertEquals("exa_edge_2skyd.cdn77.me", invoke(handler, "hostOf", new Class[]{URI.class},
+                URI.create("http://exa_edge_2skyd.cdn77.me/live/mono.m3u8")));
         assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class}, InetAddress.getByName("100.64.0.1")));
         assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class}, InetAddress.getByName("fc00::1")));
 
