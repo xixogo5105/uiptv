@@ -156,7 +156,7 @@ The accepted fields `level`, `file`, `max_size_mb`, `backup_count` and `redact_s
 - Bundles are limited to 128 MiB and 1,000,000 programme entries. There is no configuration setting to raise these limits or partition a large build automatically.
 - The retained programme horizon is fixed by Java, rather than a `days` option in TOML.
 - A scheduler is external to the utility. Writing `refresh_hours` does not install a background job.
-- EPG display must remain enabled in UIPTV. A dedicated external-refresh-owner setting is not implemented; the application can still refresh its own configured sources.
+- EPG display must remain enabled in UIPTV for published data to be shown. In full EPG mode the application can still refresh its own configured sources using its separate scheduler. Playback-only EPG suppresses that background importer and fetches guide data only for the item playing in the embedded player.
 - Unknown configuration fields are generally ignored. A syntactically valid file can therefore contain ineffective misspelled settings. Follow the field names in this reference.
 
 ## Preview, publish and schedule

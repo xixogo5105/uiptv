@@ -1,7 +1,9 @@
-# EPG change notifications — implementation plan
+# EPG change notifications — implementation notes
 
-Status: proposal only. This document does not introduce a notifier, SSE endpoint,
-file watcher, or change the current refresh schedule.
+Status: implemented. The journal, in-process subscriptions, SQLite reconciliation
+and local web SSE endpoint described below are now part of the application. The
+filesystem-marker approach was deliberately removed; SQLite remains the source
+of truth for cross-process changes.
 
 ## Purpose
 
@@ -37,18 +39,14 @@ and account-specific schedules remain scoped appropriately. Suspend subscription
 and local animations while the relevant screen is inactive; reconcile once on
 resume or database restoration.
 
-## 3. Connect the external builder
+## 3. Reconcile the external builder
 
-After a successful commit, atomically replace a small notification marker beside
-the database. Watch that marker's directory; do not watch SQLite/WAL writes, which
-also contain unrelated catalogue activity. Treat the marker as a wake-up signal,
-then validate the committed revision in the database.
-
-Handle watcher overflow, replacement, unavailable directories and duplicate events.
-Reconcile once at startup, resume and watcher reconnection so a crash between commit
-and marker publication cannot leave an active screen permanently stale. If supported
-recovery cannot guarantee this, retain an explicit low-frequency safety check and
-measure it; do not claim the design eliminates every possible reconciliation read.
+After a successful commit, the writer records a monotonic revision and bounded
+invalidation details in `epg_change_state` and `epg_change_history`. The desktop
+scheduler periodically reads that journal and replays revisions that the process
+has not observed. There is no marker file, `WatchService`, or filesystem polling.
+Database generation changes produce a resync event so restored or replaced
+databases cannot silently reuse stale subscriptions.
 
 ## 4. Push to web and connected mobile clients
 
@@ -81,11 +79,11 @@ providers push new guide data.
 
 ## Delivery and validation
 
-1. Add revisioned core notifications and migrate desktop subscribers.
-2. Add the builder marker and watcher recovery.
-3. Add SSE and migrate web/connected mobile subscribers.
-4. Replace repeated schedule reads with cached boundary scheduling.
-5. Remove superseded polling after coverage and recovery checks pass.
+1. Revisioned core notifications and desktop subscribers: implemented.
+2. SQLite journal reconciliation for external builder/application changes: implemented.
+3. SSE wake-up stream for the local web client: implemented.
+4. Cached boundary scheduling and coalesced visible/player reads: implemented.
+5. Filesystem marker and watcher: rejected and removed in favour of database revision polling.
 
 Acceptance checks:
 
@@ -93,9 +91,10 @@ Acceptance checks:
 - Programme rollover and countdown progress work offline from cached data.
 - Unrelated account imports cause no player-panel relayout or guide read.
 - An import burst emits one committed revision per transaction, with bounded reads.
-- External imports reach subscribed clients promptly without watching every DB write.
-- Reconnect, missed events, watcher overflow, clock changes and restored databases
-  recover correctly, with no duplicate subscribers or leaked background tasks.
+- External imports reach subscribed clients through journal reconciliation/SSE without
+  watching every DB write.
+- Reconnect, missed events, clock changes and restored databases recover correctly,
+  with no duplicate subscribers or leaked background tasks.
 - Existing provider-identity, precedence, override, shared-cache, schema and narrow
   layout contracts remain valid on desktop, web and Android.
 

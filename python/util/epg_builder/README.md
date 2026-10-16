@@ -44,7 +44,7 @@ max_size_mb = 64
 timeout_seconds = 60
 ```
 
-The bridge always uses UIPTV’s own resolver: `db.path` in UIPTV’s `uiptv.ini`, otherwise UIPTV’s standard database location for the current OS user. There is no builder database-path setting or `--database` override. Legacy `[database]` sections are ignored and can be removed. Run the scheduler as the same OS user as UIPTV. The bridge refuses missing files and does not run migrations; open an older database with the current UIPTV application first. The current schema includes migration 0214. No second authoritative database is created.
+The bridge always uses UIPTV’s own resolver: `db.path` in UIPTV’s `uiptv.ini`, otherwise UIPTV’s standard database location for the current OS user. There is no builder database-path setting or `--database` override. Legacy `[database]` sections are ignored and can be removed. Run the scheduler as the same OS user as UIPTV. The bridge refuses missing files and does not run migrations; open an older database with the current UIPTV application first. The current schema includes migrations through 0218. No second authoritative database is created.
 
 ## Commands
 
@@ -67,6 +67,8 @@ For scheduling, use absolute executable/config/JAR paths:
 ```cron
 0 */6 * * * /path/to/venv/bin/uiptv-epg build --apply --config /path/to/config.toml
 ```
+
+This external builder schedule is independent of UIPTV's in-app full-EPG scheduler. UIPTV's scheduler checks the SQLite cache state at the configurable 1, 2, 3, 5, 10, 15, 30 or 60-minute interval (default 3 minutes); playback-only EPG disables that background importer and fetches guide data only for the item playing in the embedded player.
 
 ## Cache and publication contract
 

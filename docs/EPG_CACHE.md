@@ -1,6 +1,6 @@
 # Persistent EPG cache
 
-EPG records live in the existing application SQLite database. There is no second database. The authoritative table definitions are in `0000_baseline.sql`; migration 0211 adds the tables to existing installations. Migration 0210 adds the refresh interval. The mobile schema mirror is generated from that baseline.
+EPG records live in the existing application SQLite database. There is no second database. The authoritative table definitions are in `0000_baseline.sql`; migration 0211 adds the tables to existing installations. Migration 0210 adds the source freshness interval, migration 0217 adds playback-only mode, and migration 0218 adds the scheduler check interval. The mobile schema mirror is generated from that baseline.
 
 ## Storage and identity
 
@@ -24,15 +24,17 @@ The cache stores UTC timestamps rather than flags saying “now” or “next”
 
 Cards use read-only connections and indexed batches of up to 128 identities. They return at most two programme summaries per channel and never fetch descriptions, download feeds, parse XML or perform fuzzy searches. Full guides use a bounded read on explicit demand. Desktop card workers operate on visible cards; background updates update those nodes instead of rebuilding the bookmark/channel list, selection or scroll position.
 
-Only an enabled EPG feature owns a scheduled executor. Disabling it immediately shuts down the timer, interrupts its work and invalidates obsolete imports. Lightweight configuration observers remain so enabling EPG can start the service again; they do not poll or fetch guides while it is off.
+Only full EPG mode owns a scheduled executor. Disabling EPG or enabling playback-only mode immediately shuts down the background importer, interrupts its work and invalidates obsolete imports. Lightweight configuration observers remain so enabling full EPG can start the service again; they do not poll or fetch guides while EPG is off or playback-only mode is selected.
 
-Settings → Appearance → EPG refresh interval allows 1–24 hours, default 2. Short provider schedules refresh earlier, before coverage ends. A background minute tick checks persisted due times; a fresh source is not downloaded on each tick. Account/catalog changes wake the importer. Native requests are bounded by count and time, give bookmarks priority, then rotate through cached live channels. Catalog browsing does not fetch provider channel catalogs for the importer.
+Settings → Appearance → EPG background check interval allows 1, 2, 3, 5, 10, 15, 30 or 60 minutes, default 3. The separate source freshness interval remains 1–24 hours, default 2 hours. Each scheduler pass checks the SQLite source state and change journal; a fresh source is not downloaded on every pass. Account/catalog changes wake the importer in full mode. Native requests are bounded by count and time, give bookmarks priority, then rotate through cached live channels. Catalog browsing does not fetch provider channel catalogs for the importer.
+
+The `epg_change_state` and `epg_change_history` tables provide the cross-process revision journal. The desktop scheduler reconciles revisions from SQLite, so no `.epg-change` marker file or filesystem watcher is required. The local web client can also subscribe to the authenticated `/epg-events` SSE wake-up stream and then fetch only the affected scoped data; heartbeats do not trigger EPG queries.
 
 Each completed source is mapped and published immediately, so later slow fallback feeds cannot delay already available summaries. Native bookmark requests precede bulk native rotation, while imported XMLTV records are mapped to all cached channels for that account.
 
 XMLTV imports validate the feed before replacing its rows in one transaction. SQLite WAL keeps existing rows readable during refresh. Failed refreshes keep the last good programmes and use a five-minute retry backoff. Settings → Cache → Refresh EPG clears only EPG cache rows and transient discovery/provider state, invalidates old in-flight imports and queues a fresh background import when enabled. It preserves accounts, bookmarks, catalog rows and explicit guide overrides.
 
-Expired programmes are pruned after a six-hour history window. Imports retain at most seven future days and use the existing XMLTV byte/programme safety limits. Descriptions and database page caches are bounded. Empty or first-time caches cannot display information that has not yet been fetched: channels appear immediately and guide summaries fill in when the background import completes. Later launches read the persisted records immediately.
+Expired programmes are pruned after a six-hour history window. Imports retain at most seven future days and use the existing XMLTV byte/programme safety limits. Descriptions and database page caches are bounded. Empty or first-time caches cannot display information that has not yet been fetched: channels appear immediately and full-mode guide summaries fill in when the background import completes. In playback-only mode, cards stay plain and the selected playing item fetches its current/next data when playback starts; leaving the player releases that player-scoped view without starting a catalogue refresh. Later launches read persisted records immediately.
 
 ## Validation
 
