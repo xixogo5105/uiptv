@@ -103,7 +103,7 @@ public class ConfigurationUI extends VBox {
     private final PillBar<ThemeModeOption> themeModePillBar =
             new PillBar<>(ThemeModeOption::title, ThemeModeOption::id);
     private final SwitchToggle thumbnailModeSwitch = new SwitchToggle();
-    private final ComboBox<Integer> epgRefreshIntervalComboBox = new ComboBox<>();
+    private final ComboBox<Integer> epgSchedulerIntervalComboBox = new ComboBox<>();
     private final SwitchToggle epgEnabledSwitch = new SwitchToggle();
     private final SwitchToggle epgPlaybackOnlySwitch = new SwitchToggle();
     private final TextArea globalEpgSourceField = new TextArea();
@@ -917,14 +917,14 @@ public class ConfigurationUI extends VBox {
         globalEpgSourceField.setPrefRowCount(4);
         globalEpgSourceField.setPromptText(I18n.tr("configGlobalEpgHelp"));
         globalEpgSourceField.setTooltip(new Tooltip(I18n.tr("configGlobalEpgHelp")));
-        epgRefreshIntervalComboBox.getItems().setAll(java.util.stream.IntStream.rangeClosed(1,24).boxed().toList());
-        if(epgRefreshIntervalComboBox.getValue()==null) epgRefreshIntervalComboBox.setValue(2);
-        epgRefreshIntervalComboBox.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
+        epgSchedulerIntervalComboBox.getItems().setAll(1, 2, 3, 5, 10, 15, 30, 60);
+        if(epgSchedulerIntervalComboBox.getValue()==null) epgSchedulerIntervalComboBox.setValue(3);
+        epgSchedulerIntervalComboBox.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
         epgPlaybackOnlySwitch.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
-        epgRefreshIntervalComboBox.setTooltip(new Tooltip(I18n.tr("configEpgRefreshIntervalHelp")));
+        epgSchedulerIntervalComboBox.setTooltip(new Tooltip(I18n.tr("configEpgSchedulerIntervalHelp")));
         return new VBox(10, createSettingSwitchRow("configEnableEpg", epgEnabledSwitch),
                 createSettingSwitchRow("configEpgPlaybackOnly", epgPlaybackOnlySwitch), buildEpgSourceRow(),
-                createStackedSettingControlRow("configEpgRefreshInterval",epgRefreshIntervalComboBox), themeModeRow, createSettingSwitchRow("configPlainTextMode", thumbnailModeSwitch), createSettingSwitchRow("configShowBookmarkAndAccountCounts", showBookmarkAndAccountCountsSwitch), languageAndZoomSection);
+                createStackedSettingControlRow("configEpgSchedulerInterval",epgSchedulerIntervalComboBox), themeModeRow, createSettingSwitchRow("configPlainTextMode", thumbnailModeSwitch), createSettingSwitchRow("configShowBookmarkAndAccountCounts", showBookmarkAndAccountCountsSwitch), languageAndZoomSection);
     }
 
     private Node buildEpgSourceRow() {
@@ -1708,7 +1708,7 @@ public class ConfigurationUI extends VBox {
             showBookmarkAndAccountCountsSwitch.setSelected(configuration.isShowBookmarkAndAccountCounts());
             epgEnabledSwitch.setSelected(configuration.isEpgEnabled());
             epgPlaybackOnlySwitch.setSelected(configuration.isEpgPlaybackOnly());
-            epgRefreshIntervalComboBox.setValue(configuration.normalizedEpgRefreshHours());
+            epgSchedulerIntervalComboBox.setValue(configuration.normalizedEpgSchedulerIntervalMinutes());
             globalEpgSourceField.setText(configuration.getGlobalEpgSource());
             syncShowBookmarkAndAccountCountsSelector();
             wideViewCheckBox.setSelected(configuration.isWideView());
@@ -1850,7 +1850,7 @@ public class ConfigurationUI extends VBox {
         configuration.setShowBookmarkAndAccountCounts(showBookmarkAndAccountCountsSwitch.isSelected());
         configuration.setEpgEnabled(epgEnabledSwitch.isSelected());
         configuration.setEpgPlaybackOnly(epgPlaybackOnlySwitch.isSelected());
-        configuration.setEpgRefreshIntervalHours(String.valueOf(epgRefreshIntervalComboBox.getValue()==null ? 2 : epgRefreshIntervalComboBox.getValue()));
+        configuration.setEpgSchedulerIntervalMinutes(String.valueOf(epgSchedulerIntervalComboBox.getValue()==null ? 3 : epgSchedulerIntervalComboBox.getValue()));
         configuration.setGlobalEpgSource(globalEpgSourceField.getText().strip());
         configuration.setEpgMappingsJson(previous == null ? "{}" : previous.getEpgMappingsJson());
         // Persists the three-state selection; mirrors the legacy darkTheme flag as part of the write.
@@ -2929,7 +2929,7 @@ public class ConfigurationUI extends VBox {
     }
 
     static String themeHelpText() {
-        return I18n.tr("configThemeHelp")+"\n\n"+I18n.tr("configEpgRefreshIntervalHelp");
+        return I18n.tr("configThemeHelp")+"\n\n"+I18n.tr("configEpgSchedulerIntervalHelp");
     }
 
     static String themeHelpTitle() {
@@ -2953,7 +2953,7 @@ public class ConfigurationUI extends VBox {
     }
 
     static String cacheFilteringHelpText() {
-        return I18n.tr("configCacheFilteringHelpText")+"\n\n"+I18n.tr("configEpgRefreshIntervalHelp");
+        return I18n.tr("configCacheFilteringHelpText")+"\n\n"+I18n.tr("configEpgSchedulerIntervalHelp");
     }
 
     static String cacheFilteringHelpTitle() {

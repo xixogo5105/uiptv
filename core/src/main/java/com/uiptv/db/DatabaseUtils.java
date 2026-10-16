@@ -94,7 +94,8 @@ public class DatabaseUtils {
                 new DataColumn("epgPlaybackOnly", "TEXT"),
                 new DataColumn("globalEpgSource", "TEXT"),
                 new DataColumn("epgMappingsJson", "TEXT"),
-                new DataColumn("epgRefreshIntervalHours", "TEXT")
+                new DataColumn("epgRefreshIntervalHours", "TEXT"),
+                new DataColumn("epgSchedulerIntervalMinutes", "TEXT")
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),

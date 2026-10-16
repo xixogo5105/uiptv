@@ -108,7 +108,8 @@ CREATE TABLE IF NOT EXISTS Configuration
     epgPlaybackOnly TEXT default '0',
     globalEpgSource TEXT default '',
     epgMappingsJson TEXT default '{}',
-    epgRefreshIntervalHours TEXT default '2'
+    epgRefreshIntervalHours TEXT default '2',
+    epgSchedulerIntervalMinutes TEXT default '3'
 );
 
 CREATE TABLE IF NOT EXISTS Account

@@ -6,8 +6,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.nio.file.*;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
@@ -22,7 +20,6 @@ public final class EpgChangeNotifications {
     private static final String SEPARATOR = "\u001f";
     private static final Set<Consumer<Notification>> LISTENERS = new CopyOnWriteArraySet<>();
     private static final AtomicLong OBSERVED_REVISION = new AtomicLong();
-    private static volatile Thread watcher;
 
     public enum Kind { SOURCE_IMPORT, MAPPING, CACHE_CLEARED, DATABASE_RESTORED, SETTINGS }
 
@@ -163,95 +160,22 @@ public final class EpgChangeNotifications {
             try { listener.accept(notification); }
             catch (RuntimeException ignored) { /* one subscriber cannot stop the journal */ }
         });
-        writeMarker(notification);
     }
 
-    /** Start the external-builder wake-up watcher. SQLite/WAL files are never watched. */
-    public static synchronized void startExternalWatcher() {
-        if (watcher != null && watcher.isAlive()) return;
-        Snapshot snapshot = snapshot();
-        OBSERVED_REVISION.set(snapshot.revision());
-        watcher = Thread.ofVirtual().name("epg-change-watcher").start(() -> watch(snapshot.databaseGeneration()));
-    }
-
-    public static synchronized void stopExternalWatcher() {
-        stopExternalWatcher(true);
-    }
-
-    /** Interrupt the watcher during JVM exit without making the UI shutdown wait on it. */
-    public static synchronized void stopExternalWatcherForApplicationExit() {
-        stopExternalWatcher(false);
-    }
-
-    private static void stopExternalWatcher(boolean awaitTermination) {
-        Thread current = watcher;
-        watcher = null;
-        if (current == null || current == Thread.currentThread()) return;
-        current.interrupt();
-        if (!awaitTermination) return;
-        try {
-            current.join(1000);
-        } catch (InterruptedException error) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private static void watch(String initialGeneration) {
-        reconcileExternal(initialGeneration);
-        while (!Thread.currentThread().isInterrupted()) {
-            Path marker = markerPath();
-            try (WatchService service = FileSystems.getDefault().newWatchService()) {
-                Path directory = marker.getParent();
-                if (directory == null) return;
-                Files.createDirectories(directory);
-                directory.register(service, StandardWatchEventKinds.ENTRY_CREATE,
-                        StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.OVERFLOW);
-                while (!Thread.currentThread().isInterrupted()) {
-                    WatchKey key = service.take();
-                    boolean wake = false;
-                    for (WatchEvent<?> event : key.pollEvents()) {
-                        if (event.kind() == StandardWatchEventKinds.OVERFLOW) wake = true;
-                        else if (marker.getFileName().equals(event.context())) wake = true;
-                    }
-                    if (wake) reconcileExternal(initialGeneration);
-                    if (!key.reset()) break;
-                }
-            } catch (InterruptedException error) { Thread.currentThread().interrupt(); }
-            catch (Exception ignored) {
-                try { Thread.sleep(1000); } catch (InterruptedException error) { Thread.currentThread().interrupt(); }
-            }
-        }
-    }
-
-    private static void reconcileExternal(String knownGeneration) {
+    /**
+     * Reconcile changes committed by another process by reading the SQLite journal.
+     * The EPG scheduler calls this periodically; no filesystem marker is required.
+     */
+    public static void pollExternalChanges() {
         try {
             Snapshot current = snapshot();
-            if (!Objects.equals(knownGeneration, current.databaseGeneration())) OBSERVED_REVISION.set(0);
             long after = OBSERVED_REVISION.get();
-            for (Notification event : replay(after, current.databaseGeneration())) {
-                OBSERVED_REVISION.accumulateAndGet(event.revision(), Math::max);
-                publish(event);
-            }
+            if (current.revision() <= after) return;
+            for (Notification event : replay(after, current.databaseGeneration())) publish(event);
             OBSERVED_REVISION.accumulateAndGet(current.revision(), Math::max);
-        } catch (RuntimeException ignored) { /* marker is only a wake-up; next recovery pass retries */ }
-    }
-
-    private static Path markerPath() {
-        Path database = Path.of(SQLConnection.getDatabasePath()).toAbsolutePath();
-        return database.resolveSibling(database.getFileName() + ".epg-change");
-    }
-
-    private static void writeMarker(Notification notification) {
-        try {
-            Path marker = markerPath();
-            Path directory = marker.getParent();
-            if (directory != null) Files.createDirectories(directory);
-            Path temporary = marker.resolveSibling(marker.getFileName() + ".tmp-" + Thread.currentThread().threadId());
-            Files.writeString(temporary, notification.databaseGeneration() + "\n" + notification.revision() + "\n",
-                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-            try { Files.move(temporary, marker, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
-            catch (AtomicMoveNotSupportedException error) { Files.move(temporary, marker, StandardCopyOption.REPLACE_EXISTING); }
-        } catch (IOException ignored) { /* database history remains the recovery source */ }
+        } catch (RuntimeException ignored) {
+            // The next scheduler pass retries the database reconciliation.
+        }
     }
 
     private static Set<String> clean(Collection<String> values) {

@@ -48,7 +48,8 @@ public class EpgBuilderApplicationService {
 
     private static String computeConfigSignature(Configuration config) {
         return hash(config.isEpgEnabled() + "|" + config.getGlobalEpgSource() + "|"
-                + config.getEpgMappingsJson() + "|" + config.normalizedEpgRefreshHours() + "|" + new com.uiptv.db.EpgNameRulesDb().read().fingerprint());
+                + config.getEpgMappingsJson() + "|" + config.normalizedEpgRefreshHours() + "|"
+                + config.normalizedEpgSchedulerIntervalMinutes() + "|" + new com.uiptv.db.EpgNameRulesDb().read().fingerprint());
     }
 
     public JSONObject exportInventory(String databasePath) throws Exception {

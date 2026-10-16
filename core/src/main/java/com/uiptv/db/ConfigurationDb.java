@@ -161,6 +161,7 @@ public class ConfigurationDb extends BaseDb {
         c.setEpgEnabled(safeBoolean(resultSet, "epgEnabled"));
         c.setEpgPlaybackOnly(safeBoolean(resultSet, "epgPlaybackOnly"));
         c.setEpgRefreshIntervalHours(nullSafeString(resultSet,"epgRefreshIntervalHours"));
+        c.setEpgSchedulerIntervalMinutes(nullSafeString(resultSet,"epgSchedulerIntervalMinutes"));
         c.setGlobalEpgSource(nullSafeString(resultSet, "globalEpgSource"));
         c.setDbId(nullSafeString(resultSet, "id"));
         return c;
@@ -180,7 +181,7 @@ public class ConfigurationDb extends BaseDb {
             String updateQuery = updateTableSql(CONFIGURATION_TABLE);
             try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
                 setParameters(statement, configuration);
-                statement.setString(42, current.getDbId());
+                statement.setString(43, current.getDbId());
                 statement.execute();
             } catch (SQLException e) {
                 throw new DatabaseAccessException("Unable to execute update query", e);
@@ -239,6 +240,7 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(39, configuration.getGlobalEpgSource());
         statement.setString(40, configuration.getEpgMappingsJson());
         statement.setString(41, String.valueOf(configuration.normalizedEpgRefreshHours()));
+        statement.setString(42, String.valueOf(configuration.normalizedEpgSchedulerIntervalMinutes()));
      }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {

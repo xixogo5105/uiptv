@@ -16,6 +16,7 @@ class ConfigurationUIEpgTest extends DbBackedUiTest {
     @Test void settingsLoadSaveAndReloadWithoutErasingMappings() throws Exception {
         Configuration previous = ConfigurationService.getInstance().read();
         previous.setEpgRefreshIntervalHours("6");
+        previous.setEpgSchedulerIntervalMinutes("5");
         previous.setEpgEnabled(true); previous.setGlobalEpgSource("/local/guide.xml.gz");
         previous.setEpgMappingsJson("{\"account\":{\"provider-channel\":\"xmltv-channel\"}}");
         ConfigurationService.getInstance().save(previous);
@@ -23,17 +24,17 @@ class ConfigurationUIEpgTest extends DbBackedUiTest {
             ConfigurationUI ui = new ConfigurationUI(null);
             SwitchToggle enabled = (SwitchToggle) field(ui, "epgEnabledSwitch");
             TextArea source = (TextArea) field(ui, "globalEpgSourceField");
-            var interval=(javafx.scene.control.ComboBox<Integer>)field(ui,"epgRefreshIntervalComboBox");
-            assertEquals(6,interval.getValue()); assertFalse(interval.isDisabled()); interval.setValue(4);
-            assertTrue(ConfigurationUI.themeHelpText().contains(com.uiptv.util.I18n.tr("configEpgRefreshIntervalHelp")));
-            assertTrue(ConfigurationUI.cacheFilteringHelpText().contains(com.uiptv.util.I18n.tr("configEpgRefreshIntervalHelp")));
+            var interval=(javafx.scene.control.ComboBox<Integer>)field(ui,"epgSchedulerIntervalComboBox");
+            assertEquals(5,interval.getValue()); assertFalse(interval.isDisabled()); interval.setValue(10);
+            assertTrue(ConfigurationUI.themeHelpText().contains(com.uiptv.util.I18n.tr("configEpgSchedulerIntervalHelp")));
+            assertTrue(ConfigurationUI.cacheFilteringHelpText().contains(com.uiptv.util.I18n.tr("configEpgSchedulerIntervalHelp")));
             assertTrue(enabled.isSelected()); assertEquals("/local/guide.xml.gz", source.getText());
             enabled.setSelected(false); source.setText("https://guide.example.test/global.xml.gz");
             assertTrue(interval.isDisabled());
             var build = ConfigurationUI.class.getDeclaredMethod("buildConfigurationToSave", Configuration.class); build.setAccessible(true);
             Configuration saved = (Configuration) build.invoke(ui, previous); ConfigurationService.getInstance().save(saved);
             assertEquals(previous.getEpgMappingsJson(), saved.getEpgMappingsJson());
-            assertEquals(4,saved.normalizedEpgRefreshHours());
+            assertEquals(10,saved.normalizedEpgSchedulerIntervalMinutes());
             ConfigurationUI restarted = new ConfigurationUI(null);
             assertFalse(((SwitchToggle) field(restarted, "epgEnabledSwitch")).isSelected());
             assertEquals(source.getText(), ((TextArea) field(restarted, "globalEpgSourceField")).getText());

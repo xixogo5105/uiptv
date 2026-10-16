@@ -13,6 +13,9 @@ public class EpgCacheRefreshService {
     private static long refreshMillis() {
         return TimeUnit.HOURS.toMillis(ConfigurationService.getInstance().read().normalizedEpgRefreshHours());
     }
+    private static long schedulerIntervalMillis() {
+        return TimeUnit.MINUTES.toMillis(ConfigurationService.getInstance().read().normalizedEpgSchedulerIntervalMinutes());
+    }
     private static final long FAILURE_MS=TimeUnit.MINUTES.toMillis(5);
     private static final Object COMMIT_LOCK=new Object();
     private static final AtomicLong EPOCH=new AtomicLong();
@@ -33,7 +36,6 @@ public class EpgCacheRefreshService {
         WORKERS.forEach(Thread::interrupt);
         stopTimer();
         if (isEnabled()) activateIfEnabled();
-        else EpgChangeNotifications.stopExternalWatcher();
     }
     private static boolean isEnabled() {
         try { return new EpgApplicationService().isBackgroundRefreshEnabled(); }
@@ -113,7 +115,6 @@ public class EpgCacheRefreshService {
     }
     private static synchronized void activateIfEnabled() {
         if (!lifecycleStarted || !isEnabled()) return;
-        EpgChangeNotifications.startExternalWatcher();
         reconcileSoon();
     }
     private static synchronized void reconcileSoon() {
@@ -131,8 +132,9 @@ public class EpgCacheRefreshService {
                         // Do not compete with catalogue loading and first-paint. Visible cards
                         // still wake the scheduler immediately through requestRefresh(); this
                         // delay only moves the broad account sweep out of application startup.
+                        long interval = schedulerIntervalMillis();
                         long initialDelay = IMMEDIATE_REQUESTED.getAndSet(false) ? 0 : 15;
-                        scheduler.scheduleWithFixedDelay(EpgCacheRefreshService::runScheduled,initialDelay,60,TimeUnit.SECONDS);
+                        scheduler.scheduleWithFixedDelay(EpgCacheRefreshService::runScheduled,initialDelay,interval,TimeUnit.MILLISECONDS);
                     }
                 }
             } catch (DatabaseAccessException error) {
@@ -160,8 +162,6 @@ public class EpgCacheRefreshService {
         synchronized (EpgCacheRefreshService.class) {
             if (serverOnly && applicationOwned) return;
             lifecycleStarted = false;
-            if (awaitLifecycle) EpgChangeNotifications.stopExternalWatcher();
-            else EpgChangeNotifications.stopExternalWatcherForApplicationExit();
             synchronized (VISIBLE) { VISIBLE.clear(); }
             EPOCH.incrementAndGet();
             ConfigurationService.getInstance().removeChangeListener(CONFIG_CHANGED);
@@ -218,6 +218,7 @@ public class EpgCacheRefreshService {
             WORKERS.add(Thread.currentThread());
         }
         try {
+            EpgChangeNotifications.pollExternalChanges();
             if(!new EpgApplicationService().isEnabled()) return;
             new EpgCacheRefreshService().refreshDue();
         } catch(Exception error) {
