@@ -21,6 +21,11 @@ public class EpgCacheRefreshService {
     private static boolean applicationOwned;
     public static synchronized void startApplication() { applicationOwned=true; start(); }
     public static void stopServer() { stop(true); }
+    /**
+     * Final JVM shutdown path: cancel EPG work without waiting for a lifecycle
+     * read that may be blocked behind provider/database teardown.
+     */
+    public static void stopForApplicationExit() { stop(false, false); }
     private static final ConfigurationChangeListener CONFIG_CHANGED=_ -> settingsChanged();
     private static final AccountChangeListener ACCOUNTS_CHANGED=_ -> settingsChanged();
     private static void settingsChanged() {
@@ -129,8 +134,9 @@ public class EpgCacheRefreshService {
     private static synchronized void stopTimer() {
         if(scheduler!=null) scheduler.shutdownNow(); scheduler=null; QUEUED.set(false);
     }
-    public static void stop() { stop(false); }
-    private static void stop(boolean serverOnly) {
+    public static void stop() { stop(false, true); }
+    private static void stop(boolean serverOnly) { stop(serverOnly, true); }
+    private static void stop(boolean serverOnly, boolean awaitLifecycle) {
         Thread lifecycleTask;
         List<Thread> workers;
         synchronized (EpgCacheRefreshService.class) {
@@ -152,7 +158,7 @@ public class EpgCacheRefreshService {
         // hung for several seconds. They are interrupted above and run on daemon infrastructure,
         // so shutdown must not wait for their network teardown.
         try {
-            if (lifecycleTask != null && lifecycleTask != Thread.currentThread())
+            if (awaitLifecycle && lifecycleTask != null && lifecycleTask != Thread.currentThread())
                 lifecycleTask.join(TimeUnit.SECONDS.toMillis(5));
         } catch (InterruptedException error) { Thread.currentThread().interrupt(); }
     }

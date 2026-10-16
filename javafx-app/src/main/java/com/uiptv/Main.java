@@ -16,7 +16,7 @@ public class Main {
         // print the server's startup banner on every launch.
         AppLog.setTerminalLoggingEnabled(AppLog.isShowLogsRequested(args));
         com.uiptv.application.EpgCacheRefreshService.startApplication();
-        Runtime.getRuntime().addShutdownHook(new Thread(com.uiptv.application.EpgCacheRefreshService::stop,"epg-cache-shutdown"));
+        Runtime.getRuntime().addShutdownHook(new Thread(com.uiptv.application.EpgCacheRefreshService::stopForApplicationExit,"epg-cache-shutdown"));
         try {
             Configuration configuration = ConfigurationService.getInstance().read();
             if (configuration != null && configuration.isLightweightModeEnabled()) {

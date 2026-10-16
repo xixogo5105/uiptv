@@ -32,8 +32,10 @@
 </head>
 <body>
 
+<a class="skip-link" href="#main-content">Skip to content</a>
+
 <div id="app" class="app-shell">
-    <main class="workspace">
+    <main class="workspace" id="main-content" tabindex="-1">
         <header class="topbar">
             <button @click="resetApp" aria-label="UIPTV home" class="brand" type="button">
                 <span class="brand-mark"><img alt="" src="icon.ico"></span>
@@ -55,14 +57,14 @@
                     <i class="bi bi-play-circle"></i>
                     <span>Watching</span>
                 </button>
-                <button :class="{ active: searchFieldVisible }" @click="toggleSearch" class="top-tab-icon-only" title="Search here" type="button">
+                <button :aria-expanded="searchFieldVisible ? 'true' : 'false'" aria-controls="contentSearch" aria-keyshortcuts="/" :class="{ active: searchFieldVisible }" @click="toggleSearch" class="top-tab-icon-only" title="Search (/)" type="button">
                     <i class="bi bi-search"></i>
                 </button>
             </nav>
 
             <label class="search-field" for="contentSearch" v-show="searchFieldVisible">
                 <i class="bi bi-search"></i>
-                <input :placeholder="searchPlaceholder" autocomplete="off" id="contentSearch" type="search" v-model="searchQuery">
+                <input :placeholder="searchPlaceholder" aria-label="Search content" autocomplete="off" id="contentSearch" @keydown.esc="clearSearch()" type="search" v-model="searchQuery">
             </label>
 
             <div class="topbar-actions">
@@ -776,7 +778,7 @@
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261016epgEvents1"></script>
+    <script src="/javascript/spa.js?v=20261016spaModern1"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;

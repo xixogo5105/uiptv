@@ -1,4 +1,4 @@
-const {createApp, ref, shallowRef, computed, onMounted, nextTick, watch} = Vue;
+const {createApp, ref, shallowRef, computed, onMounted, onBeforeUnmount, nextTick, watch} = Vue;
 
 createApp({
     setup() {
@@ -2162,6 +2162,22 @@ createApp({
             searchVisible.value = true;
             nextTick(() => focusSearch());
         };
+
+        const handleGlobalKeydown = (event) => {
+            if (event.defaultPrevented || event.isComposing) return;
+            const target = event.target;
+            const isEditable = target instanceof HTMLElement
+                && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+
+            if (event.key === '/' && !isEditable) {
+                event.preventDefault();
+                if (!searchFieldVisible.value) searchVisible.value = true;
+                nextTick(() => focusSearch());
+            } else if (event.key === 'Escape' && searchFieldVisible.value) {
+                clearSearch();
+            }
+        };
+        onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown));
 
         const hidePlayerPanel = () => {
             if (!hasPlayerContent.value) return;
@@ -4762,6 +4778,7 @@ createApp({
             cardEpgObserver = null; cardEpgBindings = new WeakMap(); visibleEpgCards.clear();
         }, {flush: 'pre'});
         onMounted(async () => {
+            window.addEventListener('keydown', handleGlobalKeydown);
             const desktopSettingsTimer = window.setInterval(async () => {
                 if (!document.hidden) { epgTime.value = Date.now(); await loadConfig(); refreshVisibleCardEpg(); }
 
@@ -4989,6 +5006,7 @@ createApp({
             goToMainWebsite,
             setWatchingNowTab,
             toggleSearch,
+            clearSearch,
             focusSearch,
             hidePlayerPanel,
             togglePlayerPanel,
