@@ -96,7 +96,8 @@ class UiptvSyncSchemaTest {
                 "epgPlaybackOnly",
                 "globalEpgSource",
                 "epgMappingsJson",
-                "epgRefreshIntervalHours"
+                "epgRefreshIntervalHours",
+                "epgSchedulerIntervalMinutes"
             ),
             UiptvSyncSchema.configurationColumns
         )
