@@ -49,6 +49,21 @@ public class EpgCacheApplicationService {
     public static String manualOverride(Account account, Channel channel, Configuration config) {
         return overrides(config, account).optString(channel.getChannelId(), "").strip();
     }
+    private com.uiptv.db.SharedEpgCacheDb.Query sharedQuery(Account account, Channel channel, Configuration config) {
+        String override = manualOverride(account, channel, config);
+        String guide = EpgApplicationService.guideId(account, channel);
+        if (account.getType() == AccountType.STALKER_PORTAL) {
+            guide = "";
+            try {
+                var metadata = new org.json.JSONObject(channel.getExtraJson());
+                for (String field : List.of("xmltv_id", "epg_id", "tvg-id")) {
+                    if (!metadata.optString(field).isBlank()) { guide = metadata.getString(field).strip(); break; }
+                }
+            } catch (Exception ignored) { /* Provider channel IDs are not shared guide IDs. */ }
+        }
+        return new com.uiptv.db.SharedEpgCacheDb.Query(override.isBlank() ? guide : override,
+                channel.getName(), !override.isBlank());
+    }
     public Map<Channel,List<EpgProgramme>> summaries(Account account, List<Channel> channels) {
         var config=ConfigurationService.getInstance().read();
         Map<Channel,List<EpgProgramme>> result=new IdentityHashMap<>();
@@ -58,6 +73,9 @@ public class EpgCacheApplicationService {
         var ids=channels.stream().map(c -> identity(account,c,config,mappings,rules.fingerprint())).toList();
         var records=new EpgCacheDb().summaries(ids,System.currentTimeMillis());
         for(int i=0;i<channels.size();i++) result.put(channels.get(i),records.getOrDefault(ids.get(i),List.of()));
+        var missing = channels.stream().filter(channel -> result.get(channel).isEmpty()).toList();
+        var shared = new com.uiptv.db.SharedEpgCacheDb().read(missing.stream().map(channel -> sharedQuery(account,channel,config)).toList(), System.currentTimeMillis(), false);
+        missing.forEach(channel -> { var entry = shared.get(sharedQuery(account,channel,config)); if (entry != null) result.put(channel,entry.programmes()); });
         return result;
     }
     public Map<Channel,String> icons(Account account,List<Channel> channels) {
@@ -67,13 +85,20 @@ public class EpgCacheApplicationService {
         var rules=new com.uiptv.db.EpgNameRulesDb().read(); var ids=channels.stream().map(c -> identity(account,c,config,mappings,rules.fingerprint())).toList();
         var records=new EpgCacheDb().icons(ids);
         for(int i=0;i<channels.size();i++) result.put(channels.get(i),records.getOrDefault(ids.get(i),""));
+        var missing = channels.stream().filter(channel -> result.get(channel).isBlank()).toList();
+        var shared = new com.uiptv.db.SharedEpgCacheDb().read(missing.stream().map(channel -> sharedQuery(account,channel,config)).toList(), System.currentTimeMillis(), false);
+        missing.forEach(channel -> { var entry = shared.get(sharedQuery(account,channel,config)); if (entry != null) result.put(channel,entry.icon()); });
         return result;
     }
     public List<EpgProgramme> schedule(Account account, Channel channel) {
         var config=ConfigurationService.getInstance().read();
         if(!config.isEpgEnabled() || account==null || channel==null || account.getAction()!=Account.AccountAction.itv) return List.of();
         long now=System.currentTimeMillis();
-        return new EpgCacheDb().schedule(identity(account,channel,config,overrides(config,account),new com.uiptv.db.EpgNameRulesDb().read().fingerprint()),now,now-6*3_600_000L,now+7*86_400_000L);
+        var schedule = new EpgCacheDb().schedule(identity(account,channel,config,overrides(config,account),new com.uiptv.db.EpgNameRulesDb().read().fingerprint()),now,now-6*3_600_000L,now+7*86_400_000L);
+        if (schedule.stream().anyMatch(p -> p.stop() > now)) return schedule;
+        var query = sharedQuery(account,channel,config);
+        var shared = new com.uiptv.db.SharedEpgCacheDb().read(List.of(query),now,true).get(query);
+        return shared == null ? schedule : shared.programmes();
     }
     static boolean nativeProvider(Account account) { return account.getType()==AccountType.STALKER_PORTAL || account.getType()==AccountType.XTREME_API; }
     static List<EpgCacheDb.Match> matches(Account account,List<Channel> channels,List<String> xmlSources) {

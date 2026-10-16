@@ -32,6 +32,10 @@ class BundleSourceInfo:
     channel_count: int = 0
     content_hash: str = ""
     warning: str = ""
+    names: dict[str, str] = field(default_factory=dict)
+    icons: dict[str, str] = field(default_factory=dict)
+    countries: list[str] = field(default_factory=list)
+    languages: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -46,6 +50,10 @@ class BundleSourceInfo:
             "channel_count": self.channel_count,
             "content_hash": self.content_hash,
             "warning": self.warning,
+            "names": self.names,
+            "icons": self.icons,
+            "countries": self.countries,
+            "languages": self.languages,
         }
 
     @classmethod
@@ -124,6 +132,7 @@ class EpgBundle:
     inventory_revision: str = ""
     inventory_generation: int = 0
     config_signature: str = ""
+    shared_guides: bool = False
     sources: list[BundleSourceInfo] = field(default_factory=list)
     mappings: list[BundleChannelMapping] = field(default_factory=list)
     programmes: list[BundleProgramme] = field(default_factory=list)
@@ -147,6 +156,7 @@ class EpgBundle:
             "inventory_revision": self.inventory_revision,
             "inventory_generation": self.inventory_generation,
             "config_signature": self.config_signature,
+            "shared_guides": self.shared_guides,
             "sources": [s.to_dict() for s in self.sources],
             "mappings": [m.to_dict() for m in self.mappings],
             "programmes": [p.to_dict() for p in self.programmes],
@@ -165,6 +175,7 @@ class EpgBundle:
             inventory_revision=data.get("inventory_revision", ""),
             inventory_generation=data.get("inventory_generation", 0),
             config_signature=data.get("config_signature", ""),
+            shared_guides=data.get("shared_guides", False),
             sources=[BundleSourceInfo.from_dict(s) for s in data.get("sources", [])],
             mappings=[BundleChannelMapping.from_dict(m) for m in data.get("mappings", [])],
             programmes=[BundleProgramme.from_dict(p) for p in data.get("programmes", [])],
@@ -201,6 +212,7 @@ class BundleBuilder:
     ) -> EpgBundle:
         """Build bundle from all processed data."""
         bundle = EpgBundle(
+            shared_guides=True,
             database_path=self.inventory.database_path,
             database_identity=self.inventory.database_identity,
             inventory_revision=self.inventory.revision,
@@ -225,6 +237,8 @@ class BundleBuilder:
                 programme_count=programmes_count,
                 channel_count=channels_count,
                 content_hash=config.get("content_hash", ""),
+                names=dict(guide.names), icons=dict(guide.icons),
+                countries=list(config.get("countries", [])), languages=list(config.get("languages", [])),
             ))
 
         now = int(datetime.fromisoformat(bundle.created_at).timestamp() * 1000)
@@ -262,7 +276,8 @@ class BundleBuilder:
                     guide_channel_id=match.guide_channel_id, guide_channel_name=match.guide_channel_name,
                     source_id=source_id, match_class=match.match_class.value, confidence=match.confidence,
                     reason=match.reason, manual_override=match.manual_override))
-        for source_id, guide_id in sorted(required, key=lambda key: (source_configs.get(key[0], {}).get("priority", 100), key)):
+        # Publish the source inventory even when no account currently has a matching channel.
+        for source_id, guide_id in sorted(schedules, key=lambda key: (source_configs.get(key[0], {}).get("priority", 100), key)):
             for prog in schedules[source_id, guide_id]:
                 bundle.programmes.append(BundleProgramme(source_id, guide_id, prog.start, prog.stop, prog.title, prog.description))
 

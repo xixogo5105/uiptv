@@ -66,6 +66,26 @@ class EpgPersistentCacheTest extends DbBackedTest {
         assertEquals("Cached title", cache.schedule(account, channel).getFirst().title());
     }
 
+    @Test void visibleNewAccountChannelsLoadWithoutWaitingForBulkCatalogueRotation() throws Exception {
+        var account = account("visible-new-account");
+        account.setEpg(xml("visible-new.xml", "Visible programme").toString());
+        AccountDb.get().save(account);
+        account = AccountService.getInstance().getByName("visible-new-account");
+        account.setAction(Account.AccountAction.itv);
+        var channel = channel("station", "Station");
+        // This channel is deliberately absent from the cached catalogue and bookmarks.
+        // Only the visible summary request can make the importer visit it.
+        try (var pause = EpgCacheRefreshService.pauseForCatalogueReload()) {
+            EpgCacheRefreshService.start();
+            assertTrue(new LiveGuideApplicationService().cachedSummaries(List.of(
+                    new LiveGuideApplicationService.Row(account.getDbId(), account.getAccountName(), "", channel, List.of())))
+                    .getFirst().programmes().isEmpty());
+            assertTrue(cache.schedule(account, channel).isEmpty());
+        }
+        refresh.refreshDue();
+        assertEquals("Visible programme", cache.schedule(account, channel).getFirst().title());
+    }
+
     @Test void androidSyncedCacheSignatureGoldenMatchesDesktop() {
         Account account = account("987654321");
         account.setUrl(""); account.setUsername(""); account.setPassword(""); account.setMacAddress("");
@@ -95,7 +115,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
             http.verifyNoInteractions();
         }
         try(var connection=DriverManager.getConnection("jdbc:sqlite:"+EpgCacheDb.path());var statement=connection.createStatement();var tables=statement.executeQuery("SELECT count(*) FROM sqlite_master WHERE type='table' AND name LIKE 'epg_%'")) {
-            assertTrue(tables.next()); assertEquals(6,tables.getInt(1));
+            assertTrue(tables.next()); assertEquals(7,tables.getInt(1));
         }
         channel.setDbId("rebuilt-local-row"); assertFalse(cache.schedule(account,channel).isEmpty(),"Provider identity survives catalog row replacement");
     }

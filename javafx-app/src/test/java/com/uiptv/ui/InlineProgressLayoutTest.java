@@ -391,6 +391,44 @@ class InlineProgressLayoutTest extends DbBackedUiTest {
     }
 
 
+    @Test
+    void verificationCountdownReservesSpaceBeforeDuringAndAfterPauses() throws Exception {
+        ProgressInline inline = runOnFxThread(() -> {
+            var panel = new ProgressInline();
+            var scene = new javafx.scene.Scene(panel,780,550);
+            scene.getStylesheets().add(getClass().getResource("/application.css").toExternalForm());
+            panel.resize(780,550); panel.applyCss(); panel.layout();
+            return panel;
+        });
+        List<Double> original = runOnFxThread(() -> countdownFooterPositions(inline));
+        for (int remaining : new int[]{1800,999,99,9,0,30,0}) {
+            runOnFxThread(() -> { inline.setPauseStatus(remaining,1800); return null; });
+            waitForFxEvents();
+            runOnFxThread(() -> {
+                inline.applyCss(); inline.layout();
+                HBox timer = findDescendantByStyle(inline,HBox.class,"verification-pause-widget");
+                assertTrue(timer.isManaged(),"The countdown slot must stay allocated while invisible");
+                assertEquals(remaining>0,timer.isVisible());
+                var actual = countdownFooterPositions(inline);
+                for (int index=0;index<original.size();index++) assertEquals(original.get(index),actual.get(index),.1,
+                        "Countdown changes must not move or resize footer controls");
+                return null;
+            });
+        }
+    }
+
+    private List<Double> countdownFooterPositions(ProgressInline panel) {
+        HBox timer = findDescendantByStyle(panel,HBox.class,"verification-pause-widget");
+        HBox footer = (HBox)timer.getParent();
+        List<Double> values = new ArrayList<>();
+        for (Node child : footer.getChildren()) {
+            values.add(child.getBoundsInParent().getMinX());
+            values.add(child.getBoundsInParent().getWidth());
+        }
+        values.add(footer.getHeight());
+        return values;
+    }
+
     private static void assertInlineProgressRow(ProgressRowSnapshot snapshot) {
         assertEquals(2, snapshot.childCount());
         assertTrue(snapshot.firstChildIsLabel());

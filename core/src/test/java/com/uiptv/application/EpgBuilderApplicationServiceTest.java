@@ -54,6 +54,89 @@ class EpgBuilderApplicationServiceTest extends DbBackedTest {
     }
     private void apply(JSONObject bundle) throws Exception { service.importBundle(testDbFile.toString(), save(bundle).toString()); }
 
+    private JSONObject sharedBundle() throws Exception {
+        JSONObject bundle = bundle().put("shared_guides", true).put("mappings", new JSONArray());
+        bundle.getJSONArray("sources").getJSONObject(0)
+                .put("names", new JSONObject().put("Star Sports 1 HD", "guide"))
+                .put("countries", new JSONArray().put("IN"));
+        return bundle;
+    }
+
+    @Test void sharedGuideWorksForAccountsAndTypesCreatedAfterImportWithoutRemapping() throws Exception {
+        JSONObject sourceOnly = sharedBundle();
+        AccountService.getInstance().deleteAll();
+        apply(sourceOnly);
+        for (AccountType type : List.of(AccountType.M3U8_LOCAL, AccountType.XTREME_API, AccountType.STALKER_PORTAL)) {
+            var added = new Account(); added.setAccountName("later-" + type); added.setType(type);
+            AccountDb.get().save(added); added = AccountService.getInstance().getByName(added.getAccountName());
+            added.setAction(Account.AccountAction.itv);
+            var station = new Channel(); station.setChannelId("different-provider-id"); station.setName("┃WC┃ STAR SPORTS 1 HD");
+            var cache = new EpgCacheApplicationService();
+            assertEquals("Public programme", cache.summaries(added, List.of(station)).get(station).getFirst().title());
+            assertEquals("Public programme", cache.schedule(added, station).getFirst().title());
+        }
+        try (var c = SQLConnection.connect(); var st = c.createStatement(); var r = st.executeQuery("SELECT count(*) FROM epg_channel_mapping")) {
+            assertTrue(r.next()); assertEquals(0,r.getInt(1), "Shared reads must not need or write account mappings");
+        }
+    }
+
+    @Test void accountChangesDuringCollectionDoNotInvalidateSharedSourcePublication() throws Exception {
+        JSONObject bundle = sharedBundle();
+        var later = new Account(); later.setAccountName("added-during-download"); later.setType(AccountType.XTREME_API);
+        AccountDb.get().save(later);
+        bundle.put("inventory_revision", "old-account-inventory");
+        bundle.put("config_signature", "old-account-settings");
+        apply(bundle);
+        var station = new Channel(); station.setChannelId("new"); station.setName("Star Sports 1 HD");
+        assertEquals("Public programme",new EpgCacheApplicationService().schedule(account,station).getFirst().title());
+    }
+
+    @Test void publicationUsesBindingsRevalidatedAfterTakingTheWriterLock() throws Exception {
+        JSONObject data = sharedBundle();
+        data.put("mappings",bundle().getJSONArray("mappings"));
+        Map<String,Account> original = AccountService.getInstance().getAllById();
+        var accountService = org.mockito.Mockito.mock(AccountService.class);
+        org.mockito.Mockito.when(accountService.getAllById()).thenReturn(original,original,Map.of(),Map.of());
+        try (var singleton = org.mockito.Mockito.mockStatic(AccountService.class)) {
+            singleton.when(AccountService::getInstance).thenReturn(accountService);
+            apply(data);
+        }
+        try (var c = SQLConnection.connect(); var st = c.createStatement(); var rows = st.executeQuery("SELECT count(*) FROM epg_channel_mapping")) {
+            assertTrue(rows.next()); assertEquals(0,rows.getInt(1),"Bindings invalidated before publication must not be inserted");
+        }
+        assertEquals(1,service.showStatus(testDbFile.toString()).getInt("programme_count"),"Shared guide publication remains valid");
+    }
+
+    @Test void sharedGuidesRespectManualOverridesRegionsAndTimeshifts() throws Exception {
+        apply(sharedBundle());
+        var station = new Channel(); station.setChannelId("new"); station.setName("┃USA┃ Star Sports 1 HD");
+        var cache = new EpgCacheApplicationService();
+        assertTrue(cache.schedule(account,station).isEmpty(), "A known country prefix cannot match another country's feed");
+        station.setName("Star Sports 1 HD +1");
+        assertTrue(cache.schedule(account,station).isEmpty());
+        station.setName("Star Sports 1 HD");
+        var config = ConfigurationService.getInstance().read();
+        config.setEpgMappingsJson(new JSONObject().put(account.getDbId(),new JSONObject().put("new","missing-guide")).toString());
+        ConfigurationService.getInstance().save(config);
+        assertTrue(cache.schedule(account,station).isEmpty(), "Explicit overrides must not fall through to a name match");
+    }
+
+    @Test void ambiguousSharedAliasesStayUnmatchedAndNativeMappingsKeepPrecedence() throws Exception {
+        JSONObject bundle = sharedBundle();
+        bundle.getJSONArray("sources").getJSONObject(0).getJSONObject("names").put("Star Sports 1 SD","other");
+        bundle.getJSONArray("programmes").put(new JSONObject().put("source_id","public").put("guide_channel_id","other")
+                .put("start",now-60000).put("stop",now+3600000).put("title","Different station"));
+        apply(bundle);
+        var station = new Channel(); station.setChannelId("new"); station.setName("Star Sports 1");
+        assertTrue(new EpgCacheApplicationService().schedule(account,station).isEmpty());
+        station.setName("Star Sports 1 HD");
+        var id = EpgCacheApplicationService.identity(account,station,ConfigurationService.getInstance().read());
+        var db = new EpgCacheDb();
+        db.replaceSource("native-test",Map.of("new",List.of(new EpgProgramme("Native programme","",now-60000,now+3600000))),Map.of(),Map.of(),now,now+3600000);
+        db.mapChannels(List.of(new EpgCacheDb.Match(id,"new","","",true,List.of("native-test"),"native-test")),now);
+        assertEquals("Native programme",new EpgCacheApplicationService().schedule(account,station).getFirst().title());
+    }
+
     @Test void inventoryUsesCoreIdentitiesAndDoesNotExportPrivateProviderData() throws Exception {
         JSONObject inventory = service.exportInventory(testDbFile.toString());
         assertEquals(EpgCacheApplicationService.identity(account, channel, ConfigurationService.getInstance().read()).signature(),

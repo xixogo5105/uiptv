@@ -40,24 +40,35 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
     }.getOrNull() // Older snapshots and invalid disposable cache rows fall back to the normal loader.
 
     /** Match against the cloned XMLTV index before downloading any regional feeds. */
-    fun matchCloned(accountId: Long, providerId: String, name: String, now: Long): Entry? = runCatching {
+    fun matchCloned(accountId: Long, providerId: String, name: String, now: Long, shared: Boolean = false): Entry? = runCatching {
         val rules=AndroidEpgNameRules.read(db)
         val config = db.rawQuery("SELECT globalEpgSource,epgMappingsJson FROM Configuration LIMIT 1", null).use {
             if (it.moveToFirst()) it.getString(0).orEmpty() to it.getString(1).orEmpty() else "" to ""
         }
         val accountSource = db.rawQuery("SELECT epg,type FROM Account WHERE id=?", arrayOf(accountId.toString())).use {
             if (!it.moveToFirst()) return null
-            if (it.getString(1) in listOf("STALKER_PORTAL", "XTREME_API")) return null
+            if (!shared && it.getString(1) in listOf("STALKER_PORTAL", "XTREME_API")) return null
             it.getString(0).orEmpty()
         }
         val override = runCatching { JSONObject(config.second).optJSONObject(accountId.toString())?.optString(providerId) }
             .getOrNull().orEmpty().trim()
-        for (source in (listOf(accountSource) + config.first.lineSequence().toList()).map { it.trim() }.filter { it.isNotBlank() }.distinct()) {
-            val sourceId = hash("xml:$source")
+        val grouped = Regex("^\\s*[┃│|]([^┃│|]+)[┃│|]\\s*").find(name)
+        val matchName = if (shared && grouped != null) name.substring(grouped.range.last + 1) else name
+        val region = if (shared) when (grouped?.groupValues?.get(1)?.trim()?.uppercase()) {
+            "UK", "GB" -> "GB"; "USA", "US" -> "US"; "CAN", "CA" -> "CA"
+            "AUS", "AU" -> "AU"; "IND", "IN" -> "IN"; "PK" -> "PK"; "NZ" -> "NZ"; else -> ""
+        } else ""
+        val sourceIds = if (shared) sharedSources(region) else
+            (listOf(accountSource) + config.first.lineSequence().toList()).map { it.trim() }.filter { it.isNotBlank() }.distinct().map { hash("xml:$it") }
+        val sharedGuide = if (shared) sharedGuideId(accountId,providerId) else providerId
+        data class Candidate(val source: String, val guide: String, val rank: Int, val priority: Int, val entry: Entry)
+        val candidates = mutableListOf<Candidate>()
+        for (sourceId in sourceIds) {
             val refreshed = db.rawQuery("SELECT refreshed_at,retry_at FROM epg_source WHERE source_id=?", arrayOf(sourceId)).use {
                 if (it.moveToFirst()) it.getLong(0) to it.getLong(1) else null
             } ?: continue
-            val guideId = override.ifBlank { providerId }
+            val guideId = override.ifBlank { sharedGuide }
+            var rank = 0
             var id = db.rawQuery("SELECT guide_channel_id FROM epg_programme WHERE source_id=? AND guide_channel_id=? AND stops_at>? LIMIT 1",
                 arrayOf(sourceId, guideId, now.toString())).use { if (it.moveToFirst()) it.getString(0) else "" }
             if (id.isBlank() && override.isBlank()) {
@@ -71,9 +82,9 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
                         Triple(names.toMap(),rules.aliases(names,false),rules.aliases(names,true)).also { aliasIndexes[cacheKey] = it }
                     }
                 }
-                id = aliases.first[MobileXmltvGuide.normalize(name)]
-                    ?: aliases.second[rules.display(name)]
-                    ?: aliases.third[rules.quality(name)].orEmpty()
+                rank = 1
+                id = aliases.first[MobileXmltvGuide.normalize(matchName)] ?: aliases.second[rules.display(matchName)].orEmpty()
+                if (id.isBlank()) { rank = 2; id = aliases.third[rules.quality(matchName)].orEmpty() }
             }
             if (id.isBlank()) continue
             val programmes = mutableListOf<MobileEpgProgramme>()
@@ -81,12 +92,35 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
                 arrayOf(sourceId,id,(now - 6 * 3_600_000L).toString(),(now + 7 * 86_400_000L).toString())).use {
                 while (it.moveToNext()) programmes += MobileEpgProgramme(it.getString(0),expand(it.getBlob(1)),it.getLong(2),it.getLong(3))
             }
-            if (programmes.any { it.stop > now }) return Entry(MobileEpgResult(
-                if (now >= refreshed.second) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE,
-                MobileEpgSchedules.normalize(programmes)),refreshed.second)
+            if (programmes.any { it.stop > now }) {
+                val entry = Entry(MobileEpgResult(if (now >= refreshed.second) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE,
+                    MobileEpgSchedules.normalize(programmes)),refreshed.second)
+                if (!shared) return entry
+                val priority = db.rawQuery("SELECT priority FROM epg_shared_source WHERE source_id=?",arrayOf(sourceId)).use { it.moveToFirst();it.getInt(0) }
+                candidates += Candidate(sourceId,id,rank,priority,entry)
+            }
         }
-        null
+        val best = candidates.sortedWith(compareBy<Candidate> { it.rank }.thenBy { it.priority }.thenBy { it.source }).firstOrNull()
+        if (best != null && candidates.none { it.rank == best.rank && it.priority == best.priority && it.guide != best.guide }) best.entry else null
     }.getOrNull()
+
+    private fun sharedSources(region: String = ""): List<String> =
+        db.rawQuery("SELECT source_id,countries FROM epg_shared_source ORDER BY priority,source_id",null).use { rows ->
+            buildList { while (rows.moveToNext()) {
+                val countries = rows.getString(1).orEmpty().uppercase().split(',').filter { it.isNotBlank() }
+                if (region.isBlank() || countries.isEmpty() || region in countries) add(rows.getString(0))
+            } }
+        }
+
+    private fun sharedGuideId(accountId: Long, providerId: String): String =
+        db.rawQuery("SELECT a.type,ch.extraJson FROM Account a JOIN Category cat ON cat.accountId=a.id JOIN Channel ch ON ch.categoryId=cat.id WHERE a.id=? AND ch.channelId=? ORDER BY ch.id LIMIT 1",
+            arrayOf(accountId.toString(),providerId)).use { row ->
+            if (!row.moveToFirst()) return ""
+            val metadata = runCatching { JSONObject(row.getString(1).orEmpty()) }.getOrDefault(JSONObject())
+            val fields = if (row.getString(0) == "XTREME_API") listOf("epg_channel_id") else listOf("xmltv_id","epg_id","tvg-id")
+            fields.firstNotNullOfOrNull { metadata.optString(it).trim().takeIf { value -> value.isNotBlank() } }
+                ?: if (row.getString(0) in listOf("STALKER_PORTAL","XTREME_API")) "" else providerId
+        }
 
     companion object {
         private val artworkIndexes = object : LinkedHashMap<String,MobileXmltvGuide>(32,.75f,true) {
@@ -120,8 +154,8 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
         }
         val override = runCatching { JSONObject(config.second).optJSONObject(accountId.toString())?.optString(providerId) }
             .getOrNull().orEmpty().trim()
-        for (source in (listOf(accountSource) + config.first.lineSequence().toList()).map { it.trim() }.filter { it.isNotBlank() }.distinct()) {
-            val sourceId = hash("xml:$source")
+        val configured = (listOf(accountSource) + config.first.lineSequence().toList()).map { it.trim() }.filter { it.isNotBlank() }.distinct().map { hash("xml:$it") }
+        for (sourceId in (configured + sharedSources()).distinct()) {
             val refreshed = db.rawQuery("SELECT refreshed_at FROM epg_source WHERE source_id=?",arrayOf(sourceId)).use {
                 if (it.moveToFirst()) it.getLong(0) else null
             } ?: continue

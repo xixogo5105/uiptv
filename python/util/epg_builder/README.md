@@ -44,7 +44,7 @@ max_size_mb = 64
 timeout_seconds = 60
 ```
 
-The bridge always uses UIPTV’s own resolver: `db.path` in UIPTV’s `uiptv.ini`, otherwise UIPTV’s standard database location for the current OS user. There is no builder database-path setting or `--database` override. Legacy `[database]` sections are ignored and can be removed. Run the scheduler as the same OS user as UIPTV. The bridge refuses missing files and does not run migrations; open an older database with the current UIPTV application first. The current schema includes migration 0212. No second authoritative database is created.
+The bridge always uses UIPTV’s own resolver: `db.path` in UIPTV’s `uiptv.ini`, otherwise UIPTV’s standard database location for the current OS user. There is no builder database-path setting or `--database` override. Legacy `[database]` sections are ignored and can be removed. Run the scheduler as the same OS user as UIPTV. The bridge refuses missing files and does not run migrations; open an older database with the current UIPTV application first. The current schema includes migration 0214. No second authoritative database is created.
 
 ## Commands
 
@@ -71,15 +71,15 @@ For scheduling, use absolute executable/config/JAR paths:
 ## Cache and publication contract
 
 - Inventory reads cached live channels and live bookmarks. Account + provider channel ID stays distinct from local row ID. Repeated category rows share one logical target; cached bookmarks annotate that target.
-- Signatures come from `EpgCacheApplicationService`, including active database name rules. Python returns them unchanged. Configuration, inventory revision, database identity and every mapping are revalidated before publication.
+- Signatures come from `EpgCacheApplicationService`, including active database name rules. Python returns them unchanged. Database identity is always revalidated before publication. Account/configuration revisions validate optional channel bindings; shared guide data survives account changes, and stale bindings are discarded. Legacy account-bound bundles still reject stale inventory.
 - Database identity binds the canonical file path and filesystem file key. It is stable across ordinary writes and WAL checkpoints; moving/replacing a database requires rebuilding inventory. It is a local guard, not cryptographic authentication.
 - Raw provider metadata, portal/stream URLs, credentials and MAC addresses are omitted from exports. Reports still contain local account/channel names and should be kept private.
 - Sources publish under `builder:` IDs. Programmes retain separate source provenance; native and user-configured mappings keep precedence. Public priority is `10000 + configured priority`; lower numbers win. Specific titles can replace generic placeholders through the existing Java resolver.
-- Entire source updates and mappings commit together. SQLite reserves its writer before the final identity check. Failed sources absent from a bundle retain their prior data; invalid, stale or empty bundles fail before publication. The in-app refresher preserves current-signature builder mappings.
+- Entire source updates and mappings commit together. SQLite reserves its writer before the final identity check. Failed sources absent from a bundle retain their prior data; invalid or empty bundles fail before publication; stale legacy account-bound bundles also fail. The in-app refresher preserves current-signature builder mappings.
 - Repeated imports are idempotent. No accounts, channels, bookmarks, configuration, overrides or unrelated cache tables are deleted.
 - An OS file lock prevents overlapping runs sharing the configured lock file (default: the working directory). Different working directories should configure the same `lock.lock_file` for the same database. SQLite also serializes publications against in-app writes. Lock acquisition fails immediately; `lock.timeout_seconds` is reserved.
 
-Downloads reuse cached bytes while fresh and use conditional HTTP requests when a cached body exists. gzip/XZ decompression is bounded to 64 MiB; Java parsing retains its existing programme/memory limits. Bundle JSON is limited to 128 MiB and 200,000 programme entries. The current JSON/subprocess architecture still materializes large inventories and guides in memory; the half-million-channel performance target has not been certified.
+Downloads reuse cached bytes while fresh and use conditional HTTP requests when a cached body exists. gzip/XZ decompression is bounded to 64 MiB; Java parsing retains its existing programme/memory limits. Bundle JSON is limited to 128 MiB and 1,000,000 programme entries. The current JSON/subprocess architecture still materializes large inventories and guides in memory; the half-million-channel performance target has not been certified.
 
 ## Matching and limitations
 
@@ -147,3 +147,32 @@ The regular `export-inventory` JSON command also streams. Java catalogue signatu
 revision semantics remain shared with UIPTV. Bundle validation only retains referenced targets.
 Python still retains the final channel inventory, and programme processing uses additional memory.
 The adapter enables native access for SQLite on the bundled Java runtime.
+
+### Merge request size
+
+Catalogue channels sharing the same ordered source/guide identities reuse one merged
+timeline. The bridge sends complete timelines in batches capped at 16 MiB of UTF-8 JSON,
+below Java's 128 MiB request limit. A timeline is never split across batches, preserving
+Java overlap/priority resolution. Channels with the same guide ID in unrelated sources
+remain separate. Unmatched channels produce no merge requests.
+
+### Account-independent shared guide cache
+
+Successful source imports publish all guide channels within the retention window,
+including channels absent from every account. The bundle carries the source display
+names, artwork, priority and locale metadata. `epg_shared_source` identifies these
+explicitly shared sources; provider-native schedules and private account feeds stay
+scoped to their configured identities.
+
+Desktop/web and Android snapshot readers resolve missing account mappings directly
+against this shared inventory, without downloading or writing mappings during reads.
+Exact XMLTV identities precede unambiguous title and quality aliases. Structured
+playlist group prefixes are removed for title matching; recognised country prefixes,
+station numbers, language words, regions and +1 shifts remain significant. Manual
+overrides never fall through to automatic names, and usable native/account schedules
+retain precedence. Adding an account or changing its provider type does not require
+reimporting a shared guide.
+
+Existing builder imports lack source names and need one import with this updated
+builder to populate the shared inventory. Subsequent account additions reuse it.
+Source-only bundles are valid even when no accounts or channel mappings exist.

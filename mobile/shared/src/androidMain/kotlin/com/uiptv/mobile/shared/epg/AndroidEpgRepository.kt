@@ -128,6 +128,11 @@ class AndroidEpgRepository(
                 MobileEpgCache.put(accountId, providerChannelId, result, now)
                 return@withContext result
             }
+            // Native schedules above retain precedence over shared public guides.
+            cloned.matchCloned(accountId, providerChannelId, name, now, shared = true)?.let { shared ->
+                MobileEpgCache.put(accountId, providerChannelId, shared.result, now)
+                return@withContext shared.result
+            }
             val override = runCatching { JSONObject(config("epgMappingsJson")).optJSONObject(accountId.toString())?.optString(providerChannelId) }
                 .getOrNull().orEmpty()
             val id = override.ifBlank { guideId(account, providerChannelId) }

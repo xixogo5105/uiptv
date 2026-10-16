@@ -58,6 +58,8 @@ class ScheduleMerger:
         # established the same exact ID; names alone never establish equivalence.
         requests = []
         selected = []
+        unique = {}
+        selections = []
         for match in matches:
             sources = sorted(
                 [(source_priorities.get(source, 999), source, guide.programmes[match.guide_channel_id])
@@ -67,20 +69,30 @@ class ScheduleMerger:
                       and c.match_class.value in ("EXACT_ID", "MANUAL") for c in match.candidates))],
                 key=lambda entry: (entry[0], entry[1]),
             ) if match.source_id else []
-            selected.append(sources)
-            requests.append([[p.to_dict() for p in programmes] for _, _, programmes in sources])
+            # Source IDs are part of the key: identically spelled guide IDs in
+            # unrelated sources must never share a merged timeline.
+            key = tuple((source, match.guide_channel_id) for _, source, _ in sources)
+            if key and key not in unique:
+                unique[key] = len(requests)
+                selections.append(sources)
+                requests.append([[p.to_dict() for p in programmes] for _, _, programmes in sources])
+            selected.append(unique.get(key))
         merged = self.bridge.merge_schedules(requests)
         now = int(datetime.now(timezone.utc).timestamp() * 1000)
-        results = []
-        for match, sources, entries in zip(matches, selected, merged, strict=True):
+        if len(merged) != len(requests):
+            raise ValueError("Java merge returned an incomplete set of schedules")
+        timelines = []
+        for sources, entries in zip(selections, merged, strict=True):
             programmes = [EpgProgramme.from_dict(p) for p in entries
                           if p["stop"] > now - self.past_cutoff_hours * 3600000
                           and p["start"] < now + self.future_days * 86400000
                           and p["title"].strip()][:self.max_programmes_per_channel]
             # These are input counts; merged provenance is not inferred from title equality.
             contributions = {source: len(entries) for _, source, entries in sources}
-            results.append(MergedSchedule(match, programmes, contributions))
-        return results
+            timelines.append((programmes, contributions))
+        return [MergedSchedule(match, list(timelines[index][0]), dict(timelines[index][1]))
+                if index is not None else MergedSchedule(match)
+                for match, index in zip(matches, selected, strict=True)]
 
     def validate_schedule(self, programmes: list[EpgProgramme]) -> list[str]:
         """Validate a merged schedule, return list of warnings."""

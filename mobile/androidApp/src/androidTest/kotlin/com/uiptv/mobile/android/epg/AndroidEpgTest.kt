@@ -15,6 +15,33 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 class AndroidEpgTest {
+    @Test fun sharedGuidesResolveAccountsCreatedLaterAcrossProviderTypes() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val file = File.createTempFile("epg-shared-fixture", ".db", context.cacheDir)
+        val db = android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(file,null)
+        try {
+            AndroidUiptvDatabaseHelper(context).use { it.applyMigrations(db) }
+            val now = System.currentTimeMillis()
+            db.execSQL("INSERT INTO Configuration(globalEpgSource,epgMappingsJson) VALUES('','{}')")
+            db.execSQL("INSERT INTO epg_shared_source VALUES('builder:fixture',40,'IN','')")
+            db.execSQL("INSERT INTO epg_source VALUES('builder:fixture',?,?, '')",arrayOf<Any>(now,now+3600000))
+            db.execSQL("INSERT INTO epg_alias VALUES('builder:fixture',0,'star sports 1 hd','guide')")
+            val output = java.io.ByteArrayOutputStream()
+            java.util.zip.DeflaterOutputStream(output).use { it.write("Real description".toByteArray()) }
+            db.execSQL("INSERT INTO epg_programme VALUES('builder:fixture','guide',?,?,?,?)",
+                arrayOf<Any>(now-60000,now+3600000,"Shared programme",output.toByteArray()))
+            val cache = AndroidSyncedEpgCache(db)
+            listOf("STALKER_PORTAL","XTREME_API","M3U8_LOCAL").forEachIndexed { index,type ->
+                val id = 900L+index
+                db.execSQL("INSERT INTO Account(id,accountName,type,epg) VALUES(?,?,?,'')",arrayOf<Any>(id,type,type))
+                assertEquals("Shared programme",cache.matchCloned(id,"different-provider-id","┃WC┃ STAR SPORTS 1 HD",now,shared=true)?.result?.programmes?.first()?.title)
+                assertNull(cache.matchCloned(id,"different-provider-id","┃USA┃ STAR SPORTS 1 HD",now,shared=true))
+                assertNull(cache.matchCloned(id,"different-provider-id","Star Sports 1 +1",now,shared=true))
+            }
+            assertEquals(0,db.rawQuery("SELECT COUNT(*) FROM epg_channel_mapping",null).use { it.moveToFirst();it.getInt(0) })
+        } finally { db.close();file.delete() }
+    }
+
     @Test fun databaseNameRulesDriveClonedMatchingAndRuleEditsInvalidateAliasIndexes() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val file=File.createTempFile("epg-rules-fixture", ".db", context.cacheDir)

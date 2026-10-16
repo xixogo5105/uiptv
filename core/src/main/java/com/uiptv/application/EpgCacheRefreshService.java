@@ -41,6 +41,35 @@ public class EpgCacheRefreshService {
         private boolean closed;
         @Override public void close() { if (!closed) { closed = true; CATALOGUE_RELOADS.decrementAndGet(); } }
     }
+    private record VisibleChannel(String accountId, String providerId) { }
+    private static final Map<VisibleChannel,Channel> VISIBLE = new LinkedHashMap<>();
+    /** Queue visible channels for the lifecycle-owned importer; reads never fetch providers. */
+    static void requestVisible(Account account, List<Channel> channels) {
+        if (!lifecycleStarted || account.getDbId() == null || channels.isEmpty()) return;
+        synchronized (VISIBLE) {
+            for (Channel channel : channels) {
+                if (channel.getChannelId() == null || channel.getChannelId().isBlank()) continue;
+                VISIBLE.put(new VisibleChannel(account.getDbId(), channel.getChannelId()), channel);
+                while (VISIBLE.size() > 256) VISIBLE.remove(VISIBLE.keySet().iterator().next());
+            }
+        }
+        requestRefresh();
+    }
+    private void refreshVisible(Token token) {
+        Map<String,List<Channel>> pending = new LinkedHashMap<>();
+        synchronized (VISIBLE) {
+            if (!current(token)) return;
+            VISIBLE.forEach((key,channel) -> pending.computeIfAbsent(key.accountId(), _ -> new ArrayList<>()).add(channel));
+            VISIBLE.clear();
+        }
+        for (var entry : pending.entrySet()) {
+            if (!current(token)) return;
+            Account account = AccountService.getInstance().getById(entry.getKey());
+            if (account == null) continue;
+            account.setAction(Account.AccountAction.itv);
+            refreshAccount(account, entry.getValue(), token, entry.getValue().size());
+        }
+    }
     private static final Map<String,Integer> CURSORS=new HashMap<>();
     private record Token(String path,long epoch) { }
     private static Token token() { return new Token(SQLConnection.getDatabasePath(),EPOCH.get()); }
@@ -103,6 +132,7 @@ public class EpgCacheRefreshService {
         synchronized (EpgCacheRefreshService.class) {
             if (serverOnly && applicationOwned) return;
             lifecycleStarted = false;
+            synchronized (VISIBLE) { VISIBLE.clear(); }
             EPOCH.incrementAndGet();
             ConfigurationService.getInstance().removeChangeListener(CONFIG_CHANGED);
             AccountService.getInstance().removeChangeListener(ACCOUNTS_CHANGED);
@@ -160,6 +190,7 @@ public class EpgCacheRefreshService {
     public void refreshDue() {
         if(!new EpgApplicationService().isEnabled()) return;
         Token token=token();
+        refreshVisible(token);
         Map<String,List<Channel>> bookmarked=new HashMap<>();
         for(var resolved:new BookmarkResolver().resolveBookmarks(BookmarkService.getInstance().read())) {
             if(resolved.getAccount()==null || resolved.getAccountAction()!=Account.AccountAction.itv) continue;
@@ -188,6 +219,7 @@ public class EpgCacheRefreshService {
         // Publish shared XMLTV to every cached channel while native bookmark requests get priority.
         // Bulk native rotation follows only after each account has had its initial guide pass.
         for(boolean bulk : new boolean[]{false,true}) for(Account account:accounts) {
+            refreshVisible(token);
             if(!current(token) || !new EpgApplicationService().isEnabled()) return;
             account.setAction(Account.AccountAction.itv);
             Map<String,Channel> channels=new LinkedHashMap<>();

@@ -239,3 +239,21 @@ def test_bundle_excludes_outdated_and_far_future_source_programmes():
     bundle = BundleBuilder(create_test_inventory()).build_bundle([match], [], {"test-source": guide}, {})
     assert [p.title for p in bundle.programmes] == ["Current"]
     assert len(bundle.mappings) == 1
+
+
+def test_shared_bundle_keeps_unmatched_guide_channels_without_any_accounts():
+    inventory = create_test_inventory()
+    inventory.channels = []
+    inventory.accounts = []
+    now = int(datetime.now(timezone.utc).timestamp() * 1000)
+    guide = XmltvGuide(programmes={"future.station": [
+        EpgProgramme("Future account programme", "", now - 60000, now + 3600000)
+    ]}, names={"future station": "future.station"})
+    bundle = BundleBuilder(inventory).build_bundle([], [], {"public": guide}, {"public": {"priority": 25}})
+    assert bundle.shared_guides
+    assert not bundle.mappings
+    assert [p.title for p in bundle.programmes] == ["Future account programme"]
+    assert bundle.sources[0].names == {"future station": "future.station"}
+    loaded = EpgBundle.from_json(bundle.to_json())
+    assert loaded.shared_guides
+    assert loaded.sources[0].names == bundle.sources[0].names

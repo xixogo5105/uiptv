@@ -11,6 +11,8 @@ public final class EpgCacheDb {
     public record Match(Identity identity, String guideId, String name, String qualityName, boolean explicit,
                         List<String> sources, String nativeSource) { }
     public record BuilderMatch(Identity identity, String source, String guide, int priority) { }
+    public record SharedSource(int priority, String countries, String languages,
+                               Map<String,String> names, Map<String,String> icons) { }
     public record SourceState(long refreshedAt, long retryAt, String warning) { }
     public static Path path() { return Path.of(SQLConnection.getDatabasePath()); }
 
@@ -93,6 +95,10 @@ public final class EpgCacheDb {
      */
     public void publishBuilder(Map<String,Map<String,List<EpgProgramme>>> sources, List<BuilderMatch> matches,
                                long now, Runnable validateCurrentInventory) {
+        publishBuilder(sources, matches, Map.of(), now, validateCurrentInventory);
+    }
+    public void publishBuilder(Map<String,Map<String,List<EpgProgramme>>> sources, List<BuilderMatch> matches,
+                               Map<String,SharedSource> shared, long now, Runnable validateCurrentInventory) {
         try (Connection c = open(true)) {
             c.setAutoCommit(false);
             try {
@@ -101,7 +107,13 @@ public final class EpgCacheDb {
                 validateCurrentInventory.run();
                 for (var source : sources.entrySet()) {
                     if (!source.getKey().startsWith("builder:")) throw new IllegalArgumentException("Unowned source");
-                    replaceSource(c, source.getKey(), source.getValue(), Map.of(), Map.of(), Map.of(), now, now + 7_200_000L);
+                    SharedSource metadata = shared.get(source.getKey());
+                    replaceSource(c, source.getKey(), source.getValue(), metadata == null ? Map.of() : metadata.names(),
+                            Map.of(), metadata == null ? Map.of() : metadata.icons(), now, now + 7_200_000L);
+                    if (metadata != null) try (var insert = c.prepareStatement("INSERT INTO epg_shared_source VALUES(?,?,?,?) ON CONFLICT(source_id) DO UPDATE SET priority=excluded.priority,countries=excluded.countries,languages=excluded.languages")) {
+                        insert.setString(1, source.getKey()); insert.setInt(2, metadata.priority());
+                        insert.setString(3, metadata.countries()); insert.setString(4, metadata.languages()); insert.executeUpdate();
+                    }
                 }
                 try (var delete = c.prepareStatement("DELETE FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=? AND source_id=?");
                      var insert = c.prepareStatement("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)")) {
@@ -115,6 +127,7 @@ public final class EpgCacheDb {
                     }
                 }
                 c.commit();
+                SharedEpgCacheDb.invalidate();
             } catch (Exception error) { c.rollback(); throw error; }
         } catch (Exception error) { throw failure(error); }
     }
@@ -279,7 +292,7 @@ public final class EpgCacheDb {
     public void clear() {
         try(Connection c=open(true); var statement=c.createStatement()) {
             c.setAutoCommit(false);
-            for(String table:List.of("epg_channel_mapping","epg_programme","epg_alias","epg_channel_icon","epg_source")) statement.executeUpdate("DELETE FROM " + table);
+            for(String table:List.of("epg_channel_mapping","epg_programme","epg_alias","epg_channel_icon","epg_shared_source","epg_source")) statement.executeUpdate("DELETE FROM " + table);
             c.commit();
         } catch(Exception error) { throw failure(error); }
     }

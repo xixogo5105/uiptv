@@ -223,6 +223,8 @@ class EpgBuilderRunner:
                 "type": source.type,
                 "url": source.url,
                 "priority": source.priority,
+                "countries": source.countries,
+                "languages": source.languages,
             }
 
         # Update with fetch results

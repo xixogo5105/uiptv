@@ -123,6 +123,71 @@ class PlayerEpgUITest extends DbBackedUiTest {
         });
     }
 
+    @Test void unchangedProgrammeAndCompactModePreserveDetailsTooltipsAndLayout() throws Exception {
+        runOnFxThread(() -> {
+            var panel = new PlayerEpgUI(); panel.setCompact(true);
+            long now = System.currentTimeMillis();
+            var result = new PlayerEpgApplicationService.Result("Station",new EpgProgramme("Current", "Long description. ".repeat(40),now-60000,now+3600000),null);
+            panel.display(result);
+            var root = new VBox(panel); root.resize(390,650); root.applyCss(); root.layout();
+            ((Hyperlink)panel.lookup(".hyperlink")).fire(); root.layout();
+            Node details = panel.lookup(".epg-inline-details");
+            Label title = (Label)panel.lookup(".epg-current-card .epg-programme-title");
+            Tooltip tooltip = title.getTooltip();
+            var styleChanges = new java.util.concurrent.atomic.AtomicInteger();
+            panel.getStyleClass().addListener((javafx.collections.ListChangeListener<String>) _ -> styleChanges.incrementAndGet());
+            double height = panel.prefHeight(390);
+            for (int i=0;i<20;i++) {
+                panel.setCompact(true);
+                panel.display(new PlayerEpgApplicationService.Result(result.channelName(),result.now(),result.next()));
+            }
+            root.layout();
+            assertSame(tooltip,title.getTooltip(),"Unchanged programmes must not recreate tooltips");
+            assertTrue(details.isManaged(),"Routine updates must preserve the expanded description");
+            assertEquals(0,styleChanges.get(),"Repeated narrow-layout passes must not remove and re-add compact CSS");
+            assertEquals(height,panel.prefHeight(390),.1);
+            return null;
+        });
+    }
+
+    @Test void cacheBurstsKeepNarrowPanelVisibleAndCoalesceReads() throws Exception {
+        runOnFxThread(() -> {
+            var featureField = EpgModeUI.class.getDeclaredField("featureEnabled"); featureField.setAccessible(true);
+            var feature = (javafx.beans.property.BooleanProperty)featureField.get(null);
+            boolean enabled = feature.get(); feature.set(true);
+            var account = new com.uiptv.model.Account(); account.setDbId("player-refresh-test"); account.setType(AccountType.M3U8_LOCAL);
+            var channel = new Channel(); channel.setChannelId("provider-id"); channel.setName("Station");
+            com.uiptv.player.MediaPlayerFactory.updateGuideContext(account,channel);
+            var panel = new PlayerEpgUI(); panel.setCompact(true);
+            var root = new VBox(panel); new Scene(root,390,650);
+            try {
+                long now = System.currentTimeMillis();
+                panel.display(new PlayerEpgApplicationService.Result("Station",new EpgProgramme("Current","Details",now-60000,now+3600000),null));
+                root.resize(390,650); root.applyCss(); root.layout();
+                var visibilityChanges = new java.util.concurrent.atomic.AtomicInteger();
+                panel.managedProperty().addListener((_,_,_) -> visibilityChanges.incrementAndGet());
+                Field generationField = PlayerEpgUI.class.getDeclaredField("generation"); generationField.setAccessible(true);
+                var generation = (java.util.concurrent.atomic.AtomicInteger)generationField.get(panel);
+                int before = generation.get();
+                Field revisionField = EpgModeUI.class.getDeclaredField("cacheRevision"); revisionField.setAccessible(true);
+                var revision = (javafx.beans.property.LongProperty)revisionField.get(null);
+                for (int i=0;i<100;i++) revision.set(revision.get()+1);
+                root.layout();
+                assertTrue(panel.isVisible()); assertTrue(panel.isManaged());
+                assertEquals(0,visibilityChanges.get(),"Background updates must not collapse the player EPG panel");
+                assertEquals(before,generation.get(),"Cache bursts must not cancel and restart the reader");
+                Field timerField = PlayerEpgUI.class.getDeclaredField("cacheRefresh"); timerField.setAccessible(true);
+                var timer = (javafx.animation.PauseTransition)timerField.get(panel);
+                assertEquals(javafx.animation.Animation.Status.RUNNING,timer.getStatus());
+                assertTrue(timer.getDuration().toMillis() >= 25000,"Routine reads must be throttled to at most one per 30 seconds");
+            } finally {
+                root.getChildren().clear();
+                com.uiptv.player.MediaPlayerFactory.updateGuideContext(null,null); feature.set(enabled);
+            }
+            return null;
+        });
+    }
+
     @Test void sameEpgFieldIsAvailableForEveryAccountType() throws Exception {
         runOnFxThread(() -> {
             ManageAccountUI ui = new ManageAccountUI();

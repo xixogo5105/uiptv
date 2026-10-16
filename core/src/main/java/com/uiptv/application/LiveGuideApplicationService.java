@@ -34,8 +34,10 @@ public class LiveGuideApplicationService {
         Account account = AccountService.getInstance().getById(row.accountId());
         if (account == null) return row;
         account.setAction(Account.AccountAction.itv);
+        var programmes = new EpgCacheApplicationService().schedule(account, row.channel());
+        if (programmes.isEmpty()) EpgCacheRefreshService.requestVisible(account, List.of(row.channel()));
         return new Row(row.accountId(), row.accountName(), row.bookmarkId(), row.channel(),
-                new EpgCacheApplicationService().schedule(account, row.channel()), false, row.nativeProvider());
+                programmes, false, row.nativeProvider());
     }
     /** Visible-card batch: resolve each account once, then query only persisted summaries. */
     public List<Row> cachedSummaries(List<Row> rows) {
@@ -47,6 +49,8 @@ public class LiveGuideApplicationService {
             if(account==null) continue;
             account.setAction(Account.AccountAction.itv);
             var summaries=new EpgCacheApplicationService().summaries(account,group.getValue().stream().map(Row::channel).toList());
+            EpgCacheRefreshService.requestVisible(account, group.getValue().stream().map(Row::channel)
+                    .filter(channel -> summaries.getOrDefault(channel, List.of()).isEmpty()).toList());
             for(Row row:group.getValue()) loaded.put(row,new Row(row.accountId(),row.accountName(),row.bookmarkId(),row.channel(),
                     summaries.getOrDefault(row.channel(),List.of()),false,row.nativeProvider()));
         }

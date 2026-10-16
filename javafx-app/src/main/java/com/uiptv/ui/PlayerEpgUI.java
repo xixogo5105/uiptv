@@ -10,6 +10,8 @@ import javafx.scene.layout.*;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /** Adjacent to the video, never over its heavyweight native surface. */
 public class PlayerEpgUI extends VBox {
@@ -24,10 +26,14 @@ public class PlayerEpgUI extends VBox {
     private boolean compact;
     private PlayerEpgApplicationService.Result displayed;
     private Thread guideWorker;
+    private static final long CACHE_READ_INTERVAL_MS = 30_000;
+    private long lastReadNanos;
+    private MediaPlayerFactory.GuideContext activeContext;
+    private final javafx.animation.PauseTransition cacheRefresh = new javafx.animation.PauseTransition();
     private final AtomicInteger generation = new AtomicInteger();
     private final ChangeListener<MediaPlayerFactory.GuideContext> listener = (_, _, context) -> refresh(context, true);
     private final javafx.animation.Timeline clock = new javafx.animation.Timeline(new javafx.animation.KeyFrame(javafx.util.Duration.minutes(1),
-            _ -> refresh(MediaPlayerFactory.guideContextProperty().get(), false)));
+            _ -> { updateProgress(); refresh(MediaPlayerFactory.guideContextProperty().get(), false); }));
 
     public PlayerEpgUI() {
         getStyleClass().add("player-epg-panel");
@@ -59,29 +65,78 @@ public class PlayerEpgUI extends VBox {
         expandedDetails.getStyleClass().addAll("epg-programme-card", "epg-inline-details");
         expandedDetails.getChildren().add(detailsHeader); closeDetails();
         getChildren().addAll(heading, cards, expandedDetails); setVisible(false); setManaged(false);
-        EpgModeUI.observeCache(this, () -> refresh(MediaPlayerFactory.guideContextProperty().get(), true));
+        cacheRefresh.setOnFinished(_ -> refresh(MediaPlayerFactory.guideContextProperty().get(), false));
+        EpgModeUI.observeCache(this, this::cacheChanged);
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
         sceneProperty().addListener((_, oldScene, newScene) -> {
-            if (oldScene != null) { MediaPlayerFactory.guideContextProperty().removeListener(listener); clock.stop(); generation.incrementAndGet(); if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; } display(null); }
+            if (oldScene != null) { MediaPlayerFactory.guideContextProperty().removeListener(listener); clock.stop(); cacheRefresh.stop(); activeContext = null; lastReadNanos = 0; generation.incrementAndGet(); if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; } display(null); }
             if (newScene != null) { MediaPlayerFactory.guideContextProperty().addListener(listener); refresh(MediaPlayerFactory.guideContextProperty().get(), true); clock.play(); }
         });
     }
 
-    private void refresh(MediaPlayerFactory.GuideContext context, boolean clear) {
+    /** Coalesce unrelated importer events without temporarily removing the player panel. */
+    private void cacheChanged() {
+        if (!EpgModeUI.isFeatureEnabled()) {
+            refresh(MediaPlayerFactory.guideContextProperty().get(), false);
+            return;
+        }
+        if (getScene() == null || cacheRefresh.getStatus() == javafx.animation.Animation.Status.RUNNING) return;
+        long elapsed = lastReadNanos == 0 ? CACHE_READ_INTERVAL_MS : TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lastReadNanos);
+        cacheRefresh.setDuration(javafx.util.Duration.millis(Math.max(1000, CACHE_READ_INTERVAL_MS - elapsed)));
+        cacheRefresh.playFromStart();
+    }
+
+    private boolean sameChannel(MediaPlayerFactory.GuideContext context) {
+        return context != null && activeContext != null && context.account() != null && activeContext.account() != null
+                && context.channel() != null && activeContext.channel() != null
+                && Objects.equals(context.account().dbId(), activeContext.account().dbId())
+                && context.account().action() == activeContext.account().action()
+                && Objects.equals(context.channel().getChannelId(), activeContext.channel().getChannelId());
+    }
+
+    private void refresh(MediaPlayerFactory.GuideContext context, boolean contextEvent) {
+        boolean changed = contextEvent && !sameChannel(context);
+        if (changed || !EpgModeUI.isFeatureEnabled() || context == null || context.account() == null
+                || context.channel() == null || context.account().action() != com.uiptv.model.Account.AccountAction.itv) {
+            generation.incrementAndGet(); cacheRefresh.stop(); lastReadNanos = 0;
+            if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; }
+            activeContext = context;
+            MediaPlayerFactory.publishGuideSummary(null); display(null);
+            if (!EpgModeUI.isFeatureEnabled() || context == null || context.account() == null || context.channel() == null
+                    || context.account().action() != com.uiptv.model.Account.AccountAction.itv) return;
+        }
+        if (guideWorker != null || lastReadNanos != 0
+                && TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lastReadNanos) < CACHE_READ_INTERVAL_MS) {
+            cacheChanged(); return;
+        }
+        cacheRefresh.stop(); activeContext = context; lastReadNanos = System.nanoTime();
         int request = generation.incrementAndGet();
-        if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; }
-        if (clear) { setVisible(false); setManaged(false); }
-        if (!EpgModeUI.isFeatureEnabled()) { MediaPlayerFactory.publishGuideSummary(null); display(null); return; }
-        if (context == null || context.account() == null || context.account().action() != com.uiptv.model.Account.AccountAction.itv) { display(null); return; }
         guideWorker = Thread.ofVirtual().start(() -> {
-            PlayerEpgApplicationService.Result result;
-            try { result = new PlayerEpgApplicationService().current(context.account().toAccount(), context.channel()); }
-            catch (Exception e) { return; }
-            Platform.runLater(() -> { if (request == generation.get()) { guideWorker = null; MediaPlayerFactory.publishGuideSummary(result); display(result); } });
+            try {
+                var result = new PlayerEpgApplicationService().current(context.account().toAccount(), context.channel());
+                Platform.runLater(() -> completeRefresh(request, result, true));
+            } catch (Exception failure) {
+                Platform.runLater(() -> completeRefresh(request, null, false));
+            }
         });
     }
 
+    private void completeRefresh(int request, PlayerEpgApplicationService.Result result, boolean succeeded) {
+        if (request != generation.get()) return;
+        guideWorker = null;
+        if (!succeeded) return; // Keep the current panel stable during a transient read failure.
+        if (!Objects.equals(MediaPlayerFactory.guideSummaryProperty().get(), result)) MediaPlayerFactory.publishGuideSummary(result);
+        display(result);
+    }
+
+    private void updateProgress() {
+        var programme = displayed == null ? null : displayed.now();
+        progress.setProgress(programme == null || programme.stop() <= programme.start() ? 0
+                : Math.clamp((System.currentTimeMillis() - programme.start()) / (double) (programme.stop() - programme.start()), 0, 1));
+    }
+
     void display(PlayerEpgApplicationService.Result result) {
+        if (Objects.equals(displayed, result)) { updateProgress(); return; }
         boolean available = result != null && (result.now() != null || result.next() != null);
         setVisible(available); setManaged(available);
         if (!available) {
@@ -96,7 +151,7 @@ public class PlayerEpgUI extends VBox {
         nextCard.setVisible(result.next() != null); nextCard.setManaged(result.next() != null);
         programme(result.now(), I18n.tr("epgNow"), nowTitle, nowTime, nowDescription);
         programme(result.next(), I18n.tr("epgNext"), nextTitle, nextTime, nextDescription);
-        if (result.now() != null) progress.setProgress(Math.clamp((System.currentTimeMillis() - result.now().start()) / (double) (result.now().stop() - result.now().start()), 0, 1));
+        updateProgress();
         updateDescriptions(); sizeCards();
     }
 
@@ -108,6 +163,7 @@ public class PlayerEpgUI extends VBox {
         for (Label label : new Label[]{title, time, description}) { label.setVisible(!label.getText().isBlank()); label.setManaged(label.isVisible()); }
     }
     public void setCompact(boolean compact) {
+        if (this.compact == compact) return;
         this.compact = compact;
         getStyleClass().remove("compact"); if (compact) getStyleClass().add("compact");
         updateDescriptions(); sizeCards();

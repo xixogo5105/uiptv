@@ -153,7 +153,7 @@ The accepted fields `level`, `file`, `max_size_mb`, `backup_count` and `redact_s
 - Automatic website/source discovery, iptv-org invocation and paid adapters are not implemented.
 - `source-registry.json` is reference material; it is not automatically imported into the TOML configuration.
 - Decompressed XMLTV is capped at 64 MiB, and the Java parser has its own retained-memory/programme limits. Increasing `max_size_mb` does not lift those limits.
-- Bundles are limited to 128 MiB and 200,000 programme entries. There is no configuration setting to raise these limits or partition a large build automatically.
+- Bundles are limited to 128 MiB and 1,000,000 programme entries. There is no configuration setting to raise these limits or partition a large build automatically.
 - The retained programme horizon is fixed by Java, rather than a `days` option in TOML.
 - A scheduler is external to the utility. Writing `refresh_hours` does not install a background job.
 - EPG display must remain enabled in UIPTV. A dedicated external-refresh-owner setting is not implemented; the application can still refresh its own configured sources.

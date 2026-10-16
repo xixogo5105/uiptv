@@ -381,6 +381,12 @@ public class DatabaseUtils {
                 new DataColumn("scope", "TEXT"),
                 new DataColumn("enabled", "INTEGER")
         )));
+        dbStructure.put(DbTable.EPG_SHARED_SOURCE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("source_id", "TEXT"),
+                new DataColumn("priority", "INTEGER"),
+                new DataColumn("countries", "TEXT"),
+                new DataColumn("languages", "TEXT")
+        )));
         KNOWN_TABLE_NAMES.addAll(dbStructure.keySet());
     }
 
@@ -478,7 +484,8 @@ public class DatabaseUtils {
         EPG_ALIAS_TABLE("epg_alias"),
         EPG_CHANNEL_MAPPING_TABLE("epg_channel_mapping"),
         EPG_CHANNEL_ICON_TABLE("epg_channel_icon"),
-        EPG_NAME_EXCLUSION_TABLE("epg_name_exclusion");
+        EPG_NAME_EXCLUSION_TABLE("epg_name_exclusion"),
+        EPG_SHARED_SOURCE_TABLE("epg_shared_source");
 
         private final String tableName;
 

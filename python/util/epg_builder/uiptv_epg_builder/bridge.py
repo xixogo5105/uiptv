@@ -162,17 +162,43 @@ class JavaBridge:
                 raise ValueError("Java XMLTV parsing failed")
             return json.loads(result.stdout)
 
+    # Keep merge requests well below the Java bridge's 128 MiB file limit.
+    MERGE_REQUEST_LIMIT_BYTES = 16 * 1024 * 1024
+
     def merge_schedules(self, schedules):
-        """Resolve all timelines in one Java invocation using core EpgSchedules."""
+        """Batch complete timelines by UTF-8 bytes; Java owns interval resolution."""
+        prefix, suffix = b'{"schedules":[', b']}'
+        batch = []
+        size = len(prefix) + len(suffix)
+        merged = []
+        for schedule in schedules:
+            encoded = json.dumps(schedule, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            if len(encoded) + len(prefix) + len(suffix) > self.MERGE_REQUEST_LIMIT_BYTES:
+                raise ValueError("A single guide timeline exceeds the merge request limit")
+            extra = len(encoded) + bool(batch)
+            if batch and size + extra > self.MERGE_REQUEST_LIMIT_BYTES:
+                merged.extend(self._merge_schedule_batch(prefix + b",".join(batch) + suffix, len(batch)))
+                batch, size = [], len(prefix) + len(suffix)
+                extra = len(encoded)
+            batch.append(encoded)
+            size += extra
+        if batch:
+            merged.extend(self._merge_schedule_batch(prefix + b",".join(batch) + suffix, len(batch)))
+        return merged
+
+    def _merge_schedule_batch(self, payload, expected):
         with tempfile.TemporaryDirectory() as directory:
             request = Path(directory) / "schedules.json"
-            request.write_text(json.dumps({"schedules": schedules}), encoding="utf-8")
+            request.write_bytes(payload)
             result = subprocess.run(self._build_command("merge-schedules", "--bundle", str(request)),
                                     env=self._java_environment(),
-                capture_output=True, text=True, timeout=self.timeout_seconds)
+                                    capture_output=True, text=True, timeout=self.timeout_seconds)
             if result.returncode:
                 raise RuntimeError("Java schedule merge failed: " + result.stderr)
-            return json.loads(result.stdout)["schedules"]
+            schedules = json.loads(result.stdout)["schedules"]
+            if not isinstance(schedules, list) or len(schedules) != expected:
+                raise ValueError("Java merge returned an incomplete set of schedules")
+            return schedules
 
     def get_status(self) -> dict[str, Any]:
         """Get EPG cache status."""

@@ -81,3 +81,21 @@ It matched 5,417 channels; the validated publication bundle contained 5,163 mapp
 The larger merged count (560,995) repeats guide schedules across account/channel targets;
 bundle programmes are published once per source/guide. Channels without future data are
 omitted from mappings. No production import was performed.
+
+## Large merge request repair
+
+With ten feeds and 7,352 matched catalogue channels, the old merger serialized source
+schedules once per channel, exceeding the 128 MiB Java request limit. It now deduplicates
+by ordered source/guide identities, merges each unique selection once, and assigns the
+result back to account/channel targets. The Python adapter additionally batches complete
+timelines at 16 MiB of actual UTF-8 JSON, keeping the Java limit unchanged. Regression
+tests cover repeated account targets, source-local guide IDs, multibyte payload accounting,
+request ordering and batch boundaries, alongside existing Java interval resolver tests.
+
+Verification on 16 October 2026: all 79 Python tests passed and the native package smoke
+test passed. The installed copy used by `/Volumes/backup/epg.sh` was backed up and replaced.
+Its ten-source production-config dry-run completed in 92.5 seconds: 506,175 inventory
+channels, 20,271 matched channels, 19,645 validated mappings and 95,511 source/guide
+programmes across eight contributing sources, with no warnings. The repeated-target merged
+count was 1,537,560; deduplication kept bridge requests within the existing limits.
+No production import was performed.

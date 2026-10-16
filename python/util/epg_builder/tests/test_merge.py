@@ -49,3 +49,58 @@ def test_schedule_validation_reports_gap_and_overlap():
     warnings = ScheduleMerger().validate_schedule([p(0, 60000), p(660000, 800000), p(700000, 900000)])
     assert any("Gap" in warning for warning in warnings)
     assert any("Overlap" in warning for warning in warnings)
+
+
+def test_repeated_account_channels_merge_one_unique_timeline():
+    from uiptv_epg_builder.bridge import JavaBridge
+    class RecordingBridge(JavaBridge):
+        def merge_schedules(self, schedules):
+            self.count = len(schedules)
+            return super().merge_schedules(schedules)
+    bridge = RecordingBridge()
+    now = int(datetime.now(timezone.utc).timestamp() * 1000)
+    programme = EpgProgramme("Shared programme", "", now, now + 3600000)
+    matches = [ChannelMatch(ChannelIdentity(str(i), "provider", "row", "Station", "Station"),
+                            "guide", "Station", "source", MatchClass.EXACT_ID, 1.0)
+               for i in range(100)]
+    matches.append(ChannelMatch(ChannelIdentity("empty", "missing", "row", "Missing", "Missing"),
+                                match_class=MatchClass.UNMATCHED, confidence=0.0))
+    result = ScheduleMerger(bridge=bridge).merge_schedules(matches,
+        {"source": XmltvGuide(programmes={"guide": [programme]})}, {"source": 1})
+    assert bridge.count == 1
+    assert len(result) == 101
+    assert all(r.programmes == [programme] for r in result[:100])
+    assert result[-1].programmes == []
+    assert result[0].programmes is not result[1].programmes
+
+
+def test_identical_guide_ids_in_distinct_sources_do_not_share_timelines():
+    now = int(datetime.now(timezone.utc).timestamp() * 1000)
+    matches = [ChannelMatch(ChannelIdentity(s, "provider", "row", "Station", "Station"),
+                            "same-id", "Station", s, MatchClass.EXACT_ID, 1.0) for s in ("a", "b")]
+    guides = {s: XmltvGuide(programmes={"same-id": [EpgProgramme(s, "", now, now+3600000)]}) for s in ("a", "b")}
+    result = ScheduleMerger().merge_schedules(matches, guides, {"a": 1, "b": 2})
+    assert [r.programmes[0].title for r in result] == ["a", "b"]
+
+
+def test_merge_batches_complete_timelines_with_utf8_byte_limits(monkeypatch):
+    import json
+    from pathlib import Path
+    from types import SimpleNamespace
+    from uiptv_epg_builder.bridge import JavaBridge
+    bridge = JavaBridge(bridge_jar="unused.jar")
+    bridge.MERGE_REQUEST_LIMIT_BYTES = 450
+    requests = []
+    def run(command, **kwargs):
+        payload = Path(command[-1]).read_bytes()
+        assert len(payload) <= bridge.MERGE_REQUEST_LIMIT_BYTES
+        timelines = json.loads(payload)["schedules"]
+        requests.append(timelines)
+        return SimpleNamespace(returncode=0, stdout=json.dumps({"schedules": [t[0] for t in timelines]}))
+    monkeypatch.setattr("uiptv_epg_builder.bridge.subprocess.run", run)
+    schedules = [[[dict(title="خبر" * 20 + str(i), description="", start=i, stop=i+1)]] for i in range(7)]
+    result = bridge.merge_schedules(schedules)
+    assert len(requests) > 1
+    assert result == [s[0] for s in schedules]
+    assert [s for batch in requests for s in batch] == schedules
+    assert bridge.merge_schedules([]) == []

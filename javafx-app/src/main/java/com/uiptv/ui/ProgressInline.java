@@ -177,8 +177,15 @@ public class ProgressInline extends BorderPane {
         pauseWidget.getStyleClass().add("verification-pause-widget");
         pauseWidget.getChildren().addAll(clockIcon, pauseLabel);
         pauseWidget.setAlignment(Pos.CENTER_LEFT);
+        // Keep the whole countdown slot allocated, including its text, before the first pause.
+        pauseLabel.prefWidthProperty().bind(javafx.beans.binding.Bindings.createDoubleBinding(() -> {
+            Text sample = new Text(I18n.tr("autoPausedSeconds", 8888));
+            sample.setFont(pauseLabel.getFont());
+            return Math.ceil(sample.getLayoutBounds().getWidth());
+        }, pauseLabel.fontProperty()));
+        pauseLabel.setMinWidth(Region.USE_PREF_SIZE);
+        pauseLabel.setMaxWidth(Region.USE_PREF_SIZE);
         pauseWidget.setVisible(false);
-        pauseWidget.setManaged(false);
 
         Label delayLabel = new Label(I18n.tr("autoDelay"));
         delayLabel.getStyleClass().add("verification-delay-label");
@@ -321,13 +328,11 @@ public class ProgressInline extends BorderPane {
         Platform.runLater(() -> {
             if (secondsRemaining > 0) {
                 pauseWidget.setVisible(true);
-                pauseWidget.setManaged(true);
                 pauseLabel.setText(I18n.tr("autoPausedSeconds", secondsRemaining));
                 double rotation = ((double)(totalSeconds - secondsRemaining) / totalSeconds) * 360;
                 clockHand.setRotate(rotation);
             } else {
                 pauseWidget.setVisible(false);
-                pauseWidget.setManaged(false);
             }
         });
     }

@@ -39,7 +39,7 @@ public class EpgBuilderApplicationService {
         // Read-only preflight. Do not initialize/migrate an arbitrary SQLite file.
         try (var c = DriverManager.getConnection("jdbc:sqlite:" + Path.of(databasePath).toRealPath().toUri() + "?mode=ro");
              var query = c.createStatement()) {
-            for (String table : List.of("Account", "Channel", "Configuration", "epg_source", "epg_programme", "epg_channel_mapping", "epg_name_exclusion")) {
+            for (String table : List.of("Account", "Channel", "Configuration", "epg_source", "epg_programme", "epg_channel_mapping", "epg_name_exclusion", "epg_shared_source")) {
                 query.executeQuery("SELECT * FROM " + table + " LIMIT 0").close();
             }
         }
@@ -212,10 +212,11 @@ public class EpgBuilderApplicationService {
     }
 
     private record Prepared(Map<String,Map<String,List<com.uiptv.application.EpgProgramme>>> sources,
-                            List<EpgCacheDb.BuilderMatch> matches, int programmes) { }
+                            List<EpgCacheDb.BuilderMatch> matches, Map<String,EpgCacheDb.SharedSource> shared, int programmes) { }
 
     private Prepared prepare(String databasePath, JSONObject bundle) throws Exception {
         if (bundle.getInt("schema_version") != 1) throw new IllegalArgumentException("Unsupported bundle schema");
+        boolean sharedGuides = bundle.optBoolean("shared_guides", false);
         record Target(String account, String provider) { }
         Set<Target> wanted = new HashSet<>();
         for (Object value : bundle.getJSONArray("mappings")) {
@@ -223,24 +224,23 @@ public class EpgBuilderApplicationService {
             wanted.add(new Target(mapping.getString("account_id"), mapping.getString("provider_channel_id")));
         }
         Map<Target,JSONObject> targets = new HashMap<>();
-        JSONObject inventory = visitInventory(databasePath, channel -> {
+        JSONObject inventory = sharedGuides && wanted.isEmpty() ? inventoryMetadata(databasePath) : visitInventory(databasePath, channel -> {
             Target target = new Target(channel.getString("account_id"), channel.getString("provider_channel_id"));
             if (wanted.contains(target)) targets.put(target, channel);
         });
-        for (String key : List.of("database_identity", "config_signature")) {
-            if (!bundle.getString(key).equals(inventory.getString(key))) throw new IllegalArgumentException(key + " mismatch");
-        }
-        if (!bundle.getString("inventory_revision").equals(inventory.getString("revision"))
-                || bundle.getInt("inventory_generation") != inventory.getInt("generation")) {
-            throw new IllegalArgumentException("Stale inventory; export and rebuild");
-        }
+        if (!bundle.getString("database_identity").equals(inventory.getString("database_identity")))
+            throw new IllegalArgumentException("database_identity mismatch");
+        boolean mappingsCurrent = bundle.getString("config_signature").equals(inventory.getString("config_signature"))
+                && bundle.getString("inventory_revision").equals(inventory.optString("revision"))
+                && bundle.getInt("inventory_generation") == inventory.getInt("generation");
+        if (!sharedGuides && !mappingsCurrent) throw new IllegalArgumentException("Stale inventory or config_signature; export and rebuild");
         Map<String,Map<String,List<com.uiptv.application.EpgProgramme>>> sources = new LinkedHashMap<>();
         long now = System.currentTimeMillis();
         long created = bundle.has("created_at") ? java.time.Instant.parse(bundle.getString("created_at")).toEpochMilli() : now;
         if (created > now + 300_000L || created < now - 86_400_000L)
             throw new IllegalArgumentException("Bundle timestamp is stale or in the future; rebuild");
         JSONArray programmes = bundle.getJSONArray("programmes");
-        if (programmes.isEmpty() || programmes.length() > 200_000) throw new IllegalArgumentException("Empty or oversized programmes");
+        if (programmes.isEmpty() || programmes.length() > 1_000_000) throw new IllegalArgumentException("Empty or oversized programmes");
         Map<String,Integer> declared = new HashMap<>();
         for (Object value : bundle.getJSONArray("sources")) {
             JSONObject source = (JSONObject)value;
@@ -269,7 +269,8 @@ public class EpgBuilderApplicationService {
         sources.values().forEach(channels -> channels.replaceAll((guide, schedule) -> com.uiptv.application.EpgSchedules.normalize(schedule)));
         List<EpgCacheDb.BuilderMatch> matches = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-        for (Object value : bundle.getJSONArray("mappings")) {
+        // Public guide data survives catalogue changes. Stale optional bindings are discarded.
+        for (Object value : mappingsCurrent ? bundle.getJSONArray("mappings") : new JSONArray()) {
             JSONObject m = (JSONObject)value;
             Target target = new Target(m.getString("account_id"), m.getString("provider_channel_id"));
             JSONObject current = targets.get(target);
@@ -283,8 +284,31 @@ public class EpgBuilderApplicationService {
             matches.add(new EpgCacheDb.BuilderMatch(new EpgCacheDb.Identity(target.account(), target.provider(), m.getString("signature")),
                     source, guide, declared.get(m.getString("source_id"))));
         }
-        if (matches.isEmpty()) throw new IllegalArgumentException("Bundle has no usable mappings");
-        return new Prepared(sources, matches, programmes.length());
+        Map<String,EpgCacheDb.SharedSource> shared = new LinkedHashMap<>();
+        if (bundle.optBoolean("shared_guides", false)) for (Object value : bundle.getJSONArray("sources")) {
+            JSONObject source = (JSONObject)value;
+            String id = "builder:" + hash(source.getString("source_id"));
+            if (!sources.containsKey(id)) continue;
+            Map<String,String> names = new HashMap<>(), icons = new HashMap<>();
+            JSONObject aliases = source.optJSONObject("names");
+            if (aliases != null) for (String name : aliases.keySet()) {
+                String guide = aliases.getString(name);
+                if (name.length() > 512) throw new IllegalArgumentException("Oversized guide alias");
+                if (sources.get(id).containsKey(guide)) names.put(XmltvGuide.normalize(name), guide);
+            }
+            // Exact XMLTV identities remain available even for feeds without display names.
+            sources.get(id).keySet().forEach(guide -> names.putIfAbsent(XmltvGuide.normalize(guide), guide));
+            JSONObject artwork = source.optJSONObject("icons");
+            if (artwork != null) for (String guide : artwork.keySet()) {
+                String icon = artwork.getString(guide);
+                if (sources.get(id).containsKey(guide) && (icon.startsWith("https://") || icon.startsWith("http://"))) icons.put(guide, icon);
+            }
+            shared.put(id, new EpgCacheDb.SharedSource(source.optInt("priority", 100),
+                    source.optJSONArray("countries") == null ? "" : source.getJSONArray("countries").join(",").replace("\"", ""),
+                    source.optJSONArray("languages") == null ? "" : source.getJSONArray("languages").join(",").replace("\"", ""), names, icons));
+        }
+        if (matches.isEmpty() && shared.isEmpty()) throw new IllegalArgumentException("Bundle has no usable mappings or shared guides");
+        return new Prepared(sources, matches, shared, programmes.length());
     }
 
     private static JSONObject readBundle(String bundlePath) throws Exception {
@@ -297,9 +321,14 @@ public class EpgBuilderApplicationService {
         selectDatabase(databasePath);
         JSONObject bundle = readBundle(bundlePath);
         Prepared prepared = prepare(databasePath, bundle);
-        new EpgCacheDb().publishBuilder(prepared.sources(), prepared.matches(), System.currentTimeMillis(), () -> {
-            try { prepare(databasePath, bundle); }
-            catch (Exception error) { throw new IllegalArgumentException("Inventory changed before publication", error); }
+        new EpgCacheDb().publishBuilder(prepared.sources(), prepared.matches(), prepared.shared(), System.currentTimeMillis(), () -> {
+            try {
+                Prepared current = prepare(databasePath, bundle);
+                // Revalidation may discard bindings after a concurrent catalogue/config change.
+                // Publish that decision, rather than retaining the pre-lock binding list.
+                prepared.matches().clear();
+                prepared.matches().addAll(current.matches());
+            } catch (Exception error) { throw new IllegalArgumentException("Inventory changed before publication", error); }
         });
         return new JSONObject().put("success", true).put("sources_imported", prepared.sources().size())
                 .put("mappings_applied", prepared.matches().size()).put("programmes_imported", prepared.programmes());

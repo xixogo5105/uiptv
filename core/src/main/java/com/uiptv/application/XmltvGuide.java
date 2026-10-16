@@ -139,7 +139,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         return programmes.getOrDefault(id, List.of());
     }
 
-    static String normalize(String name) { return name == null ? "" : WHITESPACE.matcher(name.strip().toLowerCase(Locale.ROOT)).replaceAll(" "); }
+    public static String normalize(String name) { return name == null ? "" : WHITESPACE.matcher(name.strip().toLowerCase(Locale.ROOT)).replaceAll(" "); }
 
     /** Strip playlist presentation labels, retaining HD/SD, regions and time shifts. */
     public static String normalizeDisplayName(String name) {
