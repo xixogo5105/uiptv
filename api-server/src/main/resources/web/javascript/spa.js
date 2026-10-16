@@ -2274,8 +2274,8 @@ createApp({
 
         const broadcastIndicatorSrc = (broadcasting) => {
             return broadcasting
-                ? '/images/broadcast-on.svg?v=20261006b'
-                : '/images/broadcast-off.svg?v=20261006b';
+                ? '/images/broadcast-on.svg?v=20261016a'
+                : '/images/broadcast-off.svg?v=20261016a';
         };
 
         const selectAccount = async (account) => {

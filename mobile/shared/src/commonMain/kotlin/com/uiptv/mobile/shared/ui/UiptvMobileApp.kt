@@ -159,6 +159,7 @@ private val DeepNightSurfaceBase = Color(0xFF1B1F23)
 private val DeepNightSurfaceHighBase = Color(0xFF22282E)
 private val DeepNightSurfaceHighestBase = Color(0xFF2A3138)
 private val DeepNightAccentBase = Color(0xFF4FD8EB)
+private val RecordingDotRed = Color(0xFFE53935)
 private val DeepNightTextBase = Color(0xFFF4F7FA)
 private val DeepNightMutedTextBase = Color(0xFFAEB8C2)
 private val DeepNightBackgroundBase = Color(0xFF0F1216)
@@ -1990,6 +1991,9 @@ private fun BrowseItemRow(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (item.mode == BrowseMode.LIVE) {
+                        RecordingDot()
+                    }
                     if (item.hasDrmMetadata()) {
                         DrmBadge(Modifier.padding(start = 8.dp))
                     }
@@ -2005,6 +2009,16 @@ private fun BrowseItemRow(
             }
         }
     }
+}
+
+@Composable
+private fun RecordingDot(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(8.dp)
+            .background(RecordingDotRed, CircleShape)
+            .semantics { contentDescription = "Live broadcast" }
+    )
 }
 
 @Composable
@@ -2443,6 +2457,9 @@ private fun BookmarkRow(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (bookmark.mode == BrowseMode.LIVE) {
+                        RecordingDot()
+                    }
                     if (bookmark.hasDrmMetadata()) {
                         DrmBadge(Modifier.padding(start = 8.dp))
                     }

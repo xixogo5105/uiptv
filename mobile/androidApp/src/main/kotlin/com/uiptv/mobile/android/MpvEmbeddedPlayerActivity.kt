@@ -77,6 +77,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private lateinit var epgScrim: View
     private lateinit var epgDetails: LinearLayout
     private lateinit var epgGuideButton: TextView
+    private lateinit var recordingDot: View
     private var epgResult: com.uiptv.mobile.shared.epg.MobileEpgResult? = null
     private var epgPanelSide = Gravity.END
     private var epgLoadedKey: String? = null
@@ -764,6 +765,17 @@ class MpvEmbeddedPlayerActivity : Activity() {
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            recordingDot = View(this@MpvEmbeddedPlayerActivity).apply {
+                contentDescription = "Live broadcast"
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.rgb(229, 57, 53))
+                }
+                visibility = if (isLiveStream()) View.VISIBLE else View.GONE
+            }
+            addView(recordingDot, LinearLayout.LayoutParams(dp(8), dp(8)).apply {
+                rightMargin = dp(8)
+            })
             addView(titleLabel, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(epgGuideButton)
             addView(closeButton)
@@ -1737,6 +1749,9 @@ class MpvEmbeddedPlayerActivity : Activity() {
             return
         }
         if (::titleLabel.isInitialized) {
+            if (::recordingDot.isInitialized) {
+                recordingDot.visibility = if (isLiveStream()) View.VISIBLE else View.GONE
+            }
             titleLabel.text = currentTarget?.title
                 ?.takeIf { it.isNotBlank() }
                 ?: intent.getStringExtra(NativePlayerActivity.EXTRA_TITLE).orEmpty().ifBlank { "Embedded player" }
