@@ -165,14 +165,24 @@ public class EpgCacheRefreshService {
             workers.forEach(Thread::interrupt);
             stopTimer(); applicationOwned = false;
         }
-        // Only drain the short lifecycle reconciler. Refresh workers can be inside provider or
-        // XMLTV I/O with their own timeout; waiting for them here made application shutdown look
-        // hung for several seconds. They are interrupted above and run on daemon infrastructure,
-        // so shutdown must not wait for their network teardown.
+        // Drain normal lifecycle shutdown so callers can safely replace the database or remove
+        // a test database after stop() returns. Provider I/O is interrupted first and the bounded
+        // wait below prevents shutdown from hanging indefinitely. The final JVM-exit path still
+        // uses stopForApplicationExit(), which deliberately skips this wait.
         try {
-            if (awaitLifecycle && lifecycleTask != null && lifecycleTask != Thread.currentThread())
-                lifecycleTask.join(TimeUnit.SECONDS.toMillis(5));
+            if (awaitLifecycle) {
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                if (lifecycleTask != null && lifecycleTask != Thread.currentThread())
+                    joinUntil(lifecycleTask, deadline);
+                for (Thread worker : workers) {
+                    if (worker != Thread.currentThread()) joinUntil(worker, deadline);
+                }
+            }
         } catch (InterruptedException error) { Thread.currentThread().interrupt(); }
+    }
+    private static void joinUntil(Thread thread, long deadline) throws InterruptedException {
+        long remaining = deadline - System.nanoTime();
+        if (remaining > 0 && thread.isAlive()) thread.join(Math.max(1, TimeUnit.NANOSECONDS.toMillis(remaining)));
     }
     /** Wake a running scheduler, but never create an unmanaged worker from a read path. */
     public static synchronized void requestRefresh() {
