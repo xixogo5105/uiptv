@@ -53,7 +53,10 @@ public final class PlayerGuideOverlay extends StackPane {
 
     private void updateAvailability() {
         var summary = MediaPlayerFactory.guideSummaryProperty().get();
-        boolean available = EpgModeUI.isFeatureEnabled() && (fullscreen.get() || (wideMode == null ? player.getWidth() >= 700 : wideMode.get()))
+        // The guide belongs to the active player, including the normal
+        // split-layout player. Restricting it to fullscreen/wide mode made the
+        // control disappear even though the player had a valid EPG summary.
+        boolean available = EpgModeUI.isFeatureEnabled()
                 && summary != null && (summary.now() != null || summary.next() != null);
         button.setVisible(available); button.setManaged(available);
         if (!available) close();

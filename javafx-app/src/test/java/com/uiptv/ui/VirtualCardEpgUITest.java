@@ -257,7 +257,7 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                 assertTrue(overlay.getBoundsInParent().getMaxY() <= video.getHeight());
                 overlay.close();
                 video.resize(480, 400); video.layout(); assertTrue(button.isManaged());
-                wideMode.set(false); assertFalse(button.isManaged());
+                wideMode.set(false); assertTrue(button.isManaged());
                 fullscreen.set(true); assertTrue(button.isManaged());
                 mode.when(EpgModeUI::isFeatureEnabled).thenReturn(false);
                 com.uiptv.player.MediaPlayerFactory.publishGuideSummary(null); assertFalse(button.isManaged());

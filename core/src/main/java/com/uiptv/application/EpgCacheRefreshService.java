@@ -241,9 +241,12 @@ public class EpgCacheRefreshService {
             AtomicBoolean mapped = new AtomicBoolean();
             commit(token,() -> mapped.set(new EpgCacheDb().mapChannels(EpgCacheApplicationService.matches(account,cachedChannels,List.copyOf(cachedSources)),System.currentTimeMillis(),true)));
         }
-        // Publish shared XMLTV to every cached channel while native bookmark requests get priority.
-        // Bulk native rotation follows only after each account has had its initial guide pass.
-        for(boolean bulk : new boolean[]{false,true}) for(Account account:accounts) {
+        // Publish shared XMLTV to every cached channel while native requests stay
+        // demand-driven. A background crawl of dozens of native provider
+        // endpoints per account made an otherwise idle player consume CPU and
+        // network continuously. Visible channels are queued separately and
+        // bookmarks remain the useful persistent priority set.
+        for(Account account:accounts) {
             refreshVisible(token);
             if(!current(token) || !new EpgApplicationService().isEnabled()) return;
             account.setAction(Account.AccountAction.itv);
@@ -252,8 +255,8 @@ public class EpgCacheRefreshService {
             favourites.forEach(c -> channels.put(c.getChannelId(),c));
             ChannelDb.get().getCachedLiveChannels(account.getDbId()).forEach(c -> channels.put(c.getChannelId(),c));
             List<Channel> all = new ArrayList<>(channels.values());
-            List<Channel> nativeChannels = bulk ? all : favourites.stream().map(c -> channels.get(c.getChannelId())).toList();
-            refreshAccount(account,all,token,bulk ? 64 : 16,nativeChannels);
+            List<Channel> nativeChannels = favourites.stream().map(c -> channels.get(c.getChannelId())).toList();
+            refreshAccount(account,all,token,16,nativeChannels);
         }
         commit(token,() -> new EpgCacheDb().prune(System.currentTimeMillis()));
     }
