@@ -10,9 +10,11 @@ import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.image.PixelBuffer;
+import javafx.scene.image.PixelFormat;
+import javafx.scene.image.WritableImage;
 import javafx.util.Duration;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
-import uk.co.caprica.vlcj.javafx.videosurface.ImageViewVideoSurface;
 import uk.co.caprica.vlcj.media.Media;
 import uk.co.caprica.vlcj.media.MediaRef;
 import uk.co.caprica.vlcj.media.TrackType;
@@ -21,14 +23,22 @@ import uk.co.caprica.vlcj.player.base.MediaPlayer;
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 import uk.co.caprica.vlcj.player.base.TrackDescription;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
+import uk.co.caprica.vlcj.player.embedded.videosurface.CallbackVideoSurface;
+import uk.co.caprica.vlcj.player.embedded.videosurface.VideoSurfaceAdapters;
+import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat;
+import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallback;
+import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback;
+import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
 import org.apache.http.client.utils.URIBuilder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
@@ -46,6 +56,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private MediaPlayerFactory mediaPlayerFactory;
     private volatile EmbeddedMediaPlayer mediaPlayer;
     private MediaPlayerEventAdapter mediaPlayerEvents;
+    private VlcImageViewVideoSurface renderingSurface;
     private volatile Future<?> playbackTask;
     private volatile Future<?> nativePlaybackTask;
     private ImageView videoImageView;
@@ -175,7 +186,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void configureEmbeddedPlayer() {
-        mediaPlayer.videoSurface().set(new ImageViewVideoSurface(videoImageView));
+        renderingSurface = new VlcImageViewVideoSurface(videoImageView);
+        mediaPlayer.videoSurface().set(renderingSurface);
         mediaPlayer.controls().setRepeat(false);
         applyDesiredAudioState(mediaPlayer);
     }
@@ -611,6 +623,10 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             playerToCleanup = mediaPlayer;
             factoryToCleanup = mediaPlayerFactory;
             eventsToCleanup = mediaPlayerEvents;
+            if (renderingSurface != null) {
+                renderingSurface.disable();
+                renderingSurface = null;
+            }
             mediaPlayer = null;
             mediaPlayerEvents = null;
             mediaPlayerFactory = null;
@@ -647,6 +663,72 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             player.videoSurface().set(null);
         } catch (Exception _) {
             // Best-effort: the surface can already be detached during native teardown.
+        }
+    }
+
+    /**
+     * JavaFX surface with an explicit stop gate and one pending pulse at most.
+     *
+     * The stock vlcj JavaFX surface posts one Platform.runLater task per decoded
+     * frame. A live stream can therefore leave a large JavaFX/GPU backlog when
+     * playback is stopped. This surface drops frames after disable() and
+     * coalesces updates while one JavaFX pulse is pending.
+     */
+    private static final class VlcImageViewVideoSurface extends CallbackVideoSurface {
+        private final RenderGate gate;
+
+        private VlcImageViewVideoSurface(ImageView imageView) {
+            this(imageView, new RenderGate());
+        }
+
+        private VlcImageViewVideoSurface(ImageView imageView, RenderGate gate) {
+            super(new BufferFormatCallback() {
+                @Override public BufferFormat getBufferFormat(int width, int height) {
+                    gate.sourceWidth = width;
+                    gate.sourceHeight = height;
+                    return new RV32BufferFormat(width, height);
+                }
+                @Override public void newFormatSize(int bufferWidth, int bufferHeight, int displayWidth, int displayHeight) { }
+                @Override public void allocatedBuffers(ByteBuffer[] buffers) {
+                    if (!gate.enabled.get() || buffers == null || buffers.length == 0) return;
+                    PixelBuffer<ByteBuffer> next = new PixelBuffer<>(gate.sourceWidth, gate.sourceHeight,
+                            buffers[0], PixelFormat.getByteBgraPreInstance());
+                    gate.pixelBuffer = next;
+                    Platform.runLater(() -> {
+                        if (gate.enabled.get() && gate.pixelBuffer == next) imageView.setImage(new WritableImage(next));
+                    });
+                }
+            }, new RenderCallback() {
+                @Override public void lock(MediaPlayer mediaPlayer) { }
+                @Override public void display(MediaPlayer mediaPlayer, ByteBuffer[] nativeBuffers,
+                                              BufferFormat bufferFormat, int displayWidth, int displayHeight) {
+                    if (!gate.enabled.get() || gate.pixelBuffer == null || !gate.updateQueued.compareAndSet(false, true)) return;
+                    Platform.runLater(() -> {
+                        try {
+                            PixelBuffer<ByteBuffer> current = gate.pixelBuffer;
+                            if (gate.enabled.get() && current != null) current.updateBuffer(_ -> null);
+                        } finally {
+                            gate.updateQueued.set(false);
+                        }
+                    });
+                }
+                @Override public void unlock(MediaPlayer mediaPlayer) { }
+            }, true, VideoSurfaceAdapters.getVideoSurfaceAdapter());
+            this.gate = gate;
+        }
+
+        private void disable() {
+            gate.enabled.set(false);
+            gate.pixelBuffer = null;
+            gate.updateQueued.set(false);
+        }
+
+        private static final class RenderGate {
+            private final AtomicBoolean enabled = new AtomicBoolean(true);
+            private final AtomicBoolean updateQueued = new AtomicBoolean();
+            private volatile PixelBuffer<ByteBuffer> pixelBuffer;
+            private volatile int sourceWidth;
+            private volatile int sourceHeight;
         }
     }
 
