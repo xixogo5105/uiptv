@@ -215,6 +215,7 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                 playing.setExtraJson("{\"epg_channel_id\":\"xmltv-station\"}");
                 com.uiptv.player.MediaPlayerFactory.updateGuideContext(account, playing);
                 assertEquals(playing.getExtraJson(), com.uiptv.player.MediaPlayerFactory.guideContextProperty().get().channel().getExtraJson());
+                assertTrue(button.isVisible(), "Guide control must be available while its summary loads");
                 com.uiptv.player.MediaPlayerFactory.publishGuideSummary(new PlayerEpgApplicationService.Result("Cinema", programme, null));
                 assertTrue(button.isVisible());
                 Channel channel = new Channel(); channel.setName("Cinema");

@@ -521,7 +521,18 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                                 "VLC start request=" + playbackRequestVersion + " accepted=" + accepted
                                         + " elapsed=" + (System.nanoTime() - started) / 1_000_000 + "ms");
                         if (!accepted) throw new IllegalStateException("libVLC rejected media startup");
-                        if (playbackRequestVersion == mediaRequestVersion.get()) scheduleAudioStateStartupSync(audioRequestVersion);
+                        // Stop can race with a blocking libVLC media.play() call. In that case
+                        // controls().stop() may run before libVLC has actually attached the
+                        // media; when play() finally returns, the stale request must be stopped
+                        // again or it can continue decoding/rendering after the player is hidden.
+                        if (playbackRequestVersion != mediaRequestVersion.get()
+                                || isDisposed.get() || mediaPlayer != player) {
+                            stopNativePlayback(player);
+                            com.uiptv.util.AppLog.addInfoLog(VlcVideoPlayer.class,
+                                    "VLC stale start stopped request=" + playbackRequestVersion);
+                        } else {
+                            scheduleAudioStateStartupSync(audioRequestVersion);
+                        }
                     } catch (Throwable failure) {
                         reportPlaybackFailure(playbackRequestVersion, failure);
                     }
