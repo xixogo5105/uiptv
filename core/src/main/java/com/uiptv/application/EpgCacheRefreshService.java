@@ -127,7 +127,6 @@ public class EpgCacheRefreshService {
     public static void stop() { stop(false); }
     private static void stop(boolean serverOnly) {
         Thread lifecycleTask;
-        ScheduledExecutorService timer;
         List<Thread> workers;
         synchronized (EpgCacheRefreshService.class) {
             if (serverOnly && applicationOwned) return;
@@ -140,21 +139,15 @@ public class EpgCacheRefreshService {
             if (lifecycleTask != null) lifecycleTask.interrupt();
             workers = new ArrayList<>(WORKERS);
             workers.forEach(Thread::interrupt);
-            timer = scheduler;
             stopTimer(); applicationOwned = false;
         }
-        // Wait outside the lifecycle lock: finishing tasks need it to release ownership.
+        // Only drain the short lifecycle reconciler. Refresh workers can be inside provider or
+        // XMLTV I/O with their own timeout; waiting for them here made application shutdown look
+        // hung for several seconds. They are interrupted above and run on daemon infrastructure,
+        // so shutdown must not wait for their network teardown.
         try {
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-            if (lifecycleTask != null) workers.add(lifecycleTask);
-            for (Thread task : workers) {
-                long remaining = deadline - System.nanoTime();
-                if (task != Thread.currentThread() && remaining > 0)
-                    task.join(java.time.Duration.ofNanos(remaining));
-            }
-            long remaining = deadline - System.nanoTime();
-            if (timer != null && !workers.contains(Thread.currentThread()) && remaining > 0)
-                timer.awaitTermination(remaining, TimeUnit.NANOSECONDS);
+            if (lifecycleTask != null && lifecycleTask != Thread.currentThread())
+                lifecycleTask.join(TimeUnit.SECONDS.toMillis(5));
         } catch (InterruptedException error) { Thread.currentThread().interrupt(); }
     }
     /** Wake a running scheduler, but never create an unmanaged worker from a read path. */

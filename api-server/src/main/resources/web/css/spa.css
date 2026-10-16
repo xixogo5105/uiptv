@@ -1576,12 +1576,7 @@ a[href] {
 }
 
 .player-frame video,
-.player-frame .video-js,
-.player-frame .video-js .vjs-tech,
-.player-frame .video-js video,
-#player video,
-#player .video-js,
-#player .vjs-tech {
+#player video {
     width: 100% !important;
     height: 100% !important;
     max-width: 100% !important;
@@ -1601,104 +1596,45 @@ a[href] {
 }
 
 .player-frame[data-aspect="cover"] video,
-.player-frame[data-aspect="cover"] .vjs-tech,
-#player[data-aspect="cover"] video,
-#player[data-aspect="cover"] .vjs-tech {
+#player[data-aspect="cover"] video {
     object-fit: cover !important;
 }
 
 .player-frame[data-aspect="fill"] video,
-.player-frame[data-aspect="fill"] .vjs-tech,
-#player[data-aspect="fill"] video,
-#player[data-aspect="fill"] .vjs-tech {
+#player[data-aspect="fill"] video {
     object-fit: fill !important;
 }
 
 .player-frame[data-aspect="contain"] video,
-.player-frame[data-aspect="contain"] .vjs-tech,
-#player[data-aspect="contain"] video,
-#player[data-aspect="contain"] .vjs-tech {
+#player[data-aspect="contain"] video {
     object-fit: contain !important;
 }
 
-/* Ensure Video.js inline controls (Play/Pause, Volume, PIP, Progress, Fullscreen) show on hover and user interaction */
-.video-js {
-    font-size: 14px !important;
+/* Video.js 10 owns control visibility, focus, touch and fullscreen layout. */
+#player video-player {
+    --media-accent-color: var(--accent);
+    --media-border-radius: 0;
 }
 
-.video-js .vjs-control-bar {
-    display: flex !important;
-    background: linear-gradient(180deg, transparent 0%, rgba(5, 6, 7, 0.92) 100%) !important;
-    height: 3.6em !important;
-    padding: 0 8px !important;
-    align-items: center !important;
-    position: absolute !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 100 !important;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.2s ease, visibility 0.2s ease !important;
+#player video-skin {
+    display: block;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
 }
 
-/* Disable Video.js responsive layout hiding rules so inline controls stay visible regardless of player width */
-.video-js.vjs-layout-tiny .vjs-control-bar,
-.video-js.vjs-layout-small .vjs-control-bar,
-.video-js.vjs-layout-x-small .vjs-control-bar {
-    display: flex !important;
+#player hlsjs-video,
+#player dash-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
 }
 
-/* Show control bar on hover, focus, when paused, when user is active, or in fullscreen */
-.video-js:hover .vjs-control-bar,
-.video-js:focus-within .vjs-control-bar,
-.video-js.vjs-user-active .vjs-control-bar,
-.video-js.vjs-paused .vjs-control-bar,
-.video-js.vjs-fullscreen .vjs-control-bar,
-.video-js.vjs-layout-tiny:hover .vjs-control-bar,
-.video-js.vjs-layout-small:hover .vjs-control-bar,
-.video-js.vjs-layout-x-small:hover .vjs-control-bar,
-.player-frame:hover .vjs-control-bar,
-#player:hover .vjs-control-bar {
-    opacity: 1 !important;
-    visibility: visible !important;
-    display: flex !important;
-}
-
-/* Force all inline control buttons (Play, Volume, Mute, PIP, Fullscreen, Seekbar) to be visible inside control bar */
-.video-js .vjs-control-bar > * {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-
-/* Ensure volume panel is flex and doesn't get hidden by Video.js small layout rules */
-.video-js .vjs-volume-panel,
-.video-js.vjs-layout-tiny .vjs-volume-panel,
-.video-js.vjs-layout-small .vjs-volume-panel,
-.video-js.vjs-layout-x-small .vjs-volume-panel {
-    align-items: center !important;
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    width: auto !important;
-}
-
-.video-js .vjs-volume-panel .vjs-volume-control {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-
-.video-js.vjs-live .vjs-volume-panel,
-.video-js.vjs-live .vjs-volume-control,
-.video-js.vjs-live .vjs-mute-control,
-.video-js.vjs-live .vjs-picture-in-picture-control {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-
+#player[data-aspect="cover"] { --media-object-fit: cover; }
+#player[data-aspect="fill"] { --media-object-fit: fill; }
+#player[data-aspect="contain"] { --media-object-fit: contain; }
 
 .player-spinner {
     width: 1.25rem;
@@ -2200,21 +2136,6 @@ a[href] {
     }
 }
 
-/* Live XMLTV timeline; fixed hour widths align all channel rows. */
-.live-guide-panel { min-width: 0; width: 100%; }
-.live-guide-scroll { overflow-anchor: none; overflow: auto; max-height: 65vh; border-radius: 12px; }
-.live-guide-axis, .live-guide-row { display: flex; width: 1640px; gap: 0; }
-.live-guide-axis { position: sticky; top: 0; z-index: 3; background: var(--surface, #192332); padding-block: 10px; }
-.live-guide-name { position: sticky; left: 0; z-index: 2; display: flex; align-items: center; gap: 8px; flex: 0 0 200px; width: 200px; padding: 10px; text-align: left; overflow: hidden; background: var(--surface, #192332); color: inherit; border: 0; }
-.live-guide-name img { width: 36px; height: 36px; object-fit: contain; }
-.live-guide-hours { display: flex; width: 1440px; }
-.live-guide-hours span { flex: 0 0 240px; }
-.live-guide-track { position: relative; width: 1440px; height: 64px; background: rgba(127, 127, 127, .06); border-bottom: 1px solid rgba(127, 127, 127, .18); }
-.live-guide-programme { position: absolute; top: 3px; height: 58px; display: flex; flex-direction: column; justify-content: center; gap: 3px; text-align: left; border: 1px solid rgba(127, 127, 127, .25); border-radius: 5px; padding: 6px 10px; background: rgba(127, 127, 127, .12); color: inherit; overflow: hidden; }
-.live-guide-programme strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.live-guide-programme.current { border-bottom: 3px solid #32b8dd; background: rgba(50, 184, 221, .13); }
-.live-guide-empty { display: block; padding: 20px 12px; opacity: .65; }
-
 .player-epg-panel { padding: 14px; border: 1px solid var(--outline); border-radius: 10px; background: var(--surface); color: var(--text); max-height: 360px; overflow: auto; }
 .player-epg-panel header { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .player-epg-panel header span { color: var(--muted); }
@@ -2224,35 +2145,55 @@ a[href] {
 
 /* Keep the video and programme details inside the same player card. */
 .content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) {
- display: flex; flex-direction: column; overflow-y: auto;
+ display: flex;
+ flex-direction: column;
+ gap: 0;
+ height: max-content;
+ max-height: none;
+ overflow: visible;
+ align-self: start;
 }
 .content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) > * { flex-shrink: 0; }
 .content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) #player-wrapper { height: auto; flex: 0 0 auto; }
-@media (max-width: 1100px) {
- .content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) {
-  max-height: none; height: max-content; min-height: max-content; align-self: start; overflow: hidden;
- }
- .content-shell:not(.wide-view):has(.player-epg-panel) { overflow-y: auto; }
+.content-shell:not(.wide-view) .player-panel:has(.player-epg-panel) .player-epg-panel {
+ max-height: none;
+ overflow: visible;
+ margin: 0;
 }
 
-.guide-toolbar { flex-wrap: wrap; gap: 8px; }
-.live-guide-track { height: 96px; }
-.live-guide-programme { height: 90px; }
-.live-guide-programme { container-type: inline-size; }
-.live-guide-programme strong { white-space: normal; overflow-wrap: normal; word-break: normal; hyphens: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; text-overflow: ellipsis; }
-.live-guide-programme .guide-title-word { display: inline-block; max-width: 100%; margin-right: .25em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
-@container (max-width: 24px) { .live-guide-programme strong { visibility: hidden; } }
-.live-guide-programme small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@container (max-width: 100px) { .live-guide-programme small { display: none; } }
-.live-guide-name { white-space: normal; }
-.live-guide-selected-programme { margin: 10px 0; padding: 10px 12px; border-radius: 8px; background: var(--surface-high); overflow-wrap: anywhere; }
-.live-guide-selected-programme small { display: block; color: var(--muted); margin-top: 4px; }
+/* In narrow-player mode, let the page grow and use the document scrollbar. */
+html:has(.content-shell:not(.wide-view) .player-epg-panel),
+body:has(.content-shell:not(.wide-view) .player-epg-panel) {
+ height: auto;
+ min-height: 100%;
+ overflow-x: hidden;
+ overflow-y: auto;
+}
 
-.epg-settings-menu { position: relative; }
-.epg-settings-popover { position: absolute; right: 0; top: 100%; z-index: 20; min-width: 190px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 8px 24px #0004; }
-.epg-settings-popover button { width: 100%; padding: 10px; text-align: left; color: var(--text); background: transparent; border: 0; cursor: pointer; }
-.live-guide-name .broadcast-icon { width: 24px; height: 24px; }
+.app-shell:has(.content-shell:not(.wide-view) .player-epg-panel),
+.workspace:has(.content-shell:not(.wide-view) .player-epg-panel),
+.content-shell:not(.wide-view):has(.player-epg-panel) {
+ height: auto;
+ min-height: 100vh;
+ overflow: visible;
+}
 
-.live-guide-axis { height: 48px; box-sizing: border-box; }
-.live-guide-row, .live-guide-row > .live-guide-name { height: 96px; min-height: 96px; max-height: 96px; box-sizing: border-box; }
-.live-guide-spacer { width: 1px; pointer-events: none; }
+.content-shell:not(.wide-view):has(.player-epg-panel) {
+ height: auto;
+ min-height: 0;
+ overflow: visible;
+ grid-template-rows: auto auto;
+}
+
+.content-shell:not(.wide-view):has(.player-epg-panel) .content-stage {
+ height: auto;
+ overflow: visible;
+}
+
+/* EPG stays inside the existing channel and bookmark cards. */
+.media-card:has(> .card-epg) { flex: 0 0 auto; }
+.media-card > .card-epg { grid-column: 1 / -1; grid-row: 2; }
+.card-epg { display: grid; gap: 3px; min-width: 0; margin-top: 8px; }
+.card-epg-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .85rem; }
+.card-epg small { color: var(--muted); font-size: .75rem; }
+.card-epg progress { display: block; width: 100%; height: 4px; margin: 3px 0 5px; accent-color: var(--accent); }

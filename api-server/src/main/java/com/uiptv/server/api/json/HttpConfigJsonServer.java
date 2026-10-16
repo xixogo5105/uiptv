@@ -20,6 +20,7 @@ public class HttpConfigJsonServer implements HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
         ConfigurationApplicationService service = ConfigurationApplicationService.getInstance();
         Configuration config = service.readConfiguration();
 

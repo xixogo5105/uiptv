@@ -9,7 +9,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "ابھی",
+    "epgNext": "اگلا",
+    "epgNoProgrammeDetails": "پروگرام کی تفصیلات دستیاب نہیں ہیں"
   },
   "ur": {
     "settings": "ترتیبات",
@@ -21,7 +24,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "ابھی",
+    "epgNext": "اگلا",
+    "epgNoProgrammeDetails": "پروگرام کی تفصیلات دستیاب نہیں ہیں"
   },
   "pt_PT": {
     "settings": "Definições",
@@ -33,7 +39,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Agora",
+    "epgNext": "A seguir",
+    "epgNoProgrammeDetails": "Não há detalhes do programa disponíveis"
   },
   "pt": {
     "settings": "Definições",
@@ -45,7 +54,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Agora",
+    "epgNext": "A seguir",
+    "epgNoProgrammeDetails": "Não há detalhes do programa disponíveis"
   },
   "en_US": {
     "settings": "Settings",
@@ -57,7 +69,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Now",
+    "epgNext": "Next",
+    "epgNoProgrammeDetails": "No programme details available"
   },
   "en": {
     "settings": "Settings",
@@ -69,7 +84,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Now",
+    "epgNext": "Next",
+    "epgNoProgrammeDetails": "No programme details available"
   },
   "bn_BD": {
     "settings": "সেটিংস",
@@ -81,7 +99,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "এখন",
+    "epgNext": "পরবর্তী",
+    "epgNoProgrammeDetails": "অনুষ্ঠানের বিবরণ উপলব্ধ নেই"
   },
   "bn": {
     "settings": "সেটিংস",
@@ -93,7 +114,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "এখন",
+    "epgNext": "পরবর্তী",
+    "epgNoProgrammeDetails": "অনুষ্ঠানের বিবরণ উপলব্ধ নেই"
   },
   "ml_IN": {
     "settings": "ക്രമീകരണങ്ങൾ",
@@ -105,7 +129,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "ഇപ്പോൾ",
+    "epgNext": "അടുത്തത്",
+    "epgNoProgrammeDetails": "പരിപാടിയുടെ വിശദാംശങ്ങൾ ലഭ്യമല്ല"
   },
   "ml": {
     "settings": "ക്രമീകരണങ്ങൾ",
@@ -117,7 +144,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "ഇപ്പോൾ",
+    "epgNext": "അടുത്തത്",
+    "epgNoProgrammeDetails": "പരിപാടിയുടെ വിശദാംശങ്ങൾ ലഭ്യമല്ല"
   },
   "vi_VN": {
     "settings": "Cài đặt",
@@ -129,7 +159,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Hiện tại",
+    "epgNext": "Tiếp theo",
+    "epgNoProgrammeDetails": "Không có thông tin chi tiết chương trình"
   },
   "vi": {
     "settings": "Cài đặt",
@@ -141,7 +174,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Hiện tại",
+    "epgNext": "Tiếp theo",
+    "epgNoProgrammeDetails": "Không có thông tin chi tiết chương trình"
   },
   "zh_TW": {
     "settings": "設定",
@@ -153,7 +189,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "正在播放",
+    "epgNext": "下一節目",
+    "epgNoProgrammeDetails": "暫無節目詳情"
   },
   "zh": {
     "settings": "設定",
@@ -165,7 +204,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "正在播放",
+    "epgNext": "下一節目",
+    "epgNoProgrammeDetails": "暫無節目詳情"
   },
   "pt_BR": {
     "settings": "Configurações",
@@ -177,7 +219,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Agora",
+    "epgNext": "A seguir",
+    "epgNoProgrammeDetails": "Nenhum detalhe de programa disponível"
   },
   "ja_JP": {
     "settings": "設定",
@@ -189,7 +234,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "放送中",
+    "epgNext": "次の番組",
+    "epgNoProgrammeDetails": "番組の詳細はありません"
   },
   "ja": {
     "settings": "設定",
@@ -201,7 +249,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "放送中",
+    "epgNext": "次の番組",
+    "epgNoProgrammeDetails": "番組の詳細はありません"
   },
   "de_DE": {
     "settings": "Einstellungen",
@@ -213,7 +264,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Jetzt",
+    "epgNext": "Danach",
+    "epgNoProgrammeDetails": "Keine Programmdetails verfügbar"
   },
   "de": {
     "settings": "Einstellungen",
@@ -225,7 +279,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Jetzt",
+    "epgNext": "Danach",
+    "epgNoProgrammeDetails": "Keine Programmdetails verfügbar"
   },
   "te_IN": {
     "settings": "సెట్టింగ్‌లు",
@@ -237,7 +294,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "ఇప్పుడు",
+    "epgNext": "తర్వాత",
+    "epgNoProgrammeDetails": "కార్యక్రమ వివరాలు అందుబాటులో లేవు"
   },
   "te": {
     "settings": "సెట్టింగ్‌లు",
@@ -249,7 +309,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "ఇప్పుడు",
+    "epgNext": "తర్వాత",
+    "epgNoProgrammeDetails": "కార్యక్రమ వివరాలు అందుబాటులో లేవు"
   },
   "fr_FR": {
     "settings": "Paramètres",
@@ -261,7 +324,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Maintenant",
+    "epgNext": "Ensuite",
+    "epgNoProgrammeDetails": "Aucun détail de programme disponible"
   },
   "fr": {
     "settings": "Paramètres",
@@ -273,7 +339,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Maintenant",
+    "epgNext": "Ensuite",
+    "epgNoProgrammeDetails": "Aucun détail de programme disponible"
   },
   "zh_CN": {
     "settings": "设置",
@@ -285,7 +354,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "正在播放",
+    "epgNext": "下一节目",
+    "epgNoProgrammeDetails": "暂无节目详情"
   },
   "ta_IN": {
     "settings": "அமைப்புகள்",
@@ -297,7 +369,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "இப்போது",
+    "epgNext": "அடுத்து",
+    "epgNoProgrammeDetails": "நிகழ்ச்சி விவரங்கள் கிடைக்கவில்லை"
   },
   "ta": {
     "settings": "அமைப்புகள்",
@@ -309,7 +384,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "இப்போது",
+    "epgNext": "அடுத்து",
+    "epgNoProgrammeDetails": "நிகழ்ச்சி விவரங்கள் கிடைக்கவில்லை"
   },
   "id_ID": {
     "settings": "Pengaturan",
@@ -321,7 +399,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Sekarang",
+    "epgNext": "Berikutnya",
+    "epgNoProgrammeDetails": "Detail acara tidak tersedia"
   },
   "id": {
     "settings": "Pengaturan",
@@ -333,7 +414,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Sekarang",
+    "epgNext": "Berikutnya",
+    "epgNoProgrammeDetails": "Detail acara tidak tersedia"
   },
   "it_IT": {
     "settings": "Impostazioni",
@@ -345,7 +429,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Ora",
+    "epgNext": "Dopo",
+    "epgNoProgrammeDetails": "Nessun dettaglio del programma disponibile"
   },
   "it": {
     "settings": "Impostazioni",
@@ -357,7 +444,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Ora",
+    "epgNext": "Dopo",
+    "epgNoProgrammeDetails": "Nessun dettaglio del programma disponibile"
   },
   "ko_KR": {
     "settings": "설정",
@@ -369,7 +459,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "현재",
+    "epgNext": "다음",
+    "epgNoProgrammeDetails": "프로그램 정보가 없습니다"
   },
   "ko": {
     "settings": "설정",
@@ -381,7 +474,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "현재",
+    "epgNext": "다음",
+    "epgNoProgrammeDetails": "프로그램 정보가 없습니다"
   },
   "tr_TR": {
     "settings": "Ayarlar",
@@ -393,7 +489,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Şimdi",
+    "epgNext": "Sıradaki",
+    "epgNoProgrammeDetails": "Program ayrıntıları mevcut değil"
   },
   "tr": {
     "settings": "Ayarlar",
@@ -405,7 +504,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Şimdi",
+    "epgNext": "Sıradaki",
+    "epgNoProgrammeDetails": "Program ayrıntıları mevcut değil"
   },
   "en_GB": {
     "settings": "Settings",
@@ -417,7 +519,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Now",
+    "epgNext": "Next",
+    "epgNoProgrammeDetails": "No programme details available"
   },
   "hi_IN": {
     "settings": "सेटिंग्स",
@@ -429,7 +534,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "अभी",
+    "epgNext": "अगला",
+    "epgNoProgrammeDetails": "कार्यक्रम का विवरण उपलब्ध नहीं है"
   },
   "hi": {
     "settings": "सेटिंग्स",
@@ -441,7 +549,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "अभी",
+    "epgNext": "अगला",
+    "epgNoProgrammeDetails": "कार्यक्रम का विवरण उपलब्ध नहीं है"
   },
   "pa_IN": {
     "settings": "ਸੈਟਿੰਗਾਂ",
@@ -453,7 +564,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "ਹੁਣ",
+    "epgNext": "ਅਗਲਾ",
+    "epgNoProgrammeDetails": "ਪ੍ਰੋਗਰਾਮ ਦੇ ਵੇਰਵੇ ਉਪਲਬਧ ਨਹੀਂ ਹਨ"
   },
   "pa": {
     "settings": "ਸੈਟਿੰਗਾਂ",
@@ -465,7 +579,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "ਹੁਣ",
+    "epgNext": "ਅਗਲਾ",
+    "epgNoProgrammeDetails": "ਪ੍ਰੋਗਰਾਮ ਦੇ ਵੇਰਵੇ ਉਪਲਬਧ ਨਹੀਂ ਹਨ"
   },
   "th_TH": {
     "settings": "การตั้งค่า",
@@ -477,7 +594,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "ขณะนี้",
+    "epgNext": "ถัดไป",
+    "epgNoProgrammeDetails": "ไม่มีรายละเอียดรายการ"
   },
   "th": {
     "settings": "การตั้งค่า",
@@ -489,7 +609,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "ขณะนี้",
+    "epgNext": "ถัดไป",
+    "epgNoProgrammeDetails": "ไม่มีรายละเอียดรายการ"
   },
   "uk_UA": {
     "settings": "Налаштування",
@@ -501,7 +624,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Зараз",
+    "epgNext": "Далі",
+    "epgNoProgrammeDetails": "Відомості про програми недоступні"
   },
   "uk": {
     "settings": "Налаштування",
@@ -513,7 +639,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Зараз",
+    "epgNext": "Далі",
+    "epgNoProgrammeDetails": "Відомості про програми недоступні"
   },
   "ru_RU": {
     "settings": "Настройки",
@@ -525,7 +654,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Сейчас",
+    "epgNext": "Далее",
+    "epgNoProgrammeDetails": "Нет информации о программах"
   },
   "ru": {
     "settings": "Настройки",
@@ -537,7 +669,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Сейчас",
+    "epgNext": "Далее",
+    "epgNoProgrammeDetails": "Нет информации о программах"
   },
   "ar_SA": {
     "settings": "الإعدادات",
@@ -549,7 +684,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "الآن",
+    "epgNext": "التالي",
+    "epgNoProgrammeDetails": "لا تتوفر تفاصيل البرامج"
   },
   "ar": {
     "settings": "الإعدادات",
@@ -561,7 +699,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "الآن",
+    "epgNext": "التالي",
+    "epgNoProgrammeDetails": "لا تتوفر تفاصيل البرامج"
   },
   "es_ES": {
     "settings": "Configuración",
@@ -573,7 +714,10 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Ahora",
+    "epgNext": "Siguiente",
+    "epgNoProgrammeDetails": "No hay detalles del programa disponibles"
   },
   "es": {
     "settings": "Configuración",
@@ -585,6 +729,9 @@
     "epgSourceInvalid": "An EPG source contains invalid XMLTV data.",
     "epgSourceUnavailable": "An EPG source could not be loaded.",
     "refresh": "Refresh EPG",
-    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit."
+    "epgSourceXmlLimit": "An EPG source exceeds an XML processing limit.",
+    "epgNow": "Ahora",
+    "epgNext": "Siguiente",
+    "epgNoProgrammeDetails": "No hay detalles del programa disponibles"
   }
 }

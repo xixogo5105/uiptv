@@ -98,6 +98,7 @@ public class UIptvServer {
 
         // PWA routes
         addServlet(context, "/manifest.json", new HttpManifestServer());
+        addServlet(context, "/epg-labels.json", new HttpManifestServer());
         addServlet(context, "/sw.js", new HttpJavascriptServer());
 
         // Assets

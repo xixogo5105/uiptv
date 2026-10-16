@@ -18,6 +18,18 @@ class EpgSettingsApiTest extends DbBackedTest {
         JSONObject json = new JSONObject(request.getResponseBodyText()); assertTrue(json.getBoolean("epgEnabled"));
         assertFalse(json.has("globalEpgSource")); assertFalse(json.has("epgMappingsJson")); assertFalse(request.getResponseBodyText().contains("private"));
     }
+    @Test void webConfigCannotChangeTheDesktopEpgSetting() throws Exception {
+        for (boolean enabled : new boolean[]{false, true}) {
+            Configuration config = ConfigurationService.getInstance().read();
+            config.setEpgEnabled(enabled); ConfigurationService.getInstance().save(config);
+            var request = new TestHttpExchange("/config", "POST", "{\"epgEnabled\":" + !enabled + "}");
+            new HttpConfigJsonServer().handle(request);
+            assertEquals(enabled, ConfigurationService.getInstance().read().isEpgEnabled());
+            var read = new TestHttpExchange("/config", "GET"); new HttpConfigJsonServer().handle(read);
+            assertEquals(enabled, new JSONObject(read.getResponseBodyText()).getBoolean("epgEnabled"));
+            assertEquals("no-store", read.getResponseHeaders().getFirst("Cache-Control"));
+        }
+    }
     @Test void refreshRequiresPostAndPreservesSavedConfiguration() throws Exception {
         Configuration config = ConfigurationService.getInstance().read();
         config.setGlobalEpgSource("https://example.test/india.xml.gz\n/local/uk.xml");

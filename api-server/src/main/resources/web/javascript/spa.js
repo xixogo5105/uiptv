@@ -20,119 +20,23 @@ createApp({
         const selectedWatchingNowKey = ref('');
         const watchingNowTab = ref('series');
         const epgEnabled = ref(false);
-        const guideSelected = ref(false);
-        const epgSettingsOpen = ref(false);
-        const epgLabels = ref({settings: 'Settings', guide: 'View Guide'});
-        const epgGuideVisible = computed(() => epgEnabled.value && guideSelected.value && (activeTab.value === 'bookmarks' || activeTab.value === 'accounts' && viewState.value === 'channels' && contentMode.value === 'itv'));
-        const closeGuide = () => { guideSelected.value = false; epgSettingsOpen.value = false; };
-        const openGuide = () => { guideSelected.value = true; epgSettingsOpen.value = false; };
-        const liveGuideRows = shallowRef([]);
-        const showAllGuideChannels = ref(false);
-        const liveGuideLoading = ref(false);
-        const liveGuideError = ref('');
-        const liveGuideAccountId = ref('');
-        const liveGuideStart = ref(0);
-        const liveGuideHourWidth = ref(240);
-        const selectedGuideProgramme = ref(null);
-        const zoomGuide = delta => { liveGuideHourWidth.value = Math.max(240, Math.min(720, liveGuideHourWidth.value + delta)); };
-        let liveGuideRequest = 0;
-        let liveGuideController = null;
-        let nativeGuideController = null;
-        const filteredLiveGuideRows = computed(() => {
-            const bookmarkContext = activeTab.value === 'bookmarks';
-            const allowedIds = new Set(bookmarkContext
-                ? filteredBookmarks.value.map(b => String(b.dbId))
-                : filteredChannels.value.map(c => String(c.channelId)));
-            const noGuideData = !liveGuideRows.value.some(candidate => (candidate.programmes || []).some(p => p.stop > Date.now()));
-            return liveGuideRows.value.filter(row =>
-                allowedIds.has(String(bookmarkContext ? row.bookmarkId : row.channel?.channelId))
-                && (showAllGuideChannels.value || liveGuideError.value || noGuideData || row.nativeProvider || (row.programmes || []).some(p => p.stop > Date.now()))
-                && String(row.channel?.name || '').toLowerCase().includes(searchQuery.value.toLowerCase()));
-        });
-        const guideScrollElement = ref(null);
-        const guideScrollTop = ref(0);
-        const guideViewportHeight = ref(480);
-        const GUIDE_ROW_HEIGHT = 96, GUIDE_HEADER_HEIGHT = 48, GUIDE_BUFFER = 4;
-        const guideWindow = computed(() => {
-            const count = filteredLiveGuideRows.value.length;
-            const visible = Math.ceil(guideViewportHeight.value / GUIDE_ROW_HEIGHT);
-            const maximumStart = Math.max(0, count - visible - GUIDE_BUFFER * 2);
-            const start = Math.min(maximumStart, Math.max(0, Math.floor(Math.max(0, guideScrollTop.value - GUIDE_HEADER_HEIGHT) / GUIDE_ROW_HEIGHT) - GUIDE_BUFFER));
-            const end = Math.min(count, start + visible + GUIDE_BUFFER * 2);
-            return {start, end, top: start * GUIDE_ROW_HEIGHT, bottom: (count - end) * GUIDE_ROW_HEIGHT};
-        });
-        const visibleLiveGuideRows = computed(() => filteredLiveGuideRows.value.slice(guideWindow.value.start, guideWindow.value.end));
-        let guideScrollFrame = 0, guideResizeObserver;
-        const onGuideScroll = event => {
-            const element = event.currentTarget;
-            if (guideScrollFrame) return;
-            guideScrollFrame = requestAnimationFrame(() => { guideScrollFrame = 0; guideScrollTop.value = element.scrollTop; });
+        const epgLabels = ref({epgNow: 'Now', epgNext: 'Next', epgNoProgrammeDetails: 'No programme details'});
+        const epgTime = ref(Date.now());
+        const cardProgramme = (item, slot) => {
+            if (item[slot]) return item[slot];
+            const hour = new Date(epgTime.value); hour.setMinutes(0, 0, 0);
+            const start = slot === 'epgNext' ? (item.epgNow?.stop || hour.getTime() + 3600000) : hour.getTime();
+            return {title: epgLabels.value.epgNoProgrammeDetails || 'No programme details', start, stop: start + 3600000};
         };
-        watch(guideScrollElement, element => {
-            guideResizeObserver?.disconnect();
-            if (guideScrollFrame) { cancelAnimationFrame(guideScrollFrame); guideScrollFrame = 0; }
-            if (!element) return;
-            guideScrollTop.value = element.scrollTop;
-            guideViewportHeight.value = element.clientHeight || 480;
-            guideResizeObserver = new ResizeObserver(() => { guideViewportHeight.value = element.clientHeight || 480; });
-            guideResizeObserver.observe(element);
-        });
-        const liveGuideTicks = computed(() => Array.from({length: 6}, (_, hour) => liveGuideStart.value + hour * 3600000));
-        const guideDate = computed(() => new Date(liveGuideStart.value).toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}));
-        const shiftGuide = hours => { liveGuideStart.value += hours * 3600000; };
-        const guideTime = time => new Date(time).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-        const guideBlocks = row => (row.programmes || []).filter(p => p.stop > liveGuideStart.value && p.start < liveGuideStart.value + 6 * 3600000);
-        const guideBlockStyle = p => ({
-            left: `${Math.max(0, p.start - liveGuideStart.value) / 3600000 * liveGuideHourWidth.value}px`,
-            width: `${Math.max(1, (Math.min(p.stop, liveGuideStart.value + 6 * 3600000) - Math.max(p.start, liveGuideStart.value)) / 3600000 * liveGuideHourWidth.value - 3)}px`
-        });
-        const guideIsCurrent = p => p.start <= Date.now() && p.stop > Date.now();
-        const loadLiveGuide = async (preserveWindow = false) => {
-            if (!epgEnabled.value || !epgGuideVisible.value) return;
-            const request = ++liveGuideRequest;
-            liveGuideLoading.value = true;
-            liveGuideError.value = '';
-            const start = new Date(); start.setMinutes(0, 0, 0); start.setHours(start.getHours() - 1);
-            if (!preserveWindow) liveGuideStart.value = start.getTime();
-            try {
-                const params = new URLSearchParams();
-                if (liveGuideAccountId.value) params.set('accountId', liveGuideAccountId.value);
-                if (liveGuideController) liveGuideController.abort();
-                liveGuideController = new AbortController();
-                const response = await fetch(`${window.location.origin}/liveGuide?${params}`, {signal: liveGuideController.signal});
-                if (!response.ok) throw new Error('Guide unavailable');
-                const loaded = await response.json();
-                const warning = response.headers?.get("X-EPG-Warning") || "";
-                liveGuideError.value = warning ? epgLabels.value[warning] || "Guide source unavailable. Check the configured XMLTV feed." : "";
-                if (request === liveGuideRequest) liveGuideRows.value = Array.isArray(loaded) ? loaded : [];
-            } catch (_) {
-                if (request === liveGuideRequest) liveGuideError.value = 'Unable to load the programme guide.';
-            } finally {
-                if (request === liveGuideRequest) liveGuideLoading.value = false;
-            }
+        const cardProgrammeTime = programme => {
+            const time = value => new Date(value).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+            return `${time(programme.start)} – ${time(programme.stop)}`;
         };
-        const refreshGuideCache = async () => {
-            if (!epgEnabled.value) return;
-            liveGuideController?.abort(); nativeGuideController?.abort(); playerEpgController?.abort();
-            const response = await fetch('/epgCache', {method: 'POST'});
-            if (!response.ok) { liveGuideError.value = 'Unable to refresh guide cache.'; return; }
-            await loadLiveGuide(true); await refreshPlayerEpg(true);
+        const cardProgrammeProgress = item => {
+            const programme = cardProgramme(item, 'epgNow');
+            return programme.stop > programme.start ? Math.max(0, Math.min(1, (epgTime.value - programme.start) / (programme.stop - programme.start))) : 0;
         };
-        const playGuideRow = (row, programme = null) => {
-            selectedGuideProgramme.value = programme ? {...programme, channelName: row.channel.name} : null;
-            if (row.bookmarkId) {
-                playBookmark({dbId: row.bookmarkId, accountName: row.accountName, channelName: row.channel.name,
-                    channelId: row.channel.channelId, logo: row.channel.logo, accountAction: 'itv'});
-                return;
-            }
-            const channel = row.channel;
-            const params = new URLSearchParams({accountId: row.accountId, categoryId: channel.categoryId || '',
-                channelId: channel.dbId || '', mode: 'itv'});
-            appendPlaybackCompatParams(params, 'itv');
-            const url = `${window.location.origin}/player?${params}`;
-            startPlayback(url, {...channel, accountId: row.accountId, accountName: row.accountName,
-                id: channel.dbId, type: 'channel', mode: 'itv', playRequestUrl: url});
-        };
+        const isLiveBookmark = bookmark => String(bookmark.accountAction || bookmark.mode || 'itv').toLowerCase() === 'itv';
         const watchingNowDrilldown = ref(false);
         const watchingNowLoadedAt = ref(0);
         const WATCHING_NOW_CACHE_TTL_MS = 120000;
@@ -173,7 +77,7 @@ createApp({
                 const response = await fetch(`${window.location.origin}/playerEpg?${params}`, {signal: controller.signal});
                 if (!response.ok) throw new Error('Guide unavailable');
                 const result = await response.json();
-                if (request === playerEpgRequest) playerEpg.value = result.now || result.next ? result : null;
+                if (request === playerEpgRequest && epgEnabled.value) playerEpg.value = result.now || result.next ? result : null;
             } catch (_) { if (request === playerEpgRequest) playerEpg.value = null; }
         };
         watch(currentChannel, () => refreshPlayerEpg(true));
@@ -254,7 +158,7 @@ createApp({
         const playerInstance = ref(null);
         const mpegtsPlayer = ref(null);
         const hlsPlayer = ref(null);
-        const videoJsPlayer = ref(null);
+        const videoJsPlayer = shallowRef(null);
         const videoPlayer = ref(null);
         const videoTracks = ref([]);
         const audioTracks = ref([]);
@@ -1282,11 +1186,6 @@ createApp({
             return !!(normalizedBookmarkId || hasIdMatch || hasNameMatch);
         };
 
-        const isActiveGuideRow = row => matchesCurrentPlayback({
-            id: row.channel?.channelId || '', accountId: row.accountId, accountName: row.accountName,
-            mode: 'itv', name: row.channel?.name || '', bookmarkId: row.bookmarkId || ''
-        });
-
         const buildPlaybackTargetKey = ({
                                             id = '',
                                             accountId = '',
@@ -1425,24 +1324,40 @@ createApp({
             logo: resolveLogoUrl(bookmark.logo)
         });
 
-        const loadConfig = async () => {
-            try {
-                const response = await fetch(window.location.origin + '/config');
-                const config = await response.json();
-                thumbnailsEnabled.value = config?.enableThumbnails !== false;
-                epgEnabled.value = config?.epgEnabled === true;
-                if (!epgEnabled.value) {
-                    if (playerEpgController) playerEpgController.abort();
-                    playerEpg.value = null;
-                }
-                try {
-                    const labels = await (await fetch('/epg-labels.json')).json();
-                    const language = (config?.languageLocale || navigator.language || 'en').replaceAll('-', '_');
-                    epgLabels.value = labels[language] || labels[language.split('_')[0]] || labels.en;
-                } catch (_) { /* Keep usable labels when the translation asset cannot be loaded. */ }
-            } catch (e) {
-                thumbnailsEnabled.value = true;
+        const applyDesktopEpgSetting = (enabled) => {
+            const changed = epgEnabled.value !== enabled;
+            epgEnabled.value = enabled;
+            if (!enabled) {
+                ++playerEpgRequest; playerEpgController?.abort(); playerEpg.value = null;
+                ++cardEpgGeneration;
+                clearTimeout(cardEpgTimer); cardEpgController?.abort(); cardEpgObserver?.disconnect();
+                cardEpgObserver = null; cardEpgBindings = new WeakMap(); visibleEpgCards.clear();
+                for (const item of [...channels.value, ...bookmarks.value]) { item.epgNow = null; item.epgNext = null; }
+            } else if (changed) {
+                nextTick(() => { refreshPlayerEpg(true); refreshVisibleCardEpg(); });
             }
+        };
+        let configRequest = 0;
+        let epgLabelsLocale = '';
+        const loadConfig = async () => {
+            const request = ++configRequest;
+            try {
+                const response = await fetch(window.location.origin + '/config', {cache: 'no-store'});
+                if (!response.ok) return;
+                const config = await response.json();
+                if (request !== configRequest) return;
+                thumbnailsEnabled.value = config?.enableThumbnails !== false;
+                applyDesktopEpgSetting(config?.epgEnabled === true);
+                const language = (config?.languageLocale || navigator.language || 'en').replaceAll('-', '_');
+                if (language !== epgLabelsLocale) {
+                    try {
+                        const labels = await (await fetch('/epg-labels.json')).json();
+                        if (request !== configRequest) return;
+                        epgLabels.value = labels[language] || labels[language.split('_')[0]] || labels.en;
+                        epgLabelsLocale = language;
+                    } catch (_) { /* Keep usable labels when the translation asset cannot be loaded. */ }
+                }
+            } catch (_) { /* Retain the last desktop setting while the server is unreachable. */ }
         };
 
         const findBookmarkForChannel = (channel) => {
@@ -3116,7 +3031,7 @@ createApp({
         const ensureVideoElement = () => {
             const container = document.getElementById('player');
             if (!container) return videoPlayer.value;
-            let video = container.querySelector('video');
+            let video = container.querySelector('[data-uiptv-media], video');
             if (!video || !video.isConnected) {
                 container.innerHTML = '';
                 video = document.createElement('video');
@@ -3125,8 +3040,8 @@ createApp({
                 video.setAttribute('playsinline', '');
                 container.appendChild(video);
             }
-            video.controls = true;
-            video.setAttribute('controls', '');
+            window.UIPTVModernPlayer.wrap(video);
+            window.UIPTVModernPlayer.syncControls(video);
             videoPlayer.value = video;
             return video;
         };
@@ -3458,7 +3373,7 @@ createApp({
             }
 
             if (video) {
-                video.setAttribute('controls', '');
+                window.UIPTVModernPlayer.syncControls(video);
             }
             videoTracks.value = [];
             audioTracks.value = [];
@@ -3501,8 +3416,15 @@ createApp({
                 return;
             }
 
+            const initRequestId = playbackRequestId;
             await nextTick();
+            try {
+                await window.UIPTVModernPlayer.ready();
+            } catch (error) {
+                console.warn('Modern controls unavailable; retaining native playback', error);
+            }
 
+            if (initRequestId !== playbackRequestId) return;
             const video = ensureVideoElement();
             if (!video) {
                 console.error('Video element not found.');
@@ -3541,7 +3463,8 @@ createApp({
                 return;
             }
             if (override === 'videojs') {
-                await loadVideoJs(channel);
+                if (hasDRM) await loadShaka(channel);
+                else await loadVideoJs(channel);
                 return;
             }
             if (override === 'shaka') {
@@ -3557,7 +3480,7 @@ createApp({
                 if (prefersNativeHls) {
                     await loadNative(channel);
                 } else {
-                    await loadShaka(channel);
+                    await loadVideoJs(channel);
                 }
                 return;
             }
@@ -3571,12 +3494,12 @@ createApp({
                 } else if (isHls && prefersNativeHls) {
                     await loadNative(channel);
                 } else if (isHls) {
-                    // Prefer Shaka for HLS to preserve the browser's native inline player controls
+                    // Modern HLS controls and adaptive tracks; Shaka remains an independent fallback.
                     try {
-                        await loadShaka(channel);
-                    } catch (shakaErr) {
-                        console.warn('Shaka HLS playback failed, trying Video.js fallback', shakaErr);
                         await loadVideoJs(channel);
+                    } catch (videoJsError) {
+                        console.warn('Video.js HLS playback failed, trying Shaka fallback', videoJsError);
+                        await loadShaka(channel);
                     }
                 } else if (canNative) {
                     await loadNative(channel);
@@ -3654,8 +3577,7 @@ createApp({
             await nextTick();
             const video = ensureVideoElement();
             if (!video) return;
-            video.controls = true;
-            video.setAttribute('controls', '');
+            window.UIPTVModernPlayer.syncControls(video);
 
             if (mpegtsPlayer.value) {
                 try {
@@ -3743,8 +3665,7 @@ createApp({
             await nextTick();
             const video = ensureVideoElement();
             if (!video) return;
-            video.controls = true;
-            video.setAttribute('controls', '');
+            window.UIPTVModernPlayer.syncControls(video);
 
             bindPlaybackEvents(video);
             let sourceUrl = normalizeWebPlaybackUrl(channel.url);
@@ -3803,188 +3724,82 @@ createApp({
         const downgradeHttpsToHttpForKnownPaths = (url) => playbackUtils.downgradeHttpsToHttpForKnownPaths(url);
 
         const loadVideoJs = async (channel) => {
+            await window.UIPTVModernPlayer.ready();
             await nextTick();
-            let video = ensureVideoElement();
-            if (!video) return;
-
-            bindPlaybackEvents(video);
-            const sourceUrl = normalizeWebPlaybackUrl(channel.url);
-
-            if (!window.videojs) {
-                console.error('Video.js is not loaded.');
-                playbackError.value = 'Playback failed: Video.js is not available.';
-                throw new Error('Video.js is not available');
-            }
-
             if (videoJsPlayer.value) {
-                try { videoJsPlayer.value.dispose(); } catch (_) {}
+                videoJsPlayer.value.dispose();
                 videoJsPlayer.value = null;
-                await new Promise(resolve => setTimeout(resolve, 30));
-                video = ensureVideoElement();
             }
-
-            const normalizedUri = String(channel.url || '').toLowerCase();
-            let sourceType = '';
-            if (normalizedUri.includes('.m3u8') || normalizedUri.includes('.m3u?')) {
-                sourceType = 'application/x-mpegURL';
-            } else if (normalizedUri.includes('.mpd')) {
-                sourceType = 'application/dash+xml';
+            const container = document.getElementById('player');
+            if (!container) throw new Error('Video player container is unavailable');
+            const sourceUrl = normalizeWebPlaybackUrl(channel.url);
+            const manifestType = String(channel.manifestType || '').toLowerCase();
+            const isDash = manifestType === 'dash' || manifestType === 'mpd' || /\.mpd(?:[?#]|$)/i.test(sourceUrl);
+            const isHls = manifestType === 'hls' || manifestType === 'm3u8' || /\.m3u8?(?:[?#]|$)/i.test(sourceUrl);
+            const video = window.UIPTVModernPlayer.mount(container, isDash ? 'dash-video' : isHls ? 'hlsjs-video' : 'video');
+            videoPlayer.value = video;
+            bindPlaybackEvents(video);
+            const player = window.UIPTVModernPlayer.connect(video, refreshVideoJsTracks);
+            videoJsPlayer.value = player;
+            player.maxPreferencePending = isMaxQualityEnabled();
+            video.addEventListener('error', () => {
+                // A disposed adapter must never clear a newer channel's media.
+                if (videoJsPlayer.value !== player) return;
+                playbackError.value = `Playback error: ${video.error?.message || 'Video.js error'}`;
+            });
+            if (isHls || isDash) {
+                video.source = {src: sourceUrl, type: isDash ? 'application/dash+xml' : 'application/vnd.apple.mpegurl'};
+            } else {
+                video.src = sourceUrl;
             }
-
             try {
-                const player = window.videojs(video, {
-                    controls: true,
-                    autoplay: true,
-                    preload: 'auto',
-                    playsinline: true,
-                    fill: true,
-                    html5: {
-                        hls: {
-                            enableWorker: true,
-                            enableWorkerToken: true,
-                            maxBufferLength: 60,
-                            maxMaxBufferLength: 120,
-                            maxLoadingDelay: 4,
-                            lowLatencyMode: false,
-                            abrEnabled: true,
-                            capLevelToPlayerSize: false,
-                            startLevel: -1,
-                            useAccurateLiveSeekToEnd: true
-                        },
-                        dash: {
-                            autoLiveStartParam: true
-                        }
-                    }
-                });
-                videoJsPlayer.value = player;
-
-                player.on('error', (e) => {
-                    const err = player && player.error ? player.error() : null;
-                    const msg = (err && err.message) ? err.message : 'Video.js error';
-                    console.error('Video.js error:', err, e);
-                    playbackError.value = `Playback error: ${msg}`;
-                    // If this player was already disposed by stopPlayback (e.g. user switched channels),
-                    // do NOT reset the video element — it may now belong to a newer stream.
-                    if (videoJsPlayer.value !== player) {
-                        return;
-                    }
-                    videoJsPlayer.value = null;
-                    try {
-                        player.dispose();
-                    } catch (disposeErr) {
-                        console.warn('Error disposing Video.js player after error', disposeErr);
-                    }
-                    const cleanVideo = ensureVideoElement();
-                    clearVideoElement(cleanVideo);
-                });
-
-                player.on('loadedmetadata', () => {
-                    refreshVideoJsTracks(player);
-                });
-                player.on('qualitylevelchange', () => {
-                    refreshVideoJsTracks(player);
-                });
-                player.on('audiotrackchange', () => {
-                    refreshVideoJsTracks(player);
-                });
-                player.on('texttrackchange', () => {
-                    refreshVideoJsTracks(player);
-                });
-
-                if (sourceType) {
-                    player.src({src: sourceUrl, type: sourceType});
-                } else {
-                    player.src(sourceUrl);
-                }
-
-                const playAction = typeof player.play === 'function'
-                    ? () => player.play()
-                    : () => video.play();
-                await playWithGestureFallback(playAction);
+                await playWithGestureFallback(() => video.play());
                 playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'videojs');
                 refreshVideoJsTracks(player);
-                return;
-            } catch (e) {
-                console.warn('Video.js playback failed', e);
-                throw e;
+            } catch (error) {
+                if (videoJsPlayer.value === player) {
+                    videoJsPlayer.value = null;
+                    player.dispose();
+                    ensureVideoElement();
+                }
+                throw error;
             }
         };
 
         const refreshVideoJsTracks = (player) => {
-            if (!player) return;
-
-            try {
-                const levels = typeof player.qualityLevels === 'function' ? player.qualityLevels() : null;
-                if (levels && typeof levels.toArray === 'function') {
-                    const allLevels = levels.toArray();
-                    videoTracks.value = allLevels.map((level, idx) => ({
-                        id: `vjs-q-${idx}`,
-                        index: idx,
-                        bandwidth: Number(level.bitrate || 0),
-                        width: Number(level.width || 0),
-                        height: Number(level.height || 0),
-                        label: level.height ? `${level.height}p (${Math.round((Number(level.bitrate || 0) / 1000) || 0)} kbps)` : `${Math.round((Number(level.bitrate || 0) / 1000) || 0)} kbps`,
-                        active: !!level.enabled
-                    })).filter((track, idx, arr) => arr.findIndex(other =>
-                        Number(other.height || 0) === Number(track.height || 0)
-                        && Number(other.bandwidth || 0) === Number(track.bandwidth || 0)
-                    ) === idx).sort((a, b) => (Number(a.height || 0) - Number(b.height || 0)) || (Number(a.bandwidth || 0) - Number(b.bandwidth || 0)));
-                } else {
-                    videoTracks.value = [];
-                }
-            } catch (e) {
-                videoTracks.value = [];
+            if (!player || videoJsPlayer.value !== player) return;
+            const store = player.store;
+            if (player.maxPreferencePending && store.videoRenditionList?.length) {
+                player.maxPreferencePending = false;
+                const best = [...store.videoRenditionList].sort((a, b) => (b.height || 0) - (a.height || 0) || (b.bitrate || 0) - (a.bitrate || 0))[0];
+                store.selectVideoRendition(best.id);
             }
-
-            try {
-                const audioTracksList = typeof player.audioTracks === 'function' ? player.audioTracks() : null;
-                if (audioTracksList && typeof audioTracksList.toArray === 'function') {
-                    const allAudio = audioTracksList.toArray();
-                    const audioByKey = new Map();
-                    for (const track of allAudio) {
-                        const key = `${String(track.language || '')}|${String(track.label || '')}`;
-                        if (!audioByKey.has(key)) {
-                            audioByKey.set(key, {
-                                id: key,
-                                language: track.language || '',
-                                label: track.label || '',
-                                active: !!track.enabled
-                            });
-                        } else if (track.enabled) {
-                            audioByKey.get(key).active = true;
-                        }
-                    }
-                    audioTracks.value = Array.from(audioByKey.values());
-                } else {
-                    audioTracks.value = [];
-                }
-            } catch (e) {
-                audioTracks.value = [];
+            const nextVideoTracks = (store.videoRenditionList || []).map(track => ({
+                id: track.id, width: track.width || 0, height: track.height || 0,
+                bandwidth: track.bitrate || 0,
+                label: track.height ? `${track.height}p` : `${Math.round((track.bitrate || 0) / 1000)} kbps`,
+                active: store.activeVideoRendition?.id === track.id
+            }));
+            const nextAudioTracks = (store.audioTrackList || []).map(track => ({
+                id: track.id, language: track.language || '', label: track.label || track.language || '',
+                active: !!track.enabled
+            }));
+            const nextTextTracks = (store.textTrackList || []).filter(track => ['captions', 'subtitles'].includes(track.kind)).map(track => ({
+                id: track.id, label: track.label || track.language || '', active: track.mode === 'showing'
+            }));
+            // The v10 store also publishes time/buffer updates. Only replace menus
+            // when tracks change, so a playing stream cannot steal menu focus.
+            for (const [target, tracks] of [[videoTracks, nextVideoTracks], [audioTracks, nextAudioTracks], [textTracks, nextTextTracks]]) {
+                if (JSON.stringify(target.value) !== JSON.stringify(tracks)) target.value = tracks;
             }
-
-            try {
-                const textTracksList = typeof player.textTracks === 'function' ? player.textTracks() : null;
-                if (textTracksList && typeof textTracksList.toArray === 'function') {
-                    const allText = textTracksList.toArray();
-                    textTracks.value = allText.map(t => ({
-                        id: String(t.id || t.label || t.language || ''),
-                        label: t.label || t.language || '',
-                        active: t.mode === 'showing'
-                    }));
-                } else {
-                    textTracks.value = [];
-                }
-            } catch (e) {
-                textTracks.value = [];
-            }
+            selectedTextTrackId.value = String(nextTextTracks.find(track => track.active)?.id || 'off');
         };
 
         const loadShaka = async (channel) => {
             await nextTick();
             const video = ensureVideoElement();
             if (!video) return;
-            video.controls = true;
-            video.setAttribute('controls', '');
+            window.UIPTVModernPlayer.syncControls(video);
 
             if (playerInstance.value) {
                 try {
@@ -4188,20 +4003,10 @@ createApp({
         };
 
         const switchVideoTrack = (trackId) => {
-            // Video.js (VHS) path
+            // Video.js 10 player store
             if (videoJsPlayer.value) {
                 setMaxQualityEnabled(false);
-                const qlevels = videoJsPlayer.value.qualityLevels();
-                if (qlevels && qlevels.length > 0) {
-                    const match = (videoTracks.value || []).find(t => String(t.id) === String(trackId));
-                    const targetIndex = match && typeof match.index === 'number' ? match.index : -1;
-                    if (targetIndex >= 0) {
-                        qlevels.auto = false;
-                        for (let i = 0; i < qlevels.length; i++) {
-                            qlevels[i].enabled = (i === targetIndex);
-                        }
-                    }
-                }
+                videoJsPlayer.value.store.selectVideoRendition(String(trackId));
                 refreshVideoJsTracks(videoJsPlayer.value);
                 return;
             }
@@ -4238,11 +4043,7 @@ createApp({
         const switchVideoAuto = () => {
             if (videoJsPlayer.value) {
                 setMaxQualityEnabled(false);
-                try {
-                    // Video.js auto = ABR enabled
-                    const qlevels = videoJsPlayer.value.qualityLevels();
-                    if (qlevels) qlevels.auto = true;
-                } catch (e) { console.warn('Failed to set Video.js ABR', e); }
+                videoJsPlayer.value.store.selectVideoRendition('auto');
                 refreshVideoJsTracks(videoJsPlayer.value);
                 return;
             }
@@ -4267,21 +4068,9 @@ createApp({
         const switchVideoMax = () => {
             if (videoJsPlayer.value) {
                 setMaxQualityEnabled(true);
-                const qlevels = videoJsPlayer.value.qualityLevels();
-                if (qlevels && qlevels.length > 0) {
-                    qlevels.auto = false;
-                    let best = 0;
-                    for (let i = 1; i < qlevels.length; i++) {
-                        const h = qlevels[i];
-                        if ((Number(h.height || 0) > Number(qlevels[best].height || 0)) ||
-                            ((Number(h.height || 0) === Number(qlevels[best].height || 0)) && Number(h.bitrate || 0) > Number(qlevels[best].bitrate || 0))) {
-                            best = i;
-                        }
-                    }
-                    for (let i = 0; i < qlevels.length; i++) {
-                        qlevels[i].enabled = (i === best);
-                    }
-                }
+                const tracks = [...(videoJsPlayer.value.store.videoRenditionList || [])];
+                const best = tracks.sort((a, b) => (b.height || 0) - (a.height || 0) || (b.bitrate || 0) - (a.bitrate || 0))[0];
+                if (best) videoJsPlayer.value.store.selectVideoRendition(best.id);
                 refreshVideoJsTracks(videoJsPlayer.value);
                 return;
             }
@@ -4312,25 +4101,9 @@ createApp({
         };
 
         const switchAudioTrack = (trackId) => {
-            // Video.js (VHS) path
+            // Video.js 10 player store
             if (videoJsPlayer.value) {
-                const target = (audioTracks.value || []).find(track => String(track.id) === String(trackId));
-                if (target) {
-                    const tracks = videoJsPlayer.value.audioTracks();
-                    if (tracks) {
-                        for (let i = 0; i < tracks.length; i++) {
-                            tracks[i].enabled = false;
-                        }
-                        for (let i = 0; i < tracks.length; i++) {
-                            const t = tracks[i];
-                            if (String(t.language || '') === String(target.language || '') &&
-                                String(t.label || '') === String(target.label || '')) {
-                                t.enabled = true;
-                                break;
-                            }
-                        }
-                    }
-                }
+                videoJsPlayer.value.store.selectAudioTrack(String(trackId));
                 refreshVideoJsTracks(videoJsPlayer.value);
                 return;
             }
@@ -4383,28 +4156,11 @@ createApp({
         };
 
         const switchTextTrack = async (trackId) => {
-            // Video.js (VHS) path
+            // Video.js 10 player store
             if (videoJsPlayer.value) {
-                const tracks = videoJsPlayer.value.textTracks();
-                if (tracks) {
-                    if (trackId === 'off') {
-                        for (let i = 0; i < tracks.length; i++) {
-                            try { tracks[i].mode = 'disabled'; } catch (e) {}
-                        }
-                        selectedTextTrackId.value = 'off';
-                        refreshVideoJsTracks(videoJsPlayer.value);
-                        return;
-                    }
-                    for (let i = 0; i < tracks.length; i++) {
-                        try {
-                            const id = String(tracks[i].id || tracks[i].label || tracks[i].language || '');
-                            tracks[i].mode = id === String(trackId) ? 'showing' : 'disabled';
-                        } catch (e) {}
-                    }
-                    selectedTextTrackId.value = String(trackId);
-                    refreshVideoJsTracks(videoJsPlayer.value);
-                    return;
-                }
+                videoJsPlayer.value.store.selectSubtitlesTrack(trackId === 'off' ? null : String(trackId));
+                refreshVideoJsTracks(videoJsPlayer.value);
+                return;
             }
             // Shaka path
             if (playerInstance.value) {
@@ -4603,7 +4359,11 @@ createApp({
             const video = ensureVideoElement();
             if (!video || !document.pictureInPictureEnabled) return;
             try {
-                if (document.pictureInPictureElement === video) {
+                const store = video.closest('video-player')?.store;
+                if (store) {
+                    if (store.isPictureInPicture) await store.exitPictureInPicture();
+                    else await store.requestPictureInPicture();
+                } else if (document.pictureInPictureElement === video) {
                     await document.exitPictureInPicture();
                 } else {
                     await video.requestPictureInPicture();
@@ -4642,7 +4402,9 @@ createApp({
                 if (document.fullscreenElement) {
                     await document.exitFullscreen();
                 } else {
-                    await video.requestFullscreen();
+                    const store = video.closest('video-player')?.store;
+                    if (store) await store.requestFullscreen();
+                    else await video.requestFullscreen();
                 }
             } catch (e) {
                 console.warn('Fullscreen request failed', e);
@@ -4737,9 +4499,8 @@ createApp({
                     // fall through
                 }
                 try {
-                    if (videoJsPlayer.value && typeof videoJsPlayer.value.qualityLevels === 'function') {
-                        const qlevels = videoJsPlayer.value.qualityLevels();
-                        return !!qlevels && qlevels.length > 0 && !!qlevels.auto;
+                    if (videoJsPlayer.value) {
+                        return !(videoJsPlayer.value.store.videoRenditionList || []).some(track => track.selected);
                     }
                 } catch (_) {
                     return false;
@@ -4942,37 +4703,39 @@ createApp({
 
         let cardEpgObserver = null, cardEpgBindings = new WeakMap(), cardEpgTimer;
         const visibleEpgCards = new Map();
-        let cardEpgController = null, cardEpgRunning = false, cardEpgActiveKey = '';
-        const cardEpgContext = () => epgEnabled.value && activeTab.value === 'accounts' && viewState.value === 'channels'
-            && contentMode.value === 'itv' && !epgGuideVisible.value;
+        let cardEpgController = null, cardEpgRunning = false, cardEpgActiveKey = '', cardEpgGeneration = 0;
+        const cardEpgContext = () => epgEnabled.value && (activeTab.value === 'bookmarks'
+            || activeTab.value === 'accounts' && viewState.value === 'channels' && contentMode.value === 'itv');
         const refreshVisibleCardEpg = async () => {
             if (!cardEpgContext() || cardEpgRunning) return;
             cardEpgRunning = true;
+            const generation = cardEpgGeneration;
             try {
-                for (const [key, record] of Array.from(visibleEpgCards).slice(0, 32)) {
-                    if (!cardEpgContext()) break;
+                for (const [key, record] of Array.from(visibleEpgCards)) {
+                    if (!cardEpgContext() || generation !== cardEpgGeneration) break;
                     if (!visibleEpgCards.has(key) || Date.now() < record.refreshAt) continue;
-                    record.refreshAt = Date.now() + 30 * 60000;
-                    const channel = record.channel;
                     const controller = new AbortController(); cardEpgController = controller; cardEpgActiveKey = key;
                     try {
-                        const params = new URLSearchParams({accountId: record.accountId, channelId: channel.dbId, categoryId: channel.categoryId});
-                        const response = await fetch(`/playerEpg?${params}`, {signal: controller.signal});
+                        const response = await fetch(`/playerEpg?${new URLSearchParams(record.params)}`, {signal: controller.signal});
                         if (!response.ok) continue;
                         const result = await response.json();
-                        if (!cardEpgContext() || !visibleEpgCards.has(key) || record.accountId !== String(selectedAccountId.value)) continue;
-                        channel.epgNow = result.now || null; channel.epgNext = result.next || null;
-                    } catch (_) { /* Keep available fallback data after a failed refresh. */ }
+                        if (!cardEpgContext() || generation !== cardEpgGeneration || visibleEpgCards.get(key) !== record) continue;
+                        record.item.epgNow = result.now || null; record.item.epgNext = result.next || null;
+                        record.refreshAt = Date.now() + 30 * 60000;
+                    } catch (_) { /* Retry unavailable summaries on the next visible-card refresh. */ }
                 }
-            } finally { cardEpgRunning = false; cardEpgActiveKey = ''; }
+            } finally {
+                cardEpgRunning = false; cardEpgActiveKey = '';
+                if (generation !== cardEpgGeneration && cardEpgContext()) nextTick(refreshVisibleCardEpg);
+            }
         };
-        const observeChannelEpg = (element, channel) => {
+        const observeEpgCard = (element, item, bookmark = false) => {
             const accountId = String(selectedAccountId.value || '');
-            const key = `${accountId}:${channel.dbId}`;
+            const key = bookmark ? `bookmark:${item.dbId}` : `${accountId}:${item.dbId}`;
             if (!element) { visibleEpgCards.delete(key); return; }
-            if (!cardEpgContext() || !channel.dbId || !channel.categoryId) return;
-            const account = accounts.value.find(value => String(value.dbId) === accountId);
-            if (!['STALKER_PORTAL', 'XTREME_API'].includes(account?.type)) return;
+            if (!cardEpgContext() || !item.dbId) return;
+            if (bookmark && String(item.accountAction || item.mode || 'itv').toLowerCase() !== 'itv') return;
+            if (!bookmark && (!accountId || !item.categoryId)) return;
             if (!cardEpgObserver) cardEpgObserver = new IntersectionObserver(entries => {
                 for (const entry of entries) {
                     const record = cardEpgBindings.get(entry.target);
@@ -4985,50 +4748,29 @@ createApp({
                 }
                 clearTimeout(cardEpgTimer); cardEpgTimer = setTimeout(refreshVisibleCardEpg, 200);
             });
-            if (cardEpgBindings.has(element)) return;
-            cardEpgBindings.set(element, {key, accountId, channel, refreshAt: 0}); cardEpgObserver.observe(element);
+            const previous = cardEpgBindings.get(element);
+            if (previous?.key === key && previous.item === item) return;
+            if (previous) { visibleEpgCards.delete(previous.key); cardEpgObserver.unobserve(element); }
+            const params = bookmark ? {bookmarkId: item.dbId} : {accountId, channelId: item.dbId, categoryId: item.categoryId};
+            cardEpgBindings.set(element, {key, params, item, refreshAt: 0}); cardEpgObserver.observe(element);
         };
-        watch([epgEnabled, activeTab, selectedAccountId, viewState, epgGuideVisible], () => {
-            if (cardEpgContext()) { nextTick(refreshVisibleCardEpg); return; }
+        const observeChannelEpg = (element, channel) => observeEpgCard(element, channel);
+        const observeBookmarkEpg = (element, bookmark) => observeEpgCard(element, bookmark, true);
+        watch([epgEnabled, activeTab, selectedAccountId, viewState, contentMode], () => {
+            ++cardEpgGeneration;
             clearTimeout(cardEpgTimer); cardEpgController?.abort(); cardEpgObserver?.disconnect();
             cardEpgObserver = null; cardEpgBindings = new WeakMap(); visibleEpgCards.clear();
-        });
-        let nativeGuideTimer;
-        watch(() => visibleLiveGuideRows.value.filter(row => row.nativePending).map(row => row.bookmarkId || row.channel?.dbId).join(','), ids => {
-            clearTimeout(nativeGuideTimer);
-            if (nativeGuideController) nativeGuideController.abort();
-            if (!ids || !epgGuideVisible.value) return;
-            nativeGuideTimer = setTimeout(async () => {
-                const request = liveGuideRequest;
-                const controller = new AbortController(); nativeGuideController = controller;
-                const params = new URLSearchParams({visibleIds: ids});
-                if (liveGuideAccountId.value) params.set('accountId', liveGuideAccountId.value);
-                try {
-                    const response = await fetch(`/liveGuide?${params}`, {signal: controller.signal});
-                    if (!response.ok) return;
-                    const loaded = await response.json();
-                    if (request !== liveGuideRequest || !epgEnabled.value) return;
-                    const key = row => `${row.accountId}:${row.bookmarkId || row.channel?.dbId}`;
-                    const updates = new Map(loaded.map(row => [key(row), row]));
-                    liveGuideRows.value = liveGuideRows.value.map(row => updates.get(key(row)) || row);
-                } catch (_) { /* Source failures leave XMLTV fallback rows usable. */ }
-            }, 200);
-        });
-        watch(epgGuideVisible, visible => {
-            if (!visible) {
-                clearTimeout(nativeGuideTimer);
-                nativeGuideController?.abort(); liveGuideController?.abort();
-                liveGuideRequest++;
-            }
-        });
+        }, {flush: 'pre'});
         onMounted(async () => {
-            const guideRefreshTimer = window.setInterval(async () => {
-                if (!document.hidden) { await loadConfig(); refreshVisibleCardEpg(); }
+            const desktopSettingsTimer = window.setInterval(async () => {
+                if (!document.hidden) { epgTime.value = Date.now(); await loadConfig(); refreshVisibleCardEpg(); }
 
-            }, 60000);
-            window.addEventListener('beforeunload', () => window.clearInterval(guideRefreshTimer), {once: true});
+            }, 5000);
+            const refreshDesktopSettings = () => { if (!document.hidden) void loadConfig(); };
+            window.addEventListener('focus', refreshDesktopSettings);
+            document.addEventListener('visibilitychange', refreshDesktopSettings);
+            window.addEventListener('beforeunload', () => window.clearInterval(desktopSettingsTimer), {once: true});
             const scheduleRefreshTimer = window.setInterval(() => {
-                if (!document.hidden && epgGuideVisible.value && !liveGuideLoading.value) loadLiveGuide(true);
                 if (!document.hidden && epgEnabled.value && currentChannel.value) refreshPlayerEpg();
             }, 30 * 60000);
             window.addEventListener('beforeunload', () => window.clearInterval(scheduleRefreshTimer), {once: true});
@@ -5075,32 +4817,6 @@ createApp({
             }
         });
 
-        // Data refreshes keep the same visible channel; user filters start a new list.
-        watch(filteredLiveGuideRows, async (rows, previousRows) => {
-            const element = guideScrollElement.value;
-            if (!element) return;
-            const top = element.scrollTop;
-            const index = Math.max(0, Math.floor((top - GUIDE_HEADER_HEIGHT) / GUIDE_ROW_HEIGHT));
-            const identity = row => row && (row.bookmarkId || `${row.accountId}:${row.channel?.channelId}`);
-            const anchor = identity(previousRows[index]);
-            const nextIndex = anchor ? rows.findIndex(row => identity(row) === anchor) : -1;
-            const target = nextIndex >= 0 ? top + (nextIndex - index) * GUIDE_ROW_HEIGHT : top;
-            await nextTick();
-            if (guideScrollElement.value !== element || element.scrollTop !== top) return;
-            element.scrollTop = target;
-            guideScrollTop.value = element.scrollTop;
-        });
-        watch([searchQuery, selectedBookmarkCategoryId, showAllGuideChannels], () => {
-            guideScrollTop.value = 0;
-            if (guideScrollElement.value) guideScrollElement.value.scrollTop = 0;
-        });
-        watch([epgGuideVisible, activeTab, selectedAccountId, viewState], () => {
-            ++liveGuideRequest;
-            liveGuideRows.value = []; selectedGuideProgramme.value = null; liveGuideLoading.value = false;
-            if (!epgGuideVisible.value) return;
-            liveGuideAccountId.value = activeTab.value === 'accounts' ? String(selectedAccountId.value || '') : '';
-            loadLiveGuide();
-        });
         watch(currentChannelDebugTitle, () => {
             setBrowserTitle();
         }, {immediate: true});
@@ -5126,12 +4842,9 @@ createApp({
         }, {immediate: true});
 
         return {
-            guideScrollElement, guideWindow, visibleLiveGuideRows, onGuideScroll,
-            observeChannelEpg, isActiveGuideRow, epgEnabled, epgSettingsOpen, epgGuideVisible, epgLabels, openGuide, closeGuide,
-            thumbnailsEnabled, liveGuideHourWidth, selectedGuideProgramme, zoomGuide,
-            playerEpg, playerProgrammeTime, showAllGuideChannels,
-            liveGuideRows, liveGuideLoading, liveGuideError, filteredLiveGuideRows, liveGuideTicks,
-            guideTime, guideBlocks, guideBlockStyle, guideIsCurrent, playGuideRow, guideDate, shiftGuide, loadLiveGuide, refreshGuideCache,
+            observeChannelEpg, observeBookmarkEpg, epgEnabled, epgLabels,
+            cardProgramme, cardProgrammeTime, cardProgrammeProgress, isLiveBookmark,
+            thumbnailsEnabled, playerEpg, playerProgrammeTime,
             activeTab,
             viewState,
             currentContext,

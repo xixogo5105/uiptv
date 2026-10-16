@@ -1,8 +1,9 @@
-const CACHE_NAME = 'uiptv-cache-v60';
+const CACHE_NAME = 'uiptv-cache-v68';
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/epg-labels.json',
   '/icon.ico',
   '/icon.png',
   '/icon-192.png',
@@ -17,12 +18,15 @@ const urlsToCache = [
   '/javascript/shared-player.js',
   '/javascript/bookmark-watch-utils.js',
   '/javascript/spa.js',
-  'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css',
-  'https://cdn.jsdelivr.net/npm/video.js@8.24.1/dist/video-js.css',
-  'https://unpkg.com/vue@3.5.43/dist/vue.global.prod.js',
-  'https://cdn.jsdelivr.net/npm/shaka-player@5.2.11/dist/shaka-player.compiled.js',
+  'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.css',
+  'https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/global.css',
+  'https://unpkg.com/vue@3.5.44/dist/vue.global.prod.js',
+  'https://cdn.jsdelivr.net/npm/shaka-player@5.2.14/dist/shaka-player.compiled.js',
   'https://cdn.jsdelivr.net/npm/mpegts.js@1.8.2/dist/mpegts.min.js',
-  'https://cdn.jsdelivr.net/npm/video.js@8.24.1/dist/video.min.js'
+  '/javascript/modern-player.js',
+  'https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/video.js',
+  'https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/media/hlsjs-video.js',
+  'https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/media/dash-video.js'
 ];
 
 const urlsToCacheSet = new Set();
@@ -128,7 +132,10 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  if (isPrecachedRequest(requestUrl) || isVersionedStaticAsset(requestUrl)) {
+  // Video.js 10 entries import version-matched shared chunks and adapters.
+  const isPlayerModule = requestUrl.origin === 'https://cdn.jsdelivr.net'
+    && requestUrl.pathname.startsWith('/npm/@videojs/cdn@10.1.0/');
+  if (isPrecachedRequest(requestUrl) || isVersionedStaticAsset(requestUrl) || isPlayerModule) {
     event.respondWith(cacheFirst(event.request, requestUrl));
   }
 });
