@@ -117,7 +117,6 @@ public class AppHeaderActions extends HBox {
                 createMenuItem(parentalLockMenuText(), parentalLockIcon(), this::toggleParentalPause),
                 createPlainTextModeMenuItem(),
                 createEpgModeMenuItem(),
-                createEpgPlaybackOnlyMenuItem(),
                 createThemeMenuItem(),
                 createStayOnTopMenuItem(),
                 new SeparatorMenuItem(),
@@ -143,14 +142,6 @@ public class AppHeaderActions extends HBox {
         MenuItem item = createMenuItem(I18n.tr(com.uiptv.ui.EpgModeUI.isFeatureEnabled() ? "epgDisableMode" : "epgEnableMode"), ICON_GEAR,
                 () -> com.uiptv.ui.EpgModeUI.setEnabled(!com.uiptv.ui.EpgModeUI.isEnabled()));
         return item;
-    }
-
-    private MenuItem createEpgPlaybackOnlyMenuItem() {
-        String key = com.uiptv.ui.EpgModeUI.isPlaybackOnly()
-                ? "epgDisablePlaybackOnly"
-                : "epgEnablePlaybackOnly";
-        return createMenuItem(I18n.tr(key), ICON_GEAR,
-                () -> com.uiptv.ui.EpgModeUI.setPlaybackOnly(!com.uiptv.ui.EpgModeUI.isPlaybackOnly()));
     }
 
     private MenuItem createPlainTextModeMenuItem() {

@@ -105,6 +105,7 @@ public class ConfigurationUI extends VBox {
     private final SwitchToggle thumbnailModeSwitch = new SwitchToggle();
     private final ComboBox<Integer> epgRefreshIntervalComboBox = new ComboBox<>();
     private final SwitchToggle epgEnabledSwitch = new SwitchToggle();
+    private final SwitchToggle epgPlaybackOnlySwitch = new SwitchToggle();
     private final TextArea globalEpgSourceField = new TextArea();
     private final SwitchToggle showBookmarkAndAccountCountsSwitch = new SwitchToggle();
     private final SwitchToggle filterPasswordProtectionSwitch = new SwitchToggle();
@@ -919,8 +920,10 @@ public class ConfigurationUI extends VBox {
         epgRefreshIntervalComboBox.getItems().setAll(java.util.stream.IntStream.rangeClosed(1,24).boxed().toList());
         if(epgRefreshIntervalComboBox.getValue()==null) epgRefreshIntervalComboBox.setValue(2);
         epgRefreshIntervalComboBox.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
+        epgPlaybackOnlySwitch.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
         epgRefreshIntervalComboBox.setTooltip(new Tooltip(I18n.tr("configEpgRefreshIntervalHelp")));
-        return new VBox(10, createSettingSwitchRow("configEnableEpg", epgEnabledSwitch), buildEpgSourceRow(),
+        return new VBox(10, createSettingSwitchRow("configEnableEpg", epgEnabledSwitch),
+                createSettingSwitchRow("configEpgPlaybackOnly", epgPlaybackOnlySwitch), buildEpgSourceRow(),
                 createStackedSettingControlRow("configEpgRefreshInterval",epgRefreshIntervalComboBox), themeModeRow, createSettingSwitchRow("configPlainTextMode", thumbnailModeSwitch), createSettingSwitchRow("configShowBookmarkAndAccountCounts", showBookmarkAndAccountCountsSwitch), languageAndZoomSection);
     }
 
@@ -1704,6 +1707,7 @@ public class ConfigurationUI extends VBox {
             syncThumbnailModeSelector();
             showBookmarkAndAccountCountsSwitch.setSelected(configuration.isShowBookmarkAndAccountCounts());
             epgEnabledSwitch.setSelected(configuration.isEpgEnabled());
+            epgPlaybackOnlySwitch.setSelected(configuration.isEpgPlaybackOnly());
             epgRefreshIntervalComboBox.setValue(configuration.normalizedEpgRefreshHours());
             globalEpgSourceField.setText(configuration.getGlobalEpgSource());
             syncShowBookmarkAndAccountCountsSelector();
@@ -1845,6 +1849,7 @@ public class ConfigurationUI extends VBox {
         configuration.setVlcAvcodecHw(vlcAvcodecHwEnabled ? "true" : null);
         configuration.setShowBookmarkAndAccountCounts(showBookmarkAndAccountCountsSwitch.isSelected());
         configuration.setEpgEnabled(epgEnabledSwitch.isSelected());
+        configuration.setEpgPlaybackOnly(epgPlaybackOnlySwitch.isSelected());
         configuration.setEpgRefreshIntervalHours(String.valueOf(epgRefreshIntervalComboBox.getValue()==null ? 2 : epgRefreshIntervalComboBox.getValue()));
         configuration.setGlobalEpgSource(globalEpgSourceField.getText().strip());
         configuration.setEpgMappingsJson(previous == null ? "{}" : previous.getEpgMappingsJson());
