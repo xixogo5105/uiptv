@@ -53,18 +53,25 @@ class ConfigurationUIEpgTest extends DbBackedUiTest {
         var cache = new com.uiptv.application.EpgCacheApplicationService();
         assertFalse(cache.schedule(account, channel).isEmpty());
         var done = new java.util.concurrent.CountDownLatch(1);
+        var cacheChanged = new java.util.concurrent.CountDownLatch(1);
         var revisionField = EpgModeUI.class.getDeclaredField("cacheRevision"); revisionField.setAccessible(true);
         var revision = (javafx.beans.property.LongProperty) revisionField.get(null);
-        javafx.beans.value.ChangeListener<Number> listener = (_, _, _) -> done.countDown();
+        javafx.beans.value.ChangeListener<Number> listener = (_, _, _) -> cacheChanged.countDown();
         javafx.scene.control.Button button = runOnFxThread(() -> {
             ConfigurationUI ui = new ConfigurationUI(null);
             javafx.scene.control.Button refresh = (javafx.scene.control.Button) field(ui, "refreshEpgButton");
             assertEquals(com.uiptv.util.I18n.tr("epgRefreshGuide"), refresh.getText());
             assertNotNull(refresh.getParent());
+            // Cache invalidation now publishes progress before the refresh worker finishes.
+            // The button becoming enabled is the completion signal; a cache event alone is not.
+            refresh.disabledProperty().addListener((_, wasDisabled, isDisabled) -> {
+                if (wasDisabled && !isDisabled) done.countDown();
+            });
             revision.addListener(listener); refresh.fire(); return refresh;
         });
         try {
             assertTrue(done.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            assertTrue(cacheChanged.await(5, java.util.concurrent.TimeUnit.SECONDS));
             runOnFxThread(() -> { assertFalse(button.isDisabled()); return null; });
             assertTrue(cache.schedule(account, channel).isEmpty());
         } finally { runOnFxThread(() -> { revision.removeListener(listener); return null; }); }

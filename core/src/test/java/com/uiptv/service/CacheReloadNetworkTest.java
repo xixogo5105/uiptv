@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class CacheReloadNetworkTest extends DbBackedTest {
-    @Test void hundredsOfGenresDoNotCauseHundredsOfFallbackRequestsOrDestroyExistingCache() throws Exception { exercise(false, false); }
+    @Test void failedCategoryEndpointStopsImmediatelyAndRetainsExistingCache() throws Exception { exercise(false, false); }
     @Test void bulkRefreshOfTwoThousandChannelsUsesFourRequestsAndNoArtworkRequests() throws Exception { exercise(true, false); }
     @Test void bulkResponseWithOverstatedTotalStillRefreshesUsingFourRequests() throws Exception { exercise(true, true); }
     @Test void rejectedDefaultBulkShapeRetriesWithExplicitPagination() throws Exception { exercise(true, false, true); }
@@ -65,7 +65,10 @@ class CacheReloadNetworkTest extends DbBackedTest {
                         .put("logo", "").put("tv_genre_id", "1"));
                 body = new org.json.JSONObject().put("js", new org.json.JSONObject().put("data", channels).put("total_items", overstatedTotal ? 4000 : 2000)).toString();
             }
-            if (query.contains("get_ordered_list")) pages.incrementAndGet();
+            if (query.contains("get_ordered_list")) {
+                pages.incrementAndGet();
+                if (!successfulBulk) { exchange.sendResponseHeaders(503, -1); exchange.close(); return; }
+            }
             byte[] bytes = body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, bytes.length); exchange.getResponseBody().write(bytes); exchange.close();
         }); server.start();
@@ -86,10 +89,10 @@ class CacheReloadNetworkTest extends DbBackedTest {
                 if (successfulBulk) new CacheServiceImpl().reloadCache(target, logs::add);
                 else assertThrows(IllegalStateException.class, () -> new CacheServiceImpl().reloadCache(target, logs::add));
             }
-            assertEquals(rejectDefaultShape ? 5 : 4, calls.get(), "Bulk refresh must use a fixed number of calls, never one per category/channel");
+            assertEquals(!successfulBulk || rejectDefaultShape ? 5 : 4, calls.get(), "Bulk refresh must use a fixed number of calls, never one per category/channel");
             assertFalse(logs.stream().anyMatch(line -> line.startsWith("Catalogue request ")
                     || line.startsWith("Catalogue network requests:")), "Routine network counters must not reach the user log");
-            assertEquals(0, pages.get());
+            assertEquals(successfulBulk ? 0 : 1, pages.get());
             assertEquals(successfulBulk ? 2000 : 1, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
             if (!successfulBulk) assertEquals("Existing", CategoryDb.get().getCategories(account).getFirst().getTitle());
         } finally { server.stop(0); }

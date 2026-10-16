@@ -51,7 +51,7 @@ class ReloadRequestScopeTest {
         });
         try (var scope = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 4, null)) {
             assertThrows(java.io.IOException.class, () -> HttpUtil.sendRequest(url(server), null, "GET"));
-            assertEquals(3, calls.get(), "Initial request plus at most two redirects");
+            assertEquals(6, calls.get(), "Initial request plus the normal five redirects");
         } finally { server.stop(0); }
     }
 

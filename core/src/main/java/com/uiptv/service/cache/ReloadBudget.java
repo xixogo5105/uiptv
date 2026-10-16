@@ -5,16 +5,16 @@ import java.time.Duration;
 /**
  * Wall-clock budget for a single account's cache reload.
  *
- * <p>Catalogue refresh uses bulk endpoints only. The network request scope enforces deadlines
+ * <p>Catalogue refresh prefers bulk endpoints. The network request scope enforces deadlines
  * during I/O; this budget also stops later phases from starting once the account time expires.
  *
- * <p>Default is 2 minutes, overridable with the {@code uiptv.reload.budget.seconds} system
+ * <p>Default is unlimited, overridable with the {@code uiptv.reload.budget.seconds} system
  * property ({@code 0} disables the limit).
  */
 public final class ReloadBudget {
 
     static final String BUDGET_SECONDS_PROPERTY = "uiptv.reload.budget.seconds";
-    private static final int DEFAULT_BUDGET_SECONDS = 120;
+    private static final int DEFAULT_BUDGET_SECONDS = 0;
 
     private final long deadlineNanos;
     private final boolean limited;

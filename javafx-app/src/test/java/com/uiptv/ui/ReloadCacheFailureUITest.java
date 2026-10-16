@@ -14,6 +14,24 @@ import static org.mockito.Mockito.*;
 class ReloadCacheFailureUITest extends DbBackedUiTest {
     @BeforeAll static void initialize() throws Exception { FxTestSupport.initJavaFx(); }
 
+    @Test void categoryFallbackDoesNotMarkAccountBadBeforeFallbackRuns() throws Exception {
+        var ui = runOnFxThread(ReloadCacheInline::new);
+        var account = new Account(); account.setType(com.uiptv.util.AccountType.XTREME_API);
+        try {
+            for (String methodName : new String[]{"extractGlobalFailureReason", "extractIssueReason"}) {
+                var method = ReloadCacheInline.class.getDeclaredMethod(methodName, Account.class, String.class);
+                method.setAccessible(true);
+                assertNull(method.invoke(ui, account, "Global Xtreme channel lookup failed (IOException). Falling back to category fetch."));
+                assertNotNull(method.invoke(ui, account, "Global Xtreme channel lookup failed. Keeping existing cache."));
+            }
+        } finally {
+            runOnFxThread(() -> {
+                var dispose = ReloadCacheInline.class.getDeclaredMethod("disposeInline");
+                dispose.setAccessible(true); dispose.invoke(ui); return null;
+            });
+        }
+    }
+
     @Test void exhaustedHeapMarksAccountFailedAndStopsTheRun() throws Exception {
         var ui = runOnFxThread(ReloadCacheInline::new);
         CacheService service = mock(CacheService.class);

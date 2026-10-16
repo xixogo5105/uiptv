@@ -5,7 +5,11 @@ import java.time.Duration;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 
-/** Thread-scoped catalogue network limits; does not change playback or EPG request policy. */
+/** Thread-scoped catalogue cancellation and optional network limits.
+ * Total duration, request duration and request count limits default to disabled (zero):
+ * provider catalogue size and category counts are not bounded. HTTP connection/read timeouts
+ * and interruption still apply. Explicit uiptv.reload.* properties opt into stricter limits.
+ */
 public final class ReloadRequestScope implements AutoCloseable {
     private static final ThreadLocal<ReloadRequestScope> ACTIVE = new ThreadLocal<>();
     private static final ScheduledThreadPoolExecutor WATCHDOG = new ScheduledThreadPoolExecutor(1, task -> {
@@ -25,9 +29,9 @@ public final class ReloadRequestScope implements AutoCloseable {
         ACTIVE.set(this);
     }
     public static ReloadRequestScope catalogue(Consumer<String> log) {
-        return new ReloadRequestScope(Duration.ofSeconds(Math.max(0, Integer.getInteger("uiptv.reload.budget.seconds", 120))),
-                Duration.ofSeconds(Math.max(1, Integer.getInteger("uiptv.reload.request.seconds", 30))),
-                Math.max(1, Integer.getInteger("uiptv.reload.max.requests", 24)), log);
+        return new ReloadRequestScope(Duration.ofSeconds(Math.max(0, Integer.getInteger("uiptv.reload.budget.seconds", 0))),
+                Duration.ofSeconds(Math.max(0, Integer.getInteger("uiptv.reload.request.seconds", 0))),
+                Integer.getInteger("uiptv.reload.max.requests", 0), log);
     }
     public static boolean active() { return ACTIVE.get() != null; }
     public static void checkCurrent() { if (ACTIVE.get() != null) ACTIVE.get().check(); }
@@ -40,11 +44,11 @@ public final class ReloadRequestScope implements AutoCloseable {
         ReloadRequestScope scope = ACTIVE.get();
         if (scope == null) return () -> {};
         scope.check();
-        if (scope.requests >= scope.maxRequests) {
+        if (scope.maxRequests > 0 && scope.requests >= scope.maxRequests) {
             scope.failure = "Catalogue refresh request limit reached (" + scope.maxRequests + ")"; scope.check();
         }
         scope.requests++;
-        long end = Math.min(scope.deadline, System.nanoTime() + scope.requestNanos);
+        long end = Math.min(scope.deadline, scope.requestNanos <= 0 ? Long.MAX_VALUE : System.nanoTime() + scope.requestNanos);
         ScheduledFuture<?> watchdog = WATCHDOG.scheduleAtFixedRate(() -> {
             if (scope.owner.isInterrupted() || System.nanoTime() >= end) {
                 scope.failure = scope.owner.isInterrupted() ? "Catalogue refresh cancelled" : "Catalogue request deadline reached";

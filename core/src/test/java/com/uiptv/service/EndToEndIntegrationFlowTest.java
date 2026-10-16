@@ -488,10 +488,8 @@ class EndToEndIntegrationFlowTest extends DbBackedTest {
             channel.setName("Cached " + category.getTitle()); channel.setCmd(baseUrl + "/live/play/live.php?stream=" + channel.getChannelId());
             ChannelDb.get().saveAll(List.of(channel), category.getDbId(), account);
         }
-        List<Channel> before = allLiveChannels(account);
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
-                () -> cacheService.reloadCache(account, _ -> {}));
-        assertEquals(before.stream().map(Channel::getChannelId).toList(), allLiveChannels(account).stream().map(Channel::getChannelId).toList());
+        cacheService.reloadCache(account, _ -> {});
+        assertEquals(java.util.Set.of("100", "200"), allLiveChannels(account).stream().map(Channel::getChannelId).collect(java.util.stream.Collectors.toSet()));
         assertEquals(2, countLiveChannelRowsByAccount(account.getDbId()));
     }
 

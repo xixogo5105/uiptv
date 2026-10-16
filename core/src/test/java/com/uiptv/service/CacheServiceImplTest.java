@@ -140,7 +140,7 @@ class CacheServiceImplTest extends DbBackedTest {
     }
 
     @Test
-    void reloadCache_stalkerPortal_refusesCategoryFanOut_whenGetAllChannelsIsBlank() throws IOException {
+    void reloadCache_stalkerPortal_usesCategoryPages_whenGetAllChannelsIsBlank() throws IOException {
         Account account = createStalkerAccount("acc-stalker-fallback");
         List<String> logs = new ArrayList<>();
         AtomicInteger orderedListCalls = new AtomicInteger();
@@ -150,11 +150,11 @@ class CacheServiceImplTest extends DbBackedTest {
             mockSuccessfulHandshake(handshakeMock);
             stubStalkerFetch(fetchMock, account, true, orderedListCalls);
 
-            org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new CacheServiceImpl().reloadCache(account, logs::add));
+            new CacheServiceImpl().reloadCache(account, logs::add);
         }
 
-        assertEquals(0, orderedListCalls.get(), "Cache refresh must never fan out by category");
-        assertEquals(0, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+        assertEquals(2, orderedListCalls.get(), "Both provider categories must be loaded");
+        assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
     }
 
     @Test

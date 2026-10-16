@@ -2021,11 +2021,16 @@ public class ReloadCacheInline extends VBox {
         return trimmed.startsWith("Last-resort fetch succeeded. Collected");
     }
 
+    private boolean isCategoryFallbackProgress(String message) {
+        return message.contains("Falling back to category fetch") || message.contains("Trying category pages");
+    }
+
     private String extractGlobalFailureReason(Account account, String message) {
         if (account == null || message == null) {
             return null;
         }
         String trimmed = message.trim();
+        if (isCategoryFallbackProgress(trimmed)) return null;
         if (trimmed.startsWith(GLOBAL_XTREME_CHANNEL_LOOKUP_FAILED)) {
             return I18n.tr("reloadLiveTvGlobalCallFailedForXtreme");
         }
@@ -2084,6 +2089,7 @@ public class ReloadCacheInline extends VBox {
             return null;
         }
         String trimmed = message.trim();
+        if (isCategoryFallbackProgress(trimmed)) return null;
         if (trimmed.isEmpty()) {
             return null;
         }

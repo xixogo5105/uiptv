@@ -396,7 +396,7 @@ public class HttpUtil {
                 .setConnectionRequestTimeout(connectionRequestTimeout)
                 .setResponseTimeout(responseTimeout)
                 .setRedirectsEnabled(effective.followRedirects())
-                .setMaxRedirects(effective.followRedirects() ? (ReloadRequestScope.active() ? Math.min(2, MAX_REDIRECTS) : MAX_REDIRECTS) : 0)
+                .setMaxRedirects(effective.followRedirects() ? MAX_REDIRECTS : 0)
                 .build();
     }
 

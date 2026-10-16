@@ -94,7 +94,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         List<Channel> prefetched = liveCategories.prefetchedChannels();
         List<Channel> rawChannels = (prefetched != null && !prefetched.isEmpty())
                 ? prefetched
-                : loadStalkerLiveChannels(account, logger);
+                : loadStalkerLiveChannels(account, liveCategories, visibleCategoryIds, logger);
         if (rawChannels.isEmpty()) {
             return liveCategories.summary();
         }
@@ -342,11 +342,63 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
                 "All categories removed by active censoring. Clearing existing cache.");
     }
 
-    private List<Channel> loadStalkerLiveChannels(Account account, LoggerCallback logger) {
+    private List<Channel> loadStalkerLiveChannels(Account account, LiveCategories liveCategories,
+                                                  Set<String> visibleCategoryIds, LoggerCallback logger) {
         List<Channel> channels = parseGlobalLiveChannels(account, logger);
-        if (channels.isEmpty()) throw new IllegalStateException(
-                "Bulk Stalker channel fetch failed or returned no channels. Category fan-out is disabled; keeping existing cache.");
-        return channels;
+        if (!channels.isEmpty()) return channels;
+        log(logger, "Global Stalker lookup failed. Trying category pages.");
+        Map<String, Channel> collected = new LinkedHashMap<>();
+        for (Category category : liveCategories.rawCategories()) {
+            String canonical = canonicalCategoryId(category.getCategoryId(),
+                    liveCategories.categoryNormalization().canonicalCategoryIdByOriginalId());
+            if (isBlank(category.getCategoryId()) || !visibleCategoryIds.contains(canonical)) continue;
+            for (Channel channel : fetchCategoryPages(account, category.getCategoryId())) {
+                channel.setCategoryId(canonical);
+                collected.putIfAbsent(normalizeCaseInsensitiveKey(channel.getChannelId()), channel);
+            }
+        }
+        if (collected.isEmpty()) throw new IllegalStateException("No usable Stalker channels; keeping existing cache.");
+        return new ArrayList<>(collected.values());
+    }
+
+    private List<Channel> fetchCategoryPages(Account account, String categoryId) {
+        Map<String, Channel> channels = new LinkedHashMap<>();
+        long expected = -1;
+        for (int page = 0; ; page++) {
+            com.uiptv.util.ReloadRequestScope.checkCurrent();
+            if (budget.expired()) throw new IllegalStateException("Category fetch time limit reached; keeping existing cache.");
+            FetchAPI.FetchResult result = FetchAPI.fetchWithDiagnostics(
+                    ChannelService.getChannelOrSeriesParams(categoryId, page, itv, null, null), account,
+                    HttpUtil.RequestOptions.defaults());
+            if (result.transportFailure() || isBlank(result.body())) {
+                throw new IllegalStateException("Stalker category page failed; keeping existing cache.");
+            }
+            JSONObject root = new JSONObject(result.body());
+            JSONObject payload = root.optJSONObject("js", root);
+            if (payload.has("total_items")) expected = payload.optLong("total_items", -1);
+            // Require a valid page and map each row strictly before replacing any cached data.
+            if (payload.optJSONArray("data") == null) {
+                throw new IllegalStateException("Invalid Stalker category page; keeping existing cache.");
+            }
+            List<Channel> rows = new ArrayList<>();
+            org.json.JSONArray data = payload.getJSONArray("data");
+            for (int index = 0; index < data.length(); index++) {
+                rows.add(ChannelService.getInstance().parseItvChannel(data.getJSONObject(index)));
+            }
+            int before = channels.size();
+            for (Channel channel : rows) channels.putIfAbsent(normalizeCaseInsensitiveKey(channel.getChannelId()), channel);
+            if (expected >= 0 && channels.size() >= expected) break;
+            if (rows.isEmpty()) {
+                if (page == 0 && expected != 0) continue; // Some portals start at page one.
+                if (expected > channels.size()) throw new IllegalStateException("Incomplete Stalker category; keeping existing cache.");
+                break;
+            }
+            // Portals often treat p=0 as p=1. Allow that alias once, but reject an endless repeated page.
+            if (channels.size() == before && page != 1) {
+                throw new IllegalStateException("Stalker pagination stopped advancing; keeping existing cache.");
+            }
+        }
+        return new ArrayList<>(channels.values());
     }
 
     private boolean handleEmptyLiveChannels(Account account, List<Category> categories, List<Channel> rawChannels,
@@ -499,7 +551,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             return fetchAllStalkerChannels(account, logger);
         } catch (com.uiptv.util.ReloadRequestScope.LimitExceeded e) { throw e;
         } catch (Exception e) {
-            log(logger, "Failed to parse channels from get_all_channels: " + e.getMessage());
+            log(logger, "Bulk Stalker lookup unavailable. Trying category pages.");
             return Collections.emptyList();
         }
     }

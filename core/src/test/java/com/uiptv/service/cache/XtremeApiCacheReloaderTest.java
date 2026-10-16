@@ -1,6 +1,7 @@
 package com.uiptv.service.cache;
 
 import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.mock;
@@ -28,6 +29,67 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class XtremeApiCacheReloaderTest extends DbBackedTest {
+
+    @Test
+    void categoryOnlyProviderWithMoreThan24CategoriesRefreshesCompletely() {
+        Account account = persistAccount("category-only", Account.AccountAction.itv);
+        CategoryService service = mock(CategoryService.class);
+        List<Category> categories = java.util.stream.IntStream.rangeClosed(1, 62)
+                .mapToObj(i -> new Category("" + i, "Category " + i, "", false, 0)).toList();
+        try (var categoryMock = mockStatic(CategoryService.class);
+             var parser = mockStatic(XtremeApiParser.class);
+             var scope = com.uiptv.util.ReloadRequestScope.catalogue(null)) {
+            categoryMock.when(CategoryService::getInstance).thenReturn(service);
+            when(service.get(account, false, null)).thenReturn(categories);
+            parser.when(() -> XtremeApiParser.parseAllChannels(account)).thenThrow(new IllegalStateException("bulk unavailable"));
+            for (Category category : categories) parser.when(() -> XtremeApiParser.parseChannels(category.getCategoryId(), account))
+                    .thenReturn(List.of(channel("stream-" + category.getCategoryId(), category.getCategoryId(), "Channel " + category.getCategoryId())));
+            new XtremeApiCacheReloader().reloadCache(account, null);
+        }
+        assertEquals(62, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+    }
+
+    @Test
+    void failedCategoryDoesNotReplaceExistingCacheWithPartialResults() {
+        Account account = persistAccount("category-failure", Account.AccountAction.itv);
+        CategoryDb.get().saveAll(List.of(new Category("old", "Existing", "", false, 0)), account);
+        ChannelDb.get().saveAll(List.of(channel("old-stream", "old", "Existing")),
+                CategoryDb.get().getCategories(account).getFirst().getDbId(), account);
+        CategoryService service = mock(CategoryService.class);
+        try (var categoryMock = mockStatic(CategoryService.class); var parser = mockStatic(XtremeApiParser.class)) {
+            categoryMock.when(CategoryService::getInstance).thenReturn(service);
+            when(service.get(account, false, null)).thenReturn(List.of(
+                    new Category("1", "One", "", false, 0), new Category("2", "Two", "", false, 0)));
+            parser.when(() -> XtremeApiParser.parseAllChannels(account)).thenReturn(List.of());
+            parser.when(() -> XtremeApiParser.parseChannels("1", account)).thenReturn(List.of(channel("new", "1", "New")));
+            parser.when(() -> XtremeApiParser.parseChannels("2", account)).thenThrow(new IllegalStateException("request failed"));
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                    () -> new XtremeApiCacheReloader().reloadCache(account, null));
+        }
+        assertEquals("Existing", CategoryDb.get().getCategories(account).getFirst().getTitle());
+        assertEquals(1, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+    }
+
+    @Test
+    void groupedCredentialsAreEachTriedDuringLiveRefresh() {
+        Account account = persistAccount("grouped-credentials", Account.AccountAction.itv);
+        account.setUsername("first");
+        account.setPassword("pass1");
+        account.setXtremeCredentialsJson("[{\"username\":\"first\",\"password\":\"pass1\",\"default\":true},{\"username\":\"second\",\"password\":\"pass2\"}]");
+        CategoryService categoryService = mock(CategoryService.class);
+        List<Category> categories = List.of(new Category("10", "News", "news", false, 0));
+        try (MockedStatic<CategoryService> categoryMock = mockStatic(CategoryService.class);
+             MockedStatic<XtremeApiParser> parser = mockStatic(XtremeApiParser.class)) {
+            categoryMock.when(CategoryService::getInstance).thenReturn(categoryService);
+            when(categoryService.get(any(Account.class), eq(false), isNull())).thenReturn(categories);
+            parser.when(() -> XtremeApiParser.parseAllChannels(any(Account.class))).thenAnswer(invocation -> {
+                Account credential = invocation.getArgument(0);
+                return List.of(channel(credential.getUsername(), "10", credential.getUsername()));
+            });
+            new XtremeApiCacheReloader().reloadCache(account, null);
+        }
+        assertEquals(2, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
+    }
 
     @Test
     void reloadCache_forVodPersistsOnlyVodCategories() {

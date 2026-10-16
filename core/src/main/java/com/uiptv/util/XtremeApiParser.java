@@ -10,6 +10,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import org.json.JSONTokener;
 import java.io.UncheckedIOException;
 import java.net.URLEncoder;
 import java.util.ArrayList;
@@ -51,7 +54,10 @@ public class XtremeApiParser {
         try {
             Map<String, String> extraParams = new LinkedHashMap<>();
             extraParams.put(PARAM_CATEGORY_ID, categoryId);
-            return doParseChannels(fetchPlayerApi(account, getChannelListAction(account.getAction()), extraParams), account, callback, isCancelled);
+            if (callback != null || isCancelled != null) {
+                return doParseChannels(fetchPlayerApi(account, getChannelListAction(account.getAction()), extraParams), account, callback, isCancelled);
+            }
+            return fetchChannelCatalogue(account, extraParams, null, null);
         } catch (IOException e) {
             throw new UncheckedIOException("Unable to load Xtreme channels", e);
         }
@@ -59,10 +65,67 @@ public class XtremeApiParser {
 
     public static List<Channel> parseAllChannels(Account account) {
         try {
-            return doParseChannels(fetchPlayerApi(account, getChannelListAction(account.getAction()), null), account);
+            return fetchChannelCatalogue(account, null, null, null);
         } catch (IOException e) {
             throw new UncheckedIOException("Unable to load all Xtreme channels", e);
         }
+    }
+
+    /** Stream channel rows so large valid catalogues do not require a second full JSON tree. */
+    private static List<Channel> fetchChannelCatalogue(Account account, Map<String, String> params,
+                                                       Consumer<List<Channel>> callback, BooleanSupplier cancelled) throws IOException {
+        IOException last = null;
+        for (String base : baseUrlCandidates(account)) {
+            ReloadRequestScope.checkCurrent();
+            try (HttpUtil.StreamResult response = HttpUtil.openStream(
+                    buildPlayerApiUrl(base, account, getChannelListAction(account.getAction()), params),
+                    null, "GET", null, HttpUtil.RequestOptions.streamingCatalogue())) {
+                try {
+                    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                        throw new IOException("Xtreme API request failed with HTTP " + response.statusCode());
+                    }
+                    return readChannelCatalogue(new InputStreamReader(response.bodyStream(), UTF_8), account, callback, cancelled);
+                } catch (Exception failure) {
+                    try { response.abort(); } catch (IOException closeFailure) { failure.addSuppressed(closeFailure); }
+                    throw failure;
+                }
+            } catch (ReloadRequestScope.LimitExceeded failure) {
+                throw failure;
+            } catch (Exception failure) {
+                ReloadRequestScope.checkCurrent();
+                if (cancelled != null && cancelled.getAsBoolean()) return List.of();
+                last = new IOException("Unable to read complete Xtreme channel catalogue", failure);
+            }
+        }
+        throw last != null ? last : new IOException("Xtreme base URL is blank.");
+    }
+
+    static List<Channel> readChannelCatalogue(Reader source, Account account,
+                                               Consumer<List<Channel>> callback, BooleanSupplier cancelled) {
+        JSONTokener input = new JSONTokener(source);
+        if (input.nextClean() != '[') throw input.syntaxError("Expected Xtreme channel array");
+        List<Channel> channels = new ArrayList<>();
+        List<Channel> batch = new ArrayList<>();
+        char next = input.nextClean();
+        if (next != ']') {
+            input.back();
+            while (true) {
+                ReloadRequestScope.checkCurrent();
+                if (cancelled != null && cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException();
+                Channel channel = parseXtremeChannel(new JSONObject(input), account);
+                channels.add(channel);
+                if (callback != null) {
+                    batch.add(channel);
+                    if (batch.size() >= CHANNEL_PARSE_BATCH_SIZE) { callback.accept(List.copyOf(batch)); batch.clear(); }
+                }
+                next = input.nextClean();
+                if (next == ']') break;
+                if (next != ',') throw input.syntaxError("Expected Xtreme channel separator");
+            }
+        }
+        if (input.nextClean() != 0) throw input.syntaxError("Unexpected data after Xtreme channel array");
+        if (callback != null && !batch.isEmpty()) callback.accept(List.copyOf(batch));
+        return channels;
     }
 
     public static EpisodeList parseEpisodes(String seriesId, Account account) {
@@ -81,7 +144,7 @@ public class XtremeApiParser {
             JSONArray list = new JSONArray(json);
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonCategory = list.getJSONObject(i);
-                Category category = new Category(jsonCategory.getString(PARAM_CATEGORY_ID), jsonCategory.getString("category_name"), jsonCategory.getString("category_name"), true, 0);
+                Category category = new Category(safeGetString(jsonCategory, PARAM_CATEGORY_ID), jsonCategory.getString("category_name"), jsonCategory.getString("category_name"), true, 0);
                 category.setExtraJson(jsonCategory.toString());
                 categoryList.add(category);
             }

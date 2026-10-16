@@ -9,12 +9,15 @@ import com.uiptv.model.CategoryType;
 import com.uiptv.model.Channel;
 import com.uiptv.service.CategoryService;
 import com.uiptv.util.XtremeApiParser;
+import com.uiptv.util.AccountCopyUtil;
+import com.uiptv.util.XtremeCredentialsJson;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.LinkedHashMap;
 import java.util.stream.Collectors;
 
 import static com.uiptv.model.Account.AccountAction.itv;
@@ -51,7 +54,22 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
             return summary.add(cacheVodAndSeriesCategoriesOnly(account, logger));
         }
 
-        throw new IllegalStateException("Bulk Xtreme channel fetch failed or returned no channels. Category fan-out is disabled; keeping existing cache.");
+        Set<String> visibleCategoryIds = categoryIds(liveCategories.categories());
+        List<Category> categoriesToFetch = categoriesMatchingVisibleIds(liveCategories.rawCategories(), visibleCategoryIds,
+                liveCategories.categoryNormalization());
+        CategoryFetchResult fetchResult = fetchChannelsByCategory(account, categoriesToFetch, liveCategories.categoryNormalization(),
+                applyChannelCensoring, logger);
+        summary = summary.addChannels(censoredItemCount(fetchResult.rawChannels, fetchResult.totalChannels,
+                applyChannelCensoring));
+
+        LiveReloadResult emptyFetchResult = handleEmptyCategoryFetchResult(account, liveCategories.categories(),
+                fetchResult, applyChannelCensoring, logger);
+        if (emptyFetchResult.handled()) {
+            return summary.add(emptyFetchResult.censoringSummary());
+        }
+
+        saveCategoryFetchLiveCache(account, liveCategories.categories(), fetchResult, logger);
+        return summary.add(cacheVodAndSeriesCategoriesOnly(account, logger));
     }
 
     private LiveCategories loadVisibleLiveCategories(Account account, LoggerCallback logger, boolean applyCategoryCensoring) {
@@ -97,6 +115,49 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
                 categoryIds(liveCategories.categoryNormalization().categories()), categoryIds(liveCategories.categories()),
                 applyCategoryCensoring, applyChannelCensoring);
         return reloadLiveWithGlobalLookup(account, context, logger);
+    }
+
+    private LiveReloadResult handleEmptyCategoryFetchResult(Account account, List<Category> categories,
+                                                            CategoryFetchResult fetchResult,
+                                                            boolean applyChannelCensoring, LoggerCallback logger) {
+        if (fetchResult.totalChannels > 0) {
+            return LiveReloadResult.notHandled();
+        }
+        if (fetchResult.rawChannels > 0) {
+            return handleChannelsRemovedByCategoryFetchCensoring(account, categories, fetchResult,
+                    applyChannelCensoring, logger);
+        }
+        log(logger, "No channels found in any category. Keeping existing cache.");
+        return LiveReloadResult.handled(CensoringSummary.empty());
+    }
+
+    private LiveReloadResult handleChannelsRemovedByCategoryFetchCensoring(Account account, List<Category> categories,
+                                                                           CategoryFetchResult fetchResult,
+                                                                           boolean applyChannelCensoring,
+                                                                           LoggerCallback logger) {
+        if (wasEverythingRemovedByActiveCensoring(fetchResult.rawChannels, fetchResult.totalChannels,
+                applyChannelCensoring)) {
+            logKeepingExistingCacheAfterFullCensoring(logger, "channels");
+        } else {
+            saveLiveCacheWithNoChannels(account, categories, logger,
+                    "All channels removed by active censoring. Clearing existing cache.");
+        }
+        return LiveReloadResult.handled(CensoringSummary.empty());
+    }
+
+    private void saveCategoryFetchLiveCache(Account account, List<Category> categories, CategoryFetchResult fetchResult,
+                                            LoggerCallback logger) {
+        log(logger, "Found Channels " + fetchResult.totalChannels + ". Found 0 Orphaned channels.");
+        clearCache(account);
+        CategoryDb.get().saveAll(categories, account);
+        List<Category> savedCategories = CategoryDb.get().getCategories(account);
+        for (Category savedCat : savedCategories) {
+            List<Channel> channels = fetchResult.channelsByCategory.get(savedCat.getCategoryId());
+            if (channels != null && !channels.isEmpty()) {
+                ChannelDb.get().saveAll(channels, savedCat.getDbId(), account);
+            }
+        }
+        log(logger, savedCategories.size() + " Categories & " + fetchResult.totalChannels + " Channels saved Successfully \u2713");
     }
 
     private LiveReloadResult reloadLiveWithGlobalLookup(Account account, GlobalLookupContext context,
@@ -187,7 +248,7 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
     }
 
     private CensoringSummary reloadVodOrSeriesCategories(Account account, LoggerCallback logger, boolean applyCategoryCensoring) {
-        List<Category> rawCategories = CategoryService.getInstance().get(account, false, logger);
+        List<Category> rawCategories = mergeCategories(account, logger);
         if (rawCategories == null) {
             rawCategories = List.of();
         }
@@ -200,8 +261,84 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
     }
 
     private List<Category> loadLiveCategories(Account account, LoggerCallback logger) {
-        return CategoryService.getInstance().get(account, false, logger).stream()
-                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle()))
+        return mergeCategories(account, logger).stream()
+                .filter(c -> !CategoryType.ALL.displayName().equalsIgnoreCase(c.getTitle())).toList();
+    }
+
+    private List<Account> credentialAccounts(Account account) {
+        List<XtremeCredentialsJson.Entry> entries = XtremeCredentialsJson.parse(account.getXtremeCredentialsJson());
+        if (entries.isEmpty()) return List.of(account);
+        List<Account> accounts = new ArrayList<>();
+        for (XtremeCredentialsJson.Entry entry : entries) {
+            Account copy = AccountCopyUtil.detachedCopy(account);
+            copy.setUsername(entry.username());
+            copy.setPassword(entry.password());
+            copy.setToken(null);
+            accounts.add(copy);
+        }
+        return accounts;
+    }
+
+    private List<Category> mergeCategories(Account account, LoggerCallback logger) {
+        Map<String, Category> merged = new LinkedHashMap<>();
+        RuntimeException lastFailure = null;
+        for (Account credential : credentialAccounts(account)) {
+            try {
+                List<Category> categories = CategoryService.getInstance().get(credential, false, logger);
+                if (categories != null) {
+                    for (Category category : categories) {
+                        if (category != null && isNotBlank(category.getCategoryId())) {
+                            merged.putIfAbsent(category.getCategoryId(), category);
+                        }
+                    }
+                }
+            } catch (RuntimeException failure) {
+                lastFailure = failure;
+            }
+        }
+        if (merged.isEmpty() && lastFailure != null) throw lastFailure;
+        return new ArrayList<>(merged.values());
+    }
+
+    private CategoryFetchResult fetchChannelsByCategory(Account account, List<Category> rawCategories,
+                                                        CategoryNormalization categoryNormalization,
+                                                        boolean applyChannelCensoring, LoggerCallback logger) {
+        Map<String, List<Channel>> channelsMap = new HashMap<>();
+        int totalChannels = 0;
+        int rawChannels = 0;
+        for (Category category : rawCategories) {
+            try {
+                List<Channel> channels = new ArrayList<>();
+                for (Account credential : credentialAccounts(account)) {
+                    channels.addAll(XtremeApiParser.parseChannels(category.getCategoryId(), credential));
+                }
+                rawChannels += channels.size();
+                channels = applyChannelCensoring(channels, applyChannelCensoring);
+                if (!channels.isEmpty()) {
+                    String canonicalCategoryId = canonicalCategoryId(category.getCategoryId(), categoryNormalization.canonicalCategoryIdByOriginalId());
+                    List<Channel> mergedChannels = mergeChannelsCaseInsensitive(channelsMap.get(canonicalCategoryId), channels);
+                    totalChannels += mergedChannels.size() - (channelsMap.containsKey(canonicalCategoryId) ? channelsMap.get(canonicalCategoryId).size() : 0);
+                    channelsMap.put(canonicalCategoryId, mergedChannels);
+                }
+            } catch (com.uiptv.util.ReloadRequestScope.LimitExceeded | SkipAccountReloadException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalStateException("Category fetch failed; keeping existing cache.", e);
+            }
+        }
+        return new CategoryFetchResult(channelsMap, totalChannels, rawChannels);
+    }
+
+    private List<Category> categoriesMatchingVisibleIds(List<Category> rawCategories, Set<String> visibleCategoryIds,
+                                                        CategoryNormalization categoryNormalization) {
+        if (rawCategories == null || rawCategories.isEmpty()) {
+            return List.of();
+        }
+        return rawCategories.stream()
+                .filter(category -> category != null
+                        && (isNotBlank(category.getCategoryId())
+                        && visibleCategoryIds.contains(canonicalCategoryId(category.getCategoryId(),
+                        categoryNormalization.canonicalCategoryIdByOriginalId()))))
                 .toList();
     }
 
@@ -217,15 +354,23 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
 
     private List<Channel> fetchAllChannelsOrLog(Account account, LoggerCallback logger) {
         try {
-            List<Channel> allChannels = XtremeApiParser.parseAllChannels(account);
+            Map<String, Channel> unique = new LinkedHashMap<>();
+            for (Account credential : credentialAccounts(account)) {
+                for (Channel channel : XtremeApiParser.parseAllChannels(credential)) {
+                    String key = (channel.getChannelId() == null ? "" : channel.getChannelId().trim().toLowerCase())
+                            + "|" + (channel.getName() == null ? "" : channel.getName().trim().toLowerCase());
+                    unique.putIfAbsent(key, channel);
+                }
+            }
+            List<Channel> allChannels = new ArrayList<>(unique.values());
             if (allChannels.isEmpty()) {
-                log(logger, "Global Xtreme channel lookup returned no channels. Keeping existing cache.");
+                log(logger, "Global Xtreme channel lookup returned no channels. Falling back to category fetch.");
             }
             return allChannels;
-        } catch (SkipAccountReloadException e) {
+        } catch (com.uiptv.util.ReloadRequestScope.LimitExceeded | SkipAccountReloadException e) {
             throw e;
-        } catch (Exception _) {
-            log(logger, "Global Xtreme channel lookup failed. Keeping existing cache.");
+        } catch (Exception e) {
+            log(logger, "Global Xtreme channel lookup failed (" + e.getClass().getSimpleName() + "). Falling back to category fetch.");
             return List.of();
         }
     }
@@ -268,6 +413,9 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
                 .filter(this::isUncategorizedCategory)
                 .findFirst()
                 .orElse(null);
+    }
+
+    private record CategoryFetchResult(Map<String, List<Channel>> channelsByCategory, int totalChannels, int rawChannels) {
     }
 
     private record LiveReloadResult(boolean handled, CensoringSummary censoringSummary) {
