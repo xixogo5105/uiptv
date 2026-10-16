@@ -2,7 +2,7 @@
 
 Scanned 529,505 cached Channel rows (193,387 distinct names) on 15 October 2026. Counts include repeated channels across accounts. No provider addresses or credentials are included.
 
-The database seeds 179 literal rules from this review. Rules are case-insensitive and can be disabled or extended in epg_name_exclusion. They affect name fallback, never provider IDs, XMLTV IDs, programme titles or saved channel names.
+The database seeds 805 literal rules, including the expanded language/country review. Rules are case-insensitive and can be disabled or extended in epg_name_exclusion. They affect name fallback, never provider IDs, XMLTV IDs, programme titles or saved channel names.
 
 ## Matching order
 
@@ -105,9 +105,9 @@ Exact ID and explicit mappings take priority. Exact names are next, then unique 
 
 ## Preserved identity
 
-Country/language prefixes and suffixes, regional names, East/West feeds, +1/+2 time shifts, channel numbers, Home/Away, sports event names, years and dates are retained. RAW, VIP, Backup and 24/7 are retained as ordinary words; only reviewed full bracket annotations are removed. Broad stripping of these words would create incorrect programme matches. Circled availability markers retain the existing presentation-only fallback behavior.
+Country/language labels now participate in the loose fallback. East/West feeds, +1/+2 time shifts, channel numbers, Home/Away, sports event names, years and dates are retained. RAW, VIP, Backup and 24/7 are retained as ordinary words; only reviewed full bracket annotations are removed. Broad stripping of these words would create incorrect programme matches. Circled availability markers retain the existing presentation-only fallback behavior.
 
-The full bracket and prefix inventory was reviewed; frequency alone does not justify exclusion. Examples deliberately retained: (D), (Home), (GMT), (P+), (US), (UK), (Apple), (FLOW), [Local], (EAST), (WEST), [LIVE-EVENT] and country prefixes such as US:, UK| and HINDI|.
+Examples deliberately retained: (D), (Home), (GMT), (P+), (Apple), (FLOW), [Local], (EAST), (WEST), and [LIVE-EVENT]. Country/language annotations such as (US), (UK), US:, UK| and HINDI| now normalize during fallback; original names and exact matching remain intact.
 
 ## Full-cache validation
 
@@ -126,3 +126,24 @@ UPDATE epg_name_exclusion SET enabled=0 WHERE term='trial' AND scope='annotation
 Each matching batch reads the active rows. Rule edits change the mapping signature, so older matches cannot silently remain valid. The background refresh remaps existing imported guides; programme data and user channel titles remain unchanged. Empty or conflicting normalized names are never accepted as fallback matches. Exact provider/XMLTV identities and explicit mappings do not use exclusions.
 
 The live-catalogue check also reproduced a bulk-remapping failure when the same provider channel occurs in multiple categories. Mapping batches now deduplicate by account and provider ID before queuing inserts, preventing a primary-key collision from rolling back all matches after rule changes.
+
+## Expanded language and country audit (15 October 2026)
+
+A fresh read-only scan of 529,505 cached Channel rows found these prefix labels before
+pipes or colons: US 28,792; UK 21,239; AR 17,381; NL 10,555; TR 8,315; EN 4,698;
+PL 4,013; GR 3,449; RU 3,335; HINDI 1,589; PUNJABI 560; ENGLISH 427; GUJARATI 301;
+MARATHI 286. Counts repeat stations across accounts and describe labels, not unique channels.
+
+Migration `0213_expand_epg_name_exclusions.sql` adds 313 literal language/country terms
+and the pipe marker, in annotation and loose fallback scopes. The new seed list covers
+South Asian languages plus Arabic, English, French, German, Spanish, Portuguese, Dutch,
+Italian, Turkish, Greek, Russian, Balkan/Nordic languages, Chinese, Korean, Japanese,
+Vietnamese, Indonesian, Malay, Thai, Filipino and Hebrew, with common short labels.
+Exact IDs and names still take priority; whole-token boundaries preserve names such as
+History and EnglishClub. Numbered stations and time shifts remain distinct. Conflicting
+aliases are omitted. A literal pipe is also removed by the existing punctuation cleanup.
+
+The builder receives the enabled rule snapshot and Java-produced channel alias in its
+inventory, then asks the same Java `EpgNameRules` code to construct source aliases. It
+does not duplicate the new exclusion vocabulary in Python. Android reads the same
+database rules. Existing disabled/custom rules are preserved by `INSERT OR IGNORE`.

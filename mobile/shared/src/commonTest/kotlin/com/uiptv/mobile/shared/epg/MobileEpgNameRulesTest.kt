@@ -3,6 +3,15 @@ package com.uiptv.mobile.shared.epg
 import kotlin.test.*
 
 class MobileEpgNameRulesTest {
+    @Test fun languageCountryAndPipeLabelsKeepTimeshiftsAndConflictsDistinct() {
+        val labels=listOf("hindi", "hi", "en", "english", "uk", "us", "arabic", "ar", "french", "fr", "tamil", "ta", "hd", "fhd", "|")
+        val rules=MobileEpgNameRules(labels.map { MobileEpgNameRules.Rule(it,"quality") })
+        for (label in labels.dropLast(3)) assertEquals("stargold", rules.quality("$label| STAR GOLD FHD"))
+        assertEquals("history", rules.quality("History HD"))
+        assertNotEquals(rules.quality("Star Gold"),rules.quality("Star Gold +1"))
+        assertFalse(rules.aliases(mapOf("UK|Station" to "uk", "US|Station" to "us"),true).containsKey("station"))
+    }
+
     @Test fun artworkIgnoresAliasesWithoutArtworkWhenCheckingAmbiguity() {
         val rules=MobileEpgNameRules(listOf(MobileEpgNameRules.Rule("hd","quality")))
         val guide=MobileXmltvGuide(emptyMap(),mapOf("bbc two" to "empty-sd","bbc two hd" to "hd"),

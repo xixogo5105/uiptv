@@ -206,7 +206,7 @@ class ChannelMatcher:
         # Stage 5: Quality-neutral aliases
         if self.quality_aliases:
             for source_id, guide in guides.items():
-                quality_norm = normalize_quality_name(channel.name)
+                quality_norm = channel.quality_name if channel.quality_name is not None else normalize_quality_name(channel.name)
                 if quality_norm in guide.quality_names:
                     candidates.append(MatchCandidate(
                         guide_channel_id=guide.quality_names[quality_norm],

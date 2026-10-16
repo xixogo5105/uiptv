@@ -90,3 +90,4 @@
 0210_add_epg_refresh_interval.sql
 0211_add_epg_cache_tables.sql
 0212_add_epg_name_exclusions.sql
+0213_expand_epg_name_exclusions.sql

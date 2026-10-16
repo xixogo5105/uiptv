@@ -30,6 +30,7 @@ class JavaBridge:
         self.classpath = classpath
         self.timeout_seconds = timeout_seconds
         self.jvm_args = jvm_args or []
+        self.name_rules = None
 
     @staticmethod
     def _java_environment():
@@ -150,7 +151,10 @@ class JavaBridge:
             xml = Path(directory) / "guide.xml"
             xml.write_bytes(content)
             request = Path(directory) / "request.json"
-            request.write_text(json.dumps({"path": str(xml), "now": int(now.timestamp() * 1000)}), encoding="utf-8")
+            payload = {"path": str(xml), "now": int(now.timestamp() * 1000)}
+            if self.name_rules is not None:
+                payload["name_rules"] = self.name_rules
+            request.write_text(json.dumps(payload), encoding="utf-8")
             result = subprocess.run(self._build_command("parse-xmltv", "--bundle", str(request)),
                                     env=self._java_environment(),
                 capture_output=True, text=True, timeout=self.timeout_seconds)

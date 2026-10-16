@@ -84,7 +84,7 @@ class EpgBuilderRunner:
 
             # Step 2: Collect sources
             print("Fetching EPG sources...")
-            guides, fetch_results = self._collect_sources(force_refresh)
+            guides, fetch_results = self._collect_sources(force_refresh, inventory.name_rules)
             print(f"  Fetched {len(guides)} sources successfully")
 
             # Step 3: Match channels
@@ -139,7 +139,7 @@ class EpgBuilderRunner:
                 duration_seconds=duration,
             )
 
-    def _collect_sources(self, force: bool) -> tuple[dict[str, XmltvGuide], list[FetchResult]]:
+    def _collect_sources(self, force: bool, name_rules=None) -> tuple[dict[str, XmltvGuide], list[FetchResult]]:
         """Collect all enabled sources."""
         sources = self.registry.get_enabled_sources(
             include=self.config.include_sources,
@@ -159,7 +159,9 @@ class EpgBuilderRunner:
             if result.success and result.content:
                 try:
                     from .bridge import bridge_from_config
-                    guide = parse_xmltv(result.content, bridge=bridge_from_config(self.config.bridge))
+                    bridge = bridge_from_config(self.config.bridge)
+                    bridge.name_rules = name_rules
+                    guide = parse_xmltv(result.content, bridge=bridge)
                     guides[source.id] = guide
                     # Update health with counts
                     health = self.registry.get_health(source.id)

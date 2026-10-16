@@ -18,6 +18,7 @@ class ChannelIdentity:
     db_id: str  # Local database row ID
     name: str
     display_name: str
+    quality_name: str | None = None
     country: str = ""
     language: str = ""
     guide_id: str = ""
@@ -39,6 +40,7 @@ class ChannelIdentity:
             "db_id": self.db_id,
             "name": self.name,
             "display_name": self.display_name,
+            "quality_name": self.quality_name,
             "country": self.country,
             "language": self.language,
             "guide_id": self.guide_id,
@@ -62,6 +64,7 @@ class ChannelIdentity:
             db_id=data.get("db_id", ""),
             name=data.get("name", ""),
             display_name=data.get("display_name", ""),
+            quality_name=data.get("quality_name"),
             country=data.get("country", ""),
             language=data.get("language", ""),
             guide_id=data.get("guide_id", ""),
@@ -102,6 +105,7 @@ class InventoryExport:
     revision: str  # Timestamp or hash of inventory generation
     accounts: list[AccountInfo] = field(default_factory=list)
     channels: list[ChannelIdentity] = field(default_factory=list)
+    name_rules: list[dict[str, str]] = field(default_factory=list)
     config_signature: str = ""
     global_epg_source: str = ""
     epg_mappings_json: str = ""
@@ -114,6 +118,7 @@ class InventoryExport:
             "revision": self.revision,
             "accounts": [acc.__dict__ for acc in self.accounts],
             "channels": [ch.to_dict() for ch in self.channels],
+            "name_rules": self.name_rules,
             "config_signature": self.config_signature,
             "global_epg_source": self.global_epg_source,
             "epg_mappings_json": self.epg_mappings_json,
@@ -157,6 +162,7 @@ class InventoryExport:
             revision=data.get("revision", ""),
             accounts=accounts,
             channels=channels,
+            name_rules=data.get("name_rules", []),
             config_signature=data.get("config_signature", ""),
             global_epg_source=data.get("global_epg_source", ""),
             epg_mappings_json=data.get("epg_mappings_json", ""),

@@ -105,7 +105,10 @@ public class EpgBuilderApplicationService {
                     .put("db_id", account.getDbId()).put("name", account.getAccountName())
                     .put("type", account.getType().name()).put("timezone", Objects.toString(account.getTimezone(), "Europe/London")));
         }
-        return new JSONObject().put("database_path", databasePath).put("database_identity", computeDatabaseIdentity(databasePath))
+        JSONArray nameRules = new JSONArray();
+        new com.uiptv.db.EpgNameRulesDb().read().rules().forEach(rule -> nameRules.put(
+                new JSONObject().put("term", rule.term()).put("scope", rule.scope())));
+        return new JSONObject().put("name_rules", nameRules).put("database_path", databasePath).put("database_identity", computeDatabaseIdentity(databasePath))
                 .put("generation", 1).put("config_signature", computeConfigSignature(config)).put("accounts", accounts);
     }
 
@@ -114,6 +117,7 @@ public class EpgBuilderApplicationService {
         Configuration config = ConfigurationService.getInstance().read();
         Map<String, Account> accounts = AccountService.getInstance().getAllById();
 
+        var nameRules = new com.uiptv.db.EpgNameRulesDb().read();
         List<String> revisions = new ArrayList<>();
         BookmarkResolver resolver = new BookmarkResolver();
 
@@ -139,6 +143,7 @@ public class EpgBuilderApplicationService {
                 if (!seen.add(channel.getChannelId())) return;
                 JSONObject record = channelInventory(account, channel, bookmarkIds.containsKey(channel.getChannelId()),
                         bookmarkIds.getOrDefault(channel.getChannelId(), ""), overrides.optString(channel.getChannelId(), "").strip(), identity.apply(channel).signature());
+                record.put("quality_name", nameRules.quality(channel.getName()));
                 revisions.add(record.getString("account_id") + "|" + record.getString("provider_channel_id") + "|" + record.getString("signature"));
                 visitor.accept(record);
             };
@@ -322,8 +327,17 @@ public class EpgBuilderApplicationService {
                     .put("start", p.start()).put("stop", p.stop()));
             programmes.put(id, values);
         });
+        Map<String,String> qualityNames = guide.qualityNames();
+        if (request.has("name_rules")) {
+            List<EpgNameRules.Rule> rules = new ArrayList<>();
+            for (Object value : request.getJSONArray("name_rules")) {
+                JSONObject rule = (JSONObject) value;
+                rules.add(new EpgNameRules.Rule(rule.getString("term"), rule.getString("scope")));
+            }
+            qualityNames = new EpgNameRules(rules).aliases(guide.names(), true);
+        }
         return new JSONObject().put("programmes", programmes).put("names", guide.names())
-                .put("quality_names", guide.qualityNames()).put("icons", guide.icons());
+                .put("quality_names", qualityNames).put("icons", guide.icons());
     }
 
     /** Reuse the same interval resolver as desktop/API reads; no database is opened. */

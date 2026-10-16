@@ -68,15 +68,28 @@ class EpgNameRulesTest extends DbBackedTest {
         assertEquals("station",literal.display("Station [a.*]"));
         assertEquals("station [abc]",literal.display("Station [abc]"));
     }
+    @Test void languageCountryAndPipeLabelsMatchScreenshotWithoutChangingExactNames() {
+        var rules = new EpgNameRulesDb().read();
+        for (String prefix : List.of("HINDI", "HI", "EN", "ENGLISH", "UK", "US", "GB", "INDIA", "PK", "AU", "NZ", "CA", "ARABIC", "AR", "FRENCH", "FR", "TAMIL", "TA", "GERMAN", "DE", "PUNJABI", "BENGALI", "SPANISH", "ES")) {
+            assertEquals("stargold", rules.quality(prefix + "| STAR GOLD FHD"));
+            assertEquals("stargold2", rules.quality(prefix + " | STAR GOLD 2 HD"));
+        }
+        assertEquals("hindi| star gold fhd", rules.display("HINDI| STAR GOLD FHD"));
+        assertNotEquals(rules.quality("Star Gold"), rules.quality("Star Gold +1"));
+        assertEquals("history", rules.quality("History HD"));
+        assertEquals("englishclub", rules.quality("EnglishClub HD"));
+        assertFalse(rules.aliases(Map.of("UK|Station", "uk-guide", "US|Station", "us-guide"), true).containsKey("station"));
+    }
+
     @Test void migrationUpgradesAndDoesNotOverwriteDisabledOrCustomRules() throws Exception {
         try(var c=SQLConnection.connect();var s=c.createStatement()) {
             s.executeUpdate("DROP TABLE epg_name_exclusion");
-            s.executeUpdate("DELETE FROM schema_migrations WHERE name='0212_add_epg_name_exclusions.sql'");
+            s.executeUpdate("DELETE FROM schema_migrations WHERE name IN ('0212_add_epg_name_exclusions.sql','0213_expand_epg_name_exclusions.sql')");
             DatabasePatchesUtils.applyPatches(c);
-            try(var rows=s.executeQuery("SELECT COUNT(*) FROM epg_name_exclusion")) { assertTrue(rows.next()); assertEquals(179,rows.getInt(1)); }
+            try(var rows=s.executeQuery("SELECT COUNT(*) FROM epg_name_exclusion")) { assertTrue(rows.next()); assertEquals(805,rows.getInt(1)); }
             s.executeUpdate("UPDATE epg_name_exclusion SET enabled=0 WHERE term='576p'");
             s.executeUpdate("INSERT INTO epg_name_exclusion VALUES('custom','annotation',1)");
-            s.executeUpdate("DELETE FROM schema_migrations WHERE name='0212_add_epg_name_exclusions.sql'");
+            s.executeUpdate("DELETE FROM schema_migrations WHERE name IN ('0212_add_epg_name_exclusions.sql','0213_expand_epg_name_exclusions.sql')");
             DatabasePatchesUtils.applyPatches(c);
             try(var rows=s.executeQuery("SELECT enabled FROM epg_name_exclusion WHERE term='576p'")) { while(rows.next()) assertEquals(0,rows.getInt(1)); }
             try(var rows=s.executeQuery("SELECT COUNT(*) FROM epg_name_exclusion WHERE term='custom'")) { assertTrue(rows.next()); assertEquals(1,rows.getInt(1)); }

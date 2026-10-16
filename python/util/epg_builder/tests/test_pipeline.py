@@ -9,7 +9,8 @@ from uiptv_epg_builder.runner import EpgBuilderRunner
 
 
 @pytest.mark.parametrize("configured_location", [False, True])
-def test_dry_run_apply_and_repeated_apply(tmp_path, configured_location):
+@pytest.mark.parametrize("exact_id", [False, True])
+def test_dry_run_apply_and_repeated_apply(tmp_path, configured_location, exact_id):
     root = Path(__file__).resolve().parents[4]
     app_home = tmp_path / ("uiptv" if sys.platform in ("darwin", "win32") else ".config/uiptv")
     app_home.mkdir(parents=True)
@@ -21,15 +22,17 @@ def test_dry_run_apply_and_repeated_apply(tmp_path, configured_location):
         connection.execute("INSERT INTO Configuration(id, epgEnabled, epgMappingsJson) VALUES(1, '1', '{}')")
         connection.execute("INSERT INTO Account(id,accountName,type) VALUES(1,'Local test','M3U8_LOCAL')")
         connection.execute("INSERT INTO Category(id,categoryId,accountId,accountType) VALUES(10,'provider-category','1','itv')")
-        connection.execute("INSERT INTO Channel(id,channelId,categoryId,name,extraJson) VALUES(100,'provider-channel','10','Station',?)", ('{"xmltv_id":"guide"}',))
+        connection.execute("INSERT INTO Channel(id,channelId,categoryId,name,extraJson) VALUES(100,'provider-channel','10','HINDI| Station FHD',?)", ('{"xmltv_id":"guide"}' if exact_id else '{}',))
     xml = tmp_path / "guide.xml"
     now = datetime.now(timezone.utc)
     xml.write_text(f'<tv><channel id="guide"><display-name>Station</display-name></channel><programme channel="guide" start="{(now-timedelta(minutes=1)):%Y%m%d%H%M%S} +0000" stop="{(now+timedelta(hours=1)):%Y%m%d%H%M%S} +0000"><title>Actual programme</title></programme><programme channel="guide" start="{now:%Y%m%d%H%M%S} +0000" stop="{now:%Y%m%d%H%M%S} +0000"><title>Invalid interval</title></programme></tv>')
     config = Config(working_dir=str(tmp_path / "work"), sources=[SourceConfig("local", "Local", "local_xmltv", str(xml))])
+    config.matching.min_confidence = 0.80
     config.bridge.jvm_args = ["-Duser.home=" + str(tmp_path)]
     result = EpgBuilderRunner(config).run(dry_run=True)
     assert result.success, result.error
     assert result.programmes_imported == 0
+    assert result.bundle.mappings[0].match_class == ("EXACT_ID" if exact_id else "QUALITY_ALIAS")
     with sqlite3.connect(database) as connection:
         assert connection.execute("SELECT count(*) FROM epg_programme").fetchone()[0] == 0
     for _ in range(2):

@@ -73,7 +73,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         Channel channel = channel("provider-stream", "Synced station");
         channel.setExtraJson("{\"xmltv_id\":\"station\"}");
         var match = EpgCacheApplicationService.matches(account, List.of(channel), List.of()).getFirst();
-        assertEquals("334ee2df7cc0db5ed62ccfc23a0c03755edebcf8fd7a76396f12a26dcdac39e1", match.identity().signature());
+        assertEquals("381abb99d33c36351340b2c2cf4138da204b2e1b734920a6daeb88d691a8d70d", match.identity().signature());
     }
 
     @Test void missingCacheReadsDoNotCreateFilesOrPerformNetworkCalls() {

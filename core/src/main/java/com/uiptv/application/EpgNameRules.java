@@ -6,12 +6,14 @@ import java.util.regex.Pattern;
 /** Immutable snapshot of literal database rules, shared by every match in one batch. */
 public final class EpgNameRules {
     public record Rule(String term, String scope) { }
+    private final List<Rule> ordered;
+    public List<Rule> rules() { return ordered; }
     private final Pattern annotations;
     private final Pattern qualities;
     private final String fingerprint;
 
     public EpgNameRules(List<Rule> rules) {
-        var ordered = rules.stream().distinct().sorted(Comparator.comparing(Rule::term).thenComparing(Rule::scope)).toList();
+        ordered = rules.stream().distinct().sorted(Comparator.comparing(Rule::term).thenComparing(Rule::scope)).toList();
         String annotationTerms=alternatives(ordered,"annotation"), qualityTerms=alternatives(ordered,"quality");
         annotations=Pattern.compile("\\(\\s*(?:"+annotationTerms+")\\s*\\)|\\[\\s*(?:"+annotationTerms+")\\s*\\]", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
         qualities=Pattern.compile("(?<![\\p{L}\\p{N}])(?:"+qualityTerms+")(?![\\p{L}\\p{N}])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
