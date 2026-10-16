@@ -47,6 +47,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private volatile EmbeddedMediaPlayer mediaPlayer;
     private MediaPlayerEventAdapter mediaPlayerEvents;
     private volatile Future<?> playbackTask;
+    private volatile Future<?> nativePlaybackTask;
     private ImageView videoImageView;
     private int videoSourceWidth;
     private int videoSourceHeight;
@@ -502,7 +503,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     return;
                 }
                 String resolvedUri = playUri;
-                nativeExecutor.submit(() -> {
+                nativePlaybackTask = nativeExecutor.submit(() -> {
                     if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) return;
                     long started = System.nanoTime();
                     try {
@@ -581,10 +582,16 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     @Override
     protected void disposeMedia() {
         mediaRequestVersion.incrementAndGet();
+        audioStateRequestVersion.incrementAndGet();
         Future<?> task = playbackTask;
         playbackTask = null;
         if (task != null) {
             task.cancel(true);
+        }
+        Future<?> nativeTask = nativePlaybackTask;
+        nativePlaybackTask = null;
+        if (nativeTask != null) {
+            nativeTask.cancel(true);
         }
         EmbeddedMediaPlayer playerToCleanup;
         MediaPlayerFactory factoryToCleanup;
@@ -595,6 +602,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             mediaPlayerEvents = null;
             mediaPlayerFactory = null;
         }
+        // Stop immediately before queuing release. A native media.play() call can block while
+        // opening a live stream; if stop were only queued behind it, hiding the JavaFX node would
+        // leave libVLC decoding/networking until that call happened to return.
+        stopNativePlayback(playerToCleanup);
+
         // Serialize release with native startup, never with HTTP playlist resolution.
         // The UI detaches immediately; playbackReady lets URL resolution await cleanup off-thread.
         if (playerToCleanup != null || factoryToCleanup != null) {
@@ -606,6 +618,18 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         lastStreamInfoLabel = "";
     }
 
+    private void stopNativePlayback(EmbeddedMediaPlayer player) {
+        if (player == null) {
+            return;
+        }
+        try {
+            player.controls().stop();
+            com.uiptv.util.AppLog.addInfoLog(VlcVideoPlayer.class, "VLC stop request issued");
+        } catch (Exception failure) {
+            com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VLC stop request failed", failure);
+        }
+    }
+
     @Override
     public java.util.concurrent.CompletionStage<Void> playbackReady() {
         return java.util.concurrent.CompletableFuture.runAsync(this::ensurePlayerInitialized, nativeExecutor);
@@ -613,11 +637,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     private void releaseNativePlayer(EmbeddedMediaPlayer playerToCleanup, MediaPlayerFactory factoryToCleanup) {
         if (playerToCleanup != null) {
-            try {
-                playerToCleanup.controls().stop();
-            } catch (Exception _) {
-                // Best-effort: VLC may be in a bad state.
-            }
+            stopNativePlayback(playerToCleanup);
             try {
                 playerToCleanup.videoSurface().set(null);
             } catch (Exception _) {

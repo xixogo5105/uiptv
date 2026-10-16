@@ -60,14 +60,18 @@ class VlcPlaybackLifecycleTest extends DbBackedUiTest {
         EmbeddedMediaPlayer nativePlayer = factory.mediaPlayers().newEmbeddedMediaPlayer();
         var entered = new CountDownLatch(1);
         var finishStart = new CountDownLatch(1);
+        var stopIssued = new CountDownLatch(1);
         when(nativePlayer.media().play(anyString(), any(String[].class))).thenAnswer(_ -> {
             entered.countDown(); assertTrue(finishStart.await(5, TimeUnit.SECONDS)); return true;
         });
+        doAnswer(_ -> { stopIssued.countDown(); return null; }).when(nativePlayer.controls()).stop();
         VlcVideoPlayer player = runOnFxThread(() -> new VlcVideoPlayer(() -> factory));
         try {
             runOnFxThread(() -> { player.play(new PlayerResponse("file:///test-stream.ts")); return null; });
             assertTrue(entered.await(5, TimeUnit.SECONDS));
             runOnFxThread(() -> { player.stopForReload(); return null; });
+            assertTrue(stopIssued.await(5, TimeUnit.SECONDS),
+                    "Stop must reach the native player even while media.play is blocked");
             var ready = player.playbackReady().toCompletableFuture();
             assertThrows(java.util.concurrent.TimeoutException.class, () -> ready.get(200, TimeUnit.MILLISECONDS),
                     "Release and next-player preparation must wait for the native start call to return");
