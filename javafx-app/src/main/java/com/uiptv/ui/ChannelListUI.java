@@ -214,7 +214,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         }
         itemsLoaded.set(true);
         if (Platform.isFxApplicationThread() && (newChannels.size() > CHANNEL_UI_BATCH_SIZE
-                || listAction == Account.AccountAction.itv && EpgModeUI.isFeatureEnabled())) {
+                || listAction == Account.AccountAction.itv && EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly())) {
             List<Channel> channels = new ArrayList<>(newChannels);
             Thread worker = new Thread(() -> addItemsIncrementally(channels), "uiptv-channel-card-batcher");
             worker.setDaemon(true);
@@ -651,12 +651,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private void applyChannelGridSizing() {
         channelGrid.setSingleColumn(mediaDrawerMode || !thumbnailsEnabled);
         if (!thumbnailsEnabled) {
-            channelGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && listAction == Account.AccountAction.itv ? 150 : 42);
+            channelGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
+                    && listAction == Account.AccountAction.itv ? 150 : 42);
             channelGrid.setCardWidthRange(240, 760);
             channelGrid.setGaps(16, 6);
             return;
         }
-        channelGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && listAction == Account.AccountAction.itv ? 168 : 76);
+        channelGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
+                && listAction == Account.AccountAction.itv ? 168 : 76);
         if (mediaDrawerMode) {
             channelGrid.setCardWidthRange(260, 520);
             channelGrid.setGaps(7, 7);

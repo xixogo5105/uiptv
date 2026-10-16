@@ -972,7 +972,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         // Plain-text cards use the same responsive column strategy as thumbnail cards;
         // only the card height and vertical gap differ between the two modes.
         bookmarkGrid.setSingleColumn(false);
-        bookmarkGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && filteredItems.stream().anyMatch(item -> item.getAccountAction() == Account.AccountAction.itv) ? 168 : thumbnailsEnabled
+        bookmarkGrid.setCardMinHeight(EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()
+                && filteredItems.stream().anyMatch(item -> item.getAccountAction() == Account.AccountAction.itv) ? 168 : thumbnailsEnabled
                 ? GRID_NORMAL_CARD_MIN_HEIGHT
                 : GRID_PLAIN_TEXT_CARD_MIN_HEIGHT);
         bookmarkGrid.setGaps(16, thumbnailsEnabled
