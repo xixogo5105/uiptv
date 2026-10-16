@@ -32,7 +32,15 @@ public class EpgCacheRefreshService {
         EPOCH.incrementAndGet();
         WORKERS.forEach(Thread::interrupt);
         stopTimer();
-        reconcileSoon();
+        if (isEnabled()) activateIfEnabled();
+        else EpgChangeNotifications.stopExternalWatcher();
+    }
+    private static boolean isEnabled() {
+        try { return new EpgApplicationService().isEnabled(); }
+        catch (RuntimeException error) {
+            if (lifecycleStarted) AppLog.addWarningLog(EpgCacheRefreshService.class, "Unable to read EPG refresh settings; guide refresh remains stopped.");
+            return false;
+        }
     }
     private static final Set<Thread> WORKERS=ConcurrentHashMap.newKeySet();
     private static final AtomicBoolean QUEUED=new AtomicBoolean();
@@ -96,10 +104,14 @@ public class EpgCacheRefreshService {
     public static synchronized void start() {
         if(!lifecycleStarted) {
             lifecycleStarted=true;
-            EpgChangeNotifications.startExternalWatcher();
             ConfigurationService.getInstance().addChangeListener(CONFIG_CHANGED);
             AccountService.getInstance().addChangeListener(ACCOUNTS_CHANGED);
         }
+        activateIfEnabled();
+    }
+    private static synchronized void activateIfEnabled() {
+        if (!lifecycleStarted || !isEnabled()) return;
+        EpgChangeNotifications.startExternalWatcher();
         reconcileSoon();
     }
     private static synchronized void reconcileSoon() {
@@ -108,7 +120,7 @@ public class EpgCacheRefreshService {
         Thread task = Thread.ofVirtual().name("epg-cache-lifecycle").unstarted(() -> {
             try {
                 if (!lifecycleStarted || epoch != EPOCH.get() || Thread.currentThread().isInterrupted()) return;
-                boolean enabled = new EpgApplicationService().isEnabled();
+                boolean enabled = isEnabled();
                 synchronized (EpgCacheRefreshService.class) {
                     if (!lifecycleStarted || epoch != EPOCH.get() || Thread.currentThread().isInterrupted()) return;
                     if (!enabled) stopTimer();

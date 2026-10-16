@@ -281,14 +281,17 @@ class EpgPersistentCacheTest extends DbBackedTest {
         var config=ConfigurationService.getInstance().read(); config.setEpgEnabled(false); ConfigurationService.getInstance().save(config);
         EpgCacheRefreshService.start();
         var scheduler=EpgCacheRefreshService.class.getDeclaredField("scheduler"); scheduler.setAccessible(true);
+        var watcher=EpgChangeNotifications.class.getDeclaredField("watcher"); watcher.setAccessible(true);
         Thread.sleep(30); assertNull(scheduler.get(null),"EPG off must not create even an idle scheduled executor");
+        assertNull(watcher.get(null),"EPG off must not start the external change watcher");
         config.setEpgEnabled(true); ConfigurationService.getInstance().save(config);
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(3);
         while(scheduler.get(null)==null && System.nanoTime()<deadline) Thread.sleep(10);
         assertNotNull(scheduler.get(null));
+        assertNotNull(watcher.get(null));
         var running=(ScheduledExecutorService)scheduler.get(null);
         config.setEpgEnabled(false); ConfigurationService.getInstance().save(config);
-        assertTrue(running.isShutdown()); assertNull(scheduler.get(null));
+        assertTrue(running.isShutdown()); assertNull(scheduler.get(null)); assertNull(watcher.get(null));
     }
 
     @Test void refreshIntervalPersistsAndShorteningItMakesOldSourceDue() throws Exception {

@@ -84,6 +84,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var panelTouchX = 0f
     private var panelTouchY = 0f
     private var epgJob: kotlinx.coroutines.Job? = null
+    @Volatile private var epgEnabled = false
     private val epgDatabase by lazy { AndroidUiptvDatabaseHelper(this) }
     private val epgRepository by lazy { com.uiptv.mobile.shared.epg.AndroidEpgRepository(this, epgDatabase, preferencesRepository) }
     private lateinit var titleLabel: TextView
@@ -374,7 +375,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
         startPlayback()
         startProgressUpdates()
         epgLoadedKey = null
-        refreshEpg()
+        playbackScope.launch {
+            epgEnabled = preferencesRepository.load().epgEnabled
+            if (epgEnabled && !activityDestroyed) withContext(Dispatchers.Main) { refreshEpg() }
+        }
         showControlsTemporarily()
     }
 
@@ -1588,6 +1592,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         if (::epgPanel.isInitialized) hideEpgPanel()
         val target = currentTarget ?: return
         if (target.mode != BrowseMode.LIVE) return
+        if (!epgEnabled) return
         epgJob = playbackScope.launch {
             while (true) {
                 val result = epgRepository.schedule(target.accountId, target.channelId, target.title)

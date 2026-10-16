@@ -60,6 +60,25 @@ createApp({
         const playerProgrammeTime = time => new Date(time).toLocaleString([], {weekday: 'short', hour: '2-digit', minute: '2-digit'});
         let playerEpgRequest = 0;
         let playerEpgController = null;
+        let epgEvents = null;
+        const closeEpgEvents = () => {
+            if (epgEvents) { epgEvents.close(); epgEvents = null; }
+        };
+        const syncEpgEvents = () => {
+            if (typeof EventSource === 'undefined') return;
+            if (!epgEnabled.value) { closeEpgEvents(); return; }
+            if (epgEvents) return;
+            epgEvents = new EventSource(`${window.location.origin}/epg-events`);
+            epgEvents.onmessage = () => {
+                if (!document.hidden && epgEnabled.value) {
+                    refreshPlayerEpg();
+                    clearTimeout(cardEpgTimer);
+                    cardEpgGeneration++;
+                    visibleEpgCards.forEach(record => { record.refreshAt = 0; });
+                    cardEpgTimer = setTimeout(refreshVisibleCardEpg, 100);
+                }
+            };
+        };
         const refreshPlayerEpg = async (clear = false) => {
             const request = ++playerEpgRequest;
             if (playerEpgController) playerEpgController.abort();
@@ -1356,6 +1375,7 @@ createApp({
         const applyDesktopEpgSetting = (enabled) => {
             const changed = epgEnabled.value !== enabled;
             epgEnabled.value = enabled;
+            syncEpgEvents();
             if (!enabled) {
                 ++playerEpgRequest; playerEpgController?.abort(); playerEpg.value = null;
                 ++cardEpgGeneration;
@@ -4846,19 +4866,6 @@ createApp({
                 if (!document.hidden && epgEnabled.value && currentChannel.value) refreshPlayerEpg();
             }, 30 * 60000);
             window.addEventListener('beforeunload', () => window.clearInterval(scheduleRefreshTimer), {once: true});
-            if (typeof EventSource !== 'undefined') {
-                const epgEvents = new EventSource(`${window.location.origin}/epg-events`);
-                epgEvents.onmessage = () => {
-                    if (!document.hidden && epgEnabled.value) {
-                        refreshPlayerEpg();
-                        clearTimeout(cardEpgTimer);
-                        cardEpgGeneration++;
-                        visibleEpgCards.forEach(record => { record.refreshAt = 0; });
-                        cardEpgTimer = setTimeout(refreshVisibleCardEpg, 100);
-                    }
-                };
-                window.addEventListener('beforeunload', () => epgEvents.close(), {once: true});
-            }
             loadRecentBookmarkHistory();
             if (document.fullscreenEnabled) {
                 document.addEventListener('fullscreenchange', () => {
@@ -4868,6 +4875,7 @@ createApp({
             }
             mountSharedHeader();
             await loadConfig();
+            syncEpgEvents();
             void loadBookmarkCategories();
             void loadBookmarks();
             void loadAccounts({background: true});
