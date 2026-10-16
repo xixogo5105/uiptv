@@ -1,6 +1,20 @@
 # UIPTV User Guide
 
-Welcome to the comprehensive user guide for **UIPTV**, a versatile and modern IPTV player designed for Windows, Linux, and macOS. This guide will walk you through every aspect of the application, from installation to advanced configuration, ensuring you get the most out of your streaming experience.
+Welcome to the user guide for **UIPTV**, an open-source IPTV ecosystem for Windows, Linux, and macOS. UIPTV is not only a screen for playing a stream: it connects provider accounts and playlists, builds a local library, adds search/filtering/bookmarks/EPG and parental controls, and shares that library through desktop and browser experiences.
+
+## How the UIPTV ecosystem works
+
+Use UIPTV as the centre of your setup:
+
+1. **Connect sources** — add a Stalker Portal, Xtreme Codes account, or local/remote M3U playlist. Add an XMLTV source when your provider does not supply a usable guide.
+2. **Let UIPTV build the library** — refresh the account so channels, VOD, series, artwork, and programme data are cached locally for quicker browsing and repeat use.
+3. **Shape the experience** — pin accounts, search and filter categories, save bookmarks, protect sensitive content with Parental Lock, and configure the theme, cache, and player route.
+4. **Choose a screen** — watch in the desktop app with VLC, launch an external player such as MPV/Kodi, or open the local web app from another device on the same network.
+5. **Share only what you want** — publish a selected playlist, expose bookmarks, or synchronise approved configuration with another UIPTV installation. Keep the desktop hub as the source of truth for your household setup.
+
+The provider is the source of streams and catalogue data; UIPTV is the organisation and access layer around those sources. This separation makes it possible to change the viewing screen without rebuilding your accounts and library from scratch.
+
+The rest of this guide explains each part of that journey, from first installation through advanced playback, web access, synchronisation, and EPG setup.
 
 ---
 

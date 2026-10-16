@@ -3,7 +3,7 @@
 > [!IMPORTANT]
 > **Attention!!!** Volunteers are needed for translations. [Click here](TRANSLATIONS.md).
 
-# UIPTV - A Universal IPTV Player for Windows, Linux & macOS
+# UIPTV - The IPTV Ecosystem for Windows, Linux & macOS
 [![GitHub release](https://img.shields.io/github/v/release/xixogo5105/uiptv)](https://github.com/xixogo5105/uiptv/releases)
 [![GitHub license](https://img.shields.io/github/license/xixogo5105/uiptv?branch=main)](https://github.com/xixogo5105/uiptv/blob/main/LICENSE)
 [![Main](https://github.com/xixogo5105/uiptv/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/xixogo5105/uiptv/actions/workflows/build.yml)
@@ -11,9 +11,23 @@
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=xixogo5105_uiptv&metric=coverage)](https://sonarcloud.io/summary/new_code?id=xixogo5105_uiptv)
 [![codecov](https://codecov.io/gh/xixogo5105/uiptv/branch/main/graph/badge.svg)](https://app.codecov.io/github/xixogo5105/uiptv)
 
-UIPTV is a versatile IPTV player written in Java, designed to run on Windows, Linux, and macOS. It provides both a desktop experience and a full local-network web experience (SPA/PWA) for Live TV, VOD, and Series.
+UIPTV is more than a player. It is an open-source IPTV ecosystem: a place to bring provider accounts and playlists together, cache and organise their content, watch Live TV/VOD/Series, publish selected libraries to your local network, and keep the experience consistent across desktop and browser clients.
 
-Core principle: keep the app simple, plain, and practical so everyday playback and account management stay fast and predictable.
+The desktop application is the hub. Its shared core manages accounts, imports, local catalogues, EPG data, filtering, bookmarks, watching history, parental controls, and synchronisation. The embedded VLC player, external players, and local-network SPA/PWA are different ways to use the same organised library—not separate products competing for the same data.
+
+Core principle: keep the experience simple, plain, and practical while giving the whole household a dependable content system behind the playback screen.
+
+## Think ecosystem, not just player
+
+The UIPTV ecosystem has a simple flow:
+
+1. **Connect** your Stalker Portal, Xtreme Codes, or M3U/XMLTV sources.
+2. **Organise** the imported library locally with categories, search, filters, bookmarks, parental controls, and cached metadata.
+3. **Watch** Live TV, VOD, and Series through embedded VLC, an external player, or the browser player.
+4. **Extend** the experience to phones, tablets, TVs, and other players through the local web app and published M3U playlists.
+5. **Keep it aligned** with watching-state, EPG refresh, cache tools, and approval-based database synchronisation between UIPTV installations.
+
+This is how to use the ecosystem: make UIPTV your trusted library hub, then choose the most convenient screen or player for the moment. Your provider sources remain inputs; UIPTV provides the organisation, controls, and shared access layer around them.
 
 Release assets are currently published for Windows (x86_64), Linux (x86_64 and aarch64 where available), macOS (x86_64, aarch64), and Android as a universal APK. GitHub releases are published only from repository-root `release.sh`, which creates one combined desktop plus mobile release.
 
