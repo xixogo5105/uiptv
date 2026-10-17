@@ -3480,6 +3480,44 @@
     -fx-content-display: graphic-only;
 }
 
+/* The ellipsis action is an icon affordance, not a text button. Keep the same quiet circular
+   treatment on account, channel, VOD, series and episode cards. */
+.card-menu-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 7;
+    -fx-border-radius: 7;
+}
+
+.card-menu-button .play-menu-icon-ring {
+    -fx-stroke: -uiptv-text-secondary;
+}
+
+.card-menu-button:hover,
+.card-menu-button:focused {
+    -fx-background-color: rgba(255,255,255,0.12);
+}
+
+.card-menu-button:hover .play-menu-icon-ring,
+.card-menu-button:focused .play-menu-icon-ring {
+    -fx-stroke: -uiptv-text-primary;
+}
+
+.uiptv-responsive-card:selected .card-menu-button .play-menu-icon-ring,
+.uiptv-responsive-card.selected .card-menu-button .play-menu-icon-ring,
+.bookmark-card:selected .card-menu-button .play-menu-icon-ring,
+.bookmark-card.selected .card-menu-button .play-menu-icon-ring {
+    -fx-stroke: -uiptv-selected-card-fg;
+}
+
+.uiptv-responsive-card:selected .card-menu-button .play-menu-icon-dot,
+.uiptv-responsive-card.selected .card-menu-button .play-menu-icon-dot,
+.bookmark-card:selected .card-menu-button .play-menu-icon-dot,
+.bookmark-card.selected .card-menu-button .play-menu-icon-dot {
+    -fx-fill: -uiptv-selected-card-fg;
+}
+
 .play-menu-icon-ring {
     -fx-fill: transparent;
     -fx-stroke: transparent;

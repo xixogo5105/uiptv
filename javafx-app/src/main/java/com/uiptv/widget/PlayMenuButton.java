@@ -32,7 +32,10 @@ public class PlayMenuButton extends Button implements HoverRevealAction {
 
     public PlayMenuButton(String accessibleText) {
         this.tooltipText = accessibleText;
-        getStyleClass().setAll("button", "play-menu-button");
+        // Every card action uses the same polished circular ellipsis affordance.  More specific
+        // card classes may still tune selected/hover colours, but no caller should fall back to
+        // the generic boxed button treatment.
+        getStyleClass().setAll("button", "play-menu-button", "card-menu-button");
         setMnemonicParsing(false);
         setFocusTraversable(true);
         setAccessibleText(accessibleText);
