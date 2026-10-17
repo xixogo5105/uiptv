@@ -484,8 +484,10 @@ public class HttpUtil {
                 effective.connectTimeoutSeconds(), CONNECT_TIMEOUT_SECONDS)));
         Timeout connectionRequestTimeout = Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(
                 effective.connectionRequestTimeoutSeconds(), CONNECTION_REQUEST_TIMEOUT_SECONDS)));
-        Timeout responseTimeout = Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(
-                effective.responseTimeoutSeconds(), RESPONSE_TIMEOUT_SECONDS)));
+        Timeout responseTimeout = effective.responseTimeoutDisabled()
+                ? Timeout.DISABLED
+                : Timeout.of(Duration.ofSeconds(resolveTimeoutSeconds(
+                        effective.responseTimeoutSeconds(), RESPONSE_TIMEOUT_SECONDS)));
         return RequestConfig.custom()
                 .setConnectTimeout(connectTimeout)
                 .setConnectionRequestTimeout(connectionRequestTimeout)
@@ -530,6 +532,7 @@ public class HttpUtil {
         private final Integer connectTimeoutSeconds;
         private final Integer connectionRequestTimeoutSeconds;
         private final Integer responseTimeoutSeconds;
+        private final boolean responseTimeoutDisabled;
         private final int maxBodyChars;
 
         public RequestOptions(boolean followRedirects, boolean readBody) {
@@ -547,18 +550,19 @@ public class HttpUtil {
         private RequestOptions(boolean followRedirects, boolean readBody, Integer connectTimeoutSeconds,
                                Integer connectionRequestTimeoutSeconds, Integer responseTimeoutSeconds, boolean streamBody) {
             this(followRedirects, readBody, connectTimeoutSeconds, connectionRequestTimeoutSeconds,
-                    responseTimeoutSeconds, streamBody, 0);
+                    responseTimeoutSeconds, streamBody, false, 0);
         }
 
         private RequestOptions(boolean followRedirects, boolean readBody, Integer connectTimeoutSeconds,
                                Integer connectionRequestTimeoutSeconds, Integer responseTimeoutSeconds,
-                               boolean streamBody, int maxBodyChars) {
+                               boolean streamBody, boolean responseTimeoutDisabled, int maxBodyChars) {
             this.streamBody = streamBody;
             this.followRedirects = followRedirects;
             this.readBody = readBody;
             this.connectTimeoutSeconds = connectTimeoutSeconds;
             this.connectionRequestTimeoutSeconds = connectionRequestTimeoutSeconds;
             this.responseTimeoutSeconds = responseTimeoutSeconds;
+            this.responseTimeoutDisabled = responseTimeoutDisabled;
             this.maxBodyChars = Math.max(0, maxBodyChars);
         }
 
@@ -571,12 +575,21 @@ public class HttpUtil {
             return new RequestOptions(true, true, null, null, null, true);
         }
 
+        /**
+         * Options for a live proxy body. Connection establishment remains bounded,
+         * but an otherwise healthy live stream is allowed to have idle periods.
+         */
+        public static RequestOptions streamingProxy() {
+            return new RequestOptions(false, true, null, null, null, false, true, 0);
+        }
+
         public boolean streamBody() { return streamBody; }
 
         /** Return a copy that bounds materialized response text; zero means unlimited. */
         public RequestOptions withMaxBodyChars(int maxChars) {
             return new RequestOptions(followRedirects, readBody, connectTimeoutSeconds,
-                    connectionRequestTimeoutSeconds, responseTimeoutSeconds, streamBody, maxChars);
+                    connectionRequestTimeoutSeconds, responseTimeoutSeconds, streamBody,
+                    responseTimeoutDisabled, maxChars);
         }
 
         public int maxBodyChars() { return maxBodyChars; }
@@ -599,6 +612,10 @@ public class HttpUtil {
 
         public Integer responseTimeoutSeconds() {
             return responseTimeoutSeconds;
+        }
+
+        public boolean responseTimeoutDisabled() {
+            return responseTimeoutDisabled;
         }
     }
 

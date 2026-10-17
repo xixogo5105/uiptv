@@ -63,8 +63,10 @@ class HttpUtilTest {
         assertEquals(1, custom.connectTimeoutSeconds());
         assertEquals(2, custom.connectionRequestTimeoutSeconds());
         assertEquals(3, custom.responseTimeoutSeconds());
+        assertFalse(custom.responseTimeoutDisabled());
         assertEquals(0, custom.maxBodyChars());
         assertEquals(1024, custom.withMaxBodyChars(1024).maxBodyChars());
+        assertFalse(custom.withMaxBodyChars(1024).responseTimeoutDisabled());
 
         RequestConfig requestConfig = (RequestConfig) invoke(
                 "buildRequestConfig", new Class[]{HttpUtil.RequestOptions.class}, custom);
@@ -72,6 +74,14 @@ class HttpUtilTest {
         assertEquals(1, requestConfig.getConnectTimeout().toSeconds());
         assertEquals(2, requestConfig.getConnectionRequestTimeout().toSeconds());
         assertEquals(3, requestConfig.getResponseTimeout().toSeconds());
+
+        HttpUtil.RequestOptions streamingProxy = HttpUtil.RequestOptions.streamingProxy();
+        assertFalse(streamingProxy.followRedirects());
+        assertTrue(streamingProxy.readBody());
+        assertTrue(streamingProxy.responseTimeoutDisabled());
+        RequestConfig streamingProxyConfig = (RequestConfig) invoke(
+                "buildRequestConfig", new Class[]{HttpUtil.RequestOptions.class}, streamingProxy);
+        assertTrue(streamingProxyConfig.getResponseTimeout().isDisabled());
 
         assertEquals("GET", invoke("safeMethod", new Class[]{String.class}, " ").toString());
         assertEquals("POST", invoke("safeMethod", new Class[]{String.class}, " post ").toString());

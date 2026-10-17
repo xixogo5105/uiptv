@@ -1,8 +1,10 @@
 package com.uiptv.server;
 
+import com.uiptv.util.HttpUtil;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import java.io.OutputStream;
 import java.lang.reflect.Method;
@@ -20,8 +22,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.util.ServerUrlUtil.getPublishedServerHost;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HttpProxyStreamServerTest {
@@ -129,6 +140,31 @@ class HttpProxyStreamServerTest {
         assertEquals(204, connection.getResponseCode());
         assertEquals("*", connection.getHeaderField("Access-Control-Allow-Origin"));
         assertTrue(connection.getHeaderField("Access-Control-Allow-Methods").contains("GET"));
+    }
+
+    @Test
+    void liveProxyUsesAnUpstreamRequestThatAllowsIdleBodyPeriods() throws Exception {
+        HttpUtil.StreamResult upstream = mock(HttpUtil.StreamResult.class);
+        whenStatusOk(upstream);
+        AtomicReference<HttpUtil.RequestOptions> options = new AtomicReference<>();
+        HttpProxyStreamServer handler = new HttpProxyStreamServer(url -> true);
+
+        try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
+            httpUtil.when(() -> HttpUtil.openStream(
+                            anyString(), anyMap(), eq("GET"), isNull(), any(HttpUtil.RequestOptions.class)))
+                    .thenAnswer(invocation -> {
+                        options.set(invocation.getArgument(4));
+                        return upstream;
+                    });
+
+            HttpUtil.StreamResult result = invoke(handler, "openResolvedStream",
+                    new Class[]{String.class, List.class, Map.class, String.class},
+                    "http://provider.test/live/channel", new ArrayList<>(), Map.of(), "GET");
+
+            assertSame(upstream, result);
+            assertNotNull(options.get());
+            assertTrue(options.get().responseTimeoutDisabled());
+        }
     }
 
     @Test
@@ -353,5 +389,10 @@ class HttpProxyStreamServerTest {
                     && "127.0.0.1".equals(uri.getHost())
                     && uri.getPort() == upstreamPort;
         });
+    }
+
+    private static void whenStatusOk(HttpUtil.StreamResult upstream) {
+        org.mockito.Mockito.when(upstream.statusCode()).thenReturn(200);
+        org.mockito.Mockito.when(upstream.responseHeaders()).thenReturn(Map.of());
     }
 }

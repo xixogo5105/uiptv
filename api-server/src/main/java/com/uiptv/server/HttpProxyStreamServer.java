@@ -246,7 +246,8 @@ public class HttpProxyStreamServer implements HttpHandler {
             }
 
             String upstreamMethod = "HEAD".equalsIgnoreCase(requestMethod) ? "HEAD" : "GET";
-            HttpUtil.StreamResult upstream = HttpUtil.openStream(current, upstreamHeaders, upstreamMethod, null, new HttpUtil.RequestOptions(false, true));
+            HttpUtil.StreamResult upstream = HttpUtil.openStream(
+                    current, upstreamHeaders, upstreamMethod, null, HttpUtil.RequestOptions.streamingProxy());
             collectCookies(upstream.responseHeaders(), cookies);
             int status = upstream.statusCode();
             if (status >= 300 && status <= 399) {
