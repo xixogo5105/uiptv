@@ -14,8 +14,10 @@ function harness() {
     const player = {store,dispose(){calls.push(['dispose']);}};
     const context = {window:{UIPTVModernPlayer:{ready:async()=>{}, mount(container,tag){calls.push(['mount',tag]);return media;},connect(){return player;}}},
         document:{getElementById:()=>({})}, nextTick:async()=>{}, videoJsPlayer:ref(null),videoPlayer:ref(null),playbackError:ref(''),playbackMode:ref(''),
+        playbackRequestState:{currentId:()=>0},
         videoTracks:ref([]),audioTracks:ref([]),textTracks:ref([]),selectedTextTrackId:ref('off'),
         bindPlaybackEvents(){},normalizeWebPlaybackUrl:s=>s,playWithGestureFallback:fn=>fn(),resolvePlaybackModeLabel:()=> 'Video.js',ensureVideoElement(){},
+        throwIfPlaybackSuperseded(){},withPlaybackStartupTimeout:promise=>promise,withPlaybackMediaError:(video, playAction)=>playAction(),
         isMaxQualityEnabled:()=>false, setMaxQualityEnabled(value){calls.push(['max',value]);},console};
     vm.createContext(context);
     vm.runInContext(functionSource('        const loadVideoJs =','        const loadShaka =')+'\nthis.loadVideoJs=loadVideoJs;this.refreshVideoJsTracks=refreshVideoJsTracks;',context);

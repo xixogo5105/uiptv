@@ -200,13 +200,49 @@ createApp({
         const strategyOverride = ref('auto');
         let strategyOverrideKey = '';
         let sharedHeader = null;
-        let playbackRequestId = 0;
-        let playbackFetchController = null;
         let playbackGestureResume = null;
         // Prevent overlapping startPlayback runs; if one is stuck, abort it so the next click can proceed.
         let playbackInFlight = false;
-        let currentPlaybackRequestId = 0;
-        const isCurrentPlaybackRequest = (requestId) => requestId == null || requestId === playbackRequestId;
+        const playbackRequestState = {
+            nextId: 0,
+            activeId: 0,
+            controller: null,
+            abort() {
+                const controller = this.controller;
+                this.controller = null;
+                if (!controller) return;
+                try {
+                    controller.abort();
+                } catch (_) {
+                    // Abort is best effort; the request token still supersedes the old work.
+                }
+            },
+            begin() {
+                this.abort();
+                const id = ++this.nextId;
+                const controller = new AbortController();
+                this.activeId = id;
+                this.controller = controller;
+                return {id, controller};
+            },
+            supersede() {
+                this.abort();
+                this.activeId = ++this.nextId;
+                return this.activeId;
+            },
+            currentId() {
+                return this.activeId;
+            },
+            isCurrent(requestId) {
+                return requestId == null || requestId === this.activeId;
+            },
+            finish(requestId, controller) {
+                if (!this.isCurrent(requestId)) return false;
+                if (this.controller === controller) this.controller = null;
+                return true;
+            }
+        };
+        const isCurrentPlaybackRequest = (requestId) => playbackRequestState.isCurrent(requestId);
         const throwIfPlaybackSuperseded = (requestId) => {
             if (isCurrentPlaybackRequest(requestId)) return;
             const error = new Error('Playback request superseded');
@@ -220,6 +256,21 @@ createApp({
                 timeoutId = setTimeout(() => reject(new Error(`${label} startup timed out`)), PLAYBACK_STARTUP_TIMEOUT_MS);
             });
             return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+        };
+        const withPlaybackMediaError = (video, playAction, label) => {
+            if (!video || typeof video.addEventListener !== 'function' || typeof video.removeEventListener !== 'function') {
+                return Promise.resolve().then(playAction);
+            }
+            let onError;
+            const mediaError = new Promise((_, reject) => {
+                onError = () => {
+                    const detail = video.error?.message || video.error?.code || 'media element error';
+                    reject(new Error(`${label} media error: ${detail}`));
+                };
+                video.addEventListener('error', onError, {once: true});
+            });
+            return Promise.race([Promise.resolve().then(playAction), mediaError])
+                .finally(() => video.removeEventListener('error', onError));
         };
         // UI debounce flag to briefly disable play buttons after a click to give feedback and avoid rapid duplicates.
         const playClicksDisabled = ref(false);
@@ -2279,8 +2330,8 @@ createApp({
 
         const broadcastIndicatorSrc = (broadcasting) => {
             return broadcasting
-                ? '/images/broadcast-on.svg?v=20261016a'
-                : '/images/broadcast-off.svg?v=20261016a';
+                ? '/images/broadcast-on.svg?v=20261017b'
+                : '/images/broadcast-off.svg?v=20261017b';
         };
 
         const selectAccount = async (account) => {
@@ -3250,78 +3301,68 @@ createApp({
         };
 
         const startPlayback = async (url, nextChannel = null, options = {}) => {
-            const requestId = ++playbackRequestId;
-            // If another startPlayback is already running, abort it and process this request instead.
-            if (playbackInFlight) {
-                if (playbackFetchController) {
-                    try { playbackFetchController.abort(); } catch (_) {}
-                    playbackFetchController = null;
-                }
-                // Fully reset video element to prevent blank screen on rapid stream switch
-                const video = ensureVideoElement();
-                if (video) {
-                    video.pause();
-                    video.removeAttribute('src');
-                    video.src = '';
-                    video.load();
-                }
-                await stopPlayback(true);
-                // Small delay to let cleanup complete before starting the new request.
-                await new Promise(resolve => setTimeout(resolve, 50));
-            }
-            playbackInFlight = true;
-            currentPlaybackRequestId = requestId;
-
-            controlsVisible.value = true;
-            playerManuallyHidden.value = false;
-            const targetChannel = nextChannel ? {...nextChannel} : currentChannel.value;
-            const switching = targetChannel && currentChannel.value && !isSamePlaybackTarget(currentChannel.value, targetChannel);
-            if (switching) {
-                await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true, hideControls: false});
-            }
-            if (options.expandPlayer === true) {
-                playerExpanded.value = true;
-            }
-            if (playbackFetchController) {
-                try {
-                    playbackFetchController.abort();
-                } catch (_) {
-                }
-                playbackFetchController = null;
-            }
-            const controller = new AbortController();
-            playbackFetchController = controller;
-            const channelKey = buildStrategyKey(targetChannel);
-            if (channelKey && channelKey !== strategyOverrideKey) {
-                strategyOverride.value = 'auto';
-                strategyOverrideKey = channelKey;
-            }
-            pendingPlaybackKey.value = buildPlaybackTargetKey({
-                id: targetChannel?.channelId || targetChannel?.id || '',
-                accountId: targetChannel?.accountId || '',
-                accountName: targetChannel?.accountName || '',
-                mode: targetChannel?.mode || '',
-                season: targetChannel?.season || '',
-                episodeNum: targetChannel?.episodeNum || '',
-                bookmarkId: targetChannel?.bookmarkId || ''
-            });
-            playbackLoading.value = true;
-            playbackMode.value = 'loading';
-            playbackError.value = '';
-            clearPlaybackGestureRequirement();
-            const channelDataPromise = fetch(url, {signal: controller.signal}).then(response => response.json());
-            if (!switching) {
-                await stopPlayback(true);
-                await new Promise(resolve => setTimeout(resolve, 80));
-            }
-            if (requestId !== playbackRequestId) return;
-            currentChannel.value = targetChannel;
-            isPlaying.value = true;
-            if (epgPlaybackOnly.value) refreshPlayerEpg(true);
-
+            const request = playbackRequestState.begin();
+            const requestId = request.id;
+            const controller = request.controller;
             try {
-                const channelData = await channelDataPromise;
-                if (requestId !== playbackRequestId) return;
+                // If another startPlayback is already running, abort it and process this request instead.
+                if (playbackInFlight) {
+                    // Fully reset video element to prevent blank screen on rapid stream switch.
+                    const video = ensureVideoElement();
+                    if (video) {
+                        video.pause();
+                        video.removeAttribute('src');
+                        video.src = '';
+                        video.load();
+                    }
+                    await stopPlayback(true);
+                    // Small delay to let cleanup complete before starting the new request.
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
+                playbackInFlight = true;
+
+                controlsVisible.value = true;
+                playerManuallyHidden.value = false;
+                const targetChannel = nextChannel ? {...nextChannel} : currentChannel.value;
+                const switching = targetChannel && currentChannel.value && !isSamePlaybackTarget(currentChannel.value, targetChannel);
+                if (switching) {
+                    await stopPlaybackAndHide({reason: 'switch', notify: true, resetStrategy: true, hideControls: false, invalidateRequest: false});
+                }
+                if (options.expandPlayer === true) {
+                    playerExpanded.value = true;
+                }
+                const channelKey = buildStrategyKey(targetChannel);
+                if (channelKey && channelKey !== strategyOverrideKey) {
+                    strategyOverride.value = 'auto';
+                    strategyOverrideKey = channelKey;
+                }
+                pendingPlaybackKey.value = buildPlaybackTargetKey({
+                    id: targetChannel?.channelId || targetChannel?.id || '',
+                    accountId: targetChannel?.accountId || '',
+                    accountName: targetChannel?.accountName || '',
+                    mode: targetChannel?.mode || '',
+                    season: targetChannel?.season || '',
+                    episodeNum: targetChannel?.episodeNum || '',
+                    bookmarkId: targetChannel?.bookmarkId || ''
+                });
+                playbackLoading.value = true;
+                playbackMode.value = 'loading';
+                playbackError.value = '';
+                clearPlaybackGestureRequirement();
+                if (!switching) {
+                    await stopPlayback(true);
+                    await new Promise(resolve => setTimeout(resolve, 80));
+                }
+                if (!isCurrentPlaybackRequest(requestId)) return;
+                currentChannel.value = targetChannel;
+                isPlaying.value = true;
+                if (epgPlaybackOnly.value) refreshPlayerEpg(true);
+                const response = await fetch(url, {signal: controller.signal});
+                if (!response.ok) {
+                    throw new Error(`Playback request failed (${response.status})`);
+                }
+                const channelData = await response.json();
+                if (!isCurrentPlaybackRequest(requestId)) return;
                 syncBingeWatchState(channelData);
                 await initPlayer(channelData, requestId);
                 if (currentChannel.value?.mode === 'series') {
@@ -3331,6 +3372,7 @@ createApp({
             } catch (e) {
                 if (e?.name === 'AbortError') return;
                 if (isInterruptedPlaybackError(e)) return;
+                if (!isCurrentPlaybackRequest(requestId)) return;
                 if (isBrowserUnsupportedMediaError(e)) {
                     console.warn(`Failed to start playback: ${e?.message || e}`);
                 } else {
@@ -3339,29 +3381,21 @@ createApp({
                 playbackError.value = `Playback failed: ${e?.message || 'Unknown error'}`;
                 isPlaying.value = false;
             } finally {
-                if (requestId === currentPlaybackRequestId) {
+                if (playbackRequestState.finish(requestId, controller)) {
                     playbackLoading.value = false;
                     if (!isPlaying.value) {
                         playbackMode.value = '';
                     }
                     pendingPlaybackKey.value = '';
-                    if (playbackFetchController === controller) {
-                        playbackFetchController = null;
-                    }
-
-                    // Ensure the in-flight flag is cleared.
                     playbackInFlight = false;
                 }
             }
         };
 
-        const stopPlayback = async (preserveUi = false) => {
-            if (!preserveUi && playbackFetchController) {
-                try {
-                    playbackFetchController.abort();
-                } catch (_) {
-                }
-                playbackFetchController = null;
+        const stopPlayback = async (preserveUi = false, invalidateRequest = !preserveUi) => {
+            if (!preserveUi && invalidateRequest) {
+                playbackRequestState.supersede();
+                playbackInFlight = false;
                 pendingPlaybackKey.value = '';
             }
             if (playerInstance.value) {
@@ -3458,6 +3492,7 @@ createApp({
             const reason = options.reason || 'stop';
             const resetStrategy = options.resetStrategy !== false;
             const hideControls = options.hideControls !== false;
+            const invalidateRequest = options.invalidateRequest !== false;
             if (notify) {
                 notifyPlayerClosed(reason);
             }
@@ -3476,10 +3511,10 @@ createApp({
             }
             playerExpanded.value = false;
             playerManuallyHidden.value = false;
-            await stopPlayback(false);
+            await stopPlayback(false, invalidateRequest);
         };
 
-        const initPlayer = async (channel, requestId = playbackRequestId) => {
+        const initPlayer = async (channel, requestId = playbackRequestState.currentId()) => {
             throwIfPlaybackSuperseded(requestId);
             const uri = channel.url;
             if (!uri) {
@@ -3489,7 +3524,7 @@ createApp({
                 return;
             }
 
-            const initRequestId = playbackRequestId;
+            const initRequestId = playbackRequestState.currentId();
             await nextTick();
             throwIfPlaybackSuperseded(requestId);
             try {
@@ -3498,7 +3533,7 @@ createApp({
                 console.warn('Modern controls unavailable; retaining native playback', error);
             }
 
-            if (initRequestId !== playbackRequestId) return;
+            if (!isCurrentPlaybackRequest(initRequestId)) return;
             const video = ensureVideoElement();
             if (!video) {
                 console.error('Video element not found.');
@@ -3599,7 +3634,7 @@ createApp({
             }
         };
 
-        const tryProxyPlaybackFallback = async (channel, preferShaka, previousError, requestId = playbackRequestId) => {
+        const tryProxyPlaybackFallback = async (channel, preferShaka, previousError, requestId = playbackRequestState.currentId()) => {
             throwIfPlaybackSuperseded(requestId);
             const sourceUrl = String(channel?.url || '').trim();
             const proxyUrl = buildProxyStreamUrl(sourceUrl, channel.accountId);
@@ -3662,7 +3697,7 @@ createApp({
             }
         };
 
-        const loadMpegTs = async (channel, requestId = playbackRequestId) => {
+        const loadMpegTs = async (channel, requestId = playbackRequestState.currentId()) => {
             throwIfPlaybackSuperseded(requestId);
             await nextTick();
             throwIfPlaybackSuperseded(requestId);
@@ -3753,7 +3788,7 @@ createApp({
             }
         };
 
-        const loadNative = async (channel, requestId = playbackRequestId) => {
+        const loadNative = async (channel, requestId = playbackRequestState.currentId()) => {
             throwIfPlaybackSuperseded(requestId);
             await nextTick();
             throwIfPlaybackSuperseded(requestId);
@@ -3765,7 +3800,10 @@ createApp({
             let sourceUrl = normalizeWebPlaybackUrl(channel.url);
             video.src = sourceUrl;
             try {
-                const started = await withPlaybackStartupTimeout(playWithGestureFallback(() => video.play()), 'Native');
+                const started = await withPlaybackStartupTimeout(
+                    withPlaybackMediaError(video, () => playWithGestureFallback(() => video.play()), 'Native'),
+                    'Native'
+                );
                 throwIfPlaybackSuperseded(requestId);
                 playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
                 if (!started) return;
@@ -3785,7 +3823,10 @@ createApp({
                         parsed.searchParams.set('_retry', String(Date.now()));
                         sourceUrl = parsed.toString();
                         video.src = sourceUrl;
-                        const started = await withPlaybackStartupTimeout(playWithGestureFallback(() => video.play()), 'Proxy');
+                        const started = await withPlaybackStartupTimeout(
+                            withPlaybackMediaError(video, () => playWithGestureFallback(() => video.play()), 'Proxy'),
+                            'Proxy'
+                        );
                         throwIfPlaybackSuperseded(requestId);
                         playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
                         if (!started) return;
@@ -3802,7 +3843,10 @@ createApp({
                     try {
                         sourceUrl = downgraded;
                         video.src = sourceUrl;
-                        const started = await withPlaybackStartupTimeout(playWithGestureFallback(() => video.play()), 'HTTP fallback');
+                        const started = await withPlaybackStartupTimeout(
+                            withPlaybackMediaError(video, () => playWithGestureFallback(() => video.play()), 'HTTP fallback'),
+                            'HTTP fallback'
+                        );
                         throwIfPlaybackSuperseded(requestId);
                         playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'native');
                         if (!started) return;
@@ -3823,7 +3867,7 @@ createApp({
         const normalizeWebPlaybackUrl = (rawUrl) => playbackUtils.normalizeWebPlaybackUrl(rawUrl);
         const downgradeHttpsToHttpForKnownPaths = (url) => playbackUtils.downgradeHttpsToHttpForKnownPaths(url);
 
-        const loadVideoJs = async (channel, requestId = playbackRequestId) => {
+        const loadVideoJs = async (channel, requestId = playbackRequestState.currentId()) => {
             await window.UIPTVModernPlayer.ready();
             await nextTick();
             throwIfPlaybackSuperseded(requestId);
@@ -3854,7 +3898,10 @@ createApp({
                 video.src = sourceUrl;
             }
             try {
-                await withPlaybackStartupTimeout(playWithGestureFallback(() => video.play()), 'Video.js');
+                await withPlaybackStartupTimeout(
+                    withPlaybackMediaError(video, () => playWithGestureFallback(() => video.play()), 'Video.js'),
+                    'Video.js'
+                );
                 throwIfPlaybackSuperseded(requestId);
                 playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'videojs');
                 refreshVideoJsTracks(player);
@@ -3897,7 +3944,7 @@ createApp({
             selectedTextTrackId.value = String(nextTextTracks.find(track => track.active)?.id || 'off');
         };
 
-        const loadShaka = async (channel, requestId = playbackRequestId) => {
+        const loadShaka = async (channel, requestId = playbackRequestState.currentId()) => {
             throwIfPlaybackSuperseded(requestId);
             await nextTick();
             throwIfPlaybackSuperseded(requestId);
