@@ -555,7 +555,13 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
     private void applyEpgMode() {
         bookmarkPageScroll.setVisible(true); bookmarkPageScroll.setManaged(true);
-        applyBookmarkGridDisplayMode(thumbnailsEnabled); bookmarkGrid.refresh(); cardEpg.queue();
+        applyBookmarkGridDisplayMode(thumbnailsEnabled);
+        // Rebind the current items through the same full card lifecycle used
+        // during startup. A lightweight refresh can leave virtual cards that
+        // were created in playback-only mode without an EPG panel after the
+        // mode is switched back while this page is already alive.
+        bookmarkGrid.setItems(bookmarkGrid.getItems());
+        cardEpg.queue();
     }
 
     private VBox createHeaderArea() {
