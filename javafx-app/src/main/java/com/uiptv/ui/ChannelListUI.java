@@ -4,6 +4,7 @@ import com.uiptv.model.*;
 import com.uiptv.service.*;
 import com.uiptv.shared.EpisodeList;
 import com.uiptv.ui.util.UiI18n;
+import com.uiptv.ui.util.ImageCacheManager;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ServerUrlUtil;
 import com.uiptv.util.StringUtils;
@@ -1129,7 +1130,8 @@ public class ChannelListUI extends HBox implements SearchTarget {
         WatchingNowVodResolver.VodMetadata vodMetadata = resolveVodMetadata(item);
         String posterUrl = firstNonBlank(item == null ? "" : item.getLogo(), vodMetadata == null ? "" : normalizeImageUrl(vodMetadata.getLogo()));
         ImageView poster = thumbnailsEnabled
-                ? SeriesCardUiSupport.createFitPoster(posterUrl, 136, 204, IMAGE_CACHE_KEY_CHANNEL)
+                ? SeriesCardUiSupport.createFitPoster(posterUrl, 136, 204, IMAGE_CACHE_KEY_CHANNEL,
+                ImageCacheManager.ImageProfile.MEDIA_ARTWORK)
                 : null;
 
         Button actionButton = createActionButton(item);

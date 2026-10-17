@@ -1954,7 +1954,13 @@ public class ConfigurationUI extends VBox {
         return !Objects.equals(service.normalizeVlcCachingMs(previous.getVlcNetworkCachingMs()), service.normalizeVlcCachingMs(current.getVlcNetworkCachingMs()))
                 || !Objects.equals(service.normalizeVlcCachingMs(previous.getVlcLiveCachingMs()), service.normalizeVlcCachingMs(current.getVlcLiveCachingMs()))
                 || previous.isEnableVlcHttpUserAgent() != current.isEnableVlcHttpUserAgent()
-                || previous.isEnableVlcHttpForwardCookies() != current.isEnableVlcHttpForwardCookies();
+                || previous.isEnableVlcHttpForwardCookies() != current.isEnableVlcHttpForwardCookies()
+                || previous.isVlcNoVideoTitleShow() != current.isVlcNoVideoTitleShow()
+                || previous.isVlcQuiet() != current.isVlcQuiet()
+                || previous.isVlcHttpReconnect() != current.isVlcHttpReconnect()
+                || previous.isVlcAdaptiveUseAccess() != current.isVlcAdaptiveUseAccess()
+                || !Objects.equals(previous.getVlcVout(), current.getVlcVout())
+                || !Objects.equals(previous.getVlcAvcodecHw(), current.getVlcAvcodecHw());
     }
 
     private void updateVlcOptionsLinkVisibility() {

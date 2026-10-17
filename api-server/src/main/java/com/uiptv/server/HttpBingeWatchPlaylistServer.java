@@ -19,16 +19,16 @@ public class HttpBingeWatchPlaylistServer implements HttpHandler {
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         String token = getParam(exchange, "token");
-        AppLog.addInfoLog(HttpBingeWatchPlaylistServer.class, LOG_PREFIX + "HTTP playlist request token=" + (token == null ? "" : token));
+        AppLog.addInfoLog(HttpBingeWatchPlaylistServer.class, LOG_PREFIX + "HTTP playlist request");
         String playlist = BingeWatchService.getInstance().renderPlaylist(token);
         if (isBlank(token) || isBlank(playlist)) {
-            AppLog.addWarningLog(HttpBingeWatchPlaylistServer.class, LOG_PREFIX + "HTTP playlist request failed token=" + (token == null ? "" : token));
+            AppLog.addWarningLog(HttpBingeWatchPlaylistServer.class, LOG_PREFIX + "HTTP playlist request failed");
             exchange.sendResponseHeaders(404, -1);
             return;
         }
-        AppLog.addInfoLog(HttpBingeWatchPlaylistServer.class, LOG_PREFIX + "HTTP playlist response token=" + token + " length=" + playlist.length());
+        AppLog.addInfoLog(HttpBingeWatchPlaylistServer.class, LOG_PREFIX + "HTTP playlist response length=" + playlist.length());
         setActivityDescription(exchange, token);
-        generateM3u8Response(exchange, playlist, "binge-watch-" + token + ".m3u8");
+        generateM3u8Response(exchange, playlist, "binge-watch.m3u8");
     }
 
     private void setActivityDescription(HttpExchange exchange, String token) {

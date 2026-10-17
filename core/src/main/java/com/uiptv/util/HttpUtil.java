@@ -31,6 +31,7 @@ import java.io.Reader;
 import java.net.URI;
 import java.net.URL;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.charset.Charset;
 import java.time.Duration;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
@@ -50,6 +52,10 @@ import java.util.stream.Collectors;
 public class HttpUtil {
     private static final int MAX_LOG_BODY_CHARS = Integer.getInteger("uiptv.http.log.max.body.chars", 4000);
     private static final List<String> SENSITIVE_HEADERS = List.of("authorization", "cookie", "set-cookie", "proxy-authorization");
+    private static final Set<String> SENSITIVE_QUERY_KEYS = Set.of(
+            "authorization", "auth", "cookie", "key", "mac", "pass", "password", "play_token",
+            "pwd", "secret", "session", "sessionid", "signature", "token", "user", "username"
+    );
 
     private HttpUtil() {
     }
@@ -190,7 +196,7 @@ public class HttpUtil {
         out.append("HTTP ")
                 .append(nonBlank(response.requestMethod(), "GET"))
                 .append(' ')
-                .append(nonBlank(response.requestUri(), nonBlank(requestUrl, "<unknown>")))
+                .append(sanitizeUrlForLog(nonBlank(response.requestUri(), nonBlank(requestUrl, "<unknown>"))))
                 .append(System.lineSeparator());
         out.append("Status: ").append(response.statusCode()).append(System.lineSeparator());
 
@@ -216,8 +222,64 @@ public class HttpUtil {
     private static String formatParams(Map<String, String> params) {
         return params.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey(String.CASE_INSENSITIVE_ORDER))
-                .map(entry -> entry.getKey() + "=" + quote(entry.getValue()))
+                .map(entry -> entry.getKey() + "=" + quote(isSensitiveQueryKey(entry.getKey()) ? "<redacted>" : entry.getValue()))
                 .collect(Collectors.joining(System.lineSeparator()));
+    }
+
+    /**
+     * Keep URLs useful in diagnostics without writing provider credentials, tokens, or MACs to logs.
+     */
+    public static String sanitizeUrlForLog(String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) {
+            return rawUrl;
+        }
+        try {
+            URI uri = URI.create(rawUrl);
+            StringBuilder result = new StringBuilder();
+            if (uri.getScheme() != null) {
+                result.append(uri.getScheme()).append(':');
+            }
+            if (uri.getRawAuthority() != null) {
+                String authority = uri.getRawAuthority();
+                int at = authority.indexOf('@');
+                if (at >= 0) {
+                    authority = "<redacted>@" + authority.substring(at + 1);
+                }
+                result.append("//").append(authority);
+            }
+            if (uri.getRawPath() != null) {
+                result.append(uri.getRawPath());
+            }
+            if (uri.getRawQuery() != null) {
+                result.append('?').append(redactQuery(uri.getRawQuery()));
+            }
+            if (uri.getRawFragment() != null) {
+                result.append('#').append(uri.getRawFragment());
+            }
+            return result.toString();
+        } catch (IllegalArgumentException ex) {
+            return "<unparseable-url>";
+        }
+    }
+
+    private static String redactQuery(String rawQuery) {
+        return java.util.Arrays.stream(rawQuery.split("&", -1))
+                .map(part -> {
+                    int equals = part.indexOf('=');
+                    String rawKey = equals < 0 ? part : part.substring(0, equals);
+                    String key;
+                    try {
+                        key = URLDecoder.decode(rawKey, StandardCharsets.UTF_8);
+                    } catch (IllegalArgumentException ex) {
+                        key = rawKey;
+                    }
+                    return isSensitiveQueryKey(key) ? rawKey + "=<redacted>" : part;
+                })
+                .collect(Collectors.joining("&"));
+    }
+
+    private static boolean isSensitiveQueryKey(String key) {
+        return key != null && SENSITIVE_QUERY_KEYS.contains(key.replace('-', '_').toLowerCase(Locale.ROOT));
     }
 
     private static String formatHeaders(Map<String, List<String>> headers) {
@@ -382,7 +444,7 @@ public class HttpUtil {
                         parsed.getRef()
                 );
             } catch (Exception e) {
-                AppLog.addErrorLog(HttpUtil.class, "Failed to create URI from URL: " + normalized + ". Error: " + e.getMessage());
+                AppLog.addErrorLog(HttpUtil.class, "Failed to create URI from URL: " + sanitizeUrlForLog(normalized) + ". Error: " + e.getMessage());
                 throw original;
             }
         }

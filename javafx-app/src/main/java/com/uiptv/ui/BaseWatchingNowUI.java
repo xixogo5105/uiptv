@@ -618,7 +618,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     private HBox createSeriesListCard(SeriesPanelData data) {
         ImageView poster = null;
         if (thumbnailsEnabled()) {
-            poster = SeriesCardUiSupport.createFitPoster(resolveSeriesPosterUrl(data), 136, 204, WATCHING_NOW_CACHE);
+            poster = SeriesCardUiSupport.createFitPoster(resolveSeriesPosterUrl(data), 136, 204,
+                    WATCHING_NOW_CACHE, ImageCacheManager.ImageProfile.MEDIA_ARTWORK);
             data.seriesListPosterNode = poster;
             loadSeriesListPosterImage(data);
         } else {
@@ -909,7 +910,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
 
         StackPane posterWrap = null;
         if (thumbnailsEnabled()) {
-            ImageView poster = SeriesCardUiSupport.createFitPoster(resolveSeriesPosterUrl(data), 260, 390, WATCHING_NOW_CACHE);
+            ImageView poster = SeriesCardUiSupport.createFitPoster(resolveSeriesPosterUrl(data), 260, 390,
+                    WATCHING_NOW_CACHE, ImageCacheManager.ImageProfile.MEDIA_ARTWORK);
             data.seriesPosterNode = poster;
             posterWrap = new StackPane(poster);
             posterWrap.getStyleClass().add("watching-now-series-poster-wrap");
@@ -1626,7 +1628,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         HBox top = new HBox(10);
         top.setAlignment(Pos.TOP_LEFT);
 
-        ImageView poster = SeriesCardUiSupport.createFitPoster(row.imageUrl, 96, 136, WATCHING_NOW_CACHE);
+        ImageView poster = SeriesCardUiSupport.createFitPoster(row.imageUrl, 96, 96,
+                WATCHING_NOW_CACHE, ImageCacheManager.ImageProfile.THUMBNAIL);
         StackPane posterWrap = new StackPane(poster);
         posterWrap.setAlignment(Pos.CENTER);
         posterWrap.setMinWidth(110);
@@ -2226,7 +2229,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (isBlank(cover)) {
             return;
         }
-        ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE, data.account).thenAccept(img -> {
+        ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE, data.account,
+                ImageCacheManager.ImageProfile.MEDIA_ARTWORK).thenAccept(img -> {
             if (img != null) {
                 Platform.runLater(() -> {
                     if (data.seriesPosterNode != null) {
@@ -2245,7 +2249,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (isBlank(cover)) {
             return;
         }
-        ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE, data.account).thenAccept(img -> {
+        ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE, data.account,
+                ImageCacheManager.ImageProfile.MEDIA_ARTWORK).thenAccept(img -> {
             if (img != null) {
                 Platform.runLater(() -> {
                     if (data.seriesListPosterNode != null) {
@@ -2702,7 +2707,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         if (selected.seriesPosterNode != null) {
             String cover = resolveSeriesPosterUrl(selected);
             if (!isBlank(cover)) {
-                ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE, selected.account).thenAccept(img -> {
+                ImageCacheManager.loadImageAsync(cover, WATCHING_NOW_CACHE, selected.account,
+                        ImageCacheManager.ImageProfile.MEDIA_ARTWORK).thenAccept(img -> {
                     if (img != null) {
                         Platform.runLater(() -> {
                             if (selected.seriesPosterNode != null) {

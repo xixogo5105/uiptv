@@ -416,7 +416,8 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
 
         ImageView poster = ThumbnailAwareUI.areThumbnailsEnabled()
-                ? SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 136, 204, VOD_WATCHING_NOW_CACHE)
+                ? SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 136, 204,
+                VOD_WATCHING_NOW_CACHE, ImageCacheManager.ImageProfile.MEDIA_ARTWORK)
                 : null;
         List<Label> metadataNodes = createMetadataNodes(data);
         WatchingNowMediaCardFactory.CardNodes cardNodes = WatchingNowMediaCardFactory.builder(WatchingNowMediaCardFactory.CardType.VOD)
@@ -519,7 +520,8 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         panel.setPrefWidth(330);
         panel.setMaxWidth(380);
 
-        ImageView poster = SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 260, 390, VOD_WATCHING_NOW_CACHE);
+        ImageView poster = SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 260, 390,
+                VOD_WATCHING_NOW_CACHE, ImageCacheManager.ImageProfile.MEDIA_ARTWORK);
         data.detailPosterNode = poster;
         StackPane posterWrap = new StackPane(poster);
         posterWrap.getStyleClass().add("watching-now-series-poster-wrap");
@@ -574,7 +576,8 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
             return;
         }
         if (data.detailPosterNode != null && !isBlank(data.metadata.coverUrl)) {
-            ImageCacheManager.loadImageAsync(data.metadata.coverUrl, VOD_WATCHING_NOW_CACHE, data.account).thenAccept(image -> {
+            ImageCacheManager.loadImageAsync(data.metadata.coverUrl, VOD_WATCHING_NOW_CACHE, data.account,
+                    ImageCacheManager.ImageProfile.MEDIA_ARTWORK).thenAccept(image -> {
                 if (image != null) {
                     Platform.runLater(() -> {
                         if (data.detailPosterNode != null) {

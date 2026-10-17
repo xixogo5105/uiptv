@@ -527,7 +527,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
     private void logTransportFailure(String operation, FetchAPI.FetchResult result, LoggerCallback logger) {
         String message = "Stalker " + operation + " request failed (status=" + result.statusCode() + "): "
                 + result.failureReason()
-                + (isNotBlank(result.endpoint()) ? " [" + result.endpoint() + "]" : "");
+                + (isNotBlank(result.endpoint()) ? " [" + com.uiptv.util.HttpUtil.sanitizeUrlForLog(result.endpoint()) + "]" : "");
         // Surface in the per-account reload panel as well as the global log: "no channels loaded"
         // is otherwise indistinguishable from a provider that is simply empty or unreachable.
         log(logger, message);

@@ -50,6 +50,32 @@ public class ImageCacheManager {
     private ImageCacheManager() {
     }
 
+    /** Decode quality selected by the UI surface using the image. */
+    public enum ImageProfile {
+        THUMBNAIL("thumbnail", 96, 96),
+        // A 2x Retina-sized poster/detail decode without retaining full
+        // provider artwork in JavaFX's native texture memory.
+        MEDIA_ARTWORK("media-artwork", 512, 768);
+
+        private final String cacheSegment;
+        private final int maxWidth;
+        private final int maxHeight;
+
+        ImageProfile(String cacheSegment, int maxWidth, int maxHeight) {
+            this.cacheSegment = cacheSegment;
+            this.maxWidth = maxWidth;
+            this.maxHeight = maxHeight;
+        }
+
+        public int maxWidth() {
+            return maxWidth;
+        }
+
+        public int maxHeight() {
+            return maxHeight;
+        }
+    }
+
     private static final long NEGATIVE_CACHE_MS_404 = 5L * 60L * 1000L;
     private static final long NEGATIVE_CACHE_MS_ERROR = 15L * 1000L;
     private static final long NEGATIVE_CACHE_MS_429_DEFAULT = 90L * 1000L;
@@ -57,10 +83,20 @@ public class ImageCacheManager {
     // objects. Keep the process-wide cache deliberately small; disk cache and
     // the normal async reload path still avoid repeated network work.
     private static final long MAX_MEMORY_IMAGE_BYTES = Long.getLong(
-            "uiptv.image.cache.max.bytes", 24L * 1024 * 1024);
-    private static final int MAX_MEMORY_IMAGES = Integer.getInteger("uiptv.image.cache.max.entries", 256);
-    private static final int MAX_IMAGE_DECODE_WIDTH = Integer.getInteger("uiptv.image.decode.max.width", 640);
-    private static final int MAX_IMAGE_DECODE_HEIGHT = Integer.getInteger("uiptv.image.decode.max.height", 640);
+            "uiptv.image.cache.max.bytes", 8L * 1024 * 1024);
+    private static final int MAX_MEMORY_IMAGES = Integer.getInteger("uiptv.image.cache.max.entries", 128);
+    private static final long MAX_MEDIA_MEMORY_IMAGE_BYTES = Long.getLong(
+            "uiptv.image.media.cache.max.bytes", 16L * 1024 * 1024);
+    private static final int MAX_MEDIA_MEMORY_IMAGES = Integer.getInteger(
+            "uiptv.image.media.cache.max.entries", 12);
+    // Ordinary logos and compact cards stay cheap; media artwork uses its own
+    // larger, independently bounded profile.
+    private static final int MAX_IMAGE_DECODE_WIDTH = Integer.getInteger("uiptv.image.decode.max.width", 96);
+    private static final int MAX_IMAGE_DECODE_HEIGHT = Integer.getInteger("uiptv.image.decode.max.height", 96);
+    private static final int MAX_MEDIA_IMAGE_DECODE_WIDTH = Integer.getInteger(
+            "uiptv.image.media.decode.max.width", ImageProfile.MEDIA_ARTWORK.maxWidth());
+    private static final int MAX_MEDIA_IMAGE_DECODE_HEIGHT = Integer.getInteger(
+            "uiptv.image.media.decode.max.height", ImageProfile.MEDIA_ARTWORK.maxHeight());
     private static final int MAX_IMAGE_DOWNLOAD_BYTES = Math.max(64 * 1024,
             Integer.getInteger("uiptv.image.download.max.bytes", 8 * 1024 * 1024));
     private static final int IMAGE_LOADER_THREADS = Math.max(1, Integer.getInteger("uiptv.image.loader.threads", 4));
@@ -137,6 +173,13 @@ public class ImageCacheManager {
                     return size() > MAX_MEMORY_IMAGES;
                 }
             });
+    private static final Map<String, Image> MEDIA_IMAGE_CACHE = Collections.synchronizedMap(
+            new LinkedHashMap<>(32, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Image> eldest) {
+                    return size() > MAX_MEDIA_MEMORY_IMAGES;
+                }
+            });
     private static final Map<String, CompletableFuture<Image>> LOADING_TASKS = new ConcurrentHashMap<>();
     private static final ThreadFactory IMAGE_LOADER_FACTORY = runnable -> {
         Thread thread = new Thread(runnable, "uiptv-image-loader");
@@ -186,15 +229,21 @@ public class ImageCacheManager {
     );
 
     public static CompletableFuture<Image> loadImageAsync(String url, String caller) {
-        return loadImageAsync(url, caller, null);
+        return loadImageAsync(url, caller, null, ImageProfile.THUMBNAIL);
     }
 
     private static void cacheImage(String key, Image image) {
-        synchronized (IMAGE_CACHE) {
-            IMAGE_CACHE.put(key, image);
-            double bytes = IMAGE_CACHE.values().stream().mapToDouble(value -> value.getWidth() * value.getHeight() * 4).sum();
-            var entries = IMAGE_CACHE.entrySet().iterator();
-            while (entries.hasNext() && bytes > MAX_MEMORY_IMAGE_BYTES) {
+        cacheImage(key, image, ImageProfile.THUMBNAIL);
+    }
+
+    private static void cacheImage(String key, Image image, ImageProfile profile) {
+        Map<String, Image> cache = cacheFor(profile);
+        synchronized (cache) {
+            cache.put(key, image);
+            double bytes = cache.values().stream().mapToDouble(value -> value.getWidth() * value.getHeight() * 4).sum();
+            var entries = cache.entrySet().iterator();
+            long memoryBudget = memoryBudgetFor(profile);
+            while (entries.hasNext() && bytes > memoryBudget) {
                 Image removed = entries.next().getValue();
                 bytes -= removed.getWidth() * removed.getHeight() * 4;
                 entries.remove();
@@ -206,11 +255,21 @@ public class ImageCacheManager {
         return IMAGE_CACHE.get(cacheKey);
     }
 
+    public static Image getCachedImage(String cacheKey, ImageProfile profile) {
+        return cacheFor(profile).get(cacheKey);
+    }
+
     public static CompletableFuture<Image> loadImageAsync(String url, String caller, Account account) {
+        return loadImageAsync(url, caller, account, ImageProfile.THUMBNAIL);
+    }
+
+    public static CompletableFuture<Image> loadImageAsync(
+            String url, String caller, Account account, ImageProfile profile) {
         // Return immediately when thumbnails disabled
         if (!ThumbnailAwareUI.areThumbnailsEnabled()) {
             return CompletableFuture.completedFuture(null);
         }
+        ImageProfile effectiveProfile = profile == null ? ImageProfile.THUMBNAIL : profile;
         String normalizedCaller = normalizeCaller(caller);
         String normalizedUrl = normalizeLoadUrl(url, account);
         if (normalizedUrl.isBlank()) {
@@ -219,7 +278,7 @@ public class ImageCacheManager {
         if (!isSupportedImageUrl(normalizedUrl)) {
             return CompletableFuture.completedFuture(null);
         }
-        String cacheKey = normalizedCaller + ":" + normalizedUrl;
+        String cacheKey = buildCacheKey(normalizedCaller, normalizedUrl, effectiveProfile);
         trimTransientCachesIfNeeded();
         long now = System.currentTimeMillis();
         Long blockedUntil = NEGATIVE_CACHE_UNTIL.get(cacheKey);
@@ -230,15 +289,16 @@ public class ImageCacheManager {
             NEGATIVE_CACHE_UNTIL.remove(cacheKey, blockedUntil);
         }
 
-        Image cached = IMAGE_CACHE.get(cacheKey);
+        Image cached = cacheFor(effectiveProfile).get(cacheKey);
         if (cached != null) {
             return CompletableFuture.completedFuture(cached);
         }
 
-        return startImageLoad(normalizedUrl, cacheKey, normalizedCaller);
+        return startImageLoad(normalizedUrl, cacheKey, normalizedCaller, effectiveProfile);
     }
 
-    private static CompletableFuture<Image> startImageLoad(String url, String cacheKey, String normalizedCaller) {
+    private static CompletableFuture<Image> startImageLoad(
+            String url, String cacheKey, String normalizedCaller, ImageProfile profile) {
         CompletableFuture<Image> existing = LOADING_TASKS.get(cacheKey);
         if (existing != null) {
             return existing;
@@ -255,7 +315,7 @@ public class ImageCacheManager {
                 if (future.isCancelled() || Thread.currentThread().isInterrupted()) {
                     return;
                 }
-                Image image = loadImageInBackground(url, cacheKey, normalizedCaller);
+                Image image = loadImageInBackground(url, cacheKey, normalizedCaller, profile);
                 if (!future.isCancelled()) {
                     future.complete(image);
                 }
@@ -283,11 +343,12 @@ public class ImageCacheManager {
         return future;
     }
 
-    private static Image loadImageInBackground(String url, String cacheKey, String normalizedCaller) {
+    private static Image loadImageInBackground(
+            String url, String cacheKey, String normalizedCaller, ImageProfile profile) {
         if (startsWithScheme(url, "data")) {
-            Image decoded = decodeInlineImage(url);
+            Image decoded = decodeInlineImage(url, profile);
             if (decoded != null) {
-                cacheImage(cacheKey, decoded);
+                cacheImage(cacheKey, decoded, profile);
                 NEGATIVE_CACHE_UNTIL.remove(cacheKey);
             } else {
                 NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
@@ -295,9 +356,9 @@ public class ImageCacheManager {
             return decoded;
         }
         if (startsWithScheme(url, "file")) {
-            Image decoded = decodeLocalImage(url);
+            Image decoded = decodeLocalImage(url, profile);
             if (decoded != null) {
-                cacheImage(cacheKey, decoded);
+                cacheImage(cacheKey, decoded, profile);
                 NEGATIVE_CACHE_UNTIL.remove(cacheKey);
             } else {
                 NEGATIVE_CACHE_UNTIL.put(cacheKey, System.currentTimeMillis() + NEGATIVE_CACHE_MS_ERROR);
@@ -305,14 +366,32 @@ public class ImageCacheManager {
             return decoded;
         }
 
-        Image diskCached = loadImageFromDisk(cacheKey, normalizedCaller);
+        Image diskCached = loadImageFromDisk(cacheKey, normalizedCaller, profile);
         if (diskCached != null) {
-            cacheImage(cacheKey, diskCached);
+            cacheImage(cacheKey, diskCached, profile);
             NEGATIVE_CACHE_UNTIL.remove(cacheKey);
             return diskCached;
         }
 
-        return fetchImageWithFallback(url, cacheKey, normalizedCaller);
+        return fetchImageWithFallback(url, cacheKey, normalizedCaller, profile);
+    }
+
+    private static String buildCacheKey(String normalizedCaller, String normalizedUrl, ImageProfile profile) {
+        if (profile == ImageProfile.THUMBNAIL) {
+            // Preserve existing thumbnail cache keys and disk entries.
+            return normalizedCaller + ":" + normalizedUrl;
+        }
+        return normalizedCaller + ":" + profile.cacheSegment + ":" + normalizedUrl;
+    }
+
+    private static Map<String, Image> cacheFor(ImageProfile profile) {
+        return profile == ImageProfile.MEDIA_ARTWORK ? MEDIA_IMAGE_CACHE : IMAGE_CACHE;
+    }
+
+    private static long memoryBudgetFor(ImageProfile profile) {
+        return profile == ImageProfile.MEDIA_ARTWORK
+                ? MAX_MEDIA_MEMORY_IMAGE_BYTES
+                : MAX_MEMORY_IMAGE_BYTES;
     }
 
     public static String normalizeLoadUrl(String url) {
@@ -338,21 +417,24 @@ public class ImageCacheManager {
         return url != null && url.regionMatches(true, 0, scheme + ":", 0, scheme.length() + 1);
     }
 
-    private static Image decodeLocalImage(String url) {
+    private static Image decodeLocalImage(String url, ImageProfile profile) {
         try {
             Path path = Path.of(URI.create(url));
+            if (!Files.isRegularFile(path) || Files.size(path) > MAX_IMAGE_DOWNLOAD_BYTES) {
+                return null;
+            }
             byte[] bytes = Files.readAllBytes(path);
             if (bytes.length == 0) {
                 return null;
             }
-            Image image = new Image(new ByteArrayInputStream(bytes), MAX_IMAGE_DECODE_WIDTH, MAX_IMAGE_DECODE_HEIGHT, true, true);
+            Image image = decode(bytes, profile);
             return image.isError() ? null : image;
         } catch (Exception _) {
             return null;
         }
     }
 
-    private static Image decodeInlineImage(String url) {
+    private static Image decodeInlineImage(String url, ImageProfile profile) {
         try {
             int commaIndex = url.indexOf(',');
             if (commaIndex <= 0 || commaIndex >= url.length() - 1) {
@@ -360,23 +442,26 @@ public class ImageCacheManager {
             }
             String metadata = url.substring(5, commaIndex);
             String payload = url.substring(commaIndex + 1);
+            if (payload.length() > (long) MAX_IMAGE_DOWNLOAD_BYTES * 2) {
+                return null;
+            }
             byte[] bytes = metadata.contains(";base64")
                     ? Base64.getDecoder().decode(payload)
                     : URLDecoder.decode(payload, java.nio.charset.StandardCharsets.UTF_8).getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            Image image = new Image(new ByteArrayInputStream(bytes), MAX_IMAGE_DECODE_WIDTH, MAX_IMAGE_DECODE_HEIGHT, true, true);
+            Image image = decode(bytes, profile);
             return image.isError() ? null : image;
         } catch (Exception _) {
             return null;
         }
     }
 
-    private static Image fetchImageWithFallback(String url, String cacheKey, String caller) {
+    private static Image fetchImageWithFallback(String url, String cacheKey, String caller, ImageProfile profile) {
         List<String> candidates = buildImageCandidates(url);
         int lastIndex = candidates.size() - 1;
 
         for (int i = 0; i < candidates.size(); i++) {
             String candidate = candidates.get(i);
-            Image image = tryFetchCandidateImage(candidate, cacheKey, caller, i == lastIndex);
+            Image image = tryFetchCandidateImage(candidate, cacheKey, caller, profile, i == lastIndex);
             if (image != null || Thread.currentThread().isInterrupted()) {
                 return image;
             }
@@ -384,13 +469,14 @@ public class ImageCacheManager {
         return null;
     }
 
-    private static Image tryFetchCandidateImage(String candidate, String cacheKey, String caller, boolean lastCandidate) {
+    private static Image tryFetchCandidateImage(
+            String candidate, String cacheKey, String caller, ImageProfile profile, boolean lastCandidate) {
         try {
-            ImagePayload payload = fetchSingleImage(candidate, lastCandidate);
+            ImagePayload payload = fetchSingleImage(candidate, profile, lastCandidate);
             if (payload == null || payload.image == null) {
                 return null;
             }
-            cacheImage(cacheKey, payload.image);
+            cacheImage(cacheKey, payload.image, profile);
             persistImageToDisk(cacheKey, caller, payload.bytes);
             NEGATIVE_CACHE_UNTIL.remove(cacheKey);
             return payload.image;
@@ -439,7 +525,8 @@ public class ImageCacheManager {
         logImageIssue(candidate, "Image HTTP status: " + e.statusCode);
     }
 
-    private static ImagePayload fetchSingleImage(String url, boolean lastCandidate) throws IOException, InterruptedException, HttpStatusException {
+    private static ImagePayload fetchSingleImage(
+            String url, ImageProfile profile, boolean lastCandidate) throws IOException, InterruptedException, HttpStatusException {
         if (isHostBackedOff(url)) {
             return null;
         }
@@ -481,13 +568,7 @@ public class ImageCacheManager {
                 if (imageBytes.length == 0) {
                     return null;
                 }
-                Image image = new Image(
-                        new ByteArrayInputStream(imageBytes),
-                        MAX_IMAGE_DECODE_WIDTH,
-                        MAX_IMAGE_DECODE_HEIGHT,
-                        true,
-                        true
-                );
+                Image image = decode(imageBytes, profile);
                 if (image.isError()) {
                     return null;
                 }
@@ -553,7 +634,7 @@ public class ImageCacheManager {
         }
     }
 
-    private static Image loadImageFromDisk(String cacheKey, String caller) {
+    private static Image loadImageFromDisk(String cacheKey, String caller, ImageProfile profile) {
         if (DISK_CACHE_DIR == null) {
             return null;
         }
@@ -568,18 +649,16 @@ public class ImageCacheManager {
                 Files.deleteIfExists(path);
                 return null;
             }
+            if (Files.size(path) > MAX_IMAGE_DOWNLOAD_BYTES) {
+                Files.deleteIfExists(path);
+                return null;
+            }
             byte[] bytes = Files.readAllBytes(path);
             if (bytes.length == 0) {
                 Files.deleteIfExists(path);
                 return null;
             }
-            Image image = new Image(
-                    new ByteArrayInputStream(bytes),
-                    MAX_IMAGE_DECODE_WIDTH,
-                    MAX_IMAGE_DECODE_HEIGHT,
-                    true,
-                    true
-            );
+            Image image = decode(bytes, profile);
             if (image.isError()) {
                 Files.deleteIfExists(path);
                 return null;
@@ -589,6 +668,15 @@ public class ImageCacheManager {
             // Ignore corrupt or partially written cache entries and refetch them on demand.
             return null;
         }
+    }
+
+    private static Image decode(byte[] bytes, ImageProfile profile) {
+        ImageProfile effectiveProfile = profile == null ? ImageProfile.THUMBNAIL : profile;
+        int maxWidth = effectiveProfile == ImageProfile.MEDIA_ARTWORK
+                ? MAX_MEDIA_IMAGE_DECODE_WIDTH : MAX_IMAGE_DECODE_WIDTH;
+        int maxHeight = effectiveProfile == ImageProfile.MEDIA_ARTWORK
+                ? MAX_MEDIA_IMAGE_DECODE_HEIGHT : MAX_IMAGE_DECODE_HEIGHT;
+        return new Image(new ByteArrayInputStream(bytes), maxWidth, maxHeight, true, true);
     }
 
     private static long thumbnailDiskTtlMs() {
@@ -759,6 +847,7 @@ public class ImageCacheManager {
     public static void clearCache() {
         cancelLoadingTasks("");
         IMAGE_CACHE.clear();
+        MEDIA_IMAGE_CACHE.clear();
         NEGATIVE_CACHE_UNTIL.clear();
         HOST_BACKOFF_UNTIL.clear();
         HOST_SEMAPHORES.clear();
@@ -770,6 +859,7 @@ public class ImageCacheManager {
         String normalizedCaller = normalizeCaller(caller);
         String prefix = normalizedCaller + ":";
         IMAGE_CACHE.keySet().removeIf(key -> key.startsWith(prefix));
+        MEDIA_IMAGE_CACHE.keySet().removeIf(key -> key.startsWith(prefix));
         cancelLoadingTasks(prefix);
         NEGATIVE_CACHE_UNTIL.keySet().removeIf(key -> key.startsWith(prefix));
         clearDiskCache(normalizedCaller);

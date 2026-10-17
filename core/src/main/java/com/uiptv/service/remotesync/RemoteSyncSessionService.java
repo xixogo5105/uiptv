@@ -7,9 +7,9 @@ import com.uiptv.util.AppLog;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
@@ -21,6 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class RemoteSyncSessionService {
+    /** Hard ceiling for an uploaded transfer, protecting the host filesystem from untrusted clients. */
+    public static final long MAX_TRANSFER_BYTES = 256L * 1024L * 1024L;
     private static final Duration APPROVAL_TTL = Duration.ofMinutes(2);
     private static final Duration TRANSFER_TTL = Duration.ofMinutes(10);
     private static final String REMOTE_SYNC_COMPLETED_MESSAGE = "Remote database sync completed.";
@@ -94,7 +96,7 @@ public class RemoteSyncSessionService {
             session.ensureStatus(session.direction, RemoteSyncStatus.APPROVED);
             uploadedTransfer = SecureTempFileSupport.createTempFile("uiptv-remote-upload-", ".bin");
             try (InputStream inputStream = requestBody) {
-                Files.copy(inputStream, uploadedTransfer, StandardCopyOption.REPLACE_EXISTING);
+                copyBounded(inputStream, uploadedTransfer, MAX_TRANSFER_BYTES);
             } catch (IOException ex) {
                 session.fail(REMOTE_SYNC_FAILED_MESSAGE);
                 notifier.get().showError(I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE);
@@ -135,6 +137,30 @@ public class RemoteSyncSessionService {
                 deleteIfExists(payloadPath);
             }
             deleteIfExists(uploadedSnapshot);
+        }
+    }
+
+    static void copyBounded(InputStream inputStream, Path destination, long maxBytes) throws IOException {
+        if (maxBytes < 0) {
+            throw new IllegalArgumentException("maxBytes must not be negative");
+        }
+        long total = 0;
+        byte[] buffer = new byte[8192];
+        try (OutputStream output = Files.newOutputStream(destination)) {
+            int read;
+            while ((read = inputStream.read(buffer)) != -1) {
+                if (read > maxBytes - total) {
+                    throw new TransferTooLargeException(maxBytes);
+                }
+                output.write(buffer, 0, read);
+                total += read;
+            }
+        }
+    }
+
+    public static final class TransferTooLargeException extends IOException {
+        public TransferTooLargeException(long maxBytes) {
+            super("Remote sync transfer exceeds the maximum allowed size of " + maxBytes + " bytes");
         }
     }
 

@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.application.RemoteSyncApplicationService;
 import com.uiptv.service.remotesync.RemoteSyncJson;
+import com.uiptv.service.remotesync.RemoteSyncSessionService;
 import com.uiptv.util.AppLog;
 import org.json.JSONObject;
 
@@ -24,9 +25,18 @@ public class HttpRemoteSyncUploadServer implements HttpHandler {
             return;
         }
         try {
+            String contentLength = exchange.getRequestHeaders().getFirst("Content-Length");
+            if (contentLength != null && Long.parseLong(contentLength) > RemoteSyncSessionService.MAX_TRANSFER_BYTES) {
+                writeJsonResponse(exchange, 413, new JSONObject().put("message", "Remote sync transfer is too large.").toString());
+                return;
+            }
             writeJsonResponse(exchange, 200, RemoteSyncJson.toJson(
                     RemoteSyncApplicationService.getInstance().acceptUpload(getParam(exchange, "sessionId"), exchange.getRequestBody())
             ).toString());
+        } catch (RemoteSyncSessionService.TransferTooLargeException ex) {
+            writeJsonResponse(exchange, 413, new JSONObject().put("message", "Remote sync transfer is too large.").toString());
+        } catch (NumberFormatException ex) {
+            writeJsonResponse(exchange, 400, new JSONObject().put("message", "Invalid Content-Length.").toString());
         } catch (IllegalArgumentException | IllegalStateException ex) {
             writeJsonResponse(exchange, 400, new JSONObject().put("message", ex.getMessage()).toString());
         } catch (IOException | SQLException ex) {

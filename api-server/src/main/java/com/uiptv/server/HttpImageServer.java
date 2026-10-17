@@ -34,11 +34,17 @@ public class HttpImageServer implements HttpHandler {
             return;
         }
 
-        byte[] bytes = loadFromFileSystem(ex);
-        if (bytes.length == 0) {
-            bytes = loadFromClasspath(requestPath);
+        try {
+            Path filePath = StaticWebFileResolver.resolve(ex);
+            if (Files.isRegularFile(filePath)) {
+                com.uiptv.util.ServerUtils.writeFileResponse(ex, 200, filePath, contentType);
+                return;
+            }
+        } catch (IOException _) {
+            // Fall through to the packaged web resources.
         }
 
+        byte[] bytes = loadFromClasspath(requestPath);
         if (bytes.length == 0) {
             ex.sendResponseHeaders(404, -1);
             return;
@@ -54,15 +60,6 @@ public class HttpImageServer implements HttpHandler {
     private static void sendMethodNotAllowed(HttpExchange ex) throws IOException {
         ex.getResponseHeaders().set("Allow", "GET");
         ex.sendResponseHeaders(405, -1);
-    }
-
-    private static byte[] loadFromFileSystem(HttpExchange ex) {
-        try {
-            Path filePath = StaticWebFileResolver.resolve(ex);
-            return Files.readAllBytes(filePath);
-        } catch (IOException _) {
-            return new byte[0];
-        }
     }
 
     private static byte[] loadFromClasspath(String requestPath) {

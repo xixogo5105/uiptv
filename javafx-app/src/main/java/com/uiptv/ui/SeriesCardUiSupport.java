@@ -25,13 +25,18 @@ public final class SeriesCardUiSupport {
     }
 
     public static ImageView createCroppedPoster(String url, int width, int height, String cacheKey) {
+        return createCroppedPoster(url, width, height, cacheKey, ImageCacheManager.ImageProfile.THUMBNAIL);
+    }
+
+    public static ImageView createCroppedPoster(
+            String url, int width, int height, String cacheKey, ImageCacheManager.ImageProfile profile) {
         ImageView imageView = new ImageView();
         imageView.setFitWidth(width);
         imageView.setFitHeight(height);
         imageView.setPreserveRatio(true);
         imageView.setSmooth(true);
         if (!isBlank(url)) {
-            ImageCacheManager.loadImageAsync(url, cacheKey).thenAccept(image -> {
+            ImageCacheManager.loadImageAsync(url, cacheKey, null, profile).thenAccept(image -> {
                 if (image != null) {
                     Platform.runLater(() -> {
                         imageView.setImage(image);
@@ -48,13 +53,18 @@ public final class SeriesCardUiSupport {
     }
 
     public static ImageView createFitPoster(String url, int width, int height, String cacheKey) {
+        return createFitPoster(url, width, height, cacheKey, ImageCacheManager.ImageProfile.THUMBNAIL);
+    }
+
+    public static ImageView createFitPoster(
+            String url, int width, int height, String cacheKey, ImageCacheManager.ImageProfile profile) {
         ImageView imageView = new ImageView();
         imageView.setFitWidth(width);
         imageView.setFitHeight(height);
         imageView.setPreserveRatio(true);
         imageView.setSmooth(true);
         if (!isBlank(url)) {
-            ImageCacheManager.loadImageAsync(url, cacheKey).thenAccept(image -> {
+            ImageCacheManager.loadImageAsync(url, cacheKey, null, profile).thenAccept(image -> {
                 if (image != null) {
                     Platform.runLater(() -> {
                         imageView.setImage(image);

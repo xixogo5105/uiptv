@@ -53,7 +53,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
         String finalUrl = PlayerUrlUtils.normalizeStreamUrl(account, PlayerUrlUtils.resolveAndProcessUrl(rawUrl));
         long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
         com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class,
-                "playback resolution complete elapsed=" + elapsedMs + "ms url=" + finalUrl);
+                "playback resolution complete elapsed=" + elapsedMs + "ms");
         com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "Playback URL resolved.");
         
         PlayerResponse response = new PlayerResponse(finalUrl);
@@ -223,7 +223,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
         if (!mergedCmd.equals(resolvedCmd)) {
             com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService.class, "create_link had missing query params. Merged missing values from original channel cmd.");
         }
-        com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "create_link resolved URL: " + mergedCmd);
+        com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "create_link resolved a playback URL.");
         return mergedCmd;
     }
 

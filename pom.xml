@@ -207,7 +207,7 @@
             <dependency>
                 <groupId>org.controlsfx</groupId>
                 <artifactId>controlsfx</artifactId>
-                <version>11.2.5</version>
+                <version>11.2.6</version>
             </dependency>
             <dependency>
                 <groupId>org.kordamp.bootstrapfx</groupId>
@@ -269,11 +269,6 @@
                 <artifactId>mockito-core</artifactId>
                 <version>5.24.0</version>
             </dependency>
-            <dependency>
-                <groupId>org.mockito</groupId>
-                <artifactId>mockito-inline</artifactId>
-                <version>5.2.0</version>
-            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -294,6 +289,11 @@
                         </annotationProcessorPaths>
                         <release>${maven.compiler.release}</release>
                     </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>3.6.3</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -321,6 +321,7 @@
                     <version>3.6.0</version>
                     <configuration>
                         <useModulePath>false</useModulePath>
+                        <argLine>@{argLine} -javaagent:${settings.localRepository}/org/mockito/mockito-core/5.24.0/mockito-core-5.24.0.jar</argLine>
                         <systemPropertyVariables>
                             <uiptv.hls.ts.delete.grace.millis>100</uiptv.hls.ts.delete.grace.millis>
                             <uiptv.hls.missing.ts.retry.attempts>50</uiptv.hls.missing.ts.retry.attempts>
@@ -357,6 +358,29 @@
                 <artifactId>maven-compiler-plugin</artifactId>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-release-toolchain</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireMavenVersion>
+                                    <version>[3.8.8,)</version>
+                                </requireMavenVersion>
+                                <requireJavaVersion>
+                                    <version>[25,)</version>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <executions>
@@ -380,6 +404,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <useModulePath>false</useModulePath>
+                    <argLine>@{argLine} -javaagent:${settings.localRepository}/org/mockito/mockito-core/5.24.0/mockito-core-5.24.0.jar</argLine>
                     <systemPropertyVariables>
                         <uiptv.hls.ts.delete.grace.millis>100</uiptv.hls.ts.delete.grace.millis>
                         <uiptv.hls.missing.ts.retry.attempts>50</uiptv.hls.missing.ts.retry.attempts>

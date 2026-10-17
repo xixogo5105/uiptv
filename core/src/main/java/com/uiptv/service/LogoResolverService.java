@@ -21,6 +21,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class LogoResolverService {
+    private static final long MAX_LOCAL_CACHE_BYTES = 4L * 1024L * 1024L;
     private static final String CHANNELS_CATALOG_URL = "https://iptv-org.github.io/api/channels.json";
     private static final String LOGOS_CATALOG_URL = "https://raw.githubusercontent.com/iptv-org/database/master/data/logos.csv";
     private static final long CATALOG_REFRESH_MS = 24L * 60L * 60L * 1000L;
@@ -323,6 +324,9 @@ public class LogoResolverService {
 
     private void loadLocalCache() {
         if (!localCacheFile.exists()) {
+            return;
+        }
+        if (localCacheFile.length() > MAX_LOCAL_CACHE_BYTES) {
             return;
         }
         try (FileInputStream in = new FileInputStream(localCacheFile)) {

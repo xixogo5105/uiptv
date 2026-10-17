@@ -13,12 +13,12 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
 import static com.uiptv.util.StringUtils.isBlank;
+import static com.uiptv.util.ServerUtils.readRequestBodyText;
 
 public class HttpBingeWatchSessionJsonServer implements HttpHandler {
     @Override
@@ -33,7 +33,13 @@ public class HttpBingeWatchSessionJsonServer implements HttpHandler {
     }
 
     private void createSession(HttpExchange ex) throws IOException {
-        JSONObject body = readBodyJson(ex);
+        JSONObject body;
+        try {
+            body = readBodyJson(ex);
+        } catch (com.uiptv.util.ServerUtils.RequestBodyTooLargeException _) {
+            writeJson(ex, 413, "{\"status\":\"error\",\"message\":\"Request body is too large\"}");
+            return;
+        }
         String accountId = opt(body, "accountId");
         String categoryId = opt(body, "categoryId");
         String seriesId = opt(body, "seriesId");
@@ -75,13 +81,11 @@ public class HttpBingeWatchSessionJsonServer implements HttpHandler {
     }
 
     private JSONObject readBodyJson(HttpExchange ex) throws IOException {
-        try (InputStream input = ex.getRequestBody()) {
-            String body = new String(input.readAllBytes(), StandardCharsets.UTF_8);
-            if (body.isBlank()) {
-                return new JSONObject();
-            }
-            return new JSONObject(body);
+        String body = readRequestBodyText(ex);
+        if (body.isBlank()) {
+            return new JSONObject();
         }
+        return new JSONObject(body);
     }
 
     private String opt(JSONObject body, String key) {

@@ -21,22 +21,33 @@ class HttpUtilTest {
     void formatHttpLog_redactsSensitiveHeadersAndFormatsEmptyBinaryAndParams() {
         HttpUtil.HttpResult response = new HttpUtil.HttpResult(
                 "post",
-                "http://example.test/final",
+                "http://example.test/final?username=alice&token=secret&visible=yes",
                 200,
                 "abc\u0000def",
                 Map.of("Authorization", List.of("secret"), "X-Test", List.of("visible")),
                 Map.of("Set-Cookie", List.of("cookie"), "Content-Type", List.of("text/plain"))
         );
 
-        String log = HttpUtil.formatHttpLog("http://example.test/original", response, Map.of("b", "2", "a", "1"));
+        String log = HttpUtil.formatHttpLog("http://example.test/original", response, Map.of("b", "2", "password", "secret", "a", "1"));
 
-        assertTrue(log.contains("HTTP post http://example.test/final"));
+        assertTrue(log.contains("HTTP post http://example.test/final?username=<redacted>&token=<redacted>&visible=yes"));
         assertTrue(log.contains("Status: 200"));
         assertTrue(log.contains("Authorization: <redacted>"));
         assertTrue(log.contains("Set-Cookie: <redacted>"));
         assertTrue(log.contains("a=\"1\""));
+        assertTrue(log.contains("password=\"<redacted>\""));
+        assertFalse(log.contains("alice"));
+        assertFalse(log.contains("secret"));
         assertTrue(log.contains("<binary"));
         assertEquals("HTTP request log unavailable: response was null", HttpUtil.formatHttpLog("url", null, Map.of()));
+    }
+
+    @Test
+    void sanitizeUrlForLog_redactsCredentialsAndSensitiveQueryValues() {
+        String sanitized = HttpUtil.sanitizeUrlForLog(
+                "https://alice:password@example.test/live?mac=00:11&play-token=abc&stream=7");
+
+        assertEquals("https://<redacted>@example.test/live?mac=<redacted>&play-token=<redacted>&stream=7", sanitized);
     }
 
     @Test

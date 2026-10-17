@@ -603,7 +603,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         if (!isBlank(cover)) {
             seasonInfo.put(KEY_COVER, cover);
             String finalCover = cover;
-            ImageCacheManager.loadImageAsync(cover, EPISODE_CACHE)
+            ImageCacheManager.loadImageAsync(cover, EPISODE_CACHE, null,
+                    ImageCacheManager.ImageProfile.MEDIA_ARTWORK)
                     .thenAccept(image -> {
                         if (image != null) {
                             Platform.runLater(() -> seriesPosterNode.setImage(image));
@@ -1286,7 +1287,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     private ImageView createEpisodePoster(EpisodeItem row) {
         ImageView poster = new ImageView();
         poster.setFitWidth(96);
-        poster.setFitHeight(136);
+        poster.setFitHeight(96);
         poster.setPreserveRatio(true);
         poster.setSmooth(true);
         refreshEpisodePoster(poster, row);
@@ -1307,7 +1308,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
     }
 
     private void loadEpisodePoster(ImageView poster, EpisodeItem row, String posterUrl) {
-        ImageCacheManager.loadImageAsync(posterUrl, EPISODE_CACHE).thenAccept(image -> Platform.runLater(() -> {
+        ImageCacheManager.loadImageAsync(posterUrl, EPISODE_CACHE, null,
+                ImageCacheManager.ImageProfile.THUMBNAIL).thenAccept(image -> Platform.runLater(() -> {
                 String currentPrimaryUrl = resolveEpisodePosterUrl(row, "");
                 if (!posterUrl.equals(currentPrimaryUrl) && !posterUrl.equals(resolveEpisodePosterUrl(row, currentPrimaryUrl))) {
                     return;
@@ -1317,7 +1319,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                     poster.setViewport(null);
                     poster.setPreserveRatio(true);
                     poster.setFitWidth(96);
-                    poster.setFitHeight(136);
+                    poster.setFitHeight(96);
                     return;
                 }
 

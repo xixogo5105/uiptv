@@ -6,11 +6,10 @@ import com.uiptv.application.RemoteSyncApplicationService;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static com.uiptv.util.ServerUtils.getParam;
-import static com.uiptv.util.ServerUtils.writeBinaryResponse;
+import static com.uiptv.util.ServerUtils.writeFileResponse;
 import static com.uiptv.util.ServerUtils.writeJsonResponse;
 
 public class HttpRemoteSyncDownloadServer implements HttpHandler {
@@ -23,7 +22,7 @@ public class HttpRemoteSyncDownloadServer implements HttpHandler {
         }
         try {
             Path snapshotPath = RemoteSyncApplicationService.getInstance().getDownloadSnapshot(getParam(exchange, "sessionId"));
-            writeBinaryResponse(exchange, 200, Files.readAllBytes(snapshotPath), "application/octet-stream");
+            writeFileResponse(exchange, 200, snapshotPath, "application/octet-stream");
         } catch (IllegalArgumentException | IllegalStateException ex) {
             writeJsonResponse(exchange, 400, new JSONObject().put("message", ex.getMessage()).toString());
         }

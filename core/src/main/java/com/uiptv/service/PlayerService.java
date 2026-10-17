@@ -59,8 +59,7 @@ public class PlayerService {
             String sanitizedUrl = sanitizeAndEncodeUrl(originalUrl);
             if (!originalUrl.equals(sanitizedUrl)) {
                 AppLog.addInfoLog(PlayerService.class, "Original URL contained invalid characters. Re-encoding.");
-                AppLog.addInfoLog(PlayerService.class, "Original: " + originalUrl);
-                AppLog.addInfoLog(PlayerService.class, "Encoded: " + sanitizedUrl);
+                AppLog.addInfoLog(PlayerService.class, "Playback URL required re-encoding.");
                 response.setUrl(sanitizedUrl);
             }
         }

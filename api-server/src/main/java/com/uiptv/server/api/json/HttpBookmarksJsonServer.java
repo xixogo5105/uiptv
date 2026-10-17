@@ -10,7 +10,6 @@ import org.json.JSONObject;
 import org.json.JSONArray;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -21,6 +20,7 @@ import static com.uiptv.util.ServerUtils.getParam;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.ServerUtils.generateJsonResponse;
 import static com.uiptv.util.ServerUtils.objectToJson;
+import static com.uiptv.util.ServerUtils.readRequestBodyText;
 
 public class HttpBookmarksJsonServer implements HttpHandler {
     private static final String ALLOWED_METHODS = "GET,POST,PUT,DELETE,OPTIONS";
@@ -190,13 +190,15 @@ public class HttpBookmarksJsonServer implements HttpHandler {
         writeJson(ex, 200, "{\"status\":\"ok\",\"action\":\"removed\"}");
     }
 
-    private JSONObject readBodyJson(HttpExchange ex) {
-        try (InputStream in = ex.getRequestBody()) {
-            byte[] data = in.readAllBytes();
-            if (data.length == 0) {
+    private JSONObject readBodyJson(HttpExchange ex) throws IOException {
+        try {
+            String body = readRequestBodyText(ex);
+            if (body.isBlank()) {
                 return new JSONObject();
             }
-            return new JSONObject(new String(data, StandardCharsets.UTF_8));
+            return new JSONObject(body);
+        } catch (com.uiptv.util.ServerUtils.RequestBodyTooLargeException exTooLarge) {
+            throw exTooLarge;
         } catch (Exception _) {
             return new JSONObject();
         }

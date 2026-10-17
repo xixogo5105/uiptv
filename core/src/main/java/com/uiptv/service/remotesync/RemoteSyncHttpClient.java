@@ -6,8 +6,10 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URLEncoder;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class RemoteSyncHttpClient {
@@ -43,7 +45,7 @@ public class RemoteSyncHttpClient {
 
     public RemoteSyncSessionState getSessionState(String baseUrl, String sessionId) throws IOException {
         JSONObject response = executeJson(HttpUtil.sendRequest(
-                baseUrl + "/remote-sync/status?sessionId=" + sessionId,
+                sessionUrl(baseUrl, "/remote-sync/status", sessionId),
                 null,
                 "GET",
                 null,
@@ -54,7 +56,7 @@ public class RemoteSyncHttpClient {
 
     public RemoteSyncExecutionResult uploadSnapshot(String baseUrl, String sessionId, Path snapshotPath) throws IOException {
         return RemoteSyncJson.toExecutionResult(executeJson(HttpUtil.sendFileRequest(
-                baseUrl + "/remote-sync/upload?sessionId=" + sessionId,
+                sessionUrl(baseUrl, "/remote-sync/upload", sessionId),
                 null,
                 "PUT",
                 snapshotPath,
@@ -65,7 +67,7 @@ public class RemoteSyncHttpClient {
 
     public Path downloadSnapshot(String baseUrl, String sessionId) throws IOException {
         try (HttpUtil.StreamResult response = HttpUtil.openStream(
-                baseUrl + "/remote-sync/download?sessionId=" + sessionId,
+                sessionUrl(baseUrl, "/remote-sync/download", sessionId),
                 null,
                 "GET",
                 null,
@@ -76,7 +78,10 @@ public class RemoteSyncHttpClient {
             }
             Path snapshotPath = SecureTempFileSupport.createTempFile("uiptv-remote-download-", ".db");
             try (InputStream body = response.bodyStream()) {
-                Files.copy(body, snapshotPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                RemoteSyncSessionService.copyBounded(body, snapshotPath, RemoteSyncSessionService.MAX_TRANSFER_BYTES);
+            } catch (IOException ex) {
+                Files.deleteIfExists(snapshotPath);
+                throw ex;
             }
             return snapshotPath;
         }
@@ -104,5 +109,10 @@ public class RemoteSyncHttpClient {
                     : body);
         }
         return body == null || body.isBlank() ? new JSONObject() : new JSONObject(body);
+    }
+
+    private static String sessionUrl(String baseUrl, String path, String sessionId) {
+        String encodedSessionId = URLEncoder.encode(sessionId == null ? "" : sessionId, StandardCharsets.UTF_8);
+        return baseUrl + path + "?sessionId=" + encodedSessionId;
     }
 }

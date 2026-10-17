@@ -5,13 +5,13 @@ import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.application.ConfigurationApplicationService;
 import com.uiptv.model.Configuration;
 import com.uiptv.model.ThemeMode;
-import org.apache.commons.io.IOUtils;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
 import static com.uiptv.util.ServerUtils.generateJsonResponse;
+import static com.uiptv.util.ServerUtils.readRequestBodyText;
+import static com.uiptv.util.ServerUtils.writeJsonResponse;
 
 public class HttpConfigJsonServer implements HttpHandler {
     private static final String KEY_WIDE_VIEW = "wideView";
@@ -26,7 +26,12 @@ public class HttpConfigJsonServer implements HttpHandler {
         Configuration config = service.readConfiguration();
 
         if (isWriteRequest(exchange)) {
-            config = handleConfigUpdate(exchange, service, config);
+            try {
+                config = handleConfigUpdate(exchange, service, config);
+            } catch (com.uiptv.util.ServerUtils.RequestBodyTooLargeException _) {
+                writeJsonResponse(exchange, 413, "{\"message\":\"Request body is too large\"}");
+                return;
+            }
         }
 
         JSONObject response = buildConfigResponse(config);
@@ -40,7 +45,7 @@ public class HttpConfigJsonServer implements HttpHandler {
 
     private Configuration handleConfigUpdate(HttpExchange exchange, ConfigurationApplicationService service, Configuration config) throws IOException {
         try {
-            String body = IOUtils.toString(exchange.getRequestBody(), StandardCharsets.UTF_8);
+            String body = readRequestBodyText(exchange);
             if (body != null && !body.isBlank() && config != null) {
                 JSONObject req = new JSONObject(body);
                 updateConfigFromRequest(config, req);

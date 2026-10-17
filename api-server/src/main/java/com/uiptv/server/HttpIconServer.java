@@ -39,7 +39,10 @@ public class HttpIconServer implements HttpHandler {
 
         try {
             Path filePath = StaticWebFileResolver.resolve(ex);
-            bytes = Files.readAllBytes(filePath);
+            if (Files.isRegularFile(filePath)) {
+                com.uiptv.util.ServerUtils.writeFileResponse(ex, 200, filePath, contentType);
+                return;
+            }
         } catch (IOException _) {
             // Fall through to classpath.
         }

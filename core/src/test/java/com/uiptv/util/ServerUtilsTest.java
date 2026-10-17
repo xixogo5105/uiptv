@@ -12,10 +12,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -67,6 +70,25 @@ class ServerUtilsTest {
         StubExchange html = new StubExchange("/html", "GET", null);
         ServerUtils.generateHtmlResponse(html, "<!doctype html><html><body>UIPTV</body></html>");
         assertEquals("<!doctype html><html><body>UIPTV</body></html>", html.getResponseBodyText());
+    }
+
+    @Test
+    void requestAndFileHelpers_boundMemoryAndStreamFiles() throws Exception {
+        StubExchange oversized = new StubExchange("/body", "POST", "payload");
+        assertThrows(ServerUtils.RequestBodyTooLargeException.class,
+                () -> ServerUtils.readRequestBodyBytes(oversized, 3));
+
+        Path file = Files.createTempFile("uiptv-server-utils-", ".bin");
+        try {
+            Files.write(file, new byte[]{4, 5, 6, 7});
+            StubExchange response = new StubExchange("/download", "GET", null);
+            ServerUtils.writeFileResponse(response, 200, file, "application/octet-stream");
+            assertEquals(200, response.getResponseCode());
+            assertArrayEquals(new byte[]{4, 5, 6, 7}, response.responseBody.toByteArray());
+            assertEquals("application/octet-stream", response.getResponseHeaders().getFirst("Content-Type"));
+        } finally {
+            Files.deleteIfExists(file);
+        }
     }
 
     private static final class StubExchange extends HttpExchange {

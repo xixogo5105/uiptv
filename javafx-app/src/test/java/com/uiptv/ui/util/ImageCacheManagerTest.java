@@ -20,6 +20,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,6 +32,26 @@ class ImageCacheManagerTest {
     @AfterEach
     void tearDown() {
         ImageCacheManager.clearCache();
+    }
+
+    @Test
+    void mediaArtworkUsesASeparateHigherResolutionCacheProfile() throws Exception {
+        String thumbnailKey = (String) invoke(
+                "buildCacheKey",
+                new Class[]{String.class, String.class, ImageCacheManager.ImageProfile.class},
+                "series", "https://image.test/poster.png", ImageCacheManager.ImageProfile.THUMBNAIL);
+        String artworkKey = (String) invoke(
+                "buildCacheKey",
+                new Class[]{String.class, String.class, ImageCacheManager.ImageProfile.class},
+                "series", "https://image.test/poster.png", ImageCacheManager.ImageProfile.MEDIA_ARTWORK);
+
+        assertEquals("series:https://image.test/poster.png", thumbnailKey);
+        assertTrue(artworkKey.contains(":media-artwork:"));
+        assertFalse(thumbnailKey.equals(artworkKey));
+        assertEquals(96, ImageCacheManager.ImageProfile.THUMBNAIL.maxWidth());
+        assertEquals(96, ImageCacheManager.ImageProfile.THUMBNAIL.maxHeight());
+        assertEquals(512, ImageCacheManager.ImageProfile.MEDIA_ARTWORK.maxWidth());
+        assertEquals(768, ImageCacheManager.ImageProfile.MEDIA_ARTWORK.maxHeight());
     }
 
     @Test

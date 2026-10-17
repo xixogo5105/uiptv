@@ -4,13 +4,11 @@ import com.uiptv.model.Configuration;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.util.I18n;
 import com.uiptv.util.ResolutionDisplayUtil;
-import com.uiptv.util.SystemUtils;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.image.PixelBuffer;
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.WritableImage;
 import javafx.util.Duration;
@@ -30,11 +28,11 @@ import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCall
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback;
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
-import org.apache.http.client.utils.URIBuilder;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.hc.core5.net.URIBuilder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -139,15 +137,10 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (!enableVlcVout) {
             return;
         }
-        if (SystemUtils.IS_OS_WINDOWS) {
-            vlcArgs.add("--vout=direct3d11");
-        } else if (SystemUtils.IS_OS_LINUX) {
-            vlcArgs.add("--vout=gl");
-        } else if (SystemUtils.IS_OS_MAC_OSX) {
-            vlcArgs.add("--vout=macosx");
-        } else {
-            vlcArgs.add("--vout=none");
-        }
+        // The embedded player is backed by vlcj's callback surface. A platform
+        // window vout creates a second native rendering path and can retain
+        // large GPU surfaces after stop. vmem is the VLC 3.x callback output.
+        vlcArgs.add("--vout=vmem");
     }
 
     private static void addHardwareAccelerationArg(List<String> vlcArgs, Configuration configuration) {
@@ -155,13 +148,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (!enableVlcAvcodecHw) {
             return;
         }
-        if (SystemUtils.IS_OS_WINDOWS) {
-            vlcArgs.add("--avcodec-hw=d3d11va");
-        } else if (SystemUtils.IS_OS_MAC_OSX) {
-            vlcArgs.add("--avcodec-hw=videotoolbox");
-        } else {
-            vlcArgs.add("--avcodec-hw=any");
-        }
+        // VLC 3.x accepts any/none here. The old d3d11va/videotoolbox values
+        // belong to different option vocabularies and are rejected by VLC 3.x.
+        vlcArgs.add("--avcodec-hw=any");
     }
 
     private static void addGeneralVlcArgs(List<String> vlcArgs, Configuration configuration) {
@@ -673,12 +662,13 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     /**
-     * JavaFX surface with an explicit stop gate and one pending pulse at most.
+     * JavaFX surface with an explicit stop gate, one reusable image and one
+     * pending pulse at most.
      *
-     * The stock vlcj JavaFX surface posts one Platform.runLater task per decoded
-     * frame. A live stream can therefore leave a large JavaFX/GPU backlog when
-     * playback is stopped. This surface drops frames after disable() and
-     * coalesces updates while one JavaFX pulse is pending.
+     * Do not expose vlcj's native callback buffer through a PixelBuffer. A
+     * PixelBuffer retains that direct buffer and its JavaFX texture after libVLC
+     * has replaced or freed the native buffer. Instead, copy only the latest
+     * frame into one bounded byte array and upload it into one reusable image.
      */
     private static final class VlcImageViewVideoSurface extends CallbackVideoSurface {
         private final RenderGate gate;
@@ -697,12 +687,16 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 @Override public void newFormatSize(int bufferWidth, int bufferHeight, int displayWidth, int displayHeight) { }
                 @Override public void allocatedBuffers(ByteBuffer[] buffers) {
                     if (!gate.enabled.get() || buffers == null || buffers.length == 0) return;
-                    PixelBuffer<ByteBuffer> next = new PixelBuffer<>(gate.sourceWidth, gate.sourceHeight,
-                            buffers[0], PixelFormat.getByteBgraPreInstance());
-                    gate.pixelBuffer = next;
+                    WritableImage next;
+                    try {
+                        next = gate.allocateFrame(gate.sourceWidth, gate.sourceHeight);
+                    } catch (IllegalArgumentException | ArithmeticException _) {
+                        gate.disable();
+                        return;
+                    }
                     Platform.runLater(() -> {
-                        if (gate.enabled.get() && gate.pixelBuffer == next) {
-                            imageView.setImage(new WritableImage(next));
+                        if (gate.enabled.get() && gate.image == next) {
+                            imageView.setImage(next);
                         }
                     });
                 }
@@ -713,15 +707,13 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     if (!gate.enabled.get()) {
                         return;
                     }
-                    if (gate.pixelBuffer == null || !gate.updateQueued.compareAndSet(false, true)) {
+                    if (!gate.copyFrame(nativeBuffers, bufferFormat)
+                            || !gate.updateQueued.compareAndSet(false, true)) {
                         return;
                     }
                     Platform.runLater(() -> {
                         try {
-                            PixelBuffer<ByteBuffer> current = gate.pixelBuffer;
-                            if (gate.enabled.get() && current != null) {
-                                current.updateBuffer(_ -> null);
-                            }
+                            gate.publishLatestFrame();
                         } finally {
                             gate.updateQueued.set(false);
                         }
@@ -733,17 +725,93 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
 
         private void disable() {
-            gate.enabled.set(false);
-            gate.pixelBuffer = null;
-            gate.updateQueued.set(false);
+            gate.disable();
         }
 
         private static final class RenderGate {
             private final AtomicBoolean enabled = new AtomicBoolean(true);
             private final AtomicBoolean updateQueued = new AtomicBoolean();
-            private volatile PixelBuffer<ByteBuffer> pixelBuffer;
+            private final Object frameLock = new Object();
+            private volatile byte[] latestFrame;
+            private volatile WritableImage image;
             private volatile int sourceWidth;
             private volatile int sourceHeight;
+
+            private WritableImage allocateFrame(int width, int height) {
+                if (width <= 0 || height <= 0) {
+                    throw new IllegalArgumentException("Invalid VLC frame dimensions");
+                }
+                int frameBytes = Math.multiplyExact(Math.multiplyExact(width, height), 4);
+                WritableImage next = new WritableImage(width, height);
+                synchronized (frameLock) {
+                    latestFrame = new byte[frameBytes];
+                    image = next;
+                    sourceWidth = width;
+                    sourceHeight = height;
+                }
+                return next;
+            }
+
+            private boolean copyFrame(ByteBuffer[] nativeBuffers, BufferFormat bufferFormat) {
+                if (!enabled.get() || nativeBuffers == null || nativeBuffers.length == 0
+                        || nativeBuffers[0] == null || bufferFormat == null) {
+                    return false;
+                }
+                int width = sourceWidth;
+                int height = sourceHeight;
+                int rowBytes = width * 4;
+                byte[] target = latestFrame;
+                int[] pitches = bufferFormat.getPitches();
+                if (target == null || width <= 0 || height <= 0 || pitches == null || pitches.length == 0
+                        || target.length < rowBytes * height || pitches[0] < rowBytes) {
+                    return false;
+                }
+                ByteBuffer source = nativeBuffers[0].duplicate();
+                source.clear();
+                int pitch = pitches[0];
+                synchronized (frameLock) {
+                    if (!enabled.get() || target != latestFrame) {
+                        return false;
+                    }
+                    for (int row = 0; row < height; row++) {
+                        int targetOffset = row * rowBytes;
+                        if (source.remaining() < pitch) {
+                            return false;
+                        }
+                        source.get(target, targetOffset, rowBytes);
+                        if (pitch > rowBytes) {
+                            source.position(source.position() + pitch - rowBytes);
+                        }
+                    }
+                }
+                return true;
+            }
+
+            private void publishLatestFrame() {
+                if (!enabled.get()) {
+                    return;
+                }
+                WritableImage currentImage = image;
+                byte[] frame = latestFrame;
+                if (currentImage == null || frame == null) {
+                    return;
+                }
+                synchronized (frameLock) {
+                    if (enabled.get() && currentImage == image && frame == latestFrame) {
+                        currentImage.getPixelWriter().setPixels(0, 0, sourceWidth, sourceHeight,
+                                PixelFormat.getByteBgraPreInstance(), frame, 0, sourceWidth * 4);
+                    }
+                }
+            }
+
+            private void disable() {
+                enabled.set(false);
+                synchronized (frameLock) {
+                    latestFrame = null;
+                    image = null;
+                }
+                updateQueued.set(false);
+            }
         }
     }
 

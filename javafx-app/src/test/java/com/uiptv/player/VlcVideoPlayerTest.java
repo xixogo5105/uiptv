@@ -1,7 +1,6 @@
 package com.uiptv.player;
 
 import com.uiptv.model.Configuration;
-import com.uiptv.util.SystemUtils;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -28,7 +27,7 @@ class VlcVideoPlayerTest {
         configuration.setVlcLiveCachingMs("30000");
         configuration.setEnableVlcHttpUserAgent(false);
         configuration.setEnableVlcHttpForwardCookies(false);
-        // Enable vout and avcodec-hw to test OS-specific arguments
+        // Enable the callback-compatible VLC 3.x options.
         configuration.setVlcVout("true");
         configuration.setVlcAvcodecHw("true");
 
@@ -36,8 +35,8 @@ class VlcVideoPlayerTest {
 
         assertFalse(args.contains("--network-caching=1000"));
         assertTrue(args.contains("--live-caching=30000"));
-        // Verify OS-specific arguments are present
-        verifyOsSpecificArguments(args);
+        assertTrue(args.contains("--vout=vmem"));
+        assertTrue(args.contains("--avcodec-hw=any"));
     }
 
     @Test
@@ -52,46 +51,24 @@ class VlcVideoPlayerTest {
     }
 
     @Test
-    void buildVlcArgs_addsOsSpecificArguments() {
+    void buildVlcArgs_addsCallbackCompatibleVlc3Arguments() {
         Configuration configuration = new Configuration();
         configuration.setVlcNetworkCachingMs("");
         configuration.setVlcLiveCachingMs("1000");
         configuration.setEnableVlcHttpUserAgent(false);
         configuration.setEnableVlcHttpForwardCookies(false);
-        // Enable vout and avcodec-hw to test OS-specific arguments
+        // Enable vout and avcodec-hw to test callback-compatible arguments.
         configuration.setVlcVout("true");
         configuration.setVlcAvcodecHw("true");
 
         List<String> args = VlcVideoPlayer.buildVlcArgs(configuration);
 
-        // Verify that the correct OS-specific vout argument is present
-        if (SystemUtils.IS_OS_WINDOWS) {
-            assertTrue(args.contains("--vout=direct3d11"), "Windows should have --vout=direct3d11");
-            assertTrue(args.contains("--avcodec-hw=d3d11va"), "Windows should have --avcodec-hw=d3d11va");
-        } else if (SystemUtils.IS_OS_LINUX) {
-            assertTrue(args.contains("--vout=gl"), "Linux should have --vout=gl");
-        } else if (SystemUtils.IS_OS_MAC_OSX) {
-            assertTrue(args.contains("--vout=macosx"), "macOS should have --vout=macosx");
-            assertTrue(args.contains("--avcodec-hw=videotoolbox"), "macOS should have --avcodec-hw=videotoolbox");
-        }
-    }
-
-    private void verifyOsSpecificArguments(List<String> args) {
-        // Verify that the correct OS-specific vout argument is present
-        if (SystemUtils.IS_OS_WINDOWS) {
-            assertTrue(args.contains("--vout=direct3d11"));
-            assertTrue(args.contains("--avcodec-hw=d3d11va"));
-            assertFalse(args.contains("--vout=gl"));
-            assertFalse(args.contains("--vout=macosx"));
-        } else if (SystemUtils.IS_OS_LINUX) {
-            assertTrue(args.contains("--vout=gl"));
-            assertFalse(args.contains("--vout=direct3d11"));
-            assertFalse(args.contains("--vout=macosx"));
-        } else if (SystemUtils.IS_OS_MAC_OSX) {
-            assertTrue(args.contains("--vout=macosx"));
-            assertTrue(args.contains("--avcodec-hw=videotoolbox"));
-            assertFalse(args.contains("--vout=direct3d11"));
-            assertFalse(args.contains("--vout=gl"));
-        }
+        assertTrue(args.contains("--vout=vmem"));
+        assertTrue(args.contains("--avcodec-hw=any"));
+        assertFalse(args.contains("--vout=direct3d11"));
+        assertFalse(args.contains("--vout=gl"));
+        assertFalse(args.contains("--vout=macosx"));
+        assertFalse(args.contains("--avcodec-hw=d3d11va"));
+        assertFalse(args.contains("--avcodec-hw=videotoolbox"));
     }
 }

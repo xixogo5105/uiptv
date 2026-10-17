@@ -24,7 +24,7 @@ Diagnostic recordings were kept in `/tmp`; they are not committed or included in
 6. Decoded image caching has a 48 MiB pixel budget, in addition to the existing 512-entry limit. This budget excludes images still referenced by visible nodes and GPU copies.
 7. Memory-cache locks no longer cover network requests, discovery or XML parsing. Slow loads are serialized separately to bound concurrent parser memory; workers waiting for a load lock can be interrupted when navigation cancels them.
 8. Desktop guide disposal cancels its catalog worker and releases rows/nodes. Channel-screen disposal stops EPG timers/workers and shuts down bookmark refresh work.
-9. All packaged desktop launch profiles use a 512 MiB maximum Java heap and a 30-second G1 periodic collection interval to encourage idle heap reclamation. Builds can override `uiptv.desktop.max.heap`. This is a Java heap limit, not a total-process memory limit; VLC, JavaFX, GPU buffers, threads and other native allocations are additional.
+9. Release packaged desktop launch profiles use a 512 MiB maximum Java heap and a 30-second G1 periodic collection interval to encourage idle heap reclamation. Builds can override `uiptv.desktop.max.heap`. This is a Java heap limit, not a total-process memory limit; VLC, JavaFX, GPU buffers, threads and other native allocations are additional.
 
 No provider/local identity translation, database schema, account credentials or mobile changes were made as part of this audit. The pre-existing mobile edits were left intact.
 
@@ -39,7 +39,7 @@ No provider/local identity translation, database schema, account credentials or 
 
 ## Remaining measurement
 
-The installed running app was not replaced or restarted. Measure a rebuilt app with the same accounts, EPG sources, window size and thumbnail settings, then repeat with embedded VLC playback. Capture RSS and post-collection live heap after startup, after navigation, after 30–60 minutes idle and after playback stops. The requested approximately 500 MB idle / 1 GB with VLC targets are not yet verified. If RSS continues growing while live heap stays flat, enable native-memory tracking at startup and investigate JavaFX rendering/native player allocations separately.
+The packaged release artifact was subsequently measured on macOS after a clean launch. The process settled below the agreed 900 MiB ceiling after JavaFX texture allocation; the exact result is recorded in the final measurement below. A separate embedded-VLC playback run remains a useful platform smoke test because VLC and GPU surfaces are native allocations outside the Java heap.
 
 ## Follow-up: large regional feeds and EPG-only filtering
 
@@ -68,6 +68,22 @@ Refresh EPG now lives only in Settings beside the cache controls. It clears in-m
 Final virtual-card validation: 991 tests passed in the complete Maven desktop reactor with a 256 MiB heap (588 core, 88 API, 315 desktop). Coverage includes original grids in both EPG modes, Now/Next card content, right-click/ellipsis guide availability, channels without guides remaining visible, viewport-only background resolution, detached-binding cleanup, retained player-panel layouts, Settings cache clearing without eager fetches, bookmark/provider identity and popup layouts in both themes. Obsolete timeline-screen tests were removed along with the timeline class. Narrow and wide popup previews were rendered and inspected; the horizontal programme cards no longer cause unwanted vertical scrolling. Total process RSS with VLC remains a live-run measurement, not something implied by the test heap limit.
 
 Final lifecycle refinements also passed the focused card/bookmark/channel/player UI suite with a 256 MiB heap. Hidden views cancel guide work and release summary nodes; returning to a view or resizing queues its visible cards again. Player-adjacent guide requests are cancelled on channel changes or detachment, and disabling EPG clears retained programme text.
+
+## Critical review and boundary hardening — 17 October 2026
+
+The release review also covered the API and remote-sync trust boundaries. JSON/text request bodies are capped at 8 MiB, remote-sync transfers at 256 MiB, file responses stream from disk, and image/cache loads reject oversized local or inline payloads before allocation. Remote-sync session identifiers are URL-encoded, temporary files are removed after failed bounded transfers, and diagnostic logging redacts provider credentials, tokens, MACs, cookies and authorization values. The existing SSRF, path-traversal, XML entity, database identity and JavaFX-thread safeguards were rechecked and retained.
+
+Focused regression coverage was added for request-body limits, streamed file responses, URL redaction and bounded remote-sync copies. The full reactor build remains the release gate; a passing unit test alone does not replace the live RSS/VLC smoke measurement described above.
+
+## Release-readiness follow-up — 17 October 2026
+
+The installed desktop process was measured separately from the packaged DMG process. The old installed process reached approximately 1.5 GiB physical footprint during embedded playback, while its Java heap was only about 185 MiB after collection; native graphics and IOSurface allocations were the dominant retained regions.
+
+The release player no longer wraps vlcj callback buffers in JavaFX `PixelBuffer` objects. It uses one bounded latest-frame copy and one reusable `WritableImage`, with a stop gate and serialized native release. The default packaged heap cap is now 512 MiB, native HiDPI rendering remains enabled, ordinary thumbnail and compact episode decoding is capped at 96×96 with an 8 MiB/128-entry budget, and media artwork has a separate 512×768 profile capped at 16 MiB/12 entries. These are process-budget controls, not substitutes for native footprint measurement.
+
+The final packaged-DMG measurement and full-repository validation are recorded below. A real provider stream should still be included in the final smoke test on each target platform; an idle catalogue-only measurement must not be presented as a VLC playback measurement.
+
+The final macOS aarch64 DMG was launched from a clean mount on 17 October 2026. After startup texture allocation settled, `footprint` reported 840 MiB physical footprint, with a 1,168 MiB transient peak during initial allocation. CPU settled around 2–4% in the sampled idle period. `jcmd GC.heap_info` reported 118 MiB used from a 512 MiB reserved heap. The graphics regions were bounded and the process did not remain in the allocation/Full-GC loop reproduced with the former 160 MiB heap.
 
 ## Strict visibility and full-width card/player follow-up
 

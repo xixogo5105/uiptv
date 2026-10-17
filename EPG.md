@@ -79,7 +79,7 @@ Desktop full-mode refresh runs in the background at the scheduler interval selec
 
 Channel catalogs render without waiting for XMLTV discovery, downloads or parsing. In full EPG mode, visible virtual cards read persisted Now/Next summaries in the background; detached and off-screen cards do not initiate guide queries. In playback-only mode, cards remain plain and the player is the only guide entry point. XMLTV imports compress schedules while parsing, then persist them and release the parsed feed. Native request state has a 16 MiB budget, and decoded cached images a 48 MiB pixel budget. XMLTV parsing bounds compressed data per feed and shortens descriptions to 2,048 characters. The 200 MiB decompressed-input limit remains active. Full schedules load on demand when View Guide is selected.
 
-Packaged desktop launchers cap the Java heap at 512 MiB and enable periodic idle collection. The build property `uiptv.desktop.max.heap` overrides the heap setting. Native JavaFX/VLC memory is additional. See [the desktop memory audit](docs/EPG_MEMORY_AUDIT.md) for measurements and validation limits.
+Packaged desktop launchers cap the Java heap at 512 MiB and enable periodic idle collection. The build property `uiptv.desktop.max.heap` overrides the heap setting. Native JavaFX/VLC memory is additional; the release acceptance ceiling is 900 MiB total process footprint. Ordinary logos, channels, bookmarks and compact episode cards use a bounded 96×96 profile; VOD/series artwork uses a separate bounded 512×768 profile. See [the desktop memory audit](docs/EPG_MEMORY_AUDIT.md) for measurements and validation limits.
 
 ### Virtual-card guide details
 

@@ -26,6 +26,8 @@ public class HttpRemoteSyncCompleteServer implements HttpHandler {
                     payload.optString("message", "")
             );
             writeJsonResponse(exchange, 200, new JSONObject().put("status", "ok").toString());
+        } catch (com.uiptv.util.ServerUtils.RequestBodyTooLargeException ex) {
+            writeJsonResponse(exchange, 413, new JSONObject().put("message", "Request body is too large.").toString());
         } catch (IllegalArgumentException | IllegalStateException ex) {
             writeJsonResponse(exchange, 400, new JSONObject().put("message", ex.getMessage()).toString());
         }

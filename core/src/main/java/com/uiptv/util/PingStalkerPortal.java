@@ -44,7 +44,7 @@ public class PingStalkerPortal {
         final String timezone = account.getTimezone() != null ? account.getTimezone() : "Europe/London";
         final String httpMethod = account.getHttpMethod() != null ? account.getHttpMethod() : "GET";
         // Try reading and parsing xpcom.common.js first.
-        com.uiptv.util.AppLog.addInfoLog(PingStalkerPortal.class, "Attempting to download xpcom.common.js from portal base URL: " + url);
+        com.uiptv.util.AppLog.addInfoLog(PingStalkerPortal.class, "Attempting to download xpcom.common.js from the portal.");
         try {
             String pingUrl = !url.endsWith("/") ? url + "/" + "xpcom.common.js" : url + "xpcom.common.js";
 
@@ -57,7 +57,7 @@ public class PingStalkerPortal {
                 String discoveredApi = parsePortalApiServer((response.body() + " ").replace(" ", ""), url);
                 String defaultApi = getDefaultApiEndpoint(url);
                 if (isNotBlank(discoveredApi) && !discoveredApi.equalsIgnoreCase(defaultApi)) {
-                    com.uiptv.util.AppLog.addInfoLog(PingStalkerPortal.class, "Successfully parsed xpcom.common.js and resolved a specific API endpoint: " + discoveredApi);
+                    com.uiptv.util.AppLog.addInfoLog(PingStalkerPortal.class, "Successfully parsed xpcom.common.js and resolved a specific API endpoint.");
                     return discoveredApi;
                 }
                 com.uiptv.util.AppLog.addWarningLog(PingStalkerPortal.class, "xpcom.common.js was accessible, but did not yield a specific API endpoint. Trying known API paths next.");
@@ -76,7 +76,7 @@ public class PingStalkerPortal {
         com.uiptv.util.AppLog.addInfoLog(PingStalkerPortal.class, "Probing known Stalker API endpoints.");
         String verifiedApi = probeKnownPaths(url, account.getMacAddress(), timezone, httpMethod);
         if (verifiedApi != null) {
-            com.uiptv.util.AppLog.addInfoLog(PingStalkerPortal.class, "Successfully discovered working API endpoint via direct handshake probing: " + verifiedApi);
+            com.uiptv.util.AppLog.addInfoLog(PingStalkerPortal.class, "Successfully discovered a working API endpoint via direct handshake probing.");
             return verifiedApi;
         }
 
@@ -109,7 +109,7 @@ public class PingStalkerPortal {
                 return targetUrl;
             }
             if (result == ProbeStatus.NETWORK_ERROR) {
-                com.uiptv.util.AppLog.addWarningLog(PingStalkerPortal.class, "Stopping endpoint probing after connection-level failure at: " + targetUrl);
+                com.uiptv.util.AppLog.addWarningLog(PingStalkerPortal.class, "Stopping endpoint probing after a connection-level failure.");
                 return null;
             }
         }
@@ -127,7 +127,7 @@ public class PingStalkerPortal {
      */
     private static ProbeStatus checkHandshake(String apiUrl, String macAddress, String timezone, String httpMethod) {
         try {
-            com.uiptv.util.AppLog.addInfoLog(PingStalkerPortal.class, "Checking handshake for : " + apiUrl);
+            com.uiptv.util.AppLog.addInfoLog(PingStalkerPortal.class, "Checking a Stalker handshake endpoint.");
             
             Map<String, String> headers = new HashMap<>();
             headers.put("User-Agent", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
@@ -146,7 +146,7 @@ public class PingStalkerPortal {
             }
         } catch (Exception e) {
             if (isNetworkFailure(e)) {
-                com.uiptv.util.AppLog.addWarningLog(PingStalkerPortal.class, "Network/connection issue while checking " + apiUrl + ": " + rootCauseMessage(e));
+                com.uiptv.util.AppLog.addWarningLog(PingStalkerPortal.class, "Network/connection issue while checking a Stalker endpoint: " + rootCauseMessage(e));
                 return ProbeStatus.NETWORK_ERROR;
             }
         }

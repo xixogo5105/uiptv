@@ -3,10 +3,13 @@ package com.uiptv.util;
 import com.sun.net.httpserver.HttpExchange;
 import com.uiptv.api.JsonCompliant;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URLDecoder;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
@@ -17,6 +20,9 @@ import java.util.Map;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
 public class ServerUtils {
+    /** Maximum JSON/text request body accepted by the local HTTP API. */
+    public static final int MAX_REQUEST_BODY_BYTES = 8 * 1024 * 1024;
+
     private ServerUtils() {
     }
 
@@ -104,8 +110,46 @@ public class ServerUtils {
     }
 
     public static byte[] readRequestBodyBytes(HttpExchange httpExchange) throws IOException {
+        return readRequestBodyBytes(httpExchange, MAX_REQUEST_BODY_BYTES);
+    }
+
+    public static byte[] readRequestBodyBytes(HttpExchange httpExchange, int maxBytes) throws IOException {
+        if (maxBytes < 0) {
+            throw new IllegalArgumentException("maxBytes must not be negative");
+        }
         try (InputStream inputStream = httpExchange.getRequestBody()) {
-            return inputStream.readAllBytes();
+            ByteArrayOutputStream body = new ByteArrayOutputStream(Math.min(maxBytes, 8192));
+            byte[] buffer = new byte[8192];
+            int total = 0;
+            int read;
+            while ((read = inputStream.read(buffer)) != -1) {
+                if (read > maxBytes - total) {
+                    throw new RequestBodyTooLargeException(maxBytes);
+                }
+                body.write(buffer, 0, read);
+                total += read;
+            }
+            return body.toByteArray();
+        }
+    }
+
+    public static void writeFileResponse(HttpExchange httpExchange,
+                                         int statusCode,
+                                         Path file,
+                                         String contentType) throws IOException {
+        long length = Files.size(file);
+        httpExchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+        httpExchange.getResponseHeaders().set("Content-Type", contentType);
+        httpExchange.sendResponseHeaders(statusCode, length);
+        try (InputStream input = Files.newInputStream(file);
+             OutputStream output = httpExchange.getResponseBody()) {
+            input.transferTo(output);
+        }
+    }
+
+    public static final class RequestBodyTooLargeException extends IOException {
+        public RequestBodyTooLargeException(int maxBytes) {
+            super("Request body exceeds the maximum allowed size of " + maxBytes + " bytes");
         }
     }
 

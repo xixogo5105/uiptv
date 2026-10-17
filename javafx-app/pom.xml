@@ -15,14 +15,15 @@
 
     <properties>
         <!--
-            The desktop keeps the catalogue and EPG caches bounded, while the
-            JavaFX/macOS renderer owns a separate native graphics footprint.
-            512m made the JVM commit a large heap before it was needed and
-            left too little room for the renderer in the normal desktop
-            process budget. Keep this overrideable for unusually large
-            catalogues, but use a smaller idle-safe default.
+            Keep enough Java heap for large catalogue/thumbnail allocations.
+            The catalogue, EPG and image caches are independently bounded, so
+            this does not permit an unbounded image leak. 160m caused repeated
+            full-GC compaction during normal thumbnail allocation and made the
+            UI appear hung. Keep this overrideable for unusually large
+            catalogues while leaving the native JavaFX/VLC footprint room in
+            the overall desktop process budget.
         -->
-        <uiptv.desktop.max.heap>384m</uiptv.desktop.max.heap>
+        <uiptv.desktop.max.heap>512m</uiptv.desktop.max.heap>
     </properties>
 
     <dependencies>
@@ -88,16 +89,6 @@
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-inline</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient</artifactId>
-            <version>4.5.14</version>
         </dependency>
     </dependencies>
 

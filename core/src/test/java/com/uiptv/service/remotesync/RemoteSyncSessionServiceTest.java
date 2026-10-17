@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.SQLException;
@@ -30,6 +31,16 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
     private static final long STATUS_POLL_INTERVAL_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
 
     private final DatabaseSnapshotService snapshotService = new DatabaseSnapshotService();
+
+    @Test
+    void boundedTransferCopy_rejectsPayloadAfterConfiguredLimit() throws Exception {
+        Path destination = tempDir.resolve("bounded-transfer.bin");
+
+        assertThrows(RemoteSyncSessionService.TransferTooLargeException.class, () ->
+                RemoteSyncSessionService.copyBounded(
+                        new ByteArrayInputStream(new byte[]{1, 2, 3, 4}), destination, 3));
+        assertTrue(Files.size(destination) <= 3);
+    }
 
     @Test
     void exportSession_acceptUpload_syncsSnapshotIntoRemoteDatabase() throws Exception {
