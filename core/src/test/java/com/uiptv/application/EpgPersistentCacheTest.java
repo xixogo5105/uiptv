@@ -291,6 +291,33 @@ class EpgPersistentCacheTest extends DbBackedTest {
         assertTrue(running.isShutdown()); assertNull(scheduler.get(null));
     }
 
+    @Test void enablingFullEpgRunsImmediatelyThenUsesConfiguredInterval() throws Exception {
+        var account = account("immediate-refresh");
+        account.setEpg(xml("immediate.xml", "Immediate programme").toString());
+        AccountDb.get().save(account);
+        account = AccountService.getInstance().getByName("immediate-refresh");
+        var category = new Category("immediate-category", "Live", "Live", false, 0);
+        CategoryDb.get().saveAll(List.of(category), account);
+        category = CategoryDb.get().getCategories(account).getFirst();
+        var channel = channel("station", "Station");
+        ChannelDb.get().saveAll(List.of(channel), category.getDbId(), account);
+
+        var config = ConfigurationService.getInstance().read();
+        config.setEpgEnabled(false);
+        config.setEpgPlaybackOnly(false);
+        config.setEpgSchedulerIntervalMinutes("60");
+        ConfigurationService.getInstance().save(config);
+        EpgCacheRefreshService.start();
+
+        config.setEpgEnabled(true);
+        ConfigurationService.getInstance().save(config);
+
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (cache.schedule(account, channel).isEmpty() && System.nanoTime() < deadline) Thread.sleep(10);
+        assertEquals("Immediate programme", cache.schedule(account, channel).getFirst().title(),
+                "Leaving EPG off must not wait for the configured hourly interval");
+    }
+
     @Test void refreshIntervalPersistsAndShorteningItMakesOldSourceDue() throws Exception {
         var config=ConfigurationService.getInstance().read(); assertEquals(2,config.normalizedEpgRefreshHours());
         config.setEpgRefreshIntervalHours("1"); ConfigurationService.getInstance().save(config);

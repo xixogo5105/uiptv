@@ -22,6 +22,8 @@ public class EpgCacheRefreshService {
     private static final Map<Runnable,EpgChangeNotifications.Subscription> LEGACY_LISTENERS=new ConcurrentHashMap<>();
     private static ScheduledExecutorService scheduler;
     private static boolean applicationOwned;
+    /** The last state observed while this lifecycle was running. */
+    private static volatile boolean backgroundRefreshWasEnabled;
     public static synchronized void startApplication() { applicationOwned=true; start(); }
     public static void stopServer() { stop(true); }
     /**
@@ -32,10 +34,17 @@ public class EpgCacheRefreshService {
     private static final ConfigurationChangeListener CONFIG_CHANGED=_ -> settingsChanged();
     private static final AccountChangeListener ACCOUNTS_CHANGED=_ -> settingsChanged();
     private static void settingsChanged() {
+        boolean wasEnabled = backgroundRefreshWasEnabled;
         EPOCH.incrementAndGet();
         WORKERS.forEach(Thread::interrupt);
         stopTimer();
-        if (isEnabled()) activateIfEnabled();
+        boolean enabled = isEnabled();
+        backgroundRefreshWasEnabled = enabled;
+        // A save which turns full EPG back on must populate the guide now. Once
+        // that run completes, scheduleWithFixedDelay applies the configured
+        // interval to all subsequent checks.
+        if (enabled && !wasEnabled) IMMEDIATE_REQUESTED.set(true);
+        if (enabled) activateIfEnabled();
     }
     private static boolean isEnabled() {
         try { return new EpgApplicationService().isBackgroundRefreshEnabled(); }
@@ -108,6 +117,7 @@ public class EpgCacheRefreshService {
     public static synchronized void start() {
         if(!lifecycleStarted) {
             lifecycleStarted=true;
+            backgroundRefreshWasEnabled = isEnabled();
             ConfigurationService.getInstance().addChangeListener(CONFIG_CHANGED);
             AccountService.getInstance().addChangeListener(ACCOUNTS_CHANGED);
         }
@@ -162,6 +172,8 @@ public class EpgCacheRefreshService {
         synchronized (EpgCacheRefreshService.class) {
             if (serverOnly && applicationOwned) return;
             lifecycleStarted = false;
+            backgroundRefreshWasEnabled = false;
+            IMMEDIATE_REQUESTED.set(false);
             synchronized (VISIBLE) { VISIBLE.clear(); }
             EPOCH.incrementAndGet();
             ConfigurationService.getInstance().removeChangeListener(CONFIG_CHANGED);
