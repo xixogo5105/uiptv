@@ -3560,12 +3560,30 @@ createApp({
             const prefersNativeHls = canNative && (isIos || isSafari);
 
             // The server has already selected a CORS-safe local proxy for this
-            // account.  Use the browser's native HLS path first so transient
-            // CDN playlist staleness reaches loadNative's cache-busting retry
-            // instead of going through Shaka/Video.js first.
+            // account.  A proxy URL can carry either an HLS playlist or a
+            // progressive/MPEG-TS stream.  Do not send proxied HLS through the
+            // native path on Chromium: desktop Chromium does not provide a
+            // reliable native HLS demuxer and can report a delayed
+            // DEMUXER_ERROR_COULD_NOT_PARSE after the first segments played.
             if (strategyHint === 'NATIVE_PROXY' && !hasDRM && !isTs) {
                 const proxyUrl = buildProxyStreamUrl(uri, channel.accountId) || uri;
-                await loadNative({...channel, url: proxyUrl}, requestId);
+                const proxiedChannel = {
+                    ...channel,
+                    url: proxyUrl,
+                    manifestType: manifestType || (isHls ? 'm3u8' : channel.manifestType)
+                };
+                if (isHls && prefersNativeHls) {
+                    await loadNative(proxiedChannel, requestId);
+                } else if (isHls) {
+                    try {
+                        await loadVideoJs(proxiedChannel, requestId);
+                    } catch (videoJsError) {
+                        console.warn('Video.js proxy HLS playback failed, trying Shaka fallback', videoJsError);
+                        await loadShaka(proxiedChannel, requestId);
+                    }
+                } else {
+                    await loadNative(proxiedChannel, requestId);
+                }
                 return;
             }
 

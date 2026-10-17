@@ -5,13 +5,19 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync('api-server/src/main/resources/web/javascript/spa.js', 'utf8');
 
-test('NATIVE_PROXY strategy uses native playback before adaptive-engine fallbacks', () => {
+test('NATIVE_PROXY strategy routes proxied HLS through the adaptive player', () => {
     const hint = source.indexOf("strategyHint === 'NATIVE_PROXY'");
-    const native = source.indexOf("await loadNative({...channel, url: proxyUrl}, requestId);", hint);
+    const hls = source.indexOf('if (isHls) {', hint);
+    const videoJs = source.indexOf('await loadVideoJs(proxiedChannel, requestId);', hls);
+    const shaka = source.indexOf('await loadShaka(proxiedChannel, requestId);', videoJs);
+    const native = source.indexOf('await loadNative(proxiedChannel, requestId);', shaka);
     const override = source.indexOf("if (override === 'proxy')", hint);
 
     assert.ok(hint >= 0, 'SPA must recognize the server proxy strategy hint');
-    assert.ok(native > hint && native < override, 'proxy strategy must select native playback first');
+    assert.ok(hls > hint && hls < override, 'proxy strategy must branch on HLS before the manual proxy override');
+    assert.ok(videoJs > hls && videoJs < shaka, 'proxied HLS must use the adaptive Video.js player');
+    assert.ok(shaka > videoJs && shaka < native, 'proxied HLS must retain a Shaka fallback');
+    assert.ok(native > shaka && native < override, 'non-HLS proxy streams must retain native playback');
 });
 
 test('playback request ownership lets a newer stream survive a failed older request', () => {
@@ -63,11 +69,11 @@ test('SPA recording assets match the desktop recording-dot geometry and cache ve
     assert.match(off, /circle cx="8" cy="8" r="4" fill="#8a97a5"/);
     assert.match(source, /broadcast-on\.svg\?v=20261017b/);
     assert.match(source, /broadcast-off\.svg\?v=20261017b/);
-    assert.match(html, /spa\.js\?v=20261017playbackRecovery2/);
+    assert.match(html, /spa\.js\?v=20261017playbackRecovery3/);
     assert.match(html, /spa\.css\?v=20261017recordingIndicator1/);
     assert.match(html, /class="broadcast-indicator"/);
     assert.match(css, /\.broadcast-indicator\s*\{[\s\S]*background: var\(--broadcast-indicator-bg\)/);
     assert.match(css, /--broadcast-indicator-bg: #e5e5e5/);
-    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v82'/);
+    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v83'/);
 });
 
