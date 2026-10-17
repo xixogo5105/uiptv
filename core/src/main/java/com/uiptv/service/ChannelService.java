@@ -353,14 +353,20 @@ public class ChannelService {
     private List<Channel> fetchVodSeriesFromProviderAllPages(String categoryId, Account account, Supplier<Boolean> isCancelled, LoggerCallback logger,
                                                              Consumer<List<Channel>> callback, Consumer<PageProgress> progressCallback) {
         List<Channel> channels;
+        Consumer<List<Channel>> visibleCallback = callback == null ? null : batch -> {
+            List<Channel> visibleBatch = maybeFilterChannels(batch, true, account);
+            if (!visibleBatch.isEmpty()) {
+                callback.accept(visibleBatch);
+            }
+        };
         if (account.getType() == XTREME_API) {
-            channels = dedupeChannels(XtremeApiParser.parseChannels(categoryId, account, callback, isCancelled == null ? null : isCancelled::get));
+            channels = dedupeChannels(XtremeApiParser.parseChannels(categoryId, account, visibleCallback, isCancelled == null ? null : isCancelled::get));
             if (progressCallback != null) {
                 progressCallback.accept(new PageProgress(channels.size(), channels.size(), 1, 1));
             }
         } else {
             // Stream pages to the UI as they arrive; full list is still returned for caching.
-            channels = getStalkerPortalChOrSeries(categoryId, account, null, "0", callback, isCancelled, true, logger, progressCallback);
+            channels = getStalkerPortalChOrSeries(categoryId, account, null, "0", visibleCallback, isCancelled, true, logger, progressCallback);
         }
         channels.forEach(this::resolveLogoIfNeeded);
         return channels;

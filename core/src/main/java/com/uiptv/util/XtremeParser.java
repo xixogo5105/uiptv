@@ -23,7 +23,9 @@ import static com.uiptv.util.UiptUtils.replaceAllNonPrintableChars;
  * Handles parsing of Xtreme accounts.
  */
 public class XtremeParser implements AccountParser {
-    private static final Pattern URL_PATTERN = Pattern.compile("(https?://\\S+)");
+    // Stop at Markdown link delimiters as well as whitespace. Otherwise a pasted
+    // [http://portal](http://portal) is saved with the trailing ](http://portal).
+    private static final Pattern URL_PATTERN = Pattern.compile("(?i)(https?://[^\\s\\])>]+)");
     private static final Pattern LABELED_USER = Pattern.compile("(?i)\\b(?:user|username|u|name|id)\\b\\s*[:=]?\\s*(\\S+)");
     private static final Pattern LABELED_PASS = Pattern.compile("(?i)\\b(?:pass(?:word)?|p|pw)\\b\\s*[:=]?\\s*(\\S+)");
 
@@ -48,14 +50,16 @@ public class XtremeParser implements AccountParser {
         for (String line : lines) {
             String trimmed = replaceAllNonPrintableChars(line).trim();
             if (trimmed.isEmpty()) {
-                if (!currentBlock.isEmpty()) {
-                    ParsedAccount parsed = processBlock(currentBlock);
-                    if (parsed != null) {
-                        parsedAccounts.add(parsed);
-                    }
-                    currentBlock.clear();
-                }
                 continue;
+            }
+            // Blank lines are commonly used to space out pasted credentials. A new
+            // portal URL, rather than an empty line, marks the start of the next entry.
+            if (URL_PATTERN.matcher(trimmed).find() && !currentBlock.isEmpty()) {
+                ParsedAccount parsed = processBlock(currentBlock);
+                if (parsed != null) {
+                    parsedAccounts.add(parsed);
+                }
+                currentBlock.clear();
             }
             currentBlock.add(trimmed);
         }
@@ -144,7 +148,6 @@ public class XtremeParser implements AccountParser {
 
     private List<Account> saveGroupedAccounts(List<ParsedAccount> parsedAccounts) {
         Map<String, Account> groupedAccounts = new LinkedHashMap<>();
-        List<Account> createdAccounts = new ArrayList<>();
         for (ParsedAccount parsed : parsedAccounts) {
             String name = accountNameFromUrl(parsed.url());
             Account existing = groupedAccounts.get(name);
@@ -158,12 +161,13 @@ public class XtremeParser implements AccountParser {
                 } else {
                     Account account = buildAccount(name, parsed.url(), parsed.credentials());
                     groupedAccounts.put(name, account);
-                    createdAccounts.add(account);
                 }
             }
         }
         groupedAccounts.values().forEach(accountSaver);
-        return createdAccounts;
+        // Include updated existing accounts as well: callers use this result to confirm
+        // that at least one account was actually saved and to optionally start verification.
+        return new ArrayList<>(groupedAccounts.values());
     }
 
     private Account buildAccount(String name, String url, Credentials credentials) {

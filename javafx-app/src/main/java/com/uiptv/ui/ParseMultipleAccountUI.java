@@ -288,7 +288,11 @@ public class ParseMultipleAccountUI extends VBox {
                 String selectedMode = parseModePillBar.getSelectedItem();
                 boolean startVerificationAfterParsing = startVerificationAfterParsingSwitch.isSelected();
                 List<Account> createdAccounts = TextParserService.saveBulkAccounts(multipleSPAccounts.getText(), selectedMode, groupAccountsSwitch.isSelected(), convertM3uToXtremeSwitch.isSelected());
-                clearAll();
+                if (createdAccounts == null || createdAccounts.isEmpty()) {
+                    showErrorAlert(I18n.tr("autoErrorParsingOrSavingAccounts"));
+                    return;
+                }
+                multipleSPAccounts.clear();
                 if (onSaveCallback != null) {
                     onSaveCallback.call(null);
                 }

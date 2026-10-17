@@ -1,6 +1,8 @@
 package com.uiptv.util;
 
 import com.uiptv.model.Account;
+import com.uiptv.service.DbBackedTest;
+import com.uiptv.service.AccountService;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -16,7 +18,7 @@ import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class XtremeParserTest {
+class XtremeParserTest extends DbBackedTest {
 
     /**
      * Test that multiple accounts with the same URL can be parsed correctly.
@@ -310,6 +312,85 @@ class XtremeParserTest {
         assertNotNull(defaultEntry);
         assertEquals(grouped.getUsername(), defaultEntry.username());
         assertEquals(grouped.getPassword(), defaultEntry.password());
+    }
+
+    @Test
+    void groupedImportReturnsAnExistingAccountWhenItsCredentialsAreUpdated() {
+        String text = """
+                http://apk4k.org:80
+                Username : newUser
+                Password : newPass
+                """;
+        Account existing = new Account("apk4k.org", "oldUser", "oldPass", "http://apk4k.org:80",
+                null, null, null, null, null, null, AccountType.XTREME_API, null, null, false);
+        Map<String, Account> store = new LinkedHashMap<>();
+        store.put(existing.getAccountName(), existing);
+        List<Account> saved = new java.util.ArrayList<>();
+        XtremeParser parser = new XtremeParser(store::get, account -> {
+            store.put(account.getAccountName(), account);
+            saved.add(account);
+        });
+
+        List<Account> result = parser.parseAndSave(text, true, false);
+
+        assertEquals(1, result.size());
+        assertEquals(1, saved.size());
+        assertEquals("http://apk4k.org:80", result.getFirst().getUrl());
+        assertEquals(2, XtremeCredentialsJson.parse(result.getFirst().getXtremeCredentialsJson()).size());
+    }
+
+    @Test
+    void groupedImportAcceptsMarkdownLinkedPortalUrlsWithPorts() {
+        String text = """
+                [http://apk4k.org:80](http://apk4k.org:80)
+                Username : testUserA
+                Password : testPassA
+
+                [http://apk4k.org:80](http://apk4k.org:80)
+                Username : testUserB
+                Password : testPassB
+                """;
+        Map<String, Account> store = new LinkedHashMap<>();
+        List<Account> saved = new java.util.ArrayList<>();
+        XtremeParser parser = new XtremeParser(store::get, account -> {
+            store.put(account.getAccountName(), account);
+            saved.add(account);
+        });
+
+        List<Account> result = parser.parseAndSave(text, true, false);
+
+        assertEquals(1, result.size());
+        assertEquals(1, saved.size());
+        Account account = result.getFirst();
+        assertEquals("apk4k.org", account.getAccountName());
+        assertEquals("http://apk4k.org:80", account.getUrl());
+        assertEquals(2, XtremeCredentialsJson.parse(account.getXtremeCredentialsJson()).size());
+    }
+
+    @Test
+    void groupedImportPersistsPlainPortalUrlsWithPortAndColonLabeledCredentials() {
+        String text = """
+                http://apk4k.org:80
+
+                Username : testUserA
+
+                Password : testPassA
+
+
+                http://apk4k.org:80
+
+                Username : testUserB
+
+                Password : testPassB
+                """;
+
+        List<Account> result = new XtremeParser().parseAndSave(text, true, false);
+
+        assertEquals(1, result.size());
+        Account persisted = AccountService.getInstance().getByName("apk4k.org");
+        assertNotNull(persisted);
+        assertEquals("http://apk4k.org:80", persisted.getUrl());
+        assertEquals(2, XtremeCredentialsJson.parse(persisted.getXtremeCredentialsJson()).size());
     }
 
     @Test

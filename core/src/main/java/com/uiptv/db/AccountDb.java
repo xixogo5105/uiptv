@@ -90,7 +90,10 @@ public class AccountDb extends BaseDb {
             if (accountExist) {
                 statement.setInt(22, Integer.valueOf(dbAccount.getDbId()));
             }
-            statement.execute();
+            int affectedRows = statement.executeUpdate();
+            if (affectedRows != 1) {
+                throw new DatabaseAccessException("Unable to save account: expected one row to be written, got " + affectedRows);
+            }
         } catch (SQLException e) {
             throw new DatabaseAccessException("Unable to execute query", e);
         }

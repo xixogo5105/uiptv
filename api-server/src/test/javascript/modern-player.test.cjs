@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync('api-server/src/main/resources/web/javascript/spa.js', 'utf8');
+const playbackUtilsSource = fs.readFileSync('api-server/src/main/resources/web/javascript/playback-utils.js', 'utf8');
 const functionSource = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
 function harness() {
     const calls = [];
@@ -12,7 +13,7 @@ function harness() {
         selectVideoRendition(id) { calls.push(['quality',id]); }, selectAudioTrack(id) { calls.push(['audio',id]); }, selectSubtitlesTrack(id) { calls.push(['text',id]); }};
     const media = {addEventListener(){}, play: async()=>calls.push(['play'])};
     const player = {store,dispose(){calls.push(['dispose']);}};
-    const context = {window:{UIPTVModernPlayer:{ready:async()=>{}, mount(container,tag){calls.push(['mount',tag]);return media;},connect(){return player;}}},
+    const context = {window:{location:{origin:'http://localhost'},UIPTVModernPlayer:{ready:async()=>{}, mount(container,tag){calls.push(['mount',tag]);return media;},connect(){return player;}}}, URL,
         document:{getElementById:()=>({})}, nextTick:async()=>{}, videoJsPlayer:ref(null),videoPlayer:ref(null),playbackError:ref(''),playbackMode:ref(''),
         playbackRequestState:{currentId:()=>0},
         videoTracks:ref([]),audioTracks:ref([]),textTracks:ref([]),selectedTextTrackId:ref('off'),
@@ -20,6 +21,8 @@ function harness() {
         throwIfPlaybackSuperseded(){},withPlaybackStartupTimeout:promise=>promise,withPlaybackMediaError:(video, playAction)=>playAction(),
         isMaxQualityEnabled:()=>false, setMaxQualityEnabled(value){calls.push(['max',value]);},console};
     vm.createContext(context);
+    vm.runInContext(playbackUtilsSource, context);
+    context.playbackUtils = context.window.UIPTVPlaybackUtils;
     vm.runInContext(functionSource('        const loadVideoJs =','        const loadShaka =')+'\nthis.loadVideoJs=loadVideoJs;this.refreshVideoJsTracks=refreshVideoJsTracks;',context);
     for(const [name,end] of [['switchVideoTrack','switchVideoAuto'],['switchVideoAuto','switchVideoMax'],['switchVideoMax','switchAudioTrack'],['switchAudioTrack','switchTextTrack'],['switchTextTrack','refreshNativeTracks']]) {
         const start=source.indexOf('        const '+name+' =');

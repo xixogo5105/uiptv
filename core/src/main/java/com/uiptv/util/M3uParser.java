@@ -17,7 +17,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 public class M3uParser implements AccountParser {
     @Override
     public List<Account> parseAndSave(String text, boolean groupConvertedXtremeAccounts, boolean convertM3uToXtreme) {
-        List<Account> createdAccounts = new ArrayList<>();
+        Map<String, Account> savedAccounts = new LinkedHashMap<>();
         Map<String, Account> groupedXtremeAccounts = new LinkedHashMap<>();
         for (String line : text.split("\\R")) {
             for (final String potentialUrl : replaceAllNonPrintableChars(line).split(SPACER)) {
@@ -45,6 +45,7 @@ public class M3uParser implements AccountParser {
                         if (groupedAccount != null) {
                             mergeCredentials(groupedAccount, username, password);
                             AccountService.getInstance().save(groupedAccount);
+                            savedAccounts.put(groupedAccount.getAccountName(), groupedAccount);
                             continue;
                         }
                         groupedXtremeAccounts.put(m3uPlayLIstUrl, account);
@@ -52,10 +53,10 @@ public class M3uParser implements AccountParser {
                     mergeCredentials(account, username, password);
                 }
                 AccountService.getInstance().save(account);
-                createdAccounts.add(account);
+                savedAccounts.put(account.getAccountName(), account);
             }
         }
-        return createdAccounts;
+        return new ArrayList<>(savedAccounts.values());
     }
 
     private Account findExistingXtremeAccount(String endpoint) {

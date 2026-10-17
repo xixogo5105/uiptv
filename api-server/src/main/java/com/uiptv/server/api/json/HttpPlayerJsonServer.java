@@ -8,6 +8,7 @@ import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.*;
 import com.uiptv.util.AppLog;
+import com.uiptv.util.AccountType;
 import com.uiptv.util.ServerUrlUtil;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -53,8 +54,10 @@ public class HttpPlayerJsonServer implements HttpHandler {
         try {
             String mode = resolveRequestedMode(ex, getParam(ex, "mode"));
             ResolvedWebPlayback resolved = resolvePlayback(ex, mode);
+            PlaybackMediaInspector.MediaInfo mediaInfo = shouldInspectMedia(resolved.response(), mode, getParam(ex, "url"))
+                    ? PlaybackMediaInspector.inspect(resolved.response().getUrl(), resolved.response().getAccount()) : null;
             applyWebPlaybackProcessing(resolved.response(), mode);
-            generateJsonResponse(ex, buildJsonResponse(resolved));
+            generateJsonResponse(ex, buildJsonResponse(resolved, mediaInfo));
         } catch (Exception e) {
             if (isClientDisconnect(e)) {
                 return;
@@ -201,14 +204,27 @@ public class HttpPlayerJsonServer implements HttpHandler {
     }
 
     private String buildJsonResponse(ResolvedWebPlayback resolved) {
+        return buildJsonResponse(resolved, null);
+    }
+
+    private String buildJsonResponse(ResolvedWebPlayback resolved, PlaybackMediaInspector.MediaInfo mediaInfo) {
         PlayerResponse response = resolved.response();
         JSONObject json = new JSONObject();
         json.put("url", response == null ? "" : response.getUrl());
         putIfNotBlank(json, JSON_KEY_STRATEGY_HINT, determineStrategyHint(response));
         appendChannelJson(json, response);
         appendDrmJson(json, response);
+        if (mediaInfo != null) json.put("mediaInfo", mediaInfo.toJson());
         appendBingeWatchJson(json, resolved);
         return json.toString();
+    }
+
+    private boolean shouldInspectMedia(PlayerResponse response, String mode, String directUrl) {
+        if (response == null || isBlank(response.getUrl())) return false;
+        if (isNotBlank(directUrl)) return false;
+        String normalizedMode = isBlank(mode) ? "" : mode.trim().toLowerCase();
+        if (!MODE_VOD.equals(normalizedMode) && !MODE_SERIES.equals(normalizedMode)) return false;
+        return !hasDrmMetadata(response);
     }
 
     private void appendChannelJson(JSONObject json, PlayerResponse response) {
@@ -303,10 +319,26 @@ public class HttpPlayerJsonServer implements HttpHandler {
         if (isLocalProxyUrl(lowerUrl)) {
             return STRATEGY_HINT_NATIVE_PROXY;
         }
-        if (isForcedWebPath(lowerUrl)) {
+        if (isStalkerOnDemandUrl(response)) {
+            return STRATEGY_HINT_NATIVE_PROXY;
+        }
+        if (isForcedWebPath(lowerUrl) && ConfigurationService.getInstance().isWebPlaybackProxyEnabled(response.getAccount())) {
             return STRATEGY_HINT_NATIVE_PROXY;
         }
         return STRATEGY_HINT_NATIVE;
+    }
+
+    private boolean isStalkerOnDemandUrl(PlayerResponse response) {
+        if (response == null || response.getAccount() == null
+                || response.getAccount().getType() != AccountType.STALKER_PORTAL || isBlank(response.getUrl())) {
+            return false;
+        }
+        String url = response.getUrl().toLowerCase();
+        return url.contains(PATH_PLAY_MOVIE)
+                || url.contains("/vod/play/")
+                || url.contains("/series/play/")
+                || url.contains("type=movie")
+                || url.contains("type=" + MODE_SERIES);
     }
 
     private boolean isDashUrl(String url) {

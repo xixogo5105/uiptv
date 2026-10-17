@@ -5,19 +5,26 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync('api-server/src/main/resources/web/javascript/spa.js', 'utf8');
 
-test('NATIVE_PROXY strategy routes proxied HLS through the adaptive player', () => {
+test('NATIVE_PROXY strategy routes backend-identified formats to the matching player', () => {
     const hint = source.indexOf("strategyHint === 'NATIVE_PROXY'");
-    const hls = source.indexOf('if (isHls) {', hint);
-    const videoJs = source.indexOf('await loadVideoJs(proxiedChannel, requestId);', hls);
-    const shaka = source.indexOf('await loadShaka(proxiedChannel, requestId);', videoJs);
-    const native = source.indexOf('await loadNative(proxiedChannel, requestId);', shaka);
     const override = source.indexOf("if (override === 'proxy')", hint);
-
-    assert.ok(hint >= 0, 'SPA must recognize the server proxy strategy hint');
-    assert.ok(hls > hint && hls < override, 'proxy strategy must branch on HLS before the manual proxy override');
-    assert.ok(videoJs > hls && videoJs < shaka, 'proxied HLS must use the adaptive Video.js player');
-    assert.ok(shaka > videoJs && shaka < native, 'proxied HLS must retain a Shaka fallback');
-    assert.ok(native > shaka && native < override, 'non-HLS proxy streams must retain native playback');
+    const branch = source.slice(hint, override);
+    assert.ok(hint >= 0 && override > hint, 'SPA must recognize the server proxy strategy hint');
+    assert.match(branch, /override === 'auto'/,
+        'explicit direct, proxy and MPEG-TS experiments must bypass automatic proxy routing');
+    assert.match(branch, /playbackUtils\.buildProxyStreamUrl\(uri\) \|\| uri/,
+        'an explicit server proxy route must use the local web proxy independently of account settings');
+    assert.match(branch, /mediaStrategy === 'hls'/);
+    assert.match(branch, /mediaStrategy === 'mpegts'/);
+    assert.match(branch, /mediaStrategy === 'dash'/);
+    assert.match(branch, /mediaStrategy === 'unsupported'/);
+    assert.match(branch, /await loadVideoJs\(proxiedChannel, requestId\)/);
+    assert.match(branch, /await loadMpegTs\(/);
+    assert.doesNotMatch(branch, /probeProxyMediaType/);
+    assert.match(source, /Promise\.race\(\[playWithGestureFallback\(playAction\), mpegTsStartupError\]\)/,
+        'MPEG-TS engine errors must reject startup with the engine diagnostic instead of timing out');
+    assert.match(source, /url: resolveMpegTsPlaybackUrl\(uri\)/,
+        'the MPEG-TS route test must use the same local proxy transport as production');
 });
 
 test('playback request ownership lets a newer stream survive a failed older request', () => {
@@ -43,10 +50,11 @@ test('playback request ownership lets a newer stream survive a failed older requ
 });
 
 test('playback startup fails fast on an HTTP player-resolution error', () => {
-    const fetchStart = source.indexOf("const response = await fetch(url, {signal: controller.signal});");
+    const fetchStart = source.indexOf("const channelData = await withPlaybackStartupTimeout((async () => {");
     const fetchFailure = source.indexOf("throw new Error(`Playback request failed (${response.status})`);", fetchStart);
-    assert.ok(fetchStart >= 0, 'SPA must fetch the player resolution response');
+    assert.ok(fetchStart >= 0, 'SPA must bound player resolution with the startup timeout');
     assert.ok(fetchFailure > fetchStart, 'SPA must reject non-success player responses before parsing media data');
+    assert.match(source.slice(fetchStart, source.indexOf('if (!isCurrentPlaybackRequest(requestId)) return;', fetchStart)), /'Player resolution', \(\) => controller\.abort\(\)/);
 });
 
 test('native startup observes media element errors instead of waiting for the timeout', () => {
@@ -69,11 +77,11 @@ test('SPA recording assets match the desktop recording-dot geometry and cache ve
     assert.match(off, /circle cx="8" cy="8" r="4" fill="#8a97a5"/);
     assert.match(source, /broadcast-on\.svg\?v=20261017b/);
     assert.match(source, /broadcast-off\.svg\?v=20261017b/);
-    assert.match(html, /spa\.js\?v=20261017playbackRecovery3/);
-    assert.match(html, /spa\.css\?v=20261017recordingIndicator1/);
+    assert.match(html, /spa\.js\?v=20261017watchingEpisodePanel2/);
+    assert.match(html, /spa\.css\?v=20261017watchingEpisodePanel2/);
     assert.match(html, /class="broadcast-indicator"/);
     assert.match(css, /\.broadcast-indicator\s*\{[\s\S]*background: var\(--broadcast-indicator-bg\)/);
     assert.match(css, /--broadcast-indicator-bg: #e5e5e5/);
-    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v83'/);
+    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v103'/);
 });
 

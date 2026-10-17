@@ -116,6 +116,8 @@ createApp({
         };
         const WIDE_VIEW_COOKIE_NAME = 'uiptv_wide_view_mode';
         const SERIES_DETAIL_COLLAPSED_COOKIE_NAME = 'uiptv_series_detail_collapsed';
+        const WATCHING_NOW_SERIES_PANEL_COLLAPSED_COOKIE_NAME = 'uiptv_watching_now_series_panel_collapsed';
+        const WATCHING_NOW_EPISODES_PANEL_COLLAPSED_COOKIE_NAME = 'uiptv_watching_now_episodes_panel_collapsed';
         const WIDE_VIEW_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
         const readCookieValue = (name) => {
             const prefix = `${encodeURIComponent(name)}=`;
@@ -133,11 +135,30 @@ createApp({
         const persistSeriesDetailCollapsedPreference = (collapsed) => {
             document.cookie = `${encodeURIComponent(SERIES_DETAIL_COLLAPSED_COOKIE_NAME)}=${collapsed ? 'collapsed' : 'expanded'}; Max-Age=${WIDE_VIEW_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
         };
+        const readWatchingNowSeriesPanelCollapsedPreference = () => readCookieValue(WATCHING_NOW_SERIES_PANEL_COLLAPSED_COOKIE_NAME) === 'collapsed';
+        const persistWatchingNowSeriesPanelCollapsedPreference = (collapsed) => {
+            document.cookie = `${encodeURIComponent(WATCHING_NOW_SERIES_PANEL_COLLAPSED_COOKIE_NAME)}=${collapsed ? 'collapsed' : 'expanded'}; Max-Age=${WIDE_VIEW_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
+        };
+        const readWatchingNowEpisodesPanelCollapsedPreference = () => readCookieValue(WATCHING_NOW_EPISODES_PANEL_COLLAPSED_COOKIE_NAME) === 'collapsed';
+        const persistWatchingNowEpisodesPanelCollapsedPreference = (collapsed) => {
+            document.cookie = `${encodeURIComponent(WATCHING_NOW_EPISODES_PANEL_COLLAPSED_COOKIE_NAME)}=${collapsed ? 'collapsed' : 'expanded'}; Max-Age=${WIDE_VIEW_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
+        };
         const wideViewActive = ref(readWideViewPreference());
+        const narrowViewport = ref(typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1180px)').matches);
+        const syncNarrowViewport = () => {
+            if (typeof window.matchMedia === 'function') {
+                narrowViewport.value = window.matchMedia('(max-width: 1180px)').matches;
+            }
+        };
         if (!readCookieValue(WIDE_VIEW_COOKIE_NAME)) {
             persistWideViewPreference(wideViewActive.value);
         }
         const seriesDetailCollapsed = ref(readSeriesDetailCollapsedPreference());
+        const watchingNowSeriesPanelCollapsed = ref(readWatchingNowSeriesPanelCollapsedPreference());
+        const watchingNowEpisodesPanelCollapsed = ref(readWatchingNowEpisodesPanelCollapsedPreference());
+        const isWatchingNowEpisodesPanelCollapsed = computed(() => isExpandedPlayerAccordion.value
+            ? !watchingNowSeriesPanelCollapsed.value
+            : watchingNowEpisodesPanelCollapsed.value);
         const contentStageNarrow = ref(false);
         const isCompactDrilldown = computed(() => wideViewActive.value || contentStageNarrow.value);
         const wideDrilldownPanel = ref('categories');
@@ -166,6 +187,18 @@ createApp({
         const toggleSeriesDetailCollapsed = () => {
             seriesDetailCollapsed.value = !seriesDetailCollapsed.value;
             persistSeriesDetailCollapsedPreference(seriesDetailCollapsed.value);
+        };
+        const toggleWatchingNowSeriesPanelCollapsed = () => {
+            watchingNowSeriesPanelCollapsed.value = !watchingNowSeriesPanelCollapsed.value;
+            persistWatchingNowSeriesPanelCollapsedPreference(watchingNowSeriesPanelCollapsed.value);
+        };
+        const toggleWatchingNowEpisodesPanelCollapsed = () => {
+            if (isExpandedPlayerAccordion.value) {
+                toggleWatchingNowSeriesPanelCollapsed();
+                return;
+            }
+            watchingNowEpisodesPanelCollapsed.value = !watchingNowEpisodesPanelCollapsed.value;
+            persistWatchingNowEpisodesPanelCollapsedPreference(watchingNowEpisodesPanelCollapsed.value);
         };
         const playerManuallyHidden = ref(false);
         const listLoading = ref(false);
@@ -250,10 +283,13 @@ createApp({
             throw error;
         };
         const PLAYBACK_STARTUP_TIMEOUT_MS = 15000;
-        const withPlaybackStartupTimeout = (promise, label) => {
+        const withPlaybackStartupTimeout = (promise, label, onTimeout = null) => {
             let timeoutId;
             const timeout = new Promise((_, reject) => {
-                timeoutId = setTimeout(() => reject(new Error(`${label} startup timed out`)), PLAYBACK_STARTUP_TIMEOUT_MS);
+                timeoutId = setTimeout(() => {
+                    reject(new Error(`${label} startup timed out`));
+                    if (typeof onTimeout === 'function') onTimeout();
+                }, PLAYBACK_STARTUP_TIMEOUT_MS);
             });
             return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
         };
@@ -1130,6 +1166,9 @@ createApp({
             !!currentChannel.value || !!isPlaying.value || !!playbackLoading.value || !!playbackError.value
         );
         const playerPanelVisible = computed(() => hasPlayerContent.value && !playerManuallyHidden.value);
+        const isExpandedPlayerAccordion = computed(() =>
+            playerPanelVisible.value && (isCompactDrilldown.value || narrowViewport.value)
+        );
         const playbackSeekable = computed(() => Number.isFinite(playbackDuration.value) && playbackDuration.value > 0);
 
         const setBrowserTitle = () => {
@@ -1138,7 +1177,7 @@ createApp({
         };
 
         const playbackUtils = window.UIPTVPlaybackUtils;
-        const isTsLikeUrl = (url, manifestType = '') => playbackUtils.isTsLikeUrl(url, manifestType);
+        const isTsLikeUrl = (url, manifestType = '', mode = '') => playbackUtils.isTsLikeUrl(url, manifestType, mode);
         const canUseMpegts = () => playbackUtils.canUseMpegts();
         const resolvePlaybackModeLabel = (url, engine = '') => playbackUtils.resolvePlaybackModeLabel(url, engine);
         const isWebPlaybackProxyAllowed = (accountId = currentContext.value.accountId) => {
@@ -1693,13 +1732,20 @@ createApp({
             episodes.value = [];
             const modeState = getModeState('series');
             const effectiveCategoryId = seriesCategoryId || modeState.selectedSeriesCategoryId || currentContext.value.categoryId || '';
+            const requestedSeriesId = String(seriesId || '');
+            const accountId = String(currentContext.value.accountId || '');
+            const categoryId = String(effectiveCategoryId || '');
             try {
                 listLoading.value = true;
                 listLoadingMessage.value = 'Loading episodes...';
-                const response = await fetch(
-                    `${window.location.origin}/seriesEpisodes?seriesId=${encodeURIComponent(seriesId)}&accountId=${currentContext.value.accountId}&categoryId=${encodeURIComponent(effectiveCategoryId)}`
-                );
-                episodes.value = (await response.json()).map(normalizeChannel);
+                const query = new URLSearchParams({seriesId: requestedSeriesId, accountId, categoryId});
+                const response = await fetch(`${window.location.origin}/seriesEpisodes?${query}`);
+                if (!response.ok) throw new Error(`Series episodes unavailable (${response.status})`);
+                const payload = await response.json();
+                if (!Array.isArray(payload)) throw new Error('Invalid series episodes response');
+                if (String(modeState.selectedSeriesId || '') !== requestedSeriesId
+                    || String(currentContext.value.accountId || '') !== accountId) return;
+                episodes.value = payload.map(normalizeChannel);
                 viewState.value = 'episodes';
                 episodes.value = enrichEpisodesFromMeta(episodes.value, modeState.detail || null);
                 modeState.episodes = [...episodes.value];
@@ -1718,40 +1764,6 @@ createApp({
                 await scrollToSelectedWatchedEpisode();
             } catch (e) {
                 console.error('Failed to load series episodes', e);
-            } finally {
-                listLoading.value = false;
-            }
-        };
-
-        const loadSeriesChildren = async (movieId) => {
-            viewState.value = 'episodes';
-            episodes.value = [];
-            const modeState = getModeState('series');
-            try {
-                listLoading.value = true;
-                listLoadingMessage.value = 'Loading episodes...';
-                const response = await fetch(
-                    `${window.location.origin}/channels?categoryId=${currentContext.value.categoryId}&accountId=${currentContext.value.accountId}&mode=series&movieId=${encodeURIComponent(movieId)}`
-                );
-                episodes.value = (await response.json()).map(normalizeChannel);
-                viewState.value = 'episodes';
-                episodes.value = enrichEpisodesFromMeta(episodes.value, modeState.detail || null);
-                modeState.episodes = [...episodes.value];
-                modeState.viewState = 'episodes';
-                if (isCompactDrilldown.value) {
-                    wideDrilldownPanel.value = 'episodes';
-                }
-                clearSearch();
-                selectedSeriesSeason.value = resolvePreferredSeriesSeason(episodes.value, modeState.selectedSeason || '', {
-                    season: modeState.selectedSeason,
-                    episodeId: modeState.selectedEpisodeId,
-                    episodeNum: modeState.selectedEpisodeNum,
-                    episodeName: modeState.selectedEpisodeName
-                });
-                ensureSeriesSeasonSelected();
-                await scrollToSelectedWatchedEpisode();
-            } catch (e) {
-                console.error('Failed to load series children', e);
             } finally {
                 listLoading.value = false;
             }
@@ -1797,17 +1809,11 @@ createApp({
             }
             const categoryId = String(modeState?.selectedSeriesCategoryId || currentContext.value.categoryId || '');
             try {
-                let response;
-                if (String(currentContext.value.accountType || '').toUpperCase() === 'XTREME_API') {
-                    response = await fetch(
-                        `${window.location.origin}/seriesEpisodes?seriesId=${encodeURIComponent(seriesId)}&accountId=${currentContext.value.accountId}&categoryId=${encodeURIComponent(categoryId)}`
-                    );
-                } else {
-                    response = await fetch(
-                        `${window.location.origin}/channels?categoryId=${encodeURIComponent(categoryId)}&accountId=${currentContext.value.accountId}&mode=series&movieId=${encodeURIComponent(seriesId)}`
-                    );
-                }
-                const refreshedEpisodes = (await response.json()).map(normalizeChannel);
+                const response = await fetch(`${window.location.origin}/seriesEpisodes?${new URLSearchParams({seriesId, accountId: String(currentContext.value.accountId), categoryId})}`);
+                if (!response.ok) throw new Error(`Series episodes unavailable (${response.status})`);
+                const payload = await response.json();
+                if (!Array.isArray(payload)) throw new Error('Invalid series episodes response');
+                const refreshedEpisodes = payload.map(normalizeChannel);
                 episodes.value = enrichEpisodesFromMeta(refreshedEpisodes, modeState.detail || null);
                 modeState.episodes = [...episodes.value];
                 if (activeTab.value === 'watchingNow') {
@@ -1850,10 +1856,11 @@ createApp({
             // Lazy-load heavy metadata in background.
             (async () => {
                 try {
-                    const response = await fetch(
-                        `${window.location.origin}/vodDetails?accountId=${currentContext.value.accountId}&categoryId=${encodeURIComponent(currentContext.value.categoryId || '')}&channelId=${encodeURIComponent(channelIdentifier || '')}&vodName=${encodeURIComponent(vodItem.name || '')}`
-                    );
+                    const query = new URLSearchParams({accountId: String(currentContext.value.accountId || ''), categoryId: String(vodItem.categoryId || currentContext.value.categoryId || ''), channelId: String(channelIdentifier || ''), vodName: String(vodItem.name || '')});
+                    const response = await fetch(`${window.location.origin}/vodDetails?${query}`);
+                    if (!response.ok) throw new Error(`VOD details unavailable (${response.status})`);
                     const data = await response.json();
+                    if (!data || typeof data !== 'object') throw new Error('Invalid VOD details response');
                     if (String(modeState.selectedSeriesId || '') !== String(channelIdentifier || '')) return;
                     if (data?.vodInfo) {
                         const serverDetail = data.vodInfo;
@@ -2284,6 +2291,7 @@ createApp({
             }
         };
         onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown));
+        onBeforeUnmount(() => window.removeEventListener('resize', syncNarrowViewport));
 
         const hidePlayerPanel = () => {
             if (!hasPlayerContent.value) return;
@@ -2908,17 +2916,19 @@ createApp({
                 };
                 seriesDetail.value = modeState.detail;
                 seriesDetailLoading.value = true;
-                if (String(currentContext.value.accountType || '').toUpperCase() === 'XTREME_API') {
-                    await loadSeriesEpisodes(seriesId, modeState.selectedSeriesCategoryId);
-                } else {
-                    await loadSeriesChildren(seriesId);
-                }
+                await loadSeriesEpisodes(seriesId, modeState.selectedSeriesCategoryId);
                 (async () => {
                     try {
-                        const response = await fetch(
-                            `${window.location.origin}/seriesDetails?seriesId=${encodeURIComponent(seriesId)}&accountId=${currentContext.value.accountId}&categoryId=${encodeURIComponent(modeState.selectedSeriesCategoryId || currentContext.value.categoryId || '')}&seriesName=${encodeURIComponent(channel.name || '')}`
-                        );
+                        const query = new URLSearchParams({
+                            seriesId: String(seriesId || ''),
+                            accountId: String(currentContext.value.accountId || ''),
+                            categoryId: String(modeState.selectedSeriesCategoryId || currentContext.value.categoryId || ''),
+                            seriesName: String(channel.name || '')
+                        });
+                        const response = await fetch(`${window.location.origin}/seriesDetails?${query}`);
+                        if (!response.ok) throw new Error(`Series details unavailable (${response.status})`);
                         const data = await response.json();
+                        if (!data || typeof data !== 'object') throw new Error('Invalid series details response');
                         if (String(modeState.selectedSeriesId || '') !== String(seriesId || '')) return;
 
                         const detail = {...(modeState.detail || {})};
@@ -3357,11 +3367,13 @@ createApp({
                 currentChannel.value = targetChannel;
                 isPlaying.value = true;
                 if (epgPlaybackOnly.value) refreshPlayerEpg(true);
-                const response = await fetch(url, {signal: controller.signal});
-                if (!response.ok) {
-                    throw new Error(`Playback request failed (${response.status})`);
-                }
-                const channelData = await response.json();
+                const channelData = await withPlaybackStartupTimeout((async () => {
+                    const response = await fetch(url, {signal: controller.signal});
+                    if (!response.ok) {
+                        throw new Error(`Playback request failed (${response.status})`);
+                    }
+                    return response.json();
+                })(), 'Player resolution', () => controller.abort());
                 if (!isCurrentPlaybackRequest(requestId)) return;
                 syncBingeWatchState(channelData);
                 await initPlayer(channelData, requestId);
@@ -3550,37 +3562,49 @@ createApp({
             const canNative = Boolean(video.canPlayType('application/vnd.apple.mpegurl'));
             const hasDRM = channel.drm != null;
             const strategyHint = String(channel.strategyHint || '').trim().toUpperCase();
-            const normalizedUri = String(uri || '').toLowerCase();
+            const mediaStrategy = String(channel?.mediaInfo?.strategy || '').trim().toLowerCase();
             const manifestType = String(channel?.drm?.manifestType || channel?.manifestType || '').toLowerCase();
-            const isTs = isTsLikeUrl(normalizedUri, manifestType);
-            const isHls = manifestType === 'hls'
-                || manifestType === 'm3u8'
-                || normalizedUri.includes('.m3u8')
-                || normalizedUri.includes('.m3u?');
+            let isTs = isTsLikeUrl(uri, manifestType, channel.mode || currentChannel.value?.mode);
+            let isHls = playbackUtils.isHlsLikeUrl(uri, manifestType);
+            let isDash = playbackUtils.isDashLikeUrl(uri, manifestType);
             const prefersNativeHls = canNative && (isIos || isSafari);
 
-            // The server has already selected a CORS-safe local proxy for this
-            // account.  A proxy URL can carry either an HLS playlist or a
-            // progressive/MPEG-TS stream.  Do not send proxied HLS through the
-            // native path on Chromium: desktop Chromium does not provide a
-            // reliable native HLS demuxer and can report a delayed
-            // DEMUXER_ERROR_COULD_NOT_PARSE after the first segments played.
-            if (strategyHint === 'NATIVE_PROXY' && !hasDRM && !isTs) {
-                const proxyUrl = buildProxyStreamUrl(uri, channel.accountId) || uri;
+            // Follow the server's explicit same-origin route. Chromium needs an
+            // adaptive player for proxied HLS instead of native HLS playback.
+            if (strategyHint === 'NATIVE_PROXY' && !hasDRM && override === 'auto') {
+                // The server hint is independent of the optional account proxy setting.
+                const proxyUrl = playbackUtils.buildProxyStreamUrl(uri) || uri;
                 const proxiedChannel = {
                     ...channel,
                     url: proxyUrl,
-                    manifestType: manifestType || (isHls ? 'm3u8' : channel.manifestType)
+                    manifestType: manifestType || (mediaStrategy === 'hls' ? 'm3u8' : mediaStrategy === 'dash' ? 'mpd' : channel.manifestType)
                 };
-                if (isHls && prefersNativeHls) {
+                if (mediaStrategy === 'unsupported') {
+                    const format = channel.mediaInfo?.formatName || '';
+                    const codecs = [channel.mediaInfo?.videoCodec, channel.mediaInfo?.audioCodec].filter(Boolean).join(', ');
+                    const details = [format, codecs].filter(Boolean).join('; ');
+                    throw new Error(`This stream uses a format or codec the web player cannot play directly${details ? ` (${details})` : ''}.`);
+                } else if (mediaStrategy === 'mpegts' || isTs) {
+                    await loadMpegTs({...proxiedChannel, url: resolveMpegTsPlaybackUrl(proxyUrl)}, requestId);
+                } else if ((mediaStrategy === 'hls' || isHls) && prefersNativeHls) {
                     await loadNative(proxiedChannel, requestId);
-                } else if (isHls) {
+                } else if (mediaStrategy === 'hls' || isHls) {
                     try {
                         await loadVideoJs(proxiedChannel, requestId);
                     } catch (videoJsError) {
                         console.warn('Video.js proxy HLS playback failed, trying Shaka fallback', videoJsError);
                         await loadShaka(proxiedChannel, requestId);
                     }
+                } else if (mediaStrategy === 'dash' || isDash) {
+                    await loadShaka(proxiedChannel, requestId);
+                } else if (mediaStrategy === 'native') {
+                    await loadNative(proxiedChannel, requestId);
+                } else if (channel.mediaInfo) {
+                    const format = channel.mediaInfo.formatName || 'unknown format';
+                    if (format === 'unknown format') {
+                        throw new Error('The provider response did not identify a playable format, so the web player could not select a playback engine.');
+                    }
+                    throw new Error(`The server identified ${format}, which the web player cannot play directly.`);
                 } else {
                     await loadNative(proxiedChannel, requestId);
                 }
@@ -3588,7 +3612,7 @@ createApp({
             }
 
             if (override === 'proxy') {
-                const proxyUrl = buildProxyStreamUrl(uri, channel.accountId) || uri;
+                const proxyUrl = playbackUtils.buildProxyStreamUrl(uri) || uri;
                 await loadNative({...channel, url: proxyUrl}, requestId);
                 return;
             }
@@ -3755,6 +3779,10 @@ createApp({
                     }
                 );
                 mpegtsPlayer.value = player;
+                let rejectStartupOnMpegTsError;
+                const mpegTsStartupError = new Promise((_, reject) => {
+                    rejectStartupOnMpegTsError = reject;
+                });
                 player.on(engine.Events.ERROR, async (_, detail) => {
                     const message = detail?.msg || detail?.message || 'MPEGTS error';
                     // If this player was already destroyed by stopPlayback (e.g. user switched channels),
@@ -3762,7 +3790,10 @@ createApp({
                     if (mpegtsPlayer.value !== player || !isCurrentPlaybackRequest(requestId)) {
                         return;
                     }
-                    playbackError.value = `Playback error: ${message}`;
+                    const diagnostic = [detail?.type, detail?.detail, message].filter(Boolean).join(': ');
+                    const error = new Error(`MPEG-TS stream error${diagnostic ? ` (${diagnostic})` : ''}`);
+                    playbackError.value = `Playback failed: ${error.message}`;
+                    rejectStartupOnMpegTsError(error);
                     mpegtsPlayer.value = null;
                     try {
                         player.destroy();
@@ -3783,7 +3814,10 @@ createApp({
                 player.attachMediaElement(video);
                 player.load();
                 const playAction = typeof player.play === 'function' ? () => player.play() : () => video.play();
-                await withPlaybackStartupTimeout(playWithGestureFallback(playAction), 'MPEG-TS');
+                await withPlaybackStartupTimeout(
+                    Promise.race([playWithGestureFallback(playAction), mpegTsStartupError]),
+                    'MPEG-TS'
+                );
                 throwIfPlaybackSuperseded(requestId);
                 playbackMode.value = resolvePlaybackModeLabel(sourceUrl, 'mpegts');
             } catch (e) {
@@ -3897,9 +3931,9 @@ createApp({
             if (!container) throw new Error('Video player container is unavailable');
             const sourceUrl = normalizeWebPlaybackUrl(channel.url);
             const manifestType = String(channel.manifestType || '').toLowerCase();
-            const isDash = manifestType === 'dash' || manifestType === 'mpd' || /\.mpd(?:[?#]|$)/i.test(sourceUrl);
-            const isHls = manifestType === 'hls' || manifestType === 'm3u8' || /\.m3u8?(?:[?#]|$)/i.test(sourceUrl);
-            const video = window.UIPTVModernPlayer.mount(container, isDash ? 'dash-video' : isHls ? 'hlsjs-video' : 'video');
+            const isHls = playbackUtils.isHlsLikeUrl(sourceUrl, manifestType);
+            const resolvedDash = playbackUtils.isDashLikeUrl(sourceUrl, manifestType);
+            const video = window.UIPTVModernPlayer.mount(container, resolvedDash ? 'dash-video' : isHls ? 'hlsjs-video' : 'video');
             videoPlayer.value = video;
             bindPlaybackEvents(video);
             const player = window.UIPTVModernPlayer.connect(video, refreshVideoJsTracks);
@@ -3910,8 +3944,8 @@ createApp({
                 if (videoJsPlayer.value !== player || !isCurrentPlaybackRequest(requestId)) return;
                 playbackError.value = `Playback error: ${video.error?.message || 'Video.js error'}`;
             });
-            if (isHls || isDash) {
-                video.source = {src: sourceUrl, type: isDash ? 'application/dash+xml' : 'application/vnd.apple.mpegurl'};
+            if (isHls || resolvedDash) {
+                video.source = {src: sourceUrl, type: resolvedDash ? 'application/dash+xml' : 'application/vnd.apple.mpegurl'};
             } else {
                 video.src = sourceUrl;
             }
@@ -4936,6 +4970,7 @@ createApp({
         }, {flush: 'pre'});
         onMounted(async () => {
             window.addEventListener('keydown', handleGlobalKeydown);
+            window.addEventListener('resize', syncNarrowViewport, {passive: true});
             const desktopSettingsTimer = window.setInterval(async () => {
                 if (!document.hidden) {
                     if (!epgPlaybackOnly.value) epgTime.value = Date.now();
@@ -5088,6 +5123,7 @@ createApp({
             wideViewActive,
             contentStageNarrow,
             isCompactDrilldown,
+            isExpandedPlayerAccordion,
             wideDrilldownPanel,
             hasPlayerContent,
             playerPanelVisible,
@@ -5195,7 +5231,11 @@ createApp({
             formatAudioTrackLabel,
             formatTextTrackLabel,
             seriesDetailCollapsed,
-            toggleSeriesDetailCollapsed
+            toggleSeriesDetailCollapsed,
+            watchingNowSeriesPanelCollapsed,
+            toggleWatchingNowSeriesPanelCollapsed,
+            isWatchingNowEpisodesPanelCollapsed,
+            toggleWatchingNowEpisodesPanelCollapsed
         };
     }
 }).mount('#app');

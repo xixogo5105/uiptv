@@ -127,7 +127,9 @@ public class StalkerPortalParser implements AccountParser {
 
         individualAccounts.forEach(accountSaver);
         groupedAccounts.values().forEach(accountSaver);
-        return createdAccounts;
+        List<Account> savedAccounts = new ArrayList<>(individualAccounts);
+        savedAccounts.addAll(groupedAccounts.values());
+        return savedAccounts;
     }
 
     private String sanitizeInput(String text) {

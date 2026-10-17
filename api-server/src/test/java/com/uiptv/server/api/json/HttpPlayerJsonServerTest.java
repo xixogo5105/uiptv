@@ -51,6 +51,38 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class HttpPlayerJsonServerTest extends DbBackedTest {
 
     @Test
+    void webPlayerResponseIncludesBackendMediaClassification() throws Exception {
+        HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
+        Class<?> resolvedType = Class.forName("com.uiptv.server.api.json.HttpPlayerJsonServer$ResolvedWebPlayback");
+        var constructor = resolvedType.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        Object resolved = constructor.newInstance(new PlayerResponse("http://provider/play/movie.php?id=1"), "", "", List.of());
+        PlaybackMediaInspector.MediaInfo mediaInfo = new PlaybackMediaInspector.MediaInfo("mpegts", "mpegts", "h264", "aac", 0L);
+
+        String json = invoke(handler, "buildJsonResponse",
+                new Class[]{resolvedType, PlaybackMediaInspector.MediaInfo.class}, resolved, mediaInfo);
+
+        assertTrue(json.contains("\"mediaInfo\""));
+        assertTrue(json.contains("\"strategy\":\"mpegts\""));
+        assertTrue(json.contains("\"videoCodec\":\"h264\""));
+        assertTrue(json.contains("\"audioCodec\":\"aac\""));
+    }
+
+    @Test
+    void mediaInspectionOnlyRunsForResolvedVodAndSeriesEntries() throws Exception {
+        HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
+        PlayerResponse response = new PlayerResponse("http://provider/play/movie.php?id=1");
+        assertTrue((Boolean) invoke(handler, "shouldInspectMedia",
+                new Class[]{PlayerResponse.class, String.class, String.class}, response, "vod", ""));
+        assertTrue((Boolean) invoke(handler, "shouldInspectMedia",
+                new Class[]{PlayerResponse.class, String.class, String.class}, response, "series", ""));
+        assertFalse((Boolean) invoke(handler, "shouldInspectMedia",
+                new Class[]{PlayerResponse.class, String.class, String.class}, response, "itv", ""));
+        assertFalse((Boolean) invoke(handler, "shouldInspectMedia",
+                new Class[]{PlayerResponse.class, String.class, String.class}, response, "vod", "http://user-supplied/stream"));
+    }
+
+    @Test
     void handle_directPlayback_mergesRequestFields_andReturnsJson() throws Exception {
         HttpPlayerJsonServer handler = new HttpPlayerJsonServer();
 
@@ -264,6 +296,15 @@ class HttpPlayerJsonServerTest extends DbBackedTest {
         PlayerResponse proxied = new PlayerResponse("http://127.0.0.1:9090/proxy-stream?src=x");
         assertEquals("NATIVE_PROXY", invoke(handler, "determineStrategyHint", new Class[]{PlayerResponse.class}, proxied));
         assertEquals("NATIVE", invoke(handler, "determineStrategyHint", new Class[]{PlayerResponse.class}, new PlayerResponse("http://stream.test/movie.mp4")));
+
+        Account stalker = new Account();
+        stalker.setType(com.uiptv.util.AccountType.STALKER_PORTAL);
+        PlayerResponse stalkerVod = new PlayerResponse("http://portal.test/play/movie.php?type=movie&id=1");
+        stalkerVod.setAccount(stalker);
+        assertEquals("NATIVE_PROXY", invoke(handler, "determineStrategyHint", new Class[]{PlayerResponse.class}, stalkerVod),
+                "Stalker on-demand playback must use the same-origin web proxy even when account proxying is disabled");
+        stalker.setWebPlaybackProxy(true);
+        assertEquals("NATIVE_PROXY", invoke(handler, "determineStrategyHint", new Class[]{PlayerResponse.class}, stalkerVod));
 
         assertNotNull(invoke(handler, "parseClearKeysJson", new Class[]{String.class}, "{\"kid\":\"key\"}"));
         assertNull(invoke(handler, "parseClearKeysJson", new Class[]{String.class}, "{bad"));

@@ -272,7 +272,7 @@ public class ManageAccountUI extends VBox {
                 formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
                 break;
             case XTREME_API:
-                formContainer.getChildren().addAll(accountTypePillBar, name, m3u8Path, xtremeUsernameContainer, password, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
+                formContainer.getChildren().addAll(accountTypePillBar, name, url, xtremeUsernameContainer, password, epg, pinToTopSwitchRow, resolveChainAndDeepRedirectsSwitchRow, webPlaybackProxySwitchRow, parentalLockSwitchRow);
                 break;
         }
 
@@ -749,9 +749,10 @@ public class ManageAccountUI extends VBox {
                 resolvedUsername = xtremeSelectedUsername;
             }
         }
+        String resolvedM3u8Path = resolvedType == AccountType.XTREME_API ? "" : m3u8Path.getText();
         Account account = new Account(name.getText(), resolvedUsername, password.getText(), url.getText(),
                 macAddress.getValue() != null ? macAddress.getValue() : "", macAddressList.getText(), serialNumber.getText(), deviceId1.getText(), deviceId2.getText(), signature.getText(),
-                resolvedType, epg.getText(), m3u8Path.getText(), pinToTopCheckBox.isSelected());
+                resolvedType, epg.getText(), resolvedM3u8Path, pinToTopCheckBox.isSelected());
         if (accountId != null) {
             account.setDbId(accountId);
         }
@@ -788,9 +789,10 @@ public class ManageAccountUI extends VBox {
                 // Keep the current account displayed instead of clearing
                 // Refresh the account data to show updated values
                 Account refreshedAccount = service.getByName(account.getAccountName());
-                if (refreshedAccount != null) {
-                    editAccount(refreshedAccount);
+                if (refreshedAccount == null || isBlank(refreshedAccount.getDbId())) {
+                    throw new IllegalStateException("Account save could not be confirmed from the database");
                 }
+                editAccount(refreshedAccount);
                 if (onSaveCallback != null) {
                     onSaveCallback.call(null);
                 }
@@ -918,6 +920,13 @@ public class ManageAccountUI extends VBox {
         httpMethodCombo.setValue(isNotBlank(account.getHttpMethod()) ? account.getHttpMethod() : "GET");
         timezoneCombo.setValue(isNotBlank(account.getTimezone()) ? account.getTimezone() : DEFAULT_TIMEZONE);
         selectAccountType(account.getType());
+        if (account.getType() == AccountType.XTREME_API
+                && isBlank(account.getUrl())
+                && isNotBlank(account.getM3u8Path())) {
+            // Older Xtreme form versions showed the M3U8 path field in place of the portal URL.
+            // Recover that value when editing those accounts so saving them migrates it correctly.
+            url.setText(account.getM3u8Path());
+        }
         if (account.getType() == AccountType.XTREME_API) {
             Platform.runLater(() -> xtremeCredentialsHelper.loadFromAccount(account));
         }

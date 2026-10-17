@@ -1,17 +1,52 @@
 (function () {
-    const isTsLikeUrl = (url, manifestType = '') => {
-        const lowerUrl = String(url || '').trim().toLowerCase();
+    const getSourceUrlCandidates = (url) => {
+        const candidates = [];
+        let current = String(url || '').trim();
+        for (let depth = 0; current && depth < 3 && !candidates.includes(current); depth += 1) {
+            candidates.push(current);
+            try {
+                const parsed = new URL(current, window.location.origin);
+                if (!parsed.pathname.toLowerCase().endsWith('/proxy-stream')) break;
+                const source = parsed.searchParams.get('src');
+                if (!source) break;
+                current = source.trim();
+            } catch (_) {
+                break;
+            }
+        }
+        return candidates;
+    };
+
+    const isTsLikeUrl = (url, manifestType = '', mode = '') => {
         const normalizedManifestType = String(manifestType || '').trim().toLowerCase();
-        return normalizedManifestType === 'ts'
+        const normalizedMode = String(mode || '').trim().toLowerCase();
+        const candidates = getSourceUrlCandidates(url).map(value => value.toLowerCase());
+        if (candidates.some(value => /\.m3u8?(?:[?#]|$)/i.test(value))) return false;
+        const explicitlyTransportStream = normalizedManifestType === 'ts'
             || normalizedManifestType === 'mpegts'
             || normalizedManifestType === 'mpeg2ts'
-            || lowerUrl.includes('.ts?')
-            || lowerUrl.endsWith('.ts')
-            || lowerUrl.includes('.m2ts?')
-            || lowerUrl.endsWith('.m2ts')
-            || lowerUrl.includes('extension=ts')
-            || lowerUrl.includes('/live/play/')
-            || /\/\d+(?:\?|$)/.test(lowerUrl);
+            || candidates.some(value => value.includes('.ts?')
+                || value.endsWith('.ts')
+                || value.includes('.m2ts?')
+                || value.endsWith('.m2ts')
+                || value.includes('extension=ts'));
+        if (explicitlyTransportStream) return true;
+        if (normalizedMode === 'vod' || normalizedMode === 'series') return false;
+        return candidates.some(value => value.includes('/live/play/')
+            || value.includes('/play/live.php')
+            || /\/\d+(?:\?|$)/.test(value));
+    };
+
+    const isHlsLikeUrl = (url, manifestType = '') => {
+        const normalizedManifestType = String(manifestType || '').trim().toLowerCase();
+        if (normalizedManifestType === 'hls' || normalizedManifestType === 'm3u8') return true;
+        return getSourceUrlCandidates(url).some(value => /\.m3u8?(?:[?#]|$)/i.test(value));
+    };
+
+    const isDashLikeUrl = (url, manifestType = '') => {
+        const normalizedManifestType = String(manifestType || '').trim().toLowerCase();
+        if (normalizedManifestType === 'dash' || normalizedManifestType === 'mpd') return true;
+        return getSourceUrlCandidates(url).some(value => /\.mpd(?:[?#]|$)/i.test(value));
     };
 
     const canUseMpegts = () => {
@@ -237,6 +272,8 @@
 
     window.UIPTVPlaybackUtils = {
         isTsLikeUrl,
+        isHlsLikeUrl,
+        isDashLikeUrl,
         canUseMpegts,
         resolvePlaybackModeLabel,
         downgradeHttpsToHttpForKnownPaths,

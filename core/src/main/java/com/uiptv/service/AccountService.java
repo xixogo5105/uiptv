@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -41,6 +42,18 @@ public class AccountService {
         }
         sessionTokenByAccountKey.remove(getSessionAccountKey(account));
         AccountDb.get().save(account);
+        Account persisted = AccountDb.get().getAccountByName(account.getAccountName());
+        if (persisted == null || isBlank(persisted.getDbId())) {
+            throw new IllegalStateException("Account save could not be confirmed from the database");
+        }
+        if (!Objects.equals(account.getType(), persisted.getType())
+                || !Objects.equals(account.getUrl(), persisted.getUrl())
+                || !Objects.equals(account.getUsername(), persisted.getUsername())
+                || !Objects.equals(account.getPassword(), persisted.getPassword())
+                || !Objects.equals(account.getXtremeCredentialsJson(), persisted.getXtremeCredentialsJson())) {
+            throw new IllegalStateException("Saved account values did not match the database record");
+        }
+        account.setDbId(persisted.getDbId());
         touchChange();
     }
 

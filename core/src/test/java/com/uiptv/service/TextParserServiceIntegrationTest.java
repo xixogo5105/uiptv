@@ -81,7 +81,7 @@ class TextParserServiceIntegrationTest extends DbBackedTest {
                 url, serialB, device1B, device2B, signatureB);
 
         List<Account> updated = TextParserService.saveBulkAccounts(followUpImport, TextParserService.MODE_STALKER, true, false);
-        assertEquals(0, updated.size());
+        assertEquals(3, updated.size());
 
         List<Account> stalkerAccounts = new ArrayList<>(AccountService.getInstance().getAll().values()).stream()
                 .filter(account -> account.getUrl() != null && account.getUrl().startsWith(url))

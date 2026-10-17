@@ -971,6 +971,69 @@ a[href] {
     overflow: hidden;
 }
 
+.watching-detail-toggle {
+    width: 100%;
+    padding: 2px 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+
+.watching-detail-toggle:hover {
+    color: var(--text);
+}
+
+.watching-detail-summary-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.watching-detail-panel.series-details-collapsed {
+    grid-template-rows: auto;
+    height: auto;
+    align-self: start;
+}
+
+.watching-episodes-panel.episodes-collapsed {
+    grid-template-rows: auto;
+    height: auto;
+    align-self: start;
+}
+
+.accounts-drilldown.series-episodes-layout {
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.accounts-drilldown.series-episodes-layout > .account-category-panel {
+    grid-row: 1 / -1;
+}
+
+.accounts-drilldown.series-episodes-layout.series-details-collapsed {
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.accounts-drilldown.series-episodes-layout.series-details-open {
+    grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.account-series-detail-panel.series-details-collapsed {
+    grid-template-rows: auto;
+    height: auto;
+    align-self: start;
+}
+
+.account-series-episodes-panel.episodes-collapsed {
+    grid-template-rows: auto;
+    height: auto;
+    align-self: start;
+}
+
 .account-category-panel {
     border-top: 3px solid color-mix(in srgb, var(--primary) 64%, transparent);
 }
@@ -1250,77 +1313,40 @@ a[href] {
         transform: translateY(-50%);
     }
 
-    /* Watching-now: shift both buttons 20px right (12px -> 32px) so they
-       clear the thumbnail in expanded mode, and align the collapsed
-       expand button with the first line of the title. */
-    .watching-detail-layout .series-detail-collapse-btn {
-        right: 4px;
-    }
-
-    .watching-detail-layout .series-detail-card.series-detail-collapsed .series-detail-expand-btn {
-        right: 4px;
-        top: 20px;
-        transform: translateY(-50%);
-    }
 }
 
-/* Watching-now collapsed series detail: stack poster + title + expand
-   toggle on the first row, the IMDb link on the second row, and the
-   binge-watch button on the third row. Scoped to the watching layout so
-   the account->series collapsed view keeps its single-row layout.
-   Desktop only — mobile already stacks everything via the generic
-   @media (max-width: 520px) rules below. */
+/* Account series details keep the poster and title on the first row,
+   with IMDb and Binge Watch on their own rows below. */
 @media (min-width: 521px) {
-    .watching-detail-layout .series-detail-card.series-detail-collapsed {
+    .series-detail-card.series-detail-collapsed {
         min-height: auto;
-        padding: 10px 12px 10px 60px;
     }
 
-    .watching-detail-layout .collapsed-content {
+    .series-detail-card.series-detail-collapsed .collapsed-content {
         flex-direction: column;
         align-items: stretch;
         gap: 6px;
         padding-right: 48px;
     }
 
-    .watching-detail-layout .collapsed-poster-img,
-    .watching-detail-layout .collapsed-poster-fallback {
-        position: absolute;
-        left: 12px;
-        top: 10px;
-    }
-
-    .watching-detail-layout .collapsed-title-section {
-        flex-wrap: nowrap;
-        align-items: center;
-        justify-content: flex-start;
-        gap: 8px;
-        min-width: 0;
-        padding-left: 8px;
-    }
-
-    .watching-detail-layout .collapsed-title-section .series-title {
+    .series-detail-card.series-detail-collapsed .collapsed-title-section {
+        width: 100%;
         flex: 1 1 auto;
-        min-width: 0;
-        max-width: none;
-        overflow: visible;
-        text-overflow: clip;
-        white-space: normal;
-        word-break: break-word;
     }
 
-    .watching-detail-layout .collapsed-imdb-row {
+    .series-detail-card.series-detail-collapsed .collapsed-imdb-row {
         display: inline-flex;
         align-items: center;
         align-self: flex-start;
-        padding-left: 8px;
+        margin-left: 56px;
     }
 
-    .watching-detail-layout .collapsed-actions {
+    .series-detail-card.series-detail-collapsed .collapsed-actions {
         width: 100%;
         justify-content: flex-start;
-        padding-left: 8px;
+        margin-left: 56px;
     }
+
 }
 
 @media (max-width: 520px) {
@@ -1438,6 +1464,27 @@ a[href] {
     grid-template-columns: 48px minmax(0, 1fr) 32px 32px;
 }
 
+.media-card.poster-content-card {
+    grid-template-columns: 64px minmax(0, 1fr);
+    min-height: 102px;
+}
+
+.media-card.poster-content-card > .poster-thumb,
+.media-card.poster-content-card > .poster-fallback {
+    box-sizing: border-box;
+    width: 54px;
+    min-width: 54px;
+    max-width: 54px;
+    height: 74px;
+    min-height: 74px;
+    max-height: 74px;
+    object-fit: cover;
+}
+
+.media-card.poster-content-card > .poster-thumb {
+    background: transparent;
+}
+
 .episode-card {
     display: flex;
     flex: 0 0 auto;
@@ -1482,6 +1529,25 @@ a[href] {
     grid-row: 1;
     min-height: 0;
     overflow: visible;
+}
+
+.watching-layout .resume-card {
+    align-items: center;
+    min-height: 102px;
+    height: auto;
+}
+
+.watching-layout .resume-card > .poster-thumb,
+.watching-layout .resume-card > .poster-fallback {
+    box-sizing: border-box;
+    width: 54px;
+    min-width: 54px;
+    max-width: 54px;
+    height: 74px;
+    min-height: 74px;
+    max-height: 74px;
+    object-fit: cover;
+    align-self: center;
 }
 
 .media-card > .row-action-button {
@@ -1869,8 +1935,33 @@ a[href] {
         grid-template-columns: 1fr;
     }
 
+    .accounts-drilldown.series-episodes-layout {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+    }
+
+    .accounts-drilldown.series-episodes-layout > .account-category-panel {
+        grid-row: auto;
+    }
+
     .watching-detail-layout {
         grid-template-columns: 1fr;
+    }
+
+    .watching-detail-layout.series-details-collapsed {
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .watching-detail-layout.series-details-open {
+        grid-template-rows: minmax(0, 1fr) auto;
+    }
+
+    .accounts-drilldown.series-episodes-layout.series-details-collapsed {
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .accounts-drilldown.series-episodes-layout.series-details-open {
+        grid-template-rows: minmax(0, 1fr) auto;
     }
 }
 
@@ -1879,6 +1970,30 @@ a[href] {
     .accounts-drilldown,
     .watching-detail-layout {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    .accounts-drilldown.series-episodes-layout {
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+    }
+
+    .accounts-drilldown.series-episodes-layout > .account-category-panel {
+        grid-row: auto;
+    }
+
+    .watching-detail-layout.series-details-collapsed {
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .watching-detail-layout.series-details-open {
+        grid-template-rows: minmax(0, 1fr) auto;
+    }
+
+    .accounts-drilldown.series-episodes-layout.series-details-collapsed {
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .accounts-drilldown.series-episodes-layout.series-details-open {
+        grid-template-rows: minmax(0, 1fr) auto;
     }
 }
 
@@ -2037,6 +2152,30 @@ a[href] {
     .watching-layout,
     .watching-detail-layout {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    .accounts-drilldown.series-episodes-layout {
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+    }
+
+    .accounts-drilldown.series-episodes-layout > .account-category-panel {
+        grid-row: auto;
+    }
+
+    .watching-detail-layout.series-details-collapsed {
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .watching-detail-layout.series-details-open {
+        grid-template-rows: minmax(0, 1fr) auto;
+    }
+
+    .accounts-drilldown.series-episodes-layout.series-details-collapsed {
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .accounts-drilldown.series-episodes-layout.series-details-open {
+        grid-template-rows: minmax(0, 1fr) auto;
     }
 
     .player-panel {
