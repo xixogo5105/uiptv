@@ -2796,7 +2796,7 @@
 
 .playing-card-indicator {
     -fx-opacity: 0;
-    -fx-background-color: -uiptv-nav-bg;
+    -fx-background-color: -uiptv-border-subtle;
     -fx-background-radius: 50%;
 }
 
