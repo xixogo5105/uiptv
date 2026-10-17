@@ -4,6 +4,7 @@ import com.uiptv.application.*;
 import com.uiptv.util.I18n;
 import javafx.animation.*;
 import javafx.application.Platform;
+import javafx.geometry.Bounds;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -19,13 +20,18 @@ import java.util.function.Supplier;
 final class CardEpgSupport {
     private final Node owner;
     private final Map<Region, Binding> attached = new IdentityHashMap<>();
+    private final Map<Region, Supplier<LiveGuideApplicationService.Row>> pending = new WeakHashMap<>();
+    private final Map<Region, javafx.beans.value.ChangeListener<Bounds>> cardBoundsListeners = new IdentityHashMap<>();
     private final PauseTransition pulse = new PauseTransition(Duration.millis(40));
+    private final PauseTransition layoutRetry = new PauseTransition(Duration.millis(120));
     private final Timeline clock = new Timeline(new KeyFrame(Duration.minutes(1), _ -> { restoreSummaries(); queue(); }));
     private final Map<ScrollPane, javafx.beans.value.ChangeListener<Number>> scrollListeners = new IdentityHashMap<>();
+    private final Map<ScrollPane, javafx.beans.value.ChangeListener<Bounds>> viewportBoundsListeners = new IdentityHashMap<>();
     private Thread worker;
     private Thread popupWorker;
     private long popupRevision;
     private long revision;
+    private int layoutRetryAttempts;
     private javafx.stage.Popup popup;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -39,15 +45,25 @@ final class CardEpgSupport {
 
     CardEpgSupport(Node owner) {
         this.owner = owner;
-        pulse.setOnFinished(_ -> refresh()); clock.setCycleCount(Animation.INDEFINITE);
+        pulse.setOnFinished(_ -> refresh());
+        layoutRetry.setOnFinished(_ -> {
+            if (layoutRetryAttempts <= 0 || owner.getScene() == null
+                    || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return;
+            layoutRetryAttempts--;
+            queue();
+        });
+        clock.setCycleCount(Animation.INDEFINITE);
         owner.sceneProperty().addListener((_, _, scene) -> {
             if (scene == null) stop();
-            else if (EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) { clock.play(); queue(); }
+            else if (EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) {
+                clock.play(); retryAfterLayout(); queue();
+            }
         });
         owner.visibleProperty().addListener((_, _, visible) -> {
             if (!visible) stop();
             else if (EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) {
-                attached.keySet().forEach(this::observeScroll); restoreSummaries(); clock.play(); queue();
+                attached.keySet().forEach(card -> { observeScroll(card); observeCardBounds(card); });
+                restoreSummaries(); clock.play(); retryAfterLayout(); queue();
             }
         });
         // Do not observe the owner's complete layout bounds here. Rendering an
@@ -58,13 +74,30 @@ final class CardEpgSupport {
         // the meaningful refresh boundaries.
         EpgModeUI.observeCache(owner, () -> {
             if (!EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) stop();
-            else { clock.play(); queue(); }
+            else { clock.play(); retryAfterLayout(); queue(); }
             attached.values().forEach(binding -> { binding.refreshAt = 0; });
         });
     }
 
     Region bind(Region card, Supplier<LiveGuideApplicationService.Row> source) {
-        if (!EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return card;
+        pending.put(card, source);
+        if (EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) {
+            attach(card, source);
+            pending.remove(card);
+        }
+        return card;
+    }
+
+    void refreshMode() {
+        if (!EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return;
+        for (var entry : new ArrayList<>(pending.entrySet())) {
+            attach(entry.getKey(), entry.getValue());
+            pending.remove(entry.getKey());
+        }
+        retryAfterLayout();
+    }
+
+    private void attach(Region card, Supplier<LiveGuideApplicationService.Row> source) {
         VBox panel = new VBox(5); panel.getStyleClass().add("virtual-card-epg");
         panel.setMinWidth(0); panel.setMaxWidth(Double.MAX_VALUE); panel.setVisible(false); panel.setManaged(false);
         card.getStyleClass().add("epg-summary-card");
@@ -81,11 +114,26 @@ final class CardEpgSupport {
         }
         Binding binding = new Binding(panel, source);
         card.sceneProperty().addListener((_, _, scene) -> {
-            if (scene == null) { attached.remove(card); queue(); }
-            else { attached.put(card, binding); if (System.currentTimeMillis() < binding.refreshAt) display(panel, binding.current, binding.next); observeScroll(card); queue(); }
+            if (scene == null) {
+                attached.remove(card);
+                removeCardBoundsListener(card);
+                queue();
+            } else {
+                attached.put(card, binding);
+                if (System.currentTimeMillis() < binding.refreshAt) display(panel, binding.current, binding.next);
+                observeScroll(card);
+                observeCardBounds(card);
+                retryAfterLayout();
+                queue();
+            }
         });
-        if (card.getScene() != null) { attached.put(card, binding); observeScroll(card); queue(); }
-        return card;
+        if (card.getScene() != null) {
+            attached.put(card, binding);
+            observeScroll(card);
+            observeCardBounds(card);
+            retryAfterLayout();
+            queue();
+        }
     }
 
     private void observeScroll(Node node) {
@@ -93,8 +141,34 @@ final class CardEpgSupport {
             if (parent instanceof ScrollPane scroll && !scrollListeners.containsKey(scroll)) {
                 javafx.beans.value.ChangeListener<Number> listener = (_, _, _) -> queue();
                 scroll.vvalueProperty().addListener(listener); scrollListeners.put(scroll, listener);
+                javafx.beans.value.ChangeListener<Bounds> viewportListener = (_, _, _) -> queue();
+                scroll.viewportBoundsProperty().addListener(viewportListener);
+                viewportBoundsListeners.put(scroll, viewportListener);
             }
         }
+    }
+
+    private void observeCardBounds(Region card) {
+        if (cardBoundsListeners.containsKey(card)) {
+            queueWhenVisible(card);
+            return;
+        }
+        javafx.beans.value.ChangeListener<Bounds> listener = (_, _, _) -> queueWhenVisible(card);
+        cardBoundsListeners.put(card, listener);
+        card.boundsInLocalProperty().addListener(listener);
+        queueWhenVisible(card);
+    }
+
+    private void queueWhenVisible(Region card) {
+        if (visible(card)) {
+            removeCardBoundsListener(card);
+            queue();
+        }
+    }
+
+    private void removeCardBoundsListener(Region card) {
+        javafx.beans.value.ChangeListener<Bounds> listener = cardBoundsListeners.remove(card);
+        if (listener != null) card.boundsInLocalProperty().removeListener(listener);
     }
 
     void queue() {
@@ -102,17 +176,11 @@ final class CardEpgSupport {
         revision++; if (worker != null) worker.interrupt(); pulse.playFromStart();
     }
 
-    /** Queue once now and once after the grid has completed another FX layout pass. */
-    void queueAfterLayout() {
-        queue();
-        Platform.runLater(() -> {
-            if (owner.getScene() == null || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return;
-            if (owner instanceof javafx.scene.Parent parent) {
-                parent.applyCss();
-                parent.requestLayout();
-            }
-            Platform.runLater(this::queue);
-        });
+    private void retryAfterLayout() {
+        if (owner.getScene() == null || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()
+                || attached.isEmpty()) return;
+        if (layoutRetryAttempts <= 0) layoutRetryAttempts = 18;
+        layoutRetry.playFromStart();
     }
 
     private boolean visible(Region card) {
@@ -135,9 +203,21 @@ final class CardEpgSupport {
     private void refresh() {
         if (owner.getScene() == null || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return;
         long now = System.currentTimeMillis(), request = revision;
-        var cards = attached.entrySet().stream().filter(entry -> visible(entry.getKey()) && now >= entry.getValue().refreshAt)
+        var cards = attached.entrySet().stream().filter(entry -> {
+                    boolean cardVisible = visible(entry.getKey());
+                    if (cardVisible) removeCardBoundsListener(entry.getKey());
+                    return cardVisible && now >= entry.getValue().refreshAt;
+                })
                 .limit(16).map(entry -> Map.entry(entry.getKey(), entry.getValue())).toList();
-        if (cards.isEmpty()) return;
+        if (cards.isEmpty()) {
+            boolean waitingForLayout = attached.keySet().stream().anyMatch(card ->
+                    card.getScene() != null && (card.getWidth() <= 0 || card.getHeight() <= 0));
+            if (waitingForLayout || (layoutRetryAttempts > 0
+                    && attached.keySet().stream().anyMatch(card -> card.getScene() != null))) retryAfterLayout();
+            return;
+        }
+        layoutRetryAttempts = 0;
+        layoutRetry.stop();
         worker = Thread.ofVirtual().start(() -> {
             try {
                 List<LiveGuideApplicationService.Row> sources=new ArrayList<>();
@@ -250,9 +330,12 @@ final class CardEpgSupport {
 
     void stop() {
         revision++; popupRevision++; if (popupWorker != null) { popupWorker.interrupt(); popupWorker = null; }
-        pulse.stop(); clock.stop(); if (worker != null) { worker.interrupt(); worker = null; }
+        pulse.stop(); layoutRetry.stop(); layoutRetryAttempts = 0;
+        clock.stop(); if (worker != null) { worker.interrupt(); worker = null; }
         if (popup != null) { popup.hide(); popup = null; }
         scrollListeners.forEach((scroll, listener) -> scroll.vvalueProperty().removeListener(listener)); scrollListeners.clear();
+        viewportBoundsListeners.forEach((scroll, listener) -> scroll.viewportBoundsProperty().removeListener(listener)); viewportBoundsListeners.clear();
+        new ArrayList<>(cardBoundsListeners.keySet()).forEach(this::removeCardBoundsListener);
         attached.values().forEach(binding -> { binding.panel.getChildren().clear(); binding.panel.setManaged(false); binding.panel.setVisible(false); });
     }
 }
