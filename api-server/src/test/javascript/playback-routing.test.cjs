@@ -54,6 +54,7 @@ test('SPA recording assets match the desktop recording-dot geometry and cache ve
     const on = fs.readFileSync('api-server/src/main/resources/web/images/broadcast-on.svg', 'utf8');
     const off = fs.readFileSync('api-server/src/main/resources/web/images/broadcast-off.svg', 'utf8');
     const html = fs.readFileSync('api-server/src/main/resources/web/index.html', 'utf8');
+    const css = fs.readFileSync('api-server/src/main/resources/web/css/spa.css', 'utf8');
     const sw = fs.readFileSync('api-server/src/main/resources/web/sw.js', 'utf8');
 
     assert.match(on, /viewBox="0 0 16 16"/);
@@ -63,6 +64,10 @@ test('SPA recording assets match the desktop recording-dot geometry and cache ve
     assert.match(source, /broadcast-on\.svg\?v=20261017b/);
     assert.match(source, /broadcast-off\.svg\?v=20261017b/);
     assert.match(html, /spa\.js\?v=20261017playbackRecovery2/);
-    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v81'/);
+    assert.match(html, /spa\.css\?v=20261017recordingIndicator1/);
+    assert.match(html, /class="broadcast-indicator"/);
+    assert.match(css, /\.broadcast-indicator\s*\{[\s\S]*background: var\(--broadcast-indicator-bg\)/);
+    assert.match(css, /--broadcast-indicator-bg: #e5e5e5/);
+    assert.match(sw, /CACHE_NAME = 'uiptv-cache-v82'/);
 });
 

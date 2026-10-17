@@ -14,6 +14,7 @@
     --outline: #60707d;
     --error: #ffb4ab;
     --warning: #ffd54f;
+    --broadcast-indicator-bg: #1c1c1c;
     --shadow: rgba(0, 0, 0, 0.32);
 }
 
@@ -33,6 +34,7 @@
     --outline: #6d7b87;
     --error: #ba1a1a;
     --warning: #775c00;
+    --broadcast-indicator-bg: #e5e5e5;
     --shadow: rgba(17, 24, 32, 0.14);
 }
 
@@ -53,6 +55,7 @@
         --outline: #6d7b87;
         --error: #ba1a1a;
         --warning: #775c00;
+        --broadcast-indicator-bg: #e5e5e5;
         --shadow: rgba(17, 24, 32, 0.14);
     }
 }
@@ -813,6 +816,17 @@ a[href] {
     height: 1rem;
     object-fit: contain;
     flex: 0 0 auto;
+}
+
+.broadcast-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    flex: 0 0 1.75rem;
+    border-radius: 50%;
+    background: var(--broadcast-indicator-bg);
 }
 
 .soft-button.broadcasting .broadcast-icon {
