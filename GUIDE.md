@@ -467,7 +467,7 @@ If you encounter bugs or have feature requests, please visit our [GitHub Reposit
 
 ## Electronic programme guide
 
-Enable **Settings → Enable EPG** on desktop and save. The web automatically follows that setting; its **View Guide** action only selects a view. Android has an independent default-off **Config → Enable EPG on this device** switch. Its Live/bookmark rows show Now/Next and open full schedules; **Live Guide** provides a channel-first guide with a two-pane wide layout.
+Enable **Settings → Enable EPG** on desktop and save. The web automatically follows that setting through its read-only JSON configuration/data APIs; it has no independent EPG status or enable/disable controls. Android has an independent default-off **Config → Enable EPG on this device** switch. Its Live/bookmark rows show Now/Next and open full schedules; **Live Guide** provides a channel-first guide with a two-pane wide layout.
 
 Guide resolution is **channel/embedded/provider-native → account EPG → global EPG source**. Configure account EPG in account settings and the shared global source in desktop Settings or Android Config. XMLTV HTTP/HTTPS URLs, local files and gzip are supported. Unavailable or unmatched guides fall through without interrupting playback. Local paths must be readable on the device using them.
 

@@ -1415,16 +1415,6 @@ createApp({
                 }
             } catch (_) { /* Retain the last desktop setting while the server is unreachable. */ }
         };
-        const saveEpgSettings = async patch => {
-            try {
-                await fetch(window.location.origin + '/config', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patch)
-                });
-                await loadConfig();
-            } catch (_) { /* Keep the current setting when the desktop server is unavailable. */ }
-        };
-        const toggleEpgPlaybackOnly = () => saveEpgSettings({epgPlaybackOnly: !epgPlaybackOnly.value});
-
         const findBookmarkForChannel = (channel) => {
             if (!channel) return null;
             if (channel.bookmarkId || channel.type === 'bookmark') {
@@ -4967,7 +4957,6 @@ createApp({
 
         return {
             observeChannelEpg, observeBookmarkEpg, epgEnabled, epgPlaybackOnly, epgLabels,
-            toggleEpgPlaybackOnly,
             cardProgramme, cardProgrammeTime, cardProgrammeProgress, isLiveBookmark,
             thumbnailsEnabled, playerEpg, playerProgrammeTime,
             activeTab,

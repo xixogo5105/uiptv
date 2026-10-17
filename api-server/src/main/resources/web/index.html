@@ -77,12 +77,6 @@
                 <button @click="clearWebCacheAndReload" class="soft-button icon-only" title="Clear cache and reload" type="button">
                     <i class="bi bi-arrow-repeat"></i>
                 </button>
-                <button class="soft-button" disabled :title="epgEnabled ? 'EPG is enabled by desktop settings' : 'EPG is disabled by desktop settings'" type="button">
-                    {{ epgEnabled ? 'EPG enabled' : 'EPG disabled' }}
-                </button>
-                <button @click="toggleEpgPlaybackOnly" class="soft-button" :disabled="!epgEnabled" :title="epgPlaybackOnly ? 'Use full EPG mode' : 'Load EPG only for the channel being played'" type="button">
-                    {{ epgPlaybackOnly ? 'Use full EPG' : 'Playback-only EPG' }}
-                </button>
                 <a class="soft-button icon-only" download href="/bookmarks.m3u8" title="Download Favorites Playlist">
                     <i class="bi bi-download"></i>
                 </a>
@@ -787,7 +781,7 @@
     </main>
 </div>
 
-    <script src="/javascript/spa.js?v=20261016playbackOnly1"></script>
+    <script src="/javascript/spa.js?v=20261017desktopEpgHeader1"></script>
 <script>
     if ('serviceWorker' in navigator) {
         const hadServiceWorkerController = !!navigator.serviceWorker.controller;
