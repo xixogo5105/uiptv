@@ -1086,7 +1086,7 @@ public class AccountListUI extends HBox implements SearchTarget {
 
     private Button createAccountCardMenuButton(AccountItem item) {
         Button menuButton = new PlayMenuButton(I18n.tr("autoManage"));
-        menuButton.getStyleClass().add("account-card-menu-button");
+        menuButton.getStyleClass().addAll("account-card-menu-button", "bookmark-play-menu-button");
         menuButton.setOnAction(event -> {
             event.consume();
             if (item != null) {

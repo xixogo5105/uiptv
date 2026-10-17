@@ -94,7 +94,7 @@ class CoreWidgetBehaviorTest {
         PlayMenuButton button = runOnFxThread(() -> new PlayMenuButton("More playback options"));
 
         assertEquals("More playback options", runOnFxThread(button::getAccessibleText));
-        assertTrue(runOnFxThread(() -> button.getStyleClass().contains("card-menu-button")));
+        assertTrue(runOnFxThread(() -> button.getStyleClass().contains("play-menu-button")));
         // The button starts hollow so a catalogue does not build a tooltip and four shapes per
         // card; the content is built on the first reveal.
         assertNull(runOnFxThread(button::getGraphic), "graphic must be deferred until revealed");

@@ -414,6 +414,7 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
         cardMenu.setAutoHide(true);
 
         Button playButton = new PlayMenuButton(I18n.tr("autoPlay2"));
+        playButton.getStyleClass().add("bookmark-play-menu-button");
 
         ImageView poster = ThumbnailAwareUI.areThumbnailsEnabled()
                 ? SeriesCardUiSupport.createFitPoster(data.metadata.coverUrl, 136, 204,

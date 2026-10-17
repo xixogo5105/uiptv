@@ -1157,6 +1157,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private Button createActionButton(ChannelItem item) {
         Button actionButton = new PlayMenuButton(I18n.tr("autoPlay2"));
+        actionButton.getStyleClass().add("bookmark-play-menu-button");
         actionButton.setOnAction(event -> {
             event.consume();
             if (item == null) {
