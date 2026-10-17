@@ -143,6 +143,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         visibleProperty().addListener((obs, oldVisible, newVisible) -> {
             if (Boolean.TRUE.equals(newVisible) && getScene() != null) {
                 ensureLoaded();
+                rebuildCardsForCurrentEpgMode();
                 requestContentFocus();
             }
         });
@@ -556,6 +557,14 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private void applyEpgMode() {
         bookmarkPageScroll.setVisible(true); bookmarkPageScroll.setManaged(true);
         applyBookmarkGridDisplayMode(thumbnailsEnabled);
+        rebuildCardsForCurrentEpgMode();
+    }
+
+    private void rebuildCardsForCurrentEpgMode() {
+        if (!EpgModeUI.isCardsEnabled()) {
+            cardEpg.queue();
+            return;
+        }
         // Rebind the current items through the same full card lifecycle used
         // during startup. A lightweight refresh can leave virtual cards that
         // were created in playback-only mode without an EPG panel after the

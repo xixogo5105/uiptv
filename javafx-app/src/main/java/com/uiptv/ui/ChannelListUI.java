@@ -172,16 +172,29 @@ public class ChannelListUI extends HBox implements SearchTarget {
         preloadAllCategoryContextAsync();
         initWidgets();
         registerSceneLifecycleListener();
+        visibleProperty().addListener((_, _, visible) -> {
+            if (visible && getScene() != null && EpgModeUI.isCardsEnabled()) {
+                rebuildCardsForCurrentEpgMode();
+            }
+        });
         EpgModeUI.observe(this, () -> {
             applyListContentMode();
             applyChannelGridSizing();
             // Match the startup path: recreate the current channel cards so
             // cards made while playback-only EPG was enabled cannot remain
             // hollow when full EPG is enabled again.
-            channelGrid.setItems(channelGrid.getItems());
-            cardEpg.queue();
+            rebuildCardsForCurrentEpgMode();
         });
         table.setPlaceholder(new Label(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle)));
+    }
+
+    private void rebuildCardsForCurrentEpgMode() {
+        if (!EpgModeUI.isCardsEnabled()) {
+            cardEpg.queue();
+            return;
+        }
+        channelGrid.setItems(channelGrid.getItems());
+        cardEpg.queue();
     }
 
     public void setMediaDrawerMode(boolean mediaDrawerMode) {
