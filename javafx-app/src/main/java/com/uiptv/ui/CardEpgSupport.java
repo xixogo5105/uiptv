@@ -102,6 +102,19 @@ final class CardEpgSupport {
         revision++; if (worker != null) worker.interrupt(); pulse.playFromStart();
     }
 
+    /** Queue once now and once after the grid has completed another FX layout pass. */
+    void queueAfterLayout() {
+        queue();
+        Platform.runLater(() -> {
+            if (owner.getScene() == null || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return;
+            if (owner instanceof javafx.scene.Parent parent) {
+                parent.applyCss();
+                parent.requestLayout();
+            }
+            Platform.runLater(this::queue);
+        });
+    }
+
     private boolean visible(Region card) {
         if (card.getScene() == null || card.getWidth() <= 0 || card.getHeight() <= 0) return false;
         var window = card.getScene().getWindow();

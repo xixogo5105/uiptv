@@ -570,7 +570,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         // were created in playback-only mode without an EPG panel after the
         // mode is switched back while this page is already alive.
         bookmarkGrid.setItems(bookmarkGrid.getItems());
-        cardEpg.queue();
+        cardEpg.queueAfterLayout();
     }
 
     private VBox createHeaderArea() {

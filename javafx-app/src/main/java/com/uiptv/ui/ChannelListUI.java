@@ -194,7 +194,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             return;
         }
         channelGrid.setItems(channelGrid.getItems());
-        cardEpg.queue();
+        cardEpg.queueAfterLayout();
     }
 
     public void setMediaDrawerMode(boolean mediaDrawerMode) {
