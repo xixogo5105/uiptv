@@ -1592,6 +1592,12 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         ImageView iconView = new ImageView(image);
         iconView.setFitHeight(size);
         iconView.setFitWidth(size);
+        // PIP icons are supplied at different native sizes. Without preserving
+        // the ratio, JavaFX stretches the graphic whenever its target box is
+        // square, which is especially visible on the restore and overlay
+        // controls.
+        iconView.setPreserveRatio(true);
+        iconView.setSmooth(true);
         ColorAdjust whiteColorAdjust = new ColorAdjust();
         whiteColorAdjust.setBrightness(1.0);
         if (size == 64) {
@@ -1841,11 +1847,15 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             java.net.URL resourceUrl = getClass().getResource(iconPath);
             if (resourceUrl == null) return new ImageView();
 
-            Image image = new Image(resourceUrl.toExternalForm(), 40, 40, true, true);
+            // Keep the source resolution intact and let the ImageView perform the
+            // final 20px fit. Pre-decoding every control icon to 40x40 introduced
+            // visible rasterisation artifacts on the desktop control bar.
+            Image image = new Image(resourceUrl.toExternalForm());
             ImageView imageView = new ImageView(image);
             imageView.setFitHeight(20);
             imageView.setFitWidth(20);
             imageView.setPreserveRatio(true);
+            imageView.setSmooth(true);
 
             if (applyColorAdjust) {
                 ColorAdjust colorAdjust = new ColorAdjust();
