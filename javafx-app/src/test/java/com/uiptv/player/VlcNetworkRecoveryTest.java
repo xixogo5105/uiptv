@@ -58,9 +58,9 @@ class VlcNetworkRecoveryTest extends DbBackedUiTest {
                                 } else {
                                     socket.getOutputStream().write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
                                 }
-                            } catch (Exception _) { /* The test server is intentionally disposable. */ }
+                            } catch (Exception ignored) { }
                         });
-                    } catch (Exception _) { return; }
+                    } catch (Exception ignored) { return; }
                 }
             });
             String base = "http://127.0.0.1:" + server.getLocalPort();
