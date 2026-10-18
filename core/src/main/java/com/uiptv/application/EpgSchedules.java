@@ -33,7 +33,9 @@ public final class EpgSchedules {
         var priority=Comparator.comparing((Candidate c) -> generic(c.programme().title())).thenComparingInt(Candidate::source)
                 .thenComparing(Comparator.comparingLong((Candidate c) -> c.programme().start()).reversed())
                 .thenComparingLong(c -> c.programme().stop()).thenComparing(c -> c.programme().title()).thenComparing(c -> c.programme().description());
-        Map<Long,List<Candidate>> starts=new HashMap<>(),stops=new HashMap<>(); TreeSet<Long> boundaries=new TreeSet<>();
+        Map<Long,List<Candidate>> starts = new HashMap<>();
+        Map<Long,List<Candidate>> stops = new HashMap<>();
+        TreeSet<Long> boundaries = new TreeSet<>();
         for(int source=0;source<sources.size();source++) for(EpgProgramme p:sources.get(source)) {
             if(p.stop()<=p.start()) continue;
             Candidate candidate=new Candidate(p,source);
@@ -41,9 +43,13 @@ public final class EpgSchedules {
             stops.computeIfAbsent(p.stop(),_ -> new ArrayList<>()).add(candidate);
             boundaries.add(p.start()); boundaries.add(p.stop());
         }
-        var times=new ArrayList<>(boundaries); var active=new TreeSet<>(priority); List<EpgProgramme> result=new ArrayList<>(); Candidate previous=null;
+        var times = new ArrayList<>(boundaries);
+        var active = new TreeSet<>(priority);
+        List<EpgProgramme> result = new ArrayList<>();
+        Candidate previous = null;
         for(int i=0;i+1<times.size();i++) {
-            long start=times.get(i),stop=times.get(i+1);
+            long start = times.get(i);
+            long stop = times.get(i + 1);
             active.removeAll(stops.getOrDefault(start,List.of())); active.addAll(starts.getOrDefault(start,List.of()));
             if(active.isEmpty()) { previous=null; continue; }
             Candidate winner=active.first(); EpgProgramme p=winner.programme();
@@ -60,7 +66,8 @@ public final class EpgSchedules {
                 .thenComparing(Comparator.comparingLong(EpgProgramme::start).reversed())
                 .thenComparing(Comparator.comparingLong(EpgProgramme::stop).reversed())
                 .thenComparing(EpgProgramme::title).thenComparing(EpgProgramme::description);
-        Map<Long, List<EpgProgramme>> starts = new HashMap<>(), stops = new HashMap<>();
+        Map<Long, List<EpgProgramme>> starts = new HashMap<>();
+        Map<Long, List<EpgProgramme>> stops = new HashMap<>();
         TreeSet<Long> times = new TreeSet<>();
         for (EpgProgramme p : input.stream().filter(p -> p.stop() > p.start()).distinct().toList()) {
             starts.computeIfAbsent(p.start(), _ -> new ArrayList<>()).add(p);
@@ -72,7 +79,8 @@ public final class EpgSchedules {
         List<EpgProgramme> result = new ArrayList<>();
         EpgProgramme previousWinner = null;
         for (int i = 0; i + 1 < boundaries.size(); i++) {
-            long start = boundaries.get(i), stop = boundaries.get(i + 1);
+            long start = boundaries.get(i);
+            long stop = boundaries.get(i + 1);
             active.removeAll(stops.getOrDefault(start, List.of()));
             active.addAll(starts.getOrDefault(start, List.of()));
             if (active.isEmpty()) { previousWinner = null; continue; }

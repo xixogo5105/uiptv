@@ -78,8 +78,8 @@ public class EpgApplicationService {
             channels.forEach(channel -> { channel.setEpgNow(null); channel.setEpgNext(null); });
             return;
         }
-        var summaries=new EpgCacheApplicationService().summaries(account,channels);
-        long now=System.currentTimeMillis();
+        var summaries = new EpgCacheApplicationService().summaries(account, channels);
+        long now = System.currentTimeMillis();
         for(Channel channel:channels) {
             channel.setEpgNow(null); channel.setEpgNext(null);
             for(EpgProgramme p:summaries.getOrDefault(channel,List.of())) {

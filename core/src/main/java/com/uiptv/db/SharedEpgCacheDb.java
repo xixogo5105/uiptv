@@ -58,13 +58,15 @@ public final class SharedEpgCacheDb {
         var snapshot = new Snapshot(version.toString(), List.copyOf(sources)); cached = snapshot; return snapshot;
     }
     private Candidate resolve(Query query, Snapshot snapshot, EpgNameRules rules) {
-        String name = Objects.toString(query.name(), ""), region = "";
+        String name = Objects.toString(query.name(), "");
+        String region = "";
         var group = GROUP.matcher(name);
         if (group.find()) { region = country(group.group(1)); name = name.substring(group.end()); }
         List<Candidate> candidates = new ArrayList<>();
         for (Source source : snapshot.sources()) {
             if (!query.explicit() && !region.isBlank() && !source.countries().isEmpty() && !source.countries().contains(region)) continue;
-            String guide = query.guideId(); int rank = 0;
+            String guide = query.guideId();
+            int rank = 0;
             if (guide == null || guide.isBlank() || !source.ids().contains(guide)) {
                 if (query.explicit()) continue;
                 rank = 1; guide = source.exact().get(XmltvGuide.normalize(name));

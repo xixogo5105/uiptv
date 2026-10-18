@@ -14,7 +14,8 @@ public final class EpgNameRules {
 
     public EpgNameRules(List<Rule> rules) {
         ordered = rules.stream().distinct().sorted(Comparator.comparing(Rule::term).thenComparing(Rule::scope)).toList();
-        String annotationTerms=alternatives(ordered,"annotation"), qualityTerms=alternatives(ordered,"quality");
+        String annotationTerms = alternatives(ordered, "annotation");
+        String qualityTerms = alternatives(ordered, "quality");
         annotations=Pattern.compile("\\(\\s*(?:"+annotationTerms+")\\s*\\)|\\[\\s*(?:"+annotationTerms+")\\s*\\]", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
         qualities=Pattern.compile("(?<![\\p{L}\\p{N}])(?:"+qualityTerms+")(?![\\p{L}\\p{N}])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
         fingerprint = EpgCacheApplicationService.hash(ordered.stream().map(r -> r.scope() + ":" + r.term().length() + ":" + r.term()).collect(java.util.stream.Collectors.joining("\n")));
@@ -38,7 +39,8 @@ public final class EpgNameRules {
         return result.replaceAll("[Ⓐ-Ⓩⓐ-ⓩ]", "").replaceAll("[^\\p{L}\\p{N}+]", "");
     }
     public Map<String,String> aliases(Map<String,String> names, boolean quality) {
-        Map<String,String> result = new HashMap<>(); Set<String> ambiguous = new HashSet<>();
+        Map<String,String> result = new HashMap<>();
+        Set<String> ambiguous = new HashSet<>();
         names.forEach((name,id) -> {
             String key = quality ? quality(name) : display(name);
             String previous = result.putIfAbsent(key,id);
