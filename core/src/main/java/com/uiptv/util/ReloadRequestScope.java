@@ -59,7 +59,10 @@ public final class ReloadRequestScope implements AutoCloseable {
         return () -> watchdog.cancel(false);
     }
     public int requests() { return requests; }
-    @Override public void close() { ACTIVE.set(previous); }
+    @Override public void close() {
+        if (previous == null) ACTIVE.remove();
+        else ACTIVE.set(previous);
+    }
     public static final class LimitExceeded extends IllegalStateException {
         LimitExceeded(String message) { super(message); }
     }

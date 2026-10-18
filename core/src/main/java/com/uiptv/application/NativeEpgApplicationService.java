@@ -12,6 +12,7 @@ import java.util.*;
 
 /** Provider schedules use stream/API identities; XMLTV association is resolved separately. */
 public class NativeEpgApplicationService {
+    private static final Object HANDSHAKE_LOCK = new Object();
     private static final Map<Key, Cached> CACHE = new LinkedHashMap<>();
     private static final Map<Key, java.util.concurrent.CompletableFuture<List<EpgProgramme>>> IN_FLIGHT = new HashMap<>();
     private static long cacheRevision;
@@ -89,7 +90,7 @@ public class NativeEpgApplicationService {
     private List<EpgProgramme> fetch(Account account, Channel channel) {
         try {
             if (account.getType() == AccountType.STALKER_PORTAL) {
-                synchronized (account) {
+                synchronized (HANDSHAKE_LOCK) {
                     if (account.isNotConnected()) HandshakeService.getInstance().connect(account);
                 }
                 if (account.isNotConnected()) return List.of();
@@ -106,7 +107,7 @@ public class NativeEpgApplicationService {
                                 "period", "24", "size", "100", "JsHttpRequest", "1-xml");
                         var response = FetchAPI.fetchWithDiagnostics(params, utcRequestAccount(account), OPTIONS);
                         if (response.statusCode() == 401 || response.statusCode() == 403) {
-                            synchronized (account) { HandshakeService.getInstance().connect(account); }
+                            synchronized (HANDSHAKE_LOCK) { HandshakeService.getInstance().connect(account); }
                             if (account.isNotConnected()) return List.of();
                             response = FetchAPI.fetchWithDiagnostics(params, utcRequestAccount(account), OPTIONS);
                         }

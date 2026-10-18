@@ -32,7 +32,6 @@ public final class EpgCacheDb {
 
     public SourceState sourceState(String sourceId) {
         try (Connection c = open(false)) {
-            if (c == null) return new SourceState(0, 0, "");
             try (var statement = c.prepareStatement("SELECT refreshed_at,retry_at,warning FROM epg_source WHERE source_id=?")) {
                 statement.setString(1, sourceId);
                 try (var rows = statement.executeQuery()) {
@@ -276,7 +275,7 @@ public final class EpgCacheDb {
         if(identities.isEmpty()) return Map.of();
         Map<Identity,List<EpgProgramme>> result=new HashMap<>();
         try(Connection c=open(false)) {
-            if(c!=null) select(c,identities,now).forEach((id,selection) -> result.put(id,selection.programmes()));
+            select(c,identities,now).forEach((id,selection) -> result.put(id,selection.programmes()));
         } catch(Exception error) { throw failure(error); }
         return result;
     }

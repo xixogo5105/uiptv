@@ -18,11 +18,12 @@ import java.util.zip.GZIPInputStream;
 public class EpgApplicationService {
     private static final java.util.concurrent.locks.ReentrantLock SOURCE_LOAD_LOCK = new java.util.concurrent.locks.ReentrantLock();
     private static final Map<String, DiscoveredSource> SOURCES = new LinkedHashMap<>();
+    private static final Object SOURCES_LOCK = new Object();
     private static final HttpUtil.RequestOptions OPTIONS = new HttpUtil.RequestOptions(true, true, 10, 10, 20);
 
     public void clearCache() {
         SOURCE_LOAD_LOCK.lock();
-        try { synchronized (SOURCES) { SOURCES.clear(); } }
+        try { synchronized (SOURCES_LOCK) { SOURCES.clear(); } }
         finally { SOURCE_LOAD_LOCK.unlock(); }
         new NativeEpgApplicationService().clearCache();
         EpgCacheRefreshService.invalidate();
@@ -149,7 +150,7 @@ public class EpgApplicationService {
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new InterruptedIOException("Playlist discovery cancelled"); }
         try {
             DiscoveredSource cached;
-            synchronized (SOURCES) { cached = SOURCES.get(playlist); }
+            synchronized (SOURCES_LOCK) { cached = SOURCES.get(playlist); }
             long now = System.currentTimeMillis();
             if (cached != null && now < cached.retryAt()) return cached.source();
             String found = "";
@@ -201,7 +202,7 @@ public class EpgApplicationService {
     }
 
     private static <T> void putBounded(Map<String, T> cache, String key, T value) {
-        synchronized (cache) {
+        synchronized (SOURCES_LOCK) {
             cache.put(key, value);
             while (cache.size() > 8) cache.remove(cache.keySet().iterator().next());
         }
