@@ -99,11 +99,11 @@ public final class PlayerGuideOverlay extends StackPane {
 
     /** Display a resolved schedule without creating a Stage or Popup. */
     public void show(LiveGuideApplicationService.Row row) {
-        var body = ChannelGuidePopup.content(row, Math.max(240, Math.min(960, player.getWidth() * .92)), this::close);
+        var body = ChannelGuidePopup.content(row, Math.clamp(player.getWidth() * .92, 240, 960), this::close);
         ScrollPane viewport = new ScrollPane(body); viewport.setFitToWidth(true);
         viewport.getStyleClass().add("transparent-scroll-pane"); viewport.setMinSize(0, 0);
         viewport.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        viewport.setPrefViewportHeight(Math.min(370, Math.max(80, player.getHeight() * .9)));
+        viewport.setPrefViewportHeight(Math.clamp(player.getHeight() * .9, 80, 370));
         viewport.maxHeightProperty().bind(player.heightProperty().multiply(.9));
         getChildren().setAll(viewport);
         setVisible(true); setManaged(true); requestFocus();

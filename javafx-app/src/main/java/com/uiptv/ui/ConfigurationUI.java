@@ -855,7 +855,7 @@ public class ConfigurationUI extends VBox {
         label.setTextOverrun(OverrunStyle.ELLIPSIS);
         label.setAlignment(Pos.CENTER_LEFT);
 
-        double labelShare = Math.min(Math.max(labelWidthPercent, 0), 100) / 100;
+        double labelShare = Math.clamp(labelWidthPercent, 0, 100) / 100;
         HBox row = new HBox(12) {
             @Override
             protected void layoutChildren() {

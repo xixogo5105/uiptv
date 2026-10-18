@@ -347,7 +347,7 @@ public class EpgCacheRefreshService {
             if(!current(token)) return;
             if(EpgApplicationService.usable(programmes)) {
                 long coverage=programmes.stream().mapToLong(EpgProgramme::stop).max().orElse(now);
-                long retry=Math.min(now+refreshMillis(),Math.max(now+FAILURE_MS,coverage-FAILURE_MS));
+                long retry = Math.clamp(now + refreshMillis(), now + FAILURE_MS, coverage - FAILURE_MS);
                 commit(token,() -> db.replaceSource(id,Map.of(channel.getChannelId(),programmes),Map.of(),Map.of(),Map.of(),now,retry,
                         Set.of(new EpgChangeNotifications.ProviderIdentity(account.getDbId(), channel.getChannelId()))));
             }

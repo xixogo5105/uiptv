@@ -614,7 +614,7 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         );
         if (hasPlayerGuidePanel() && !shouldUsePlayerAdjacentTopControlsLayout() && responsiveContent.getHeight() > 0) {
             double guideHeight = playerAdjacentControls.prefHeight(availableLayoutWidth());
-            preferred = Math.min(preferred, Math.max(130, responsiveContent.getHeight() - guideHeight - 180));
+            preferred = Math.clamp(responsiveContent.getHeight() - guideHeight - 180, 130, preferred);
         }
         return preferred;
     }

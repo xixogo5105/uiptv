@@ -27,7 +27,7 @@ final class ChannelGuidePopup {
         if (bounds == null) return null;
         Rectangle2D screen = Screen.getScreensForRectangle(bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight())
                 .getFirst().getVisualBounds();
-        double width = Math.max(240, Math.min(960, Math.min(screen.getWidth() - 32, anchor.getScene().getWindow().getWidth() - 32)));
+        double width = Math.clamp(Math.min(screen.getWidth() - 32, anchor.getScene().getWindow().getWidth() - 32), 240, 960);
         Popup popup = new Popup();
         popup.setAutoHide(true); popup.setHideOnEscape(true); popup.setAutoFix(true);
         VBox body = content(row, width, popup::hide);
@@ -36,7 +36,7 @@ final class ChannelGuidePopup {
             for (String sheet : parent.getStylesheets()) if (!body.getStylesheets().contains(sheet)) body.getStylesheets().add(sheet);
         popup.getContent().add(body);
         popup.setOnHidden(_ -> { release(body); popup.getContent().clear(); });
-        double x = Math.max(screen.getMinX() + 16, Math.min(bounds.getMinX(), screen.getMaxX() - width - 16));
+        double x = Math.clamp(bounds.getMinX(), screen.getMinX() + 16, screen.getMaxX() - width - 16);
         double y = bounds.getMaxY() + 8;
         if (y + 370 > screen.getMaxY()) y = Math.max(screen.getMinY() + 16, bounds.getMinY() - 370);
         popup.show(anchor, x, y);
@@ -52,7 +52,7 @@ final class ChannelGuidePopup {
         ListView<EpgProgramme> programmes = new ListView<>(FXCollections.observableArrayList(row.programmes()));
         programmes.setOrientation(Orientation.HORIZONTAL);
         double contentWidth = width - 32;
-        double cellWidth = (contentWidth - 4) / Math.max(1, Math.min(row.programmes().size(), (int) (contentWidth / 280)));
+        double cellWidth = (contentWidth - 4) / Math.clamp(Math.min(row.programmes().size(), (int) (contentWidth / 280)), 1, Integer.MAX_VALUE);
         programmes.setPrefHeight(248); programmes.setMinHeight(248);
         long clock = System.currentTimeMillis();
         EpgProgramme following = row.programmes().stream().filter(p -> p.start() > clock).findFirst().orElse(null);
@@ -92,7 +92,8 @@ final class ChannelGuidePopup {
                 Tooltip.install(card, details); setGraphic(card);
             }
         });
-        Button previous = navigationButton("M10 3 L4 9 L10 15"), next = navigationButton("M4 3 L10 9 L4 15");
+        Button previous = navigationButton("M10 3 L4 9 L10 15");
+        Button next = navigationButton("M4 3 L10 9 L4 15");
         previous.setAccessibleText(I18n.tr("autoBack")); next.setAccessibleText(I18n.tr("epgNext"));
         var position = new java.util.concurrent.atomic.AtomicInteger();
         previous.setOnAction(_ -> { int index = Math.max(0, position.decrementAndGet()); position.set(index); programmes.scrollTo(index); });
