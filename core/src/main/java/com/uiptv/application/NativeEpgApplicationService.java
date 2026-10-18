@@ -205,9 +205,9 @@ public class NativeEpgApplicationService {
         if (value == null || value.isBlank()) return 0;
         value = value.strip();
         try { long n = Long.parseLong(value); return n < 100_000_000_000L ? Math.multiplyExact(n, 1000) : n; }
-        catch (Exception _) { }
-        try { return Instant.parse(value).toEpochMilli(); } catch (Exception _) { }
-        try { return OffsetDateTime.parse(value.replace(' ', 'T')).toInstant().toEpochMilli(); } catch (Exception _) { }
+        catch (Exception _) { /* Try the next supported timestamp representation. */ }
+        try { return Instant.parse(value).toEpochMilli(); } catch (Exception _) { /* Try the next representation. */ }
+        try { return OffsetDateTime.parse(value.replace(' ', 'T')).toInstant().toEpochMilli(); } catch (Exception _) { /* Try local time next. */ }
         try { return LocalDateTime.parse(value.replace(' ', 'T'), DateTimeFormatter.ISO_LOCAL_DATE_TIME).atZone(zone).toInstant().toEpochMilli(); }
         catch (Exception _) { return 0; }
     }

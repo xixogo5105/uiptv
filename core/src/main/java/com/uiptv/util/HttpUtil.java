@@ -180,7 +180,7 @@ public class HttpUtil {
             stream.request = request;
             return stream;
         } catch (Exception error) {
-            try { deadline.close(); } catch (Exception _) { }
+            try { deadline.close(); } catch (Exception _) { /* Preserve the original request failure. */ }
             ReloadRequestScope.checkCurrent();
             if (error instanceof IOException io) throw io;
             if (error instanceof RuntimeException runtime) throw runtime;

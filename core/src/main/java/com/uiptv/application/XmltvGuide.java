@@ -80,11 +80,11 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                             channel = reader.getAttributeValue(null, "channel");
                             start = time(reader.getAttributeValue(null, "start"));
                             stop = time(reader.getAttributeValue(null, "stop"));
-                            title = ""; description = "";
+                            title = ""; description = ""; // Reset programme text for the new programme.
                         }
                         case "title" -> { String text = boundedText(reader, 512); if (title.isEmpty()) title = text.strip(); }
                         case "desc" -> { String text = boundedText(reader, 2048); if (description.isEmpty()) description = text.strip(); }
-                        default -> { }
+                        default -> { /* Ignore unrelated XMLTV elements. */ }
                     }
                 } else if(event==XMLStreamConstants.END_ELEMENT && reader.getLocalName().equals("channel")) {
                     id=null;

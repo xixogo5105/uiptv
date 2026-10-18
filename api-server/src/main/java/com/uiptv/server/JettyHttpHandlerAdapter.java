@@ -98,6 +98,7 @@ public final class JettyHttpHandlerAdapter extends HttpServlet {
             try {
                 responseBody.close();
             } catch (IOException _) {
+                // Closing the response body is best effort during handler teardown.
             }
         }
 
