@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import static com.uiptv.model.Account.AccountAction.itv;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 /**
  * Regression coverage for {@link AccountDb#saveServerPortalUrl(Account)}.
@@ -67,8 +68,8 @@ class AccountDbServerPortalUrlTest extends DbBackedTest {
     void saveServerPortalUrl_isNoOp_whenAccountIsNullOrHasNoDbId() {
         Account noDbId = newAccount("portal-url-no-id", "u", "p");
         noDbId.setDbId("");
-        AccountDb.get().saveServerPortalUrl(null);
-        AccountDb.get().saveServerPortalUrl(noDbId);
+        assertDoesNotThrow(() -> AccountDb.get().saveServerPortalUrl(null));
+        assertDoesNotThrow(() -> AccountDb.get().saveServerPortalUrl(noDbId));
     }
 
     private Account newAccount(String name, String username, String password) {

@@ -187,6 +187,8 @@ public class EpgApplicationService {
         return 200L * 1024 * 1024;
     }
 
+    // The returned filter stream owns the HTTP response and closes it when the caller closes the stream.
+    @SuppressWarnings("java:S2095")
     private static InputStream open(String source) throws IOException {
         URI uri = sourceUri(source);
         if ("file".equalsIgnoreCase(uri.getScheme())) return Files.newInputStream(Path.of(uri));

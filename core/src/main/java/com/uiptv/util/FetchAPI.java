@@ -32,6 +32,8 @@ public class FetchAPI {
      * therefore not distinguish "the provider is unreachable" from "the provider returned no
      * data", which is what made intermittent multi-account bulk reload failures hard to attribute.
      */
+    // The streaming result is deliberately transferred to FetchResult; its caller owns and closes it.
+    @SuppressWarnings("java:S2095")
     public static FetchResult fetchWithDiagnostics(Map<String, String> params, final Account account,
                                                    HttpUtil.RequestOptions options) {
         String requestUrl = "";
