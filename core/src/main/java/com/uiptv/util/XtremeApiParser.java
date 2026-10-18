@@ -31,6 +31,7 @@ import static com.uiptv.util.StringUtils.safeGetString;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class XtremeApiParser {
+    private static final String STREAM_ID = "stream_id";
     private static final String PARAM_CATEGORY_ID = "category_id";
     private static final String XTREME_ERROR_PROCESSING_RESPONSE_DATA = "xtremeErrorProcessingResponseData: ";
     private static final int CHANNEL_PARSE_BATCH_SIZE = Integer.getInteger("uiptv.xtreme.channelParseBatchSize", 250);
@@ -192,7 +193,7 @@ public class XtremeApiParser {
                 safeGetString(jsonCategory, account.getAction() == series ? "series_id" : "stream_id"),
                 safeGetString(jsonCategory, "name"),
                 null,
-                buildXtremeStreamUrl(account, safeGetString(jsonCategory, "stream_id"), safeGetString(jsonCategory, "container_extension")),
+                buildXtremeStreamUrl(account, safeGetString(jsonCategory, STREAM_ID), safeGetString(jsonCategory, "container_extension")),
                 null,
                 null,
                 null,
@@ -254,7 +255,7 @@ public class XtremeApiParser {
 
     public static String fetchEpg(Account account, String action, String streamId) throws IOException {
         if (!List.of("get_short_epg", "get_simple_data_table").contains(action)) throw new IOException("Unsupported EPG action");
-        return fetchPlayerApi(account, action, Map.of("stream_id", streamId, "limit", "100"));
+        return fetchPlayerApi(account, action, Map.of(STREAM_ID, streamId, "limit", "100"));
     }
 
     private static String fetchPlayerApi(Account account, String action, Map<String, String> extraParams) throws IOException {

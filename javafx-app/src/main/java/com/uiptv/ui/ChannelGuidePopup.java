@@ -19,6 +19,7 @@ import java.time.format.DateTimeFormatter;
 
 /** A separate native popup window remains usable alongside the heavyweight VLC surface. */
 final class ChannelGuidePopup {
+    private static final String GUIDE_ACTION_STYLE_CLASS = "epg-guide-action";
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("EEE d MMM · HH:mm");
     private ChannelGuidePopup() { }
 
@@ -47,7 +48,7 @@ final class ChannelGuidePopup {
         Label heading = new Label(row.channel().getName());
         heading.getStyleClass().add("epg-guide-popup-heading");
         heading.setMaxWidth(Double.MAX_VALUE); HBox.setHgrow(heading, Priority.ALWAYS);
-        Button close = new com.uiptv.widget.CloseIconButton(I18n.tr("autoClose")); close.getStyleClass().add("epg-guide-action"); close.setOnAction(_ -> onClose.run());
+        Button close = new com.uiptv.widget.CloseIconButton(I18n.tr("autoClose")); close.getStyleClass().add(GUIDE_ACTION_STYLE_CLASS); close.setOnAction(_ -> onClose.run());
         HBox header = new HBox(12, heading, close); header.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         ListView<EpgProgramme> programmes = new ListView<>(FXCollections.observableArrayList(row.programmes()));
         programmes.setOrientation(Orientation.HORIZONTAL);
@@ -99,7 +100,7 @@ final class ChannelGuidePopup {
         previous.setOnAction(_ -> { int index = Math.max(0, position.decrementAndGet()); position.set(index); programmes.scrollTo(index); });
         next.setOnAction(_ -> { int index = Math.min(Math.max(0, row.programmes().size() - 1), position.incrementAndGet()); position.set(index); programmes.scrollTo(index); });
         Button nowButton = new Button(I18n.tr("epgNow"));
-        nowButton.getStyleClass().addAll("epg-guide-action", "epg-guide-now-button");
+        nowButton.getStyleClass().addAll(GUIDE_ACTION_STYLE_CLASS, "epg-guide-now-button");
         nowButton.setOnAction(_ -> {
             int index = nowIndex(row.programmes(), System.currentTimeMillis());
             if (index >= 0) { position.set(index); programmes.scrollTo(index); }
@@ -126,7 +127,7 @@ final class ChannelGuidePopup {
         icon.setContent(path); icon.getStyleClass().add("epg-guide-navigation-icon");
         icon.setMouseTransparent(true);
         Button button = new Button(); button.setGraphic(icon);
-        button.getStyleClass().add("epg-guide-action");
+        button.getStyleClass().add(GUIDE_ACTION_STYLE_CLASS);
         return button;
     }
 

@@ -61,6 +61,8 @@ public class ConfigurationUI extends VBox {
     private static final String CONFIG_DATABASE_SYNC_IN_PROGRESS = "configDatabaseSyncInProgress";
     private static final String CONFIG_EXPORT_DATABASE = "configExportDatabase";
     private static final String CONFIG_IMPORT_DATABASE = "configImportDatabase";
+    private static final String CONFIG_GLOBAL_EPG_HELP = "configGlobalEpgHelp";
+    private static final String CONFIG_EPG_SCHEDULER_INTERVAL_HELP = "configEpgSchedulerIntervalHelp";
     private static final String FILTER_LOCK_UNLOCK_MANAGE_FILTERS_REASON = "filterLockUnlockManageFiltersReason";
     private static final String STYLE_CLASS_DANGEROUS = "dangerous";
     private static final String STYLE_CLASS_DIM_LABEL = "dim-label";
@@ -79,6 +81,7 @@ public class ConfigurationUI extends VBox {
     private static final String BACKUP_RESTORE_ICON_PATH = "M12 5 C8.7 5 6 7.7 6 11 H3 L7 15 L11 11 H8 C8 8.8 9.8 7 12 7 C14.2 7 16 8.8 16 11 C16 13.2 14.2 15 12 15 C10.9 15 9.9 14.6 9.2 13.8 L7.8 15.2 C8.9 16.3 10.4 17 12 17 C15.3 17 18 14.3 18 11 C18 7.7 15.3 5 12 5 Z";
     private static final double STATUS_ICON_SIZE = 18;
     private static final String STYLE_CLASS_SETTINGS_FILTER_MODE_LABEL = "settings-filter-mode-label";
+    private static final String STYLE_CLASS_SETTINGS_FILTER_MODE_ROW = "settings-filter-mode-row";
     private static final String I18N_COMMON_CLOSE = "commonClose";
     private static final String I18N_COMMON_SAVE = "commonSave";
     private static final Duration STATUS_TITLE_REFRESH_INTERVAL = Duration.seconds(30);
@@ -737,7 +740,7 @@ public class ConfigurationUI extends VBox {
         HBox.setHgrow(label, Priority.ALWAYS);
 
         GridPane row = new GridPane();
-        row.getStyleClass().add("settings-filter-mode-row");
+        row.getStyleClass().add(STYLE_CLASS_SETTINGS_FILTER_MODE_ROW);
         row.setHgap(12);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setMaxWidth(Double.MAX_VALUE);
@@ -812,7 +815,7 @@ public class ConfigurationUI extends VBox {
         label.setAlignment(Pos.CENTER_LEFT);
 
         GridPane row = new GridPane();
-        row.getStyleClass().add("settings-filter-mode-row");
+        row.getStyleClass().add(STYLE_CLASS_SETTINGS_FILTER_MODE_ROW);
         row.setHgap(12);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setMaxWidth(Double.MAX_VALUE);
@@ -869,7 +872,7 @@ public class ConfigurationUI extends VBox {
                 getChildren().get(1).resizeRelocate(labelWidth + getSpacing(), 0, controlWidth, height);
             }
         };
-        row.getStyleClass().add("settings-filter-mode-row");
+        row.getStyleClass().add(STYLE_CLASS_SETTINGS_FILTER_MODE_ROW);
         row.setFillHeight(true);
         row.setMinWidth(0);
         row.setMaxWidth(Double.MAX_VALUE);
@@ -914,13 +917,13 @@ public class ConfigurationUI extends VBox {
         languageAndZoomSection.setMaxWidth(Double.MAX_VALUE);
 
         globalEpgSourceField.setPrefRowCount(4);
-        globalEpgSourceField.setPromptText(I18n.tr("configGlobalEpgHelp"));
-        globalEpgSourceField.setTooltip(new Tooltip(I18n.tr("configGlobalEpgHelp")));
+        globalEpgSourceField.setPromptText(I18n.tr(CONFIG_GLOBAL_EPG_HELP));
+        globalEpgSourceField.setTooltip(new Tooltip(I18n.tr(CONFIG_GLOBAL_EPG_HELP)));
         epgSchedulerIntervalComboBox.getItems().setAll(1, 2, 3, 5, 10, 15, 30, 60);
         if(epgSchedulerIntervalComboBox.getValue()==null) epgSchedulerIntervalComboBox.setValue(3);
         epgSchedulerIntervalComboBox.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
         epgPlaybackOnlySwitch.disableProperty().bind(epgEnabledSwitch.selectedProperty().not());
-        epgSchedulerIntervalComboBox.setTooltip(new Tooltip(I18n.tr("configEpgSchedulerIntervalHelp")));
+        epgSchedulerIntervalComboBox.setTooltip(new Tooltip(I18n.tr(CONFIG_EPG_SCHEDULER_INTERVAL_HELP)));
         return new VBox(10, createSettingSwitchRow("configEnableEpg", epgEnabledSwitch),
                 createSettingSwitchRow("configEpgPlaybackOnly", epgPlaybackOnlySwitch), buildEpgSourceRow(),
                 createStackedSettingControlRow("configEpgSchedulerInterval",epgSchedulerIntervalComboBox), themeModeRow, createSettingSwitchRow("configPlainTextMode", thumbnailModeSwitch), createSettingSwitchRow("configShowBookmarkAndAccountCounts", showBookmarkAndAccountCountsSwitch), languageAndZoomSection);
@@ -1754,7 +1757,7 @@ public class ConfigurationUI extends VBox {
         try {
             String source = globalEpgSourceField.getText().strip();
             if (com.uiptv.application.EpgApplicationService.globalSources(source).stream().anyMatch(entry -> entry.contains("://") && !entry.matches("(?i)^https?://[^\\s]+$") && !entry.startsWith("file://"))) {
-                showErrorAlert(I18n.tr("configGlobalEpgHelp"));
+                showErrorAlert(I18n.tr(CONFIG_GLOBAL_EPG_HELP));
                 return false;
             }
             savingConfiguration = true;
@@ -2934,7 +2937,7 @@ public class ConfigurationUI extends VBox {
     }
 
     static String themeHelpText() {
-        return I18n.tr("configThemeHelp")+"\n\n"+I18n.tr("configEpgSchedulerIntervalHelp");
+        return I18n.tr("configThemeHelp")+"\n\n"+I18n.tr(CONFIG_EPG_SCHEDULER_INTERVAL_HELP);
     }
 
     static String themeHelpTitle() {
@@ -2958,7 +2961,7 @@ public class ConfigurationUI extends VBox {
     }
 
     static String cacheFilteringHelpText() {
-        return I18n.tr("configCacheFilteringHelpText")+"\n\n"+I18n.tr("configEpgSchedulerIntervalHelp");
+        return I18n.tr("configCacheFilteringHelpText")+"\n\n"+I18n.tr(CONFIG_EPG_SCHEDULER_INTERVAL_HELP);
     }
 
     static String cacheFilteringHelpTitle() {

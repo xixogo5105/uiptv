@@ -16,6 +16,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
     private static final java.util.regex.Pattern AVAILABILITY = java.util.regex.Pattern.compile("\\s*\\[geo-blocked\\]");
     private static final java.util.regex.Pattern EMPTY_BRACKETS = java.util.regex.Pattern.compile("\\([\\s|/,-]*\\)|\\[[\\s|/,-]*\\]");
     private static final java.util.regex.Pattern EDGE_SEPARATORS = java.util.regex.Pattern.compile("^[\\s|/,-]+|[\\s|/,-]+$");
+    private static final String CHANNEL_ELEMENT = "channel";
     private static final DateTimeFormatter XMLTV_TIME = DateTimeFormatter.ofPattern("uuuuMMddHHmmss").withResolverStyle(java.time.format.ResolverStyle.STRICT);
 
     public XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names) {
@@ -56,7 +57,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                 int event = reader.next();
                 if (event == XMLStreamConstants.START_ELEMENT) {
                     switch (reader.getLocalName()) {
-                        case "channel" -> id = reader.getAttributeValue(null, "id");
+                        case CHANNEL_ELEMENT -> id = reader.getAttributeValue(null, "id");
                         case "display-name" -> {
                             String name = normalize(boundedText(reader, 512));
                             retainedBytes += 256L + name.length() * 4L;
@@ -86,7 +87,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                         case "desc" -> { String text = boundedText(reader, 2048); if (description.isEmpty()) description = text.strip(); }
                         default -> { /* Ignore unrelated XMLTV elements. */ }
                     }
-                } else if(event==XMLStreamConstants.END_ELEMENT && reader.getLocalName().equals("channel")) {
+                } else if(event==XMLStreamConstants.END_ELEMENT && reader.getLocalName().equals(CHANNEL_ELEMENT)) {
                     id=null;
                 } else if (event == XMLStreamConstants.END_ELEMENT && reader.getLocalName().equals("programme")) {
                     if (channel != null && start != null && !title.isBlank()

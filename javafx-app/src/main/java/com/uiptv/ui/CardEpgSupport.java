@@ -18,6 +18,7 @@ import java.util.function.Supplier;
 
 /** One cancellable loader per virtual grid. Detached cards retain no schedule or timer. */
 final class CardEpgSupport {
+    private static final String NO_PROGRAMME_DETAILS = "epgNoProgrammeDetails";
     private final Node owner;
     private final Map<Region, Binding> attached = new IdentityHashMap<>();
     private final Map<Region, Supplier<LiveGuideApplicationService.Row>> pending = new WeakHashMap<>();
@@ -283,10 +284,10 @@ final class CardEpgSupport {
         // Presentation-only placeholders: never publish invented schedules to the cache.
         long hourStart = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault())
                 .truncatedTo(java.time.temporal.ChronoUnit.HOURS).toInstant().toEpochMilli();
-        if (current == null) current = new EpgProgramme(I18n.tr("epgNoProgrammeDetails"), "", hourStart, hourStart + 3_600_000);
+        if (current == null) current = new EpgProgramme(I18n.tr(NO_PROGRAMME_DETAILS), "", hourStart, hourStart + 3_600_000);
         if (next == null) {
             long start = current.stop();
-            next = new EpgProgramme(I18n.tr("epgNoProgrammeDetails"), "", start, start + 3_600_000);
+            next = new EpgProgramme(I18n.tr(NO_PROGRAMME_DETAILS), "", start, start + 3_600_000);
         }
         panel.getChildren().clear();
         panel.getChildren().add(programme(I18n.tr("epgNow"), current));
@@ -300,7 +301,7 @@ final class CardEpgSupport {
     }
 
     private static VBox programme(String badge, EpgProgramme programme) {
-        String text = programme == null ? I18n.tr("epgNoProgrammeDetails") : programme.title();
+        String text = programme == null ? I18n.tr(NO_PROGRAMME_DETAILS) : programme.title();
         Label title = new Label(badge + ": " + text); title.getStyleClass().add("virtual-card-epg-title");
         title.setMinWidth(0); title.setMaxWidth(Double.MAX_VALUE); title.setTextOverrun(OverrunStyle.ELLIPSIS);
         Tooltip tooltip = new Tooltip(text); tooltip.setWrapText(true); tooltip.setMaxWidth(400); title.setTooltip(tooltip);

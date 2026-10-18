@@ -23,6 +23,11 @@ import static com.uiptv.widget.UIptvAlert.showConfirmationAlert;
 
 public class ProgressInline extends BorderPane {
     private static final String LOG_TEXT_STYLE_CLASS = "log-text";
+    private static final String PAUSED_SECONDS_I18N_KEY = "autoPausedSeconds";
+    private static final String MAC_ADDRESS_PROPERTY = "macAddress";
+    private static final String DEFAULT_BADGE_STYLE_CLASS = "verification-default-pill";
+    private static final String DEFAULT_BADGE_I18N_KEY = "macHoverDefaultBadge";
+    private static final String DEFAULT_MAC_STYLE_CLASS = "mac-default-pill";
     private static final double CARD_MAX_WIDTH = 1180;
     private static final double CARD_PREF_WIDTH = 1040;
 
@@ -174,7 +179,7 @@ public class ProgressInline extends BorderPane {
         pauseWidget.setAlignment(Pos.CENTER_LEFT);
         // Keep the whole countdown slot allocated, including its text, before the first pause.
         pauseLabel.prefWidthProperty().bind(javafx.beans.binding.Bindings.createDoubleBinding(() -> {
-            Text sample = new Text(I18n.tr("autoPausedSeconds", 8888));
+            Text sample = new Text(I18n.tr(PAUSED_SECONDS_I18N_KEY, 8888));
             sample.setFont(pauseLabel.getFont());
             return Math.ceil(sample.getLayoutBounds().getWidth());
         }, pauseLabel.fontProperty()));
@@ -183,7 +188,7 @@ public class ProgressInline extends BorderPane {
         // Reserve a fixed slot for the whole widget (clock + "Paused: Ns" + padding) so the widgets to its
         // right never shift when the timer appears or disappears.
         pauseWidget.minWidthProperty().bind(javafx.beans.binding.Bindings.createDoubleBinding(() -> {
-            Text sample = new Text(I18n.tr("autoPausedSeconds", 8888));
+            Text sample = new Text(I18n.tr(PAUSED_SECONDS_I18N_KEY, 8888));
             sample.setFont(pauseLabel.getFont());
             return Math.ceil(sample.getLayoutBounds().getWidth()) + 24 + 10 + 18;
         }, pauseLabel.fontProperty()));
@@ -235,7 +240,7 @@ public class ProgressInline extends BorderPane {
     private void refreshVerificationCards() {
         Platform.runLater(() -> {
             for (Node node : messageContainer.getChildren()) {
-                String cardMac = (String) node.getProperties().get("macAddress");
+                String cardMac = (String) node.getProperties().get(MAC_ADDRESS_PROPERTY);
                 if (cardMac == null || cardMac.isBlank()) continue;
 
                 // The node is either a VBox (for default MAC) or StackPane wrapper (for non-default)
@@ -248,15 +253,15 @@ public class ProgressInline extends BorderPane {
                 HBox titleRow = (HBox) card.getChildren().get(0);
                 Label existingBadge = null;
                 for (Node child : titleRow.getChildren()) {
-                    if (child instanceof Label label && label.getStyleClass().contains("verification-default-pill")) {
+                    if (child instanceof Label label && label.getStyleClass().contains(DEFAULT_BADGE_STYLE_CLASS)) {
                         existingBadge = label;
                         break;
                     }
                 }
 
                 if (isNewDefault && existingBadge == null) {
-                    Label defaultBadge = new Label(I18n.tr("macHoverDefaultBadge"));
-                    defaultBadge.getStyleClass().addAll("mac-default-pill", "verification-default-pill");
+                    Label defaultBadge = new Label(I18n.tr(DEFAULT_BADGE_I18N_KEY));
+                    defaultBadge.getStyleClass().addAll(DEFAULT_MAC_STYLE_CLASS, DEFAULT_BADGE_STYLE_CLASS);
                     titleRow.getChildren().add(defaultBadge);
                 } else if (!isNewDefault && existingBadge != null) {
                     titleRow.getChildren().remove(existingBadge);
@@ -331,7 +336,7 @@ public class ProgressInline extends BorderPane {
         Platform.runLater(() -> {
             if (secondsRemaining > 0) {
                 pauseWidget.setVisible(true);
-                pauseLabel.setText(I18n.tr("autoPausedSeconds", secondsRemaining));
+                pauseLabel.setText(I18n.tr(PAUSED_SECONDS_I18N_KEY, secondsRemaining));
                 double rotation = ((double)(totalSeconds - secondsRemaining) / totalSeconds) * 360;
                 clockHand.setRotate(rotation);
             } else {
@@ -405,8 +410,8 @@ public class ProgressInline extends BorderPane {
         titleRow.setAlignment(Pos.CENTER_LEFT);
         titleRow.setMaxWidth(Double.MAX_VALUE);
         if (defaultMac) {
-            Label defaultBadge = new Label(I18n.tr("macHoverDefaultBadge"));
-            defaultBadge.getStyleClass().addAll("mac-default-pill", "verification-default-pill");
+            Label defaultBadge = new Label(I18n.tr(DEFAULT_BADGE_I18N_KEY));
+            defaultBadge.getStyleClass().addAll(DEFAULT_MAC_STYLE_CLASS, DEFAULT_BADGE_STYLE_CLASS);
             titleRow.getChildren().add(defaultBadge);
         }
 
@@ -435,8 +440,8 @@ public class ProgressInline extends BorderPane {
         titleRow.setAlignment(Pos.CENTER_LEFT);
         titleRow.setMaxWidth(Double.MAX_VALUE);
         if (defaultMac) {
-            Label defaultBadge = new Label(I18n.tr("macHoverDefaultBadge"));
-            defaultBadge.getStyleClass().addAll("mac-default-pill", "verification-default-pill");
+            Label defaultBadge = new Label(I18n.tr(DEFAULT_BADGE_I18N_KEY));
+            defaultBadge.getStyleClass().addAll(DEFAULT_MAC_STYLE_CLASS, DEFAULT_BADGE_STYLE_CLASS);
             titleRow.getChildren().add(defaultBadge);
         }
 
@@ -452,7 +457,7 @@ public class ProgressInline extends BorderPane {
 
         // Store MAC address on card for later lookup/removal
         if (macAddress != null && !macAddress.isBlank()) {
-            card.getProperties().put("macAddress", macAddress.trim());
+            card.getProperties().put(MAC_ADDRESS_PROPERTY, macAddress.trim());
         }
 
         // If we have a MAC address and it's not the default MAC, add hover action buttons
@@ -570,7 +575,7 @@ public class ProgressInline extends BorderPane {
 
         // Store MAC address on wrapper for later lookup/removal
         if (macAddress != null && !macAddress.isBlank()) {
-            wrapper.getProperties().put("macAddress", macAddress.trim());
+            wrapper.getProperties().put(MAC_ADDRESS_PROPERTY, macAddress.trim());
         }
 
         // Create action buttons
@@ -662,7 +667,7 @@ public class ProgressInline extends BorderPane {
             if (targetMac.isBlank()) return;
 
             for (Node node : messageContainer.getChildren()) {
-                String cardId = (String) node.getProperties().get("macAddress");
+                String cardId = (String) node.getProperties().get(MAC_ADDRESS_PROPERTY);
                 if (targetMac.equalsIgnoreCase(cardId)) {
                     messageContainer.getChildren().remove(node);
                     break;

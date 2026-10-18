@@ -678,7 +678,7 @@ public class HttpProxyStreamServer implements HttpHandler {
         try {
             URI resolved = URI.create(playlistUrl).resolve(trimmed);
             String scheme = resolved.getScheme();
-            if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
+            if (!("http".equalsIgnoreCase(scheme) || SCHEME_HTTPS.equalsIgnoreCase(scheme))
                     || isBlank(resolved.getHost())) {
                 return candidate;
             }

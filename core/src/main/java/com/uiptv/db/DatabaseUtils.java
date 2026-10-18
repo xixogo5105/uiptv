@@ -358,8 +358,8 @@ public class DatabaseUtils {
         dbStructure.put(DbTable.EPG_PROGRAMME_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
                 new DataColumn(COLUMN_GUIDE_CHANNEL_ID, "TEXT"),
-                new DataColumn("starts_at", "INTEGER"),
-                new DataColumn("stops_at", "INTEGER"),
+                new DataColumn("starts_at", INTEGER_TYPE),
+                new DataColumn("stops_at", INTEGER_TYPE),
                 new DataColumn(COLUMN_TITLE, "TEXT"),
                 new DataColumn("description", "BLOB")
         )));

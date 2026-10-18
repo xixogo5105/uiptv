@@ -24,6 +24,7 @@ import static com.uiptv.db.SQLConnection.connect;
 // Table identifiers come only from the fixed DbTable enum; values use prepared parameters.
 @SuppressWarnings("java:S2077")
 public class ChannelDb extends BaseDb {
+    private static final String SELECT_CHANNELS = "SELECT c.* FROM ";
     private static ChannelDb instance;
     private static final int BATCH_SIZE = 1000;
 
@@ -88,7 +89,7 @@ public class ChannelDb extends BaseDb {
 
     /** Visits cached rows without retaining the entire account catalogue. */
     public void visitCachedLiveChannels(String accountId, java.util.function.Consumer<Channel> visitor) {
-        String sql="SELECT c.* FROM " + validatedTableName(CHANNEL_TABLE) + " c JOIN " + validatedTableName(CATEGORY_TABLE)
+        String sql=SELECT_CHANNELS + validatedTableName(CHANNEL_TABLE) + " c JOIN " + validatedTableName(CATEGORY_TABLE)
                 + " cat ON cat.id=c.categoryId WHERE cat.accountId=? ORDER BY c.id";
         try(Connection connection=connect(); var query=connection.prepareStatement(sql)) {
             query.setString(1,accountId);
@@ -119,7 +120,7 @@ public class ChannelDb extends BaseDb {
     }
 
     public Channel getChannelByChannelIdAndAccount(String channelId, String accountId) {
-        String sql = "SELECT c.* FROM " + validatedTableName(CHANNEL_TABLE) + " c" +
+        String sql = SELECT_CHANNELS + validatedTableName(CHANNEL_TABLE) + " c" +
                 " INNER JOIN " + validatedTableName(CATEGORY_TABLE) + " cat ON c.categoryId = cat.id" +
                 " WHERE c.channelId = ? AND cat.accountId = ?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
@@ -152,7 +153,7 @@ public class ChannelDb extends BaseDb {
 
         // The IN-clause shape is derived only from the number of validated ids; values are still bound safely.
         String placeholders = String.join(",", java.util.Collections.nCopies(effectiveChannelIds.size(), "?"));
-        String sql = "SELECT c.* FROM " + validatedTableName(CHANNEL_TABLE) + " c" +
+        String sql = SELECT_CHANNELS + validatedTableName(CHANNEL_TABLE) + " c" +
                 " INNER JOIN " + validatedTableName(CATEGORY_TABLE) + " cat ON c.categoryId = cat.id" +
                 " WHERE cat.accountId = ? AND c.channelId IN (" + placeholders + ")";
 
