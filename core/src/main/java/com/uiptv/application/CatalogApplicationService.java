@@ -263,16 +263,20 @@ public class CatalogApplicationService {
 
         episodes = enrichEpisodes(episodes, episodesMeta);
         List<Channel> enriched = toChannels(episodes);
-        if (!enriched.isEmpty() && isNotBlank(seriesId)) {
-            if (!providerDetails.episodes().isEmpty()) {
-                SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, enriched);
-            } else {
-                SeriesEpisodeDb.get().updateMetadata(account, categoryId, seriesId, enriched);
-            }
-        }
+        persistSeriesEpisodes(account, categoryId, seriesId, providerDetails, enriched);
         applyNameYearFallback(seasonInfo, seriesName);
         normalizeSeasonAndEpisodeArtwork(seasonInfo, episodes, account);
         return new CatalogSeriesDetailsResult(seasonInfo, episodes, episodesMeta == null ? new JSONArray() : episodesMeta);
+    }
+
+    private void persistSeriesEpisodes(Account account, String categoryId, String seriesId,
+                                       SeriesProviderDetails providerDetails, List<Channel> enriched) {
+        if (enriched.isEmpty() || !isNotBlank(seriesId)) return;
+        if (!providerDetails.episodes().isEmpty()) {
+            SeriesEpisodeDb.get().saveAll(account, categoryId, seriesId, enriched);
+        } else {
+            SeriesEpisodeDb.get().updateMetadata(account, categoryId, seriesId, enriched);
+        }
     }
 
     private Account resolveAccount(String accountId, CatalogMode mode) {

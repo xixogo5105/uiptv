@@ -375,7 +375,7 @@ public class DatabaseUtils {
                 new DataColumn("signature", "TEXT"),
                 new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
                 new DataColumn(COLUMN_GUIDE_CHANNEL_ID, "TEXT"),
-                new DataColumn("priority", "INTEGER")
+                new DataColumn("priority", INTEGER_TYPE)
         )));
         dbStructure.put(DbTable.EPG_CHANNEL_ICON_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
