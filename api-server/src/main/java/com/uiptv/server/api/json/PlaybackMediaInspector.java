@@ -15,6 +15,10 @@ import java.util.Map;
 /** Identifies common web media formats from HTTP metadata and a small ranged read. */
 final class PlaybackMediaInspector {
     private static final int SNIFF_BYTES = 2048;
+    private static final String STRATEGY_UNKNOWN = "unknown";
+    private static final String STRATEGY_MPEGTS = "mpegts";
+    private static final String STRATEGY_NATIVE = "native";
+    private static final String STRATEGY_UNSUPPORTED = "unsupported";
     private static final String STALKER_USER_AGENT = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3";
     private static final String WEB_USER_AGENT = "Mozilla/5.0";
 
@@ -44,19 +48,19 @@ final class PlaybackMediaInspector {
             if (response.statusCode() < 200 || response.statusCode() >= 400) {
                 MediaInfo fallback = inferStalkerOnDemandFormat(url, account);
                 if (fallback != null) return fallback;
-                return new MediaInfo("unknown", "", "", "", 0L);
+                return new MediaInfo(STRATEGY_UNKNOWN, "", "", "", 0L);
             }
             String contentType = firstHeader(response.responseHeaders(), "content-type").toLowerCase(Locale.ROOT);
             byte[] prefix = response.bodyStream().readNBytes(SNIFF_BYTES);
             MediaInfo detected = classifyResponse(contentType, prefix);
-            if ("unknown".equals(detected.strategy()) && isStalkerOnDemandUrl(url, account)) {
+            if (STRATEGY_UNKNOWN.equals(detected.strategy()) && isStalkerOnDemandUrl(url, account)) {
                 return inferStalkerOnDemandFormat(url, account);
             }
             return detected;
         } catch (IOException | RuntimeException _) {
             MediaInfo fallback = inferStalkerOnDemandFormat(url, account);
             if (fallback != null) return fallback;
-            return new MediaInfo("unknown", "", "", "", 0L);
+            return new MediaInfo(STRATEGY_UNKNOWN, "", "", "", 0L);
         }
     }
 
@@ -70,21 +74,21 @@ final class PlaybackMediaInspector {
         if (path.endsWith(".mpd") || "mpd".equals(queryParameter(url, "manifest_type").toLowerCase(Locale.ROOT))) {
             return new MediaInfo("dash", "dash", "", "", 0L);
         }
-        if (path.endsWith(".ts") || path.endsWith(".m2ts") || "ts".equals(extension) || "mpegts".equals(extension)) {
-            return new MediaInfo("mpegts", "mpegts", "", "", 0L);
+        if (path.endsWith(".ts") || path.endsWith(".m2ts") || "ts".equals(extension) || STRATEGY_MPEGTS.equals(extension)) {
+            return new MediaInfo(STRATEGY_MPEGTS, STRATEGY_MPEGTS, "", "", 0L);
         }
         if (path.endsWith(".mp4") || path.endsWith(".m4v")) {
-            return new MediaInfo("native", "mp4", "", "", 0L);
+            return new MediaInfo(STRATEGY_NATIVE, "mp4", "", "", 0L);
         }
         if (path.endsWith(".mkv") || path.endsWith(".avi") || path.endsWith(".wmv")) {
-            return new MediaInfo("unsupported", "container", "", "", 0L);
+            return new MediaInfo(STRATEGY_UNSUPPORTED, "container", "", "", 0L);
         }
         return null;
     }
 
     static MediaInfo inferStalkerOnDemandFormat(String url, Account account) {
         return isStalkerOnDemandUrl(url, account)
-                ? new MediaInfo("mpegts", "mpegts (Stalker on-demand)", "", "", 0L) : null;
+                ? new MediaInfo(STRATEGY_MPEGTS, STRATEGY_MPEGTS + " (Stalker on-demand)", "", "", 0L) : null;
     }
 
     static Map<String, String> buildProbeHeaders(String url, Account account) {
@@ -117,7 +121,7 @@ final class PlaybackMediaInspector {
         String type = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
         byte[] bytes = prefix == null ? new byte[0] : prefix;
         String format = "";
-        String strategy = "unknown";
+        String strategy = STRATEGY_UNKNOWN;
         String video = codecParameter(type, "video");
         String audio = codecParameter(type, "audio");
         if (type.contains("mpegurl") || startsWithText(bytes, "#EXTM3U")) {
@@ -125,13 +129,13 @@ final class PlaybackMediaInspector {
         } else if (type.contains("dash+xml")) {
             format = "dash"; strategy = "dash";
         } else if (type.contains("mp2t") || hasTransportStreamSync(bytes)) {
-            format = "mpegts"; strategy = "mpegts";
+                format = STRATEGY_MPEGTS; strategy = STRATEGY_MPEGTS;
         } else if (type.contains("video/mp4") || hasMp4Signature(bytes)) {
-            format = "mp4"; strategy = "native";
+            format = "mp4"; strategy = STRATEGY_NATIVE;
         } else if (type.contains("matroska") || hasMatroskaSignature(bytes)) {
-            format = "matroska"; strategy = "unsupported";
+            format = "matroska"; strategy = STRATEGY_UNSUPPORTED;
         } else if (type.contains("mpeg") || hasMpegProgramStreamSignature(bytes)) {
-            format = "mpeg"; strategy = "unsupported";
+            format = "mpeg"; strategy = STRATEGY_UNSUPPORTED;
         }
         if (video.isEmpty() && audio.isEmpty()) {
             String codecs = codecListParameter(type);
@@ -143,8 +147,8 @@ final class PlaybackMediaInspector {
                 }
             }
         }
-        if (strategy.equals("native") && ((!video.isEmpty() && !isBrowserVideoCodec(video))
-                || (!audio.isEmpty() && !isBrowserAudioCodec(audio)))) strategy = "unsupported";
+        if (strategy.equals(STRATEGY_NATIVE) && ((!video.isEmpty() && !isBrowserVideoCodec(video))
+                || (!audio.isEmpty() && !isBrowserAudioCodec(audio)))) strategy = STRATEGY_UNSUPPORTED;
         return new MediaInfo(strategy, format, video, audio, 0L);
     }
 
