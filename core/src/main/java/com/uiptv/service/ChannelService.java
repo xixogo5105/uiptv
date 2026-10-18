@@ -204,23 +204,28 @@ public class ChannelService {
                 break;
             }
             int offset = page * VOD_SERIES_DB_PAGE_SIZE;
-            List<Channel> batch = account.getAction() == vod
-                    ? VodChannelDb.get().getChannels(account, dbCategoryId, VOD_SERIES_DB_PAGE_SIZE, offset)
-                    : SeriesChannelDb.get().getChannels(account, dbCategoryId, VOD_SERIES_DB_PAGE_SIZE, offset);
+            List<Channel> batch = loadVodSeriesPage(account, dbCategoryId, offset);
             batch = dedupeChannels(batch);
             normalizeCachedVodSeriesChannels(batch, account);
             channels.addAll(batch);
             if (progressCallback != null) {
                 progressCallback.accept(new PageProgress(channels.size(), total, page + 1, pageCount));
             }
-            if (callback != null && !batch.isEmpty()) {
-                List<Channel> visibleBatch = maybeFilterChannels(batch, true, account);
-                if (!visibleBatch.isEmpty()) {
-                    callback.accept(visibleBatch);
-                }
-            }
+            publishVisibleBatch(batch, account, callback);
         }
         return channels;
+    }
+
+    private List<Channel> loadVodSeriesPage(Account account, String dbCategoryId, int offset) {
+        return account.getAction() == vod
+                ? VodChannelDb.get().getChannels(account, dbCategoryId, VOD_SERIES_DB_PAGE_SIZE, offset)
+                : SeriesChannelDb.get().getChannels(account, dbCategoryId, VOD_SERIES_DB_PAGE_SIZE, offset);
+    }
+
+    private void publishVisibleBatch(List<Channel> batch, Account account, Consumer<List<Channel>> callback) {
+        if (callback == null || batch.isEmpty()) return;
+        List<Channel> visibleBatch = maybeFilterChannels(batch, true, account);
+        if (!visibleBatch.isEmpty()) callback.accept(visibleBatch);
     }
 
     private void fetchAndCacheMissingLiveChannels(String categoryId, Account account, String dbId, Consumer<List<Channel>> callback,
