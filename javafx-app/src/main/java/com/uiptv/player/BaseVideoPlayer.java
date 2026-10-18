@@ -1061,64 +1061,41 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         }
 
         try {
-            if (guideOverlay != null) guideOverlay.close();
-            // Clear UI components
-            if (playerContainer != null) {
-                playerContainer.getChildren().clear();
-            }
-
-            // Clear controls container
-            if (controlsContainer != null) {
-                controlsContainer.getChildren().clear();
-            }
-
-            // Clear all buttons
-            if (tracksContextMenu != null) {
-                tracksContextMenu.getItems().clear();
-            }
-
-            // Clear text flows
-            if (nowShowingFlow != null) {
-                nowShowingFlow.getChildren().clear();
-            }
-
-            // Remove any fullscreen stage
-            if (fullscreenStage != null) {
-                try {
-                    uninstallSceneInputRecovery(fullscreenStage.getScene());
-                    fullscreenStage.close();
-                } catch (Exception _) {
-                    // Ignore stage teardown issues during fullscreen cleanup.
-                }
-                fullscreenStage = null;
-                fullscreen.set(false);
-            }
-
-            // Remove any PiP stage
-            if (pipStage != null) {
-                try {
-                    uninstallSceneInputRecovery(pipStage.getScene());
-                    pipStage.close();
-                } catch (Exception _) {
-                    // Ignore stage teardown issues during PiP cleanup.
-                }
-                pipStage = null;
-                pip.set(false);
-            }
-            restorePrimaryStageAlwaysOnTopAfterVideoOverlay();
-
-            // Cancel idle timers
-            if (idleTimer != null) {
-                idleTimer.stop();
-            }
-
-            if (hiddenBarMessageHideTimer != null) {
-                hiddenBarMessageHideTimer.stop();
-            }
-            restoreVisibleCursor();
+            disposeUiResources();
         } catch (Exception _) {
             // Best-effort shutdown; media disposal failures should not leave stale UI around.
         }
+    }
+
+    private void disposeUiResources() {
+        if (guideOverlay != null) guideOverlay.close();
+        clearNodeChildren(playerContainer);
+        clearNodeChildren(controlsContainer);
+        if (tracksContextMenu != null) tracksContextMenu.getItems().clear();
+        clearNodeChildren(nowShowingFlow);
+        closeOverlayStage(fullscreenStage, fullscreen);
+        fullscreenStage = null;
+        closeOverlayStage(pipStage, pip);
+        pipStage = null;
+        restorePrimaryStageAlwaysOnTopAfterVideoOverlay();
+        if (idleTimer != null) idleTimer.stop();
+        if (hiddenBarMessageHideTimer != null) hiddenBarMessageHideTimer.stop();
+        restoreVisibleCursor();
+    }
+
+    private void clearNodeChildren(javafx.scene.layout.Pane pane) {
+        if (pane != null) pane.getChildren().clear();
+    }
+
+    private void closeOverlayStage(Stage stage, BooleanProperty active) {
+        if (stage == null) return;
+        try {
+            uninstallSceneInputRecovery(stage.getScene());
+            stage.close();
+        } catch (Exception _) {
+            // Ignore stage teardown issues during shutdown.
+        }
+        active.set(false);
     }
 
     protected void handleRepeat() {
