@@ -25,6 +25,18 @@ import static com.uiptv.application.EpgCacheApplicationService.hash;
  * Provides inventory export, bundle import, and validation operations.
  */
 public class EpgBuilderApplicationService {
+    private static final String DATABASE_IDENTITY = "database_identity";
+    private static final String CONFIG_SIGNATURE = "config_signature";
+    private static final String REVISION = "revision";
+    private static final String SOURCE_ID = "source_id";
+    private static final String NAME_RULES = "name_rules";
+    private static final String RECORD_TYPE = "record_type";
+    private static final String ACCOUNT_ID = "account_id";
+    private static final String PROVIDER_CHANNEL_ID = "provider_channel_id";
+    private static final String START = "start";
+    private static final String DESCRIPTION = "description";
+    private static final String TITLE = "title";
+    private static final String BUILDER_PREFIX = "builder:";
 
     private static String computeDatabaseIdentity(String databasePath) throws Exception {
         Path path = Path.of(databasePath).toRealPath();
@@ -70,7 +82,7 @@ public class EpgBuilderApplicationService {
     private void writeInventory(String databasePath, java.io.Writer output, boolean lines) throws Exception {
         // Metadata is small; channels are written immediately and never collected here.
         JSONObject metadata = inventoryMetadata(databasePath);
-        if (lines) output.write(metadata.put("record_type", "header").toString() + "\n");
+        if (lines) output.write(metadata.put(RECORD_TYPE, "header").toString() + "\n");
         else {
             String header = metadata.toString();
             output.write(header.substring(0, header.length() - 1) + ",\"channels\":[");
@@ -78,7 +90,7 @@ public class EpgBuilderApplicationService {
         long[] count = {0};
         JSONObject completed = visitInventory(databasePath, channel -> {
             try {
-                if (lines) output.write(channel.put("record_type", "channel").toString() + "\n");
+                if (lines) output.write(channel.put(RECORD_TYPE, "channel").toString() + "\n");
                 else {
                     if (count[0] > 0) output.write(",");
                     channel.write(output);
@@ -86,13 +98,13 @@ public class EpgBuilderApplicationService {
                 count[0]++;
             } catch (java.io.IOException error) { throw new java.io.UncheckedIOException(error); }
         });
-        for (String key : List.of("database_identity", "config_signature")) {
+        for (String key : List.of(DATABASE_IDENTITY, CONFIG_SIGNATURE)) {
             if (!metadata.getString(key).equals(completed.getString(key)))
                 throw new IllegalStateException("Inventory configuration changed during export; retry");
         }
-        if (lines) output.write(new JSONObject().put("record_type", "end").put("revision", completed.getString("revision"))
+        if (lines) output.write(new JSONObject().put(RECORD_TYPE, "end").put(REVISION, completed.getString(REVISION))
                 .put("channel_count", count[0]).toString());
-        else output.write("],\"revision\":" + JSONObject.quote(completed.getString("revision")) + "}");
+        else output.write("],\"revision\":" + JSONObject.quote(completed.getString(REVISION)) + "}");
         output.write("\n");
         output.flush();
     }
@@ -109,8 +121,8 @@ public class EpgBuilderApplicationService {
         JSONArray nameRules = new JSONArray();
         new com.uiptv.db.EpgNameRulesDb().read().rules().forEach(rule -> nameRules.put(
                 new JSONObject().put("term", rule.term()).put("scope", rule.scope())));
-        return new JSONObject().put("name_rules", nameRules).put("database_path", databasePath).put("database_identity", computeDatabaseIdentity(databasePath))
-                .put("generation", 1).put("config_signature", computeConfigSignature(config)).put("accounts", accounts);
+        return new JSONObject().put(NAME_RULES, nameRules).put("database_path", databasePath).put(DATABASE_IDENTITY, computeDatabaseIdentity(databasePath))
+                .put("generation", 1).put(CONFIG_SIGNATURE, computeConfigSignature(config)).put("accounts", accounts);
     }
 
     private JSONObject visitInventory(String databasePath, java.util.function.Consumer<JSONObject> visitor) throws Exception {
@@ -145,7 +157,7 @@ public class EpgBuilderApplicationService {
                 JSONObject record = channelInventory(account, channel, bookmarkIds.containsKey(channel.getChannelId()),
                         bookmarkIds.getOrDefault(channel.getChannelId(), ""), overrides.optString(channel.getChannelId(), "").strip(), identity.apply(channel).signature());
                 record.put("quality_name", nameRules.quality(channel.getName()));
-                revisions.add(record.getString("account_id") + "|" + record.getString("provider_channel_id") + "|" + record.getString("signature"));
+                revisions.add(record.getString(ACCOUNT_ID) + "|" + record.getString(PROVIDER_CHANNEL_ID) + "|" + record.getString("signature"));
                 visitor.accept(record);
             };
             com.uiptv.db.ChannelDb.get().visitCachedLiveChannels(account.getDbId(), emit);
@@ -167,7 +179,7 @@ public class EpgBuilderApplicationService {
             if (i > 0) digest.update((byte) '\n');
             digest.update(revisions.get(i).getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
-        inventory.put("revision", HexFormat.of().formatHex(digest.digest()));
+        inventory.put(REVISION, HexFormat.of().formatHex(digest.digest()));
         return inventory;
     }
 
@@ -189,8 +201,8 @@ public class EpgBuilderApplicationService {
         boolean isManual = !manualOverride.isBlank();
 
         JSONObject ch = new JSONObject();
-        ch.put("account_id", account.getDbId());
-        ch.put("provider_channel_id", channel.getChannelId());
+        ch.put(ACCOUNT_ID, account.getDbId());
+        ch.put(PROVIDER_CHANNEL_ID, channel.getChannelId());
         ch.put("db_id", channel.getDbId() != null ? channel.getDbId() : "");
         ch.put("name", channel.getName() != null ? channel.getName() : "");
         ch.put("display_name", channel.getName() != null ? channel.getName() : "");
@@ -222,17 +234,17 @@ public class EpgBuilderApplicationService {
         Set<Target> wanted = new HashSet<>();
         for (Object value : bundle.getJSONArray("mappings")) {
             JSONObject mapping = (JSONObject) value;
-            wanted.add(new Target(mapping.getString("account_id"), mapping.getString("provider_channel_id")));
+            wanted.add(new Target(mapping.getString(ACCOUNT_ID), mapping.getString(PROVIDER_CHANNEL_ID)));
         }
         Map<Target,JSONObject> targets = new HashMap<>();
         JSONObject inventory = sharedGuides && wanted.isEmpty() ? inventoryMetadata(databasePath) : visitInventory(databasePath, channel -> {
-            Target target = new Target(channel.getString("account_id"), channel.getString("provider_channel_id"));
+            Target target = new Target(channel.getString(ACCOUNT_ID), channel.getString(PROVIDER_CHANNEL_ID));
             if (wanted.contains(target)) targets.put(target, channel);
         });
-        if (!bundle.getString("database_identity").equals(inventory.getString("database_identity")))
+        if (!bundle.getString(DATABASE_IDENTITY).equals(inventory.getString(DATABASE_IDENTITY)))
             throw new IllegalArgumentException("database_identity mismatch");
-        boolean mappingsCurrent = bundle.getString("config_signature").equals(inventory.getString("config_signature"))
-                && bundle.getString("inventory_revision").equals(inventory.optString("revision"))
+        boolean mappingsCurrent = bundle.getString(CONFIG_SIGNATURE).equals(inventory.getString(CONFIG_SIGNATURE))
+                && bundle.getString("inventory_revision").equals(inventory.optString(REVISION))
                 && bundle.getInt("inventory_generation") == inventory.getInt("generation");
         if (!sharedGuides && !mappingsCurrent) throw new IllegalArgumentException("Stale inventory or config_signature; export and rebuild");
         Map<String,Map<String,List<com.uiptv.application.EpgProgramme>>> sources = new LinkedHashMap<>();
@@ -246,14 +258,14 @@ public class EpgBuilderApplicationService {
         for (Object value : bundle.getJSONArray("sources")) {
             JSONObject source = (JSONObject)value;
             int priority = source.optInt("priority", 100);
-            if (priority < 0 || priority > 1_000_000 || declared.putIfAbsent(source.getString("source_id"), priority) != null)
+            if (priority < 0 || priority > 1_000_000 || declared.putIfAbsent(source.getString(SOURCE_ID), priority) != null)
                 throw new IllegalArgumentException("Invalid source priority or duplicate source");
         }
         for (Object value : programmes) {
             JSONObject p = (JSONObject)value;
-            String source = p.getString("source_id"), guide = p.getString("guide_channel_id");
-            long start = p.getLong("start"), stop = p.getLong("stop");
-            String title = p.getString("title"), description = p.optString("description", "");
+            String source = p.getString(SOURCE_ID), guide = p.getString("guide_channel_id");
+            long start = p.getLong(START), stop = p.getLong("stop");
+            String title = p.getString(TITLE), description = p.optString(DESCRIPTION, "");
             if (!declared.containsKey(source) || source.isBlank() || guide.isBlank())
                 throw new IllegalArgumentException("Invalid programme source or guide identity");
             if (title.isBlank() || title.length() > 512 || description.length() > 2048)
@@ -263,7 +275,7 @@ public class EpgBuilderApplicationService {
                 throw new IllegalArgumentException("Programme outside the supported time window; rebuild the bundle");
             // A long catalogue revalidation can cross a retention boundary.
             if (stop <= now - 6 * 3_600_000L || start >= now + 7 * 86_400_000L) continue;
-            sources.computeIfAbsent("builder:" + hash(source), _ -> new LinkedHashMap<>())
+            sources.computeIfAbsent(BUILDER_PREFIX + hash(source), _ -> new LinkedHashMap<>())
                     .computeIfAbsent(guide, _ -> new ArrayList<>())
                     .add(new com.uiptv.application.EpgProgramme(title, description, start, stop));
         }
@@ -273,9 +285,9 @@ public class EpgBuilderApplicationService {
         // Public guide data survives catalogue changes. Stale optional bindings are discarded.
         for (Object value : mappingsCurrent ? bundle.getJSONArray("mappings") : new JSONArray()) {
             JSONObject m = (JSONObject)value;
-            Target target = new Target(m.getString("account_id"), m.getString("provider_channel_id"));
+            Target target = new Target(m.getString(ACCOUNT_ID), m.getString(PROVIDER_CHANNEL_ID));
             JSONObject current = targets.get(target);
-            String source = "builder:" + hash(m.getString("source_id")), guide = m.getString("guide_channel_id");
+            String source = BUILDER_PREFIX + hash(m.getString(SOURCE_ID)), guide = m.getString("guide_channel_id");
             if (current == null || !seen.add(target + "|" + source) || !current.getString("signature").equals(m.getString("signature"))
                     || !sources.containsKey(source) || !sources.get(source).containsKey(guide)
                     || sources.get(source).get(guide).stream().noneMatch(p -> p.stop() > now))
@@ -283,12 +295,12 @@ public class EpgBuilderApplicationService {
             if (current.getBoolean("is_manual_override") && !current.getString("manual_override").equals(guide))
                 throw new IllegalArgumentException("Cannot overwrite manual override");
             matches.add(new EpgCacheDb.BuilderMatch(new EpgCacheDb.Identity(target.account(), target.provider(), m.getString("signature")),
-                    source, guide, declared.get(m.getString("source_id"))));
+                    source, guide, declared.get(m.getString(SOURCE_ID))));
         }
         Map<String,EpgCacheDb.SharedSource> shared = new LinkedHashMap<>();
         if (bundle.optBoolean("shared_guides", false)) for (Object value : bundle.getJSONArray("sources")) {
             JSONObject source = (JSONObject)value;
-            String id = "builder:" + hash(source.getString("source_id"));
+            String id = BUILDER_PREFIX + hash(source.getString(SOURCE_ID));
             if (!sources.containsKey(id)) continue;
             Map<String,String> names = new HashMap<>(), icons = new HashMap<>();
             JSONObject aliases = source.optJSONObject("names");
@@ -353,14 +365,14 @@ public class EpgBuilderApplicationService {
         JSONObject programmes = new JSONObject();
         guide.programmes().forEach((id, entries) -> {
             JSONArray values = new JSONArray();
-            for (EpgProgramme p : EpgSchedules.normalize(entries)) values.put(new JSONObject().put("title", p.title()).put("description", p.description())
-                    .put("start", p.start()).put("stop", p.stop()));
+            for (EpgProgramme p : EpgSchedules.normalize(entries)) values.put(new JSONObject().put(TITLE, p.title()).put(DESCRIPTION, p.description())
+                    .put(START, p.start()).put("stop", p.stop()));
             programmes.put(id, values);
         });
         Map<String,String> qualityNames = guide.qualityNames();
-        if (request.has("name_rules")) {
+        if (request.has(NAME_RULES)) {
             List<EpgNameRules.Rule> rules = new ArrayList<>();
-            for (Object value : request.getJSONArray("name_rules")) {
+            for (Object value : request.getJSONArray(NAME_RULES)) {
                 JSONObject rule = (JSONObject) value;
                 rules.add(new EpgNameRules.Rule(rule.getString("term"), rule.getString("scope")));
             }
@@ -380,13 +392,13 @@ public class EpgBuilderApplicationService {
                 List<EpgProgramme> programmes = new ArrayList<>();
                 for (Object entry : (JSONArray)source) {
                     JSONObject p = (JSONObject)entry;
-                    programmes.add(new EpgProgramme(p.getString("title"), p.optString("description", ""), p.getLong("start"), p.getLong("stop")));
+                    programmes.add(new EpgProgramme(p.getString(TITLE), p.optString(DESCRIPTION, ""), p.getLong(START), p.getLong("stop")));
                 }
                 sources.add(programmes);
             }
             JSONArray schedule = new JSONArray();
             for (EpgProgramme p : EpgSchedules.preferSources(sources)) {
-                schedule.put(new JSONObject().put("title", p.title()).put("description", p.description()).put("start", p.start()).put("stop", p.stop()));
+                    schedule.put(new JSONObject().put(TITLE, p.title()).put(DESCRIPTION, p.description()).put(START, p.start()).put("stop", p.stop()));
             }
             result.put(schedule);
         }
@@ -405,7 +417,7 @@ public class EpgBuilderApplicationService {
         JSONObject result = new JSONObject();
         result.put("epg_enabled", config.isEpgEnabled());
         result.put("database_path", databasePath);
-        result.put("database_identity", computeDatabaseIdentity(databasePath));
+        result.put(DATABASE_IDENTITY, computeDatabaseIdentity(databasePath));
 
         try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + Path.of(databasePath).toRealPath().toUri() + "?mode=ro")) {
             for (var entry : Map.of("source_count", "epg_source", "programme_count", "epg_programme", "mapping_count", "epg_channel_mapping").entrySet()) {
