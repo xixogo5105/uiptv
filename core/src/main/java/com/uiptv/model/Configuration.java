@@ -59,7 +59,7 @@ import lombok.NoArgsConstructor;
     private String epgSchedulerIntervalMinutes = "3";
     public int normalizedEpgRefreshHours() {
         try { return Math.clamp(Integer.parseInt(epgRefreshIntervalHours),1,24); }
-        catch(RuntimeException ignored) { return 2; }
+        catch(RuntimeException _) { return 2; }
     }
     public int normalizedEpgSchedulerIntervalMinutes() {
         try {

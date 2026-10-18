@@ -550,7 +550,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         try {
             return fetchAllStalkerChannels(account, logger);
         } catch (com.uiptv.util.ReloadRequestScope.LimitExceeded e) { throw e;
-        } catch (Exception e) {
+        } catch (Exception _) {
             log(logger, "Bulk Stalker lookup unavailable. Trying category pages.");
             return Collections.emptyList();
         }

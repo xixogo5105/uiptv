@@ -814,7 +814,7 @@ public class HttpUtil {
     private static String getUriString(org.apache.hc.core5.http.message.BasicHttpRequest request) {
         try {
             return request.getUri().toString();
-        } catch (URISyntaxException e) {
+        } catch (URISyntaxException _) {
             // Fallback to the request URI if URI is malformed
             return request.getRequestUri();
         }

@@ -162,7 +162,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
             String resolved;
             try {
                 resolved = resolver.apply(cmd);
-            } catch (PlaybackResolutionTimeoutException e) {
+            } catch (PlaybackResolutionTimeoutException _) {
                 candidateTimedOut = true;
                 com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService.class, "live create_link candidate timed out");
                 continue;

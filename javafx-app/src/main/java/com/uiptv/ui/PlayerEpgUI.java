@@ -129,7 +129,7 @@ public class PlayerEpgUI extends VBox {
             try {
                 var result = new PlayerEpgApplicationService().current(context.account().toAccount(), context.channel());
                 Platform.runLater(() -> completeRefresh(request, result, true));
-            } catch (Exception failure) {
+            } catch (Exception _) {
                 Platform.runLater(() -> completeRefresh(request, null, false));
             }
         });

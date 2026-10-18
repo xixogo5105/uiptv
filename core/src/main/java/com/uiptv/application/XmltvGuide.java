@@ -177,6 +177,6 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                 default -> ZoneOffset.of(parts[1]);
             };
             return LocalDateTime.parse(digits, XMLTV_TIME).toInstant(offset);
-        } catch (RuntimeException e) { return null; }
+        } catch (RuntimeException _) { return null; }
     }
 }

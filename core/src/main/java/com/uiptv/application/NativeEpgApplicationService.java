@@ -58,8 +58,8 @@ public class NativeEpgApplicationService {
         }
         if (!owner) {
             try { return flight.get(25, java.util.concurrent.TimeUnit.SECONDS); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); return List.of(); }
-            catch (Exception e) { return previous == null ? List.of() : previous.programmes(); }
+            catch (InterruptedException _) { Thread.currentThread().interrupt(); return List.of(); }
+            catch (Exception _) { return previous == null ? List.of() : previous.programmes(); }
         }
         boolean acquired = false;
         List<EpgProgramme> result = previous == null ? List.of() : previous.programmes();
@@ -79,7 +79,7 @@ public class NativeEpgApplicationService {
                 }
             }
             return result;
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt(); return result;
         } finally {
             if (acquired) REQUESTS.release();
