@@ -313,7 +313,6 @@ class CacheServiceImplTest extends DbBackedTest {
         Account account = createStalkerAccount("acc-derive-categories");
         account.setAction(Account.AccountAction.itv);
         List<String> logs = new ArrayList<>();
-        AtomicInteger orderedListCalls = new AtomicInteger();
         AtomicInteger getAllChannelsCalls = new AtomicInteger();
 
         try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
@@ -471,7 +470,6 @@ class CacheServiceImplTest extends DbBackedTest {
         Account account = createStalkerAccount("acc-derive-nothing");
         account.setAction(Account.AccountAction.itv);
         List<String> logs = new ArrayList<>();
-        AtomicInteger orderedListCalls = new AtomicInteger();
 
         try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
              MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {

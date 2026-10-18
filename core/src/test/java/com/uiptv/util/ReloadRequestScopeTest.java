@@ -73,7 +73,7 @@ class ReloadRequestScopeTest {
             catch (Exception _) { /* The client may stop reading after the assertion. */ } finally { exchange.close(); }
         });
         try {
-            try (var scope = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 2, null)) {
+            try (var _ = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 2, null)) {
                 HttpUtil.sendRequest(url(server), null, "GET"); HttpUtil.sendRequest(url(server), null, "GET");
                 assertThrows(ReloadRequestScope.LimitExceeded.class, () -> HttpUtil.sendRequest(url(server), null, "GET"));
                 assertEquals(2, calls.get());
@@ -87,7 +87,7 @@ class ReloadRequestScopeTest {
         HttpServer server = server(exchange -> { entered.countDown(); trickle(exchange); });
         var finished = new CompletableFuture<Boolean>();
         Thread worker = Thread.ofVirtual().start(() -> {
-            try (var scope = new ReloadRequestScope(Duration.ofSeconds(10), Duration.ofSeconds(5), 4, null)) {
+            try (var _ = new ReloadRequestScope(Duration.ofSeconds(10), Duration.ofSeconds(5), 4, null)) {
                 HttpUtil.sendRequest(url(server), null, "GET"); finished.complete(false);
             } catch (Exception expected) { finished.complete(Thread.currentThread().isInterrupted()); }
         });
