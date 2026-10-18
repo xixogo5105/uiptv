@@ -81,15 +81,7 @@ public class XtremeApiParser {
             try (HttpUtil.StreamResult response = HttpUtil.openStream(
                     buildPlayerApiUrl(base, account, getChannelListAction(account.getAction()), params),
                     null, "GET", null, HttpUtil.RequestOptions.streamingCatalogue())) {
-                try {
-                    if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                        throw new IOException("Xtreme API request failed with HTTP " + response.statusCode());
-                    }
-                    return readChannelCatalogue(new InputStreamReader(response.bodyStream(), UTF_8), account, callback, cancelled);
-                } catch (Exception failure) {
-                    try { response.abort(); } catch (IOException closeFailure) { failure.addSuppressed(closeFailure); }
-                    throw failure;
-                }
+                return readChannelResponse(response, account, callback, cancelled);
             } catch (ReloadRequestScope.LimitExceeded failure) {
                 throw failure;
             } catch (Exception failure) {
@@ -99,6 +91,24 @@ public class XtremeApiParser {
             }
         }
         throw last != null ? last : new IOException("Xtreme base URL is blank.");
+    }
+
+    private static List<Channel> readChannelResponse(HttpUtil.StreamResult response, Account account,
+                                                      Consumer<List<Channel>> callback, BooleanSupplier cancelled)
+            throws Exception {
+        try {
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new IOException("Xtreme API request failed with HTTP " + response.statusCode());
+            }
+            return readChannelCatalogue(new InputStreamReader(response.bodyStream(), UTF_8), account, callback, cancelled);
+        } catch (Exception failure) {
+            try {
+                response.abort();
+            } catch (IOException closeFailure) {
+                failure.addSuppressed(closeFailure);
+            }
+            throw failure;
+        }
     }
 
     static List<Channel> readChannelCatalogue(Reader source, Account account,
