@@ -187,7 +187,10 @@ public class EpgBuilderApplicationService {
     private static JSONObject channelInventory(Account account, Channel channel,
                                                 boolean isBookmark, String bookmarkId,
                                                 String manualOverride, String signature) {
-        String tvgId = "", xmltvId = "", epgId = "", epgChannelId = "";
+        String tvgId = "";
+        String xmltvId = "";
+        String epgId = "";
+        String epgChannelId = "";
         try {
             JSONObject metadata = new JSONObject(channel.getExtraJson() != null ? channel.getExtraJson() : "{}");
             if (account.getType() == AccountType.XTREME_API) {
@@ -264,9 +267,12 @@ public class EpgBuilderApplicationService {
         }
         for (Object value : programmes) {
             JSONObject p = (JSONObject)value;
-            String source = p.getString(SOURCE_ID), guide = p.getString("guide_channel_id");
-            long start = p.getLong(START), stop = p.getLong("stop");
-            String title = p.getString(TITLE), description = p.optString(DESCRIPTION, "");
+            String source = p.getString(SOURCE_ID);
+            String guide = p.getString("guide_channel_id");
+            long start = p.getLong(START);
+            long stop = p.getLong("stop");
+            String title = p.getString(TITLE);
+            String description = p.optString(DESCRIPTION, "");
             if (!declared.containsKey(source) || source.isBlank() || guide.isBlank())
                 throw new IllegalArgumentException("Invalid programme source or guide identity");
             if (title.isBlank() || title.length() > 512 || description.length() > 2048)
@@ -288,7 +294,8 @@ public class EpgBuilderApplicationService {
             JSONObject m = (JSONObject)value;
             Target target = new Target(m.getString(ACCOUNT_ID), m.getString(PROVIDER_CHANNEL_ID));
             JSONObject current = targets.get(target);
-            String source = BUILDER_PREFIX + hash(m.getString(SOURCE_ID)), guide = m.getString("guide_channel_id");
+            String source = BUILDER_PREFIX + hash(m.getString(SOURCE_ID));
+            String guide = m.getString("guide_channel_id");
             if (current == null || !seen.add(target + "|" + source) || !current.getString(SIGNATURE).equals(m.getString(SIGNATURE))
                     || !sources.containsKey(source) || !sources.get(source).containsKey(guide)
                     || sources.get(source).get(guide).stream().noneMatch(p -> p.stop() > now))
@@ -303,7 +310,8 @@ public class EpgBuilderApplicationService {
             JSONObject source = (JSONObject)value;
             String id = BUILDER_PREFIX + hash(source.getString(SOURCE_ID));
             if (!sources.containsKey(id)) continue;
-            Map<String,String> names = new HashMap<>(), icons = new HashMap<>();
+            Map<String,String> names = new HashMap<>();
+            Map<String,String> icons = new HashMap<>();
             JSONObject aliases = source.optJSONObject("names");
             if (aliases != null) for (String name : aliases.keySet()) {
                 String guide = aliases.getString(name);

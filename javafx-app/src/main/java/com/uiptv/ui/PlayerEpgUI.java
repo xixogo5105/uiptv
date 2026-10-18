@@ -17,14 +17,22 @@ public class PlayerEpgUI extends VBox {
     private static final String PROGRAMME_TITLE_STYLE = "epg-programme-title";
     private static final String PROGRAMME_DESCRIPTION_STYLE = "epg-programme-description";
     private static final String PROGRAMME_CARD_STYLE = "epg-programme-card";
-    private final Label heading = new Label(), nowTitle = new Label(), nowTime = new Label(), nowDescription = new Label(),
-            nextTitle = new Label(), nextTime = new Label(), nextDescription = new Label();
+    private final Label heading = new Label();
+    private final Label nowTitle = new Label();
+    private final Label nowTime = new Label();
+    private final Label nowDescription = new Label();
+    private final Label nextTitle = new Label();
+    private final Label nextTime = new Label();
+    private final Label nextDescription = new Label();
     private final FlowPane cards = new FlowPane(10, 10);
-    private final VBox nowCard = new VBox(6), nextCard = new VBox(6);
+    private final VBox nowCard = new VBox(6);
+    private final VBox nextCard = new VBox(6);
     private final ProgressBar progress = new ProgressBar();
-    private final Hyperlink nowDetails = new Hyperlink(I18n.tr("epgProgrammeDetails")), nextDetails = new Hyperlink(I18n.tr("epgProgrammeDetails"));
+    private final Hyperlink nowDetails = new Hyperlink(I18n.tr("epgProgrammeDetails"));
+    private final Hyperlink nextDetails = new Hyperlink(I18n.tr("epgProgrammeDetails"));
     private final VBox expandedDetails = new VBox(8);
-    private final Label expandedTitle = new Label(), expandedDescription = new Label();
+    private final Label expandedTitle = new Label();
+    private final Label expandedDescription = new Label();
     private boolean compact;
     private PlayerEpgApplicationService.Result displayed;
     private Thread guideWorker;
@@ -52,7 +60,8 @@ public class PlayerEpgUI extends VBox {
         nowTitle.getStyleClass().add(PROGRAMME_TITLE_STYLE); nextTitle.getStyleClass().add(PROGRAMME_TITLE_STYLE);
         nowDescription.getStyleClass().add(PROGRAMME_DESCRIPTION_STYLE); nextDescription.getStyleClass().add(PROGRAMME_DESCRIPTION_STYLE);
         nowTime.getStyleClass().add("epg-programme-time"); nextTime.getStyleClass().add("epg-programme-time");
-        Label nowBadge = new Label(I18n.tr("epgNow")), nextBadge = new Label(I18n.tr("epgNext"));
+        Label nowBadge = new Label(I18n.tr("epgNow"));
+        Label nextBadge = new Label(I18n.tr("epgNext"));
         nowBadge.getStyleClass().addAll("epg-programme-badge", "epg-now-badge"); nextBadge.getStyleClass().add("epg-programme-badge");
         progress.getStyleClass().add("epg-programme-progress"); progress.setMaxWidth(Double.MAX_VALUE);
         nowCard.getStyleClass().addAll(PROGRAMME_CARD_STYLE, "epg-current-card"); nextCard.getStyleClass().add(PROGRAMME_CARD_STYLE);
