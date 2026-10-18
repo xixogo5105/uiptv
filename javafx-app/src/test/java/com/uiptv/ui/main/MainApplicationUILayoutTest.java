@@ -321,8 +321,7 @@ MainApplicationUI ui = new MainApplicationUI(null, null, configurationService, n
                     bookmarksTab,
                     accountListUI,
                     bookmarkChannelListUI,
-                    watchingNowRef,
-                    manageAccountColumn
+                    watchingNowRef
             );
 
             AppNavigationController.navigate(AppNavigationController.Target.ACCOUNTS);
@@ -414,8 +413,7 @@ MainApplicationUI ui = new MainApplicationUI(null, null, configurationService, n
                                                Tab bookmarkChannelListTab,
                                                AccountListUI accountListUI,
                                                BookmarkChannelListUI bookmarkChannelListUI,
-                                               AtomicReference<WatchingNowUI> watchingNowRef,
-                                               Object manageAccountColumn) throws Exception {
+                                               AtomicReference<WatchingNowUI> watchingNowRef) throws Exception {
         Method method = BaseMainApplicationUI.class.getDeclaredMethod(
                 "configureAppNavigation",
                 TabPane.class,
@@ -427,8 +425,7 @@ MainApplicationUI ui = new MainApplicationUI(null, null, configurationService, n
                 Tab.class,
                 AccountListUI.class,
                 BookmarkChannelListUI.class,
-                AtomicReference.class,
-                manageAccountColumnClass()
+                AtomicReference.class
         );
         method.setAccessible(true);
         method.invoke(
@@ -442,8 +439,7 @@ MainApplicationUI ui = new MainApplicationUI(null, null, configurationService, n
                 bookmarkChannelListTab,
                 accountListUI,
                 bookmarkChannelListUI,
-                watchingNowRef,
-                manageAccountColumn
+                watchingNowRef
         );
     }
 
