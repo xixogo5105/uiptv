@@ -50,6 +50,7 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 
 @SuppressWarnings("java:S6548")
 public class CatalogApplicationService {
+    private record FetchedStalkerPage(StalkerPageResult result, int apiPage, int offset) { }
     private static final String ALL_CATEGORY = CategoryType.ALL.displayName();
     private static final String DEFAULT_VOD_NAME = "VOD";
     private static final String KEY_COVER = "cover";
@@ -498,17 +499,11 @@ public class CatalogApplicationService {
 
         boolean keepFetching = true;
         for (int i = 0; i < prefetchPages && keepFetching; i++) {
-            int apiPage = currentPage + resolvedApiOffset;
-            StalkerPageResult result = fetchStalkerPage(account, categoryApiId, movieId, apiPage, pageSize);
-
-            if (currentPage == 0 && i == 0 && resolvedApiOffset == 0 && result.items().isEmpty()) {
-                StalkerPageResult pageOne = fetchStalkerPage(account, categoryApiId, movieId, 1, pageSize);
-                if (!pageOne.items().isEmpty()) {
-                    resolvedApiOffset = 1;
-                    result = pageOne;
-                    apiPage = 1;
-                }
-            }
+            FetchedStalkerPage fetched = fetchStalkerPage(account, categoryApiId, movieId, currentPage,
+                    pageSize, i, resolvedApiOffset);
+            StalkerPageResult result = fetched.result();
+            resolvedApiOffset = fetched.offset();
+            int apiPage = fetched.apiPage();
 
             if (result.items().isEmpty()) {
                 hasMore = false;
@@ -532,6 +527,17 @@ public class CatalogApplicationService {
         List<Channel> result = dedupeChannels(merged);
         if (account.getAction() == Account.AccountAction.itv) new EpgApplicationService().enrichCached(account, result);
         return new CatalogPagedChannelsResult(result, currentPage, hasMore, resolvedApiOffset);
+    }
+
+    private FetchedStalkerPage fetchStalkerPage(Account account, String categoryApiId, String movieId,
+                                                 int currentPage, int pageSize, int iteration, int offset) {
+        int apiPage = currentPage + offset;
+        StalkerPageResult result = fetchStalkerPage(account, categoryApiId, movieId, apiPage, pageSize);
+        if (currentPage == 0 && iteration == 0 && offset == 0 && result.items().isEmpty()) {
+            StalkerPageResult pageOne = fetchStalkerPage(account, categoryApiId, movieId, 1, pageSize);
+            if (!pageOne.items().isEmpty()) return new FetchedStalkerPage(pageOne, 1, 1);
+        }
+        return new FetchedStalkerPage(result, apiPage, offset);
     }
 
     private CatalogPagedChannelsResult sliceChannels(List<Channel> channels, int page, int pageSize, int prefetchPages) {
