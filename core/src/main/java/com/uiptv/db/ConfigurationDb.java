@@ -174,27 +174,29 @@ public class ConfigurationDb extends BaseDb {
 
     public void save(final Configuration configuration) {
         List<Configuration> existing = super.getAll();
-
         if (existing != null && !existing.isEmpty()) {
-            // Update existing
-            Configuration current = existing.get(0);
-            String updateQuery = updateTableSql(CONFIGURATION_TABLE);
-            try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateQuery)) {
-                setParameters(statement, configuration);
-                statement.setString(43, current.getDbId());
-                statement.execute();
-            } catch (SQLException e) {
-                throw new DatabaseAccessException("Unable to execute update query", e);
-            }
-        } else {
-            // Insert new
-            String insertQuery = insertTableSql(CONFIGURATION_TABLE);
-            try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(insertQuery)) {
-                setParameters(statement, configuration);
-                statement.execute();
-            } catch (SQLException e) {
-                throw new DatabaseAccessException("Unable to execute insert query", e);
-            }
+            update(existing.getFirst(), configuration);
+            return;
+        }
+        insert(configuration);
+    }
+
+    private void update(Configuration current, Configuration configuration) {
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(updateTableSql(CONFIGURATION_TABLE))) {
+            setParameters(statement, configuration);
+            statement.setString(43, current.getDbId());
+            statement.execute();
+        } catch (SQLException e) {
+            throw new DatabaseAccessException("Unable to execute update query", e);
+        }
+    }
+
+    private void insert(Configuration configuration) {
+        try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(insertTableSql(CONFIGURATION_TABLE))) {
+            setParameters(statement, configuration);
+            statement.execute();
+        } catch (SQLException e) {
+            throw new DatabaseAccessException("Unable to execute insert query", e);
         }
     }
 
