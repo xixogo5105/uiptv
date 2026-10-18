@@ -3,7 +3,6 @@ package com.uiptv.service;
 import com.uiptv.model.Account;
 import com.uiptv.shared.BaseJson;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class AccountResolver {
