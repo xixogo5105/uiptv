@@ -120,23 +120,35 @@ public class XtremeApiParser {
         char next = input.nextClean();
         if (next != ']') {
             input.back();
-            while (true) {
-                ReloadRequestScope.checkCurrent();
-                if (cancelled != null && cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException();
-                Channel channel = parseXtremeChannel(new JSONObject(input), account);
-                channels.add(channel);
-                if (callback != null) {
-                    batch.add(channel);
-                    if (batch.size() >= CHANNEL_PARSE_BATCH_SIZE) { callback.accept(List.copyOf(batch)); batch.clear(); }
-                }
-                next = input.nextClean();
-                if (next == ']') break;
-                if (next != ',') throw input.syntaxError("Expected Xtreme channel separator");
-            }
+            readChannelRows(input, account, callback, cancelled, channels, batch);
         }
         if (input.nextClean() != 0) throw input.syntaxError("Unexpected data after Xtreme channel array");
         if (callback != null && !batch.isEmpty()) callback.accept(List.copyOf(batch));
         return channels;
+    }
+
+    private static void readChannelRows(JSONTokener input, Account account, Consumer<List<Channel>> callback,
+                                        BooleanSupplier cancelled, List<Channel> channels, List<Channel> batch) {
+        while (true) {
+            ReloadRequestScope.checkCurrent();
+            if (cancelled != null && cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException();
+            appendChannel(input, account, callback, channels, batch);
+            char next = input.nextClean();
+            if (next == ']') return;
+            if (next != ',') throw input.syntaxError("Expected Xtreme channel separator");
+        }
+    }
+
+    private static void appendChannel(JSONTokener input, Account account, Consumer<List<Channel>> callback,
+                                      List<Channel> channels, List<Channel> batch) {
+        Channel channel = parseXtremeChannel(new JSONObject(input), account);
+        channels.add(channel);
+        if (callback == null) return;
+        batch.add(channel);
+        if (batch.size() >= CHANNEL_PARSE_BATCH_SIZE) {
+            callback.accept(List.copyOf(batch));
+            batch.clear();
+        }
     }
 
     public static EpisodeList parseEpisodes(String seriesId, Account account) {
