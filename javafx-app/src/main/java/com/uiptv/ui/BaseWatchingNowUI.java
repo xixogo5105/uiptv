@@ -59,6 +59,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     private static final String KEY_COVER = "cover";
     private static final String KEY_RELEASE_DATE = "releaseDate";
     private static final String KEY_RATING = "rating";
+    private static final String KEY_EPISODES_META = "episodesMeta";
     private static final String KEY_TITLE = "title";
     private static final String MESSAGE_NO_CURRENTLY_WATCHED_SERIES = "autoNoCurrentlyWatchedSeriesFound";
     private static final String STRONG_LABEL = "strong-label";
@@ -2181,13 +2182,13 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         mergeMissing(data.seasonInfo, imdb, "director");
         mergeMissing(data.seasonInfo, imdb, "genre");
         mergeMissing(data.seasonInfo, imdb, KEY_RELEASE_DATE);
-        String imdbRating = imdb.optString("rating", "");
+        String imdbRating = imdb.optString(KEY_RATING, "");
         if (!isBlank(imdbRating)) {
-            data.seasonInfo.put("rating", imdbRating);
+            data.seasonInfo.put(KEY_RATING, imdbRating);
         }
         mergeMissing(data.seasonInfo, imdb, "tmdb");
         mergeMissing(data.seasonInfo, imdb, "imdbUrl");
-        enrichEpisodesFromMeta(data.episodes, imdb.optJSONArray("episodesMeta"));
+        enrichEpisodesFromMeta(data.episodes, imdb.optJSONArray(KEY_EPISODES_META));
         // episodesMeta has to be cached alongside seasonInfo. The per-episode enrichment it carries
         // (IMDb artwork, plot, release date) is applied by mutating the WatchingEpisode objects, and
         // those objects are thrown away and rebuilt by every delta merge, so without a copy here
@@ -2198,7 +2199,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                         new JSONObject(data.seasonInfo.toString()),
                         new JSONArray(imdb.optJSONArray("episodesMeta") == null
                                 ? "[]"
-                                : imdb.optJSONArray("episodesMeta").toString())));
+                        : imdb.optJSONArray(KEY_EPISODES_META).toString())));
     }
 
     private void applyLoadedImdbToUi(SeriesPanelData data, TitledPane pane) {

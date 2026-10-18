@@ -14,6 +14,9 @@ import java.util.Objects;
 
 /** Adjacent to the video, never over its heavyweight native surface. */
 public class PlayerEpgUI extends VBox {
+    private static final String PROGRAMME_TITLE_STYLE = "epg-programme-title";
+    private static final String PROGRAMME_DESCRIPTION_STYLE = "epg-programme-description";
+    private static final String PROGRAMME_CARD_STYLE = "epg-programme-card";
     private final Label heading = new Label(), nowTitle = new Label(), nowTime = new Label(), nowDescription = new Label(),
             nextTitle = new Label(), nextTime = new Label(), nextDescription = new Label();
     private final FlowPane cards = new FlowPane(10, 10);
@@ -46,13 +49,13 @@ public class PlayerEpgUI extends VBox {
             label.setMinHeight(Region.USE_PREF_SIZE);
         }
         heading.getStyleClass().add("epg-player-heading");
-        nowTitle.getStyleClass().add("epg-programme-title"); nextTitle.getStyleClass().add("epg-programme-title");
-        nowDescription.getStyleClass().add("epg-programme-description"); nextDescription.getStyleClass().add("epg-programme-description");
+        nowTitle.getStyleClass().add(PROGRAMME_TITLE_STYLE); nextTitle.getStyleClass().add(PROGRAMME_TITLE_STYLE);
+        nowDescription.getStyleClass().add(PROGRAMME_DESCRIPTION_STYLE); nextDescription.getStyleClass().add(PROGRAMME_DESCRIPTION_STYLE);
         nowTime.getStyleClass().add("epg-programme-time"); nextTime.getStyleClass().add("epg-programme-time");
         Label nowBadge = new Label(I18n.tr("epgNow")), nextBadge = new Label(I18n.tr("epgNext"));
         nowBadge.getStyleClass().addAll("epg-programme-badge", "epg-now-badge"); nextBadge.getStyleClass().add("epg-programme-badge");
         progress.getStyleClass().add("epg-programme-progress"); progress.setMaxWidth(Double.MAX_VALUE);
-        nowCard.getStyleClass().addAll("epg-programme-card", "epg-current-card"); nextCard.getStyleClass().add("epg-programme-card");
+        nowCard.getStyleClass().addAll(PROGRAMME_CARD_STYLE, "epg-current-card"); nextCard.getStyleClass().add(PROGRAMME_CARD_STYLE);
         nowCard.getChildren().addAll(nowBadge, nowTitle, nowTime, progress, nowDescription, nowDetails);
         nextCard.getChildren().addAll(nextBadge, nextTitle, nextTime, nextDescription, nextDetails);
         nowDetails.setOnAction(_ -> showDetails(displayed == null ? null : displayed.now()));
@@ -61,11 +64,11 @@ public class PlayerEpgUI extends VBox {
         nowCard.setPrefWidth(300); nextCard.setPrefWidth(300);
         cards.prefWrapLengthProperty().bind(javafx.beans.binding.Bindings.max(300, widthProperty()));
         widthProperty().addListener((_, _, _) -> sizeCards());
-        expandedTitle.setMinWidth(0); expandedTitle.setWrapText(true); expandedTitle.setMaxWidth(Double.MAX_VALUE); expandedTitle.getStyleClass().add("epg-programme-title");
-        expandedDescription.setMinWidth(0); expandedDescription.setWrapText(true); expandedDescription.setMaxWidth(Double.MAX_VALUE); expandedDescription.getStyleClass().add("epg-programme-description");
+        expandedTitle.setMinWidth(0); expandedTitle.setWrapText(true); expandedTitle.setMaxWidth(Double.MAX_VALUE); expandedTitle.getStyleClass().add(PROGRAMME_TITLE_STYLE);
+        expandedDescription.setMinWidth(0); expandedDescription.setWrapText(true); expandedDescription.setMaxWidth(Double.MAX_VALUE); expandedDescription.getStyleClass().add(PROGRAMME_DESCRIPTION_STYLE);
         var close = new com.uiptv.widget.CloseIconButton(I18n.tr("autoClose")); close.setOnAction(_ -> closeDetails());
         HBox detailsHeader = new HBox(8, expandedTitle, close); HBox.setHgrow(expandedTitle, Priority.ALWAYS);
-        expandedDetails.getStyleClass().addAll("epg-programme-card", "epg-inline-details");
+        expandedDetails.getStyleClass().addAll(PROGRAMME_CARD_STYLE, "epg-inline-details");
         expandedDetails.getChildren().add(detailsHeader); closeDetails();
         getChildren().addAll(heading, cards, expandedDetails); setVisible(false); setManaged(false);
         cacheRefresh.setOnFinished(_ -> refresh(MediaPlayerFactory.guideContextProperty().get(), false));
