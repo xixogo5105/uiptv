@@ -197,7 +197,10 @@ public class AppHeaderNavigation extends HBox {
         CompletableFuture.runAsync(this::loadBadgeCounts);
     }
 
+    @SuppressWarnings("java:S2696")
     private void loadBadgeCounts() {
+        // These volatile counters are deliberately shared across header instances so a newly
+        // opened view can reuse the latest account/bookmark counts without a full reload.
             int bookmarks = -1;
             int accounts = -1;
             try {

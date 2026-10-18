@@ -395,7 +395,7 @@ public class DatabaseUtils {
         )));
         dbStructure.put(DbTable.EPG_CHANGE_STATE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
-                new DataColumn("revision", "INTEGER"),
+                new DataColumn("revision", INTEGER_TYPE),
                 new DataColumn("database_generation", "TEXT")
         )));
         dbStructure.put(DbTable.EPG_CHANGE_HISTORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
