@@ -29,7 +29,7 @@ public final class ReloadCachePopup {
         popupContent.setExternalCloseHandler(popupStage::close);
 
         Scene scene = new Scene(popupContent, SCENE_WIDTH, SCENE_HEIGHT);
-        RootApplication.applyThemeToPopupScene(scene, owner);
+        RootApplication.applyThemeToPopupScene(scene);
 
         popupStage.setTitle(I18n.tr("autoReloadAccountsCache"));
         popupStage.setScene(scene);

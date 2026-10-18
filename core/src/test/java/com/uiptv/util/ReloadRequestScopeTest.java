@@ -25,7 +25,7 @@ class ReloadRequestScopeTest {
     }
     @Test void deadlineAbortsTricklingBodyInsteadOfResettingOnEachByte() throws Exception {
         HttpServer server = server(this::trickle);
-        try (var scope = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofMillis(250), 4, null)) {
+        try (var scope = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofMillis(250), 4)) {
             long start = System.nanoTime();
             assertThrows(ReloadRequestScope.LimitExceeded.class, () -> HttpUtil.sendRequest(url(server), null, "GET"));
             assertTrue(Duration.ofNanos(System.nanoTime() - start).toMillis() < 2000);
@@ -34,7 +34,7 @@ class ReloadRequestScopeTest {
     }
     @Test void accountDeadlineAlsoBoundsAnInFlightRequest() throws Exception {
         HttpServer server = server(this::trickle);
-        try (var _ = new ReloadRequestScope(Duration.ofMillis(250), Duration.ofSeconds(3), 4, null)) {
+        try (var _ = new ReloadRequestScope(Duration.ofMillis(250), Duration.ofSeconds(3), 4)) {
             long start = System.nanoTime();
             assertThrows(ReloadRequestScope.LimitExceeded.class, () -> HttpUtil.sendRequest(url(server), null, "GET"));
             assertTrue(Duration.ofNanos(System.nanoTime() - start).toMillis() < 2000);
@@ -49,7 +49,7 @@ class ReloadRequestScopeTest {
                 exchange.sendResponseHeaders(302, -1);
             } catch (Exception _) { /* The client may close the redirect response early. */ } finally { exchange.close(); }
         });
-        try (var _ = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 4, null)) {
+        try (var _ = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 4)) {
             assertThrows(java.io.IOException.class, () -> HttpUtil.sendRequest(url(server), null, "GET"));
             assertEquals(6, calls.get(), "Initial request plus the normal five redirects");
         } finally { server.stop(0); }
@@ -57,7 +57,7 @@ class ReloadRequestScopeTest {
 
     @Test void streamDeadlineRemainsActiveAfterHeadersHaveArrived() throws Exception {
         HttpServer server = server(this::trickle);
-        try (var scope = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofMillis(250), 4, null)) {
+        try (var scope = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofMillis(250), 4)) {
             var response = HttpUtil.openStream(url(server), null, "GET", null, HttpUtil.RequestOptions.defaults());
             try {
                 assertThrows(java.io.IOException.class, () -> response.bodyStream().readAllBytes());
@@ -73,7 +73,7 @@ class ReloadRequestScopeTest {
             catch (Exception _) { /* The client may stop reading after the assertion. */ } finally { exchange.close(); }
         });
         try {
-            try (var _ = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 2, null)) {
+            try (var _ = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 2)) {
                 HttpUtil.sendRequest(url(server), null, "GET"); HttpUtil.sendRequest(url(server), null, "GET");
                 assertThrows(ReloadRequestScope.LimitExceeded.class, () -> HttpUtil.sendRequest(url(server), null, "GET"));
                 assertEquals(2, calls.get());
@@ -87,7 +87,7 @@ class ReloadRequestScopeTest {
         HttpServer server = server(exchange -> { entered.countDown(); trickle(exchange); });
         var finished = new CompletableFuture<Boolean>();
         Thread worker = Thread.ofVirtual().start(() -> {
-            try (var _ = new ReloadRequestScope(Duration.ofSeconds(10), Duration.ofSeconds(5), 4, null)) {
+            try (var _ = new ReloadRequestScope(Duration.ofSeconds(10), Duration.ofSeconds(5), 4)) {
                 HttpUtil.sendRequest(url(server), null, "GET"); finished.complete(false);
             } catch (Exception expected) { finished.complete(Thread.currentThread().isInterrupted()); }
         });

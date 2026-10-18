@@ -162,9 +162,8 @@ public class RootApplication extends Application {
      * automatically propagated to the popup.
      *
      * @param scene  the popup scene to theme
-     * @param owner  the owner window, used to inherit zoom and theme mode; may be {@code null}
      */
-    public static void applyThemeToPopupScene(Scene scene, Window owner) {
+    public static void applyThemeToPopupScene(Scene scene) {
         ConfigurationService service = ConfigurationService.getInstance();
         Configuration configuration = service.read();
         Class<?> resourceAnchor = RootApplication.class;

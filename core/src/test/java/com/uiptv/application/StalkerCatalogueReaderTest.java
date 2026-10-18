@@ -19,7 +19,7 @@ class StalkerCatalogueReaderTest {
         String json = new JSONObject().put("before", new JSONObject().put("escaped", "quote\\\"},]"))
                 .put("js", new JSONObject().put("data", new JSONArray().put(row("7")).put(row("7")).put(row("8"))))
                 .put("after", new JSONArray().put(new JSONObject().put("nested", new JSONArray().put("a,b")))).toString();
-        try (var _ = new ReloadRequestScope(Duration.ofSeconds(5), Duration.ofSeconds(2), 4, null)) {
+        try (var _ = new ReloadRequestScope(Duration.ofSeconds(5), Duration.ofSeconds(2), 4)) {
             var expected = ChannelService.getInstance().parseItvChannels(json, false);
             var actual = new StalkerCatalogueReader().read(new StringReader(json));
             assertEquals(2, actual.size());
@@ -33,7 +33,7 @@ class StalkerCatalogueReaderTest {
     }
     @Test void malformedLaterRowDoesNotReturnAPartialCatalogue() {
         String json = "{\"js\":{\"data\":[" + row("1") + ",{}]}}";
-        try (var _ = new ReloadRequestScope(Duration.ofSeconds(5), Duration.ofSeconds(2), 4, null)) {
+        try (var _ = new ReloadRequestScope(Duration.ofSeconds(5), Duration.ofSeconds(2), 4)) {
             assertThrows(JSONException.class, () -> new StalkerCatalogueReader().read(new StringReader(json)));
         }
     }

@@ -1207,7 +1207,7 @@ public class ReloadCacheInline extends VBox {
         Runnable closeAction = popupStage::close;
         VBox root = buildProblemAccountsInlineRoot(processedAccounts, problematicAccounts, accountsBox, closeAction);
         Scene scene = new Scene(root, PROBLEM_ACCOUNTS_DIALOG_WIDTH, 560);
-        RootApplication.applyThemeToPopupScene(scene, owner);
+        RootApplication.applyThemeToPopupScene(scene);
         popupStage.setScene(scene);
         popupStage.show();
     }

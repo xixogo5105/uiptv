@@ -14,7 +14,7 @@ class LogoResolverReloadTest {
     @Test void catalogueRefreshNeverStartsArtworkNetworkRequests() throws Exception {
         var resolver = fresh();
         try (var http = mockStatic(HttpUtil.class);
-             var _ = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 24, null)) {
+             var _ = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 24)) {
             for (int i = 0; i < 1000; i++) assertEquals("", resolver.resolve("Reload fixture " + i, ""));
             http.verifyNoInteractions();
         }

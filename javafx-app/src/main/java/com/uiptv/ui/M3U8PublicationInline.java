@@ -260,7 +260,7 @@ public class M3U8PublicationInline extends VBox {
                 allSelected = allSelected && category.isFullySelected();
                 customized = customized || category.isCustomized();
             }
-            applyCheckboxState(checkBox, anySelected, allSelected, customized);
+            applyCheckboxState(checkBox, anySelected, allSelected);
         }
 
         private boolean isDimmed() {
@@ -357,7 +357,7 @@ public class M3U8PublicationInline extends VBox {
                 anySelected = resolveBaseSelection();
                 allSelected = anySelected;
             }
-            applyCheckboxState(checkBox, anySelected, allSelected, customized);
+            applyCheckboxState(checkBox, anySelected, allSelected);
         }
 
         private void refreshAllStates() {
@@ -568,7 +568,7 @@ public class M3U8PublicationInline extends VBox {
                         }));
     }
 
-    private void applyCheckboxState(CheckBox checkBox, boolean anySelected, boolean allSelected, boolean customized) {
+    private void applyCheckboxState(CheckBox checkBox, boolean anySelected, boolean allSelected) {
         checkBox.getStyleClass().remove(CUSTOMIZED_CHECKBOX_STYLE_CLASS);
         if (!anySelected) {
             checkBox.setAllowIndeterminate(false);

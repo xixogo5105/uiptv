@@ -48,7 +48,7 @@ public class CacheServiceImpl implements CacheService {
         // the phase by reading a shared, mutable account.
         LoggerCallback phaseAwareAdapter = message -> logger.log(message, reloadAccount.getAction());
         try (var _ = com.uiptv.application.EpgCacheRefreshService.pauseForCatalogueReload();
-             var requests = com.uiptv.util.ReloadRequestScope.catalogue(phaseAwareAdapter::log)) {
+             var requests = com.uiptv.util.ReloadRequestScope.catalogue()) {
             reloaderFactory.get(reloadAccount.getType()).reloadCache(reloadAccount, phaseAwareAdapter);
             requests.check();
             publishReloadOutcome(account, reloadAccount);

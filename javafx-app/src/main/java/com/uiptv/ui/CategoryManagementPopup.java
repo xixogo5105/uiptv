@@ -47,7 +47,7 @@ public class CategoryManagementPopup extends CategoryManagementInline {
 
     private Scene createScene(Stage owner) {
         Scene scene = new Scene(this, SCENE_WIDTH, SCENE_HEIGHT);
-        RootApplication.applyThemeToPopupScene(scene, owner);
+        RootApplication.applyThemeToPopupScene(scene);
         return scene;
     }
 }

@@ -49,7 +49,7 @@ public class AboutUI {
         root.getStyleClass().add("management-popup-root");
 
         Scene scene = new Scene(root, resolveSceneWidth(), resolveSceneHeight());
-        RootApplication.applyThemeToPopupScene(scene, null);
+        RootApplication.applyThemeToPopupScene(scene);
         stage.setScene(scene);
         stage.showAndWait();
     }

@@ -23,7 +23,7 @@ public class ProgressDialog extends Stage {
         progressInline.setExternalCloseHandler(this::close);
 
         Scene scene = new Scene(progressInline, SCENE_WIDTH, SCENE_HEIGHT);
-        RootApplication.applyThemeToPopupScene(scene, owner);
+        RootApplication.applyThemeToPopupScene(scene);
         setScene(scene);
         setOnCloseRequest(event -> {
             event.consume();

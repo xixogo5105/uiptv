@@ -3,7 +3,6 @@ package com.uiptv.util;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import java.time.Duration;
 import java.util.concurrent.*;
-import java.util.function.Consumer;
 
 /** Thread-scoped catalogue cancellation and optional network limits.
  * Total duration, request duration and request count limits default to disabled (zero):
@@ -24,15 +23,15 @@ public final class ReloadRequestScope implements AutoCloseable {
     private volatile String failure;
     private int requests;
 
-    public ReloadRequestScope(Duration total, Duration perRequest, int maxRequests, Consumer<String> log) {
+    public ReloadRequestScope(Duration total, Duration perRequest, int maxRequests) {
         previous = ACTIVE.get(); this.deadline = total.isZero() || total.isNegative() ? Long.MAX_VALUE : System.nanoTime() + total.toNanos();
         this.requestNanos = perRequest.toNanos(); this.maxRequests = maxRequests;
         ACTIVE.set(this);
     }
-    public static ReloadRequestScope catalogue(Consumer<String> log) {
+    public static ReloadRequestScope catalogue() {
         return new ReloadRequestScope(Duration.ofSeconds(Math.max(0, Integer.getInteger("uiptv.reload.budget.seconds", 0))),
                 Duration.ofSeconds(Math.max(0, Integer.getInteger("uiptv.reload.request.seconds", 0))),
-                Integer.getInteger("uiptv.reload.max.requests", 0), log);
+                Integer.getInteger("uiptv.reload.max.requests", 0));
     }
     public static boolean active() { return ACTIVE.get() != null; }
     public static void checkCurrent() { if (ACTIVE.get() != null) ACTIVE.get().check(); }

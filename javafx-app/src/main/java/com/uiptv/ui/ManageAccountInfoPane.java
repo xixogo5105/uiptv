@@ -191,7 +191,7 @@ public class ManageAccountInfoPane extends BorderPane {
         VBox.setVgrow(card, Priority.ALWAYS);
 
         Scene scene = new Scene(root, PROFILE_POPUP_WIDTH, PROFILE_POPUP_HEIGHT);
-        RootApplication.applyThemeToPopupScene(scene, owner);
+        RootApplication.applyThemeToPopupScene(scene);
         stage.setScene(scene);
         stage.showAndWait();
     }

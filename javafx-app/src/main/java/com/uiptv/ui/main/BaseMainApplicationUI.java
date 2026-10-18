@@ -120,8 +120,7 @@ public abstract class BaseMainApplicationUI {
                 bookmarkChannelListTab,
                 accountListUI,
                 bookmarkChannelListUI,
-                watchingNowRef,
-                manageAccountColumn
+                watchingNowRef
         );
         tabPane.getSelectionModel().select(bookmarkChannelListTab);
 
@@ -176,8 +175,7 @@ public abstract class BaseMainApplicationUI {
                                         Tab bookmarkChannelListTab,
                                         AccountListUI accountListUI,
                                         BookmarkChannelListUI bookmarkChannelListUI,
-                                        AtomicReference<WatchingNowUI> watchingNowRef,
-                                        ManageAccountColumn manageAccountColumn) {
+                                        AtomicReference<WatchingNowUI> watchingNowRef) {
         EnumMap<AppNavigationController.Target, Runnable> actions = new EnumMap<>(AppNavigationController.Target.class);
         actions.put(AppNavigationController.Target.SETTINGS, () -> selectTab(tabPane, configurationTab));
         actions.put(AppNavigationController.Target.ACCOUNTS,
