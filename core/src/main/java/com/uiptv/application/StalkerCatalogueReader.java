@@ -22,21 +22,25 @@ public final class StalkerCatalogueReader {
         input.back();
         do {
             ReloadRequestScope.checkCurrent();
-            String key = String.valueOf(input.nextValue());
-            expect(input, ':');
-            if ("js".equals(key)) {
-                char next = input.nextClean(); input.back();
-                if (next == '{') object(input, channels);
-                else if (next == '[') array(input, channels);
-                else skip(input);
-            } else if ("data".equals(key)) {
-                char next = input.nextClean(); input.back();
-                if (next == '[') array(input, channels); else skip(input);
-            } else skip(input);
+            readObjectEntry(input, channels);
             char next = input.nextClean();
             if (next == '}') return;
             if (next != ',') throw input.syntaxError("Expected catalogue object separator");
         } while (true);
+    }
+
+    private void readObjectEntry(JSONTokener input, Map<String, Channel> channels) {
+        String key = String.valueOf(input.nextValue());
+        expect(input, ':');
+        char next = input.nextClean();
+        input.back();
+        if ("js".equals(key) && next == '{') {
+            object(input, channels);
+        } else if (("js".equals(key) || "data".equals(key)) && next == '[') {
+            array(input, channels);
+        } else {
+            skip(input);
+        }
     }
 
     private void array(JSONTokener input, Map<String, Channel> channels) {
@@ -75,12 +79,20 @@ public final class StalkerCatalogueReader {
                 if (escaped) escaped = false;
                 else if (next == '\\') escaped = true;
                 else if (next == quote) quoted = false;
-            } else if (next == '"' || next == '\'') { quoted = true; quote = next; }
-            else if (next == '[' || next == '{') depth++;
-            else if (next == ']' || next == '}') {
+                continue;
+            }
+            if (next == '"' || next == '\'') {
+                quoted = true;
+                quote = next;
+            } else if (next == '[' || next == '{') {
+                depth++;
+            } else if (next == ']' || next == '}') {
                 if (depth == 0) { input.back(); return; }
                 depth--;
-            } else if (next == ',' && depth == 0) { input.back(); return; }
+            } else if (next == ',' && depth == 0) {
+                input.back();
+                return;
+            }
         } while (true);
     }
 }
