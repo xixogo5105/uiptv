@@ -3,8 +3,6 @@ package com.uiptv.server;
 import com.uiptv.server.api.json.*;
 import com.uiptv.server.html.HttpSpaHtmlServer;
 import jakarta.servlet.Filter;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
 import org.eclipse.jetty.server.HttpConfiguration;
 import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.SecureRequestCustomizer;
@@ -18,7 +16,6 @@ import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 
 import com.sun.net.httpserver.HttpHandler;
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.util.List;
 

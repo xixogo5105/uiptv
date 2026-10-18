@@ -1,7 +1,6 @@
 package com.uiptv.ui;
 
 import com.uiptv.application.ConfigurationApplicationService;
-import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.model.Account;
 import com.uiptv.model.AccountInfo;

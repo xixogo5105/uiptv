@@ -1,11 +1,9 @@
 package com.uiptv.ui;
 
-import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import javafx.scene.Scene;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.stage.Window;
 import java.util.function.Consumer;
 
 public class ProgressDialog extends Stage {

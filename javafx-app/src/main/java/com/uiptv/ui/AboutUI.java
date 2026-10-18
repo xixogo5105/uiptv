@@ -1,6 +1,5 @@
 package com.uiptv.ui;
 
-import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import com.uiptv.util.VersionManager;
 import javafx.application.HostServices;
@@ -23,7 +22,6 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
-import javafx.stage.Window;
 
 public class AboutUI {
     private static final String FALLBACK_PROJECT_URL = "https://github.com/xixogo5105/uiptv";

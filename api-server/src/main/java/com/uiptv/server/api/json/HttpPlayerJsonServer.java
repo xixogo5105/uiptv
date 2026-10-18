@@ -4,7 +4,6 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
-import com.uiptv.model.Configuration;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.service.*;
 import com.uiptv.util.AppLog;

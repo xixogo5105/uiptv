@@ -12,7 +12,6 @@ import org.junit.jupiter.api.*;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.*;
 import java.nio.file.*;
-import java.time.*;
 import java.util.*;
 import javax.imageio.ImageIO;
 import static org.junit.jupiter.api.Assertions.*;

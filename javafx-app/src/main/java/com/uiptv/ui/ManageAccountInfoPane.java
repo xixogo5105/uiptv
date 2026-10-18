@@ -1,7 +1,6 @@
 package com.uiptv.ui;
 
 import com.uiptv.model.AccountInfo;
-import com.uiptv.ui.util.UiI18n;
 import com.uiptv.util.I18n;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
