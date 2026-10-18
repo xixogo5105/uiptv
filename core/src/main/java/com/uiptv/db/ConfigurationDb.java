@@ -207,43 +207,47 @@ public class ConfigurationDb extends BaseDb {
         statement.setString(4, configuration.getDefaultPlayerPath());
         statement.setString(5, configuration.getFilterCategoriesList());
         statement.setString(6, configuration.getFilterChannelsList());
-        statement.setString(7, configuration.isPauseFiltering() ? "1" : "0");
+        setBoolean(statement, 7, configuration.isPauseFiltering());
         statement.setString(8, configuration.getServerPort());
-        statement.setString(9, configuration.isEmbeddedPlayer() ? "1" : "0");
+        setBoolean(statement, 9, configuration.isEmbeddedPlayer());
         statement.setString(10, configuration.getCacheExpiryDays());
-        statement.setString(11, configuration.isEnableThumbnails() ? "1" : "0");
-        statement.setString(12, configuration.isWideView() ? "1" : "0");
+        setBoolean(statement, 11, configuration.isEnableThumbnails());
+        setBoolean(statement, 12, configuration.isWideView());
         statement.setString(13, configuration.getLanguageLocale());
         statement.setString(14, configuration.getTmdbReadAccessToken());
         statement.setString(15, configuration.getFilterLockHash());
         statement.setString(16, configuration.getUiZoomPercent());
-        statement.setString(17, configuration.isAutoRunServerOnStartup() ? "1" : "0");
-        statement.setString(18, configuration.isHttpsServerEnabled() ? "1" : "0");
+        setBoolean(statement, 17, configuration.isAutoRunServerOnStartup());
+        setBoolean(statement, 18, configuration.isHttpsServerEnabled());
         statement.setString(19, configuration.getHttpsServerPort());
         statement.setString(20, configuration.getVlcNetworkCachingMs());
         statement.setString(21, configuration.getVlcLiveCachingMs());
         statement.setString(22, configuration.getPublishedM3uCategoryMode());
-        statement.setString(23, configuration.isEnableVlcHttpUserAgent() ? "1" : "0");
-        statement.setString(24, configuration.isEnableVlcHttpForwardCookies() ? "1" : "0");
-        statement.setString(25, configuration.isResolveChainAndDeepRedirects() ? "1" : "0");
-        statement.setString(26, configuration.isWebPlaybackProxyEnabled() ? "1" : "0");
+        setBoolean(statement, 23, configuration.isEnableVlcHttpUserAgent());
+        setBoolean(statement, 24, configuration.isEnableVlcHttpForwardCookies());
+        setBoolean(statement, 25, configuration.isResolveChainAndDeepRedirects());
+        setBoolean(statement, 26, configuration.isWebPlaybackProxyEnabled());
         statement.setString(27, configuration.getFilterLockUnlockDurationMinutes());
-        statement.setString(28, configuration.isVlcNoVideoTitleShow() ? "1" : "0");
-        statement.setString(29, configuration.isVlcQuiet() ? "1" : "0");
-        statement.setString(30, configuration.isVlcHttpReconnect() ? "1" : "0");
-        statement.setString(31, configuration.isVlcAdaptiveUseAccess() ? "1" : "0");
+        setBoolean(statement, 28, configuration.isVlcNoVideoTitleShow());
+        setBoolean(statement, 29, configuration.isVlcQuiet());
+        setBoolean(statement, 30, configuration.isVlcHttpReconnect());
+        setBoolean(statement, 31, configuration.isVlcAdaptiveUseAccess());
         statement.setString(32, configuration.getVlcVout());
         statement.setString(33, configuration.getVlcAvcodecHw());
-        statement.setString(34, configuration.isLightweightModeEnabled() ? "1" : "0");
-        statement.setString(35, configuration.isShowBookmarkAndAccountCounts() ? "1" : "0");
+        setBoolean(statement, 34, configuration.isLightweightModeEnabled());
+        setBoolean(statement, 35, configuration.isShowBookmarkAndAccountCounts());
         statement.setString(36, configuration.resolveThemeMode().persistedValue());
-        statement.setString(37, configuration.isEpgEnabled() ? "1" : "0");
-        statement.setString(38, configuration.isEpgPlaybackOnly() ? "1" : "0");
+        setBoolean(statement, 37, configuration.isEpgEnabled());
+        setBoolean(statement, 38, configuration.isEpgPlaybackOnly());
         statement.setString(39, configuration.getGlobalEpgSource());
         statement.setString(40, configuration.getEpgMappingsJson());
         statement.setString(41, String.valueOf(configuration.normalizedEpgRefreshHours()));
         statement.setString(42, String.valueOf(configuration.normalizedEpgSchedulerIntervalMinutes()));
      }
+
+    private void setBoolean(PreparedStatement statement, int index, boolean value) throws SQLException {
+        statement.setString(index, value ? "1" : "0");
+    }
 
     private boolean missingOrTrue(ResultSet resultSet, String columnName) {
         try {
