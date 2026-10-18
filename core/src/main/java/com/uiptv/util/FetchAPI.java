@@ -53,32 +53,47 @@ public class FetchAPI {
 
             Map<String, String> headers = headers(account, isPost);
             if (options != null && options.streamBody()) {
-                HttpUtil.StreamResult stream = HttpUtil.openStream(requestUrl, headers, httpMethod, isPost ? payload : null, options);
-                if (stream.statusCode() == HttpUtil.STATUS_OK) {
-                    return new FetchResult("", false, stream.statusCode(), "", "", stream);
-                }
-                int status = stream.statusCode();
-                stream.abort();
-                return FetchResult.transportFailure(requestUrl, status, "Unexpected HTTP status " + status);
+                return fetchStreaming(requestUrl, headers, httpMethod, payload, isPost, options);
             }
-            HttpUtil.HttpResult response = HttpUtil.sendRequest(requestUrl, headers, httpMethod, isPost ? payload : null, options);
-
-            httpLog(requestUrl, response, params);
-            if (response.statusCode() == HttpUtil.STATUS_OK) {
-                String body = response.body();
-                if (isBlank(body)) {
-                    return FetchResult.transportFailure(requestUrl, HttpUtil.STATUS_OK, "Empty response body with HTTP 200");
-                }
-                return FetchResult.success(body, HttpUtil.STATUS_OK);
-            }
-            return FetchResult.transportFailure(requestUrl, response.statusCode(),
-                    "Unexpected HTTP status " + response.statusCode());
+            return fetchBuffered(requestUrl, headers, httpMethod, payload, isPost, options, params);
         } catch (ReloadRequestScope.LimitExceeded ex) { throw ex;
         } catch (Exception ex) {
             String reason = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
             AppLog.addWarningLog(FetchAPI.class, "Network Error: " + reason);
             return FetchResult.transportFailure(requestUrl, -1, reason);
         }
+    }
+
+    private static FetchResult fetchStreaming(String requestUrl, Map<String, String> headers,
+                                               String httpMethod, String payload, boolean isPost,
+                                               HttpUtil.RequestOptions options) throws Exception {
+        HttpUtil.StreamResult stream = HttpUtil.openStream(requestUrl, headers, httpMethod,
+                isPost ? payload : null, options);
+        if (stream.statusCode() == HttpUtil.STATUS_OK) {
+            return new FetchResult("", false, stream.statusCode(), "", "", stream);
+        }
+        int status = stream.statusCode();
+        stream.abort();
+        return FetchResult.transportFailure(requestUrl, status, "Unexpected HTTP status " + status);
+    }
+
+    private static FetchResult fetchBuffered(String requestUrl, Map<String, String> headers,
+                                             String httpMethod, String payload, boolean isPost,
+                                             HttpUtil.RequestOptions options, Map<String, String> params)
+            throws Exception {
+        HttpUtil.HttpResult response = HttpUtil.sendRequest(requestUrl, headers, httpMethod,
+                isPost ? payload : null, options);
+        httpLog(requestUrl, response, params);
+        if (response.statusCode() != HttpUtil.STATUS_OK) {
+            return FetchResult.transportFailure(requestUrl, response.statusCode(),
+                    "Unexpected HTTP status " + response.statusCode());
+        }
+        String body = response.body();
+        if (isBlank(body)) {
+            return FetchResult.transportFailure(requestUrl, HttpUtil.STATUS_OK,
+                    "Empty response body with HTTP 200");
+        }
+        return FetchResult.success(body, HttpUtil.STATUS_OK);
     }
 
     /**
