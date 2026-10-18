@@ -169,6 +169,7 @@ public class AppHeaderNavigation extends HBox {
         cachedAccountCount = accountCount;
     }
 
+    @SuppressWarnings("java:S2696")
     public void refreshBadgeCounts() {
         // Bookmark/account change notifications can arrive on a worker thread, and this method
         // touches JavaFX nodes, so always continue on the FX thread.
@@ -244,6 +245,7 @@ public class AppHeaderNavigation extends HBox {
         }
     }
 
+    @SuppressWarnings("java:S2696")
     public void updateBadgeCounts(int bookmarkCount, int accountCount) {
         if (bookmarkCount >= 0) {
             cachedBookmarkCount = bookmarkCount;

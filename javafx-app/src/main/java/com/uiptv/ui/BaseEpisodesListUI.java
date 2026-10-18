@@ -604,6 +604,7 @@ public abstract class BaseEpisodesListUI extends HBox {
                 .errorPrefix(I18n.tr("autoErrorPlayingEpisodePrefix")));
     }
 
+    @SuppressWarnings("java:S2696")
     private void markEpisodeAsPlaying(EpisodeItem item) {
         BaseEpisodesListUI previousOwner = activePlayingEpisodeOwner.get();
         if (previousOwner != null && previousOwner != this) {

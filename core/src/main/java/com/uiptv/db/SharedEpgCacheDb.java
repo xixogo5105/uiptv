@@ -36,7 +36,7 @@ public final class SharedEpgCacheDb {
             default -> "";
         };
     }
-    private Snapshot index(Connection c, long now) throws SQLException {
+    private static Snapshot index(Connection c, long now) throws SQLException {
         var rules = new EpgNameRulesDb().read(c);
         List<String[]> metadata = new ArrayList<>();
         StringBuilder version = new StringBuilder(EpgCacheDb.path().toString()).append('|').append(rules.fingerprint()).append('|').append(now / 60_000);

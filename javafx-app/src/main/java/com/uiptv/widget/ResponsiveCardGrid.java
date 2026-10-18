@@ -1140,6 +1140,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
         event.consume();
     }
 
+    @SuppressWarnings("java:S2696")
     private void setActivatedItem(T item) {
         if (playingIndicatorEnabled) {
             ResponsiveCardGrid<?> previousGrid = activePlayingIndicatorGrid.get();
