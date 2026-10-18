@@ -107,21 +107,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
         target.admitted = true;
         try {
-            target.factory = nativeFactory == null
-                    ? new MediaPlayerFactory(createVlcArgs().toArray(new String[0])) : nativeFactory.get();
-            target.player = target.factory.mediaPlayers().newEmbeddedMediaPlayer();
-            target.surface = new VlcImageViewVideoSurface(videoImageView);
-            target.player.videoSurface().set(target.surface);
-            target.player.controls().setRepeat(false);
-            target.events = createMediaPlayerEvents();
-            target.player.events().addMediaPlayerEventListener(target.events);
-            synchronized (playerLock) {
-                if (session == target && !isDisposed.get()) {
-                    mediaPlayer = target.player;
-                } else {
-                    target.surface.disable();
-                }
-            }
+            createNativePlayer(target);
+            publishNativePlayer(target);
         } catch (Throwable failure) {
             // Retirement will join any concurrent stop before releasing partially built resources.
             target.initializationFailure = failure;
@@ -132,6 +119,27 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 }
             });
             throw failure;
+        }
+    }
+
+    private void createNativePlayer(NativeSession target) {
+        target.factory = nativeFactory == null
+                ? new MediaPlayerFactory(createVlcArgs().toArray(new String[0])) : nativeFactory.get();
+        target.player = target.factory.mediaPlayers().newEmbeddedMediaPlayer();
+        target.surface = new VlcImageViewVideoSurface(videoImageView);
+        target.player.videoSurface().set(target.surface);
+        target.player.controls().setRepeat(false);
+        target.events = createMediaPlayerEvents();
+        target.player.events().addMediaPlayerEventListener(target.events);
+    }
+
+    private void publishNativePlayer(NativeSession target) {
+        synchronized (playerLock) {
+            if (session == target && !isDisposed.get()) {
+                mediaPlayer = target.player;
+            } else {
+                target.surface.disable();
+            }
         }
     }
 
