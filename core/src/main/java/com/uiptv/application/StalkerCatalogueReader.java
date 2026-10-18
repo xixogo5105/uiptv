@@ -66,7 +66,10 @@ public final class StalkerCatalogueReader {
     }
 
     /** Skip unrelated envelope metadata without constructing potentially large JSON objects. */
+    @SuppressWarnings("java:S3776")
     private void skip(JSONTokener input) {
+        // This is a deliberately linear JSON tokenizer state machine. Splitting its quote,
+        // escape, and nesting transitions would obscure the streaming parser invariants.
         int depth = 0;
         boolean quoted = false;
         boolean escaped = false;
