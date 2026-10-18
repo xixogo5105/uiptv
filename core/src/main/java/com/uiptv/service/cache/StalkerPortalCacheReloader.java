@@ -261,21 +261,17 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             return List.of();
         }
         Map<String, String> titleByGenreId = new LinkedHashMap<>();
-        for (Channel channel : channels) {
-            if (channel == null || isBlank(channel.getCategoryId())) {
-                continue;
-            }
-            String genreId = channel.getCategoryId().trim();
-            String title = resolveGenreTitle(channel);
-            if (isNotBlank(title)) {
-                titleByGenreId.putIfAbsent(genreId, title.trim());
-            }
-        }
-        List<Category> derived = new ArrayList<>();
-        for (Map.Entry<String, String> entry : titleByGenreId.entrySet()) {
-            derived.add(new Category(entry.getKey(), entry.getValue(), null, false, 0));
-        }
-        return derived;
+        channels.stream()
+                .filter(channel -> channel != null && isNotBlank(channel.getCategoryId()))
+                .forEach(channel -> {
+                    String title = resolveGenreTitle(channel);
+                    if (isNotBlank(title)) {
+                        titleByGenreId.putIfAbsent(channel.getCategoryId().trim(), title.trim());
+                    }
+                });
+        return titleByGenreId.entrySet().stream()
+                .map(entry -> new Category(entry.getKey(), entry.getValue(), null, false, 0))
+                .toList();
     }
 
     private String resolveGenreTitle(Channel channel) {
@@ -309,26 +305,16 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         if (channels == null || channels.isEmpty()) {
             return 0;
         }
-        Set<String> named = new HashSet<>();
-        for (Category category : derived) {
-            if (category != null && isNotBlank(category.getCategoryId())) {
-                named.add(category.getCategoryId().trim());
-            }
-        }
-        Set<String> seen = new HashSet<>();
-        for (Channel channel : channels) {
-            if (channel == null || isBlank(channel.getCategoryId())) {
-                continue;
-            }
-            seen.add(channel.getCategoryId().trim());
-        }
-        int unnamed = 0;
-        for (String genreId : seen) {
-            if (!named.contains(genreId)) {
-                unnamed++;
-            }
-        }
-        return unnamed;
+        Set<String> named = derived.stream()
+                .filter(category -> category != null && isNotBlank(category.getCategoryId()))
+                .map(category -> category.getCategoryId().trim())
+                .collect(java.util.stream.Collectors.toSet());
+        return (int) channels.stream()
+                .filter(channel -> channel != null && isNotBlank(channel.getCategoryId()))
+                .map(channel -> channel.getCategoryId().trim())
+                .distinct()
+                .filter(genreId -> !named.contains(genreId))
+                .count();
     }
 
     private void handleEmptyLiveCategories(Account account, int rawCategoryCount, List<Category> categories,
