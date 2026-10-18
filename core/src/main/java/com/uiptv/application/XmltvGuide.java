@@ -78,7 +78,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
                             }
                         }
                         case "programme" -> {
-                            channel = reader.getAttributeValue(null, "channel");
+                            channel = reader.getAttributeValue(null, CHANNEL_ELEMENT);
                             start = time(reader.getAttributeValue(null, "start"));
                             stop = time(reader.getAttributeValue(null, "stop"));
                             title = ""; description = ""; // Reset programme text for the new programme.

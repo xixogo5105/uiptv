@@ -365,7 +365,7 @@ public class DatabaseUtils {
         )));
         dbStructure.put(DbTable.EPG_ALIAS_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
-                new DataColumn("kind", "INTEGER"),
+                new DataColumn("kind", INTEGER_TYPE),
                 new DataColumn("name", "TEXT"),
                 new DataColumn(COLUMN_GUIDE_CHANNEL_ID, "TEXT")
         )));

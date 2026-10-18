@@ -190,7 +190,7 @@ public class XtremeApiParser {
 
     private static Channel parseXtremeChannel(JSONObject jsonCategory, Account account) {
         Channel channel = new Channel(
-                safeGetString(jsonCategory, account.getAction() == series ? "series_id" : "stream_id"),
+                safeGetString(jsonCategory, account.getAction() == series ? "series_id" : STREAM_ID),
                 safeGetString(jsonCategory, "name"),
                 null,
                 buildXtremeStreamUrl(account, safeGetString(jsonCategory, STREAM_ID), safeGetString(jsonCategory, "container_extension")),

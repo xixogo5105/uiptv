@@ -16,12 +16,14 @@ public enum ThemeMode {
     /** Always use the dark palette, regardless of the operating system setting. */
     DARK("dark"),
     /** Follow the operating system colour scheme and re-apply when the user changes it. */
-    // Literal instead of SYSTEM_VALUE: enum constants must precede field declarations, so referencing the
-    // constant declared below would be an illegal forward reference. ThemeModeTest pins the two together.
-    SYSTEM("system");
+    SYSTEM(systemValue());
 
     /** Persisted sentinel for {@link #SYSTEM} inside the legacy {@code darkTheme} column. */
-    public static final String SYSTEM_VALUE = "system";
+    public static final String SYSTEM_VALUE = systemValue();
+
+    private static String systemValue() {
+        return "system";
+    }
 
     private final String persistedValue;
 
