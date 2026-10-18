@@ -30,7 +30,7 @@ public class UIptvAlert {
     }
 
     public static void showMessageAlert(String contents) {
-        String message = I18n.tr(contents);
+        String message = contents;
         AppLog.addInfoLog(UIptvAlert.class, message);
         if (isHeadlessMode()) {
             return;

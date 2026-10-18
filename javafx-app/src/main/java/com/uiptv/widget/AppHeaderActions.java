@@ -312,7 +312,7 @@ public class AppHeaderActions extends HBox {
     }
 
     private void switchToLightweightMode() {
-        if (!showConfirmationAlert("configLightweightModeSwitchConfirm")) {
+        if (!showConfirmationAlert(I18n.tr("configLightweightModeSwitchConfirm"))) {
             return;
         }
         Configuration configuration = ConfigurationService.getInstance().read();
