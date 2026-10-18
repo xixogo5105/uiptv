@@ -57,6 +57,8 @@ public class HttpProxyStreamServer implements HttpHandler {
     private static final int MAX_PLAYLIST_LINES = 100_000;
     private static final String METHOD_GET = "GET";
     private static final String METHOD_HEAD = "HEAD";
+    private static final String SCHEME_HTTPS = "https";
+    private static final String CACHE_NO_STORE = "no-cache";
     private final Predicate<String> targetUrlValidator;
 
     public HttpProxyStreamServer() {
@@ -154,7 +156,7 @@ public class HttpProxyStreamServer implements HttpHandler {
         try {
             URI uri = URI.create(rawUrl.trim());
             String scheme = uri.getScheme();
-            if (scheme == null || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
+            if (scheme == null || (!"http".equalsIgnoreCase(scheme) && !SCHEME_HTTPS.equalsIgnoreCase(scheme))) {
                 return false;
             }
             String host = hostOf(uri);
@@ -399,12 +401,12 @@ public class HttpProxyStreamServer implements HttpHandler {
             // Live manifests must not be served from an intermediary's stale cache.
             // A stale playlist can reference segments that have already expired,
             // causing the browser player to fail before it reaches the live edge.
-            upstreamHeaders.put(HEADER_CACHE_CONTROL, "no-cache");
-            upstreamHeaders.put(HEADER_PRAGMA, "no-cache");
+            upstreamHeaders.put(HEADER_CACHE_CONTROL, CACHE_NO_STORE);
+            upstreamHeaders.put(HEADER_PRAGMA, CACHE_NO_STORE);
         }
         if (stalkerStyle) {
             upstreamHeaders.put(HEADER_X_USER_AGENT, "Model: MAG250; Link: WiFi");
-            upstreamHeaders.put(HEADER_PRAGMA, "no-cache");
+            upstreamHeaders.put(HEADER_PRAGMA, CACHE_NO_STORE);
         }
         addHeaderIfPresent(upstreamHeaders, HEADER_RANGE, forwardedHeaders.get(HEADER_RANGE));
         String origin = resolveUpstreamOriginHeader(currentUrl, forwardedHeaders.get(HEADER_ORIGIN));
