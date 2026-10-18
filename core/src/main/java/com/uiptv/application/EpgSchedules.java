@@ -52,7 +52,8 @@ public final class EpgSchedules {
             long stop = times.get(i + 1);
             active.removeAll(stops.getOrDefault(start,List.of())); active.addAll(starts.getOrDefault(start,List.of()));
             if(active.isEmpty()) { previous=null; continue; }
-            Candidate winner=active.first(); EpgProgramme p=winner.programme();
+            Candidate winner=active.first();
+            EpgProgramme p=winner.programme();
             if(winner.equals(previous) && !result.isEmpty() && result.getLast().stop()==start) {
                 EpgProgramme last=result.getLast(); result.set(result.size()-1,new EpgProgramme(last.title(),last.description(),last.start(),stop));
             } else result.add(new EpgProgramme(p.title(),p.description(),start,stop));

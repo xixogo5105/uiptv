@@ -64,7 +64,8 @@ public final class StalkerCatalogueReader {
     /** Skip unrelated envelope metadata without constructing potentially large JSON objects. */
     private void skip(JSONTokener input) {
         int depth = 0;
-        boolean quoted = false, escaped = false;
+        boolean quoted = false;
+        boolean escaped = false;
         char quote = 0;
         do {
             ReloadRequestScope.checkCurrent();

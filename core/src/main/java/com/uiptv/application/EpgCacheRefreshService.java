@@ -316,7 +316,8 @@ public class EpgCacheRefreshService {
         var db = new EpgCacheDb();
         for(String source:sources) {
             if(!current(token) || !loader.isEnabled()) return;
-            String id=EpgCacheApplicationService.sourceId(source); long now=System.currentTimeMillis();
+            String id=EpgCacheApplicationService.sourceId(source);
+            long now=System.currentTimeMillis();
             if(!due(db.sourceState(id),now)) continue;
             try {
                 XmltvGuide guide=loader.downloadSource(source);
@@ -333,12 +334,14 @@ public class EpgCacheRefreshService {
         var db = new EpgCacheDb();
         int start;
         synchronized(CURSORS) { start=CURSORS.getOrDefault(account.getDbId()+"|"+nativeBudget,0)%channels.size(); }
-        int attempted=0,visited=0;
+        int attempted=0;
+        int visited=0;
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(30);
         for(;visited<channels.size() && attempted<nativeBudget && System.nanoTime()<deadline;visited++) {
             if(!current(token) || !loader.isEnabled()) return;
             Channel channel=channels.get((start+visited)%channels.size());
-            String id=EpgCacheApplicationService.nativeSource(account,channel); long now=System.currentTimeMillis();
+            String id=EpgCacheApplicationService.nativeSource(account,channel);
+            long now=System.currentTimeMillis();
             if(!due(db.sourceState(id),now)) continue;
             attempted++;
             var nativeService=new NativeEpgApplicationService();

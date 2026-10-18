@@ -39,7 +39,8 @@ final class CardEpgSupport {
         final VBox panel;
         final Supplier<LiveGuideApplicationService.Row> source;
         long refreshAt;
-        EpgProgramme current, next;
+        EpgProgramme current;
+        EpgProgramme next;
         Binding(VBox panel, Supplier<LiveGuideApplicationService.Row> source) { this.panel = panel; this.source = source; }
     }
 
@@ -202,7 +203,8 @@ final class CardEpgSupport {
 
     private void refresh() {
         if (owner.getScene() == null || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return;
-        long now = System.currentTimeMillis(), request = revision;
+        long now = System.currentTimeMillis();
+        long request = revision;
         var cards = attached.entrySet().stream().filter(entry -> {
                     boolean cardVisible = visible(entry.getKey());
                     if (cardVisible) removeCardBoundsListener(entry.getKey());

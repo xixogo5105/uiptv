@@ -82,7 +82,8 @@ public class EpgCacheApplicationService {
         var config=ConfigurationService.getInstance().read(); Map<Channel,String> result=new IdentityHashMap<>();
         if(!config.isEpgEnabled() || account==null || account.getAction()!=Account.AccountAction.itv || channels.isEmpty()) return result;
         var mappings=overrides(config,account);
-        var rules=new com.uiptv.db.EpgNameRulesDb().read(); var ids=channels.stream().map(c -> identity(account,c,config,mappings,rules.fingerprint())).toList();
+        var rules=new com.uiptv.db.EpgNameRulesDb().read();
+        var ids=channels.stream().map(c -> identity(account,c,config,mappings,rules.fingerprint())).toList();
         var records=new EpgCacheDb().icons(ids);
         for(int i=0;i<channels.size();i++) result.put(channels.get(i),records.getOrDefault(ids.get(i),""));
         var missing = channels.stream().filter(channel -> result.get(channel).isBlank()).toList();

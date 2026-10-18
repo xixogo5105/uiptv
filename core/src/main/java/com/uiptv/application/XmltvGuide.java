@@ -42,8 +42,12 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         Map<String, String> qualityNames = new HashMap<>();
         Set<String> ambiguousQuality = new HashSet<>();
         XMLStreamReader reader = factory.createXMLStreamReader(input);
-        String id = null, channel = null, title = "", description = "";
-        Instant start = null, stop = null;
+        String id = null;
+        String channel = null;
+        String title = "";
+        String description = "";
+        Instant start = null;
+        Instant stop = null;
         int count = 0;
         long retainedBytes = 0;
         try {
@@ -155,7 +159,8 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
         return value.replaceAll("[^\\p{L}\\p{N}+]", "");
     }
     private static Map<String, String> qualityAliases(Map<String, String> names) {
-        Map<String, String> result = new HashMap<>(); Set<String> ambiguous = new HashSet<>();
+        Map<String, String> result = new HashMap<>();
+        Set<String> ambiguous = new HashSet<>();
         names.forEach((name, id) -> {
             String key = normalizeQuality(name);
             String previous = result.putIfAbsent(key, id);

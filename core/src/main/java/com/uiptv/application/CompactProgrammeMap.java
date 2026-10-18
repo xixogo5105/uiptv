@@ -74,7 +74,8 @@ final class CompactProgrammeMap extends AbstractMap<String, List<EpgProgramme>> 
     static final class Builder {
         private final Map<String, List<byte[]>> chunks = new HashMap<>();
         private final Map<String, List<EpgProgramme>> pending = new HashMap<>();
-        private long pendingBytes, compressedBytes;
+        private long pendingBytes;
+        private long compressedBytes;
 
         void add(String id, EpgProgramme programme) throws IOException {
             pending.computeIfAbsent(id, _ -> new ArrayList<>()).add(programme);

@@ -15,7 +15,8 @@ public final class EpgNameRulesDb {
         try (var statement = connection.prepareStatement("SELECT term,scope FROM epg_name_exclusion WHERE enabled=1 ORDER BY term,scope");
              var rows = statement.executeQuery()) {
             while (rows.next()) {
-                String term = rows.getString(1), scope = rows.getString(2);
+                String term = rows.getString(1);
+                String scope = rows.getString(2);
                 if (term != null && !term.isBlank() && term.length() <= 128 && Set.of("annotation","quality").contains(scope))
                     rules.add(new EpgNameRules.Rule(term,scope));
             }

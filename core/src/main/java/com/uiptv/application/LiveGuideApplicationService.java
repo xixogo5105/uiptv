@@ -58,7 +58,8 @@ public class LiveGuideApplicationService {
     }
 
     public Map<Row,String> cachedIcons(List<Row> rows) {
-        Map<Row,String> result=new IdentityHashMap<>(); Map<String,List<Row>> groups=new LinkedHashMap<>();
+        Map<Row,String> result=new IdentityHashMap<>();
+        Map<String,List<Row>> groups=new LinkedHashMap<>();
         rows.forEach(row -> groups.computeIfAbsent(row.accountId(),_ -> new ArrayList<>()).add(row));
         for(var group:groups.entrySet()) {
             Account account=AccountService.getInstance().getById(group.getKey()); if(account==null) continue;

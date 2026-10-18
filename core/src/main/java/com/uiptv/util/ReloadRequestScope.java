@@ -18,7 +18,8 @@ public final class ReloadRequestScope implements AutoCloseable {
     static { WATCHDOG.setRemoveOnCancelPolicy(true); }
     private final ReloadRequestScope previous;
     private final Thread owner = Thread.currentThread();
-    private final long deadline, requestNanos;
+    private final long deadline;
+    private final long requestNanos;
     private final int maxRequests;
     private volatile String failure;
     private int requests;

@@ -121,13 +121,18 @@ public class EpgApplicationService {
     /** Stream one bounded source for the background database importer. */
     XmltvGuide downloadSource(String source) throws Exception {
         try (InputStream raw=open(source); BufferedInputStream buffered=new BufferedInputStream(raw)) {
-            buffered.mark(2); int first=buffered.read(),second=buffered.read(); buffered.reset();
+            buffered.mark(2);
+            int first=buffered.read();
+            int second=buffered.read();
+            buffered.reset();
             InputStream xml=first==0x1f && second==0x8b ? new GZIPInputStream(buffered) : buffered;
             XmltvGuide guide=XmltvGuide.read(new LimitedInputStream(xml,sourceSizeLimit()),Instant.now());
-            Map<String,String> icons=new HashMap<>(); URI base=sourceUri(source);
+            Map<String,String> icons=new HashMap<>();
+            URI base=sourceUri(source);
             guide.icons().forEach((id,icon) -> {
                 try {
-                    URI resolved=base.resolve(icon); String scheme=resolved.getScheme();
+                    URI resolved=base.resolve(icon);
+                    String scheme=resolved.getScheme();
                     if("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)
                             || "file".equalsIgnoreCase(scheme) && "file".equalsIgnoreCase(base.getScheme())) icons.put(id,resolved.toString());
                 } catch(IllegalArgumentException ignored) { /* Ignore malformed optional artwork. */ }

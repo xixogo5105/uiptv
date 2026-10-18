@@ -53,7 +53,8 @@ public class PlayerEpgApplicationService {
         if (account == null || channel == null || account.getAction() != Account.AccountAction.itv) return new Result("", null, null);
         List<EpgProgramme> programmes = schedule(account, channel);
         long time = System.currentTimeMillis();
-        EpgProgramme now = null, next = null;
+        EpgProgramme now = null;
+        EpgProgramme next = null;
         for (EpgProgramme programme : programmes) {
             if (programme.start() <= time && time < programme.stop()) now = programme;
             if (programme.start() > time) { next = programme; break; }
