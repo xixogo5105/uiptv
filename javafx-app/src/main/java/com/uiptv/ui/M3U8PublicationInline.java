@@ -129,12 +129,10 @@ public class M3U8PublicationInline extends VBox {
     }
 
     private M3U8PublicationService.PublicationSelections buildSelectionsToSave() {
-        Set<String> accountIds = new LinkedHashSet<>();
-        for (AccountNode accountNode : accountNodes) {
-            if (accountNode.baseSelection) {
-                accountIds.add(accountNode.account.accountId());
-            }
-        }
+        Set<String> accountIds = accountNodes.stream()
+                .filter(accountNode -> accountNode.baseSelection)
+                .map(accountNode -> accountNode.account.accountId())
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         return new M3U8PublicationService.PublicationSelections(
                 accountIds,
                 new LinkedHashMap<>(currentCategorySelections),

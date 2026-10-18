@@ -274,11 +274,10 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
             return CategoryService.getInstance().get(account, false, logger);
         }
         try {
-            Set<Category> categories = new LinkedHashSet<>();
-            for (PlaylistEntry entry : loadM3uCategories(account)) {
-                categories.add(new Category(entry.getId(), entry.getGroupTitle(), entry.getGroupTitle(), false, 0));
-            }
-            return new ArrayList<>(categories);
+            return loadM3uCategories(account).stream()
+                    .map(entry -> new Category(entry.getId(), entry.getGroupTitle(), entry.getGroupTitle(), false, 0))
+                    .distinct()
+                    .toList();
         } catch (RuntimeException e) {
             log(logger, "Failed to load fresh M3U categories: " + e.getMessage());
             return CategoryService.getInstance().get(account, false, logger);
@@ -430,13 +429,7 @@ public class M3uCacheReloader extends AbstractAccountCacheReloader {
     }
 
     private List<Category> extractNonAllCategories(List<Category> categories) {
-        List<Category> result = new ArrayList<>();
-        for (Category cat : categories) {
-            if (!isAllCategory(cat)) {
-                result.add(cat);
-            }
-        }
-        return result;
+        return categories.stream().filter(cat -> !isAllCategory(cat)).toList();
     }
 
     private List<Category> filterEmptyCategoriesForM3u(List<Category> categories, Map<String, List<Channel>> channelsMap, LoggerCallback logger) {

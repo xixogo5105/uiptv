@@ -222,11 +222,10 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         if (categories == null) {
             return ids;
         }
-        for (Category category : categories) {
-            if (category != null && isNotBlank(category.getCategoryId())) {
-                ids.add(category.getCategoryId());
-            }
-        }
+        categories.stream()
+                .filter(category -> category != null && isNotBlank(category.getCategoryId()))
+                .map(Category::getCategoryId)
+                .forEach(ids::add);
         return ids;
     }
 
@@ -240,17 +239,13 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
             return channels == null ? List.of() : channels;
         }
 
-        List<Channel> retained = new ArrayList<>();
-        for (Channel channel : channels) {
-            if (channel == null) {
-                continue;
-            }
-            String categoryId = canonicalCategoryId(channel.getCategoryId(), canonicalCategoryIdByOriginalId);
-            if (isBlank(categoryId) || !knownCategoryIds.contains(categoryId) || visibleCategoryIds.contains(categoryId)) {
-                retained.add(channel);
-            }
-        }
-        return retained;
+        return channels.stream()
+                .filter(channel -> channel != null)
+                .filter(channel -> {
+                    String categoryId = canonicalCategoryId(channel.getCategoryId(), canonicalCategoryIdByOriginalId);
+                    return isBlank(categoryId) || !knownCategoryIds.contains(categoryId) || visibleCategoryIds.contains(categoryId);
+                })
+                .toList();
     }
 
     protected int censoredItemCount(int rawCount, int filteredCount, boolean censoringEnabled) {

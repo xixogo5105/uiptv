@@ -145,11 +145,9 @@ public class CategoryManagementInline extends VBox {
 
     private List<BookmarkItem> getBookmarkItems() {
         List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
-        List<BookmarkItem> items = new ArrayList<>();
-        for (BookmarkCategory category : categories) {
-            items.add(new BookmarkItem(category.getId(), category.getName()));
-        }
-        return items;
+        return categories.stream()
+                .map(category -> new BookmarkItem(category.getId(), category.getName()))
+                .toList();
     }
 
     private class BookmarkItem {
