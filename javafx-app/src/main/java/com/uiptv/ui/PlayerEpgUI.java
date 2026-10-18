@@ -180,8 +180,8 @@ public class PlayerEpgUI extends VBox {
         heading.setText(result.channelName());
         nowCard.setVisible(result.now() != null); nowCard.setManaged(result.now() != null);
         nextCard.setVisible(result.next() != null); nextCard.setManaged(result.next() != null);
-        programme(result.now(), I18n.tr("epgNow"), nowTitle, nowTime, nowDescription);
-        programme(result.next(), I18n.tr("epgNext"), nextTitle, nextTime, nextDescription);
+        programme(result.now(), nowTitle, nowTime, nowDescription);
+        programme(result.next(), nextTitle, nextTime, nextDescription);
         updateProgress();
         updateDescriptions(); sizeCards();
         scheduleBoundaryWake(result);
@@ -196,7 +196,7 @@ public class PlayerEpgUI extends VBox {
         boundaryWake.playFromStart();
     }
 
-    private void programme(EpgProgramme programme, String prefix, Label title, Label time, Label description) {
+    private void programme(EpgProgramme programme, Label title, Label time, Label description) {
         title.setText(programme == null ? "" : programme.title());
         DateTimeFormatter format = DateTimeFormatter.ofPattern("EEE HH:mm").withZone(ZoneId.systemDefault());
         time.setText(programme == null ? "" : format.format(Instant.ofEpochMilli(programme.start())) + " – " + format.format(Instant.ofEpochMilli(programme.stop())));

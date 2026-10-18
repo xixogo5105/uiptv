@@ -257,7 +257,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
             selectedCategoryItems.clear();
             selectedCategoryItems.addAll(selectedItems);
             focusedCategoryItem = item;
-            ContextMenu contextMenu = createCategoryContextMenu(item);
+            ContextMenu contextMenu = createCategoryContextMenu();
             MenuItem removeSelected = contextMenu.getItems().isEmpty() ? null : contextMenu.getItems().getFirst();
             if (removeSelected != null) {
                 removeSelected.setDisable(selectedRemovableCategoryItems().isEmpty());
@@ -395,7 +395,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
         return card;
     }
 
-    private ContextMenu createCategoryContextMenu(CategoryItem item) {
+    private ContextMenu createCategoryContextMenu() {
         ContextMenu contextMenu = new ContextMenu();
         MenuItem removeSelected = new MenuItem(I18n.tr("categoryRemoveSelectedFromCache"));
         removeSelected.setOnAction(_ -> removeSelectedCachedCategories());

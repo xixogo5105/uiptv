@@ -484,7 +484,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
             // viewport repeatedly (visible mouse jerk). Create just the new cards instead.
             // getAddedSubList() is a live view that is invalid once this listener returns.
             List<T> added = new ArrayList<>(change.getAddedSubList());
-            appendCardsDuringLoad(change.getFrom(), added);
+            appendCardsDuringLoad(added);
             return;
         }
         if (virtualizedActive || shouldUseVirtualization()) {
@@ -579,7 +579,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
      * visible mouse jerk while a bookmark load streams in. Here we just refresh the
      * virtual window, which the scheduler already coalesces into a single pass.</p>
      */
-    private void appendCardsDuringLoad(int fromIndex, List<T> added) {
+    private void appendCardsDuringLoad(List<T> added) {
         if (added.isEmpty()) {
             return;
         }

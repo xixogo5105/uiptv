@@ -285,7 +285,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         return new MediaPlayerEventAdapter() {
             @Override
             public void mediaChanged(MediaPlayer mp, MediaRef mediaRef) {
-                handleMediaChanged(mp, mediaRef);
+                handleMediaChanged(mp);
             }
 
             @Override
@@ -340,7 +340,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         };
     }
 
-    private void handleMediaChanged(MediaPlayer mp, MediaRef mediaRef) {
+    private void handleMediaChanged(MediaPlayer mp) {
         if (!isCurrentPlayer(mp)) return;
         withCurrentPlayer(player -> {
             String uri = player.media().info() == null ? "" : player.media().info().mrl();

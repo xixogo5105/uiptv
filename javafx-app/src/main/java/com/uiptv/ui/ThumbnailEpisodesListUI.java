@@ -1086,7 +1086,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         return root;
     }
 
-    private ContextMenu createEpisodeContextMenu(EpisodeItem item, List<EpisodeItem> selectedItems, Button owner) {
+    private ContextMenu createEpisodeContextMenu(EpisodeItem item, Button owner) {
         ContextMenu menu = new ContextMenu();
         UiI18n.preparePopupControl(menu, owner);
         populateEpisodeContextMenu(menu, item);
@@ -1099,8 +1099,8 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         menuButton.setOnAction(event -> {
             event.consume();
             // Select the item when menu button is clicked
-            List<EpisodeItem> selectedItems = selectedEpisodesForMenuButton(item);
-            ContextMenu menu = createEpisodeContextMenu(item, selectedItems, menuButton);
+            selectedEpisodesForMenuButton(item);
+            ContextMenu menu = createEpisodeContextMenu(item, menuButton);
             UiI18n.preparePopupControl(menu, menuButton);
             menu.show(menuButton, Side.BOTTOM, 0, 0);
         });
