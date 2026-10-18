@@ -29,6 +29,7 @@ import android.view.MotionEvent
 import android.view.Surface
 import android.view.TextureView
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
@@ -44,6 +45,7 @@ import android.widget.TextView
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlaybackTarget
+import com.uiptv.mobile.shared.playback.MobilePlaybackIndicator
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import com.uiptv.mobile.shared.settings.EmbeddedPlayerPreference
 import dev.jdtech.mpv.MPVLib
@@ -157,8 +159,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private var markedTargetKey = ""
     private val preferencesRepository by lazy { AndroidDataStorePreferencesRepository(this) }
     private var locked = false
-    private lateinit var lockButton: TextView
-    private lateinit var unlockButton: TextView
+    private lateinit var lockButton: ImageButton
+    private lateinit var lockOverlay: LinearLayout
+    private lateinit var unlockButton: ImageButton
+    private lateinit var lockHelpText: TextView
     private var unlockTapTime = 0L
     private var unlockHideRunnable: Runnable? = null
     private val mpvObserver = object : MPVLib.EventObserver {
@@ -326,23 +330,40 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
         rootLayout.addView(epgScrim, 1, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         epgPanel.bringToFront()
-        unlockButton = TextView(this).apply {
-            text = "\uD83D\uDD13"
+        unlockButton = ImageButton(this).apply {
             contentDescription = "Unlock"
-            setTextColor(Color.WHITE)
-            setTextSize(36f)
-            setTypeface(Typeface.DEFAULT, Typeface.BOLD)
-            gravity = Gravity.CENTER
             minimumWidth = dp(96)
             minimumHeight = dp(96)
             setPadding(dp(24), dp(24), dp(24), dp(24))
             background = roundedBackground(Color.argb(220, 12, 16, 20), dp(48))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            imageTintList = ColorStateList.valueOf(Color.WHITE)
             isClickable = true
             isFocusable = true
-            visibility = View.GONE
             setOnClickListener { handleUnlockTap() }
         }
-        rootLayout.addView(unlockButton, FrameLayout.LayoutParams(dp(96), dp(96)).apply {
+        lockHelpText = TextView(this).apply {
+            contentDescription = "Lock help"
+            setTextColor(Color.WHITE)
+            setTextSize(16f)
+            setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setPadding(dp(16), dp(8), dp(16), dp(10))
+            background = roundedBackground(Color.argb(210, 12, 16, 20), dp(18))
+        }
+        lockOverlay = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            addView(unlockButton, LinearLayout.LayoutParams(dp(96), dp(96)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+            })
+            addView(lockHelpText, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(8)
+            })
+        }
+        rootLayout.addView(lockOverlay, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             gravity = Gravity.CENTER
         })
         enterImmersiveMode()
@@ -384,6 +405,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     override fun onStop() {
+        MobilePlaybackIndicator.clear(currentTarget)
         epgJob?.cancel()
         stoppingForLifecycle = true
         cancelReconnect()
@@ -395,6 +417,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     override fun onDestroy() {
         activityDestroyed = true
+        MobilePlaybackIndicator.clear(currentTarget)
         if (playbackStarted || playbackTimeMs > 0L) {
             (currentTarget ?: targetFromIntent())?.let(::markOpened)
         }
@@ -765,15 +788,24 @@ class MpvEmbeddedPlayerActivity : Activity() {
         val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            recordingDot = View(this@MpvEmbeddedPlayerActivity).apply {
+            recordingDot = FrameLayout(this@MpvEmbeddedPlayerActivity).apply {
                 contentDescription = "Live broadcast"
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-                    setColor(Color.rgb(229, 57, 53))
+                    setColor(Color.rgb(28, 31, 35))
                 }
+                addView(FrameLayout(this@MpvEmbeddedPlayerActivity).apply {
+                    contentDescription = "Live broadcast indicator"
+                    addView(View(this@MpvEmbeddedPlayerActivity).apply {
+                        background = GradientDrawable().apply {
+                            shape = GradientDrawable.OVAL
+                            setColor(Color.rgb(229, 57, 53))
+                        }
+                    }, FrameLayout.LayoutParams(dp(8), dp(8), Gravity.CENTER))
+                }, FrameLayout.LayoutParams(dp(16), dp(16), Gravity.CENTER))
                 visibility = if (isLiveStream()) View.VISIBLE else View.GONE
             }
-            addView(recordingDot, LinearLayout.LayoutParams(dp(8), dp(8)).apply {
+            addView(recordingDot, LinearLayout.LayoutParams(dp(28), dp(28)).apply {
                 rightMargin = dp(8)
             })
             addView(titleLabel, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -854,7 +886,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             if (isPictureInPictureAvailable()) {
                 addView(iconControlButton(R.drawable.picture_in_picture, "Picture in picture") { enterPictureInPicture() }, compactControlLayoutParams())
             }
-            lockButton = controlButton("\uD83D\uDD12") { toggleLock() }.apply { contentDescription = "Lock" }
+            lockButton = iconControlButton(R.drawable.unlock_icon, "Lock") { toggleLock() }
             addView(lockButton, compactControlLayoutParams())
         }
         val controlsScroller = HorizontalScrollView(this).apply {
@@ -1044,6 +1076,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         drawable.setTint(Color.WHITE)
         button.setImageDrawable(drawable)
         button.imageTintList = ColorStateList.valueOf(Color.WHITE)
+        button.tag = drawableRes
         button.minimumWidth = dp(ControlButtonSizeDp)
         button.minimumHeight = dp(ControlButtonSizeDp)
     }
@@ -1209,29 +1242,48 @@ class MpvEmbeddedPlayerActivity : Activity() {
             controlsVisible = false
             hidePlaylistOverlay()
             showUnlockButton()
-            showFeedback("Screen locked")
             enterImmersiveMode()
         } else {
-            hideUnlockButton()
+            showUnlockedConfirmation()
             showControlsTemporarily()
         }
         updateLockButton()
     }
 
     private fun showUnlockButton() {
-        if (!::unlockButton.isInitialized) return
-        unlockButton.visibility = View.VISIBLE
-        unlockButton.bringToFront()
+        if (!::lockOverlay.isInitialized) return
+        setCenterLockState(R.drawable.lock_icon, "Unlock", "Screen locked · Double-tap to unlock")
+        lockOverlay.visibility = View.VISIBLE
+        lockOverlay.bringToFront()
         unlockTapTime = 0L
-        // Auto-hide after 3 seconds
         unlockHideRunnable?.let(overlayHandler::removeCallbacks)
         unlockHideRunnable = Runnable { hideUnlockButton() }
         overlayHandler.postDelayed(unlockHideRunnable!!, 3000)
     }
 
+    private fun showUnlockedConfirmation() {
+        if (!::lockOverlay.isInitialized) return
+        setCenterLockState(R.drawable.unlock_icon, "Unlocked", "Screen unlocked")
+        lockOverlay.visibility = View.VISIBLE
+        lockOverlay.bringToFront()
+        unlockHideRunnable?.let(overlayHandler::removeCallbacks)
+        unlockHideRunnable = Runnable { hideUnlockButton() }
+        overlayHandler.postDelayed(unlockHideRunnable!!, 1200)
+    }
+
+    private fun setCenterLockState(iconRes: Int, description: String, helpText: String) {
+        val drawable = resources.getDrawable(iconRes, theme).mutate()
+        drawable.setTint(Color.WHITE)
+        unlockButton.setImageDrawable(drawable)
+        unlockButton.imageTintList = ColorStateList.valueOf(Color.WHITE)
+        unlockButton.tag = iconRes
+        unlockButton.contentDescription = description
+        lockHelpText.text = helpText
+    }
+
     private fun hideUnlockButton() {
-        if (!::unlockButton.isInitialized) return
-        unlockButton.visibility = View.GONE
+        if (!::lockOverlay.isInitialized) return
+        lockOverlay.visibility = View.GONE
         unlockTapTime = 0L
         unlockHideRunnable?.let(overlayHandler::removeCallbacks)
         unlockHideRunnable = null
@@ -1239,24 +1291,26 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun handleUnlockTap() {
         val now = System.currentTimeMillis()
-        if (now - unlockTapTime < 500) {
+        val doubleTapTimeout = ViewConfiguration.getDoubleTapTimeout().toLong()
+        if (now - unlockTapTime < doubleTapTimeout) {
             // Double tap within 500ms - unlock
             toggleLock()
         } else {
             // First tap - show feedback and wait for second tap
             unlockTapTime = now
-            showFeedback("Double-tap to unlock")
+            lockHelpText.text = "Double-tap to unlock"
             overlayHandler.postDelayed({
-                if (System.currentTimeMillis() - unlockTapTime >= 500) {
+                if (System.currentTimeMillis() - unlockTapTime >= doubleTapTimeout) {
                     unlockTapTime = 0L
                 }
-            }, 500)
+            }, doubleTapTimeout)
         }
     }
 
     private fun updateLockButton() {
         if (!::lockButton.isInitialized) return
-        lockButton.text = "\uD83D\uDD12"
+        setButtonIcon(lockButton, R.drawable.unlock_icon)
+        lockButton.contentDescription = "Lock"
     }
 
     private fun updateRepeatButton() {
@@ -1362,11 +1416,14 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun MotionEvent.isInsideVisibleOverlay(view: View): Boolean =
-        view.visibility == View.VISIBLE &&
-            x >= view.left &&
-            x <= view.right &&
-            y >= view.top &&
-            y <= view.bottom
+        view.isShown && run {
+            val location = IntArray(2)
+            view.getLocationOnScreen(location)
+            rawX >= location[0] &&
+                rawX <= location[0] + view.width &&
+                rawY >= location[1] &&
+                rawY <= location[1] + view.height
+        }
 
     private fun formatTime(milliseconds: Long): String {
         val totalSeconds = (milliseconds / 1_000L).coerceAtLeast(0L)
@@ -1765,11 +1822,13 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private fun handleMpvEvent(eventId: Int) {
         when (eventId) {
             MPVLib.MpvEvent.MPV_EVENT_START_FILE -> {
+                MobilePlaybackIndicator.clear()
                 beginStreamLoading()
                 updatePlayPauseButton()
             }
             MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> {
                 playbackStarted = true
+                MobilePlaybackIndicator.set(currentTarget)
                 reconnectAttempt = 0
                 reconnectScheduled = false
                 mpvPaused = false

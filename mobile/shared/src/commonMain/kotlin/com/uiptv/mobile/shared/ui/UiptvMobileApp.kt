@@ -134,6 +134,7 @@ import com.uiptv.mobile.shared.cache.CacheRefreshJobRequest
 import com.uiptv.mobile.shared.cache.CacheRefreshJobState
 import com.uiptv.mobile.shared.cache.CacheRefreshJobStatus
 import com.uiptv.mobile.shared.playback.PlaybackLaunchResult
+import com.uiptv.mobile.shared.playback.MobilePlaybackIndicator
 import com.uiptv.mobile.shared.playback.PlayerChoice
 import com.uiptv.mobile.shared.settings.AndroidPlayerPreference
 import com.uiptv.mobile.shared.settings.AndroidPreferenceSnapshot
@@ -1996,8 +1997,8 @@ private fun BrowseItemRow(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (item.mode == BrowseMode.LIVE) {
-                        RecordingDot()
+                    if (MobilePlaybackIndicator.isActive(item.accountId, item.mode, item.channelId)) {
+                        PlayingIndicator()
                     }
                     if (item.hasDrmMetadata()) {
                         DrmBadge(Modifier.padding(start = 8.dp))
@@ -2017,13 +2018,20 @@ private fun BrowseItemRow(
 }
 
 @Composable
-private fun RecordingDot(modifier: Modifier = Modifier) {
+private fun PlayingIndicator(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .size(8.dp)
-            .background(RecordingDotRed, CircleShape)
-            .semantics { contentDescription = "Live broadcast" }
-    )
+            .size(28.dp)
+            .background(DeepNightSurfaceBase, CircleShape)
+            .semantics { contentDescription = "Currently playing" },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            Modifier
+                .size(8.dp)
+                .background(RecordingDotRed, CircleShape)
+        )
+    }
 }
 
 @Composable
@@ -2462,8 +2470,8 @@ private fun BookmarkRow(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (bookmark.mode == BrowseMode.LIVE) {
-                        RecordingDot()
+                    if (MobilePlaybackIndicator.isActive(bookmark.accountId, bookmark.mode, bookmark.channelId)) {
+                        PlayingIndicator()
                     }
                     if (bookmark.hasDrmMetadata()) {
                         DrmBadge(Modifier.padding(start = 8.dp))

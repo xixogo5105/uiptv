@@ -27,6 +27,7 @@ import androidx.media3.ui.PlayerView
 import com.uiptv.mobile.shared.browse.BrowseMode
 import com.uiptv.mobile.shared.db.AndroidUiptvDatabaseHelper
 import com.uiptv.mobile.shared.playback.PlaybackTarget
+import com.uiptv.mobile.shared.playback.MobilePlaybackIndicator
 import com.uiptv.mobile.shared.playback.isDrmProtected
 import com.uiptv.mobile.shared.settings.AndroidDataStorePreferencesRepository
 import kotlinx.coroutines.CoroutineScope
@@ -81,6 +82,7 @@ class NativePlayerActivity : Activity() {
                         if (playbackState == Player.STATE_READY) {
                             playbackStarted = true
                             playbackRetryAttempt = 0
+                            MobilePlaybackIndicator.set(currentTarget)
                             currentTarget?.let(::markOpened)
                         } else if (playbackState == Player.STATE_ENDED && currentBingeSession != null) {
                             playBingeIndex(currentBingeIndex + 1)
@@ -114,6 +116,7 @@ class NativePlayerActivity : Activity() {
     }
 
     override fun onDestroy() {
+        MobilePlaybackIndicator.clear(currentTarget)
         val currentPlayer = player
         if (playbackStarted || (currentPlayer?.currentPosition ?: 0L) > 0L) {
             (currentTarget ?: targetFromIntent())?.let(::markOpened)
@@ -169,6 +172,7 @@ class NativePlayerActivity : Activity() {
 
     private fun setMediaTarget(target: PlaybackTarget, mimeTypeOverride: String = "") {
         currentTarget = target
+        MobilePlaybackIndicator.clear()
         currentMimeTypeOverride = mimeTypeOverride
         playbackRetryAttempt = 0
         playerHandler.removeCallbacks(retryPlaybackRunnable)

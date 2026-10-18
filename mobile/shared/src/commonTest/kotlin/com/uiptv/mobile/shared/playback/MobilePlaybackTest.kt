@@ -48,6 +48,29 @@ class MobilePlaybackTest {
     }
 
     @Test
+    fun playingIndicatorMatchesOnlyTheActiveAccountModeAndChannel() {
+        val target = PlaybackTarget(
+            accountId = 7,
+            accountName = "Demo",
+            mode = BrowseMode.LIVE,
+            categoryProviderId = "live",
+            categoryRowId = 2,
+            channelId = "channel-1",
+            title = "Channel",
+            url = "https://stream.test/channel.m3u8"
+        )
+        MobilePlaybackIndicator.set(target)
+
+        assertEquals(true, MobilePlaybackIndicator.isActive(7, BrowseMode.LIVE, " channel-1 "))
+        assertEquals(false, MobilePlaybackIndicator.isActive(8, BrowseMode.LIVE, "channel-1"))
+        assertEquals(false, MobilePlaybackIndicator.isActive(7, BrowseMode.VOD, "channel-1"))
+        assertEquals(false, MobilePlaybackIndicator.isActive(7, BrowseMode.LIVE, "channel-2"))
+
+        MobilePlaybackIndicator.clear(target)
+        assertEquals(false, MobilePlaybackIndicator.isActive(7, BrowseMode.LIVE, "channel-1"))
+    }
+
+    @Test
     fun playbackTargetDetectsDesktopStyleDrmMetadata() {
         val base = PlaybackTarget(
             accountId = 1,

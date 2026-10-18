@@ -45,6 +45,13 @@ class MpvEmbeddedPlayerActivityControlTest {
         val player = launchPlayer("LIVE")
 
         waitForAnyControl(player, listOf("Pause", "Play", "Play/pause"))
+        val broadcastIndicator = waitForControl(player, "Live broadcast") as android.widget.FrameLayout
+        val density = player.resources.displayMetrics.density
+        org.junit.Assert.assertEquals((28 * density).toInt(), broadcastIndicator.layoutParams.width)
+        org.junit.Assert.assertEquals((28 * density).toInt(), broadcastIndicator.layoutParams.height)
+        val broadcastIcon = broadcastIndicator.getChildAt(0) as android.widget.FrameLayout
+        org.junit.Assert.assertEquals((16 * density).toInt(), broadcastIcon.layoutParams.width)
+        org.junit.Assert.assertEquals((16 * density).toInt(), broadcastIcon.layoutParams.height)
         assertNull(findViewByDescription(player.window.decorView, "Rewind 15 seconds"))
         assertNull(findViewByDescription(player.window.decorView, "Fast forward 15 seconds"))
         clickControl(player, "Audio track")
@@ -133,15 +140,22 @@ class MpvEmbeddedPlayerActivityControlTest {
     fun lockButtonTogglesLockState() {
         val player = launchPlayer("VOD")
 
-        // Wait for lock button to appear
+        val controlBarLock = waitForControl(player, "Lock") as android.widget.ImageButton
+        org.junit.Assert.assertEquals(R.drawable.unlock_icon, controlBarLock.tag)
+        org.junit.Assert.assertEquals(android.graphics.Color.WHITE, controlBarLock.imageTintList?.defaultColor)
         clickControl(player, "Lock")
 
-        // Wait for unlock button to appear (shows on touch)
-        // We need to simulate a touch to show the unlock button
-        // For now, just verify the lock button click works
-        waitForAnyControl(player, listOf("Unlock"))
-        clickControl(player, "Unlock")
-        clickControl(player, "Unlock")
+        val centreLock = waitForControl(player, "Unlock") as android.widget.ImageButton
+        val help = waitForControl(player, "Lock help") as android.widget.TextView
+        org.junit.Assert.assertEquals(R.drawable.lock_icon, centreLock.tag)
+        org.junit.Assert.assertEquals(android.graphics.Color.WHITE, centreLock.imageTintList?.defaultColor)
+        org.junit.Assert.assertTrue(help.text.toString().contains("Double-tap to unlock"))
+        org.junit.Assert.assertTrue("Help text must render below the measured icon", help.top >= centreLock.bottom)
+        tapTwice(player, centreLock)
+
+        val unlocked = waitForControl(player, "Unlocked") as android.widget.ImageButton
+        org.junit.Assert.assertEquals(R.drawable.unlock_icon, unlocked.tag)
+        org.junit.Assert.assertEquals("Screen unlocked", (waitForControl(player, "Lock help") as android.widget.TextView).text.toString())
         waitForAnyControl(player, listOf("Lock"))
     }
 
@@ -241,6 +255,20 @@ class MpvEmbeddedPlayerActivityControlTest {
 
     private fun tap(activity: Activity, x: Float, y: Float) {
         swipe(activity, x, y, x, y)
+    }
+
+    private fun tapTwice(activity: Activity, view: View) {
+        val position = IntArray(2)
+        val decorPosition = IntArray(2)
+        instrumentation.runOnMainSync {
+            view.getLocationOnScreen(position)
+            activity.window.decorView.getLocationOnScreen(decorPosition)
+        }
+        val x = position[0] - decorPosition[0] + view.width / 2f
+        val y = position[1] - decorPosition[1] + view.height / 2f
+        tap(activity, x, y)
+        Thread.sleep(80)
+        tap(activity, x, y)
     }
 
     private fun waitForAnyControl(activity: Activity, descriptions: List<String>): View {
