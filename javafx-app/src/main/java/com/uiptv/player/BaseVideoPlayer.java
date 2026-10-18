@@ -1160,25 +1160,28 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         Channel channel = currentChannel;
         String uri = currentMediaUri;
         var ready = playbackReady();
-        refreshTask = new java.util.concurrent.FutureTask<>(() -> {
-            try {
-                ready.toCompletableFuture().get();
-                if (request != refreshVersion.get() || isDisposed.get()) return null;
-                PlayerResponse response = account != null && channel != null
-                        ? PlayerService.getInstance().get(account, channel) : new PlayerResponse(uri);
-                Platform.runLater(() -> {
-                    if (request == refreshVersion.get() && !isDisposed.get()) play(response, true);
-                });
-            } catch (InterruptedException _) {
-                Thread.currentThread().interrupt();
-            } catch (Exception _) {
-                Platform.runLater(() -> {
-                    if (request == refreshVersion.get() && !isDisposed.get()) showPlaybackError();
-                });
-            }
-            return null;
-        });
+        refreshTask = new java.util.concurrent.FutureTask<>(() -> runRefreshTask(ready, request, account, channel, uri));
         Thread.ofVirtual().name("vlc-stream-refresh").start(refreshTask);
+    }
+
+    private Void runRefreshTask(java.util.concurrent.CompletionStage<?> ready, long request,
+                                Account account, Channel channel, String uri) {
+        try {
+            ready.toCompletableFuture().get();
+            if (request != refreshVersion.get() || isDisposed.get()) return null;
+            PlayerResponse response = account != null && channel != null
+                    ? PlayerService.getInstance().get(account, channel) : new PlayerResponse(uri);
+            Platform.runLater(() -> {
+                if (request == refreshVersion.get() && !isDisposed.get()) play(response, true);
+            });
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+        } catch (Exception _) {
+            Platform.runLater(() -> {
+                if (request == refreshVersion.get() && !isDisposed.get()) showPlaybackError();
+            });
+        }
+        return null;
     }
 
     protected void showControlBar() {
