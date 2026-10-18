@@ -256,9 +256,9 @@ final class CardEpgSupport {
                             image.setFallbackImage(icons.getOrDefault(loaded,""),"channel");
                     });
                 }
-            } catch (InterruptedException interrupted) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
-            } catch (Exception failure) {
+            } catch (Exception _) {
                 Platform.runLater(() -> { if (request == revision) cards.forEach(entry -> entry.getValue().refreshAt = System.currentTimeMillis() + 30_000); });
             } finally {
                 Platform.runLater(() -> { if (request == revision) pulse.playFromStart(); });

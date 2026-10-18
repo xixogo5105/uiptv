@@ -1169,9 +1169,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 Platform.runLater(() -> {
                     if (request == refreshVersion.get() && !isDisposed.get()) play(response, true);
                 });
-            } catch (InterruptedException failure) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
-            } catch (Exception failure) {
+            } catch (Exception _) {
                 Platform.runLater(() -> {
                     if (request == refreshVersion.get() && !isDisposed.get()) showPlaybackError();
                 });

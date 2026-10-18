@@ -49,7 +49,7 @@ public final class HttpEpgChangeEventServer implements HttpHandler {
             }
         } catch (IOException _) {
             // Client disconnects are normal for foreground-only subscriptions.
-        } catch (InterruptedException error) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         } finally {
             subscription.close();

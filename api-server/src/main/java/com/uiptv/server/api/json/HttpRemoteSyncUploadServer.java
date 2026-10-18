@@ -33,9 +33,9 @@ public class HttpRemoteSyncUploadServer implements HttpHandler {
             writeJsonResponse(exchange, 200, RemoteSyncJson.toJson(
                     RemoteSyncApplicationService.getInstance().acceptUpload(getParam(exchange, "sessionId"), exchange.getRequestBody())
             ).toString());
-        } catch (RemoteSyncSessionService.TransferTooLargeException ex) {
+        } catch (RemoteSyncSessionService.TransferTooLargeException _) {
             writeJsonResponse(exchange, 413, new JSONObject().put("message", "Remote sync transfer is too large.").toString());
-        } catch (NumberFormatException ex) {
+        } catch (NumberFormatException _) {
             writeJsonResponse(exchange, 400, new JSONObject().put("message", "Invalid Content-Length.").toString());
         } catch (IllegalArgumentException | IllegalStateException ex) {
             writeJsonResponse(exchange, 400, new JSONObject().put("message", ex.getMessage()).toString());

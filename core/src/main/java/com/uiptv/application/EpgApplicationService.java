@@ -110,7 +110,7 @@ public class EpgApplicationService {
     List<String> cacheSources(Account account) {
         LinkedHashSet<String> sources = new LinkedHashSet<>();
         try { sources.add(discover(account)); }
-        catch (IOException | RuntimeException error) {
+        catch (IOException | RuntimeException _) {
             AppLog.addWarningLog(EpgApplicationService.class, "Playlist EPG discovery unavailable.");
         }
         sources.add(account.getEpg());

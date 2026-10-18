@@ -270,12 +270,12 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
                 com.uiptv.util.AppLog.addInfoLog(StalkerPortalPlayerService.class, "create_link resolved seq=" + seq + " elapsed=" + elapsedMs + "ms");
             }
             return isBlank(result) ? null : result;
-        } catch (java.util.concurrent.TimeoutException ex) {
+            } catch (java.util.concurrent.TimeoutException _) {
             com.uiptv.util.AppLog.addWarningLog(StalkerPortalPlayerService.class, "create_link timeout seq=" + seq);
             resultFuture.cancel(true);
             httpFuture.cancel(true);
             throw new PlaybackResolutionTimeoutException();
-        } catch (InterruptedException ex) {
+        } catch (InterruptedException _) {
             resultFuture.cancel(true);
             httpFuture.cancel(true);
             Thread.currentThread().interrupt();

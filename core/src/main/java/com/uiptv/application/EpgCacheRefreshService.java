@@ -48,7 +48,7 @@ public class EpgCacheRefreshService {
     }
     private static boolean isEnabled() {
         try { return new EpgApplicationService().isBackgroundRefreshEnabled(); }
-        catch (RuntimeException error) {
+        catch (RuntimeException _) {
             if (lifecycleStarted) AppLog.addWarningLog(EpgCacheRefreshService.class, "Unable to read EPG refresh settings; guide refresh remains stopped.");
             return false;
         }
@@ -147,7 +147,7 @@ public class EpgCacheRefreshService {
                         scheduler.scheduleWithFixedDelay(EpgCacheRefreshService::runScheduled,initialDelay,interval,TimeUnit.MILLISECONDS);
                     }
                 }
-            } catch (DatabaseAccessException error) {
+            } catch (DatabaseAccessException _) {
                 // A cancelled lifecycle must not report teardown as a database failure.
                 if (lifecycleStarted && epoch == EPOCH.get() && !Thread.currentThread().isInterrupted())
                     AppLog.addWarningLog(EpgCacheRefreshService.class,"Unable to read EPG refresh settings; existing guide remains available.");
@@ -197,7 +197,7 @@ public class EpgCacheRefreshService {
                     if (worker != Thread.currentThread()) joinUntil(worker, deadline);
                 }
             }
-        } catch (InterruptedException error) { Thread.currentThread().interrupt(); }
+        } catch (InterruptedException _) { Thread.currentThread().interrupt(); }
     }
     private static void joinUntil(Thread thread, long deadline) throws InterruptedException {
         long remaining = deadline - System.nanoTime();
@@ -233,7 +233,7 @@ public class EpgCacheRefreshService {
             EpgChangeNotifications.pollExternalChanges();
             if(!new EpgApplicationService().isEnabled()) return;
             new EpgCacheRefreshService().refreshDue();
-        } catch(Exception error) {
+        } catch(Exception _) {
             if(!Thread.currentThread().isInterrupted()) AppLog.addWarningLog(EpgCacheRefreshService.class,"EPG background refresh failed; existing guide remains available.");
         } finally { WORKERS.remove(Thread.currentThread()); Thread.interrupted(); }
     }

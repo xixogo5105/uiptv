@@ -122,9 +122,9 @@ public final class PlaybackUIService {
                     }
                     launchResolvedPlayback(context, request, response);
                 });
-            } catch (InterruptedException e) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
-            } catch (PlaybackResolutionException e) {
+            } catch (PlaybackResolutionException _) {
                 runLater(() -> {
                     if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()
                             && (context.playerPathIsEmbedded() || (isBlank(request.playerPath) && context.useEmbeddedPlayerConfig()))) {
