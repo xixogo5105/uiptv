@@ -173,6 +173,7 @@ public final class JettyHttpHandlerAdapter extends HttpServlet {
 
         @Override
         public void setStreams(InputStream i, OutputStream o) {
+            // Jetty owns the request streams; this adapter never replaces them.
         }
 
         @Override

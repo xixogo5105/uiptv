@@ -30,7 +30,7 @@ class XtremeCatalogueReaderTest {
                 while ((read = current.read(buffer, offset, length)) == -1 && segments.hasNext()) current = segments.next();
                 return read;
             }
-            @Override public void close() { }
+            @Override public void close() { /* Test stream has no external resources. */ }
         };
         assertEquals(2000, XtremeApiParser.readChannelCatalogue(source, account(), null, null).size());
     }

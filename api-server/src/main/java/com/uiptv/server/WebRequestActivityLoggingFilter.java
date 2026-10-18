@@ -17,6 +17,7 @@ public final class WebRequestActivityLoggingFilter implements Filter {
 
     @Override
     public void init(FilterConfig filterConfig) {
+        // No filter-wide resources are required.
     }
 
     @Override
@@ -47,6 +48,7 @@ public final class WebRequestActivityLoggingFilter implements Filter {
 
     @Override
     public void destroy() {
+        // No filter-wide resources are required.
     }
 
     private static String activityDescription(HttpServletRequest req) {

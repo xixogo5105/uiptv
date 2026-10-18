@@ -711,7 +711,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     gate.sourceHeight = height;
                     return new RV32BufferFormat(width, height);
                 }
-                @Override public void newFormatSize(int bufferWidth, int bufferHeight, int displayWidth, int displayHeight) { }
+                @Override public void newFormatSize(int bufferWidth, int bufferHeight, int displayWidth, int displayHeight) {
+                    // Frame dimensions are read from getBufferFormat; no separate resize action is needed.
+                }
                 @Override public void allocatedBuffers(ByteBuffer[] buffers) {
                     if (!gate.enabled.get() || buffers == null || buffers.length == 0) return;
                     WritableImage next;
@@ -728,7 +730,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     });
                 }
             }, new RenderCallback() {
-                @Override public void lock(MediaPlayer mediaPlayer) { }
+                @Override public void lock(MediaPlayer mediaPlayer) {
+                    // Frame copying is guarded by RenderGate rather than an external surface lock.
+                }
                 @Override public void display(MediaPlayer mediaPlayer, ByteBuffer[] nativeBuffers,
                                               BufferFormat bufferFormat, int displayWidth, int displayHeight) {
                     if (!gate.enabled.get()) {
@@ -746,7 +750,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                         }
                     });
                 }
-                @Override public void unlock(MediaPlayer mediaPlayer) { }
+                @Override public void unlock(MediaPlayer mediaPlayer) {
+                    // Frame copying is guarded by RenderGate rather than an external surface lock.
+                }
             }, true, VideoSurfaceAdapters.getVideoSurfaceAdapter());
             this.gate = gate;
         }
