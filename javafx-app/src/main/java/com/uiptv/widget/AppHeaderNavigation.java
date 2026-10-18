@@ -199,10 +199,12 @@ public class AppHeaderNavigation extends HBox {
             try {
                 bookmarks = BookmarkService.getInstance().read().size();
             } catch (Exception _) {
+                // Badge refresh is best effort; retain the last known count.
             }
             try {
                 accounts = AccountService.getInstance().getAll().size();
             } catch (Exception _) {
+                // Badge refresh is best effort; retain the last known count.
             }
 
             if (bookmarks >= 0) {
@@ -382,6 +384,7 @@ public class AppHeaderNavigation extends HBox {
             AccountService.getInstance().addChangeListener(accountChangeListener);
             ConfigurationService.getInstance().addChangeListener(configurationChangeListener);
         } catch (Exception _) {
+            // Listener registration is best effort during application teardown.
         }
         navigationListenerRegistered = true;
     }
@@ -396,6 +399,7 @@ public class AppHeaderNavigation extends HBox {
             AccountService.getInstance().removeChangeListener(accountChangeListener);
             ConfigurationService.getInstance().removeChangeListener(configurationChangeListener);
         } catch (Exception _) {
+            // Listener removal is best effort during application teardown.
         }
         navigationListenerRegistered = false;
     }
