@@ -248,7 +248,7 @@ public class M3U8PublicationInline extends VBox {
                     checkBox.setAllowIndeterminate(false);
                     checkBox.setIndeterminate(false);
                     checkBox.setSelected(baseSelection);
-                    checkBox.setUserData(baseSelection ? Boolean.FALSE : Boolean.FALSE);
+                    checkBox.setUserData(Boolean.FALSE);
                 }
                 return;
             }

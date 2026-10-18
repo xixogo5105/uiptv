@@ -452,9 +452,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
     }
 
     private void setScrollingEnabled(boolean enabled) {
-        if (channelGridScroll == null) {
-            return;
-        }
         channelGridScroll.setPannable(enabled);
         if (enabled) {
             channelGridScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
