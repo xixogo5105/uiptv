@@ -8,6 +8,8 @@ import java.util.Set;
 
 /** CLI adapter only. All database and schedule operations belong to the Java core. */
 public final class EpgBridge {
+    private static final String BUNDLE_OPTION = "--bundle";
+
     private EpgBridge() { }
     public static void main(String[] args) {
         System.setProperty("uiptv.sql.external", "true");
@@ -15,9 +17,9 @@ public final class EpgBridge {
             if (args.length == 0) throw new IllegalArgumentException("Expected export-inventory, validate-bundle, import-bundle, status or merge-schedules");
             Map<String,String> options = new HashMap<>();
             for (int i = 1; i < args.length; i += 2) {
-                if (i + 1 >= args.length || !Set.of("--bundle").contains(args[i])
+                if (i + 1 >= args.length || !Set.of(BUNDLE_OPTION).contains(args[i])
                         || options.putIfAbsent(args[i], args[i + 1]) != null)
-                    throw new IllegalArgumentException("Expected --bundle <path>; the database is resolved by UIPTV");
+                    throw new IllegalArgumentException("Expected " + BUNDLE_OPTION + " <path>; the database is resolved by UIPTV");
             }
             var service = new EpgBuilderApplicationService();
             if (args[0].equals("export-inventory-jsonl") || args[0].equals("export-inventory")) {
@@ -27,11 +29,11 @@ public final class EpgBridge {
                 return;
             }
             var result = switch (args[0]) {
-                case "validate-bundle" -> service.validateBundle(SQLConnection.resolveConfiguredDatabasePath(), options.get("--bundle"));
-                case "import-bundle" -> service.importBundle(SQLConnection.resolveConfiguredDatabasePath(), options.get("--bundle"));
+                case "validate-bundle" -> service.validateBundle(SQLConnection.resolveConfiguredDatabasePath(), options.get(BUNDLE_OPTION));
+                case "import-bundle" -> service.importBundle(SQLConnection.resolveConfiguredDatabasePath(), options.get(BUNDLE_OPTION));
                 case "status" -> service.showStatus(SQLConnection.resolveConfiguredDatabasePath());
-                case "merge-schedules" -> service.mergeSchedules(options.get("--bundle"));
-                case "parse-xmltv" -> service.parseGuide(options.get("--bundle"));
+                case "merge-schedules" -> service.mergeSchedules(options.get(BUNDLE_OPTION));
+                case "parse-xmltv" -> service.parseGuide(options.get(BUNDLE_OPTION));
                 default -> throw new IllegalArgumentException("Unknown command");
             };
             System.out.println(result);

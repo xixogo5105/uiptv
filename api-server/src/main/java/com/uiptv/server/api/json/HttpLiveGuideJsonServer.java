@@ -7,6 +7,8 @@ import java.io.IOException;
 import static com.uiptv.util.ServerUtils.*;
 
 public class HttpLiveGuideJsonServer implements HttpHandler {
+    private static final String ACCOUNT_ID = "accountId";
+
     @Override public void handle(HttpExchange exchange) throws IOException {
         if (!"GET".equals(exchange.getRequestMethod())) {
             exchange.getResponseHeaders().set("Allow", "GET");
@@ -16,13 +18,13 @@ public class HttpLiveGuideJsonServer implements HttpHandler {
         JSONArray rows = new JSONArray();
         LiveGuideApplicationService service = new LiveGuideApplicationService();
         String visible = getParam(exchange, "visibleIds");
-        var result = visible == null || visible.isBlank() ? service.list(getParam(exchange, "accountId"))
-                : service.visible(getParam(exchange, "accountId"), visible);
+        var result = visible == null || visible.isBlank() ? service.list(getParam(exchange, ACCOUNT_ID))
+                : service.visible(getParam(exchange, ACCOUNT_ID), visible);
         var icons=service.cachedIcons(result);
         for (LiveGuideApplicationService.Row row : result) {
             JSONObject channel=new JSONObject(row.channel());
             if(channel.optString("logo","").isBlank() && !icons.getOrDefault(row,"").isBlank()) channel.put("logo",icons.get(row));
-            rows.put(new JSONObject().put("accountId", row.accountId()).put("accountName", row.accountName())
+            rows.put(new JSONObject().put(ACCOUNT_ID, row.accountId()).put("accountName", row.accountName())
                     .put("nativePending", row.nativePending()).put("nativeProvider", row.nativeProvider()).put("bookmarkId", row.bookmarkId()).put("channel",channel)
                     .put("programmes", new JSONArray(row.programmes())));
         }

@@ -18,6 +18,7 @@ public class HttpConfigJsonServer implements HttpHandler {
     private static final String KEY_ENABLE_THUMBNAILS = "enableThumbnails";
     private static final String KEY_WEB_PLAYBACK_PROXY_ENABLED = "webPlaybackProxyEnabled";
     private static final String KEY_THEME_MODE = "themeMode";
+    private static final String KEY_EPG_PLAYBACK_ONLY = "epgPlaybackOnly";
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
@@ -67,8 +68,8 @@ public class HttpConfigJsonServer implements HttpHandler {
         }
         // EPG enablement is desktop-owned. The web client may observe it, but must not
         // change the desktop scheduler's setting through this shared configuration endpoint.
-        if (req.has("epgPlaybackOnly")) {
-            config.setEpgPlaybackOnly(req.getBoolean("epgPlaybackOnly"));
+        if (req.has(KEY_EPG_PLAYBACK_ONLY)) {
+            config.setEpgPlaybackOnly(req.getBoolean(KEY_EPG_PLAYBACK_ONLY));
         }
     }
 
@@ -77,7 +78,7 @@ public class HttpConfigJsonServer implements HttpHandler {
         response.put(KEY_ENABLE_THUMBNAILS, config == null || config.isEnableThumbnails());
         response.put(KEY_WEB_PLAYBACK_PROXY_ENABLED, config == null || config.isWebPlaybackProxyEnabled());
         response.put("epgEnabled", config != null && config.isEpgEnabled());
-        response.put("epgPlaybackOnly", config != null && config.isEpgPlaybackOnly());
+        response.put(KEY_EPG_PLAYBACK_ONLY, config != null && config.isEpgPlaybackOnly());
         response.put(KEY_WIDE_VIEW, config != null && config.isWideView());
         response.put("languageLocale", config == null ? "" : config.getLanguageLocale());
         // Read-only: reports the stored selection as light/dark/system. Replaces the removed darkTheme flag,
