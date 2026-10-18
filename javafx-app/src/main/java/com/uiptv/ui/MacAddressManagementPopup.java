@@ -32,7 +32,7 @@ public class MacAddressManagementPopup extends MacAddressManagementInline {
         super(baseAccount, initialMacs, currentDefaultMac, onSave, stage::close);
         this.stage = stage;
         stage.setTitle(I18n.tr("autoManageMACAddresses"));
-        stage.setScene(createScene(owner));
+        stage.setScene(createScene());
     }
 
     public void show() {
@@ -50,7 +50,7 @@ public class MacAddressManagementPopup extends MacAddressManagementInline {
         return popupStage;
     }
 
-    private Scene createScene(Stage owner) {
+    private Scene createScene() {
         Scene scene = new Scene(this, SCENE_WIDTH, SCENE_HEIGHT);
         RootApplication.applyThemeToPopupScene(scene);
         return scene;

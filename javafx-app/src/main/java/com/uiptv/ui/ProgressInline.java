@@ -395,10 +395,6 @@ public class ProgressInline extends BorderPane {
     }
 
     private VBox createVerificationCard(String titleText, boolean defaultMac) {
-        return createVerificationCard(titleText, null, defaultMac);
-    }
-
-    private VBox createVerificationCard(String titleText, String macAddress, boolean defaultMac) {
         TextFlow title = createStyledText(titleText);
         title.getStyleClass().add("verification-card-title");
         title.getChildren().forEach(text -> text.getStyleClass().add("verification-card-title-text"));

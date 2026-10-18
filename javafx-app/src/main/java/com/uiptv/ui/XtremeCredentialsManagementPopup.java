@@ -30,7 +30,7 @@ public class XtremeCredentialsManagementPopup extends XtremeCredentialsManagemen
         super(initialEntries, currentDefaultUsername, onSave, stage::close);
         this.stage = stage;
         stage.setTitle(I18n.tr("autoManage") + " Xtreme");
-        stage.setScene(createScene(owner));
+        stage.setScene(createScene());
     }
 
     public void show() {
@@ -48,7 +48,7 @@ public class XtremeCredentialsManagementPopup extends XtremeCredentialsManagemen
         return popupStage;
     }
 
-    private Scene createScene(Stage owner) {
+    private Scene createScene() {
         Scene scene = new Scene(this, SCENE_WIDTH, SCENE_HEIGHT);
         RootApplication.applyThemeToPopupScene(scene);
         return scene;

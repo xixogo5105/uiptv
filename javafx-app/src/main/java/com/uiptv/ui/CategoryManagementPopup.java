@@ -19,7 +19,7 @@ public class CategoryManagementPopup extends CategoryManagementInline {
         super(parent);
         this.stage = stage;
         stage.setTitle(I18n.tr("autoManageCategories"));
-        stage.setScene(createScene(owner));
+        stage.setScene(createScene());
     }
 
     public static void showPopup(Stage owner, BookmarkChannelListUI parent, Runnable onClose) {
@@ -45,7 +45,7 @@ public class CategoryManagementPopup extends CategoryManagementInline {
         return popupStage;
     }
 
-    private Scene createScene(Stage owner) {
+    private Scene createScene() {
         Scene scene = new Scene(this, SCENE_WIDTH, SCENE_HEIGHT);
         RootApplication.applyThemeToPopupScene(scene);
         return scene;

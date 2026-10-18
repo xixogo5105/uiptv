@@ -47,7 +47,7 @@ class WatchingNowImdbEnrichmentTest {
                 SeriesWatchState state = state();
 
                 // A cache entry as lazyLoadImdb writes it: series-level fields plus episodesMeta.
-                cacheImdbEntry(ui, account, state);
+                cacheImdbEntry(ui);
 
                 Class<?> panelClass = Class.forName("com.uiptv.ui.BaseWatchingNowUI$SeriesPanelData");
                 Constructor<?> panelCtor = panelClass.getDeclaredConstructor(
@@ -105,7 +105,7 @@ class WatchingNowImdbEnrichmentTest {
         });
     }
 
-    private static void cacheImdbEntry(ThumbnailWatchingNowUI ui, Account account, SeriesWatchState state) throws Exception {
+    private static void cacheImdbEntry(ThumbnailWatchingNowUI ui) throws Exception {
         Class<?> entryClass = Class.forName("com.uiptv.ui.BaseWatchingNowUI$ImdbCacheEntry");
         Constructor<?> entryCtor = entryClass.getDeclaredConstructor(JSONObject.class, JSONArray.class);
         entryCtor.setAccessible(true);
