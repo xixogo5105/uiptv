@@ -485,7 +485,7 @@ public class M3U8PublicationService {
         if (trimmed.isEmpty() || trimmed.startsWith(COMMENT_PREFIX)) {
             return false;
         }
-        if (trimmed.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
+        if (trimmed.matches(ABSOLUTE_MEDIA_URL_REGEX)) {
             return true;
         }
         if (trimmed.startsWith("//")

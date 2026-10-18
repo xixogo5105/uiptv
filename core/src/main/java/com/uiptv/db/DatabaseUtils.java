@@ -349,8 +349,8 @@ public class DatabaseUtils {
         )));
         dbStructure.put(DbTable.EPG_SOURCE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("source_id", "TEXT"),
-                new DataColumn("refreshed_at", "INTEGER"),
-                new DataColumn("retry_at", "INTEGER"),
+                new DataColumn("refreshed_at", INTEGER_TYPE),
+                new DataColumn("retry_at", INTEGER_TYPE),
                 new DataColumn("warning", "TEXT")
         )));
         dbStructure.put(DbTable.EPG_PROGRAMME_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
@@ -358,7 +358,7 @@ public class DatabaseUtils {
                 new DataColumn("guide_channel_id", "TEXT"),
                 new DataColumn("starts_at", "INTEGER"),
                 new DataColumn("stops_at", "INTEGER"),
-                new DataColumn("title", "TEXT"),
+                new DataColumn(COLUMN_TITLE, "TEXT"),
                 new DataColumn("description", "BLOB")
         )));
         dbStructure.put(DbTable.EPG_ALIAS_TABLE.getTableName(), new ArrayList<>(Arrays.asList(

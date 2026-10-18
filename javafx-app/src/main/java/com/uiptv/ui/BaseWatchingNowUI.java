@@ -1212,7 +1212,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     }
 
     private void addImdbHeaderNodes(VBox details, SeriesPanelData data) {
-        String ratingValue = StringUtils.formatRating(data.seasonInfo.optString("rating", ""));
+        String ratingValue = StringUtils.formatRating(data.seasonInfo.optString(KEY_RATING, ""));
         if (!isBlank(ratingValue)) {
             data.ratingNode.setText(I18n.tr("autoImdbPrefix", ratingValue));
         }
