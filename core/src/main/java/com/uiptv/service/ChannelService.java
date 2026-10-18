@@ -884,39 +884,7 @@ public class ChannelService {
             JSONArray list = js.getJSONArray("data");
             List<Channel> channelList = new ArrayList<>();
             for (int i = 0; i < list.length(); i++) {
-                JSONObject jsonChannel = list.getJSONObject(i);
-                String name = nullSafeString(jsonChannel, "name");
-                if (isBlank(name)) {
-                    name = nullSafeString(jsonChannel, "o_name");
-                }
-                String number = nullSafeString(jsonChannel, "id");
-                String cmd = nullSafeString(jsonChannel, "cmd");
-                String categoryId = nullSafeString(jsonChannel, "tv_genre_id");
-                String preferredLogo = preferredVodLogo(jsonChannel);
-
-                if (account.getAction() == series && isNotBlank(cmd)) {
-                    JSONArray seriesArray = jsonChannel.getJSONArray("series");
-                    if (seriesArray != null) {
-                    for (int j = 0; j < seriesArray.length(); j++) {
-                        Channel channel = new Channel(String.valueOf(seriesArray.get(j)), name + " - Episode " + seriesArray.get(j), number, cmd, null, null, null, normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, FIELD_CENSORED), nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
-                        channel.setCategoryId(categoryId);
-                        channel.setExtraJson(jsonChannel.toString());
-                        resolveLogoIfNeeded(channel);
-                        channelList.add(channel);
-                    }
-                    }
-                } else {
-                    Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null, normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, FIELD_CENSORED), nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
-                    channel.setCategoryId(categoryId);
-                    String rating = nullSafeString(jsonChannel, "rating");
-                    if (isBlank(rating)) {
-                        rating = nullSafeString(jsonChannel, "rating_imdb");
-                    }
-                    channel.setRating(rating);
-                    channel.setExtraJson(jsonChannel.toString());
-                    resolveLogoIfNeeded(channel);
-                    channelList.add(channel);
-                }
+                channelList.addAll(parseVodRow(account, list.getJSONObject(i)));
             }
             List<Channel> censoredChannelList = maybeFilterChannels(dedupeChannels(channelList), censor, account);
             Collections.sort(censoredChannelList, Comparator.comparing(Channel::getCompareSeason).thenComparing(Channel::getCompareEpisode));
@@ -925,6 +893,45 @@ public class ChannelService {
             AppLog.addErrorLog(ChannelService.class, "Error while processing vod response data");
         }
         return Collections.emptyList();
+    }
+
+    private List<Channel> parseVodRow(Account account, JSONObject jsonChannel) {
+        String name = nullSafeString(jsonChannel, "name");
+        if (isBlank(name)) name = nullSafeString(jsonChannel, "o_name");
+        String number = nullSafeString(jsonChannel, "id");
+        String cmd = nullSafeString(jsonChannel, "cmd");
+        String categoryId = nullSafeString(jsonChannel, "tv_genre_id");
+        String preferredLogo = preferredVodLogo(jsonChannel);
+        if (account.getAction() == series && isNotBlank(cmd)) {
+            return parseSeriesEpisodes(account, jsonChannel, name, number, cmd, categoryId, preferredLogo);
+        }
+        Channel channel = new Channel(String.valueOf(jsonChannel.get("id")), name, number, cmd, null, null, null,
+                normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, FIELD_CENSORED),
+                nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+        channel.setCategoryId(categoryId);
+        String rating = nullSafeString(jsonChannel, "rating");
+        if (isBlank(rating)) rating = nullSafeString(jsonChannel, "rating_imdb");
+        channel.setRating(rating);
+        channel.setExtraJson(jsonChannel.toString());
+        resolveLogoIfNeeded(channel);
+        return List.of(channel);
+    }
+
+    private List<Channel> parseSeriesEpisodes(Account account, JSONObject jsonChannel, String name, String number,
+                                              String cmd, String categoryId, String preferredLogo) {
+        JSONArray seriesArray = jsonChannel.getJSONArray("series");
+        List<Channel> episodes = new ArrayList<>(seriesArray.length());
+        for (int i = 0; i < seriesArray.length(); i++) {
+            String episodeId = String.valueOf(seriesArray.get(i));
+            Channel channel = new Channel(episodeId, name + " - Episode " + episodeId, number, cmd, null, null, null,
+                    normalizeLogoUrl(account, preferredLogo), nullSafeInteger(jsonChannel, FIELD_CENSORED),
+                    nullSafeInteger(jsonChannel, FIELD_STATUS), nullSafeInteger(jsonChannel, "hd"), null, null, null, null, null);
+            channel.setCategoryId(categoryId);
+            channel.setExtraJson(jsonChannel.toString());
+            resolveLogoIfNeeded(channel);
+            episodes.add(channel);
+        }
+        return episodes;
     }
 
     private String preferredVodLogo(JSONObject jsonChannel) {
