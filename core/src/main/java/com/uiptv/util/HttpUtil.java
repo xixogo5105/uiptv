@@ -743,29 +743,7 @@ public class HttpUtil {
         Future<SimpleHttpResponse> apacheFuture = ASYNC_HTTP_CLIENT.execute(request, null, new FutureCallback<SimpleHttpResponse>() {
             @Override
             public void completed(SimpleHttpResponse response) {
-                if (result.isDone()) {
-                    return;
-                }
-                Map<String, List<String>> responseHeaders = new LinkedHashMap<>();
-                if (response.getHeaders() != null) {
-                    for (Header header : response.getHeaders()) {
-                        responseHeaders.computeIfAbsent(header.getName(), k -> new ArrayList<>()).add(header.getValue());
-                    }
-                }
-                Map<String, List<String>> requestHeaders = new LinkedHashMap<>();
-                if (headers != null) {
-                    headers.forEach((k, v) -> {
-                        requestHeaders.computeIfAbsent(k, _ -> new ArrayList<>()).add(v);
-                    });
-                }
-                result.complete(new HttpResult(
-                        request.getMethod(),
-                        getUriString(request),
-                        response.getCode(),
-                        options == null || options.readBody() ? response.getBodyText() : "",
-                        requestHeaders,
-                        responseHeaders
-                ));
+                completeAsyncResponse(result, request, headers, options, response);
             }
 
             @Override
@@ -783,6 +761,39 @@ public class HttpUtil {
         });
         result.setDelegate(apacheFuture);
 
+        return result;
+    }
+
+    private static void completeAsyncResponse(CancellableFuture<HttpResult> result, SimpleHttpRequest request,
+                                               Map<String, String> headers, RequestOptions options,
+                                               SimpleHttpResponse response) {
+        if (result.isDone()) return;
+        Map<String, List<String>> responseHeaders = responseHeaders(response);
+        Map<String, List<String>> requestHeaders = requestHeaders(headers);
+        result.complete(new HttpResult(
+                request.getMethod(),
+                getUriString(request),
+                response.getCode(),
+                options == null || options.readBody() ? response.getBodyText() : "",
+                requestHeaders,
+                responseHeaders
+        ));
+    }
+
+    private static Map<String, List<String>> responseHeaders(SimpleHttpResponse response) {
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        if (response.getHeaders() == null) return result;
+        for (Header header : response.getHeaders()) {
+            result.computeIfAbsent(header.getName(), _ -> new ArrayList<>()).add(header.getValue());
+        }
+        return result;
+    }
+
+    private static Map<String, List<String>> requestHeaders(Map<String, String> headers) {
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        if (headers != null) {
+            headers.forEach((key, value) -> result.computeIfAbsent(key, _ -> new ArrayList<>()).add(value));
+        }
         return result;
     }
 
