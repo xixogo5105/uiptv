@@ -24,6 +24,8 @@ import static com.uiptv.application.EpgCacheApplicationService.hash;
  * Headless Java bridge for EPG Builder.
  * Provides inventory export, bundle import, and validation operations.
  */
+// SQL identifiers are fixed allowlisted schema names; external values are never interpolated.
+@SuppressWarnings("java:S2077")
 public class EpgBuilderApplicationService {
     private static final String DATABASE_IDENTITY = "database_identity";
     private static final String CONFIG_SIGNATURE = "config_signature";

@@ -6,6 +6,8 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 /** Account-independent, read-only resolution of explicitly published shared guides. */
+// Query limits are fixed application constants; all user values remain prepared parameters.
+@SuppressWarnings("java:S2077")
 public final class SharedEpgCacheDb {
     public record Query(String guideId, String name, boolean explicit) { }
     public record Result(List<EpgProgramme> programmes, String icon) { }

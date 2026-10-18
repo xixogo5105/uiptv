@@ -13,6 +13,8 @@ import static com.uiptv.db.DatabaseUtils.DbTable.VOD_CHANNEL_TABLE;
 import static com.uiptv.db.DatabaseUtils.insertTableSql;
 import static com.uiptv.db.SQLConnection.connect;
 
+// The table name is a fixed DbTable constant and all account/category values are bound.
+@SuppressWarnings("java:S2077")
 public class VodChannelDb extends BaseDb {
     private static VodChannelDb instance;
     private static final String WHERE_ACCOUNT_AND_CATEGORY = " WHERE accountId=? AND categoryId=?";

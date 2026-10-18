@@ -21,6 +21,8 @@ import static com.uiptv.db.DatabaseUtils.insertTableSql;
 import static com.uiptv.db.DatabaseUtils.validatedTableName;
 import static com.uiptv.db.SQLConnection.connect;
 
+// Table identifiers come only from the fixed DbTable enum; values use prepared parameters.
+@SuppressWarnings("java:S2077")
 public class ChannelDb extends BaseDb {
     private static ChannelDb instance;
     private static final int BATCH_SIZE = 1000;

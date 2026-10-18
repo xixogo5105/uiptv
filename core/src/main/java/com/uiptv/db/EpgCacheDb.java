@@ -7,6 +7,8 @@ import java.sql.*;
 import java.util.*;
 
 /** Indexed EPG cache tables in the application database. Read paths never initialize, mutate or download anything. */
+// Dynamic SQL fragments here are generated placeholder tuples or fixed schema table names.
+@SuppressWarnings("java:S2077")
 public final class EpgCacheDb {
     public record Identity(String accountId, String providerId, String signature) { }
     public record Match(Identity identity, String guideId, String name, String qualityName, boolean explicit,

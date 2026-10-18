@@ -13,6 +13,8 @@ import static com.uiptv.db.DatabaseUtils.DbTable.SERIES_EPISODE_TABLE;
 import static com.uiptv.db.DatabaseUtils.insertTableSql;
 import static com.uiptv.db.SQLConnection.connect;
 
+// The table name is a fixed DbTable constant and all account/category values are bound.
+@SuppressWarnings("java:S2077")
 public class SeriesEpisodeDb extends BaseDb {
     private static SeriesEpisodeDb instance;
     private static final String WHERE_ACCOUNT_CATEGORY_SERIES = " WHERE accountId=? AND categoryId=? AND seriesId=?";

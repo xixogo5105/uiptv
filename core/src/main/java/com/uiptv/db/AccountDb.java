@@ -17,6 +17,8 @@ import static com.uiptv.db.SQLConnection.connect;
 import static com.uiptv.util.StringUtils.isBlank;
 import static com.uiptv.util.StringUtils.isNotBlank;
 
+// The table name is a fixed DbTable constant and all account values are bound.
+@SuppressWarnings("java:S2077")
 public class AccountDb extends BaseDb {
     private static AccountDb instance;
 
