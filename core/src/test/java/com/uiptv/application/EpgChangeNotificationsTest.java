@@ -14,7 +14,7 @@ class EpgChangeNotificationsTest extends DbBackedTest {
     void committedSourceWritesAdvanceRevisionAndReplayBoundedTypedEvents() {
         long before = EpgChangeNotifications.snapshot().revision();
         var received = new CopyOnWriteArrayList<EpgChangeNotifications.Notification>();
-        try (var subscription = EpgChangeNotifications.subscribe(before, received::add)) {
+        try (var _ = EpgChangeNotifications.subscribe(before, received::add)) {
             long now = System.currentTimeMillis();
             new EpgCacheDb().replaceSource("test-source",
                     java.util.Map.of("guide", List.of(new EpgProgramme("Title", "", now, now + 3_600_000))),
@@ -38,7 +38,7 @@ class EpgChangeNotificationsTest extends DbBackedTest {
         new EpgCacheDb().replaceSource("source", java.util.Map.of("guide", List.of(
                 new EpgProgramme("Title", "", now, now + 3_600_000))), java.util.Map.of(), java.util.Map.of(), now, now + 7_200_000);
         var received = new CopyOnWriteArrayList<EpgChangeNotifications.Notification>();
-        try (var subscription = EpgChangeNotifications.subscribe(EpgChangeNotifications.snapshot().revision(), received::add)) {
+        try (var _ = EpgChangeNotifications.subscribe(EpgChangeNotifications.snapshot().revision(), received::add)) {
             new EpgCacheDb().mapChannels(List.of(new EpgCacheDb.Match(identity, "guide", "", "", true,
                     List.of("source"), "")), now);
         }

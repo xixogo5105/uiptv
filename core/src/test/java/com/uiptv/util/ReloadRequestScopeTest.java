@@ -34,7 +34,7 @@ class ReloadRequestScopeTest {
     }
     @Test void accountDeadlineAlsoBoundsAnInFlightRequest() throws Exception {
         HttpServer server = server(this::trickle);
-        try (var scope = new ReloadRequestScope(Duration.ofMillis(250), Duration.ofSeconds(3), 4, null)) {
+        try (var _ = new ReloadRequestScope(Duration.ofMillis(250), Duration.ofSeconds(3), 4, null)) {
             long start = System.nanoTime();
             assertThrows(ReloadRequestScope.LimitExceeded.class, () -> HttpUtil.sendRequest(url(server), null, "GET"));
             assertTrue(Duration.ofNanos(System.nanoTime() - start).toMillis() < 2000);
@@ -49,7 +49,7 @@ class ReloadRequestScopeTest {
                 exchange.sendResponseHeaders(302, -1);
             } catch (Exception _) { /* The client may close the redirect response early. */ } finally { exchange.close(); }
         });
-        try (var scope = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 4, null)) {
+        try (var _ = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 4, null)) {
             assertThrows(java.io.IOException.class, () -> HttpUtil.sendRequest(url(server), null, "GET"));
             assertEquals(6, calls.get(), "Initial request plus the normal five redirects");
         } finally { server.stop(0); }

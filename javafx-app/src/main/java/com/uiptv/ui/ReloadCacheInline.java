@@ -918,7 +918,7 @@ public class ReloadCacheInline extends VBox {
     }
 
     private void reloadSelectedAccounts(List<Account> selectedAccounts) {
-        try (var epgPause = com.uiptv.application.EpgCacheRefreshService.pauseForCatalogueReload()) {
+        try (var _ = com.uiptv.application.EpgCacheRefreshService.pauseForCatalogueReload()) {
             if (disposed) {
                 return;
             }

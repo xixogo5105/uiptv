@@ -136,7 +136,7 @@ class ConfigurationSyncColumnParityTest extends DbBackedTest {
 
     private void createSchema(Path dbPath) throws SQLException {
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
-             Statement statement = conn.createStatement()) {
+             var _ = conn.createStatement()) {
             DatabasePatchesUtils.applyBaseline(conn);
         }
     }

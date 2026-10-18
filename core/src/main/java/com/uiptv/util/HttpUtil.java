@@ -114,7 +114,7 @@ public class HttpUtil {
         HttpUriRequestBase request = buildRequest(url, headers, method, body, options);
         HttpClientContext context = HttpClientContext.create();
 
-        try (var deadline = ReloadRequestScope.watch(request)) {
+        try (var _ = ReloadRequestScope.watch(request)) {
             return HTTP_CLIENT.execute(request, context, response -> {
                 String responseBody;
                 try { responseBody = readResponseBody(response, options); }

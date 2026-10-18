@@ -194,7 +194,6 @@ class ImageCacheManagerTest {
             String normalizedUrl = ImageCacheManager.normalizeLoadUrl(url);
             String actualCacheKey = "stress:" + normalizedUrl;
             Map<String, CompletableFuture<Image>> loadingTasks = loadingTasks();
-            Map<String, Image> cache = imageCache();
 
             assertFalse(loadingTasks.containsKey(actualCacheKey),
                     "Expected no loading task after completion for " + actualCacheKey);

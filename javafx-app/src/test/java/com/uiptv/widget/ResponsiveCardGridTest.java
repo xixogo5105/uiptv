@@ -900,7 +900,7 @@ class ResponsiveCardGridTest {
         });
 
         runOnFxThread(() -> {
-            GridPane pane = cardPane(grid);
+            cardPane(grid);
             for (int i = 0; i < 6; i++) {
                 Region card = cardAt(grid, i);
                 Integer col = GridPane.getColumnIndex(card);

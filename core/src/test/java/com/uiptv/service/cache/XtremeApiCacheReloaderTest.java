@@ -38,7 +38,7 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
                 .mapToObj(i -> new Category("" + i, "Category " + i, "", false, 0)).toList();
         try (var categoryMock = mockStatic(CategoryService.class);
              var parser = mockStatic(XtremeApiParser.class);
-             var scope = com.uiptv.util.ReloadRequestScope.catalogue(null)) {
+             var _ = com.uiptv.util.ReloadRequestScope.catalogue(null)) {
             categoryMock.when(CategoryService::getInstance).thenReturn(service);
             when(service.get(account, false, null)).thenReturn(categories);
             parser.when(() -> XtremeApiParser.parseAllChannels(account)).thenThrow(new IllegalStateException("bulk unavailable"));

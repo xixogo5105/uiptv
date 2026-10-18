@@ -53,8 +53,8 @@ class EpgPersistentCacheTest extends DbBackedTest {
         account.setEpg(xml("pause.xml", "Cached title").toString());
         refresh.refreshAccount(account, List.of(channel));
         xml("pause.xml", "New title");
-        try (var outer = EpgCacheRefreshService.pauseForCatalogueReload()) {
-            try (var inner = EpgCacheRefreshService.pauseForCatalogueReload()) {
+        try (var _ = EpgCacheRefreshService.pauseForCatalogueReload()) {
+            try (var _ = EpgCacheRefreshService.pauseForCatalogueReload()) {
                 assertEquals("Cached title", cache.schedule(account, channel).getFirst().title());
             }
             try (var http = mockStatic(HttpUtil.class)) {
@@ -75,7 +75,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         var channel = channel("station", "Station");
         // This channel is deliberately absent from the cached catalogue and bookmarks.
         // Only the visible summary request can make the importer visit it.
-        try (var pause = EpgCacheRefreshService.pauseForCatalogueReload()) {
+        try (var _ = EpgCacheRefreshService.pauseForCatalogueReload()) {
             EpgCacheRefreshService.start();
             assertTrue(new LiveGuideApplicationService().cachedSummaries(List.of(
                     new LiveGuideApplicationService.Row(account.getDbId(), account.getAccountName(), "", channel, List.of())))
@@ -199,7 +199,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         var entered=new CountDownLatch(1); var resume=new CountDownLatch(1);
         var account=account("a"); var channel=channel("station","Station"); account.setEpg("http://example.invalid/guide.xml");
         var xml=Files.readAllBytes(xml("guide.xml","Obsolete import"));
-        try(var sources=mockConstruction(EpgApplicationService.class,(loader,context) -> {
+        try(var _=mockConstruction(EpgApplicationService.class,(loader,context) -> {
             when(loader.isEnabled()).thenReturn(true); when(loader.cacheSources(account)).thenReturn(List.of(account.getEpg()));
             when(loader.downloadSource(anyString())).thenAnswer(_ -> { entered.countDown(); assertTrue(resume.await(5,TimeUnit.SECONDS)); return XmltvGuide.read(new java.io.ByteArrayInputStream(xml),Instant.now()); });
         })) {

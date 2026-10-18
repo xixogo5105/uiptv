@@ -20,7 +20,7 @@ class HttpLiveGuideJsonServerTest extends DbBackedTest {
         Channel channel = new Channel(); channel.setDbId("local-17"); channel.setChannelId("BBCOne.uk"); channel.setName("BBC One");
         LiveGuideApplicationService.Row row = new LiveGuideApplicationService.Row("local-account", "Test", "", channel,
                 List.of(new EpgProgramme("News", "Details", 1000, 2000)));
-        try (var construction = mockConstruction(LiveGuideApplicationService.class, (mock, context) -> when(mock.list("local-account")).thenReturn(List.of(row)))) {
+        try (var _ = mockConstruction(LiveGuideApplicationService.class, (mock, context) -> when(mock.list("local-account")).thenReturn(List.of(row)))) {
             TestHttpExchange exchange = new TestHttpExchange("/liveGuide?accountId=local-account", "GET");
             new HttpLiveGuideJsonServer().handle(exchange);
             assertEquals(200, exchange.getResponseCode());

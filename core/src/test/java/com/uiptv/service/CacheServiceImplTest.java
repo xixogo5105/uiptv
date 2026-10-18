@@ -420,8 +420,8 @@ class CacheServiceImplTest extends DbBackedTest {
         Account account = createStalkerAccount("acc-transport-failure");
         account.setAction(Account.AccountAction.itv);
         List<String> logs = new ArrayList<>();
-        AtomicInteger getAllChannelsCalls = new AtomicInteger();
         AtomicInteger orderedListCalls = new AtomicInteger();
+        AtomicInteger getAllChannelsCalls = new AtomicInteger();
 
         try (MockedStatic<HandshakeService> handshakeMock = mockStatic(HandshakeService.class);
              MockedStatic<FetchAPI> fetchMock = mockStatic(FetchAPI.class)) {

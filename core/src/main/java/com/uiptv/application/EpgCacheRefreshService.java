@@ -350,7 +350,13 @@ public class EpgCacheRefreshService {
             if(!current(token)) return;
             if(EpgApplicationService.usable(programmes)) {
                 long coverage=programmes.stream().mapToLong(EpgProgramme::stop).max().orElse(now);
-                long retry = Math.clamp(now + refreshMillis(), now + FAILURE_MS, coverage - FAILURE_MS);
+                // A short guide can end before the normal failure back-off window. In that case
+                // the upper clamp bound would be below its lower bound and Math.clamp throws.
+                long minimumRetry = now + FAILURE_MS;
+                long coverageRetry = coverage - FAILURE_MS;
+                long retry = coverageRetry < minimumRetry
+                        ? minimumRetry
+                        : Math.clamp(now + refreshMillis(), minimumRetry, coverageRetry);
                 commit(token,() -> db.replaceSource(id,Map.of(channel.getChannelId(),programmes),Map.of(),Map.of(),Map.of(),now,retry,
                         Set.of(new EpgChangeNotifications.ProviderIdentity(account.getDbId(), channel.getChannelId()))));
             }

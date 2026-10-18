@@ -530,7 +530,6 @@ public class ConfigurationUI extends VBox {
             saveButton.setDisable(true);
             boolean saved = saveCurrentSettings(true);
             if (saved) {
-                String priorText = saveButton.getText();
                 saveButton.setText("\u2713"); // check mark
                 saveButton.getStyleClass().add(STYLE_CLASS_CONFIGURATION_STATUS_ICON_ON);
                 PauseTransition pt = new PauseTransition(Duration.seconds(1));
