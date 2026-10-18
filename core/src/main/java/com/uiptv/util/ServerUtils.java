@@ -22,6 +22,8 @@ import static com.uiptv.util.StringUtils.isNotBlank;
 public class ServerUtils {
     /** Maximum JSON/text request body accepted by the local HTTP API. */
     public static final int MAX_REQUEST_BODY_BYTES = 8 * 1024 * 1024;
+    private static final String ACCESS_CONTROL_ALLOW_ORIGIN = "Access-Control-Allow-Origin";
+    private static final String CONTENT_TYPE_HEADER = "Content-Type";
 
     private ServerUtils() {
     }
@@ -138,8 +140,8 @@ public class ServerUtils {
                                          Path file,
                                          String contentType) throws IOException {
         long length = Files.size(file);
-        httpExchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
-        httpExchange.getResponseHeaders().set("Content-Type", contentType);
+        httpExchange.getResponseHeaders().add(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+        httpExchange.getResponseHeaders().set(CONTENT_TYPE_HEADER, contentType);
         httpExchange.sendResponseHeaders(statusCode, length);
         try (InputStream input = Files.newInputStream(file);
              OutputStream output = httpExchange.getResponseBody()) {
@@ -161,13 +163,13 @@ public class ServerUtils {
         }
 
 
-        httpExchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+        httpExchange.getResponseHeaders().add(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
         httpExchange.getResponseHeaders().add("Access-Control-Allow-Methods", "GET");
         httpExchange.getResponseHeaders().add("Access-Control-Allow-Headers", "*");
         httpExchange.getResponseHeaders().add("Access-Control-Allow-Credentials", "true");
         httpExchange.getResponseHeaders().add("Access-Control-Allow-Credentials-Header", "*");
         httpExchange.getResponseHeaders().add("Access-Control-Allow-Credentials-Header", "*");
-        httpExchange.getResponseHeaders().add("Content-Type", contentType);
+        httpExchange.getResponseHeaders().add(CONTENT_TYPE_HEADER, contentType);
         if (isNotBlank(fileName) && DOWNLOADABLE.contains(contentType)) {
             String safeFileName = sanitizeContentDispositionFileName(fileName);
             httpExchange.getResponseHeaders().add("Content-Disposition", "attachment; filename=\"" + safeFileName + "\"");

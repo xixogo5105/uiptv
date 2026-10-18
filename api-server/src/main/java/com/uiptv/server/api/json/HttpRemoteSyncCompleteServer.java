@@ -11,6 +11,8 @@ import static com.uiptv.util.ServerUtils.readRequestBodyText;
 import static com.uiptv.util.ServerUtils.writeJsonResponse;
 
 public class HttpRemoteSyncCompleteServer implements HttpHandler {
+    private static final String MESSAGE = "message";
+
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
@@ -23,13 +25,13 @@ public class HttpRemoteSyncCompleteServer implements HttpHandler {
             RemoteSyncApplicationService.getInstance().completeImport(
                     payload.optString("sessionId", ""),
                     payload.optBoolean("success", false),
-                    payload.optString("message", "")
+                    payload.optString(MESSAGE, "")
             );
             writeJsonResponse(exchange, 200, new JSONObject().put("status", "ok").toString());
         } catch (com.uiptv.util.ServerUtils.RequestBodyTooLargeException _) {
-            writeJsonResponse(exchange, 413, new JSONObject().put("message", "Request body is too large.").toString());
+            writeJsonResponse(exchange, 413, new JSONObject().put(MESSAGE, "Request body is too large.").toString());
         } catch (IllegalArgumentException | IllegalStateException ex) {
-            writeJsonResponse(exchange, 400, new JSONObject().put("message", ex.getMessage()).toString());
+            writeJsonResponse(exchange, 400, new JSONObject().put(MESSAGE, ex.getMessage()).toString());
         }
     }
 }
