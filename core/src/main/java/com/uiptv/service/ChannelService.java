@@ -152,13 +152,27 @@ public class ChannelService {
         boolean streamingCallback = callback != null && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API);
         boolean streamCache = streamingCallback || progressCallback != null;
         if (isVodSeriesChannelsFresh(account, dbId)) {
-            List<Channel> cachedChannels = streamCache
-                    ? getVodSeriesFromDbCachePaged(account, dbId, callback, isCancelled, progressCallback)
-                    : getVodSeriesFromDbCache(account, dbId);
-            log(logger, "Loaded channels from local cache for category " + categoryId + ".");
-            List<Channel> resolved = maybeFilterChannels(dedupeChannels(cachedChannels), true, account);
-            return streamCache ? resolved : publishChannels(resolved, callback);
+            return loadFreshVodSeriesCache(categoryId, account, dbId, logger, callback, isCancelled,
+                    progressCallback, streamCache);
         }
+        return fetchAndCacheVodSeries(categoryId, account, dbId, logger, callback, isCancelled,
+                progressCallback, streamingCallback);
+    }
+
+    private List<Channel> loadFreshVodSeriesCache(String categoryId, Account account, String dbId, LoggerCallback logger,
+                                                   Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                                   Consumer<PageProgress> progressCallback, boolean streamCache) {
+        List<Channel> cachedChannels = streamCache
+                ? getVodSeriesFromDbCachePaged(account, dbId, callback, isCancelled, progressCallback)
+                : getVodSeriesFromDbCache(account, dbId);
+        log(logger, "Loaded channels from local cache for category " + categoryId + ".");
+        List<Channel> resolved = maybeFilterChannels(dedupeChannels(cachedChannels), true, account);
+        return streamCache ? resolved : publishChannels(resolved, callback);
+    }
+
+    private List<Channel> fetchAndCacheVodSeries(String categoryId, Account account, String dbId, LoggerCallback logger,
+                                                 Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                                 Consumer<PageProgress> progressCallback, boolean streamingCallback) {
         List<Channel> cachedChannels = getVodSeriesFromDbCache(account, dbId);
         log(logger, "No fresh cache found for category " + categoryId + ". Fetching from portal...");
         List<Channel> fetchedChannels = fetchVodSeriesFromProviderAllPages(categoryId, account, isCancelled, logger, callback, progressCallback);
