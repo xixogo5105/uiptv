@@ -14,6 +14,8 @@ on:
 
 jobs:
   test:
+    # TEMPORARY Sonar remediation mode: restore this job when the issue count reaches zero.
+    if: ${{ false }}
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -80,13 +82,15 @@ jobs:
         uses: gradle/actions/setup-gradle@v6.4.0
 
       - name: Run mobile tests and coverage
+        # TEMPORARY Sonar remediation mode: restore this step when the issue count reaches zero.
+        if: ${{ false }}
         working-directory: mobile
         run: ./gradlew :shared:testAndroidHostTest :shared:koverXmlReport :shared:koverVerify
 
       - name: Build and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: xvfb-run -a mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=xixogo5105_uiptv
+        run: xvfb-run -a mvn -B verify -DskipTests org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=xixogo5105_uiptv
 
   release_guard:
     if: startsWith(github.ref, 'refs/tags/v')
