@@ -194,7 +194,10 @@ public class AppHeaderNavigation extends HBox {
         if (cachedBookmarkCount >= 0 || cachedAccountCount >= 0) {
             updateBadgeCounts(cachedBookmarkCount, cachedAccountCount);
         }
-        CompletableFuture.runAsync(() -> {
+        CompletableFuture.runAsync(this::loadBadgeCounts);
+    }
+
+    private void loadBadgeCounts() {
             int bookmarks = -1;
             int accounts = -1;
             try {
@@ -221,7 +224,6 @@ public class AppHeaderNavigation extends HBox {
             if (finalBookmarks >= 0 || finalAccounts >= 0) {
                 Platform.runLater(() -> publishRefreshedBadgeCounts(finalBookmarks, finalAccounts));
             }
-        });
     }
 
     private void publishRefreshedBadgeCounts(int bookmarkCount, int accountCount) {
