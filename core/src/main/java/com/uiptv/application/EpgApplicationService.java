@@ -128,17 +128,26 @@ public class EpgApplicationService {
             buffered.reset();
             InputStream xml=first==0x1f && second==0x8b ? new GZIPInputStream(buffered) : buffered;
             XmltvGuide guide=XmltvGuide.read(new LimitedInputStream(xml,sourceSizeLimit()),Instant.now());
-            Map<String,String> icons=new HashMap<>();
-            URI base=sourceUri(source);
-            guide.icons().forEach((id,icon) -> {
-                try {
-                    URI resolved=base.resolve(icon);
-                    String scheme=resolved.getScheme();
-                    if("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)
-                            || "file".equalsIgnoreCase(scheme) && "file".equalsIgnoreCase(base.getScheme())) icons.put(id,resolved.toString());
-                } catch(IllegalArgumentException ignored) { /* Ignore malformed optional artwork. */ }
-            });
-            return new XmltvGuide(guide.programmes(),guide.names(),guide.qualityNames(),Map.copyOf(icons));
+            return new XmltvGuide(guide.programmes(), guide.names(), guide.qualityNames(),
+                    resolveArtwork(guide.icons(), sourceUri(source)));
+        }
+    }
+
+    private Map<String, String> resolveArtwork(Map<String, String> icons, URI base) {
+        Map<String, String> resolvedIcons = new HashMap<>();
+        icons.forEach((id, icon) -> addArtwork(resolvedIcons, id, icon, base));
+        return Map.copyOf(resolvedIcons);
+    }
+
+    private void addArtwork(Map<String, String> icons, String id, String icon, URI base) {
+        try {
+            URI resolved = base.resolve(icon);
+            String scheme = resolved.getScheme();
+            boolean remote = "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
+            boolean local = "file".equalsIgnoreCase(scheme) && "file".equalsIgnoreCase(base.getScheme());
+            if (remote || local) icons.put(id, resolved.toString());
+        } catch (IllegalArgumentException ignored) {
+            // Ignore malformed optional artwork.
         }
     }
 
