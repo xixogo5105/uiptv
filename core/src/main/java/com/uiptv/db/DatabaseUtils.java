@@ -389,7 +389,7 @@ public class DatabaseUtils {
         )));
         dbStructure.put(DbTable.EPG_SHARED_SOURCE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
-                new DataColumn("priority", "INTEGER"),
+                new DataColumn("priority", INTEGER_TYPE),
                 new DataColumn("countries", "TEXT"),
                 new DataColumn("languages", "TEXT")
         )));

@@ -342,6 +342,7 @@ public class EpgCacheRefreshService {
             }
         }
     }
+    @SuppressWarnings("java:S1994")
     private void refreshNative(Account account,List<Channel> channels,List<String> sources,Token token,int nativeBudget) {
         var loader = new EpgApplicationService();
         var db = new EpgCacheDb();

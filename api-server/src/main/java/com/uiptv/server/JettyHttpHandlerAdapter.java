@@ -26,7 +26,9 @@ public final class JettyHttpHandlerAdapter extends HttpServlet {
     }
 
     @Override
+    @SuppressWarnings("java:S2093")
     protected void service(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        // HttpExchange is finalized explicitly so the response is completed even when the handler fails.
         DelegatingHttpExchange httpExchange = new DelegatingHttpExchange(req, resp);
         try {
             delegate.handle(httpExchange);

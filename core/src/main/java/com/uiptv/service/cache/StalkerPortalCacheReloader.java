@@ -441,6 +441,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         log(logger, (categories == null ? 0 : categories.size()) + " Categories & 0 Channels saved Successfully \u2713");
     }
 
+    @SuppressWarnings("java:S2093")
     private List<Channel> fetchAllStalkerChannels(Account account, LoggerCallback logger) {
         List<Map<String, String>> attempts = List.of(
                 getAllChannelsParams(null, null),
@@ -464,7 +465,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
                 }
                 continue;
             }
-            if (result.catalogueStream() != null) {
+                if (result.catalogueStream() != null) {
                 var stream = result.catalogueStream();
                 boolean complete = false;
                 try {
