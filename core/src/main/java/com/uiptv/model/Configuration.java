@@ -65,7 +65,7 @@ import lombok.NoArgsConstructor;
         try {
             int value = Integer.parseInt(epgSchedulerIntervalMinutes);
             return java.util.List.of(1, 2, 3, 5, 10, 15, 30, 60).contains(value) ? value : 3;
-        } catch (RuntimeException ignored) { return 3; }
+        } catch (RuntimeException _) { return 3; }
     }
 
 

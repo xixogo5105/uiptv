@@ -114,18 +114,18 @@ public class NativeEpgApplicationService {
                     }
                     List<EpgProgramme> result = parse(body, account.getType() == AccountType.XTREME_API, "UTC", channel.getChannelId());
                     if (EpgApplicationService.usable(result)) return result;
-                } catch (Exception ignored) {
+                } catch (Exception _) {
                     AppLog.addWarningLog(NativeEpgApplicationService.class, "Provider EPG action unavailable; trying fallback.");
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             AppLog.addWarningLog(NativeEpgApplicationService.class, "Provider EPG session unavailable; trying XMLTV.");
         }
         return List.of();
     }
 
     private static Account utcRequestAccount(Account account) {
-        Account request = AccountCopyUtil.detachedCopy(account);
+        Account request = Objects.requireNonNull(AccountCopyUtil.detachedCopy(account), "account copy");
         request.setTimezone("UTC");
         return request;
     }
@@ -135,7 +135,7 @@ public class NativeEpgApplicationService {
         JSONObject server = object.optJSONObject("server_info");
         if (server != null) name = server.optString("timezone", name);
         try { return name.isBlank() ? fallback : ZoneId.of(name); }
-        catch (DateTimeException ignored) { return fallback; }
+        catch (DateTimeException _) { return fallback; }
     }
 
     static List<EpgProgramme> parse(String json, boolean encoded, String sourceTimezone, String channelId) {
@@ -144,7 +144,7 @@ public class NativeEpgApplicationService {
             Object data = new JSONTokener(json).nextValue();
             ZoneId zone;
             try { zone = ZoneId.of(sourceTimezone == null || sourceTimezone.isBlank() ? "UTC" : sourceTimezone); }
-            catch (Exception ignored) { zone = ZoneOffset.UTC; }
+            catch (Exception _) { zone = ZoneOffset.UTC; }
             zone = sourceZone(data, zone);
             for (int depth = 0; depth < 5 && data instanceof JSONObject object; depth++) {
                 zone = sourceZone(object, zone);
@@ -174,7 +174,7 @@ public class NativeEpgApplicationService {
             }
             result.sort(Comparator.comparingLong(EpgProgramme::start));
             return EpgSchedules.normalize(result);
-        } catch (Exception ignored) { return List.of(); }
+        } catch (Exception _) { return List.of(); }
     }
 
     private static long programmeTime(JSONObject programme, ZoneId zone, String... fields) {
@@ -197,7 +197,7 @@ public class NativeEpgApplicationService {
         if (encoded && !value.isBlank()) {
             try { byte[] bytes = Base64.getDecoder().decode(value);
                 return StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString(); }
-            catch (Exception ignored) { /* Compatibility with providers returning plain text. */ }
+            catch (Exception _) { /* Compatibility with providers returning plain text. */ }
         }
         return value;
     }
@@ -205,10 +205,10 @@ public class NativeEpgApplicationService {
         if (value == null || value.isBlank()) return 0;
         value = value.strip();
         try { long n = Long.parseLong(value); return n < 100_000_000_000L ? Math.multiplyExact(n, 1000) : n; }
-        catch (Exception ignored) { }
-        try { return Instant.parse(value).toEpochMilli(); } catch (Exception ignored) { }
-        try { return OffsetDateTime.parse(value.replace(' ', 'T')).toInstant().toEpochMilli(); } catch (Exception ignored) { }
+        catch (Exception _) { }
+        try { return Instant.parse(value).toEpochMilli(); } catch (Exception _) { }
+        try { return OffsetDateTime.parse(value.replace(' ', 'T')).toInstant().toEpochMilli(); } catch (Exception _) { }
         try { return LocalDateTime.parse(value.replace(' ', 'T'), DateTimeFormatter.ISO_LOCAL_DATE_TIME).atZone(zone).toInstant().toEpochMilli(); }
-        catch (Exception ignored) { return 0; }
+        catch (Exception _) { return 0; }
     }
 }

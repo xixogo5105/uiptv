@@ -493,7 +493,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
                     // Abort before closing a rejected body; closing first may drain the entire
                     // remaining response. This also releases the deadline after JVM errors.
                     try { if (complete) stream.close(); else stream.abort(); }
-                    catch (java.io.IOException ignored) { }
+                    catch (java.io.IOException _) { }
                 }
                 continue;
             }

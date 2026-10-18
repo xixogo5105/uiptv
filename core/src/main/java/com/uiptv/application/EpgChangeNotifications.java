@@ -158,7 +158,7 @@ public final class EpgChangeNotifications {
         OBSERVED_REVISION.accumulateAndGet(notification.revision(), Math::max);
         LISTENERS.forEach(listener -> {
             try { listener.accept(notification); }
-            catch (RuntimeException ignored) { /* one subscriber cannot stop the journal */ }
+            catch (RuntimeException _) { /* one subscriber cannot stop the journal */ }
         });
     }
 
@@ -173,7 +173,7 @@ public final class EpgChangeNotifications {
             if (current.revision() <= after) return;
             for (Notification event : replay(after, current.databaseGeneration())) publish(event);
             OBSERVED_REVISION.accumulateAndGet(current.revision(), Math::max);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException _) {
             // The next scheduler pass retries the database reconciliation.
         }
     }

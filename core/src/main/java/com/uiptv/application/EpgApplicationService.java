@@ -102,7 +102,7 @@ public class EpgApplicationService {
                 String id = metadata.optString(field, "").strip();
                 if (!id.isBlank()) return id;
             }
-        } catch (Exception ignored) { /* Older catalogs may not retain structured metadata. */ }
+        } catch (Exception _) { /* Older catalogs may not retain structured metadata. */ }
         // Xtream stream ids are API identities, never XMLTV ids.
         return account.getType() == AccountType.XTREME_API ? "" : channel.getChannelId();
     }

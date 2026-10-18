@@ -180,7 +180,7 @@ public class HttpUtil {
             stream.request = request;
             return stream;
         } catch (Exception error) {
-            try { deadline.close(); } catch (Exception ignored) { }
+            try { deadline.close(); } catch (Exception _) { }
             ReloadRequestScope.checkCurrent();
             if (error instanceof IOException io) throw io;
             if (error instanceof RuntimeException runtime) throw runtime;
@@ -389,7 +389,7 @@ public class HttpUtil {
         try {
             ContentType contentType = ContentType.parse(entity.getContentType());
             if (contentType.getCharset() != null) charset = contentType.getCharset();
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException _) {
             // Providers frequently omit or misstate the content type; UTF-8 is the safe default.
         }
         StringBuilder result = new StringBuilder(Math.min(maxChars, 64 * 1024));
@@ -677,10 +677,17 @@ public class HttpUtil {
 
         @Override
         public void close() throws IOException {
+            IOException closeFailure = null;
             try { response.close(); }
-            finally {
-                try { deadline.close(); } catch (Exception error) { throw new IOException(error); }
+            catch (IOException error) { closeFailure = error; }
+            try { deadline.close(); }
+            catch (Exception error) {
+                IOException deadlineFailure = error instanceof IOException io
+                        ? io : new IOException(error);
+                if (closeFailure == null) closeFailure = deadlineFailure;
+                else closeFailure.addSuppressed(deadlineFailure);
             }
+            if (closeFailure != null) throw closeFailure;
         }
     }
 

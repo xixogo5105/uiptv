@@ -30,7 +30,7 @@ public final class EpgModeUI {
                 var configuration = com.uiptv.service.ConfigurationService.getInstance().read();
                 value = configuration != null && configuration.isEpgEnabled();
                 playerOnly = value && configuration.isEpgPlaybackOnly();
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException _) {
                 // A transient configuration read failure must not leave the UI in an active mode.
             }
             boolean finalValue = value;

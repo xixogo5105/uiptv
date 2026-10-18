@@ -47,7 +47,7 @@ public final class HttpEpgChangeEventServer implements HttpHandler {
                 }
                 output.flush();
             }
-        } catch (IOException ignored) {
+        } catch (IOException _) {
             // Client disconnects are normal for foreground-only subscriptions.
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
@@ -58,7 +58,7 @@ public final class HttpEpgChangeEventServer implements HttpHandler {
 
     private static long parseRevision(String value) {
         try { return value == null || value.isBlank() ? -1 : Long.parseLong(value); }
-        catch (NumberFormatException ignored) { return -1; }
+        catch (NumberFormatException _) { return -1; }
     }
 
     private static String query(String raw, String wanted) {

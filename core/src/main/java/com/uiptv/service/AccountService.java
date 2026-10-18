@@ -35,6 +35,7 @@ public class AccountService {
     }
 
     public void save(Account account) {
+        Objects.requireNonNull(account, "account");
         sanitizeAccountFields(account);
         AccountType type = account.getType();
         if (type != null && type == STALKER_PORTAL && !isBlank(account.getUrl()) && !account.getUrl().endsWith("/")) {

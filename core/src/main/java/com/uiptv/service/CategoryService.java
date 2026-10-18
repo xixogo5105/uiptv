@@ -111,6 +111,7 @@ public class CategoryService {
     }
 
     private boolean usesVodSeriesCategoryCache(Account account) {
+        Objects.requireNonNull(account, "account");
         AccountType type = account.getType();
         // account.getType() has default STALKER_PORTAL but could be null. Explicit null check.
         if (type == null) {

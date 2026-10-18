@@ -184,7 +184,7 @@ public class EpgBuilderApplicationService {
                 epgId = metadata.optString("epg_id", "");
                 tvgId = metadata.optString("tvg-id", "");
             }
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
 
         boolean isManual = !manualOverride.isBlank();
 

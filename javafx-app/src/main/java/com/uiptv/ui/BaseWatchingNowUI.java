@@ -1654,8 +1654,8 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
 
     private void attachCardEventHandlers(VBox root, SeriesPanelData data, WatchingEpisode row) {
         ContextMenu episodeMenu = addEpisodeContextMenu(data, row, root);
-        // addEpisodeContextMenu always returns a non-null ContextMenu
-        root.setOnMouseClicked(event -> handleCardMouseClick(event, data, root, row, episodeMenu));
+        root.setOnMouseClicked(event -> handleCardMouseClick(event, data, root, row,
+                Objects.requireNonNull(episodeMenu, "episodeMenu")));
         root.focusedProperty().addListener((_, _, focused) -> {
             if (Boolean.TRUE.equals(focused)) {
                 setSelectedEpisodeCard(data, root);

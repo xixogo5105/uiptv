@@ -21,7 +21,7 @@ class ReloadRequestScopeTest {
             for (int i = 0; i < 300; i++) {
                 exchange.getResponseBody().write('x'); exchange.getResponseBody().flush(); Thread.sleep(20);
             }
-        } catch (Exception ignored) { } finally { exchange.close(); }
+        } catch (Exception _) { } finally { exchange.close(); }
     }
     @Test void deadlineAbortsTricklingBodyInsteadOfResettingOnEachByte() throws Exception {
         HttpServer server = server(this::trickle);
@@ -47,7 +47,7 @@ class ReloadRequestScopeTest {
             try {
                 exchange.getResponseHeaders().set("Location", "/redirect-" + call);
                 exchange.sendResponseHeaders(302, -1);
-            } catch (Exception ignored) { } finally { exchange.close(); }
+            } catch (Exception _) { } finally { exchange.close(); }
         });
         try (var scope = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 4, null)) {
             assertThrows(java.io.IOException.class, () -> HttpUtil.sendRequest(url(server), null, "GET"));
@@ -62,7 +62,7 @@ class ReloadRequestScopeTest {
             try {
                 assertThrows(java.io.IOException.class, () -> response.bodyStream().readAllBytes());
                 assertThrows(ReloadRequestScope.LimitExceeded.class, scope::check);
-            } finally { try { response.close(); } catch (java.io.IOException ignored) { } }
+            } finally { try { response.close(); } catch (java.io.IOException _) { } }
         } finally { server.stop(0); }
     }
     @Test void requestCapStopsBeforeAnotherNetworkCallAndIsRemovedOnClose() throws Exception {
@@ -70,7 +70,7 @@ class ReloadRequestScopeTest {
         HttpServer server = server(exchange -> {
             calls.incrementAndGet();
             try { exchange.sendResponseHeaders(200, 2); exchange.getResponseBody().write("{}".getBytes()); }
-            catch (Exception ignored) { } finally { exchange.close(); }
+            catch (Exception _) { } finally { exchange.close(); }
         });
         try {
             try (var scope = new ReloadRequestScope(Duration.ofSeconds(3), Duration.ofSeconds(1), 2, null)) {

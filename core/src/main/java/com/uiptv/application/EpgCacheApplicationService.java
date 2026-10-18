@@ -59,7 +59,7 @@ public class EpgCacheApplicationService {
                 for (String field : List.of("xmltv_id", "epg_id", "tvg-id")) {
                     if (!metadata.optString(field).isBlank()) { guide = metadata.getString(field).strip(); break; }
                 }
-            } catch (Exception ignored) { /* Provider channel IDs are not shared guide IDs. */ }
+            } catch (Exception _) { /* Provider channel IDs are not shared guide IDs. */ }
         }
         return new com.uiptv.db.SharedEpgCacheDb.Query(override.isBlank() ? guide : override,
                 channel.getName(), !override.isBlank());

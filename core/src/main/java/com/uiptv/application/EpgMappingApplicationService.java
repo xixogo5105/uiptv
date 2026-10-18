@@ -29,6 +29,6 @@ public class EpgMappingApplicationService {
     }
     private JSONObject mappings(Configuration configuration) {
         try { return new JSONObject(configuration.getEpgMappingsJson()); }
-        catch (Exception ignored) { return new JSONObject(); }
+        catch (Exception _) { return new JSONObject(); }
     }
 }
