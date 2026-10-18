@@ -54,7 +54,6 @@ import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 
-import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -66,7 +65,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntConsumer;
 
 import static com.uiptv.util.StringUtils.isNotBlank;
-import static com.uiptv.widget.UIptvAlert.showError;
 
 public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private static final int MAX_HLS_RESOLUTION_DEPTH = 8;
@@ -123,6 +121,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     protected Label timeLabel;
     protected VBox controlsContainer;
     protected ProgressIndicator loadingSpinner;
+    private final java.util.concurrent.atomic.AtomicLong refreshVersion = new java.util.concurrent.atomic.AtomicLong();
+    private java.util.concurrent.FutureTask<Void> refreshTask;
+    private final PauseTransition startupTimeout = new PauseTransition(Duration.seconds(45));
     protected Label errorLabel;
     protected TextFlow nowShowingFlow;
     protected Text streamInfoText;
@@ -883,6 +884,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             return;
         }
         if (!isInternalRetry) {
+            cancelStreamRefresh();
             retryCount = 0;
             isRetrying.set(true);
         }
@@ -913,7 +915,11 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             setVolume(volumeSlider.getValue());
             updateVideoSize();
 
+            armStartupTimeout();
             playMedia(uri);
+        } else {
+            showLoading();
+            showPlaybackError();
         }
     }
 
@@ -940,6 +946,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void stop() {
+        cancelStreamRefresh();
+        com.uiptv.ui.PlaybackUIService.cancelPendingPlayback();
+        startupTimeout.stop();
         if (pipStage != null) {
             exitPip();
         }
@@ -965,7 +974,31 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void showLoading() {
-        loadingSpinner.setVisible(true);
+        if (isDisposed.get()) return;
+        preparePlayerUiForPlayback();
+        armStartupTimeout();
+    }
+
+    private void armStartupTimeout() {
+        startupTimeout.setOnFinished(_ -> {
+            com.uiptv.ui.PlaybackUIService.cancelPendingPlayback();
+            stopForReload();
+            showPlaybackError();
+        });
+        startupTimeout.playFromStart();
+    }
+
+    protected void playbackStarted() {
+        startupTimeout.stop();
+    }
+
+    @Override
+    public void showPlaybackError() {
+        startupTimeout.stop();
+        loadingSpinner.setVisible(false);
+        errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
+        errorLabel.setVisible(true);
+        controlsContainer.setVisible(true);
     }
 
     @Override
@@ -979,15 +1012,15 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
 
     @Override
     public void stopForReload() {
+        cancelStreamRefresh();
+        startupTimeout.stop();
         removeBingeWatchWatchStateListener();
         if (Platform.isFxApplicationThread()) {
-            stopMedia();
             disposeMedia();
         } else {
             CountDownLatch latch = new CountDownLatch(1);
             Platform.runLater(() -> {
                 try {
-                    stopMedia();
                     disposeMedia();
                 } finally {
                     latch.countDown();
@@ -1014,6 +1047,8 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
      */
     @SuppressWarnings("java:S1141")
     public void disposePlayer() {
+        com.uiptv.ui.PlaybackUIService.cancelPendingPlayback();
+        startupTimeout.stop();
         if (isDisposed.getAndSet(true)) {
             return;
         }
@@ -1093,44 +1128,57 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             if (retryCount == 1) {
                 refreshAndPlay();
             } else {
+                long request = refreshVersion.get();
                 PauseTransition delay = new PauseTransition(Duration.seconds(10));
                 delay.setOnFinished(e -> {
-                    if (isRetrying.get()) refreshAndPlay();
+                    if (isRetrying.get() && request == refreshVersion.get() && !isDisposed.get()) refreshAndPlay();
                 });
                 delay.play();
             }
         } else {
-            stop();
-            Platform.runLater(() -> {
-                errorLabel.setText(I18n.tr("autoFailedToReconnectAfter5Attempts"));
-                errorLabel.setVisible(true);
-            });
+            isRetrying.set(false);
+            stopForReload();
+            showLoading();
+            showPlaybackError();
+            errorLabel.setText(I18n.tr("autoFailedToReconnectAfter5Attempts"));
+        }
+    }
+
+    private void cancelStreamRefresh() {
+        refreshVersion.incrementAndGet();
+        if (refreshTask != null) {
+            refreshTask.cancel(true);
+            refreshTask = null;
         }
     }
 
     protected void refreshAndPlay() {
-        if (currentAccount != null && currentChannel != null) {
-            loadingSpinner.setVisible(true);
-            errorLabel.setVisible(false);
-            new Thread(() -> {
-                try {
-                    final PlayerResponse newResponse = PlayerService.getInstance().get(currentAccount, currentChannel);
-                    Platform.runLater(() -> play(newResponse, true));
-                } catch (IOException e) {
-                    showError("Failed to refresh stream for account '" + currentAccount.getAccountName() + "' and channel '" + currentChannel.getName() + "'", e);
-                    Platform.runLater(() -> {
-                        loadingSpinner.setVisible(false);
-                        errorLabel.setText(I18n.tr("autoCouldNotRefreshStream"));
-                        errorLabel.setVisible(true);
-                        if (isRepeating && isRetrying.get()) handleRepeat();
-                    });
-                }
-            }).start();
-        } else {
-            if (currentMediaUri != null && !currentMediaUri.isEmpty()) {
-                play(new PlayerResponse(currentMediaUri), true);
+        stopForReload();
+        showLoading();
+        long request = refreshVersion.get();
+        Account account = currentAccount;
+        Channel channel = currentChannel;
+        String uri = currentMediaUri;
+        var ready = playbackReady();
+        refreshTask = new java.util.concurrent.FutureTask<>(() -> {
+            try {
+                ready.toCompletableFuture().get();
+                if (request != refreshVersion.get() || isDisposed.get()) return null;
+                PlayerResponse response = account != null && channel != null
+                        ? PlayerService.getInstance().get(account, channel) : new PlayerResponse(uri);
+                Platform.runLater(() -> {
+                    if (request == refreshVersion.get() && !isDisposed.get()) play(response, true);
+                });
+            } catch (InterruptedException failure) {
+                Thread.currentThread().interrupt();
+            } catch (Exception failure) {
+                Platform.runLater(() -> {
+                    if (request == refreshVersion.get() && !isDisposed.get()) showPlaybackError();
+                });
             }
-        }
+            return null;
+        });
+        Thread.ofVirtual().name("vlc-stream-refresh").start(refreshTask);
     }
 
     protected void showControlBar() {

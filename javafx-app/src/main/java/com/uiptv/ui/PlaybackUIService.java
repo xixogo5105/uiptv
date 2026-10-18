@@ -42,9 +42,20 @@ public final class PlaybackUIService {
     /** Prevent out-of-order URL resolution from repeatedly resetting the embedded player. */
     private static final AtomicLong PLAYBACK_REQUEST_SEQUENCE = new AtomicLong();
     private static final ExecutorService PLAYBACK_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
-    private static Future<?> currentPlaybackResolution;
+    private static volatile Future<?> currentPlaybackResolution;
+    private static Node currentPlaybackSource;
 
     private PlaybackUIService() {
+    }
+
+    /** Invalidates late provider responses as well as interrupting cancellable HTTP work. */
+    public static void cancelPendingPlayback() {
+        PLAYBACK_REQUEST_SEQUENCE.incrementAndGet();
+        if (currentPlaybackSource != null) currentPlaybackSource.setCursor(null);
+        currentPlaybackSource = null;
+        Future<?> pending = currentPlaybackResolution;
+        currentPlaybackResolution = null;
+        if (pending != null) pending.cancel(true);
     }
 
     public static List<PlayerOption> getConfiguredPlayerOptions() {
@@ -67,11 +78,9 @@ public final class PlaybackUIService {
             return;
         }
 
+        cancelPendingPlayback();
         long requestSequence = PLAYBACK_REQUEST_SEQUENCE.incrementAndGet();
-        Future<?> previousResolution = currentPlaybackResolution;
-        if (previousResolution != null) {
-            previousResolution.cancel(true);
-        }
+        currentPlaybackSource = source;
         Configuration configuration = ConfigurationService.getInstance().read();
         PlaybackModeContext context = buildPlaybackModeContext(configuration, request, playbackAccount);
 
@@ -99,7 +108,7 @@ public final class PlaybackUIService {
                 if (Thread.currentThread().isInterrupted()) {
                     return;
                 }
-                // Finish releasing the old stream before creating a token for the next one.
+                // Prepare the fresh session before creating a short-lived provider token.
                 ready.toCompletableFuture().get();
                 if (Thread.currentThread().isInterrupted() || requestSequence != PLAYBACK_REQUEST_SEQUENCE.get()) return;
                 PlayerResponse response = resolvePlayerResponse(request, playbackAccount);
@@ -116,17 +125,30 @@ public final class PlaybackUIService {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (PlaybackResolutionException e) {
-                // Expected timeout or cancellation; keep playback failures non-modal.
+                runLater(() -> {
+                    if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()
+                            && (context.playerPathIsEmbedded() || (isBlank(request.playerPath) && context.useEmbeddedPlayerConfig()))) {
+                        getPlayer().showPlaybackError();
+                    }
+                });
             } catch (Exception e) {
                 runLater(() -> {
                     if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) {
-                        showErrorAlert(request.errorPrefix + e.getMessage());
+                        if (context.playerPathIsEmbedded() || (isBlank(request.playerPath) && context.useEmbeddedPlayerConfig())) {
+                            getPlayer().showPlaybackError();
+                        } else {
+                            showErrorAlert(request.errorPrefix + e.getMessage());
+                        }
                     }
                 });
             } finally {
                 runLater(() -> {
-                    if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) {
+                    if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get() || currentPlaybackResolution == null) {
                         source.setCursor(null);
+                        if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) {
+                            currentPlaybackSource = null;
+                            currentPlaybackResolution = null;
+                        }
                     }
                 });
             }
@@ -152,6 +174,7 @@ public final class PlaybackUIService {
             response.setFromChannel(channel, playbackAccount);
         }
         if (isEmbeddedPlayerPath(playerPath)) {
+            cancelPendingPlayback();
             playEmbedded(response, true);
             return;
         }
@@ -262,7 +285,7 @@ public final class PlaybackUIService {
     }
 
     private static void playPreparedEmbedded(PlayerResponse response) {
-        // play() already stopped and awaited this player before URL resolution.
+        // play() already prepared a fresh session before URL resolution.
         // A second teardown here races startup and needlessly ages the new token.
         if (getPlayerType() == DUMMY) {
             showErrorAlert(I18n.tr("autoEmbeddedPlayerUnavailable"));

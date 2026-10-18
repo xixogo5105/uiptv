@@ -13,7 +13,6 @@ import javafx.scene.image.PixelFormat;
 import javafx.scene.image.WritableImage;
 import javafx.util.Duration;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
-import uk.co.caprica.vlcj.media.Media;
 import uk.co.caprica.vlcj.media.MediaRef;
 import uk.co.caprica.vlcj.media.TrackType;
 import uk.co.caprica.vlcj.media.VideoTrackInfo;
@@ -45,21 +44,36 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     private final Object playerLock = new Object();
     private final ExecutorService playExecutor = Executors.newVirtualThreadPerTaskExecutor();
-    /** Only native start/release commands share this queue; network resolution never occupies it. */
-    private final ExecutorService nativeExecutor = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "vlc-native-media");
-        t.setDaemon(true);
-        return t;
-    });
-    /** Native stop may race a blocked libVLC start, but never blocks JavaFX. */
+    /** Each session serializes its own native start/release; retired sessions never hold up a new one. */
+    private static final class NativeSession {
+        final ExecutorService commands = Executors.newSingleThreadExecutor(r -> {
+            Thread thread = new Thread(r, "vlc-session");
+            thread.setDaemon(true);
+            return thread;
+        });
+        MediaPlayerFactory factory;
+        volatile EmbeddedMediaPlayer player;
+        MediaPlayerEventAdapter events;
+        VlcImageViewVideoSurface surface;
+        boolean admitted;
+        Throwable initializationFailure;
+        final AtomicBoolean playbackRequested = new AtomicBoolean();
+    }
+
+    // A broken native plugin cannot be forcibly interrupted safely. Bound abandoned sessions
+    // rather than accumulating native players/threads indefinitely during repeated clicks.
+    private final java.util.concurrent.Semaphore sessionSlots = new java.util.concurrent.Semaphore(4);
+    private volatile NativeSession session = new NativeSession();
     private final ExecutorService nativeStopExecutor = Executors.newVirtualThreadPerTaskExecutor();
     private final java.util.function.Supplier<MediaPlayerFactory> nativeFactory;
-    private MediaPlayerFactory mediaPlayerFactory;
     private volatile EmbeddedMediaPlayer mediaPlayer;
-    private MediaPlayerEventAdapter mediaPlayerEvents;
-    private VlcImageViewVideoSurface renderingSurface;
     private volatile Future<?> playbackTask;
-    private volatile Future<?> nativePlaybackTask;
+    private volatile boolean playing;
+    private volatile double desiredVolume = 50;
+    private List<TrackOption> audioTracks = List.of();
+    private int selectedAudioTrack = Integer.MIN_VALUE;
+    private String videoCodec = "";
+    private final AtomicBoolean timeUpdateQueued = new AtomicBoolean();
     private ImageView videoImageView;
     private int videoSourceWidth;
     private int videoSourceHeight;
@@ -80,23 +94,51 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             videoImageView.setPreserveRatio(true);
             videoImageView.imageProperty().addListener((obs, oldImage, newImage) -> onRenderedImageChanged(newImage));
         }
-        ensurePlayerInitialized();
+        // Native discovery and initialization run off JavaFX, when playbackReady is requested.
     }
 
-    private void ensurePlayerInitialized() {
-        if (isDisposed.get()) {
-            return;
+    /** Runs only on this session's command thread. Never hold playerLock across native code. */
+    private void ensurePlayerInitialized(NativeSession target) {
+        if (isDisposed.get() || session != target) return;
+        if (target.initializationFailure != null) throw new IllegalStateException("VLC initialization failed", target.initializationFailure);
+        if (target.player != null) return;
+        if (!sessionSlots.tryAcquire()) {
+            throw new IllegalStateException("Previous VLC sessions are still closing; retry playback shortly");
         }
-        synchronized (playerLock) {
-            if (mediaPlayer != null) {
-                return;
+        target.admitted = true;
+        try {
+            target.factory = nativeFactory == null
+                    ? new MediaPlayerFactory(createVlcArgs().toArray(new String[0])) : nativeFactory.get();
+            target.player = target.factory.mediaPlayers().newEmbeddedMediaPlayer();
+            target.surface = new VlcImageViewVideoSurface(videoImageView);
+            target.player.videoSurface().set(target.surface);
+            target.player.controls().setRepeat(false);
+            target.events = createMediaPlayerEvents();
+            target.player.events().addMediaPlayerEventListener(target.events);
+            synchronized (playerLock) {
+                if (session == target && !isDisposed.get()) {
+                    mediaPlayer = target.player;
+                } else {
+                    target.surface.disable();
+                }
             }
-            mediaPlayerFactory = nativeFactory == null ? new MediaPlayerFactory(createVlcArgs().toArray(new String[0])) : nativeFactory.get();
-            mediaPlayer = mediaPlayerFactory.mediaPlayers().newEmbeddedMediaPlayer();
-            configureEmbeddedPlayer();
-            mediaPlayerEvents = createMediaPlayerEvents();
-            mediaPlayer.events().addMediaPlayerEventListener(mediaPlayerEvents);
+        } catch (Throwable failure) {
+            // Retirement will join any concurrent stop before releasing partially built resources.
+            target.initializationFailure = failure;
+            com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VLC native initialization failed", failure);
+            if (failure instanceof LinkageError) Platform.runLater(() -> {
+                if (session == target && !isDisposed.get()) {
+                    com.uiptv.player.MediaPlayerFactory.handleVlcInitFailure(failure);
+                }
+            });
+            throw failure;
         }
+    }
+
+    @Override
+    public void showPlaybackError() {
+        disposeMedia();
+        super.showPlaybackError();
     }
 
     private List<String> createVlcArgs() {
@@ -177,19 +219,24 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
     }
 
-    private void configureEmbeddedPlayer() {
-        renderingSurface = new VlcImageViewVideoSurface(videoImageView);
-        mediaPlayer.videoSurface().set(renderingSurface);
-        mediaPlayer.controls().setRepeat(false);
-        applyDesiredAudioState(mediaPlayer);
+    private void withCurrentPlayer(java.util.function.Consumer<EmbeddedMediaPlayer> action) {
+        NativeSession target = session;
+        try {
+            target.commands.submit(() -> {
+                if (session != target || isDisposed.get() || target.player == null) return;
+                try {
+                    action.accept(target.player);
+                } catch (Exception failure) {
+                    com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VLC session command failed", failure);
+                }
+            });
+        } catch (RejectedExecutionException _) {
+            // A retired session owns its final cleanup.
+        }
     }
 
     private void applyDesiredAudioState() {
-        EmbeddedMediaPlayer player;
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        applyDesiredAudioState(player);
+        withCurrentPlayer(this::applyDesiredAudioState);
     }
 
     private void applyDesiredAudioState(EmbeddedMediaPlayer player) {
@@ -198,7 +245,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
         try {
             player.audio().setMute(isMuted);
-            int vlcVolume = (int) Math.round((volumeSlider != null ? volumeSlider.getValue() : 50) * 2.0);
+            int vlcVolume = (int) Math.round(desiredVolume * 2.0);
             if (vlcVolume < 0) vlcVolume = 0;
             if (vlcVolume > 200) vlcVolume = 200;
             player.audio().setVolume(vlcVolume);
@@ -294,17 +341,33 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void handleMediaChanged(MediaPlayer mp, MediaRef mediaRef) {
-        if (!isCurrentPlayer(mp)) {
-            return;
-        }
-        String mediaUri = extractMediaUri(mediaRef);
-        if (!mediaUri.isBlank()) {
-            Platform.runLater(() -> {
-                if (isCurrentPlayer(mp)) {
-                    updateBingeWatchEpisodeFromActiveMedia(mediaUri);
-                }
+        if (!isCurrentPlayer(mp)) return;
+        withCurrentPlayer(player -> {
+            String uri = player.media().info() == null ? "" : player.media().info().mrl();
+            if (uri != null && !uri.isBlank()) Platform.runLater(() -> {
+                if (isCurrentPlayer(mp)) updateBingeWatchEpisodeFromActiveMedia(uri);
             });
-        }
+        });
+    }
+
+    private void refreshNativeMetadata(MediaPlayer mp) {
+        withCurrentPlayer(player -> {
+            List<TrackOption> tracks = new ArrayList<>();
+            for (TrackDescription track : player.audio().trackDescriptions()) {
+                tracks.add(new TrackOption(track.id(), normalizeTrackLabel(track.description(), "Audio")));
+            }
+            int selected = player.audio().track();
+            List<VideoTrackInfo> video = player.media().info() == null ? List.of() : player.media().info().videoTracks();
+            String codec = video == null || video.isEmpty() ? "" : video.getFirst().codecName();
+            Platform.runLater(() -> {
+                if (!isCurrentPlayer(mp)) return;
+                audioTracks = List.copyOf(tracks);
+                selectedAudioTrack = selected;
+                videoCodec = codec;
+                refreshTrackMenus();
+                refreshRenderedImageStreamInfo();
+            });
+        });
     }
 
     private void handlePlaying(MediaPlayer mp) {
@@ -320,8 +383,12 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             if (!isCurrentPlayer(mp)) {
                 return;
             }
+            playing = true;
+            playbackStarted();
+            refreshNativeMetadata(mp);
+            errorLabel.setVisible(false);
             retryCount = 0;
-            applyDesiredAudioState(currentPlayer);
+            applyDesiredAudioState();
             scheduleAudioStateStartupSync(requestVersion);
             loadingSpinner.setVisible(false);
             btnPlayPause.setGraphic(pauseIcon);
@@ -336,6 +403,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
         Platform.runLater(() -> {
             if (isCurrentPlayer(mp)) {
+                playing = false;
                 btnPlayPause.setGraphic(playIcon);
             }
         });
@@ -353,21 +421,19 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void handleTimeChanged(MediaPlayer mp, long newTime) {
-        if (!isCurrentPlayer(mp)) {
-            return;
-        }
-        final long totalTime;
-        final boolean seekable;
-        try {
-            totalTime = mp.status().length();
-            seekable = mp.status().isSeekable();
-        } catch (Exception _) {
-            return;
-        }
-        Platform.runLater(() -> {
-            if (isCurrentPlayer(mp)) {
-                updatePlaybackTimeUi(newTime, totalTime, seekable);
-                refreshRenderedImageStreamInfo();
+        if (!isCurrentPlayer(mp) || !timeUpdateQueued.compareAndSet(false, true)) return;
+        withCurrentPlayer(player -> {
+            try {
+                long totalTime = player.status().length();
+                boolean seekable = player.status().isSeekable();
+                Platform.runLater(() -> {
+                    if (isCurrentPlayer(mp)) {
+                        updatePlaybackTimeUi(newTime, totalTime, seekable);
+                        refreshRenderedImageStreamInfo();
+                    }
+                });
+            } finally {
+                timeUpdateQueued.set(false);
             }
         });
     }
@@ -395,6 +461,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             if (!isCurrentPlayer(mp)) {
                 return;
             }
+            playing = false;
             btnPlayPause.setGraphic(playIcon);
             timeSlider.setValue(0);
             timeSlider.setDisable(false);
@@ -414,10 +481,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             if (!isCurrentPlayer(mp)) {
                 return;
             }
-            loadingSpinner.setVisible(false);
+            playbackStarted();
             com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VLC media error request=" + mediaRequestVersion.get());
-            errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
-            errorLabel.setVisible(true);
+            showPlaybackError();
             if (isRepeating && isRetrying.get()) {
                 handleRepeat();
             }
@@ -437,35 +503,10 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             if (!isCurrentPlayer(mp)) {
                 return;
             }
-            refreshTrackMenus();
-            applyDesiredAudioState(currentPlayer);
+            refreshNativeMetadata(mp);
+            applyDesiredAudioState();
             scheduleAudioStateRetry(requestVersion, 250);
         });
-    }
-
-    private String extractMediaUri(MediaRef mediaRef) {
-        if (mediaRef == null) {
-            return "";
-        }
-        Media media = null;
-        try {
-            media = mediaRef.newMedia();
-            if (media == null) {
-                return "";
-            }
-            String mediaUri = media.info().mrl();
-            return mediaUri == null ? "" : mediaUri;
-        } catch (Exception _) {
-            return "";
-        } finally {
-            if (media != null) {
-                try {
-                    media.release();
-                } catch (Exception _) {
-                    // Best-effort cleanup for transient media refs from VLC callbacks.
-                }
-            }
-        }
     }
 
     @Override
@@ -480,8 +521,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void playMedia(String uri) {
+        if (session.playbackRequested.get()) disposeMedia();
+        session.playbackRequested.set(true);
         loadingSpinner.setVisible(true);
         long playbackRequestVersion = mediaRequestVersion.incrementAndGet();
+        NativeSession target = session;
         Future<?> previousTask = playbackTask;
         if (previousTask != null) {
             previousTask.cancel(true);
@@ -491,7 +535,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) {
                     return;
                 }
-                playbackReady().toCompletableFuture().get();
+                java.util.concurrent.CompletableFuture.runAsync(() -> ensurePlayerInitialized(target), target.commands).get();
                 if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) return;
                 videoSourceWidth = 0;
                 videoSourceHeight = 0;
@@ -507,14 +551,15 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     return;
                 }
                 String resolvedUri = playUri;
-                nativePlaybackTask = nativeExecutor.submit(() -> {
+                target.commands.submit(() -> {
                     if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) return;
                     long started = System.nanoTime();
                     try {
-                        ensurePlayerInitialized();
-                        EmbeddedMediaPlayer player = mediaPlayer;
+                        ensurePlayerInitialized(target);
+                        EmbeddedMediaPlayer player = target.player;
                         if (player == null || isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) return;
                         long audioRequestVersion = markAudioStateSyncRequested();
+                        applyDesiredAudioState(player);
                         boolean accepted;
                         if (ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
                             accepted = player.media().play(resolvedUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
@@ -525,14 +570,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                                 "VLC start request=" + playbackRequestVersion + " accepted=" + accepted
                                         + " elapsed=" + (System.nanoTime() - started) / 1_000_000 + "ms");
                         if (!accepted) throw new IllegalStateException("libVLC rejected media startup");
-                        // Stop can race with a blocking libVLC media.play() call. In that case
-                        // controls().stop() may run before libVLC has actually attached the
-                        // media; when play() finally returns, the stale request must be stopped
-                        // again or it can continue decoding/rendering after the player is hidden.
-                        if (playbackRequestVersion != mediaRequestVersion.get()
-                                || isDisposed.get() || mediaPlayer != player) {
-                            stopNativePlayback(player);
-                        } else {
+                        // A retired session owns a final stop/release queued behind this call.
+                        if (playbackRequestVersion == mediaRequestVersion.get()
+                                && !isDisposed.get() && mediaPlayer == player) {
                             scheduleAudioStateStartupSync(audioRequestVersion);
                         }
                     } catch (Throwable failure) {
@@ -565,9 +605,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) {
                 return;
             }
-            loadingSpinner.setVisible(false);
-            errorLabel.setText(I18n.tr("autoCouldNotPlayVideoUnsupportedFormatOrNetworkError"));
-            errorLabel.setVisible(true);
+            showPlaybackError();
         });
     }
 
@@ -601,42 +639,31 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         if (task != null) {
             task.cancel(true);
         }
-        Future<?> nativeTask = nativePlaybackTask;
-        nativePlaybackTask = null;
-        if (nativeTask != null) {
-            // Never interrupt libVLC while media.play() is inside native code.
-            // The separate stop request below wakes it safely; release remains
-            // serialized behind the native start on nativeExecutor.
-            nativeTask.cancel(false);
-        }
-        EmbeddedMediaPlayer playerToCleanup;
-        MediaPlayerFactory factoryToCleanup;
-        MediaPlayerEventAdapter eventsToCleanup;
-        VlcImageViewVideoSurface surfaceToCleanup;
+        playing = false;
+        timeUpdateQueued.set(false);
+        audioTracks = List.of();
+        selectedAudioTrack = Integer.MIN_VALUE;
+        videoCodec = "";
+        NativeSession retired;
         synchronized (playerLock) {
-            playerToCleanup = mediaPlayer;
-            factoryToCleanup = mediaPlayerFactory;
-            eventsToCleanup = mediaPlayerEvents;
-            surfaceToCleanup = renderingSurface;
-            if (renderingSurface != null) {
-                renderingSurface.disable();
-                renderingSurface = null;
-            }
+            retired = session;
+            session = new NativeSession();
+            if (retired.surface != null) retired.surface.disable();
             mediaPlayer = null;
-            mediaPlayerEvents = null;
-            mediaPlayerFactory = null;
         }
-        detachNativeRendering(playerToCleanup, eventsToCleanup);
-        // Stop immediately before queuing release. A native media.play() call can block while
-        // opening a live stream; if stop were only queued behind it, hiding the JavaFX node would
-        // leave libVLC decoding/networking until that call happened to return.
-        requestNativeStop(playerToCleanup);
-
-        // Serialize release with native startup, never with HTTP playlist resolution.
-        // The UI detaches immediately; playbackReady lets URL resolution await cleanup off-thread.
-        if (playerToCleanup != null || factoryToCleanup != null) {
-            nativeExecutor.submit(() -> releaseNativePlayer(playerToCleanup, factoryToCleanup));
-        }
+        // Signal stop independently of a blocked start, but join it OFF JavaFX before release.
+        // The queued final stop covers stop arriving before media.play attaches its media.
+        java.util.concurrent.CompletableFuture<Void> stop = java.util.concurrent.CompletableFuture.runAsync(
+                () -> stopNativePlayback(retired.player), nativeStopExecutor);
+        retired.commands.submit(() -> {
+            try {
+                stop.join();
+                detachNativeRendering(retired.player, retired.events);
+                releaseSession(retired);
+            } finally {
+                retired.commands.shutdown();
+            }
+        });
         clearVideoImage();
         videoSourceWidth = 0;
         videoSourceHeight = 0;
@@ -826,20 +853,21 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         }
     }
 
-    private void requestNativeStop(EmbeddedMediaPlayer player) {
-        if (player == null) {
-            return;
-        }
-        try {
-            nativeStopExecutor.submit(() -> stopNativePlayback(player));
-        } catch (RejectedExecutionException _) {
-            // The serialized release path performs a final stop before release.
-        }
-    }
-
     @Override
     public java.util.concurrent.CompletionStage<Void> playbackReady() {
-        return java.util.concurrent.CompletableFuture.runAsync(this::ensurePlayerInitialized, nativeExecutor);
+        NativeSession target = session;
+        return java.util.concurrent.CompletableFuture.runAsync(() -> ensurePlayerInitialized(target), target.commands);
+    }
+
+    private void releaseSession(NativeSession target) {
+        if (target.surface != null) target.surface.disable();
+        releaseNativePlayer(target.player, target.factory);
+        target.player = null;
+        target.factory = null;
+        if (target.admitted) {
+            target.admitted = false;
+            sessionSlots.release();
+        }
     }
 
     private void releaseNativePlayer(EmbeddedMediaPlayer playerToCleanup, MediaPlayerFactory factoryToCleanup) {
@@ -880,105 +908,51 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         } finally {
             playExecutor.shutdownNow();
             nativeStopExecutor.shutdown();
-            nativeExecutor.shutdown(); // Drain queued native releases rather than discarding them.
+            session.commands.shutdown(); // Retired sessions drain their own cleanup queues.
         }
     }
 
     @Override
     protected void setVolume(double volume) {
-        EmbeddedMediaPlayer player;
-        long requestVersion = markAudioStateSyncRequested();
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player != null) {
-            // VLC audio volume range is typically 0-200 while the UI slider is 0-100.
-            // Map slider (0-100) -> vlc (0-200) and clamp.
-            int vlcVolume = (int) Math.round(volume * 2.0);
-            if (vlcVolume < 0) vlcVolume = 0;
-            if (vlcVolume > 200) vlcVolume = 200;
-            player.audio().setVolume(vlcVolume);
-            if (!player.status().isPlaying()) {
-                scheduleAudioStateStartupSync(requestVersion);
-            }
-        }
+        desiredVolume = volume;
+        markAudioStateSyncRequested();
+        applyDesiredAudioState();
     }
 
     @Override
     protected void setMute(boolean mute) {
-        EmbeddedMediaPlayer player;
-        long requestVersion = markAudioStateSyncRequested();
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player != null) {
-            player.audio().setMute(mute);
-            if (!player.status().isPlaying()) {
-                scheduleAudioStateStartupSync(requestVersion);
-            }
-        }
+        markAudioStateSyncRequested();
+        withCurrentPlayer(player -> player.audio().setMute(mute));
     }
 
     @Override
     protected void seek(float position) {
-        EmbeddedMediaPlayer player;
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player != null) {
-            player.controls().setPosition(position);
-        }
+        withCurrentPlayer(player -> player.controls().setPosition(position));
     }
 
     @Override
     protected void seekBySeconds(int deltaSeconds) {
-        EmbeddedMediaPlayer player;
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player == null) {
-            return;
-        }
-        long currentTime = Math.max(0L, player.status().time());
-        long totalTime = player.status().length();
-        long targetTime = currentTime + (deltaSeconds * 1000L);
-        if (totalTime > 0) {
-            targetTime = Math.clamp(targetTime, 0L, totalTime);
-        } else {
-            targetTime = Math.max(0L, targetTime);
-        }
-        player.controls().setTime(targetTime);
+        withCurrentPlayer(player -> {
+            long currentTime = Math.max(0L, player.status().time());
+            long totalTime = player.status().length();
+            long targetTime = currentTime + deltaSeconds * 1000L;
+            player.controls().setTime(totalTime > 0 ? Math.clamp(targetTime, 0L, totalTime) : Math.max(0L, targetTime));
+        });
     }
 
     @Override
     protected boolean isPlaying() {
-        EmbeddedMediaPlayer player;
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        return player != null && player.status().isPlaying();
+        return playing;
     }
 
     @Override
     protected void pauseMedia() {
-        EmbeddedMediaPlayer player;
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player != null) {
-            player.controls().pause();
-        }
+        withCurrentPlayer(player -> player.controls().pause());
     }
 
     @Override
     protected void resumeMedia() {
-        EmbeddedMediaPlayer player;
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player != null) {
-            player.controls().play();
-        }
+        withCurrentPlayer(player -> player.controls().play());
     }
 
     @Override
@@ -993,7 +967,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         double containerWidth = playerContainer.getWidth();
         double containerHeight = playerContainer.getHeight();
         resetVideoImageView(containerWidth, containerHeight);
-        refreshVideoSourceDimensions();
+        captureRenderedImageDimensions();
         if (aspectRatioMode == ASPECT_RATIO_FILL) {
             applyFillZoom(containerWidth, containerHeight);
         }
@@ -1016,25 +990,6 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         videoImageView.setPreserveRatio(true);
         if (aspectRatioMode == ASPECT_RATIO_FILL) {
             applyFillZoom(containerWidth, containerHeight);
-        }
-    }
-
-    private void refreshVideoSourceDimensions() {
-        EmbeddedMediaPlayer player;
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player == null || player.media() == null || player.media().info() == null) {
-            return;
-        }
-        List<VideoTrackInfo> tracks = player.media().info().videoTracks();
-        if (tracks == null || tracks.isEmpty()) {
-            return;
-        }
-        VideoTrackInfo track = tracks.get(0);
-        if (track.width() > 0 && track.height() > 0) {
-            videoSourceWidth = track.width();
-            videoSourceHeight = track.height();
         }
     }
 
@@ -1071,25 +1026,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     protected void updateStreamInfo(int width, int height) {
         ResolutionDisplayUtil.ResolutionDisplay resolution = ResolutionDisplayUtil.normalize(width, height);
-        String codec = "";
-        EmbeddedMediaPlayer player;
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player != null && player.media() != null && player.media().info() != null) {
-            List<VideoTrackInfo> tracks = player.media().info().videoTracks();
-            if (tracks != null && !tracks.isEmpty()) {
-                VideoTrackInfo bestTrack = tracks.get(0);
-                for (VideoTrackInfo track : tracks) {
-                    if (track.width() == width && track.height() == height) {
-                        bestTrack = track;
-                        break;
-                    }
-                }
-                codec = bestTrack.codecName();
-            }
-        }
-        String newLabel = String.format("%n%s%s (vlc)", resolution.shortText(), formatCodecSuffix(codec));
+        String newLabel = String.format("%n%s%s (vlc)", resolution.shortText(), formatCodecSuffix(videoCodec));
         if (!newLabel.equals(lastStreamInfoLabel)) {
             lastStreamInfoLabel = newLabel;
             streamInfoText.setText(newLabel);
@@ -1147,41 +1084,20 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected List<TrackOption> getAudioTrackOptions() {
-        List<TrackOption> options = new ArrayList<>();
-        EmbeddedMediaPlayer player;
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player == null) {
-            return options;
-        }
-        for (TrackDescription track : player.audio().trackDescriptions()) {
-            options.add(new TrackOption(track.id(), normalizeTrackLabel(track.description(), "Audio")));
-        }
-        return options;
+        return audioTracks;
     }
 
     @Override
     protected int getSelectedAudioTrackId() {
-        EmbeddedMediaPlayer player;
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player == null) {
-            return Integer.MIN_VALUE;
-        }
-        return player.audio().track();
+        return selectedAudioTrack;
     }
 
     @Override
     protected void selectAudioTrack(int trackId) {
-        EmbeddedMediaPlayer player;
-        synchronized (playerLock) {
-            player = mediaPlayer;
-        }
-        if (player != null) {
+        withCurrentPlayer(player -> {
             player.audio().setTrack(trackId);
-        }
+            refreshNativeMetadata(player);
+        });
     }
 
     private String normalizeTrackLabel(String label, String fallbackPrefix) {
