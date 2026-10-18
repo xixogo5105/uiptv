@@ -22,41 +22,59 @@ public class M3uParser implements AccountParser {
         for (String line : text.split("\\R")) {
             for (final String potentialUrl : replaceAllNonPrintableChars(line).split(SPACER)) {
                 if (!isValidURL(potentialUrl)) continue;
-
-                String m3uPlayLIstUrl = potentialUrl;
-                String username = null;
-                String password = null;
-                AccountType accountType = AccountType.M3U8_URL;
-
-                if (convertM3uToXtreme && isUrlValidXtremeLink(potentialUrl)) {
-                    accountType = AccountType.XTREME_API;
-                    username = getUserNameFromUrl(potentialUrl);
-                    password = getPasswordNameFromUrl(potentialUrl);
-                    m3uPlayLIstUrl = potentialUrl.split("get.php?")[0];
-                }
-
-                String uniqueName = getUniqueNameFromUrl(m3uPlayLIstUrl);
-                Account account = new Account(uniqueName, username, password, m3uPlayLIstUrl, null, null, null, null, null, null,
-                        accountType, null, m3uPlayLIstUrl, false);
-                if (accountType == AccountType.XTREME_API && isNotBlank(username) && isNotBlank(password)) {
-                    if (groupConvertedXtremeAccounts) {
-                        Account groupedAccount = groupedXtremeAccounts.computeIfAbsent(m3uPlayLIstUrl,
-                                endpoint -> findExistingXtremeAccount(endpoint));
-                        if (groupedAccount != null) {
-                            mergeCredentials(groupedAccount, username, password);
-                            AccountService.getInstance().save(groupedAccount);
-                            savedAccounts.put(groupedAccount.getAccountName(), groupedAccount);
-                            continue;
-                        }
-                        groupedXtremeAccounts.put(m3uPlayLIstUrl, account);
-                    }
-                    mergeCredentials(account, username, password);
-                }
-                AccountService.getInstance().save(account);
-                savedAccounts.put(account.getAccountName(), account);
+                processPotentialUrl(potentialUrl, groupConvertedXtremeAccounts, convertM3uToXtreme,
+                        savedAccounts, groupedXtremeAccounts);
             }
         }
         return new ArrayList<>(savedAccounts.values());
+    }
+
+    private void processPotentialUrl(String potentialUrl, boolean groupConvertedXtremeAccounts,
+                                     boolean convertM3uToXtreme, Map<String, Account> savedAccounts,
+                                     Map<String, Account> groupedXtremeAccounts) {
+        ParsedUrl parsed = parseUrl(potentialUrl, convertM3uToXtreme);
+        Account account = new Account(getUniqueNameFromUrl(parsed.playlistUrl()), parsed.username(), parsed.password(),
+                parsed.playlistUrl(), null, null, null, null, null, null, parsed.accountType(), null,
+                parsed.playlistUrl(), false);
+        if (parsed.isConvertedXtreme()) {
+            if (groupConvertedXtremeAccounts && mergeIntoExistingGroup(parsed.playlistUrl(), parsed.username(),
+                    parsed.password(), savedAccounts, groupedXtremeAccounts)) {
+                return;
+            }
+            if (groupConvertedXtremeAccounts) {
+                groupedXtremeAccounts.put(parsed.playlistUrl(), account);
+            }
+            mergeCredentials(account, parsed.username(), parsed.password());
+        }
+        AccountService.getInstance().save(account);
+        savedAccounts.put(account.getAccountName(), account);
+    }
+
+    private boolean mergeIntoExistingGroup(String playlistUrl, String username, String password,
+                                           Map<String, Account> savedAccounts,
+                                           Map<String, Account> groupedXtremeAccounts) {
+        Account groupedAccount = groupedXtremeAccounts.computeIfAbsent(playlistUrl, this::findExistingXtremeAccount);
+        if (groupedAccount == null) {
+            return false;
+        }
+        mergeCredentials(groupedAccount, username, password);
+        AccountService.getInstance().save(groupedAccount);
+        savedAccounts.put(groupedAccount.getAccountName(), groupedAccount);
+        return true;
+    }
+
+    private ParsedUrl parseUrl(String potentialUrl, boolean convertM3uToXtreme) {
+        if (convertM3uToXtreme && isUrlValidXtremeLink(potentialUrl)) {
+            return new ParsedUrl(potentialUrl.split("get.php?")[0], getUserNameFromUrl(potentialUrl),
+                    getPasswordNameFromUrl(potentialUrl), AccountType.XTREME_API);
+        }
+        return new ParsedUrl(potentialUrl, null, null, AccountType.M3U8_URL);
+    }
+
+    private record ParsedUrl(String playlistUrl, String username, String password, AccountType accountType) {
+        private boolean isConvertedXtreme() {
+            return accountType == AccountType.XTREME_API && isNotBlank(username) && isNotBlank(password);
+        }
     }
 
     private Account findExistingXtremeAccount(String endpoint) {
