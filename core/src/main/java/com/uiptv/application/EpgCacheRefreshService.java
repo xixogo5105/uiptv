@@ -242,6 +242,15 @@ public class EpgCacheRefreshService {
         if(!new EpgApplicationService().isEnabled()) return;
         Token token=token();
         refreshVisible(token);
+        Map<String,List<Channel>> bookmarked=bookmarkedChannels();
+        List<Account> accounts = new ArrayList<>(AccountService.getInstance().getAllById().values());
+        accounts.sort(Comparator.comparing(account -> bookmarked.getOrDefault(account.getDbId(),List.of()).isEmpty()));
+        publishCachedSources(accounts, bookmarked, token);
+        refreshAccounts(accounts, bookmarked, token);
+        commit(token,() -> new EpgCacheDb().prune(System.currentTimeMillis()));
+    }
+
+    private Map<String,List<Channel>> bookmarkedChannels() {
         Map<String,List<Channel>> bookmarked=new HashMap<>();
         for(var resolved:new BookmarkResolver().resolveBookmarks(BookmarkService.getInstance().read())) {
             if(resolved.getAccount()==null || resolved.getAccountAction()!=Account.AccountAction.itv) continue;
@@ -251,8 +260,10 @@ public class EpgCacheRefreshService {
             channel.setChannelId(bookmark.getChannelId()); channel.setName(bookmark.getChannelName());
             bookmarked.computeIfAbsent(resolved.getAccount().getDbId(),_ -> new ArrayList<>()).add(channel);
         }
-        List<Account> accounts = new ArrayList<>(AccountService.getInstance().getAllById().values());
-        accounts.sort(Comparator.comparing(account -> bookmarked.getOrDefault(account.getDbId(),List.of()).isEmpty()));
+        return bookmarked;
+    }
+
+    private void publishCachedSources(List<Account> accounts, Map<String,List<Channel>> bookmarked, Token token) {
         // Publish already imported guides for every account before any provider/network work.
         // Otherwise a later M3U account can wait behind many 30-second native refresh budgets.
         List<String> global = EpgApplicationService.globalSources(ConfigurationService.getInstance().read().getGlobalEpgSource());
@@ -266,6 +277,9 @@ public class EpgCacheRefreshService {
             AtomicBoolean mapped = new AtomicBoolean();
             commit(token,() -> mapped.set(new EpgCacheDb().mapChannels(EpgCacheApplicationService.matches(account,cachedChannels,List.copyOf(cachedSources)),System.currentTimeMillis(),true)));
         }
+    }
+
+    private void refreshAccounts(List<Account> accounts, Map<String,List<Channel>> bookmarked, Token token) {
         // Publish shared XMLTV to every cached channel while native requests stay
         // demand-driven. A background crawl of dozens of native provider
         // endpoints per account made an otherwise idle player consume CPU and
@@ -283,7 +297,6 @@ public class EpgCacheRefreshService {
             List<Channel> nativeChannels = favourites.stream().map(c -> channels.get(c.getChannelId())).toList();
             refreshAccount(account,all,token,16,nativeChannels);
         }
-        commit(token,() -> new EpgCacheDb().prune(System.currentTimeMillis()));
     }
     private static boolean due(EpgCacheDb.SourceState state,long now) {
         long retry=state.warning().isBlank() ? Math.min(state.retryAt(),state.refreshedAt()+refreshMillis()) : state.retryAt();
