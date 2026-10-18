@@ -37,14 +37,10 @@ public class BookmarkResolver {
 
     public List<ResolvedBookmark> resolveBookmarks(List<Bookmark> bookmarks) {
         ResolutionContext context = prepare(bookmarks);
-        List<ResolvedBookmark> resolved = new ArrayList<>();
         if (bookmarks == null) {
-            return resolved;
+            return List.of();
         }
-        for (Bookmark bookmark : bookmarks) {
-            resolved.add(resolveBookmark(bookmark, context));
-        }
-        return resolved;
+        return bookmarks.stream().map(bookmark -> resolveBookmark(bookmark, context)).toList();
     }
 
     public ResolvedBookmark resolveBookmark(Bookmark bookmark, ResolutionContext context) {

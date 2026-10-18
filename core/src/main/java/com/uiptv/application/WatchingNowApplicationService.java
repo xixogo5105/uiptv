@@ -132,9 +132,7 @@ public class WatchingNowApplicationService {
     }
 
     public List<WatchingNowVodRow> listVodRows() {
-        List<WatchingNowVodRow> rows = new ArrayList<>();
-        for (WatchingNowVodResolver.VodRow row : vodResolver.resolveAll()) {
-            rows.add(new WatchingNowVodRow(
+        List<WatchingNowVodRow> rows = vodResolver.resolveAll().stream().map(row -> new WatchingNowVodRow(
                     safe(row.getAccount().getDbId()),
                     safe(row.getAccount().getAccountName()),
                     safe(row.getAccount().getType() != null ? row.getAccount().getType().name() : ""),
@@ -148,8 +146,7 @@ public class WatchingNowApplicationService {
                     safe(row.getMetadata().getDuration()),
                     row.getState().getUpdatedAt(),
                     row.getPlaybackChannel()
-            ));
-        }
+            )).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         rows.sort(Comparator.comparingLong(WatchingNowVodRow::updatedAt).reversed()
                 .thenComparing(WatchingNowVodRow::vodName, String.CASE_INSENSITIVE_ORDER));
         return rows;

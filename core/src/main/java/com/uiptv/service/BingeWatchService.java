@@ -111,16 +111,9 @@ public class BingeWatchService {
         if (session == null || session.episodes() == null || session.episodes().isEmpty()) {
             return List.of();
         }
-        List<PlaylistItem> items = new ArrayList<>(session.episodes().size());
-        for (SessionEpisode episode : session.episodes()) {
-            items.add(new PlaylistItem(
-                    episode.episodeId(),
-                    episode.episodeName(),
-                    episode.season(),
-                    episode.episodeNumber()
-            ));
-        }
-        return items;
+        return session.episodes().stream()
+                .map(episode -> new PlaylistItem(episode.episodeId(), episode.episodeName(), episode.season(), episode.episodeNumber()))
+                .toList();
     }
 
     public String renderPlaylist(String token) {

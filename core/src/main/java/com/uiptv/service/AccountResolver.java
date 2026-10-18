@@ -15,11 +15,7 @@ public class AccountResolver {
     public static final double PIN_SVG_SCALE = 0.075;
 
     public List<AccountRow> resolveAccounts() {
-        List<AccountRow> rows = new ArrayList<>();
-        for (Account account : AccountService.getInstance().getAllById().values()) {
-            rows.add(fromAccount(account));
-        }
-        return rows;
+        return AccountService.getInstance().getAllById().values().stream().map(this::fromAccount).toList();
     }
 
     public AccountRow fromAccount(Account account) {
