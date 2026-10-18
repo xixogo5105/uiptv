@@ -58,7 +58,7 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
         List<Category> categoriesToFetch = categoriesMatchingVisibleIds(liveCategories.rawCategories(), visibleCategoryIds,
                 liveCategories.categoryNormalization());
         CategoryFetchResult fetchResult = fetchChannelsByCategory(account, categoriesToFetch, liveCategories.categoryNormalization(),
-                applyChannelCensoring, logger);
+                applyChannelCensoring);
         summary = summary.addChannels(censoredItemCount(fetchResult.rawChannels, fetchResult.totalChannels,
                 applyChannelCensoring));
 
@@ -302,7 +302,7 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
 
     private CategoryFetchResult fetchChannelsByCategory(Account account, List<Category> rawCategories,
                                                         CategoryNormalization categoryNormalization,
-                                                        boolean applyChannelCensoring, LoggerCallback logger) {
+                                                        boolean applyChannelCensoring) {
         Map<String, List<Channel>> channelsMap = new HashMap<>();
         int totalChannels = 0;
         int rawChannels = 0;
@@ -455,17 +455,4 @@ public class XtremeApiCacheReloader extends AbstractAccountCacheReloader {
         }
     }
 
-    private static String describeFailure(Exception e) {
-        if (e == null) {
-            return "unknown error";
-        }
-        String msg = e.getMessage();
-        if (msg == null && e.getCause() != null) {
-            msg = e.getCause().getMessage();
-        }
-        if (msg == null || msg.isBlank()) {
-            return e.getClass().getSimpleName();
-        }
-        return msg;
-    }
 }

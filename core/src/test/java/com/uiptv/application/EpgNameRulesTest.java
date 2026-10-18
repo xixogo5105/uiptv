@@ -17,8 +17,8 @@ class EpgNameRulesTest extends DbBackedTest {
         db.mapChannels(List.of(new EpgCacheDb.Match(oldId,"station","station","station",false,List.of("source"),"")),now);
         var match=new EpgCacheDb.Match(newId,"station","station","station",false,List.of("source"),"");
         assertTrue(db.mapChannels(List.of(match,match),now,true));
-        assertEquals("Programme",db.schedule(newId,now,now-1000,now+60_000).getFirst().title());
-        assertTrue(db.schedule(oldId,now,now-1000,now+60_000).isEmpty());
+        assertEquals("Programme",db.schedule(newId,now-1000,now+60_000).getFirst().title());
+        assertTrue(db.schedule(oldId,now-1000,now+60_000).isEmpty());
         try(var c=SQLConnection.connect();var q=c.createStatement();var rows=q.executeQuery("SELECT COUNT(*) FROM epg_channel_mapping")) {
             assertTrue(rows.next()); assertEquals(1,rows.getInt(1));
         }

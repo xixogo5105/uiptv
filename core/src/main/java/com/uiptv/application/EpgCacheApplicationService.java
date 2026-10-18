@@ -95,7 +95,7 @@ public class EpgCacheApplicationService {
         var config=ConfigurationService.getInstance().read();
         if(!config.isEpgEnabled() || account==null || channel==null || account.getAction()!=Account.AccountAction.itv) return List.of();
         long now=System.currentTimeMillis();
-        var schedule = new EpgCacheDb().schedule(identity(account,channel,config,overrides(config,account),new com.uiptv.db.EpgNameRulesDb().read().fingerprint()),now,now-6*3_600_000L,now+7*86_400_000L);
+        var schedule = new EpgCacheDb().schedule(identity(account,channel,config,overrides(config,account),new com.uiptv.db.EpgNameRulesDb().read().fingerprint()),now-6*3_600_000L,now+7*86_400_000L);
         if (schedule.stream().anyMatch(p -> p.stop() > now)) return schedule;
         var query = sharedQuery(account,channel,config);
         var shared = new com.uiptv.db.SharedEpgCacheDb().read(List.of(query),now,true).get(query);

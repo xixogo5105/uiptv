@@ -279,7 +279,7 @@ public final class EpgCacheDb {
         } catch(Exception error) { throw failure(error); }
         return result;
     }
-    public List<EpgProgramme> schedule(Identity identity, long now, long from, long until) {
+    public List<EpgProgramme> schedule(Identity identity, long from, long until) {
         try (Connection c=open(false)) {
             if(c==null) return List.of();
             try(var query=c.prepareStatement("SELECT m.source_id,p.title,p.description,p.starts_at,p.stops_at FROM epg_channel_mapping m JOIN epg_programme p ON p.source_id=m.source_id AND p.guide_channel_id=m.guide_channel_id WHERE m.account_id=? AND m.provider_channel_id=? AND m.signature=? AND p.stops_at>? AND p.starts_at<? ORDER BY m.priority,m.source_id,p.starts_at LIMIT 8000")) {

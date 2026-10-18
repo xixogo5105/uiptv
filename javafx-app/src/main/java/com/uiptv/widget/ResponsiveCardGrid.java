@@ -695,17 +695,6 @@ public class ResponsiveCardGrid<T> extends StackPane {
         AsyncImageView.setScrolling(false);
     }
 
-    private void updateVirtualWindowImmediately() {
-        if (!virtualizedActive) {
-            return;
-        }
-        if (!Platform.isFxApplicationThread()) {
-            scheduleVirtualWindowUpdate();
-            return;
-        }
-        updateVirtualWindowGuarded();
-    }
-
     private void updateVirtualWindowGuarded() {
         if (!virtualizedActive) {
             return;

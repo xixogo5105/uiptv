@@ -706,21 +706,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         playerAdjacentControls.getChildren().removeIf(node -> !(node instanceof com.uiptv.ui.PlayerEpgUI));
         setPlayerAdjacentControlsVisible(false);
     }
-    private void addDockedNode(List<DockedNode> controls, Node node) {
-        if (node == null || containsDockedNode(controls, node)) {
-            return;
-        }
-        Parent parent = node.getParent();
-        if (!(parent instanceof Pane pane)) {
-            return;
-        }
-        int index = pane.getChildren().indexOf(node);
-        if (index < 0) {
-            return;
-        }
-        controls.add(createDockedNode(pane, index, node));
-    }
-
     private DockedNode createDockedNode(Pane parent, int index, Node node) {
         if (shouldInlineDockChildren(node) && node instanceof Pane sourcePane && !sourcePane.getChildren().isEmpty()) {
             HBox dockRow = new HBox(8);
@@ -759,21 +744,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         return false;
     }
 
-    private Node nextDockableSibling(Node node) {
-        if (node == null || !(node.getParent() instanceof Pane pane)) {
-            return null;
-        }
-        int index = pane.getChildren().indexOf(node);
-        if (index < 0 || index + 1 >= pane.getChildren().size()) {
-            return null;
-        }
-        Node sibling = pane.getChildren().get(index + 1);
-        if (hasStyle(sibling, "uiptv-pill-bar")) {
-            return sibling;
-        }
-        return null;
-    }
-
     private Node firstNodeWithStyle(Node root, String styleClass) {
         if (root == null) {
             return null;
@@ -788,17 +758,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
                     return match;
                 }
             }
-        }
-        return null;
-    }
-
-    private Node ancestorWithStyle(Node node, String styleClass) {
-        Parent parent = node == null ? null : node.getParent();
-        while (parent != null) {
-            if (hasStyle(parent, styleClass)) {
-                return parent;
-            }
-            parent = parent.getParent();
         }
         return null;
     }

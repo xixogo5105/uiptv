@@ -403,24 +403,6 @@ public class CategoryListUI extends HBox implements SearchTarget {
         return contextMenu;
     }
 
-    private void selectCategoryItem(CategoryItem item, boolean toggle) {
-        if (item == null) {
-            return;
-        }
-        if (toggle) {
-            if (selectedCategoryItems.contains(item)) {
-                selectedCategoryItems.remove(item);
-            } else {
-                selectedCategoryItems.add(item);
-            }
-        } else {
-            selectedCategoryItems.clear();
-            selectedCategoryItems.add(item);
-        }
-        focusedCategoryItem = item;
-        updateCategorySelectionStyles();
-    }
-
     private void syncCategorySelectionFromGrid() {
         selectedCategoryItems.clear();
         selectedCategoryItems.addAll(categoryCardGrid.getSelectedItems());

@@ -202,10 +202,6 @@ public class HttpPlayerJsonServer implements HttpHandler {
         return channel;
     }
 
-    private String buildJsonResponse(ResolvedWebPlayback resolved) {
-        return buildJsonResponse(resolved, null);
-    }
-
     private String buildJsonResponse(ResolvedWebPlayback resolved, PlaybackMediaInspector.MediaInfo mediaInfo) {
         PlayerResponse response = resolved.response();
         JSONObject json = new JSONObject();

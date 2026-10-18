@@ -470,17 +470,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
         // the entire column content and handles scrolling naturally.
     }
 
-    private double managedPrefHeight(Node node) {
-        if (node == null || !node.isManaged() || !node.isVisible()) {
-            return 0;
-        }
-        if (node instanceof Region region) {
-            return Math.max(0, region.prefHeight(-1));
-        }
-        Bounds bounds = node.getLayoutBounds();
-        return bounds == null ? 0 : Math.max(0, bounds.getHeight());
-    }
-
     private void configureWatchingNowEpisodesPanel() {
         watchingNowDetailLayout.getStyleClass().add("watching-now-series-detail-layout");
         watchingNowDetailLayout.setAlignment(Pos.TOP_LEFT);
@@ -1178,20 +1167,6 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
                 .map(VBox.class::cast)
                 .filter(VBox::isFocusTraversable)
                 .toList();
-    }
-
-    private int currentEpisodeCardIndex(List<VBox> cards) {
-        int selectedIndex = selectedEpisodeCard == null ? -1 : cards.indexOf(selectedEpisodeCard);
-        if (selectedIndex >= 0) {
-            return selectedIndex;
-        }
-        Node focusOwner = getScene() == null ? null : getScene().getFocusOwner();
-        for (int index = 0; index < cards.size(); index++) {
-            if (isDescendantOf(focusOwner, cards.get(index))) {
-                return index;
-            }
-        }
-        return 0;
     }
 
     private void scheduleInitialEpisodeFocus() {

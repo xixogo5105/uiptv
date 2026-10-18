@@ -125,7 +125,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         db.mapChannels(List.of(match(id,"guide",List.of("source"))),now);
         assertEquals("First",title(id,now)); assertEquals("Second",title(id,now+1000));
         assertTrue(db.summaries(List.of(id),now+2000).get(id).isEmpty());
-        assertEquals(2,db.schedule(id,now,now-1000,now+2000).size());
+        assertEquals(2,db.schedule(id,now-1000,now+2000).size());
     }
     @Test void genericTitlesSearchLowerPrioritySourcesAndSpecificTitlesRespectPriority() {
         long now=System.currentTimeMillis(); var id=new EpgCacheDb.Identity("a","provider","signature");

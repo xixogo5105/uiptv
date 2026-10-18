@@ -521,20 +521,6 @@ public class PlainEpisodesListUI extends BaseEpisodesListUI {
                 .toList();
     }
 
-    private int currentEpisodeCardIndex(List<Pane> cards) {
-        int selectedIndex = selectedEpisodeItem == null ? -1 : cards.indexOf(renderedCardsByItem.get(selectedEpisodeItem));
-        if (selectedIndex >= 0) {
-            return selectedIndex;
-        }
-        Node focusOwner = getScene() == null ? null : getScene().getFocusOwner();
-        for (int index = 0; index < cards.size(); index++) {
-            if (isDescendantOf(focusOwner, cards.get(index))) {
-                return index;
-            }
-        }
-        return 0;
-    }
-
     private void scheduleInitialEpisodeFocus() {
         Platform.runLater(this::focusSelectedEpisodeIfAppropriate);
     }
