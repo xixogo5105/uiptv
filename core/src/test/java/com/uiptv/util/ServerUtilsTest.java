@@ -73,6 +73,7 @@ class ServerUtilsTest {
     }
 
     @Test
+    @SuppressWarnings("java:S2093")
     void requestAndFileHelpers_boundMemoryAndStreamFiles() throws Exception {
         StubExchange oversized = new StubExchange("/body", "POST", "payload");
         assertThrows(ServerUtils.RequestBodyTooLargeException.class,

@@ -19,7 +19,7 @@ import java.util.Enumeration;
 import java.util.Map;
 
 public final class JettyHttpHandlerAdapter extends HttpServlet {
-    private final HttpHandler delegate;
+    private transient final HttpHandler delegate;
 
     public JettyHttpHandlerAdapter(HttpHandler delegate) {
         this.delegate = delegate;

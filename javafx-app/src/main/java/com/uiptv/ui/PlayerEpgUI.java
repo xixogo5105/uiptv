@@ -5,6 +5,7 @@ import com.uiptv.player.MediaPlayerFactory;
 import com.uiptv.util.I18n;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import java.time.*;
@@ -87,10 +88,43 @@ public class PlayerEpgUI extends VBox {
         // coalesced by cacheChanged() and therefore never restore polling or duplicate reads.
         EpgModeUI.observeCache(this, this::cacheChanged);
         clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
-        sceneProperty().addListener((_, oldScene, newScene) -> {
-            if (oldScene != null) { MediaPlayerFactory.guideContextProperty().removeListener(listener); if (epgSubscription != null) { epgSubscription.close(); epgSubscription = null; } clock.stop(); cacheRefresh.stop(); boundaryWake.stop(); activeContext = null; pendingChange = false; generation.incrementAndGet(); if (guideWorker != null) { guideWorker.interrupt(); guideWorker = null; } display(null); }
-            if (newScene != null) { MediaPlayerFactory.guideContextProperty().addListener(listener); epgSubscription = EpgChangeNotifications.subscribe(EpgChangeNotifications.snapshot().revision(), event -> { var context = MediaPlayerFactory.guideContextProperty().get(); if (context != null && context.account() != null && context.channel() != null && event.affects(context.account().dbId(), context.channel().getChannelId())) Platform.runLater(this::cacheChanged); }); refresh(MediaPlayerFactory.guideContextProperty().get(), true); if (EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) clock.play(); }
+        sceneProperty().addListener((_, oldScene, newScene) -> handleSceneChange(oldScene, newScene));
+    }
+
+    private void handleSceneChange(Scene oldScene, Scene newScene) {
+        if (oldScene != null) {
+            MediaPlayerFactory.guideContextProperty().removeListener(listener);
+            if (epgSubscription != null) {
+                epgSubscription.close();
+                epgSubscription = null;
+            }
+            clock.stop();
+            cacheRefresh.stop();
+            boundaryWake.stop();
+            activeContext = null;
+            pendingChange = false;
+            generation.incrementAndGet();
+            if (guideWorker != null) {
+                guideWorker.interrupt();
+                guideWorker = null;
+            }
+            display(null);
+        }
+        if (newScene == null) {
+            return;
+        }
+        MediaPlayerFactory.guideContextProperty().addListener(listener);
+        epgSubscription = EpgChangeNotifications.subscribe(EpgChangeNotifications.snapshot().revision(), event -> {
+            var context = MediaPlayerFactory.guideContextProperty().get();
+            if (context != null && context.account() != null && context.channel() != null
+                    && event.affects(context.account().dbId(), context.channel().getChannelId())) {
+                Platform.runLater(this::cacheChanged);
+            }
         });
+        refresh(MediaPlayerFactory.guideContextProperty().get(), true);
+        if (EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) {
+            clock.play();
+        }
     }
 
     /** Coalesce unrelated importer events without temporarily removing the player panel. */

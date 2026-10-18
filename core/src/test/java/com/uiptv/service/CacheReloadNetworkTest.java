@@ -44,7 +44,7 @@ class CacheReloadNetworkTest extends DbBackedTest {
                 try {
                     exchange.getResponseHeaders().set("Content-Encoding", "gzip");
                     exchange.sendResponseHeaders(200, 0);
-                    var writer = new java.io.OutputStreamWriter(new java.util.zip.GZIPOutputStream(exchange.getResponseBody()), java.nio.charset.StandardCharsets.UTF_8);
+                    try (var writer = new java.io.OutputStreamWriter(new java.util.zip.GZIPOutputStream(exchange.getResponseBody()), java.nio.charset.StandardCharsets.UTF_8)) {
                     writer.write("{\"js\":{\"data\":[");
                     for (int i = 1; i <= 2000; i++) {
                         if (i > 1) writer.write(",");
@@ -53,7 +53,8 @@ class CacheReloadNetworkTest extends DbBackedTest {
                             .put("cmd_2", "").put("cmd_3", "").put("logo", "").put("tv_genre_id", "1")
                             .put("provider_metadata", "x".repeat(12000)).toString());
                     }
-                    writer.write("]},\"metadata\":{\"ignored\":[1,2,3]}}"); writer.close();
+                    writer.write("]},\"metadata\":{\"ignored\":[1,2,3]}}");
+                    }
                 } finally { exchange.close(); }
                 return;
             }

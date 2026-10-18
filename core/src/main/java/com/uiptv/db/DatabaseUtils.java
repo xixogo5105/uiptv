@@ -385,7 +385,7 @@ public class DatabaseUtils {
         dbStructure.put(DbTable.EPG_NAME_EXCLUSION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("term", "TEXT"),
                 new DataColumn("scope", "TEXT"),
-                new DataColumn("enabled", "INTEGER")
+                new DataColumn("enabled", INTEGER_TYPE)
         )));
         dbStructure.put(DbTable.EPG_SHARED_SOURCE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
