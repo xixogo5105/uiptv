@@ -45,6 +45,8 @@ public class DatabaseUtils {
     private static final String COLUMN_SERIES_ID = "seriesId";
     private static final String COLUMN_STATUS = "status";
     private static final String COLUMN_TITLE = "title";
+    private static final String COLUMN_SOURCE_ID = "source_id";
+    private static final String COLUMN_GUIDE_CHANNEL_ID = "guide_channel_id";
     private static final String COLUMN_UPDATED_AT = "updatedAt";
     private static final Set<String> KNOWN_TABLE_NAMES = new HashSet<>();
     private static final Map<String, List<DataColumn>> dbStructure = new LinkedHashMap<>();
@@ -348,36 +350,36 @@ public class DatabaseUtils {
                 new DataColumn("display_order", INTEGER_TYPE)
         )));
         dbStructure.put(DbTable.EPG_SOURCE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("source_id", "TEXT"),
+                new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
                 new DataColumn("refreshed_at", INTEGER_TYPE),
                 new DataColumn("retry_at", INTEGER_TYPE),
                 new DataColumn("warning", "TEXT")
         )));
         dbStructure.put(DbTable.EPG_PROGRAMME_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("source_id", "TEXT"),
-                new DataColumn("guide_channel_id", "TEXT"),
+                new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
+                new DataColumn(COLUMN_GUIDE_CHANNEL_ID, "TEXT"),
                 new DataColumn("starts_at", "INTEGER"),
                 new DataColumn("stops_at", "INTEGER"),
                 new DataColumn(COLUMN_TITLE, "TEXT"),
                 new DataColumn("description", "BLOB")
         )));
         dbStructure.put(DbTable.EPG_ALIAS_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("source_id", "TEXT"),
+                new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
                 new DataColumn("kind", "INTEGER"),
                 new DataColumn("name", "TEXT"),
-                new DataColumn("guide_channel_id", "TEXT")
+                new DataColumn(COLUMN_GUIDE_CHANNEL_ID, "TEXT")
         )));
         dbStructure.put(DbTable.EPG_CHANNEL_MAPPING_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("account_id", "TEXT"),
                 new DataColumn("provider_channel_id", "TEXT"),
                 new DataColumn("signature", "TEXT"),
-                new DataColumn("source_id", "TEXT"),
-                new DataColumn("guide_channel_id", "TEXT"),
+                new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
+                new DataColumn(COLUMN_GUIDE_CHANNEL_ID, "TEXT"),
                 new DataColumn("priority", "INTEGER")
         )));
         dbStructure.put(DbTable.EPG_CHANNEL_ICON_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("source_id", "TEXT"),
-                new DataColumn("guide_channel_id", "TEXT"),
+                new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
+                new DataColumn(COLUMN_GUIDE_CHANNEL_ID, "TEXT"),
                 new DataColumn("icon_url", "TEXT")
         )));
         dbStructure.put(DbTable.EPG_NAME_EXCLUSION_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
@@ -386,7 +388,7 @@ public class DatabaseUtils {
                 new DataColumn("enabled", "INTEGER")
         )));
         dbStructure.put(DbTable.EPG_SHARED_SOURCE_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
-                new DataColumn("source_id", "TEXT"),
+                new DataColumn(COLUMN_SOURCE_ID, "TEXT"),
                 new DataColumn("priority", "INTEGER"),
                 new DataColumn("countries", "TEXT"),
                 new DataColumn("languages", "TEXT")

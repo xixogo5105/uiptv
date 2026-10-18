@@ -36,6 +36,7 @@ public class EpgBuilderApplicationService {
     private static final String START = "start";
     private static final String DESCRIPTION = "description";
     private static final String TITLE = "title";
+    private static final String SIGNATURE = "signature";
     private static final String BUILDER_PREFIX = "builder:";
 
     private static String computeDatabaseIdentity(String databasePath) throws Exception {
@@ -157,7 +158,7 @@ public class EpgBuilderApplicationService {
                 JSONObject record = channelInventory(account, channel, bookmarkIds.containsKey(channel.getChannelId()),
                         bookmarkIds.getOrDefault(channel.getChannelId(), ""), overrides.optString(channel.getChannelId(), "").strip(), identity.apply(channel).signature());
                 record.put("quality_name", nameRules.quality(channel.getName()));
-                revisions.add(record.getString(ACCOUNT_ID) + "|" + record.getString(PROVIDER_CHANNEL_ID) + "|" + record.getString("signature"));
+                revisions.add(record.getString(ACCOUNT_ID) + "|" + record.getString(PROVIDER_CHANNEL_ID) + "|" + record.getString(SIGNATURE));
                 visitor.accept(record);
             };
             com.uiptv.db.ChannelDb.get().visitCachedLiveChannels(account.getDbId(), emit);
@@ -215,7 +216,7 @@ public class EpgBuilderApplicationService {
         ch.put("guide_id", EpgApplicationService.guideId(account, channel));
         // Raw provider JSON may contain private stream URLs and credentials.
         ch.put("extra_json", "");
-        ch.put("signature", signature);
+        ch.put(SIGNATURE, signature);
         ch.put("is_bookmark", isBookmark);
         ch.put("bookmark_id", bookmarkId);
         ch.put("manual_override", manualOverride);
@@ -288,13 +289,13 @@ public class EpgBuilderApplicationService {
             Target target = new Target(m.getString(ACCOUNT_ID), m.getString(PROVIDER_CHANNEL_ID));
             JSONObject current = targets.get(target);
             String source = BUILDER_PREFIX + hash(m.getString(SOURCE_ID)), guide = m.getString("guide_channel_id");
-            if (current == null || !seen.add(target + "|" + source) || !current.getString("signature").equals(m.getString("signature"))
+            if (current == null || !seen.add(target + "|" + source) || !current.getString(SIGNATURE).equals(m.getString(SIGNATURE))
                     || !sources.containsKey(source) || !sources.get(source).containsKey(guide)
                     || sources.get(source).get(guide).stream().noneMatch(p -> p.stop() > now))
                 throw new IllegalArgumentException("Unknown, duplicate, stale or empty mapping");
             if (current.getBoolean("is_manual_override") && !current.getString("manual_override").equals(guide))
                 throw new IllegalArgumentException("Cannot overwrite manual override");
-            matches.add(new EpgCacheDb.BuilderMatch(new EpgCacheDb.Identity(target.account(), target.provider(), m.getString("signature")),
+            matches.add(new EpgCacheDb.BuilderMatch(new EpgCacheDb.Identity(target.account(), target.provider(), m.getString(SIGNATURE)),
                     source, guide, declared.get(m.getString(SOURCE_ID))));
         }
         Map<String,EpgCacheDb.SharedSource> shared = new LinkedHashMap<>();

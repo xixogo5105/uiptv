@@ -198,8 +198,8 @@ public class ServerUtils {
     }
 
     private static void writeResponse(HttpExchange httpExchange, int statusCode, byte[] responseBytes, String contentType) throws IOException {
-        httpExchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
-        httpExchange.getResponseHeaders().add("Content-Type", contentType);
+        httpExchange.getResponseHeaders().add(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+        httpExchange.getResponseHeaders().add(CONTENT_TYPE_HEADER, contentType);
         httpExchange.sendResponseHeaders(statusCode, responseBytes.length);
         try (OutputStream os = httpExchange.getResponseBody()) {
             os.write(responseBytes);

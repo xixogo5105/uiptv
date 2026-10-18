@@ -2197,7 +2197,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         imdbCacheByPanelKey.put(panelCacheKey(data.account, data.state),
                 new ImdbCacheEntry(
                         new JSONObject(data.seasonInfo.toString()),
-                        new JSONArray(imdb.optJSONArray("episodesMeta") == null
+                        new JSONArray(imdb.optJSONArray(KEY_EPISODES_META) == null
                                 ? "[]"
                         : imdb.optJSONArray(KEY_EPISODES_META).toString())));
     }

@@ -525,7 +525,7 @@ public class HttpProxyStreamServer implements HttpHandler {
             int port = uri.getPort();
             boolean defaultPort = port < 0
                     || ("http".equalsIgnoreCase(scheme) && port == 80)
-                    || ("https".equalsIgnoreCase(scheme) && port == 443);
+                    || (SCHEME_HTTPS.equalsIgnoreCase(scheme) && port == 443);
             return defaultPort ? scheme + "://" + host : scheme + "://" + host + ":" + port;
         } catch (Exception _) {
             return "";
