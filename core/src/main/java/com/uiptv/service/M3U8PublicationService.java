@@ -182,7 +182,11 @@ public class M3U8PublicationService {
             );
             boolean proxyUrls = ConfigurationService.getInstance().isResolveChainAndDeepRedirectsEnabled(account);
             for (PlaylistChannelEntry entry : selectedEntries) {
-                List<String> linesToWrite = proxyUrls
+                // HLS master manifests need the local proxy even when redirect-chain
+                // resolution is disabled. The proxy keeps the master playlist intact
+                // and rewrites variants, keys, and segments for external players.
+                boolean proxyEntry = proxyUrls || containsAdaptiveManifest(entry.lines());
+                List<String> linesToWrite = proxyEntry
                         ? rewriteMediaUrlsWithLocalProxy(entry.lines(), host)
                         : entry.lines();
                 appendPlaylistBlock(result, linesToWrite, account.getAccountName(), entry.categoryName(), categoryMode, singleCategorySource, entry.splitFromMultiCategory());
@@ -284,6 +288,17 @@ public class M3U8PublicationService {
 
     private boolean isAbsoluteMediaUrl(String line) {
         return isNotBlank(line) && line.matches(ABSOLUTE_MEDIA_URL_REGEX) && isPlaylistMediaLine(line);
+    }
+
+    private boolean containsAdaptiveManifest(List<String> lines) {
+        if (lines == null) {
+            return false;
+        }
+        return lines.stream().anyMatch(line -> {
+            String value = line == null ? "" : line.trim().toLowerCase(Locale.ROOT);
+            return value.startsWith("#kodiprop:inputstream.adaptive")
+                    || value.matches(".*\\.m3u8(?:[?#].*)?$");
+        });
     }
 
     private String buildProxiedMediaUrl(String url, String host) {

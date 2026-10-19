@@ -21,6 +21,10 @@
         const normalizedManifestType = String(manifestType || '').trim().toLowerCase();
         const normalizedMode = String(mode || '').trim().toLowerCase();
         const candidates = getSourceUrlCandidates(url).map(value => value.toLowerCase());
+        if (normalizedManifestType === 'hls' || normalizedManifestType === 'm3u8'
+            || normalizedManifestType === 'dash' || normalizedManifestType === 'mpd') {
+            return false;
+        }
         if (candidates.some(value => /\.m3u8?(?:[?#]|$)/i.test(value))) return false;
         const explicitlyTransportStream = normalizedManifestType === 'ts'
             || normalizedManifestType === 'mpegts'

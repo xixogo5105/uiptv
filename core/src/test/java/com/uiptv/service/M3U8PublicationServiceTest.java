@@ -115,6 +115,21 @@ class M3U8PublicationServiceTest extends DbBackedTest {
         assertTrue(result.contains("\n../sub/stream.m3u8\n"));
     }
 
+    @Test
+    void getPublishedM3u8_proxiesAdaptiveManifestWithoutRedirectResolution() throws Exception {
+        java.io.File playlistFile = tempDir.resolve("adaptive-manifest.m3u8").toFile();
+        Files.writeString(playlistFile.toPath(), "#EXTM3U\n"
+                + "#EXTINF:-1,Adaptive Channel\n"
+                + "#KODIPROP:inputstreamaddon=inputstream.adaptive\n"
+                + "#KODIPROP:inputstream.adaptive.manifest_type=hls\n"
+                + "http://test.com/live\n", StandardCharsets.UTF_8);
+        saveAndSelectAccount("AdaptiveAccount", playlistFile, false);
+
+        String result = M3U8PublicationService.getInstance().getPublishedM3u8("127.0.0.1:8888");
+
+        assertTrue(result.contains("http://127.0.0.1:8888/proxy-stream?src=http%3A%2F%2Ftest.com%2Flive"));
+    }
+
     private void saveAndSelectAccount(String name, java.io.File playlistFile, boolean resolveChainAndDeepRedirects) {
         Account account = new Account(name, "user", "pass", "http://test.com", "00:11:22:33:44:55", null, null, null, null, null, AccountType.M3U8_LOCAL, null, playlistFile.getAbsolutePath(), false);
         account.setResolveChainAndDeepRedirects(resolveChainAndDeepRedirects);

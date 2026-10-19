@@ -3654,14 +3654,17 @@ createApp({
                 } else if (isTs) {
                     await loadMpegTs({...channel, url: resolveMpegTsPlaybackUrl(uri)}, requestId);
                 } else if (isHls && prefersNativeHls) {
-                    await loadNative(channel, requestId);
+                    const proxyUrl = playbackUtils.buildProxyStreamUrl(uri);
+                    await loadNative(proxyUrl ? {...channel, url: proxyUrl} : channel, requestId);
                 } else if (isHls) {
                     // Modern HLS controls and adaptive tracks; Shaka remains an independent fallback.
+                    const proxyUrl = playbackUtils.buildProxyStreamUrl(uri);
+                    const adaptiveChannel = proxyUrl ? {...channel, url: proxyUrl} : channel;
                     try {
-                        await loadVideoJs(channel, requestId);
+                        await loadVideoJs(adaptiveChannel, requestId);
                     } catch (videoJsError) {
                         console.warn('Video.js HLS playback failed, trying Shaka fallback', videoJsError);
-                        await loadShaka(channel, requestId);
+                        await loadShaka(adaptiveChannel, requestId);
                     }
                 } else if (canNative) {
                     await loadNative(channel, requestId);
