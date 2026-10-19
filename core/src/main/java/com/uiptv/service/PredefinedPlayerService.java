@@ -16,6 +16,7 @@ public class PredefinedPlayerService implements AccountPlayerService {
         com.uiptv.util.AppLog.addInfoLog(PredefinedPlayerService.class, "Using direct channel command for " + account.getType() + ".");
         
         String finalUrl = PlayerUrlUtils.normalizeStreamUrl(account, PlayerUrlUtils.resolveAndProcessUrl(rawUrl));
+        com.uiptv.util.AppLog.addInfoLog(PredefinedPlayerService.class, "Final resolved URL: " + finalUrl);
         com.uiptv.util.AppLog.addInfoLog(PredefinedPlayerService.class, "Playback URL resolved.");
         
         PlayerResponse response = new PlayerResponse(finalUrl);

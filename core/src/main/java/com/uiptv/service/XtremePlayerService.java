@@ -21,6 +21,7 @@ public class XtremePlayerService implements AccountPlayerService {
         com.uiptv.util.AppLog.addInfoLog(XtremePlayerService.class, "Constructed fresh Xtreme URL for " + account.getAction());
         
         String finalUrl = PlayerUrlUtils.normalizeStreamUrl(account, PlayerUrlUtils.resolveAndProcessUrl(rawUrl));
+        com.uiptv.util.AppLog.addInfoLog(XtremePlayerService.class, "Final resolved URL: " + finalUrl);
         com.uiptv.util.AppLog.addInfoLog(XtremePlayerService.class, "Playback URL resolved.");
         
         PlayerResponse response = new PlayerResponse(finalUrl);
@@ -32,7 +33,7 @@ public class XtremePlayerService implements AccountPlayerService {
         if (account == null || channel == null) return "";
         String fallbackCmd = PlayerUrlUtils.resolveBestChannelCmd(account, channel);
         if (isNotBlank(fallbackCmd)) {
-            com.uiptv.util.AppLog.addInfoLog(XtremePlayerService.class, "Found a channel playback fallback command.");
+            com.uiptv.util.AppLog.addInfoLog(XtremePlayerService.class, "Found channel cmd: " + fallbackCmd);
         }
         String baseUrl = resolveBaseUrl(account);
         if (isBlank(baseUrl)) {
