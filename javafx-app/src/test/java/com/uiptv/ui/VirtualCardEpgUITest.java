@@ -14,6 +14,8 @@ import java.awt.image.BufferedImage;
 import java.lang.reflect.*;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import javax.imageio.ImageIO;
 import static com.uiptv.testsupport.FxTestSupport.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -194,6 +196,58 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
                 support.stop(); return null;
             });
         } finally { runOnFxThread(() -> { ((CardEpgSupport) state[0]).stop(); return null; }); }
+    }
+
+    @Test void visibleCardsHydrateEpgInRenderedOrder() throws Exception {
+        var resolvedOrder = new ArrayList<String>();
+        var firstBatch = new CountDownLatch(1);
+        final CardEpgSupport[] state = new CardEpgSupport[1];
+        new EpgSettingsApplicationService().setEnabled(true);
+        for (int i = 0; i < 200 && !runOnFxThread(EpgModeUI::isFeatureEnabled); i++) Thread.sleep(10);
+        assertTrue(runOnFxThread(EpgModeUI::isFeatureEnabled));
+        try (var services = mockConstruction(LiveGuideApplicationService.class, (mock, context) -> {
+                 when(mock.cachedSummaries(anyList())).thenAnswer(invocation -> {
+                     List<LiveGuideApplicationService.Row> rows = invocation.getArgument(0);
+                     return rows;
+                 });
+                 when(mock.cachedIcons(anyList())).thenReturn(new IdentityHashMap<>());
+             })) {
+            state[0] = runOnFxThread(() -> {
+                VBox cards = new VBox();
+                StackPane owner = new StackPane(cards);
+                CardEpgSupport support = new CardEpgSupport(owner);
+                for (int i = 0; i < 3; i++) {
+                    String name = "Channel " + i;
+                    Channel channel = new Channel(); channel.setName(name); channel.setChannelId("id-" + i);
+                    VBox card = new VBox(new Label(name));
+                    card.setMinHeight(100); card.setPrefHeight(100); card.setMaxHeight(100);
+                    support.bind(card, () -> {
+                        synchronized (resolvedOrder) {
+                            resolvedOrder.add(name);
+                            if (resolvedOrder.size() == 3) firstBatch.countDown();
+                        }
+                        return new LiveGuideApplicationService.Row("account", "Account", "", channel, List.of());
+                    });
+                    cards.getChildren().add(card);
+                }
+                Scene scene = new Scene(owner, 400, 360);
+                owner.resize(400, 360); scene.getRoot().applyCss(); scene.getRoot().layout();
+                support.refreshMode();
+                ((javafx.animation.PauseTransition) field(support, "pulse").get(support)).stop();
+                ((javafx.animation.PauseTransition) field(support, "layoutRetry").get(support)).stop();
+                invoke(support, "refresh", new Class<?>[]{});
+                return support;
+            });
+            assertTrue(firstBatch.await(5, TimeUnit.SECONDS));
+            synchronized (resolvedOrder) {
+                assertEquals(List.of("Channel 0", "Channel 1", "Channel 2"), resolvedOrder);
+            }
+        } finally {
+            if (state[0] != null) runOnFxThread(() -> {
+                state[0].stop();
+                return null;
+            });
+        }
     }
 
     @Test void playerGuideStaysInsideVideoAndClosesWithoutAnotherWindow() throws Exception {

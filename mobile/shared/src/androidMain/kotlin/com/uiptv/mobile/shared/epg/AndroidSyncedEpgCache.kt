@@ -118,7 +118,11 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
             if (!row.moveToFirst()) return ""
             val metadata = runCatching { JSONObject(row.getString(1).orEmpty()) }.getOrDefault(JSONObject())
             val fields = if (row.getString(0) == "XTREME_API") listOf("epg_channel_id") else listOf("xmltv_id","epg_id","tvg-id")
-            fields.firstNotNullOfOrNull { metadata.optString(it).trim().takeIf { value -> value.isNotBlank() } }
+            fields.firstNotNullOfOrNull {
+                MobileXmltvGuide.usableGuideIdentity(metadata.optString(it)).takeIf { value ->
+                    value.isNotBlank() && !(row.getString(0) == "STALKER_PORTAL" && value == providerId)
+                }
+            }
                 ?: if (row.getString(0) in listOf("STALKER_PORTAL","XTREME_API")) "" else providerId
         }
 
@@ -197,7 +201,7 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
             .getOrNull().orEmpty().trim()
         val native = hash("native:utc-v2:$accountId|${fields[0].ifBlank { "STALKER_PORTAL" }}|" +
             "${fields[1].ifBlank { fields[2] }}|${fields[3]}|${fields[4]}|${fields[5]}|$providerId")
-        return hash("$native|${fields[6]}|${fields[7]}|${config.first}|$override|${fields[8]}|${fields[9]}|${AndroidEpgNameRules.fingerprint(rules)}")
+        return hash("$native|${fields[6]}|${fields[7]}|${config.first}|$override|${fields[8]}|${fields[9]}|${AndroidEpgNameRules.fingerprint(rules)}|territory-v1")
     }
 
     private fun hash(value: String) = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))

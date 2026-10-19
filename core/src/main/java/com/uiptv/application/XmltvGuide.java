@@ -146,6 +146,17 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
 
     public static String normalize(String name) { return name == null ? "" : WHITESPACE.matcher(name.strip().toLowerCase(Locale.ROOT)).replaceAll(" "); }
 
+    /**
+     * Normalise an XMLTV/provider guide identifier without discarding any
+     * meaningful identifier token. Providers commonly vary only the
+     * punctuation and case, for example StarGoldSelect.in vs
+     * STAR.GOLD.SELECT.in.
+     */
+    public static String normalizeIdentifier(String value) {
+        if (value == null) return "";
+        return value.strip().toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
+    }
+
     /** Strip playlist presentation labels, retaining HD/SD, regions and time shifts. */
     public static String normalizeDisplayName(String name) {
         return AVAILABILITY.matcher(DISPLAY_RESOLUTION.matcher(normalize(name)).replaceAll("")).replaceAll("").strip();

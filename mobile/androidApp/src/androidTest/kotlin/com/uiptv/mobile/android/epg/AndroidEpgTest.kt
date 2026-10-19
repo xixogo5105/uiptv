@@ -138,7 +138,7 @@ class AndroidEpgTest {
                 "name" to "Synced station", "extraJson" to "{\"xmltv_id\":\"station\"}"))
             db.execSQL("INSERT INTO epg_source VALUES(?,?,?,?)", arrayOf<Any>(source, now, now + 1_800_000, ""))
             // Golden signature is verified by the Java EpgPersistentCacheTest as well.
-            val signature = "381abb99d33c36351340b2c2cf4138da204b2e1b734920a6daeb88d691a8d70d"
+            val signature = "6c5946350f540c3a39861441107fbca5da02de06bc25b0b1e2175b100a6d48ad"
             db.execSQL("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)", arrayOf<Any>(accountId.toString(), "provider-stream", signature, source, "station", 0))
             db.execSQL("INSERT INTO epg_programme VALUES(?,?,?,?,?,?)", arrayOf<Any>(source, "station", now - 60_000, now + 3_600_000, "Synced film", compress("Synced full description")))
             db.execSQL("INSERT INTO epg_channel_icon VALUES(?,?,?)", arrayOf<Any>(source, "station", "https://example.invalid/station.png"))

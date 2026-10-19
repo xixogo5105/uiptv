@@ -3,6 +3,13 @@ package com.uiptv.mobile.shared.epg
 import kotlin.test.*
 
 class MobileEpgTest {
+    @Test
+    fun providerPlaceholderGuideIdsAreTreatedAsMissing() {
+        assertEquals("", MobileXmltvGuide.usableGuideIdentity("DEFAULT"))
+        assertEquals("", MobileXmltvGuide.usableGuideIdentity(" n/a "))
+        assertEquals("STAR.GOLD.THRILLS.in", MobileXmltvGuide.usableGuideIdentity("STAR.GOLD.THRILLS.in"))
+    }
+
     @Test fun playlistResolutionLabelsRetainExactHdSdAndRegionalIdentity() {
         val sd = MobileEpgProgramme("SD programme", "", 1000, 2000)
         val hd = sd.copy(title = "HD programme")

@@ -2,6 +2,8 @@ package com.uiptv.db;
 
 import com.uiptv.application.EpgProgramme;
 import com.uiptv.application.EpgChangeNotifications;
+import com.uiptv.application.EpgTerritory;
+import com.uiptv.application.XmltvGuide;
 import java.nio.file.*;
 import java.sql.*;
 import java.util.*;
@@ -162,7 +164,7 @@ public final class EpgCacheDb {
     }
 
     /** Persist every matched source in priority order; quality selection happens at query time. */
-    private record Link(String signature,String source,String guide,int priority) { }
+    private record Link(String signature,String source,String guide,int priority,Set<String> countries) { }
     public boolean mapChannels(List<Match> matches,long now) { return mapChannels(matches,now,false); }
     public boolean mapChannels(List<Match> matches,long now,boolean preserveExistingMappings) {
         // A provider channel may be cached in multiple categories. Queue just one
@@ -181,21 +183,35 @@ public final class EpgCacheDb {
                  var delete = c.prepareStatement("DELETE FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=?");
                  var insert = c.prepareStatement("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)")) {
                 var rules = new EpgNameRulesDb().read(c);
+                Map<String,String> declaredCountries = new HashMap<>();
+                try (var metadata = c.createStatement(); var rows = metadata.executeQuery("SELECT source_id,countries FROM epg_shared_source")) {
+                    while (rows.next()) declaredCountries.put(rows.getString(1), rows.getString(2));
+                }
                 record Aliases(Map<String,String> display, Map<String,String> quality) { }
                 Map<String,Aliases> indexes = new HashMap<>();
                 for (Match match : unique.values()) {
+                    EpgTerritory.Context context = EpgTerritory.parse(match.name());
+                    Set<String> expectedCountries = context.territories();
                     List<Link> previous=new ArrayList<>();
                     existing.setString(1,match.identity().accountId()); existing.setString(2,match.identity().providerId());
-                    try(var rows=existing.executeQuery()) { while(rows.next()) previous.add(new Link(rows.getString(1),rows.getString(2),rows.getString(3),rows.getInt(4))); }
+                    try(var rows=existing.executeQuery()) {
+                        while(rows.next()) {
+                            String source = rows.getString(2); String guide = rows.getString(3);
+                            previous.add(new Link(rows.getString(1), source, guide, rows.getInt(4),
+                                    EpgTerritory.sourceCountries(declaredCountries.get(source), source, guide)));
+                        }
+                    }
                     if (preserveExistingMappings && previous.stream().anyMatch(prior -> prior.signature().equals(match.identity().signature()))) continue;
                     List<Link> links=new ArrayList<>();
+                    String lookupName = context.name();
                     int priority=0;
                     for (String candidate : match.sources()) {
+                        if (!match.explicit() && context.ambiguous()) { priority++; continue; }
                         String guide="";
                         direct.setString(1,candidate); direct.setString(2,candidate.equals(match.nativeSource()) ? match.identity().providerId() : match.guideId()); direct.setLong(3,now);
                         try (var row = direct.executeQuery()) { if (row.next()) guide = row.getString(1); }
                         if (guide.isBlank() && !match.explicit()) {
-                            alias.setString(1,candidate); alias.setInt(2,0); alias.setString(3,match.name());
+                            alias.setString(1,candidate); alias.setInt(2,0); alias.setString(3,lookupName);
                             try (var row=alias.executeQuery()) { if (row.next()) guide=row.getString(1); }
                             if (!guide.isBlank()) {
                                 direct.setString(2,guide);
@@ -212,18 +228,27 @@ public final class EpgCacheDb {
                                     index=new Aliases(rules.aliases(names,false),rules.aliases(names,true));
                                     indexes.put(candidate,index);
                                 }
-                                guide=index.display().getOrDefault(rules.display(match.name()),"");
-                                if (guide.isBlank()) guide=index.quality().getOrDefault(rules.quality(match.name()),"");
+                                guide=index.display().getOrDefault(rules.display(lookupName),"");
+                                if (guide.isBlank()) guide=index.quality().getOrDefault(rules.quality(lookupName),"");
                             }
                         }
                         if (!guide.isBlank()) {
-                            links.add(new Link(match.identity().signature(),candidate,guide,priority));
+                            Set<String> actualCountries = EpgTerritory.sourceCountries(declaredCountries.get(candidate), candidate, guide);
+                            if (match.explicit() || !EpgTerritory.conflicts(expectedCountries, actualCountries))
+                                links.add(new Link(match.identity().signature(),candidate,guide,priority,actualCountries));
                         }
                         priority++;
                     }
                     for (Link prior : previous) {
                         if (prior.source().startsWith("builder:") && prior.signature().equals(match.identity().signature())
                                 && links.stream().noneMatch(link -> link.source().equals(prior.source()))) links.add(prior);
+                    }
+                    if (!match.explicit() && !context.ambiguous()) {
+                        if (!expectedCountries.isEmpty() && links.stream().anyMatch(link -> !link.countries().isEmpty()))
+                            links.removeIf(link -> link.countries().isEmpty());
+                        if (expectedCountries.isEmpty() && links.stream().anyMatch(left -> links.stream().anyMatch(right ->
+                                !left.guide().equals(right.guide()) && EpgTerritory.disjointKnown(left.countries(), right.countries()))))
+                            links.clear();
                     }
                     if(previous.equals(links)) continue;
                     changed=true;

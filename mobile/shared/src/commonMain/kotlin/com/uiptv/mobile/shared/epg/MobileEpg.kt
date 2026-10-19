@@ -38,6 +38,14 @@ data class MobileXmltvGuide(
         ?: if (nameRules==null) icons[nameId(name)] ?: icons[iconAliases[normalizeQuality(name)]].orEmpty()
         else icons[ruleIconDisplayAliases[nameRules.display(name)]] ?: icons[ruleIconQualityAliases[nameRules.quality(name)]].orEmpty()
     companion object {
+        private val guideIdPlaceholders = setOf("", "DEFAULT", "NONE", "N/A", "NA", "UNKNOWN", "UNAVAILABLE", "NULL", "-")
+
+        /** Provider feeds commonly emit these values when no XMLTV identity exists. */
+        fun usableGuideIdentity(value: String?): String {
+            val trimmed = value?.trim().orEmpty()
+            return if (trimmed.uppercase() in guideIdPlaceholders) "" else trimmed
+        }
+
         fun normalize(value: String) = value.trim().lowercase().replace(Regex("\\s+"), " ")
         fun normalizeDisplayName(value: String): String = normalize(value)
             .replace(Regex("\\s*\\((?:144|240|360|480|540|576|720|1080|1440|2160|4320)[pi]\\)"), "")

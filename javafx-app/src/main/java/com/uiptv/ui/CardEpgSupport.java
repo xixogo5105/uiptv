@@ -19,6 +19,11 @@ import java.util.function.Supplier;
 /** One cancellable loader per virtual grid. Detached cards retain no schedule or timer. */
 final class CardEpgSupport {
     private static final String NO_PROGRAMME_DETAILS = "epgNoProgrammeDetails";
+    /**
+     * Hydrate a bounded first window in display order. The grid itself remains virtualized, so
+     * this is a cap on EPG work rather than a request to render or retain the whole catalogue.
+     */
+    private static final int EPG_BATCH_SIZE = Math.max(1, Integer.getInteger("uiptv.cardEpg.batchSize", 25));
     private final Node owner;
     private final Map<Region, Binding> attached = new IdentityHashMap<>();
     private final Map<Region, Supplier<LiveGuideApplicationService.Row>> pending = new WeakHashMap<>();
@@ -31,7 +36,7 @@ final class CardEpgSupport {
     private Thread worker;
     private Thread popupWorker;
     private long popupRevision;
-    private long revision;
+    private volatile long revision;
     private int layoutRetryAttempts;
     private javafx.stage.Popup popup;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
@@ -211,7 +216,14 @@ final class CardEpgSupport {
                     if (cardVisible) removeCardBoundsListener(entry.getKey());
                     return cardVisible && now >= entry.getValue().refreshAt;
                 })
-                .limit(16).map(entry -> Map.entry(entry.getKey(), entry.getValue())).toList();
+                // IdentityHashMap is intentional for card identity, but its iteration order is
+                // deliberately unspecified. Sort by the actual rendered position so the first
+                // EPG batch follows the same top-to-bottom, left-to-right order as the cards.
+                .sorted(Comparator
+                        .comparingDouble((Map.Entry<Region, Binding> entry) -> screenBounds(entry.getKey()).getMinY())
+                        .thenComparingDouble(entry -> screenBounds(entry.getKey()).getMinX()))
+                .limit(EPG_BATCH_SIZE)
+                .map(entry -> Map.entry(entry.getKey(), entry.getValue())).toList();
         if (cards.isEmpty()) {
             boolean waitingForLayout = attached.keySet().stream().anyMatch(card ->
                     card.getScene() != null && (card.getWidth() <= 0 || card.getHeight() <= 0));
@@ -267,6 +279,10 @@ final class CardEpgSupport {
                 Platform.runLater(() -> { if (request == revision) pulse.playFromStart(); });
             }
         });
+    }
+
+    private static Bounds screenBounds(Region card) {
+        return card.localToScene(card.getBoundsInLocal());
     }
 
     private void restoreSummaries() {

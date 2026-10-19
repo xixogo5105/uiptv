@@ -10,6 +10,17 @@ import java.util.*;
 
 /** Read-only presentation boundary. No downloads, parsing, matching or cache writes occur here. */
 public class EpgCacheApplicationService {
+    private static final Set<String> GUIDE_ID_PLACEHOLDERS = Set.of(
+            "", "DEFAULT", "NONE", "N/A", "NA", "UNKNOWN", "UNAVAILABLE", "NULL", "-"
+    );
+
+    /** Provider feeds commonly emit these values when no XMLTV identity exists. */
+    static String usableGuideIdentity(String value) {
+        if (value == null) return "";
+        String trimmed = value.strip();
+        return GUIDE_ID_PLACEHOLDERS.contains(trimmed.toUpperCase(Locale.ROOT)) ? "" : trimmed;
+    }
+
     static String hash(String value) {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
         catch(Exception error) { throw new IllegalStateException(error); }
@@ -27,7 +38,8 @@ public class EpgCacheApplicationService {
     private static EpgCacheDb.Identity identity(Account account,Channel channel,Configuration config,org.json.JSONObject mappings, String rulesFingerprint) {
         String override=mappings.optString(channel.getChannelId(),"").strip();
         String signature=hash(nativeSource(account,channel)+"|"+account.getEpg()+"|"+account.getM3u8Path()+"|"+config.getGlobalEpgSource()
-                +"|"+override+"|"+channel.getExtraJson()+"|"+channel.getName()+"|"+rulesFingerprint);
+                +"|"+override+"|"+channel.getExtraJson()+"|"+channel.getName()+"|"+rulesFingerprint
+                +"|"+EpgTerritory.fingerprintValue());
         return new EpgCacheDb.Identity(Objects.toString(account.getDbId(),""),Objects.toString(channel.getChannelId(),""),signature);
     }
     /** Opaque identity shared by presentation, refresh and external inventory/import. */
@@ -50,19 +62,51 @@ public class EpgCacheApplicationService {
         return overrides(config, account).optString(channel.getChannelId(), "").strip();
     }
     private com.uiptv.db.SharedEpgCacheDb.Query sharedQuery(Account account, Channel channel, Configuration config) {
-        String override = manualOverride(account, channel, config);
-        String guide = EpgApplicationService.guideId(account, channel);
+        String override = usableGuideIdentity(manualOverride(account, channel, config));
+        String guide = usableGuideIdentity(EpgApplicationService.guideId(account, channel));
+        boolean declaredGuide = hasDeclaredGuideIdentity(account, channel);
         if (account.getType() == AccountType.STALKER_PORTAL) {
             guide = "";
             try {
                 var metadata = new org.json.JSONObject(channel.getExtraJson());
                 for (String field : List.of("xmltv_id", "epg_id", "tvg-id")) {
-                    if (!metadata.optString(field).isBlank()) { guide = metadata.getString(field).strip(); break; }
+                    String candidate = providerGuideIdentity(account, channel, metadata.optString(field));
+                    if (!candidate.isBlank()) { guide = candidate; break; }
                 }
             } catch (Exception _) { /* Provider channel IDs are not shared guide IDs. */ }
         }
+        // Provider/XMLTV guide identities are authoritative when present. The
+        // shared resolver still permits punctuation/case-equivalent IDs, but
+        // must not fall back to a loose name match that could select another
+        // country's schedule for a native provider channel.
         return new com.uiptv.db.SharedEpgCacheDb.Query(override.isBlank() ? guide : override,
-                channel.getName(), !override.isBlank());
+                channel.getName(), !override.isBlank() || declaredGuide);
+    }
+    private boolean prefersSharedIdentity(Account account, Channel channel, Configuration config) {
+        return nativeProvider(account) && (!usableGuideIdentity(manualOverride(account, channel, config)).isBlank()
+                || hasGuideMetadata(account, channel));
+    }
+    private boolean hasDeclaredGuideIdentity(Account account, Channel channel) {
+        return guideMetadata(account, channel).stream().map(value -> providerGuideIdentity(account, channel, value))
+                .anyMatch(value -> !value.isBlank());
+    }
+    private String providerGuideIdentity(Account account, Channel channel, String value) {
+        String candidate = usableGuideIdentity(value);
+        if (account.getType() == AccountType.STALKER_PORTAL && candidate.equals(channel.getChannelId().strip())) return "";
+        return candidate;
+    }
+    private boolean hasGuideMetadata(Account account, Channel channel) {
+        return guideMetadata(account, channel).stream().anyMatch(value -> !value.strip().isBlank());
+    }
+    private List<String> guideMetadata(Account account, Channel channel) {
+        try {
+            var metadata = new org.json.JSONObject(channel.getExtraJson());
+            List<String> fields = account.getType() == AccountType.XTREME_API
+                    ? List.of("epg_channel_id") : List.of("xmltv_id", "epg_id", "tvg-id");
+            return fields.stream().map(field -> metadata.optString(field, "")).toList();
+        } catch (Exception _) {
+            return List.of();
+        }
     }
     public Map<Channel,List<EpgProgramme>> summaries(Account account, List<Channel> channels) {
         var config=ConfigurationService.getInstance().read();
@@ -73,9 +117,16 @@ public class EpgCacheApplicationService {
         var ids=channels.stream().map(c -> identity(account,c,config,mappings,rules.fingerprint())).toList();
         var records=new EpgCacheDb().summaries(ids,System.currentTimeMillis());
         for(int i=0;i<channels.size();i++) result.put(channels.get(i),records.getOrDefault(ids.get(i),List.of()));
-        var missing = channels.stream().filter(channel -> result.get(channel).isEmpty()).toList();
-        var shared = new com.uiptv.db.SharedEpgCacheDb().read(missing.stream().map(channel -> sharedQuery(account,channel,config)).toList(), System.currentTimeMillis(), false);
-        missing.forEach(channel -> { var entry = shared.get(sharedQuery(account,channel,config)); if (entry != null) result.put(channel,entry.programmes()); });
+        var sharedQueries = channels.stream()
+                .filter(channel -> result.get(channel).isEmpty() || prefersSharedIdentity(account, channel, config))
+                .map(channel -> sharedQuery(account, channel, config)).toList();
+        var shared = new com.uiptv.db.SharedEpgCacheDb().read(sharedQueries, System.currentTimeMillis(), false);
+        channels.forEach(channel -> {
+            var entry = shared.get(sharedQuery(account, channel, config));
+            if (entry != null && !entry.programmes().isEmpty()
+                    && (result.get(channel).isEmpty() || prefersSharedIdentity(account, channel, config)))
+                result.put(channel, entry.programmes());
+        });
         return result;
     }
     public Map<Channel,String> icons(Account account,List<Channel> channels) {
@@ -96,6 +147,11 @@ public class EpgCacheApplicationService {
         if(!config.isEpgEnabled() || account==null || channel==null || account.getAction()!=Account.AccountAction.itv) return List.of();
         long now=System.currentTimeMillis();
         var schedule = new EpgCacheDb().schedule(identity(account,channel,config,overrides(config,account),new com.uiptv.db.EpgNameRulesDb().read().fingerprint()),now-6*3_600_000L,now+7*86_400_000L);
+        if (prefersSharedIdentity(account, channel, config)) {
+            var query = sharedQuery(account, channel, config);
+            var shared = new com.uiptv.db.SharedEpgCacheDb().read(List.of(query), now, true).get(query);
+            if (shared != null && !shared.programmes().isEmpty()) return shared.programmes();
+        }
         if (schedule.stream().anyMatch(p -> p.stop() > now)) return schedule;
         var query = sharedQuery(account,channel,config);
         var shared = new com.uiptv.db.SharedEpgCacheDb().read(List.of(query),now,true).get(query);

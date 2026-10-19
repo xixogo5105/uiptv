@@ -51,7 +51,7 @@ class AndroidEpgRepository(
                 ?: return@withContext ""
             val override = runCatching { JSONObject(config("epgMappingsJson")).optJSONObject(accountId.toString())?.optString(providerChannelId) }
                 .getOrNull().orEmpty().trim()
-            val id = override.ifBlank { guideId(account, providerChannelId) }
+            val id = MobileXmltvGuide.usableGuideIdentity(override.ifBlank { guideId(account, providerChannelId) })
             val sources = linkedSetOf(discover(account), account.epg).apply {
                 addAll(config("globalEpgSource").lineSequence().map { it.trim() }.filter { it.isNotBlank() })
             }
@@ -136,7 +136,7 @@ class AndroidEpgRepository(
             }
             val override = runCatching { JSONObject(config("epgMappingsJson")).optJSONObject(accountId.toString())?.optString(providerChannelId) }
                 .getOrNull().orEmpty()
-            val id = override.ifBlank { guideId(account, providerChannelId) }
+            val id = MobileXmltvGuide.usableGuideIdentity(override.ifBlank { guideId(account, providerChannelId) })
             val sources = linkedSetOf(discover(account), account.epg).apply {
                 addAll(config("globalEpgSource").lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList())
             }
@@ -188,7 +188,8 @@ class AndroidEpgRepository(
             arrayOf(account.id.toString(), channelId)).use { if (it.moveToFirst()) it.getString(0).orEmpty() else "" }
         val metadata = runCatching { JSONObject(raw) }.getOrDefault(JSONObject())
         val fields = if (account.type == MobileAccountType.XTREME_API) listOf("epg_channel_id") else listOf("xmltv_id", "epg_id", "tvg-id")
-        return fields.map { metadata.optString(it).trim() }.firstOrNull { it.isNotBlank() }
+        return fields.map { MobileXmltvGuide.usableGuideIdentity(metadata.optString(it)) }
+            .firstOrNull { it.isNotBlank() && !(account.type == MobileAccountType.STALKER_PORTAL && it == channelId) }
             ?: if (account.type == MobileAccountType.XTREME_API) "" else channelId
     }
     private fun discover(account: MobileAccount): String {
