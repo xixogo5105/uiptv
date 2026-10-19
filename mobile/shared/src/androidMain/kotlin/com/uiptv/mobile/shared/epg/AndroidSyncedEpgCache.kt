@@ -83,8 +83,15 @@ class AndroidSyncedEpgCache(private val db: SQLiteDatabase) {
                     }
                 }
                 rank = 1
-                id = aliases.first[MobileXmltvGuide.normalize(matchName)] ?: aliases.second[rules.display(matchName)].orEmpty()
-                if (id.isBlank()) { rank = 2; id = aliases.third[rules.quality(matchName)].orEmpty() }
+                val names = listOf(matchName, MobileXmltvGuide.stripLeadingPlaylistIndex(matchName)).distinct()
+                id = names.firstNotNullOfOrNull { candidate ->
+                    aliases.first[MobileXmltvGuide.normalize(candidate)]
+                        ?: aliases.second[rules.display(candidate)]
+                }.orEmpty()
+                if (id.isBlank()) {
+                    rank = 2
+                    id = names.firstNotNullOfOrNull { candidate -> aliases.third[rules.quality(candidate)] }.orEmpty()
+                }
             }
             if (id.isBlank()) continue
             val programmes = mutableListOf<MobileEpgProgramme>()

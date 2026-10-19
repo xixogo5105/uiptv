@@ -10,6 +10,9 @@ import java.util.*;
 public final class SharedEpgCacheDb {
     public record Query(String guideId, String name, boolean explicit) { }
     public record Result(List<EpgProgramme> programmes, String icon) { }
+    public enum ResolutionStatus { MATCHED, NO_SOURCE_COVERAGE, MATCHING_FAILED }
+    public record ResolutionDiagnostic(ResolutionStatus status, String guideId, String normalizedName,
+                                      int activeSources) { }
     private record Source(String id, int priority, Set<String> countries, Set<String> languages,
                           Map<String,Set<String>> guideCountries, Map<String,String> exact,
                           Map<String,String> display, Map<String,String> quality,
@@ -75,7 +78,10 @@ public final class SharedEpgCacheDb {
     private Candidate resolve(Query query, Snapshot snapshot, EpgNameRules rules) {
         EpgTerritory.Context context = EpgTerritory.parse(query.name());
         if (!query.explicit() && context.ambiguous()) return null;
-        String name = context.name();
+        List<String> names = new ArrayList<>();
+        names.add(context.name());
+        String playlistIndexFree = EpgTerritory.stripLeadingPlaylistIndex(context.name());
+        if (!playlistIndexFree.equals(context.name())) names.add(playlistIndexFree);
         Set<String> expectedCountries = context.territories();
         List<Candidate> candidates = new ArrayList<>();
         for (Source source : snapshot.sources()) {
@@ -87,9 +93,19 @@ public final class SharedEpgCacheDb {
             }
             if (guide == null || guide.isBlank() || !source.ids().contains(guide)) {
                 if (query.explicit()) continue;
-                rank = 1; guide = source.exact().get(XmltvGuide.normalize(name));
-                if (guide == null) guide = source.display().get(rules.display(name));
-                if (guide == null) { rank = 2; guide = source.quality().get(rules.quality(name)); }
+                rank = 1;
+                for (String name : names) {
+                    guide = source.exact().get(XmltvGuide.normalize(name));
+                    if (guide == null) guide = source.display().get(rules.display(name));
+                    if (guide != null) break;
+                }
+                if (guide == null) {
+                    rank = 2;
+                    for (String name : names) {
+                        guide = source.quality().get(rules.quality(name));
+                        if (guide != null) break;
+                    }
+                }
             }
             if (guide == null || guide.isBlank()) continue;
             Set<String> actualCountries = source.countries(guide);
@@ -137,6 +153,45 @@ public final class SharedEpgCacheDb {
             }
         } catch (Exception error) { throw new DatabaseAccessException("Unable to read shared EPG cache", error); }
         return result;
+    }
+
+    /** Explain an empty shared lookup without exposing provider credentials or URLs. */
+    public Map<Query,ResolutionDiagnostic> diagnostics(List<Query> queries, long now) {
+        if (queries.isEmpty()) return Map.of();
+        Map<Query,ResolutionDiagnostic> result = new LinkedHashMap<>();
+        try (var c = open()) {
+            Snapshot snapshot = index(c, now);
+            var rules = new EpgNameRulesDb().read(c);
+            for (Query query : new LinkedHashSet<>(queries)) {
+                EpgTerritory.Context context = EpgTerritory.parse(query.name());
+                Candidate match = resolve(query, snapshot, rules);
+                ResolutionStatus status = match != null ? ResolutionStatus.MATCHED
+                        : snapshot.sources().isEmpty() ? ResolutionStatus.NO_SOURCE_COVERAGE
+                        : hasCandidateIdentity(query, context, snapshot, rules)
+                        ? ResolutionStatus.MATCHING_FAILED : ResolutionStatus.NO_SOURCE_COVERAGE;
+                result.put(query, new ResolutionDiagnostic(status, query.guideId(), context.name(), snapshot.sources().size()));
+            }
+        } catch (Exception error) {
+            throw new DatabaseAccessException("Unable to diagnose shared EPG cache", error);
+        }
+        return result;
+    }
+
+    private boolean hasCandidateIdentity(Query query, EpgTerritory.Context context, Snapshot snapshot, EpgNameRules rules) {
+        List<String> names = new ArrayList<>(List.of(context.name()));
+        String playlistIndexFree = EpgTerritory.stripLeadingPlaylistIndex(context.name());
+        if (!playlistIndexFree.equals(context.name())) names.add(playlistIndexFree);
+        for (Source source : snapshot.sources()) {
+            if (query.guideId() != null && !query.guideId().isBlank()
+                    && (source.ids().contains(query.guideId())
+                    || source.identifiers().containsKey(XmltvGuide.normalizeIdentifier(query.guideId())))) return true;
+            for (String name : names) {
+                if (source.exact().containsKey(XmltvGuide.normalize(name))
+                        || source.display().containsKey(rules.display(name))
+                        || source.quality().containsKey(rules.quality(name))) return true;
+            }
+        }
+        return false;
     }
     private String expand(byte[] bytes) throws java.io.IOException {
         try (var input = new java.util.zip.InflaterInputStream(new java.io.ByteArrayInputStream(bytes))) {

@@ -123,7 +123,11 @@ class AndroidEpgRepository(
                 NativeCache(if (stale) cached.programmes else programmes, now + 30 * 60_000L, stale)
                     .also { native[key] = it }
             }
-            if (schedules.programmes.any { it.stop > now }) {
+            val hasNativeProgramme = schedules.programmes.any { it.stop > now }
+            val hasMeaningfulNativeProgramme = schedules.programmes.any {
+                it.stop > now && !MobileEpgSchedules.isGenericTitle(it.title)
+            }
+            if (hasNativeProgramme && hasMeaningfulNativeProgramme) {
                 val result = MobileEpgResult(
                     if (schedules.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, schedules.programmes)
                 MobileEpgCache.put(accountId, providerChannelId, result, now)
@@ -131,8 +135,17 @@ class AndroidEpgRepository(
             }
             // Native schedules above retain precedence over shared public guides.
             cloned.matchCloned(accountId, providerChannelId, name, now, shared = true)?.let { shared ->
-                MobileEpgCache.put(accountId, providerChannelId, shared.result, now)
-                return@withContext shared.result
+                val result = if (hasNativeProgramme) shared.result.copy(
+                    programmes = MobileEpgSchedules.preferSources(listOf(schedules.programmes, shared.result.programmes))
+                ) else shared.result
+                MobileEpgCache.put(accountId, providerChannelId, result, now)
+                return@withContext result
+            }
+            if (hasNativeProgramme) {
+                val result = MobileEpgResult(
+                    if (schedules.stale) MobileEpgStatus.STALE else MobileEpgStatus.AVAILABLE, schedules.programmes)
+                MobileEpgCache.put(accountId, providerChannelId, result, now)
+                return@withContext result
             }
             val override = runCatching { JSONObject(config("epgMappingsJson")).optJSONObject(accountId.toString())?.optString(providerChannelId) }
                 .getOrNull().orEmpty()

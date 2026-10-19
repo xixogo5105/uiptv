@@ -196,4 +196,43 @@ class EpgTerritoryMappingTest extends DbBackedTest {
         assertEquals("Son of Sardaar 2",
                 new EpgCacheApplicationService().summaries(account, List.of(channel)).get(channel).getFirst().title());
     }
+
+    @Test
+    void m3uGenericNativeProgrammeYieldsToMeaningfulSharedProgramme() throws Exception {
+        long now = System.currentTimeMillis();
+        var config = ConfigurationService.getInstance().read();
+        config.setEpgEnabled(true);
+        config.setEpgMappingsJson("{}");
+        ConfigurationService.getInstance().save(config);
+
+        var account = new Account();
+        account.setDbId("m3u-account");
+        account.setType(AccountType.M3U8_URL);
+        account.setAction(Account.AccountAction.itv);
+        account.setTimezone("Europe/London");
+        var channel = new Channel();
+        channel.setChannelId("IN39000187Z");
+        channel.setName("B4U Kadak");
+        channel.setExtraJson("");
+
+        db.replaceSource("m3u-xmltv", Map.of(channel.getChannelId(), List.of(
+                programme("Movie", now))), Map.of(), Map.of(), now, now + 60_000);
+        var identity = EpgCacheApplicationService.identity(account, channel, config);
+        assertTrue(db.mapChannels(List.of(new EpgCacheDb.Match(identity, channel.getChannelId(), channel.getName(), "",
+                false, List.of("m3u-xmltv"), "")), now));
+
+        db.replaceSource("shared-in", Map.of("B4U.KADAK.in", List.of(
+                programme("Ahankaar", now))), Map.of("b4u kadak", "B4U.KADAK.in"), Map.of(), now, now + 60_000);
+        try (Connection connection = SQLConnection.connect(); var insert = connection.prepareStatement("INSERT INTO epg_shared_source VALUES(?,?,?,?)")) {
+            insert.setString(1, "shared-in");
+            insert.setInt(2, 40);
+            insert.setString(3, "IN");
+            insert.setString(4, "");
+            insert.executeUpdate();
+        }
+        SharedEpgCacheDb.invalidate();
+
+        assertEquals("Ahankaar",
+                new EpgCacheApplicationService().summaries(account, List.of(channel)).get(channel).getFirst().title());
+    }
 }

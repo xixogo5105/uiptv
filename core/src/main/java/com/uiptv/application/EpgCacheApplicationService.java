@@ -11,7 +11,9 @@ import java.util.*;
 /** Read-only presentation boundary. No downloads, parsing, matching or cache writes occur here. */
 public class EpgCacheApplicationService {
     private static final Set<String> GUIDE_ID_PLACEHOLDERS = Set.of(
-            "", "DEFAULT", "NONE", "N/A", "NA", "UNKNOWN", "UNAVAILABLE", "NULL", "-"
+            "", "DEFAULT", "NONE", "N/A", "NA", "UNKNOWN", "UNAVAILABLE", "NULL", "-",
+            "NO DETAILS AVAILABLE", "NO INFORMATION AVAILABLE", "NO PROGRAMME DETAILS AVAILABLE",
+            "NO PROGRAM DETAILS AVAILABLE", "NO INFORMATION", "NO INFO", "NO DATA"
     );
 
     /** Provider feeds commonly emit these values when no XMLTV identity exists. */
@@ -98,6 +100,9 @@ public class EpgCacheApplicationService {
     private boolean hasGuideMetadata(Account account, Channel channel) {
         return guideMetadata(account, channel).stream().anyMatch(value -> !value.strip().isBlank());
     }
+    private boolean containsGenericProgramme(List<EpgProgramme> programmes) {
+        return programmes.stream().anyMatch(programme -> EpgSchedules.isGenericTitle(programme.title()));
+    }
     private List<String> guideMetadata(Account account, Channel channel) {
         try {
             var metadata = new org.json.JSONObject(channel.getExtraJson());
@@ -118,14 +123,17 @@ public class EpgCacheApplicationService {
         var records=new EpgCacheDb().summaries(ids,System.currentTimeMillis());
         for(int i=0;i<channels.size();i++) result.put(channels.get(i),records.getOrDefault(ids.get(i),List.of()));
         var sharedQueries = channels.stream()
-                .filter(channel -> result.get(channel).isEmpty() || prefersSharedIdentity(account, channel, config))
+                .filter(channel -> result.get(channel).isEmpty() || prefersSharedIdentity(account, channel, config)
+                        || containsGenericProgramme(result.get(channel)))
                 .map(channel -> sharedQuery(account, channel, config)).toList();
         var shared = new com.uiptv.db.SharedEpgCacheDb().read(sharedQueries, System.currentTimeMillis(), false);
         channels.forEach(channel -> {
             var entry = shared.get(sharedQuery(account, channel, config));
-            if (entry != null && !entry.programmes().isEmpty()
-                    && (result.get(channel).isEmpty() || prefersSharedIdentity(account, channel, config)))
-                result.put(channel, entry.programmes());
+            if (entry == null || entry.programmes().isEmpty()) return;
+            var existing = result.get(channel);
+            if (existing.isEmpty() || prefersSharedIdentity(account, channel, config)) result.put(channel, entry.programmes());
+            else if (containsGenericProgramme(existing))
+                result.put(channel, EpgSchedules.preferSources(List.of(existing, entry.programmes())));
         });
         return result;
     }
@@ -147,10 +155,14 @@ public class EpgCacheApplicationService {
         if(!config.isEpgEnabled() || account==null || channel==null || account.getAction()!=Account.AccountAction.itv) return List.of();
         long now=System.currentTimeMillis();
         var schedule = new EpgCacheDb().schedule(identity(account,channel,config,overrides(config,account),new com.uiptv.db.EpgNameRulesDb().read().fingerprint()),now-6*3_600_000L,now+7*86_400_000L);
-        if (prefersSharedIdentity(account, channel, config)) {
+        if (prefersSharedIdentity(account, channel, config) || containsGenericProgramme(schedule)) {
             var query = sharedQuery(account, channel, config);
             var shared = new com.uiptv.db.SharedEpgCacheDb().read(List.of(query), now, true).get(query);
-            if (shared != null && !shared.programmes().isEmpty()) return shared.programmes();
+            if (shared != null && !shared.programmes().isEmpty()) {
+                if (prefersSharedIdentity(account, channel, config)) return shared.programmes();
+                if (schedule.isEmpty()) return shared.programmes();
+                return EpgSchedules.preferSources(List.of(schedule, shared.programmes()));
+            }
         }
         if (schedule.stream().anyMatch(p -> p.stop() > now)) return schedule;
         var query = sharedQuery(account,channel,config);

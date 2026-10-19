@@ -143,6 +143,15 @@ public final class EpgTerritory {
         return SEPARATORS.matcher(folded).replaceAll(" ").strip();
     }
 
+    /**
+     * Remove a leading playlist/index number only as a fallback matching form.
+     * Numbers elsewhere remain meaningful: "Star Gold 2" must stay distinct.
+     */
+    public static String stripLeadingPlaylistIndex(String value) {
+        if (value == null) return "";
+        return value.strip().replaceFirst("^\\d{1,4}\\s+(?=\\p{L})", "").strip();
+    }
+
     private static Set<String> matchingCodes(String value) {
         String normalized = normalizeToken(value);
         if (normalized.isBlank()) return Set.of();

@@ -8,6 +8,20 @@ class MobileEpgTest {
         assertEquals("", MobileXmltvGuide.usableGuideIdentity("DEFAULT"))
         assertEquals("", MobileXmltvGuide.usableGuideIdentity(" n/a "))
         assertEquals("STAR.GOLD.THRILLS.in", MobileXmltvGuide.usableGuideIdentity("STAR.GOLD.THRILLS.in"))
+        assertEquals("", MobileXmltvGuide.usableGuideIdentity("No details available"))
+    }
+
+    @Test
+    fun playlistIndexFallbackKeepsTrailingChannelNumbers() {
+        assertEquals("NDTVIndia", MobileXmltvGuide.stripLeadingPlaylistIndex("116 NDTVIndia"))
+        assertEquals("Star Gold 2", MobileXmltvGuide.stripLeadingPlaylistIndex("Star Gold 2"))
+    }
+
+    @Test
+    fun genericTitlesAreRecognizedAsFiller() {
+        assertTrue(MobileEpgSchedules.isGenericTitle("Movie"))
+        assertTrue(MobileEpgSchedules.isGenericTitle("No information available"))
+        assertFalse(MobileEpgSchedules.isGenericTitle("Ahankaar"))
     }
 
     @Test fun playlistResolutionLabelsRetainExactHdSdAndRegionalIdentity() {

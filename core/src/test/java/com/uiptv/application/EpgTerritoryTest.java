@@ -78,4 +78,12 @@ class EpgTerritoryTest {
         assertEquals(Set.of("GB"), EpgTerritory.identifierCountries("example.sports.GBR"));
         assertEquals(Set.of("US"), EpgTerritory.sourceCountries("", "source", "example.sports.usa"));
     }
+
+    @Test
+    void playlistIndexIsOnlyASecondaryMatchingForm() {
+        assertEquals("NDTVIndia", EpgTerritory.stripLeadingPlaylistIndex("116 NDTVIndia"));
+        assertEquals("Bloomberg TV+", EpgTerritory.stripLeadingPlaylistIndex("1960 Bloomberg TV+"));
+        assertEquals("Star Gold 2", EpgTerritory.stripLeadingPlaylistIndex("Star Gold 2"));
+        assertEquals("Star Gold", EpgTerritory.stripLeadingPlaylistIndex("2 Star Gold"));
+    }
 }

@@ -26,9 +26,12 @@ data class MobileXmltvGuide(
     }
     private val displayAliases by lazy { nameRules?.aliases(names,false).orEmpty() }
     private val ruleQualityAliases by lazy { nameRules?.aliases(names,true).orEmpty() }
-    private fun nameId(name: String): String? = names[normalize(name)] ?: if (nameRules != null)
-        displayAliases[nameRules.display(name)] ?: ruleQualityAliases[nameRules.quality(name)]
-        else names[normalizeDisplayName(name)] ?: qualityNames[normalizeQuality(name)]
+    private fun nameId(name: String): String? {
+        fun find(candidate: String): String? = names[normalize(candidate)] ?: if (nameRules != null)
+            displayAliases[nameRules.display(candidate)] ?: ruleQualityAliases[nameRules.quality(candidate)]
+            else names[normalizeDisplayName(candidate)] ?: qualityNames[normalizeQuality(candidate)]
+        return find(name) ?: find(stripLeadingPlaylistIndex(name))
+    }
     fun forChannel(id: String, name: String): List<MobileEpgProgramme> =
         programmes[id] ?: nameId(name)?.let { programmes[it].orEmpty() }.orEmpty()
     private val iconAliases by lazy { qualityAliases(names.filterValues { icons.containsKey(it) }) }
@@ -38,7 +41,9 @@ data class MobileXmltvGuide(
         ?: if (nameRules==null) icons[nameId(name)] ?: icons[iconAliases[normalizeQuality(name)]].orEmpty()
         else icons[ruleIconDisplayAliases[nameRules.display(name)]] ?: icons[ruleIconQualityAliases[nameRules.quality(name)]].orEmpty()
     companion object {
-        private val guideIdPlaceholders = setOf("", "DEFAULT", "NONE", "N/A", "NA", "UNKNOWN", "UNAVAILABLE", "NULL", "-")
+        private val guideIdPlaceholders = setOf("", "DEFAULT", "NONE", "N/A", "NA", "UNKNOWN", "UNAVAILABLE", "NULL", "-",
+            "NO DETAILS AVAILABLE", "NO INFORMATION AVAILABLE", "NO PROGRAMME DETAILS AVAILABLE",
+            "NO PROGRAM DETAILS AVAILABLE", "NO INFORMATION", "NO INFO", "NO DATA")
 
         /** Provider feeds commonly emit these values when no XMLTV identity exists. */
         fun usableGuideIdentity(value: String?): String {
@@ -47,6 +52,7 @@ data class MobileXmltvGuide(
         }
 
         fun normalize(value: String) = value.trim().lowercase().replace(Regex("\\s+"), " ")
+        fun stripLeadingPlaylistIndex(value: String): String = value.trim().replace(Regex("^\\d{1,4}\\s+(?=\\p{L})"), "").trim()
         fun normalizeDisplayName(value: String): String = normalize(value)
             .replace(Regex("\\s*\\((?:144|240|360|480|540|576|720|1080|1440|2160|4320)[pi]\\)"), "")
             .replace(Regex("\\s*\\[geo-blocked\\]"), "").trim()
@@ -86,9 +92,13 @@ object MobileEpgSchedules {
         "series", "special", "specials", "movie night", "movie time", "watch now", "now playing",
         "feature", "features", "presentation", "presentation", "unknown", "untitled", "title",
         "title name", "name", "default", "default title", "placeholder", "tbd", "n/a", "na",
+        "no information", "no information available", "no programme details available",
+        "no program details available", "programme information unavailable", "program information unavailable",
+        "schedule unavailable", "not available", "no info", "no data",
         "movie of the day", "movie of the week", "feature presentation", "feature film"
     )
-    private fun generic(title: String) = title.trim().lowercase() in genericTitles
+    fun isGenericTitle(title: String) = title.trim().lowercase() in genericTitles
+    private fun generic(title: String) = isGenericTitle(title)
     /** Source priority wins unless an overlapping entry has a meaningful title. */
     fun preferSources(sources: List<List<MobileEpgProgramme>>): List<MobileEpgProgramme> {
         data class Candidate(val programme: MobileEpgProgramme, val source: Int)
