@@ -358,17 +358,24 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             List<Channel> rows = pageData.channels();
             int before = channels.size();
             for (Channel channel : rows) channels.putIfAbsent(normalizeCaseInsensitiveKey(channel.getChannelId()), channel);
-            if (expected >= 0 && channels.size() >= expected) return new ArrayList<>(channels.values());
-            if (rows.isEmpty()) {
-                if (page == 0 && expected != 0) continue; // Some portals start at page one.
-                if (expected > channels.size()) throw new IllegalStateException("Incomplete Stalker category; keeping existing cache.");
-                return new ArrayList<>(channels.values());
-            }
-            // Portals often treat p=0 as p=1. Allow that alias once, but reject an endless repeated page.
-            if (channels.size() == before && page != 1) {
-                throw new IllegalStateException("Stalker pagination stopped advancing; keeping existing cache.");
-            }
+            List<Channel> completed = categoryPageResult(page, expected, rows, channels, before);
+            if (completed != null) return completed;
         }
+    }
+
+    private List<Channel> categoryPageResult(int page, long expected, List<Channel> rows,
+                                             Map<String, Channel> channels, int before) {
+        if (expected >= 0 && channels.size() >= expected) return new ArrayList<>(channels.values());
+        if (rows.isEmpty()) {
+            if (page == 0 && expected != 0) return null; // Some portals start at page one.
+            if (expected > channels.size()) throw new IllegalStateException("Incomplete Stalker category; keeping existing cache.");
+            return new ArrayList<>(channels.values());
+        }
+        // Portals often treat p=0 as p=1. Allow that alias once, but reject an endless repeated page.
+        if (channels.size() == before && page != 1) {
+            throw new IllegalStateException("Stalker pagination stopped advancing; keeping existing cache.");
+        }
+        return null;
     }
 
     private record CategoryPage(List<Channel> channels, long expected) { }
@@ -482,7 +489,7 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
 
     private FetchAttempt readCatalogueStream(HttpUtil.StreamResult stream, LoggerCallback logger) {
         boolean complete = false;
-        try {
+        try (stream) {
             List<Channel> channels = new com.uiptv.application.StalkerCatalogueReader().read(
                     new java.io.InputStreamReader(stream.bodyStream(), java.nio.charset.StandardCharsets.UTF_8));
             complete = true;

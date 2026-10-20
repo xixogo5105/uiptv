@@ -748,55 +748,10 @@ public class ResponsiveCardGrid<T> extends StackPane {
                 && Math.abs(renderedTranslateY - translateY) < 0.5) {
             return;
         }
-        Set<T> retainedItems = new HashSet<>();
-        for (int index = safeFirst; index < safeLast; index++) {
-            retainedItems.add(items.get(index));
-        }
-        List<Map.Entry<T, Region>> cardsToCache = cardsByItem.entrySet().stream()
-                .filter(entry -> !retainedItems.contains(entry.getKey()))
-                .toList();
-        cardsByItem.entrySet().removeIf(entry -> !retainedItems.contains(entry.getKey()));
-        for (Map.Entry<T, Region> entry : cardsToCache) {
-            // A card scrolled out from under the pointer never gets MOUSE_EXITED, so hide its
-            // hover affordances here. Without this a card retained by the detached cache can come
-            // back already revealed, and the "..." would linger on every such card.
-            concealHoverActionsIn(entry.getValue());
-            updatePlayingCardIndicator(entry.getValue(), false);
-        }
-        if (detachedCardCachingEnabled) {
-            for (Map.Entry<T, Region> entry : cardsToCache) {
-                detachedCardsByItem.put(entry.getKey(), entry.getValue());
-            }
-            trimDetachedCardCache();
-        } else if (cardDisposer != null) {
-            for (Map.Entry<T, Region> entry : cardsToCache) {
-                cardDisposer.accept(entry.getValue());
-            }
-        }
+        Set<T> retainedItems = retainedItems(safeFirst, safeLast);
+        cacheDetachedCards(evictCards(retainedItems));
 
-        List<Node> renderedCards = new ArrayList<>(safeLast - safeFirst);
-        for (int index = safeFirst; index < safeLast; index++) {
-            T item = items.get(index);
-            Region card = cardsByItem.get(item);
-            if (card == null) {
-                card = detachedCardCachingEnabled ? detachedCardsByItem.remove(item) : null;
-                if (card == null) {
-                    card = cardFactory.apply(item);
-                    configureCard(item, card);
-                } else {
-                    // Card reused from detached cache - ensure activated state is correct
-                    card.pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS, Objects.equals(item, activatedItem));
-                    updatePlayingCardIndicator(card, false);
-                    concealHoverActionsIn(card);
-                }
-                cardsByItem.put(item, card);
-            }
-            applyComputedCardWidth(card);
-            int gridIndex = index - safeFirst;
-            GridPane.setColumnIndex(card, gridIndex % columnCount);
-            GridPane.setRowIndex(card, gridIndex / columnCount);
-            renderedCards.add(card);
-        }
+        List<Node> renderedCards = renderCards(safeFirst, safeLast);
         cardPane.getChildren().setAll(renderedCards);
         refreshPlayingCardIndicators();
         firstRenderedIndex = safeFirst;
@@ -808,6 +763,61 @@ public class ResponsiveCardGrid<T> extends StackPane {
         applyActivatedStyles(cardsByItem);
         applyActivatedStyles(detachedCardsByItem);
         scheduleVirtualCardHeightMeasurement();
+    }
+
+    private Set<T> retainedItems(int first, int last) {
+        Set<T> retained = new HashSet<>();
+        for (int index = first; index < last; index++) retained.add(items.get(index));
+        return retained;
+    }
+
+    private List<Map.Entry<T, Region>> evictCards(Set<T> retainedItems) {
+        List<Map.Entry<T, Region>> evicted = cardsByItem.entrySet().stream()
+                .filter(entry -> !retainedItems.contains(entry.getKey())).toList();
+        cardsByItem.entrySet().removeIf(entry -> !retainedItems.contains(entry.getKey()));
+        for (Map.Entry<T, Region> entry : evicted) {
+            concealHoverActionsIn(entry.getValue());
+            updatePlayingCardIndicator(entry.getValue(), false);
+        }
+        return evicted;
+    }
+
+    private void cacheDetachedCards(List<Map.Entry<T, Region>> evicted) {
+        if (detachedCardCachingEnabled) {
+            evicted.forEach(entry -> detachedCardsByItem.put(entry.getKey(), entry.getValue()));
+            trimDetachedCardCache();
+        } else if (cardDisposer != null) {
+            evicted.forEach(entry -> cardDisposer.accept(entry.getValue()));
+        }
+    }
+
+    private List<Node> renderCards(int first, int last) {
+        List<Node> rendered = new ArrayList<>(last - first);
+        for (int index = first; index < last; index++) {
+            T item = items.get(index);
+            Region card = cardsByItem.get(item);
+            if (card == null) card = obtainCard(item);
+            applyComputedCardWidth(card);
+            int gridIndex = index - first;
+            GridPane.setColumnIndex(card, gridIndex % columnCount);
+            GridPane.setRowIndex(card, gridIndex / columnCount);
+            rendered.add(card);
+        }
+        return rendered;
+    }
+
+    private Region obtainCard(T item) {
+        Region card = detachedCardCachingEnabled ? detachedCardsByItem.remove(item) : null;
+        if (card == null) {
+            card = cardFactory.apply(item);
+            configureCard(item, card);
+        } else {
+            card.pseudoClassStateChanged(ACTIVATED_PSEUDO_CLASS, Objects.equals(item, activatedItem));
+            updatePlayingCardIndicator(card, false);
+            concealHoverActionsIn(card);
+        }
+        cardsByItem.put(item, card);
+        return card;
     }
 
     private void trimDetachedCardCache() {

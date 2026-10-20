@@ -1121,14 +1121,7 @@ public class CategoryListUI extends HBox implements SearchTarget {
             return;
         }
         if (allItems.size() == 1 && isAllCategory(allItems.getFirst())) {
-            boolean itvMode = mode == Account.AccountAction.itv;
-            ChannelService.getInstance().get(selectedCategoryKey(item), modeAccount, item.getId(),
-                    message -> logChannelFetch(item, mode, message),
-                    channelListUI::addItems, isCancelled::getAsBoolean,
-                    itvMode ? null : progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
-            if (itvMode) {
-                channelListUI.updateLoadingProgress(1, 1, 1, 1);
-            }
+            loadSingleAllCategory(item, isCancelled, channelListUI, mode, modeAccount);
             return;
         }
         List<CategoryItem> categoriesToFetch = allItems.stream()
@@ -1138,8 +1131,23 @@ public class CategoryListUI extends HBox implements SearchTarget {
         if (totalCategories == 0) {
             return;
         }
-        AtomicInteger completedCategories = new AtomicInteger(0);
+        loadCategoryPages(categoriesToFetch, isCancelled, channelListUI, mode, modeAccount);
+    }
+
+    private void loadSingleAllCategory(CategoryItem item, BooleanSupplier isCancelled, ChannelListUI channelListUI,
+                                       Account.AccountAction mode, Account modeAccount) throws IOException {
         boolean itvMode = mode == Account.AccountAction.itv;
+        ChannelService.getInstance().get(selectedCategoryKey(item), modeAccount, item.getId(),
+                message -> logChannelFetch(item, mode, message), channelListUI::addItems, isCancelled::getAsBoolean,
+                itvMode ? null : progress -> channelListUI.updateLoadingProgress(progress.fetchedItems(), progress.totalItems(), progress.pageNumber(), progress.pageCount()));
+        if (itvMode) channelListUI.updateLoadingProgress(1, 1, 1, 1);
+    }
+
+    private void loadCategoryPages(List<CategoryItem> categoriesToFetch, BooleanSupplier isCancelled,
+                                   ChannelListUI channelListUI, Account.AccountAction mode, Account modeAccount) throws IOException {
+        AtomicInteger completedCategories = new AtomicInteger();
+        boolean itvMode = mode == Account.AccountAction.itv;
+        int totalCategories = categoriesToFetch.size();
         for (CategoryItem categoryItem : categoriesToFetch) {
             if (isLoadingCancelled(isCancelled)) {
                 return;

@@ -445,54 +445,7 @@ public class ManageAccountUI extends VBox {
 
         ProgressDialog progressDialog = new ProgressDialog(resolveOwnerStage());
         progressDialog.setDefaultMacAddress(macAddress.getValue());
-        progressDialog.setOnSetDefaultMac(selectedMac -> {
-            // Set the selected MAC as the default in the UI
-            if (macAddress.getItems().contains(selectedMac)) {
-                macAddress.setValue(selectedMac);
-            } else {
-                // If not in items, add it temporarily (though it should be there)
-                macAddress.getItems().add(selectedMac);
-                macAddress.setValue(selectedMac);
-            }
-            // Update the progress dialog to reflect the new default
-            progressDialog.updateDefaultMacAddress(selectedMac);
-            // Save the account to persist the change
-            saveAccount(false);
-        });
-        progressDialog.setOnDeleteMac(selectedMac -> {
-            // Show confirmation before deleting
-            if (showConfirmationAlert(I18n.tr("macHoverConfirmDelete", selectedMac))) {
-                // Remove from macAddressList
-                String current = macAddressList.getText();
-                if (isNotBlank(current)) {
-                    List<String> macs = new ArrayList<>(Arrays.stream(current.replace(SPACE, "").split(","))
-                            .filter(value -> !isBlank(value))
-                            .toList());
-                    boolean removed = macs.removeIf(mac -> mac.equalsIgnoreCase(selectedMac));
-                    if (removed) {
-                        String newMacsStr = String.join(", ", macs);
-                        macAddressList.setText(newMacsStr);
-                        // Update the combo box items
-                        macAddress.getItems().clear();
-                        if (!macs.isEmpty()) {
-                            macAddress.getItems().addAll(macs);
-                            // If we deleted the current default, set a new default
-                            if (selectedMac.equalsIgnoreCase(macAddress.getValue())) {
-                                macAddress.setValue(macs.getFirst());
-                            }
-                        } else {
-                            macAddress.setValue(null);
-                        }
-                        setupMacAddressByList(newMacsStr);
-                        saveAccount(false);
-                    }
-                }
-                // Remove the verification card from the progress dialog
-                progressDialog.removeVerificationCard(selectedMac);
-                // Also stop the verification if it's still running to prevent re-adding the card
-                progressDialog.requestDirectStop();
-            }
-        });
+        configureVerificationDialog(progressDialog);
         progressDialog.show();
 
         AtomicBoolean stopRequested = new AtomicBoolean(false);
@@ -544,6 +497,40 @@ public class ManageAccountUI extends VBox {
         // Daemon: this task performs a network handshake per MAC address and can run for
         // minutes, so a non-daemon thread here would keep the JVM alive after the window closes.
         startTaskThread(task, "account-mac-verification");
+    }
+
+    private void configureVerificationDialog(ProgressDialog progressDialog) {
+        progressDialog.setOnSetDefaultMac(selectedMac -> setVerificationDefault(progressDialog, selectedMac));
+        progressDialog.setOnDeleteMac(selectedMac -> deleteVerificationMac(progressDialog, selectedMac));
+    }
+
+    private void setVerificationDefault(ProgressDialog progressDialog, String selectedMac) {
+        if (!macAddress.getItems().contains(selectedMac)) macAddress.getItems().add(selectedMac);
+        macAddress.setValue(selectedMac);
+        progressDialog.updateDefaultMacAddress(selectedMac);
+        saveAccount(false);
+    }
+
+    private void deleteVerificationMac(ProgressDialog progressDialog, String selectedMac) {
+        if (!showConfirmationAlert(I18n.tr("macHoverConfirmDelete", selectedMac))) return;
+        String current = macAddressList.getText();
+        if (isNotBlank(current)) {
+            List<String> macs = new ArrayList<>(Arrays.stream(current.replace(SPACE, "").split(","))
+                    .filter(value -> !isBlank(value)).toList());
+            if (macs.removeIf(mac -> mac.equalsIgnoreCase(selectedMac))) updateVerificationMacList(macs, selectedMac);
+        }
+        progressDialog.removeVerificationCard(selectedMac);
+        progressDialog.requestDirectStop();
+    }
+
+    private void updateVerificationMacList(List<String> macs, String deletedMac) {
+        String newMacs = String.join(", ", macs);
+        macAddressList.setText(newMacs);
+        macAddress.getItems().setAll(macs);
+        if (macs.isEmpty()) macAddress.setValue(null);
+        else if (deletedMac.equalsIgnoreCase(macAddress.getValue())) macAddress.setValue(macs.getFirst());
+        setupMacAddressByList(newMacs);
+        saveAccount(false);
     }
 
     private void startTaskThread(Task<?> task, String name) {
