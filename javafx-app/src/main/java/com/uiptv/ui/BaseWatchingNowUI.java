@@ -1372,10 +1372,9 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             return null;
         }
         for (Object labelObj : labels) {
-            if (labelObj instanceof Label label && label.getStyleClass().contains(STRONG_LABEL)) {
-                if (episode.title != null && episode.title.equals(label.getText())) {
-                    return card;
-                }
+            if (labelObj instanceof Label label && label.getStyleClass().contains(STRONG_LABEL)
+                    && episode.title != null && episode.title.equals(label.getText())) {
+                return card;
             }
         }
         return null;

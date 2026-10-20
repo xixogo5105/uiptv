@@ -50,40 +50,40 @@ public class ConfigurationDb extends BaseDb {
         Connection conn = null;
         try {
             conn = connect();
-            boolean previousAutoCommit = conn.getAutoCommit();
-            conn.setAutoCommit(false);
-            try {
-                // Live channels reference live category row ids, so they must be deleted
-                // before the live categories themselves are removed.
-                deleteAccountLiveChannels(conn, account.getDbId());
-                for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
-                    if (table != DatabaseUtils.DbTable.CHANNEL_TABLE) {
-                        deleteAccountCacheForTable(conn, table, account.getDbId());
-                    }
-                }
-
-                String updateAccountSql = "UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE)
-                        + " SET serverPortalUrl='' WHERE id = ?";
-                try (PreparedStatement pstmt = conn.prepareStatement(updateAccountSql)) {
-                    pstmt.setString(1, account.getDbId());
-                    pstmt.executeUpdate();
-                }
-                // Commit as a single unit: a partially applied clear leaves the account with
-                // channels deleted but categories intact (or vice versa), which suppresses
-                // subsequent re-fetches because the cached row count is still non-zero.
-                conn.commit();
-            } catch (Exception e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(previousAutoCommit);
-            }
+            clearCacheTransaction(conn, account.getDbId());
         } catch (Exception e) {
             // Surface the failure instead of silently leaving a half-cleared cache behind.
             AppLog.addErrorLog(ConfigurationDb.class,
                     "Failed to clear cache for account " + account.getAccountName() + " (" + account.getDbId() + "): " + e);
         } finally {
             closeQuietly(conn);
+        }
+    }
+
+    private void clearCacheTransaction(Connection conn, String accountId) throws SQLException {
+        boolean previousAutoCommit = conn.getAutoCommit();
+        conn.setAutoCommit(false);
+        try {
+            deleteAccountLiveChannels(conn, accountId);
+            for (DatabaseUtils.DbTable table : DatabaseUtils.Cacheable) {
+                if (table != DatabaseUtils.DbTable.CHANNEL_TABLE) deleteAccountCacheForTable(conn, table, accountId);
+            }
+            String updateAccountSql = "UPDATE " + validatedTableName(DatabaseUtils.DbTable.ACCOUNT_TABLE)
+                    + " SET serverPortalUrl='' WHERE id = ?";
+            updateAccountServerPortal(conn, updateAccountSql, accountId);
+            conn.commit();
+        } catch (Exception error) {
+            conn.rollback();
+            throw error;
+        } finally {
+            conn.setAutoCommit(previousAutoCommit);
+        }
+    }
+
+    private void updateAccountServerPortal(Connection conn, String sql, String accountId) throws SQLException {
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, accountId);
+            pstmt.executeUpdate();
         }
     }
 
