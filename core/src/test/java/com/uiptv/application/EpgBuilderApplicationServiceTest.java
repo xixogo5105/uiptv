@@ -212,7 +212,9 @@ class EpgBuilderApplicationServiceTest extends DbBackedTest {
     @Test void validationAndImportRejectStaleSignaturesAndMalformedProgrammesWithoutWrites() throws Exception {
         JSONObject invalid = bundle(); invalid.getJSONArray("mappings").getJSONObject(0).put("signature", "stale");
         Path file = save(invalid);
-        assertThrows(IllegalArgumentException.class, () -> service.validateBundle(testDbFile.toString(), file.toString()));
+        String databasePath = testDbFile.toString();
+        String bundlePath = file.toString();
+        assertThrows(IllegalArgumentException.class, () -> service.validateBundle(databasePath, bundlePath));
         assertThrows(IllegalArgumentException.class, () -> apply(invalid));
         JSONObject bad = bundle(); bad.getJSONArray("programmes").getJSONObject(0).put("stop", 0);
         assertThrows(IllegalArgumentException.class, () -> apply(bad));
@@ -229,7 +231,8 @@ class EpgBuilderApplicationServiceTest extends DbBackedTest {
     }
     @Test void missingDatabaseIsNotCreated() {
         Path missing = tempDir.resolve("missing.db");
-        assertThrows(IllegalArgumentException.class, () -> service.exportInventory(missing.toString()));
+        String missingPath = missing.toString();
+        assertThrows(IllegalArgumentException.class, () -> service.exportInventory(missingPath));
         assertFalse(Files.exists(missing));
     }
 }

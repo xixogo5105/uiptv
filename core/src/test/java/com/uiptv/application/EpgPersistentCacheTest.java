@@ -191,7 +191,10 @@ class EpgPersistentCacheTest extends DbBackedTest {
     @Test void invalidImportRollsBackWholeSourceAndClearDoesNotTouchCatalog() {
         long now=System.currentTimeMillis(); var id=new EpgCacheDb.Identity("a","provider","signature");
         source("source","guide",List.of(p("Good",now-1000,now+1000)),now); db.mapChannels(List.of(match(id,"guide",List.of("source"))),now);
-        assertThrows(DatabaseAccessException.class,() -> source("source","guide",List.of(p("Duplicate one",now-1000,now+1000),p("Duplicate two",now-1000,now+1000)),now));
+        List<EpgProgramme> duplicateProgrammes = List.of(
+                p("Duplicate one", now - 1000, now + 1000),
+                p("Duplicate two", now - 1000, now + 1000));
+        assertThrows(DatabaseAccessException.class, () -> source("source", "guide", duplicateProgrammes, now));
         assertEquals("Good",title(id,now));
         new EpgApplicationService().clearCache(); assertTrue(db.summaries(List.of(id),now).get(id).isEmpty()); assertEquals(0,db.sourceState("source").refreshedAt());
         assertTrue(Files.exists(testDbFile.toPath()));
