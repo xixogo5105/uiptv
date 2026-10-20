@@ -124,7 +124,7 @@ public final class PlaybackUIService {
                                                                                      Account playbackAccount,
                                                                                      PlaybackModeContext context) {
         if (!isEmbeddedPlayback(request, context)) return java.util.concurrent.CompletableFuture.completedFuture(null);
-        var player = getPlayer();
+        var player = Objects.requireNonNull(getPlayer(), "embedded player");
         player.stopForReload();
         java.util.concurrent.CompletionStage<Void> ready = player.playbackReady();
         player.updateChannelInfo(request.channel, playbackAccount);

@@ -1366,9 +1366,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
     }
 
     private VBox findMatchingCard(Node child, WatchingEpisode episode) {
-        if (!(child instanceof VBox card)) {
-            return null;
-        }
+        if (!(child instanceof VBox card)) return null;
         Object labelsObj = card.getProperties().get(KEY_CARD_LABELS);
         if (!(labelsObj instanceof List<?> labels)) {
             return null;

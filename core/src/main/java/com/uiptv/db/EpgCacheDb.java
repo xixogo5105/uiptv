@@ -265,12 +265,13 @@ public final class EpgCacheDb {
                     changed=true;
                     changedIdentities.add(new EpgChangeNotifications.ProviderIdentity(
                             match.identity().accountId(), match.identity().providerId()));
-                    delete.setString(1,match.identity().accountId()); delete.setString(2,match.identity().providerId()); delete.executeUpdate();
+                    delete.setString(1,match.identity().accountId()); delete.setString(2,match.identity().providerId()); delete.addBatch();
                     for(Link link:links) {
                         insert.setString(1,match.identity().accountId()); insert.setString(2,match.identity().providerId()); insert.setString(3,link.signature());
                         insert.setString(4,link.source()); insert.setString(5,link.guide()); insert.setInt(6,link.priority()); insert.addBatch();
                     }
                 }
+                delete.executeBatch();
                 insert.executeBatch();
                 EpgChangeNotifications.Notification notification = changed
                         ? EpgChangeNotifications.create(c, EpgChangeNotifications.Kind.MAPPING, Set.of(), Set.of(), changedIdentities)

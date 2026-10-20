@@ -28,6 +28,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 
 @SuppressWarnings({"java:S1075", "java:S135"})
 public class HttpProxyStreamServer implements HttpHandler {
+    private record ResponseBody(byte[] bytes, boolean rewritten) { }
     private static final String PATH_LIVE_PLAY = "/live/play/";
     private static final String PATH_PLAY_LIVE = "/play/live.php";
     private static final String PATH_PLAY_MOVIE = "/play/movie.php";
@@ -115,7 +116,7 @@ public class HttpProxyStreamServer implements HttpHandler {
                     return;
                 }
 
-                byte[] responseBody = responseBody(upstream, requestMethod);
+                ResponseBody responseBody = responseBody(upstream, requestMethod);
                 writeResponseHeaders(ex, upstream.responseHeaders());
                 responseStarted = true;
                 sendResponse(ex, upstream, responseBody, requestMethod);
@@ -131,23 +132,25 @@ public class HttpProxyStreamServer implements HttpHandler {
         }
     }
 
-    private byte[] responseBody(HttpUtil.StreamResult upstream, String requestMethod) throws IOException {
-        if (!shouldRewriteHlsPlaylist(upstream) || METHOD_HEAD.equalsIgnoreCase(requestMethod)) return null;
+    private ResponseBody responseBody(HttpUtil.StreamResult upstream, String requestMethod) throws IOException {
+        if (!shouldRewriteHlsPlaylist(upstream) || METHOD_HEAD.equalsIgnoreCase(requestMethod)) {
+            return new ResponseBody(new byte[0], false);
+        }
         long advertisedLength = resolveContentLength(firstHeader(upstream.responseHeaders(), HEADER_CONTENT_LENGTH));
         if (advertisedLength > MAX_PLAYLIST_BYTES) throw new PlaylistTooLargeException();
-        return rewriteHlsPlaylist(readPlaylistBody(resolvedBodyStream(upstream)), upstream.requestUri());
+        return new ResponseBody(rewriteHlsPlaylist(readPlaylistBody(resolvedBodyStream(upstream)), upstream.requestUri()), true);
     }
 
-    private void sendResponse(HttpExchange ex, HttpUtil.StreamResult upstream, byte[] responseBody,
+    private void sendResponse(HttpExchange ex, HttpUtil.StreamResult upstream, ResponseBody responseBody,
                               String requestMethod) throws IOException {
-        long length = responseBody == null
+        long length = !responseBody.rewritten()
                 ? resolveContentLength(firstHeader(upstream.responseHeaders(), HEADER_CONTENT_LENGTH))
-                : responseBody.length;
+                : responseBody.bytes().length;
         ex.sendResponseHeaders(upstream.statusCode(), length);
         if (METHOD_HEAD.equalsIgnoreCase(requestMethod)) return;
         try (OutputStream os = ex.getResponseBody()) {
-            if (responseBody != null) {
-                os.write(responseBody);
+            if (responseBody.rewritten()) {
+                os.write(responseBody.bytes());
                 return;
             }
             try (InputStream is = resolvedBodyStream(upstream)) {
