@@ -198,6 +198,32 @@ class EpgApplicationServiceTest extends DbBackedTest {
         assertTrue(service.list("nonexistent").isEmpty());
     }
 
+    @Test void coversWarningIdentityAndSourceNormalizationBranches() {
+        assertEquals(List.of(), EpgApplicationService.globalSources(null));
+        assertEquals(List.of("first", "second"), EpgApplicationService.globalSources(" first\nsecond\nfirst\n "));
+        assertEquals("epgSourceTooLarge", EpgApplicationService.warning(new IOException("Guide exceeds size limit")));
+        assertEquals("epgSourceProgrammeLimit", EpgApplicationService.warning(new IOException("Guide exceeds programme limit")));
+        assertEquals("epgSourceXmlLimit", EpgApplicationService.warning(
+                new javax.xml.stream.XMLStreamException("JAXP00010004: entity budget exceeded")));
+        assertEquals("epgSourceInvalid", EpgApplicationService.warning(
+                new javax.xml.stream.XMLStreamException("invalid guide")));
+        assertEquals("epgSourceUnavailable", EpgApplicationService.warning(new IllegalStateException("offline")));
+
+        Account xtreme = account("Xtreme", AccountType.XTREME_API);
+        Channel xtremeChannel = channel("stream-id", "Xtreme channel");
+        xtremeChannel.setExtraJson("{\"epg_channel_id\":\"guide-id\"}");
+        assertEquals("guide-id", EpgApplicationService.guideId(xtreme, xtremeChannel));
+        xtremeChannel.setExtraJson("{bad");
+        assertEquals("", EpgApplicationService.guideId(xtreme, xtremeChannel));
+
+        Account m3u = account("M3U", AccountType.M3U8_URL);
+        Channel m3uChannel = channel("provider-id", "M3U channel");
+        m3uChannel.setExtraJson("{\"xmltv_id\":\"xmltv-guide\"}");
+        assertEquals("xmltv-guide", EpgApplicationService.guideId(m3u, m3uChannel));
+        m3uChannel.setExtraJson("{}");
+        assertEquals("provider-id", EpgApplicationService.guideId(m3u, m3uChannel));
+    }
+
     private void refreshAndEnrich(Account account, Channel channel) {
         new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
         new EpgApplicationService().enrichCached(account, List.of(channel));
