@@ -114,7 +114,7 @@ public class EpgBuilderApplicationService {
         output.flush();
     }
 
-    private JSONObject inventoryMetadata(String databasePath) throws Exception {
+    private JSONObject inventoryMetadata(String databasePath) throws java.io.IOException, java.sql.SQLException {
         selectDatabase(databasePath);
         Configuration config = ConfigurationService.getInstance().read();
         JSONArray accounts = new JSONArray();
@@ -341,7 +341,7 @@ public class EpgBuilderApplicationService {
             long stop = programme.getLong("stop");
             String title = programme.getString(TITLE);
             String description = programme.optString(DESCRIPTION, "");
-            validateProgramme(source, guide, title, description, start, stop, declared, created);
+            validateProgramme(new ProgrammeData(source, guide, title, description, start, stop), declared, created);
             if (stop <= now - 6 * 3_600_000L || start >= now + 7 * 86_400_000L) continue;
             sources.computeIfAbsent(BUILDER_PREFIX + hash(source), _ -> new LinkedHashMap<>())
                     .computeIfAbsent(guide, _ -> new ArrayList<>())
@@ -349,14 +349,15 @@ public class EpgBuilderApplicationService {
         }
     }
 
-    private static void validateProgramme(String source, String guide, String title, String description,
-                                          long start, long stop, Map<String, Integer> declared, long created) {
-        if (!declared.containsKey(source) || source.isBlank() || guide.isBlank())
+    private record ProgrammeData(String source, String guide, String title, String description, long start, long stop) { }
+
+    private static void validateProgramme(ProgrammeData programme, Map<String, Integer> declared, long created) {
+        if (!declared.containsKey(programme.source()) || programme.source().isBlank() || programme.guide().isBlank())
             throw new IllegalArgumentException("Invalid programme source or guide identity");
-        if (title.isBlank() || title.length() > 512 || description.length() > 2048)
+        if (programme.title().isBlank() || programme.title().length() > 512 || programme.description().length() > 2048)
             throw new IllegalArgumentException("Invalid programme title or description length");
-        if (stop <= start) throw new IllegalArgumentException("Invalid programme interval: stop must follow start");
-        if (stop <= created - 6 * 3_600_000L || start >= created + 7 * 86_400_000L)
+        if (programme.stop() <= programme.start()) throw new IllegalArgumentException("Invalid programme interval: stop must follow start");
+        if (programme.stop() <= created - 6 * 3_600_000L || programme.start() >= created + 7 * 86_400_000L)
             throw new IllegalArgumentException("Programme outside the supported time window; rebuild the bundle");
     }
 

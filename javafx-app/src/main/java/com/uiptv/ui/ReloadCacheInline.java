@@ -61,7 +61,7 @@ public class ReloadCacheInline extends VBox {
     private static final double STACKED_LAYOUT_WIDTH = ACCOUNT_COLUMN_MIN_WIDTH + LOG_COLUMN_MIN_WIDTH + MAIN_CONTENT_COLUMN_GAP;
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d+)");
     private static final Pattern DISPLAY_CENSORED_COUNT_PATTERN =
-            Pattern.compile("^(.*?\\bcensored\\s+(?:categories|channels):\\s*)([\\p{Nd},.]+)(.*)$",
+            Pattern.compile("^(.{0,4096}\\bcensored\\s+(?:categories|channels):\\s*)([\\p{Nd},.]+)(.*)$",
                     Pattern.CASE_INSENSITIVE);
     private static final String GLOBAL_SERIES_CATEGORY_LIST_FAILED = "Global SERIES category list failed:";
     private static final String GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED = "Global Stalker get_all_channels failed";

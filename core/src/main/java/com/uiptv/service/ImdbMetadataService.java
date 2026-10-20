@@ -1014,12 +1014,12 @@ public class ImdbMetadataService {
     }
 
     private String extractJsonLd(String html) {
-        Matcher m = Pattern.compile(
-                "<script[^>]*+type=\"application/ld\\+json\"[^>]*+>([^<]*+)</script>",
-                Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-        ).matcher(html);
-        if (m.find()) {
-            return m.group(1).trim();
+        Matcher scripts = Pattern.compile("<script\\b[^>]*+>", Pattern.CASE_INSENSITIVE).matcher(html);
+        while (scripts.find()) {
+            String openingTag = scripts.group().toLowerCase(java.util.Locale.ROOT);
+            if (!openingTag.contains("type=\"application/ld+json\"")) continue;
+            int closingTag = html.indexOf("</script>", scripts.end());
+            if (closingTag >= 0) return html.substring(scripts.end(), closingTag).trim();
         }
         return "";
     }

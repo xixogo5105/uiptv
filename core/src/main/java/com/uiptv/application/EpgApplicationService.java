@@ -158,24 +158,30 @@ public class EpgApplicationService {
         try { SOURCE_LOAD_LOCK.lockInterruptibly(); }
         catch (InterruptedException _) { Thread.currentThread().interrupt(); throw new InterruptedIOException("Playlist discovery cancelled"); }
         try {
-            DiscoveredSource cached;
-            synchronized (SOURCES_LOCK) { cached = SOURCES.get(playlist); }
             long now = System.currentTimeMillis();
+            DiscoveredSource cached = discoveredSource(playlist);
             if (cached != null && now < cached.retryAt()) return cached.source();
-            String found;
-            try {
-                found = readPlaylistEpgSource(playlist);
-            } catch (IOException | RuntimeException e) {
-                putBounded(SOURCES, playlist, new DiscoveredSource("", now + Duration.ofMinutes(30).toMillis()));
-                throw e;
-            }
-            if (!found.isBlank()) {
-                URI base = sourceUri(playlist);
-                found = base.resolve(found).toString();
-            }
-            putBounded(SOURCES, playlist, new DiscoveredSource(found, now + Duration.ofMinutes(15).toMillis()));
-            return found;
+            return loadDiscoveredSource(playlist, now);
         } finally { SOURCE_LOAD_LOCK.unlock(); }
+    }
+
+    private DiscoveredSource discoveredSource(String playlist) {
+        synchronized (SOURCES_LOCK) {
+            return SOURCES.get(playlist);
+        }
+    }
+
+    private String loadDiscoveredSource(String playlist, long now) throws IOException {
+        String found;
+        try {
+            found = readPlaylistEpgSource(playlist);
+        } catch (IOException | RuntimeException error) {
+            putBounded(SOURCES, playlist, new DiscoveredSource("", now + Duration.ofMinutes(30).toMillis()));
+            throw error;
+        }
+        if (!found.isBlank()) found = sourceUri(playlist).resolve(found).toString();
+        putBounded(SOURCES, playlist, new DiscoveredSource(found, now + Duration.ofMinutes(15).toMillis()));
+        return found;
     }
 
     private String readPlaylistEpgSource(String playlist) throws IOException {
