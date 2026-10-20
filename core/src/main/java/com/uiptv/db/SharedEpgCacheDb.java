@@ -198,14 +198,13 @@ public final class SharedEpgCacheDb {
             for (Query query : new LinkedHashSet<>(queries)) {
                 Candidate match = resolve(query, snapshot, rules);
                 if (match == null) continue;
-                Result resolved = readResult(query, match, programmes, icons, now, full);
-                if (resolved != null) result.put(query, resolved);
+                result.put(query, readResult(match, programmes, icons, now, full));
             }
         }
         return result;
     }
 
-    private Result readResult(Query query, Candidate match, PreparedStatement programmes,
+    private Result readResult(Candidate match, PreparedStatement programmes,
                               PreparedStatement icons, long now, boolean full) throws SQLException {
         programmes.setString(1, match.source().id());
         programmes.setString(2, match.guide());
