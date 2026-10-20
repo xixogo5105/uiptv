@@ -8,6 +8,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
+@SuppressWarnings("java:S2925")
 class ReloadRequestScopeTest {
     private HttpServer server(java.util.function.Consumer<com.sun.net.httpserver.HttpExchange> handler) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

@@ -21,6 +21,7 @@ import static com.uiptv.testsupport.FxTestSupport.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+@SuppressWarnings("java:S2925")
 class VirtualCardEpgUITest extends DbBackedUiTest {
     @BeforeAll static void initialize() throws Exception { initJavaFx(); }
 

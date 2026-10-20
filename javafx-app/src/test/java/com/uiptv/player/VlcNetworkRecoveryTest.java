@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Opt-in smoke test: installed VLC 3.x plus a generated MPEG-TS fixture, no provider credentials. */
 @EnabledIfSystemProperty(named = "uiptv.vlc.fixture", matches = ".+")
+@SuppressWarnings("java:S2925")
 class VlcNetworkRecoveryTest extends DbBackedUiTest {
     @Test
     void threeStalledHttpStreamsThenGoodVideoAndHttpError() throws Exception {

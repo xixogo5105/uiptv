@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@SuppressWarnings("java:S2925")
 class M3U8PublicationInlineTest extends DbBackedUiTest {
     @BeforeAll
     static void initJavaFx() throws Exception {

@@ -14,6 +14,7 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+@SuppressWarnings("java:S2925")
 class EpgPersistentCacheTest extends DbBackedTest {
     private final EpgCacheDb db=new EpgCacheDb();
     private final EpgCacheRefreshService refresh=new EpgCacheRefreshService();

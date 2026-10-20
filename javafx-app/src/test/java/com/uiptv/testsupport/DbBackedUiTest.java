@@ -12,6 +12,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 
+@SuppressWarnings("java:S2925")
 public abstract class DbBackedUiTest {
     private static final int DELETE_RETRY_ATTEMPTS = 20;
     private static final long DELETE_RETRY_DELAY_MS = 50L;
