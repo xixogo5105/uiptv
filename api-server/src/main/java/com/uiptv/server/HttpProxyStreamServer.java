@@ -76,22 +76,34 @@ public class HttpProxyStreamServer implements HttpHandler {
             ex.sendResponseHeaders(204, -1);
             return;
         }
-        if (!METHOD_GET.equalsIgnoreCase(ex.getRequestMethod()) && !METHOD_HEAD.equalsIgnoreCase(ex.getRequestMethod())) {
-            ex.getResponseHeaders().set("Allow", "GET, HEAD, OPTIONS");
-            ex.sendResponseHeaders(405, -1);
-            return;
-        }
+        if (!isSupportedMethod(ex)) return;
+        String current = validatedSource(ex);
+        if (current == null) return;
+        proxy(ex, current);
+    }
+
+    private boolean isSupportedMethod(HttpExchange ex) throws IOException {
+        if (METHOD_GET.equalsIgnoreCase(ex.getRequestMethod()) || METHOD_HEAD.equalsIgnoreCase(ex.getRequestMethod())) return true;
+        ex.getResponseHeaders().set("Allow", "GET, HEAD, OPTIONS");
+        ex.sendResponseHeaders(405, -1);
+        return false;
+    }
+
+    private String validatedSource(HttpExchange ex) throws IOException {
         String source = getParam(ex, "src");
         if (isBlank(source) || source.length() > MAX_SOURCE_URL_LENGTH) {
             ex.sendResponseHeaders(400, -1);
-            return;
+            return null;
         }
-
         String current = source.trim();
         if (!targetUrlValidator.test(current)) {
             ex.sendResponseHeaders(400, -1);
-            return;
+            return null;
         }
+        return current;
+    }
+
+    private void proxy(HttpExchange ex, String current) throws IOException {
         List<String> cookies = new ArrayList<>();
         String requestMethod = ex.getRequestMethod();
         boolean responseStarted = false;
@@ -253,33 +265,35 @@ public class HttpProxyStreamServer implements HttpHandler {
             collectCookies(upstream.responseHeaders(), cookies);
             int status = upstream.statusCode();
             if (status >= 300 && status <= 399) {
-                try (upstream) {
-                    String location = firstHeader(upstream.responseHeaders(), HEADER_LOCATION);
-                    if (isBlank(location)) {
-                        return null;
-                    }
-                    URI base = URI.create(current);
-                    URI resolved = base.resolve(location);
-                    String resolvedTarget = downgradeHttpsToHttp(resolved.toString());
-                    if (!targetUrlValidator.test(resolvedTarget)) {
-                        return null;
-                    }
-                    current = resolvedTarget;
-                    continue;
-                }
+                String redirected = resolveRedirect(current, upstream);
+                if (redirected == null) return null;
+                current = redirected;
+                continue;
             }
             if (status == HttpUtil.STATUS_NOT_ACCEPTABLE) {
-                try (upstream) {
-                    String fallback = build406Fallback(current);
-                    if (!isBlank(fallback) && !fallback.equals(current) && targetUrlValidator.test(fallback)) {
-                        current = fallback;
-                        continue;
-                    }
-                }
+                String fallback = resolve406Fallback(current, upstream);
+                if (fallback != null) { current = fallback; continue; }
             }
             return upstream;
         }
         return null;
+    }
+
+    private String resolveRedirect(String current, HttpUtil.StreamResult upstream) throws IOException {
+        try (upstream) {
+            String location = firstHeader(upstream.responseHeaders(), HEADER_LOCATION);
+            if (isBlank(location)) return null;
+            URI resolved = URI.create(current).resolve(location);
+            String target = downgradeHttpsToHttp(resolved.toString());
+            return targetUrlValidator.test(target) ? target : null;
+        }
+    }
+
+    private String resolve406Fallback(String current, HttpUtil.StreamResult upstream) throws IOException {
+        try (upstream) {
+            String fallback = build406Fallback(current);
+            return !isBlank(fallback) && !fallback.equals(current) && targetUrlValidator.test(fallback) ? fallback : null;
+        }
     }
 
     private String redirectHostHeader(String originalAuthority, String currentUrl) {

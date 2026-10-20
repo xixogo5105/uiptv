@@ -120,36 +120,46 @@ final class PlaybackMediaInspector {
     static MediaInfo classifyResponse(String contentType, byte[] prefix) {
         String type = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
         byte[] bytes = prefix == null ? new byte[0] : prefix;
-        String format = "";
-        String strategy = STRATEGY_UNKNOWN;
         String video = codecParameter(type, "video");
         String audio = codecParameter(type, "audio");
-        if (type.contains("mpegurl") || startsWithText(bytes, "#EXTM3U")) {
-            format = "hls"; strategy = "hls";
-        } else if (type.contains("dash+xml")) {
-            format = "dash"; strategy = "dash";
-        } else if (type.contains("mp2t") || hasTransportStreamSync(bytes)) {
-            format = STRATEGY_MPEGTS; strategy = STRATEGY_MPEGTS;
-        } else if (type.contains("video/mp4") || hasMp4Signature(bytes)) {
-            format = "mp4"; strategy = STRATEGY_NATIVE;
-        } else if (type.contains("matroska") || hasMatroskaSignature(bytes)) {
-            format = "matroska"; strategy = STRATEGY_UNSUPPORTED;
-        } else if (type.contains("mpeg") || hasMpegProgramStreamSignature(bytes)) {
-            format = "mpeg"; strategy = STRATEGY_UNSUPPORTED;
-        }
+        MediaFormat media = detectFormat(type, bytes);
         if (video.isEmpty() && audio.isEmpty()) {
-            String codecs = codecListParameter(type);
-            if (!codecs.isEmpty()) {
-                String[] parts = codecs.split(",");
-                for (String codec : parts) {
-                    if (codec.startsWith("avc") || codec.startsWith("hvc") || codec.startsWith("hev")) video = codec;
-                    else if (codec.startsWith("mp4a") || codec.startsWith("aac")) audio = codec;
-                }
-            }
+            CodecPair codecs = codecList(type);
+            video = codecs.video();
+            audio = codecs.audio();
         }
-        if (strategy.equals(STRATEGY_NATIVE) && ((!video.isEmpty() && !isBrowserVideoCodec(video))
-                || (!audio.isEmpty() && !isBrowserAudioCodec(audio)))) strategy = STRATEGY_UNSUPPORTED;
-        return new MediaInfo(strategy, format, video, audio, 0L);
+        String strategy = media.strategy();
+        if (STRATEGY_NATIVE.equals(strategy) && unsupportedCodecs(video, audio)) strategy = STRATEGY_UNSUPPORTED;
+        return new MediaInfo(strategy, media.format(), video, audio, 0L);
+    }
+
+    private record MediaFormat(String strategy, String format) { }
+    private record CodecPair(String video, String audio) { }
+
+    private static MediaFormat detectFormat(String type, byte[] bytes) {
+        if (type.contains("mpegurl") || startsWithText(bytes, "#EXTM3U")) return new MediaFormat("hls", "hls");
+        if (type.contains("dash+xml")) return new MediaFormat("dash", "dash");
+        if (type.contains("mp2t") || hasTransportStreamSync(bytes)) return new MediaFormat(STRATEGY_MPEGTS, STRATEGY_MPEGTS);
+        if (type.contains("video/mp4") || hasMp4Signature(bytes)) return new MediaFormat(STRATEGY_NATIVE, "mp4");
+        if (type.contains("matroska") || hasMatroskaSignature(bytes)) return new MediaFormat(STRATEGY_UNSUPPORTED, "matroska");
+        if (type.contains("mpeg") || hasMpegProgramStreamSignature(bytes)) return new MediaFormat(STRATEGY_UNSUPPORTED, "mpeg");
+        return new MediaFormat(STRATEGY_UNKNOWN, "");
+    }
+
+    private static CodecPair codecList(String type) {
+        String video = "";
+        String audio = "";
+        String codecs = codecListParameter(type);
+        for (String codec : codecs.split(",")) {
+            if (codec.startsWith("avc") || codec.startsWith("hvc") || codec.startsWith("hev")) video = codec;
+            if (codec.startsWith("mp4a") || codec.startsWith("aac")) audio = codec;
+        }
+        return new CodecPair(video, audio);
+    }
+
+    private static boolean unsupportedCodecs(String video, String audio) {
+        return (!video.isEmpty() && !isBrowserVideoCodec(video))
+                || (!audio.isEmpty() && !isBrowserAudioCodec(audio));
     }
 
     private static boolean isBrowserVideoCodec(String codec) {

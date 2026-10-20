@@ -132,20 +132,11 @@ public class EpgCacheRefreshService {
         long epoch = EPOCH.get();
         Thread task = Thread.ofVirtual().name("epg-cache-lifecycle").unstarted(() -> {
             try {
-                if (!lifecycleStarted || epoch != EPOCH.get() || Thread.currentThread().isInterrupted()) return;
+                if (stale(epoch)) return;
                 boolean enabled = isEnabled();
                 synchronized (EpgCacheRefreshService.class) {
-                    if (!lifecycleStarted || epoch != EPOCH.get() || Thread.currentThread().isInterrupted()) return;
-                    if (!enabled) stopTimer();
-                    else if (scheduler == null || scheduler.isShutdown()) {
-                        scheduler = Executors.newSingleThreadScheduledExecutor(r -> { Thread thread = new Thread(r,"epg-cache-refresh"); thread.setDaemon(true); return thread; });
-                        // Do not compete with catalogue loading and first-paint. Visible cards
-                        // still wake the scheduler immediately through requestRefresh(); this
-                        // delay only moves the broad account sweep out of application startup.
-                        long interval = schedulerIntervalMillis();
-                        long initialDelay = IMMEDIATE_REQUESTED.getAndSet(false) ? 0 : 15;
-                        scheduler.scheduleWithFixedDelay(EpgCacheRefreshService::runScheduled,initialDelay,interval,TimeUnit.MILLISECONDS);
-                    }
+                    if (stale(epoch)) return;
+                    if (!enabled) stopTimer(); else startTimer();
                 }
             } catch (DatabaseAccessException _) {
                 // A cancelled lifecycle must not report teardown as a database failure.
@@ -161,8 +152,27 @@ public class EpgCacheRefreshService {
         RECONCILER.set(task);
         task.start();
     }
+    private static boolean stale(long epoch) {
+        return !lifecycleStarted || epoch != EPOCH.get() || Thread.currentThread().isInterrupted();
+    }
+    private static void startTimer() {
+        if (scheduler != null && !scheduler.isShutdown()) return;
+        scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread thread = new Thread(r, "epg-cache-refresh");
+            thread.setDaemon(true);
+            return thread;
+        });
+        // Visible cards still wake the scheduler immediately; the delay moves the broad sweep
+        // out of application startup.
+        long interval = schedulerIntervalMillis();
+        long initialDelay = IMMEDIATE_REQUESTED.getAndSet(false) ? 0 : 15;
+        scheduler.scheduleWithFixedDelay(EpgCacheRefreshService::runScheduled, initialDelay, interval,
+                TimeUnit.MILLISECONDS);
+    }
     private static synchronized void stopTimer() {
-        if(scheduler!=null) scheduler.shutdownNow(); scheduler=null; QUEUED.set(false);
+        if (scheduler != null) scheduler.shutdownNow();
+        scheduler = null;
+        QUEUED.set(false);
     }
     public static void stop() { stop(false, true); }
     private static void stop(boolean serverOnly) { stop(serverOnly, true); }
