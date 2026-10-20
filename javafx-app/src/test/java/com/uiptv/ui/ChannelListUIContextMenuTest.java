@@ -191,7 +191,7 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     @Test
-    void plainTextChannelCardPlacesBroadcastBesideTitleBeforeTrailingActions() throws Exception {
+    void plainTextChannelCardPlacesBroadcastAtTheTrailingEdge() throws Exception {
         boolean correctlyPlaced = runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
             ChannelListUI.ChannelItem item = channelItem(true);
@@ -211,9 +211,10 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
             return row.getStyleClass().contains("playing-indicator-inline-row")
                     && title != null
                     && indicator != null
-                    && row.getChildren().indexOf(indicator) == row.getChildren().indexOf(title) + 1
+                    && row.getChildren().indexOf(indicator) > row.getChildren().indexOf(title)
                     && bookmark != null
-                    && row.getChildren().indexOf(bookmark) > row.getChildren().indexOf(indicator);
+                    && row.getChildren().indexOf(bookmark) < row.getChildren().indexOf(indicator)
+                    && row.getChildren().getLast() == indicator;
         });
 
         assertTrue(correctlyPlaced);
@@ -260,7 +261,7 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     @Test
-    void thumbnailDrawerChannelRowPlacesBroadcastBesideTitleBeforeBadges() throws Exception {
+    void thumbnailDrawerChannelRowKeepsBroadcastAtTheTrailingEdgeOfTheTitleRow() throws Exception {
         boolean correctlyPlaced = runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
             setBooleanField(ui, "thumbnailsEnabled", true);
@@ -282,7 +283,8 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
                     && title.getParent() instanceof HBox titleRow
                     && titleRow.getStyleClass().contains("playing-indicator-inline-row")
                     && indicator != null
-                    && titleRow.getChildren().indexOf(indicator) == titleRow.getChildren().indexOf(title) + 1
+                    && titleRow.getChildren().indexOf(indicator) > titleRow.getChildren().indexOf(title)
+                    && titleRow.getChildren().getLast() == indicator
                     && bookmark != null
                     && bookmark.getParent() instanceof HBox badges
                     && badges.getChildren().indexOf(bookmark) >= 0;
