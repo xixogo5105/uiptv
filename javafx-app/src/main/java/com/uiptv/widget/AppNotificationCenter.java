@@ -16,6 +16,7 @@ import javafx.util.Duration;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class AppNotificationCenter {
     private static final Duration DISPLAY_DURATION = Duration.seconds(18);
@@ -23,7 +24,7 @@ public final class AppNotificationCenter {
     private static final Duration FADE_OUT_DURATION = Duration.millis(260);
     private static final int MAX_VISIBLE_NOTIFICATIONS = 3;
 
-    private static volatile VBox host;
+    private static final AtomicReference<VBox> HOST = new AtomicReference<>();
 
     private AppNotificationCenter() {
     }
@@ -43,7 +44,7 @@ public final class AppNotificationCenter {
             return;
         }
         Runnable installer = () -> {
-            host = notificationHost;
+            HOST.set(notificationHost);
             updateHostVisibility(notificationHost);
         };
         if (Platform.isFxApplicationThread()) {
@@ -62,7 +63,7 @@ public final class AppNotificationCenter {
     }
 
     private static boolean show(NotificationType type, String message, Runnable onDismiss) {
-        VBox currentHost = host;
+        VBox currentHost = HOST.get();
         if (currentHost == null) {
             return false;
         }
@@ -76,7 +77,7 @@ public final class AppNotificationCenter {
     }
 
     private static void showNow(VBox currentHost, NotificationType type, String message, Runnable onDismiss) {
-        if (currentHost.getScene() == null && host != currentHost) {
+        if (currentHost.getScene() == null && HOST.get() != currentHost) {
             runCleanup(onDismiss);
             return;
         }

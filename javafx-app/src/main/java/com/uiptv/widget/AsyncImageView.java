@@ -11,6 +11,7 @@ import javafx.scene.layout.StackPane;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class AsyncImageView extends StackPane {
     private static final int IMAGE_VIEW_WIDTH = 48;
@@ -30,12 +31,12 @@ public class AsyncImageView extends StackPane {
     private volatile String fallbackUrl;
     private volatile String fallbackType;
     private volatile boolean primaryFailed;
-    private volatile javafx.animation.PauseTransition loadDebounce;
+    private javafx.animation.PauseTransition loadDebounce;
     private static volatile boolean scrolling = false;
     private static final ConcurrentLinkedQueue<AsyncImageView> PENDING_UI_UPDATES = new ConcurrentLinkedQueue<>();
     private static volatile boolean uiUpdateScheduled = false;
     private static final Object UI_UPDATE_LOCK = new Object();
-    private volatile javafx.scene.image.Image pendingImage;
+    private final AtomicReference<javafx.scene.image.Image> pendingImage = new AtomicReference<>();
     private volatile String pendingUrl;
 
     public static void setScrolling(boolean active) {
@@ -146,7 +147,7 @@ public class AsyncImageView extends StackPane {
         ImageCacheManager.loadImageAsync(url, type)
                 .handle((image,error) -> {
                     if(image!=null && Objects.equals(url,currentUrl)) {
-                        pendingImage=image; pendingUrl=url; queueUiUpdate();
+                        pendingImage.set(image); pendingUrl=url; queueUiUpdate();
                     } else if(Objects.equals(url,currentUrl) && !Objects.equals(url,fallbackUrl)) {
                         primaryFailed=true;
                         Platform.runLater(() -> {
@@ -178,13 +179,13 @@ public class AsyncImageView extends StackPane {
     }
 
     private void applyLoadedImage() {
-        if (pendingImage == null || !Objects.equals(pendingUrl, currentUrl)) {
-            pendingImage = null;
+        Image loadedImage = pendingImage.get();
+        if (loadedImage == null || !Objects.equals(pendingUrl, currentUrl)) {
+            pendingImage.set(null);
             pendingUrl = null;
             return;
         }
-        Image image = pendingImage;
-        pendingImage = null;
+        Image image = pendingImage.getAndSet(null);
         pendingUrl = null;
         imageView.setImage(image);
         imageView.setVisible(true);
@@ -203,7 +204,7 @@ public class AsyncImageView extends StackPane {
             loadDebounce.stop();
         }
         this.currentUrl = null;
-        this.pendingImage = null;
+        this.pendingImage.set(null);
         this.pendingUrl = null;
         imageView.setImage(null);
         imageView.setVisible(false);

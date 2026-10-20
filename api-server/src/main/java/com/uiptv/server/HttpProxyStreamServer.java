@@ -115,48 +115,43 @@ public class HttpProxyStreamServer implements HttpHandler {
                     return;
                 }
 
-                byte[] responseBody = null;
-                boolean rewriteHlsPlaylist = shouldRewriteHlsPlaylist(upstream);
-                if (rewriteHlsPlaylist && !METHOD_HEAD.equalsIgnoreCase(requestMethod)) {
-                    long advertisedLength = resolveContentLength(firstHeader(upstream.responseHeaders(), HEADER_CONTENT_LENGTH));
-                    if (advertisedLength > MAX_PLAYLIST_BYTES) {
-                        throw new PlaylistTooLargeException();
-                    }
-                    responseBody = rewriteHlsPlaylist(readPlaylistBody(resolvedBodyStream(upstream)), upstream.requestUri());
-                }
-
+                byte[] responseBody = responseBody(upstream, requestMethod);
                 writeResponseHeaders(ex, upstream.responseHeaders());
                 responseStarted = true;
-                ex.sendResponseHeaders(
-                        upstream.statusCode(),
-                        responseBody == null
-                                ? resolveContentLength(firstHeader(upstream.responseHeaders(), HEADER_CONTENT_LENGTH))
-                                : responseBody.length
-                );
-
-                if (!METHOD_HEAD.equalsIgnoreCase(requestMethod)) {
-                    try (OutputStream os = ex.getResponseBody()) {
-                        if (responseBody == null) {
-                            try (InputStream is = resolvedBodyStream(upstream)) {
-                                copyStream(is, os);
-                            }
-                        } else {
-                            os.write(responseBody);
-                        }
-                    }
-                }
+                sendResponse(ex, upstream, responseBody, requestMethod);
             }
         } catch (PlaylistTooLargeException _) {
             if (!responseStarted) {
                 ex.sendResponseHeaders(413, -1);
             }
-        } catch (IOException _) {
+        } catch (IOException | RuntimeException _) {
             if (!responseStarted) {
                 sendBadGateway(ex);
             }
-        } catch (RuntimeException _) {
-            if (!responseStarted) {
-                sendBadGateway(ex);
+        }
+    }
+
+    private byte[] responseBody(HttpUtil.StreamResult upstream, String requestMethod) throws IOException {
+        if (!shouldRewriteHlsPlaylist(upstream) || METHOD_HEAD.equalsIgnoreCase(requestMethod)) return null;
+        long advertisedLength = resolveContentLength(firstHeader(upstream.responseHeaders(), HEADER_CONTENT_LENGTH));
+        if (advertisedLength > MAX_PLAYLIST_BYTES) throw new PlaylistTooLargeException();
+        return rewriteHlsPlaylist(readPlaylistBody(resolvedBodyStream(upstream)), upstream.requestUri());
+    }
+
+    private void sendResponse(HttpExchange ex, HttpUtil.StreamResult upstream, byte[] responseBody,
+                              String requestMethod) throws IOException {
+        long length = responseBody == null
+                ? resolveContentLength(firstHeader(upstream.responseHeaders(), HEADER_CONTENT_LENGTH))
+                : responseBody.length;
+        ex.sendResponseHeaders(upstream.statusCode(), length);
+        if (METHOD_HEAD.equalsIgnoreCase(requestMethod)) return;
+        try (OutputStream os = ex.getResponseBody()) {
+            if (responseBody != null) {
+                os.write(responseBody);
+                return;
+            }
+            try (InputStream is = resolvedBodyStream(upstream)) {
+                copyStream(is, os);
             }
         }
     }

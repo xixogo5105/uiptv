@@ -4,6 +4,7 @@ import com.uiptv.service.ConfigurationService;
 import javafx.application.Platform;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Base class providing common functionality for UI components that support both
@@ -18,7 +19,7 @@ public abstract class ThumbnailAwareUI {
     }
 
     private static final List<ThumbnailModeListener> THUMBNAIL_MODE_LISTENERS = new CopyOnWriteArrayList<>();
-    private static volatile boolean lastKnownThumbnailState = readThumbnailState();
+    private static final AtomicBoolean LAST_KNOWN_THUMBNAIL_STATE = new AtomicBoolean(readThumbnailState());
     private static volatile long lastThumbnailStateReadMs = System.currentTimeMillis();
 
     /**
@@ -27,7 +28,7 @@ public abstract class ThumbnailAwareUI {
      */
     public static boolean areThumbnailsEnabled() {
         refreshThumbnailStateIfStale();
-        return lastKnownThumbnailState;
+        return LAST_KNOWN_THUMBNAIL_STATE.get();
     }
 
     public static void addThumbnailModeListener(ThumbnailModeListener listener) {
@@ -45,8 +46,7 @@ public abstract class ThumbnailAwareUI {
     }
 
     public static void notifyThumbnailModeChanged(boolean enabled) {
-        boolean changed = enabled != lastKnownThumbnailState;
-        lastKnownThumbnailState = enabled;
+        boolean changed = LAST_KNOWN_THUMBNAIL_STATE.getAndSet(enabled) != enabled;
         lastThumbnailStateReadMs = System.currentTimeMillis();
         if (!changed) {
             return;
@@ -72,7 +72,7 @@ public abstract class ThumbnailAwareUI {
         if (now - lastThumbnailStateReadMs < THUMBNAIL_STATE_REFRESH_MS) {
             return;
         }
-        lastKnownThumbnailState = readThumbnailState(lastKnownThumbnailState);
+        LAST_KNOWN_THUMBNAIL_STATE.set(readThumbnailState(LAST_KNOWN_THUMBNAIL_STATE.get()));
         lastThumbnailStateReadMs = now;
     }
 
