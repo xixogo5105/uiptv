@@ -76,7 +76,7 @@ public final class PlaybackUIService {
 
     public static void play(Node source, PlaybackRequest request) {
         Account playbackAccount = request == null ? null : request.accountForPlayback();
-        if (source == null || request == null || playbackAccount == null || request.channel == null) {
+        if (!validPlaybackRequest(source, request, playbackAccount)) {
             return;
         }
         cancelPendingPlayback();
@@ -85,13 +85,22 @@ public final class PlaybackUIService {
         Configuration configuration = ConfigurationService.getInstance().read();
         PlaybackModeContext context = buildPlaybackModeContext(configuration, request, playbackAccount);
         source.setCursor(Cursor.WAIT);
-        if (handleBrowserPlayback(context, request, playbackAccount)
-                || handleDrmBrowserFallback(context, request, playbackAccount)) {
+        if (handleImmediatePlayback(context, request, playbackAccount)) {
             source.setCursor(null);
             return;
         }
         Future<?> resolution = submitPlaybackResolution(source, request, playbackAccount, context, requestSequence);
         currentPlaybackResolution.set(resolution);
+    }
+
+    private static boolean validPlaybackRequest(Node source, PlaybackRequest request, Account playbackAccount) {
+        return source != null && request != null && playbackAccount != null && request.channel != null;
+    }
+
+    private static boolean handleImmediatePlayback(PlaybackModeContext context, PlaybackRequest request,
+                                                    Account playbackAccount) {
+        return handleBrowserPlayback(context, request, playbackAccount)
+                || handleDrmBrowserFallback(context, request, playbackAccount);
     }
 
     private static Future<?> submitPlaybackResolution(Node source, PlaybackRequest request, Account playbackAccount,
