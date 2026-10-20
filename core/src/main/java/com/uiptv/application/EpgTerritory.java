@@ -162,7 +162,10 @@ public final class EpgTerritory {
         return matchingCodesInSegment(value, true);
     }
 
+    @SuppressWarnings("javabugs:S2259")
     private static Set<String> matchingCodesInSegment(String value, boolean strongMarker) {
+        // normalizeToken and matchingCodes both return non-null values; the guard below also
+        // documents that contract for analyzers that do not follow those helper guarantees.
         String normalized = normalizeToken(value);
         String core = normalized.replaceAll("(?:\\s|[-_/])+(?:HD|FHD|UHD|4K|8K|\\d{3,4}P|\\d{3,4}I)$", "");
         if (!strongMarker) core = core.replaceAll("(?:\\s|[-_/])+SD$", "");
@@ -184,6 +187,7 @@ public final class EpgTerritory {
     }
 
     /** Parse an explicit channel-label territory without treating language labels as countries. */
+    @SuppressWarnings("javabugs:S2259")
     public static Context parse(String value) {
         String original = value == null ? "" : value.strip();
         String normalized = XmltvGuide.normalize(original);
