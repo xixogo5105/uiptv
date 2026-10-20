@@ -118,11 +118,13 @@ class M3U8PublicationServiceTest extends DbBackedTest {
     @Test
     void getPublishedM3u8_proxiesAdaptiveManifestWithoutRedirectResolution() throws Exception {
         java.io.File playlistFile = tempDir.resolve("adaptive-manifest.m3u8").toFile();
-        Files.writeString(playlistFile.toPath(), "#EXTM3U\n"
-                + "#EXTINF:-1,Adaptive Channel\n"
-                + "#KODIPROP:inputstreamaddon=inputstream.adaptive\n"
-                + "#KODIPROP:inputstream.adaptive.manifest_type=hls\n"
-                + "http://test.com/live\n", StandardCharsets.UTF_8);
+        Files.writeString(playlistFile.toPath(), """
+                #EXTM3U
+                #EXTINF:-1,Adaptive Channel
+                #KODIPROP:inputstreamaddon=inputstream.adaptive
+                #KODIPROP:inputstream.adaptive.manifest_type=hls
+                http://test.com/live
+                """, StandardCharsets.UTF_8);
         saveAndSelectAccount("AdaptiveAccount", playlistFile, false);
 
         String result = M3U8PublicationService.getInstance().getPublishedM3u8("127.0.0.1:8888");

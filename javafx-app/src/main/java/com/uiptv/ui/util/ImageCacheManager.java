@@ -232,10 +232,6 @@ public class ImageCacheManager {
         return loadImageAsync(url, caller, null, ImageProfile.THUMBNAIL);
     }
 
-    private static void cacheImage(String key, Image image) {
-        cacheImage(key, image, ImageProfile.THUMBNAIL);
-    }
-
     private static void cacheImage(String key, Image image, ImageProfile profile) {
         Map<String, Image> cache = cacheFor(profile);
         synchronized (cache) {

@@ -41,13 +41,13 @@ public class EpgBuilderApplicationService {
     private static final String SIGNATURE = "signature";
     private static final String BUILDER_PREFIX = "builder:";
 
-    private static String computeDatabaseIdentity(String databasePath) throws Exception {
+    private static String computeDatabaseIdentity(String databasePath) throws java.io.IOException {
         Path path = Path.of(databasePath).toRealPath();
         var attributes = Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes.class);
         return hash(path + "|" + Objects.toString(attributes.fileKey(), attributes.creationTime().toString()));
     }
 
-    private static void selectDatabase(String databasePath) throws Exception {
+    private static void selectDatabase(String databasePath) throws java.io.IOException, java.sql.SQLException {
         if (databasePath == null || !Files.isRegularFile(Path.of(databasePath))) {
             throw new IllegalArgumentException("Expected an existing UIPTV database at the resolved location");
         }
@@ -203,7 +203,10 @@ public class EpgBuilderApplicationService {
                 epgId = metadata.optString("epg_id", "");
                 tvgId = metadata.optString("tvg-id", "");
             }
-        } catch (Exception _) {}
+        } catch (org.json.JSONException error) {
+            com.uiptv.util.AppLog.addWarningLog(EpgBuilderApplicationService.class,
+                    "Ignoring invalid optional channel metadata: " + error.getMessage());
+        }
 
         boolean isManual = !manualOverride.isBlank();
 
@@ -336,7 +339,7 @@ public class EpgBuilderApplicationService {
         return new Prepared(sources, matches, shared, programmes.length());
     }
 
-    private static JSONObject readBundle(String bundlePath) throws Exception {
+    private static JSONObject readBundle(String bundlePath) throws java.io.IOException {
         if (bundlePath == null || Files.size(Path.of(bundlePath)) > 128 * 1024 * 1024L)
             throw new IllegalArgumentException("--bundle must name a file smaller than 128 MiB");
         return new JSONObject(Files.readString(Path.of(bundlePath)));

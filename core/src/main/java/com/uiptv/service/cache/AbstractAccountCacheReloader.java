@@ -23,6 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -223,7 +224,8 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
             return ids;
         }
         categories.stream()
-                .filter(category -> category != null && isNotBlank(category.getCategoryId()))
+                .filter(Objects::nonNull)
+                .filter(category -> isNotBlank(category.getCategoryId()))
                 .map(Category::getCategoryId)
                 .forEach(ids::add);
         return ids;
@@ -240,7 +242,7 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
         }
 
         return channels.stream()
-                .filter(channel -> channel != null)
+                .filter(Objects::nonNull)
                 .filter(channel -> {
                     String categoryId = canonicalCategoryId(channel.getCategoryId(), canonicalCategoryIdByOriginalId);
                     return isBlank(categoryId) || !knownCategoryIds.contains(categoryId) || visibleCategoryIds.contains(categoryId);

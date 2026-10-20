@@ -27,7 +27,7 @@ public final class HttpEpgChangeEventServer implements HttpHandler {
         if (after < 0) after = EpgChangeNotifications.snapshot().revision();
 
         var queue = new ArrayBlockingQueue<EpgChangeNotifications.Notification>(QUEUE_SIZE);
-        var subscription = EpgChangeNotifications.subscribe(after, event -> queue.offer(event));
+        var subscription = EpgChangeNotifications.subscribe(after, queue::offer);
         exchange.getResponseHeaders().set("Content-Type", "text/event-stream; charset=UTF-8");
         exchange.getResponseHeaders().set("Cache-Control", "no-cache, no-transform");
         exchange.getResponseHeaders().set("Connection", "keep-alive");

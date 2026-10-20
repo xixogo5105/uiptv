@@ -2,6 +2,7 @@ package com.uiptv.application;
 
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 import java.io.InputStream;
 import java.time.*;
@@ -11,11 +12,11 @@ import java.util.*;
 /** Streaming XMLTV reader. External DTDs and entities are never fetched. */
 public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String, String> names, Map<String, String> qualityNames, Map<String,String> icons) {
     private static final java.util.regex.Pattern WHITESPACE = java.util.regex.Pattern.compile("\\s+");
-    private static final java.util.regex.Pattern QUALITY = java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}])(?:fhd|uhd|hd|sd|4k|8k|(?:144|240|360|480|540|576|720|1080|1440|2160|4320)[pi])(?![\\p{L}\\p{N}])");
+    private static final java.util.regex.Pattern QUALITY = java.util.regex.Pattern.compile("(?<![\\p{L}\\p{N}])(?:fhd|uhd|hd|sd|4k|8k|\\d{3,4}[pi])(?![\\p{L}\\p{N}])");
     private static final java.util.regex.Pattern DISPLAY_RESOLUTION = java.util.regex.Pattern.compile("\\s*\\((?:144|240|360|480|540|576|720|1080|1440|2160|4320)[pi]\\)");
     private static final java.util.regex.Pattern AVAILABILITY = java.util.regex.Pattern.compile("\\s*\\[geo-blocked\\]");
     private static final java.util.regex.Pattern EMPTY_BRACKETS = java.util.regex.Pattern.compile("\\([\\s|/,-]*\\)|\\[[\\s|/,-]*\\]");
-    private static final java.util.regex.Pattern EDGE_SEPARATORS = java.util.regex.Pattern.compile("^[\\s|/,-]+|[\\s|/,-]+$");
+    private static final java.util.regex.Pattern EDGE_SEPARATORS = java.util.regex.Pattern.compile("[\\s|/,-]+");
     private static final String CHANNEL_ELEMENT = "channel";
     private static final DateTimeFormatter XMLTV_TIME = DateTimeFormatter.ofPattern("uuuuMMddHHmmss").withResolverStyle(java.time.format.ResolverStyle.STRICT);
 
@@ -25,7 +26,8 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
     public XmltvGuide(Map<String,List<EpgProgramme>> programmes,Map<String,String> names,Map<String,String> qualityNames) {
         this(programmes,names,qualityNames,Map.of());
     }
-    public static XmltvGuide read(InputStream input, Instant now) throws Exception {
+    public static XmltvGuide read(InputStream input, Instant now)
+            throws java.io.IOException, javax.xml.stream.XMLStreamException, InterruptedException {
         XMLInputFactory factory = XMLInputFactory.newFactory();
         factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
         // Large XMLTV descriptions can exceed the JDK default entity-text limit.
@@ -36,76 +38,104 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
             factory.setProperty("jdk.xml.totalEntitySizeLimit", "8388608");
         factory.setProperty("javax.xml.stream.isSupportingExternalEntities", false);
         factory.setXMLResolver((publicId, systemId, base, namespace) -> { throw new javax.xml.stream.XMLStreamException("External entities disabled"); });
-        CompactProgrammeMap.Builder programmes = new CompactProgrammeMap.Builder();
-        Map<String, String> names = new HashMap<>();
-        Map<String,String> icons=new HashMap<>();
-        Set<String> ambiguous = new HashSet<>();
-        Map<String, String> qualityNames = new HashMap<>();
-        Set<String> ambiguousQuality = new HashSet<>();
+        ParseContext context = new ParseContext(now);
         XMLStreamReader reader = factory.createXMLStreamReader(input);
-        String id = null;
-        String channel = null;
-        String title = "";
-        String description = "";
-        Instant start = null;
-        Instant stop = null;
-        int count = 0;
-        long retainedBytes = 0;
         try {
             while (reader.hasNext()) {
                 if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
                 int event = reader.next();
-                if (event == XMLStreamConstants.START_ELEMENT) {
-                    switch (reader.getLocalName()) {
-                        case CHANNEL_ELEMENT -> id = reader.getAttributeValue(null, "id");
-                        case "display-name" -> {
-                            String name = normalize(boundedText(reader, 512));
-                            retainedBytes += 256L + name.length() * 4L;
-                            if (retainedBytes > 32L * 1024 * 1024) throw new IllegalArgumentException("Guide exceeds size limit");
-                            if (id != null && !name.isBlank()) {
-                                String previous = names.putIfAbsent(name, id);
-                                if (previous != null && !previous.equals(id)) ambiguous.add(name);
-                                String qualityName = normalizeQuality(name);
-                                String qualityPrevious = qualityNames.putIfAbsent(qualityName, id);
-                                if (qualityPrevious != null && !qualityPrevious.equals(id)) ambiguousQuality.add(qualityName);
-                            }
-                        }
-                        case "icon" -> {
-                            String icon=reader.getAttributeValue(null,"src");
-                            if(id!=null && channel==null && icon!=null && !icon.isBlank() && icon.length()<=4096) {
-                                icons.putIfAbsent(id,icon.strip()); retainedBytes+=256L+icon.length()*4L;
-                                if(retainedBytes>32L*1024*1024) throw new IllegalArgumentException("Guide exceeds size limit");
-                            }
-                        }
-                        case "programme" -> {
-                            channel = reader.getAttributeValue(null, CHANNEL_ELEMENT);
-                            start = time(reader.getAttributeValue(null, "start"));
-                            stop = time(reader.getAttributeValue(null, "stop"));
-                            title = ""; description = ""; // Reset programme text for the new programme.
-                        }
-                        case "title" -> { String text = boundedText(reader, 512); if (title.isEmpty()) title = text.strip(); }
-                        case "desc" -> { String text = boundedText(reader, 2048); if (description.isEmpty()) description = text.strip(); }
-                        default -> { /* Ignore unrelated XMLTV elements. */ }
-                    }
-                } else if(event==XMLStreamConstants.END_ELEMENT && reader.getLocalName().equals(CHANNEL_ELEMENT)) {
-                    id=null;
-                } else if (event == XMLStreamConstants.END_ELEMENT && reader.getLocalName().equals("programme")) {
-                    if (channel != null && start != null && !title.isBlank()
-                            && start.isBefore(now.plus(Duration.ofDays(7)))
-                            && (stop == null || stop.isAfter(now.minus(Duration.ofHours(6))))
-                            && start.isAfter(now.minus(Duration.ofDays(1)))) {
-                        if (++count > 200_000) throw new IllegalArgumentException("Guide exceeds programme limit");
-                        programmes.add(channel, new EpgProgramme(title, description,
-                                start.toEpochMilli(), stop == null ? 0 : stop.toEpochMilli()));
-                    }
-                    channel = null;
-                }
+                if (event == XMLStreamConstants.START_ELEMENT) handleStartElement(reader, context);
+                if (event == XMLStreamConstants.END_ELEMENT) handleEndElement(reader, context);
             }
         } finally { reader.close(); }
-        ambiguous.forEach(names::remove);
-        ambiguousQuality.forEach(qualityNames::remove);
-        qualityNames.remove("");
-        return new XmltvGuide(programmes.build(),Map.copyOf(names),Map.copyOf(qualityNames),Map.copyOf(icons));
+        context.ambiguous.forEach(context.names::remove);
+        context.ambiguousQuality.forEach(context.qualityNames::remove);
+        context.qualityNames.remove("");
+        return new XmltvGuide(context.programmes.build(), Map.copyOf(context.names),
+                Map.copyOf(context.qualityNames), Map.copyOf(context.icons));
+    }
+
+    private static final class ParseContext {
+        private final Instant now;
+        private final CompactProgrammeMap.Builder programmes = new CompactProgrammeMap.Builder();
+        private final Map<String, String> names = new HashMap<>();
+        private final Map<String, String> icons = new HashMap<>();
+        private final Set<String> ambiguous = new HashSet<>();
+        private final Map<String, String> qualityNames = new HashMap<>();
+        private final Set<String> ambiguousQuality = new HashSet<>();
+        private String id;
+        private String channel;
+        private String title = "";
+        private String description = "";
+        private Instant start;
+        private Instant stop;
+        private int count;
+        private long retainedBytes;
+
+        private ParseContext(Instant now) { this.now = now; }
+    }
+
+    private static void handleStartElement(XMLStreamReader reader, ParseContext context)
+            throws XMLStreamException, java.io.IOException {
+        switch (reader.getLocalName()) {
+            case CHANNEL_ELEMENT -> context.id = reader.getAttributeValue(null, "id");
+            case "display-name" -> readDisplayName(reader, context);
+            case "icon" -> readIcon(reader, context);
+            case "programme" -> beginProgramme(reader, context);
+            case "title" -> { String text = boundedText(reader, 512); if (context.title.isEmpty()) context.title = text.strip(); }
+            case "desc" -> { String text = boundedText(reader, 2048); if (context.description.isEmpty()) context.description = text.strip(); }
+            default -> reader.getLocalName();
+        }
+    }
+
+    private static void readDisplayName(XMLStreamReader reader, ParseContext context) throws XMLStreamException {
+        String name = normalize(boundedText(reader, 512));
+        retain(context, 256L + name.length() * 4L);
+        if (context.id == null || name.isBlank()) return;
+        String previous = context.names.putIfAbsent(name, context.id);
+        if (previous != null && !previous.equals(context.id)) context.ambiguous.add(name);
+        String qualityName = normalizeQuality(name);
+        String qualityPrevious = context.qualityNames.putIfAbsent(qualityName, context.id);
+        if (qualityPrevious != null && !qualityPrevious.equals(context.id)) context.ambiguousQuality.add(qualityName);
+    }
+
+    private static void readIcon(XMLStreamReader reader, ParseContext context) {
+        String icon = reader.getAttributeValue(null, "src");
+        if (context.id == null || context.channel != null || icon == null || icon.isBlank() || icon.length() > 4096) return;
+        context.icons.putIfAbsent(context.id, icon.strip());
+        retain(context, 256L + icon.length() * 4L);
+    }
+
+    private static void beginProgramme(XMLStreamReader reader, ParseContext context) {
+        context.channel = reader.getAttributeValue(null, CHANNEL_ELEMENT);
+        context.start = time(reader.getAttributeValue(null, "start"));
+        context.stop = time(reader.getAttributeValue(null, "stop"));
+        context.title = "";
+        context.description = "";
+    }
+
+    private static void handleEndElement(XMLStreamReader reader, ParseContext context) throws java.io.IOException {
+        if (reader.getLocalName().equals(CHANNEL_ELEMENT)) context.id = null;
+        if (reader.getLocalName().equals("programme")) finishProgramme(context);
+    }
+
+    private static void finishProgramme(ParseContext context) throws java.io.IOException {
+        if (context.channel == null || context.start == null || context.title.isBlank()
+                || !context.start.isBefore(context.now.plus(Duration.ofDays(7)))
+                || context.stop != null && !context.stop.isAfter(context.now.minus(Duration.ofHours(6)))
+                || !context.start.isAfter(context.now.minus(Duration.ofDays(1)))) {
+            context.channel = null;
+            return;
+        }
+        if (++context.count > 200_000) throw new IllegalArgumentException("Guide exceeds programme limit");
+        context.programmes.add(context.channel, new EpgProgramme(context.title, context.description,
+                context.start.toEpochMilli(), context.stop == null ? 0 : context.stop.toEpochMilli()));
+        context.channel = null;
+    }
+
+    private static void retain(ParseContext context, long bytes) {
+        context.retainedBytes += bytes;
+        if (context.retainedBytes > 32L * 1024 * 1024) throw new IllegalArgumentException("Guide exceeds size limit");
     }
 
     /** Conservative retained-size estimate, including strings, lists and map entries. */
@@ -164,7 +194,14 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
 
     static String normalizeQuality(String name) {
         String value = QUALITY.matcher(normalizeDisplayName(name)).replaceAll(" ");
-        value = EDGE_SEPARATORS.matcher(EMPTY_BRACKETS.matcher(value).replaceAll(" ")).replaceAll("");
+        value = EMPTY_BRACKETS.matcher(value).replaceAll(" ");
+        value = value.strip();
+        while (!value.isEmpty() && EDGE_SEPARATORS.matcher(value.substring(0, 1)).matches()) {
+            value = value.substring(1);
+        }
+        while (!value.isEmpty() && EDGE_SEPARATORS.matcher(value.substring(value.length() - 1)).matches()) {
+            value = value.substring(0, value.length() - 1);
+        }
         // Playlist availability annotations are not part of the broadcast name.
         value = value.replaceAll("[Ⓐ-Ⓩⓐ-ⓩ]", "");
         // Keep + so time-shift channels never collapse into their parent station.

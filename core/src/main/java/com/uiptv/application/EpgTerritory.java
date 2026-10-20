@@ -23,10 +23,12 @@ public final class EpgTerritory {
         public String territory() { return territories.size() == 1 ? territories.iterator().next() : ""; }
     }
 
-    private static final Pattern GROUP = Pattern.compile("^\\s*[┃│|]?\\s*([^┃│|]+?)\\s*[┃│|]\\s*");
-    private static final Pattern BRACKET = Pattern.compile("[\\(\\[\\{]([^\\)\\]\\}]{1,160})[\\)\\]\\}]");
-    private static final Pattern SEPARATORS = Pattern.compile("[^\\p{L}\\p{N}+]+", Pattern.UNICODE_CHARACTER_CLASS);
-    private static final Pattern QUALITY_SUFFIX = Pattern.compile("(?:\\s|[-_/])+(?:sd|hd|fhd|uhd|4k|8k|\\d{3,4}p|\\d{3,4}i)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern GROUP = Pattern.compile("^\\s*[┃│|]?\\s*([^┃│|]*+)\\s*[┃│|]\\s*");
+    private static final Pattern BRACKET = Pattern.compile("[\\(\\[\\{]([^\\)\\]\\}]{1,160}+)[\\)\\]\\}]");
+    private static final Pattern SEPARATORS = Pattern.compile("[^\\p{L}\\p{N}+ ]++", Pattern.UNICODE_CHARACTER_CLASS);
+    private static final Pattern QUALITY_SUFFIX = Pattern.compile("[\\s/_-]++(?:sd|hd|fhd|uhd|4k|8k|\\d{3,4}p|\\d{3,4}i)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SEGMENT_QUALITY_SUFFIX = Pattern.compile("[\\s/_-]++(?:HD|FHD|UHD|4K|8K|\\d{3,4}P|\\d{3,4}I)$");
+    private static final Pattern SD_SUFFIX = Pattern.compile("[\\s/_-]++SD$");
     private static final Set<String> ISO_LANGUAGE_CODES = Arrays.stream(Locale.getISOLanguages())
             .map(value -> value.toUpperCase(Locale.ROOT)).collect(java.util.stream.Collectors.toUnmodifiableSet());
     private static final Set<String> COMMON_TERRITORY_MARKERS = Set.of("UK", "IN", "US", "PK", "AU", "NZ", "CA");
@@ -55,7 +57,9 @@ public final class EpgTerritory {
             Locale locale = new Locale("", alpha2);
             Set<String> aliases = new LinkedHashSet<>();
             add(aliases, alpha2);
-            try { add(aliases, locale.getISO3Country()); } catch (MissingResourceException ignored) { }
+            try { add(aliases, locale.getISO3Country()); } catch (MissingResourceException _) {
+                // A few JDK locale entries do not expose an ISO-3 country code.
+            }
             String display = locale.getDisplayCountry(Locale.ENGLISH);
             add(aliases, display);
             addLegalVariants(aliases, display);
@@ -167,59 +171,91 @@ public final class EpgTerritory {
         // normalizeToken and matchingCodes both return non-null values; the guard below also
         // documents that contract for analyzers that do not follow those helper guarantees.
         String normalized = normalizeToken(value);
-        String core = normalized.replaceAll("(?:\\s|[-_/])+(?:HD|FHD|UHD|4K|8K|\\d{3,4}P|\\d{3,4}I)$", "");
-        if (!strongMarker) core = core.replaceAll("(?:\\s|[-_/])+SD$", "");
+        String core = SEGMENT_QUALITY_SUFFIX.matcher(normalized).replaceFirst("");
+        if (!strongMarker) core = SD_SUFFIX.matcher(core).replaceFirst("");
         Set<String> result = new LinkedHashSet<>();
         Set<String> exact = matchingCodes(core);
         if (exact == null) exact = Set.of();
-        if (strongMarker || core.length() != 2 || !ISO_LANGUAGE_CODES.contains(core)
-                || COMMON_TERRITORY_MARKERS.contains(core)) result.addAll(exact);
-        if (exact.isEmpty() && !normalized.isBlank()) {
-            for (String token : normalized.split(" ")) {
-                if (Set.of("SD", "HD", "FHD", "UHD", "4K", "8K").contains(token)) continue;
-                if (!strongMarker && token.length() == 2 && ISO_LANGUAGE_CODES.contains(token)
-                        && !COMMON_TERRITORY_MARKERS.contains(token)) continue;
-                Set<String> tokenCodes = matchingCodes(token);
-                if (tokenCodes.size() == 1) result.addAll(tokenCodes);
-            }
-        }
+        if (allowExactMatch(core, strongMarker)) result.addAll(exact);
+        if (exact.isEmpty()) result.addAll(tokenMatches(normalized, strongMarker));
         return Set.copyOf(result);
+    }
+
+    private static boolean allowExactMatch(String core, boolean strongMarker) {
+        return strongMarker || core.length() != 2 || !ISO_LANGUAGE_CODES.contains(core)
+                || COMMON_TERRITORY_MARKERS.contains(core);
+    }
+
+    private static Set<String> tokenMatches(String normalized, boolean strongMarker) {
+        if (normalized.isBlank()) return Set.of();
+        Set<String> result = new LinkedHashSet<>();
+        for (String token : normalized.split(" ")) {
+            if (isQualityToken(token) || isLanguageToken(token, strongMarker)) continue;
+            Set<String> tokenCodes = matchingCodes(token);
+            if (tokenCodes.size() == 1) result.addAll(tokenCodes);
+        }
+        return result;
+    }
+
+    private static boolean isQualityToken(String token) {
+        return Set.of("SD", "HD", "FHD", "UHD", "4K", "8K").contains(token);
+    }
+
+    private static boolean isLanguageToken(String token, boolean strongMarker) {
+        return !strongMarker && token.length() == 2 && ISO_LANGUAGE_CODES.contains(token)
+                && !COMMON_TERRITORY_MARKERS.contains(token);
     }
 
     /** Parse an explicit channel-label territory without treating language labels as countries. */
     @SuppressWarnings("javabugs:S2259")
     public static Context parse(String value) {
         String original = value == null ? "" : value.strip();
-        String normalized = XmltvGuide.normalize(original);
+        PrefixResult prefix = parsePrefix(original);
+        String normalized = prefix.normalizedName();
         Set<String> found = new LinkedHashSet<>();
-
-        Matcher group = GROUP.matcher(original);
-        if (group.find()) {
-            Set<String> codes = matchingCodesInSegment(group.group(1), false);
-            found.addAll(codes);
-            // IPTV category/language prefixes are presentation metadata even
-            // when they are not a recognized country, so remove them from the
-            // name used for schedule lookup in either case.
-            normalized = XmltvGuide.normalize(original.substring(group.end()));
-        } else {
-            int pipe = original.indexOf('|');
-            if (pipe > 0) {
-                Set<String> codes = matchingCodesInSegment(original.substring(0, pipe), false);
-                found.addAll(codes);
-                normalized = XmltvGuide.normalize(original.substring(pipe + 1));
-            }
-        }
+        found.addAll(prefix.codes());
 
         Matcher bracket = BRACKET.matcher(original);
         while (bracket.find()) {
-            String bracketText = XmltvGuide.normalize(bracket.group(1));
-            if (bracketText.equals("geo-blocked") || bracketText.equals("geo blocked")) continue;
-            Set<String> codes = matchingCodesInSegment(bracket.group(1));
+            Set<String> codes = bracketCodes(bracket);
             found.addAll(codes);
             if (!codes.isEmpty()) normalized = normalized.replace(XmltvGuide.normalize(bracket.group(0)), " ");
         }
 
         normalized = XmltvGuide.normalizeDisplayName(normalized);
+        SuffixResult suffix = parseSuffix(normalized);
+        found.addAll(suffix.codes());
+        normalized = suffix.normalizedName();
+
+        boolean ambiguous = found.size() > 1;
+        return new Context(XmltvGuide.normalize(normalized), found, ambiguous);
+    }
+
+    private record PrefixResult(String normalizedName, Set<String> codes) { }
+
+    private static PrefixResult parsePrefix(String original) {
+        Matcher group = GROUP.matcher(original);
+        if (group.find()) {
+            return new PrefixResult(XmltvGuide.normalize(original.substring(group.end())),
+                    matchingCodesInSegment(group.group(1), false));
+        }
+        int pipe = original.indexOf('|');
+        if (pipe > 0) {
+            return new PrefixResult(XmltvGuide.normalize(original.substring(pipe + 1)),
+                    matchingCodesInSegment(original.substring(0, pipe), false));
+        }
+        return new PrefixResult(XmltvGuide.normalize(original), Set.of());
+    }
+
+    private static Set<String> bracketCodes(Matcher bracket) {
+        String text = XmltvGuide.normalize(bracket.group(1));
+        if (text.equals("geo-blocked") || text.equals("geo blocked")) return Set.of();
+        return matchingCodesInSegment(bracket.group(1));
+    }
+
+    private record SuffixResult(String normalizedName, Set<String> codes) { }
+
+    private static SuffixResult parseSuffix(String normalized) {
         String withoutQuality = normalizeToken(normalized);
         Matcher quality = QUALITY_SUFFIX.matcher(withoutQuality);
         while (quality.find()) {
@@ -229,18 +265,14 @@ public final class EpgTerritory {
             quality = QUALITY_SUFFIX.matcher(withoutQuality);
         }
         for (String alias : SORTED_ALIASES) {
-            if (alias.length() < 2 || withoutQuality.length() <= alias.length()) continue;
-            if (QUALITY_CODE_COLLISIONS.contains(alias)) continue;
-            if (withoutQuality.endsWith(" " + alias)) {
-                found.addAll(ALIAS_TO_CODES.getOrDefault(alias, Set.of()));
-                int start = withoutQuality.length() - alias.length();
-                normalized = XmltvGuide.normalize(withoutQuality.substring(0, start).strip());
-                break;
-            }
+            if (alias.length() < 2 || withoutQuality.length() <= alias.length()
+                    || QUALITY_CODE_COLLISIONS.contains(alias)
+                    || !withoutQuality.endsWith(" " + alias)) continue;
+            int start = withoutQuality.length() - alias.length();
+            return new SuffixResult(XmltvGuide.normalize(withoutQuality.substring(0, start).strip()),
+                    ALIAS_TO_CODES.getOrDefault(alias, Set.of()));
         }
-
-        boolean ambiguous = found.size() > 1;
-        return new Context(XmltvGuide.normalize(normalized), found, ambiguous);
+        return new SuffixResult(normalized, Set.of());
     }
 
     /** Parse source metadata such as "IN,GB" or full country names. */

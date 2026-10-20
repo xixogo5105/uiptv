@@ -6,6 +6,7 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import com.uiptv.api.LoggerCallback;
 import com.uiptv.db.CategoryDb;
@@ -170,8 +171,8 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
             xtremeStatic.when(() -> XtremeApiParser.parseChannels("20", account)).thenReturn(List.of(channel("sports-1", "20", "Sports A")));
 
             new XtremeApiCacheReloader().reloadCache(account, null);
-            xtremeStatic.verify(() -> XtremeApiParser.parseChannels("10", account), org.mockito.Mockito.never());
-            xtremeStatic.verify(() -> XtremeApiParser.parseChannels("20", account), org.mockito.Mockito.never());
+            xtremeStatic.verify(() -> XtremeApiParser.parseChannels("10", account), never());
+            xtremeStatic.verify(() -> XtremeApiParser.parseChannels("20", account), never());
         }
 
         assertEquals(3, CategoryDb.get().getCategories(account).size());

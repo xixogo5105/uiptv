@@ -95,13 +95,13 @@ public class XtremeApiParser {
 
     private static List<Channel> readChannelResponse(HttpUtil.StreamResult response, Account account,
                                                       Consumer<List<Channel>> callback, BooleanSupplier cancelled)
-            throws Exception {
+            throws IOException {
         try {
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new IOException("Xtreme API request failed with HTTP " + response.statusCode());
             }
             return readChannelCatalogue(new InputStreamReader(response.bodyStream(), UTF_8), account, callback, cancelled);
-        } catch (Exception failure) {
+        } catch (IOException | RuntimeException failure) {
             try {
                 response.abort();
             } catch (IOException closeFailure) {

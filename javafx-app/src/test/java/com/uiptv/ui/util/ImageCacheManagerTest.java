@@ -2,6 +2,7 @@ package com.uiptv.ui.util;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import com.uiptv.ui.ThumbnailAwareUI;
 import javafx.scene.image.Image;
 import org.junit.jupiter.api.AfterEach;
@@ -47,7 +48,7 @@ class ImageCacheManagerTest {
 
         assertEquals("series:https://image.test/poster.png", thumbnailKey);
         assertTrue(artworkKey.contains(":media-artwork:"));
-        assertFalse(thumbnailKey.equals(artworkKey));
+        assertNotEquals(thumbnailKey, artworkKey);
         assertEquals(96, ImageCacheManager.ImageProfile.THUMBNAIL.maxWidth());
         assertEquals(96, ImageCacheManager.ImageProfile.THUMBNAIL.maxHeight());
         assertEquals(512, ImageCacheManager.ImageProfile.MEDIA_ARTWORK.maxWidth());
@@ -71,13 +72,14 @@ class ImageCacheManagerTest {
     @Test
     void decodedPixelBudgetEvictsLargeImagesBeforeEntryLimit() throws Exception {
         ImageCacheManager.clearCache();
-        Method store = ImageCacheManager.class.getDeclaredMethod("cacheImage", String.class, Image.class);
+        Method store = ImageCacheManager.class.getDeclaredMethod("cacheImage", String.class, Image.class,
+                ImageCacheManager.ImageProfile.class);
         store.setAccessible(true);
         for (int i = 0; i < 100; i++) {
             Image image = mock(Image.class);
-            org.mockito.Mockito.when(image.getWidth()).thenReturn(640.0);
-            org.mockito.Mockito.when(image.getHeight()).thenReturn(640.0);
-            store.invoke(null, "channel:large-" + i, image);
+            when(image.getWidth()).thenReturn(640.0);
+            when(image.getHeight()).thenReturn(640.0);
+            store.invoke(null, "channel:large-" + i, image, ImageCacheManager.ImageProfile.THUMBNAIL);
         }
         Map<String, Image> cache = imageCache();
         assertTrue(cache.size() < 100);

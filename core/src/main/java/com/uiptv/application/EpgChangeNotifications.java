@@ -148,10 +148,9 @@ public final class EpgChangeNotifications {
             prune.setInt(1, HISTORY_LIMIT);
             prune.executeUpdate();
         }
-        Notification notification = new Notification(revision, generation, kind, sources, guides, providers);
         // The database transaction is still owned by the caller; this callback
         // is only reached after the caller commits (see publish below).
-        return notification;
+        return new Notification(revision, generation, kind, sources, guides, providers);
     }
 
     public static void publish(Notification notification) {

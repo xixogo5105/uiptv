@@ -182,7 +182,7 @@ class ThumbnailEpisodesListUITest extends DbBackedUiTest {
             Node card = (Node) createEpisodeCard.invoke(ui, item);
             Label watchedBadge = findLabelByText(card, I18n.tr("autoWatching"));
 
-            assertTrue(watchedBadge != null);
+            assertNotNull(watchedBadge);
             assertFalse(watchedBadge.isVisible());
             assertFalse(watchedBadge.isManaged());
 

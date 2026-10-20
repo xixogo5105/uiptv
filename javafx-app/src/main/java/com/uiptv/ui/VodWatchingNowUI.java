@@ -152,7 +152,7 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
             List<VodPanelData> rows;
             try {
                 rows = buildRows();
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 // reloadInProgress must be cleared even when the cache read fails, otherwise it
                 // stays true for the lifetime of this object and every later refreshIfNeeded()
                 // short-circuits at the guard above, wedging the tab on "Loading..." with no way
@@ -171,7 +171,7 @@ public class VodWatchingNowUI extends VBox implements SearchTarget {
                         return;
                     }
                     render(rows);
-                } catch (Throwable t) {
+                } catch (Exception t) {
                     com.uiptv.util.AppLog.addErrorLog(VodWatchingNowUI.class,
                             "Watching Now (VOD): failed to render rows", t);
                 } finally {

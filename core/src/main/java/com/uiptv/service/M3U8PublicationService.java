@@ -297,8 +297,15 @@ public class M3U8PublicationService {
         return lines.stream().anyMatch(line -> {
             String value = line == null ? "" : line.trim().toLowerCase(Locale.ROOT);
             return value.startsWith("#kodiprop:inputstream.adaptive")
-                    || value.matches(".*\\.m3u8(?:[?#].*)?$");
+                    || isM3u8Manifest(value);
         });
+    }
+
+    private boolean isM3u8Manifest(String value) {
+        int query = value.indexOf('?');
+        int fragment = value.indexOf('#');
+        int end = query < 0 ? fragment : fragment < 0 ? query : Math.min(query, fragment);
+        return value.substring(0, end < 0 ? value.length() : end).endsWith(".m3u8");
     }
 
     private String buildProxiedMediaUrl(String url, String host) {

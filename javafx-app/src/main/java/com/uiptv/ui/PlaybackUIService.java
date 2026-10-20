@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.uiptv.player.MediaPlayerFactory.getPlayer;
 import static com.uiptv.player.MediaPlayerFactory.getPlayerType;
@@ -42,8 +43,8 @@ public final class PlaybackUIService {
     /** Prevent out-of-order URL resolution from repeatedly resetting the embedded player. */
     private static final AtomicLong PLAYBACK_REQUEST_SEQUENCE = new AtomicLong();
     private static final ExecutorService PLAYBACK_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
-    private static volatile Future<?> currentPlaybackResolution;
-    private static Node currentPlaybackSource;
+    private static final AtomicReference<Future<?>> currentPlaybackResolution = new AtomicReference<>();
+    private static final AtomicReference<Node> currentPlaybackSource = new AtomicReference<>();
 
     private PlaybackUIService() {
     }
@@ -51,10 +52,9 @@ public final class PlaybackUIService {
     /** Invalidates late provider responses as well as interrupting cancellable HTTP work. */
     public static void cancelPendingPlayback() {
         PLAYBACK_REQUEST_SEQUENCE.incrementAndGet();
-        if (currentPlaybackSource != null) currentPlaybackSource.setCursor(null);
-        currentPlaybackSource = null;
-        Future<?> pending = currentPlaybackResolution;
-        currentPlaybackResolution = null;
+        Node source = currentPlaybackSource.getAndSet(null);
+        if (source != null) source.setCursor(null);
+        Future<?> pending = currentPlaybackResolution.getAndSet(null);
         if (pending != null) pending.cancel(true);
     }
 
@@ -80,7 +80,7 @@ public final class PlaybackUIService {
 
         cancelPendingPlayback();
         long requestSequence = PLAYBACK_REQUEST_SEQUENCE.incrementAndGet();
-        currentPlaybackSource = source;
+        currentPlaybackSource.set(source);
         Configuration configuration = ConfigurationService.getInstance().read();
         PlaybackModeContext context = buildPlaybackModeContext(configuration, request, playbackAccount);
 
@@ -103,7 +103,7 @@ public final class PlaybackUIService {
             player.showLoading();
         }
         java.util.concurrent.CompletionStage<Void> ready = playerReady;
-        currentPlaybackResolution = PLAYBACK_EXECUTOR.submit(() -> {
+        Future<?> resolution = PLAYBACK_EXECUTOR.submit(() -> {
             try {
                 if (Thread.currentThread().isInterrupted()) {
                     return;
@@ -143,16 +143,17 @@ public final class PlaybackUIService {
                 });
             } finally {
                 runLater(() -> {
-                    if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get() || currentPlaybackResolution == null) {
+                    if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get() || currentPlaybackResolution.get() == null) {
                         source.setCursor(null);
                         if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) {
-                            currentPlaybackSource = null;
-                            currentPlaybackResolution = null;
+                            currentPlaybackSource.compareAndSet(source, null);
+                            currentPlaybackResolution.set(null);
                         }
                     }
                 });
             }
         });
+        currentPlaybackResolution.set(resolution);
     }
 
     public static void playDirectUrl(String playerPath, String url, String errorPrefix) {

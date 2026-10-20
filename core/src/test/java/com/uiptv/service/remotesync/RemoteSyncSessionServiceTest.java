@@ -101,7 +101,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
             Account imported = AccountService.getInstance().getByName("source-account");
             assertNotNull(imported);
             Configuration configuration = ConfigurationService.getInstance().read();
-            assertTrue(configuration.resolveThemeMode() == ThemeMode.DARK);
+            assertEquals(ThemeMode.DARK, configuration.resolveThemeMode());
             assertEquals("keep-local-player", configuration.getPlayerPath1());
         });
 
@@ -161,7 +161,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         withDatabase(remoteDb, () -> {
             assertNotNull(AccountService.getInstance().getByName("source-account"));
             Configuration configuration = ConfigurationService.getInstance().read();
-            assertFalse(configuration.resolveThemeMode() == ThemeMode.DARK);
+            assertNotEquals(ThemeMode.DARK, configuration.resolveThemeMode());
             assertEquals("keep-local-player", configuration.getPlayerPath1());
         });
 
@@ -305,7 +305,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         withDatabase(targetDb, () -> {
             assertNotNull(AccountService.getInstance().getByName("remote-account"));
             Configuration configuration = ConfigurationService.getInstance().read();
-            assertTrue(configuration.resolveThemeMode() == ThemeMode.DARK);
+            assertEquals(ThemeMode.DARK, configuration.resolveThemeMode());
             assertEquals("copy-me", configuration.getPlayerPath1());
         });
 

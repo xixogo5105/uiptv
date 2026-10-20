@@ -2,6 +2,8 @@ package com.uiptv.epgbuilder;
 
 import com.uiptv.application.EpgBuilderApplicationService;
 import com.uiptv.db.SQLConnection;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -9,6 +11,7 @@ import java.util.Set;
 /** CLI adapter only. All database and schedule operations belong to the Java core. */
 public final class EpgBridge {
     private static final String BUNDLE_OPTION = "--bundle";
+    private static final Logger LOG = LoggerFactory.getLogger(EpgBridge.class);
 
     private EpgBridge() { }
     public static void main(String[] args) {
@@ -23,7 +26,8 @@ public final class EpgBridge {
             }
             var service = new EpgBuilderApplicationService();
             if (args[0].equals("export-inventory-jsonl") || args[0].equals("export-inventory")) {
-                var writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(System.out, java.nio.charset.StandardCharsets.UTF_8));
+                var writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(
+                        new java.io.FileOutputStream(java.io.FileDescriptor.out), java.nio.charset.StandardCharsets.UTF_8));
                 if (args[0].equals("export-inventory-jsonl")) service.writeInventory(SQLConnection.resolveConfiguredDatabasePath(), writer);
                 else service.writeInventoryJson(SQLConnection.resolveConfiguredDatabasePath(), writer);
                 return;
@@ -36,10 +40,10 @@ public final class EpgBridge {
                 case "parse-xmltv" -> service.parseGuide(options.get(BUNDLE_OPTION));
                 default -> throw new IllegalArgumentException("Unknown command");
             };
-            System.out.println(result);
+            LOG.info("{}", result);
         } catch (Exception error) {
             // Do not dump provider URLs, metadata or credentials in stack traces.
-            System.err.println("EPG bridge failed: " + error.getClass().getSimpleName() + ": " + error.getMessage());
+            LOG.error("EPG bridge failed: {}: {}", error.getClass().getSimpleName(), error.getMessage());
             System.exit(1);
         }
     }

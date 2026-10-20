@@ -22,7 +22,7 @@ final class CompactProgrammeMap extends AbstractMap<String, List<EpgProgramme>> 
 
     @Override public synchronized List<EpgProgramme> get(Object key) {
         List<byte[]> chunks = channels.get(key);
-        if (chunks == null) return null;
+        if (chunks == null) return List.of();
         List<EpgProgramme> cached = decoded.get(key);
         if (cached != null) return cached;
         List<EpgProgramme> programmes = new ArrayList<>();

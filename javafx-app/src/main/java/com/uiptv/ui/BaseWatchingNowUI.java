@@ -194,7 +194,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
             List<SeriesPanelData> rows;
             try {
                 rows = buildPanelsFromCache();
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 // reloadInProgress must be cleared even when the cache read fails, otherwise it
                 // stays true for the lifetime of this object and every later refreshIfNeeded()
                 // short-circuits at the guard above, wedging the tab on "Loading..." with no way
@@ -213,7 +213,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
                         return;
                     }
                     render(rows);
-                } catch (Throwable t) {
+                } catch (Exception t) {
                     com.uiptv.util.AppLog.addErrorLog(BaseWatchingNowUI.class,
                             "Watching Now: failed to render panels", t);
                 } finally {

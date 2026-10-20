@@ -79,7 +79,7 @@ class PlainEpisodesListUITest extends DbBackedUiTest {
             Node card = (Node) createEpisodeRow.invoke(ui, item);
             Label watchedBadge = findLabelByText(card, I18n.tr("autoWatching"));
 
-            assertTrue(watchedBadge != null, "Watching badge must be present in the row");
+            assertNotNull(watchedBadge, "Watching badge must be present in the row");
             assertFalse(watchedBadge.isVisible());
             assertFalse(watchedBadge.isManaged());
 

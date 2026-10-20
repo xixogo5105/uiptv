@@ -203,7 +203,7 @@ class ThemeManagerTest extends DbBackedUiTest {
         String darkAtOneHundred = runOnFxThread(() -> singleStylesheet(scene));
 
         runOnFxThread(() -> {
-            assertFalse(darkAtOneFifty.equals(darkAtOneHundred), "Zoom level must stay part of the stylesheet");
+            assertNotEquals(darkAtOneFifty, darkAtOneHundred, "Zoom level must stay part of the stylesheet");
             assertEquals(expectedStylesheet(true), darkAtOneHundred);
             return null;
         });

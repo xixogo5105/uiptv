@@ -3,6 +3,7 @@ package com.uiptv.db;
 import com.uiptv.application.*;
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Account-independent, read-only resolution of explicitly published shared guides. */
 // Query limits are fixed application constants; all user values remain prepared parameters.
@@ -23,9 +24,11 @@ public final class SharedEpgCacheDb {
     }
     private record Snapshot(String version, List<Source> sources) { }
     private record Candidate(Source source, String guide, int rank, int regionRank, Set<String> countries) { }
-    private static volatile Snapshot cached;
+    private record SourceMetadata(String id, int priority, String countries, String languages, long refreshedAt) { }
+    private record IndexMetadata(String version, List<SourceMetadata> sources) { }
+    private static final AtomicReference<Snapshot> CACHED = new AtomicReference<>();
 
-    static void invalidate() { cached = null; }
+    static void invalidate() { CACHED.set(null); }
 
     private Connection open() throws SQLException {
         var c = DriverManager.getConnection("jdbc:sqlite:" + EpgCacheDb.path().toUri() + "?mode=ro");
@@ -40,40 +43,63 @@ public final class SharedEpgCacheDb {
     }
     private static Snapshot index(Connection c, long now) throws SQLException {
         var rules = new EpgNameRulesDb().read(c);
-        List<String[]> metadata = new ArrayList<>();
+        IndexMetadata metadata = readMetadata(c, rules, now);
+        Snapshot previous = CACHED.get();
+        if (previous != null && previous.version().equals(metadata.version())) return previous;
+        List<Source> sources = new ArrayList<>();
+        try (var statement = c.prepareStatement("SELECT name,guide_channel_id FROM epg_alias WHERE source_id=? AND kind=0 AND EXISTS(SELECT 1 FROM epg_programme p WHERE p.source_id=epg_alias.source_id AND p.guide_channel_id=epg_alias.guide_channel_id AND p.stops_at>? )")) {
+            for (SourceMetadata source : metadata.sources()) sources.add(readSource(statement, source, rules, now));
+        }
+        Snapshot snapshot = new Snapshot(metadata.version(), List.copyOf(sources));
+        CACHED.set(snapshot);
+        return snapshot;
+    }
+
+    private static IndexMetadata readMetadata(Connection c, EpgNameRules rules, long now) throws SQLException {
         StringBuilder version = new StringBuilder(EpgCacheDb.path().toString()).append('|').append(rules.fingerprint())
                 .append('|').append(EpgTerritory.fingerprintValue()).append('|').append(now / 60_000);
-        try (var s = c.createStatement(); var r = s.executeQuery("SELECT g.source_id,g.priority,g.countries,g.languages,s.refreshed_at FROM epg_shared_source g JOIN epg_source s ON s.source_id=g.source_id ORDER BY g.priority,g.source_id")) {
-            while (r.next()) {
-                metadata.add(new String[]{r.getString(1), r.getString(2), r.getString(3), r.getString(4)});
-                for (int i = 1; i <= 5; i++) version.append('|').append(r.getString(i));
+        List<SourceMetadata> sources = new ArrayList<>();
+        try (var statement = c.createStatement(); var rows = statement.executeQuery(
+                "SELECT g.source_id,g.priority,g.countries,g.languages,s.refreshed_at FROM epg_shared_source g JOIN epg_source s ON s.source_id=g.source_id ORDER BY g.priority,g.source_id")) {
+            while (rows.next()) {
+                SourceMetadata source = new SourceMetadata(rows.getString(1), rows.getInt(2), rows.getString(3),
+                        rows.getString(4), rows.getLong(5));
+                sources.add(source);
+                version.append('|').append(source.id()).append('|').append(source.priority()).append('|')
+                        .append(source.countries()).append('|').append(source.languages()).append('|').append(source.refreshedAt());
             }
         }
-        Snapshot previous = cached;
-        if (previous != null && previous.version().equals(version.toString())) return previous;
-        List<Source> sources = new ArrayList<>();
-        try (var s = c.prepareStatement("SELECT name,guide_channel_id FROM epg_alias WHERE source_id=? AND kind=0 AND EXISTS(SELECT 1 FROM epg_programme p WHERE p.source_id=epg_alias.source_id AND p.guide_channel_id=epg_alias.guide_channel_id AND p.stops_at>?)")) {
-            for (var m : metadata) {
-                Map<String,String> names = new HashMap<>(); s.setString(1, m[0]); s.setLong(2,now);
-                try (var r = s.executeQuery()) { while (r.next()) names.put(r.getString(1), r.getString(2)); }
-                Map<String,Set<String>> guideCountries = new HashMap<>();
-                names.values().forEach(guide -> guideCountries.put(guide,
-                        EpgTerritory.sourceCountries(m[2], m[0], guide)));
-                Map<String,String> identifiers = new HashMap<>();
-                Set<String> ambiguousIdentifiers = new HashSet<>();
-                names.values().forEach(guide -> {
-                    String key = XmltvGuide.normalizeIdentifier(guide);
-                    if (key.isBlank()) return;
-                    String prior = identifiers.putIfAbsent(key, guide);
-                    if (prior != null && !prior.equals(guide)) ambiguousIdentifiers.add(key);
-                });
-                ambiguousIdentifiers.forEach(identifiers::remove);
-                sources.add(new Source(m[0], Integer.parseInt(m[1]), EpgTerritory.parseCountries(m[2]),
-                        tokens(m[3]), Map.copyOf(guideCountries), Map.copyOf(names),
-                        rules.aliases(names, false), rules.aliases(names, true), Map.copyOf(identifiers), Set.copyOf(names.values())));
-            }
+        return new IndexMetadata(version.toString(), List.copyOf(sources));
+    }
+
+    private static Source readSource(PreparedStatement statement, SourceMetadata metadata,
+                                     EpgNameRules rules, long now) throws SQLException {
+        Map<String,String> names = new HashMap<>();
+        statement.setString(1, metadata.id());
+        statement.setLong(2, now);
+        try (var rows = statement.executeQuery()) {
+            while (rows.next()) names.put(rows.getString(1), rows.getString(2));
         }
-        var snapshot = new Snapshot(version.toString(), List.copyOf(sources)); cached = snapshot; return snapshot;
+        Map<String,Set<String>> guideCountries = new HashMap<>();
+        names.values().forEach(guide -> guideCountries.put(guide,
+                EpgTerritory.sourceCountries(metadata.countries(), metadata.id(), guide)));
+        Map<String,String> identifiers = uniqueIdentifiers(names.values());
+        return new Source(metadata.id(), metadata.priority(), EpgTerritory.parseCountries(metadata.countries()),
+                tokens(metadata.languages()), Map.copyOf(guideCountries), Map.copyOf(names),
+                rules.aliases(names, false), rules.aliases(names, true), Map.copyOf(identifiers), Set.copyOf(names.values()));
+    }
+
+    private static Map<String,String> uniqueIdentifiers(Collection<String> guides) {
+        Map<String,String> identifiers = new HashMap<>();
+        Set<String> ambiguous = new HashSet<>();
+        guides.forEach(guide -> {
+            String key = XmltvGuide.normalizeIdentifier(guide);
+            if (key.isBlank()) return;
+            String prior = identifiers.putIfAbsent(key, guide);
+            if (prior != null && !prior.equals(guide)) ambiguous.add(key);
+        });
+        ambiguous.forEach(identifiers::remove);
+        return identifiers;
     }
     private Candidate resolve(Query query, Snapshot snapshot, EpgNameRules rules) {
         EpgTerritory.Context context = EpgTerritory.parse(query.name());
@@ -85,49 +111,72 @@ public final class SharedEpgCacheDb {
         Set<String> expectedCountries = context.territories();
         List<Candidate> candidates = new ArrayList<>();
         for (Source source : snapshot.sources()) {
-            String guide = query.guideId();
-            int rank = 0;
-            if (guide == null || guide.isBlank() || !source.ids().contains(guide)) {
-                String identifierMatch = guide == null ? "" : source.identifiers().get(XmltvGuide.normalizeIdentifier(guide));
-                if (identifierMatch != null) guide = identifierMatch;
-            }
-            if (guide == null || guide.isBlank() || !source.ids().contains(guide)) {
-                if (query.explicit()) continue;
-                rank = 1;
-                for (String name : names) {
-                    guide = source.exact().get(XmltvGuide.normalize(name));
-                    if (guide == null) guide = source.display().get(rules.display(name));
-                    if (guide != null) break;
-                }
-                if (guide == null) {
-                    rank = 2;
-                    for (String name : names) {
-                        guide = source.quality().get(rules.quality(name));
-                        if (guide != null) break;
-                    }
-                }
-            }
-            if (guide == null || guide.isBlank()) continue;
-            Set<String> actualCountries = source.countries(guide);
-            if (!query.explicit() && EpgTerritory.conflicts(expectedCountries, actualCountries)) continue;
-            int regionRank = expectedCountries.isEmpty()
-                    ? (actualCountries.isEmpty() ? 0 : 1)
-                    : (actualCountries.isEmpty() ? 1 : 0);
-            candidates.add(new Candidate(source, guide, rank, regionRank, actualCountries));
+            Candidate candidate = candidateForSource(query, source, names, expectedCountries, rules);
+            if (candidate != null) candidates.add(candidate);
         }
+        return selectCandidate(candidates, expectedCountries);
+    }
+
+    private Candidate candidateForSource(Query query, Source source, List<String> names,
+                                         Set<String> expectedCountries, EpgNameRules rules) {
+        String guide = query.guideId();
+        int rank = 0;
+        if (guide == null || guide.isBlank() || !source.ids().contains(guide)) {
+            guide = source.identifiers().get(XmltvGuide.normalizeIdentifier(guide == null ? "" : guide));
+        }
+        if (guide == null || guide.isBlank() || !source.ids().contains(guide)) {
+            if (query.explicit()) return null;
+            guide = firstNameMatch(names, source, rules);
+            rank = 1;
+            if (guide == null) {
+                guide = firstQualityMatch(names, source, rules);
+                rank = 2;
+            }
+        }
+        if (guide == null || guide.isBlank()) return null;
+        Set<String> actualCountries = source.countries(guide);
+        if (!query.explicit() && EpgTerritory.conflicts(expectedCountries, actualCountries)) return null;
+        int regionRank = expectedCountries.isEmpty() == actualCountries.isEmpty() ? 0 : 1;
+        return new Candidate(source, guide, rank, regionRank, actualCountries);
+    }
+
+    private String firstNameMatch(List<String> names, Source source, EpgNameRules rules) {
+        for (String name : names) {
+            String guide = source.exact().get(XmltvGuide.normalize(name));
+            if (guide == null) guide = source.display().get(rules.display(name));
+            if (guide != null) return guide;
+        }
+        return null;
+    }
+
+    private String firstQualityMatch(List<String> names, Source source, EpgNameRules rules) {
+        for (String name : names) {
+            String guide = source.quality().get(rules.quality(name));
+            if (guide != null) return guide;
+        }
+        return null;
+    }
+
+    private Candidate selectCandidate(List<Candidate> candidates, Set<String> expectedCountries) {
+        if (candidates.isEmpty()) return null;
         Comparator<Candidate> order = expectedCountries.isEmpty()
                 ? Comparator.comparingInt(Candidate::rank).thenComparingInt(Candidate::regionRank)
                 : Comparator.comparingInt(Candidate::regionRank).thenComparingInt(Candidate::rank);
         candidates.sort(order.thenComparingInt(v -> v.source().priority()).thenComparing(v -> v.source().id()));
-        if (candidates.isEmpty()) return null;
         Candidate first = candidates.getFirst();
-        // Equal-priority conflicting identities are ambiguous. Never guess between them.
-        if (candidates.stream().anyMatch(v -> v.rank() == first.rank() && v.regionRank() == first.regionRank()
-                && v.source().priority() == first.source().priority() && !v.guide().equals(first.guide()))) return null;
-        if (expectedCountries.isEmpty() && candidates.stream().anyMatch(v -> v.rank() == first.rank()
-                && v.regionRank() == first.regionRank() && !v.guide().equals(first.guide())
-                && EpgTerritory.disjointKnown(first.countries(), v.countries()))) return null;
+        if (hasEqualPriorityConflict(candidates, first)) return null;
+        if (expectedCountries.isEmpty() && hasCountryConflict(candidates, first)) return null;
         return first;
+    }
+
+    private boolean hasEqualPriorityConflict(List<Candidate> candidates, Candidate first) {
+        return candidates.stream().anyMatch(v -> v.rank() == first.rank() && v.regionRank() == first.regionRank()
+                && v.source().priority() == first.source().priority() && !v.guide().equals(first.guide()));
+    }
+
+    private boolean hasCountryConflict(List<Candidate> candidates, Candidate first) {
+        return candidates.stream().anyMatch(v -> v.rank() == first.rank() && v.regionRank() == first.regionRank()
+                && !v.guide().equals(first.guide()) && EpgTerritory.disjointKnown(first.countries(), v.countries()));
     }
     public Map<Query,Result> read(List<Query> queries, long now, boolean full) {
         if (queries.isEmpty()) return Map.of();
@@ -165,16 +214,21 @@ public final class SharedEpgCacheDb {
             for (Query query : new LinkedHashSet<>(queries)) {
                 EpgTerritory.Context context = EpgTerritory.parse(query.name());
                 Candidate match = resolve(query, snapshot, rules);
-                ResolutionStatus status = match != null ? ResolutionStatus.MATCHED
-                        : snapshot.sources().isEmpty() ? ResolutionStatus.NO_SOURCE_COVERAGE
-                        : hasCandidateIdentity(query, context, snapshot, rules)
-                        ? ResolutionStatus.MATCHING_FAILED : ResolutionStatus.NO_SOURCE_COVERAGE;
+                ResolutionStatus status = diagnosticStatus(match, query, context, snapshot, rules);
                 result.put(query, new ResolutionDiagnostic(status, query.guideId(), context.name(), snapshot.sources().size()));
             }
         } catch (Exception error) {
             throw new DatabaseAccessException("Unable to diagnose shared EPG cache", error);
         }
         return result;
+    }
+
+    private ResolutionStatus diagnosticStatus(Candidate match, Query query, EpgTerritory.Context context,
+                                              Snapshot snapshot, EpgNameRules rules) {
+        if (match != null) return ResolutionStatus.MATCHED;
+        if (snapshot.sources().isEmpty()) return ResolutionStatus.NO_SOURCE_COVERAGE;
+        return hasCandidateIdentity(query, context, snapshot, rules)
+                ? ResolutionStatus.MATCHING_FAILED : ResolutionStatus.NO_SOURCE_COVERAGE;
     }
 
     private boolean hasCandidateIdentity(Query query, EpgTerritory.Context context, Snapshot snapshot, EpgNameRules rules) {

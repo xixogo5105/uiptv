@@ -109,7 +109,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         try {
             createNativePlayer(target);
             publishNativePlayer(target);
-        } catch (Throwable failure) {
+        } catch (Exception | LinkageError failure) {
             // Retirement will join any concurrent stop before releasing partially built resources.
             target.initializationFailure = failure;
             com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VLC native initialization failed", failure);
@@ -583,11 +583,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                                 && !isDisposed.get() && mediaPlayer == player) {
                             scheduleAudioStateStartupSync(audioRequestVersion);
                         }
-                    } catch (Throwable failure) {
+                    } catch (Exception | LinkageError failure) {
                         reportPlaybackFailure(playbackRequestVersion, failure);
                     }
                 });
-            } catch (Throwable t) {
+            } catch (Exception | LinkageError t) {
                 // submit() captures the failure in a Future nobody reads, so without this the task
                 // dies silently: no libVLC error event ever arrives (the URL never reached the
                 // player), so handleError cannot run, and the spinner shown above stays up forever

@@ -2,8 +2,8 @@ package com.uiptv.db;
 
 import com.uiptv.application.EpgProgramme;
 import com.uiptv.application.EpgChangeNotifications;
+import com.uiptv.application.EpgNameRules;
 import com.uiptv.application.EpgTerritory;
-import com.uiptv.application.XmltvGuide;
 import java.nio.file.*;
 import java.sql.*;
 import java.util.*;
@@ -21,7 +21,7 @@ public final class EpgCacheDb {
     public record SourceState(long refreshedAt, long retryAt, String warning) { }
     public static Path path() { return Path.of(SQLConnection.getDatabasePath()); }
 
-    private Connection open(boolean write) throws Exception {
+    private Connection open(boolean write) throws SQLException {
         Connection connection=write ? SQLConnection.connect()
                 : DriverManager.getConnection("jdbc:sqlite:"+path().toUri()+"?mode=ro");
         try(Statement statement=connection.createStatement()) {
@@ -64,42 +64,84 @@ public final class EpgCacheDb {
                         Set.of(sourceId), programmes.keySet(), identities);
                 c.commit();
             } catch (Exception error) { c.rollback(); throw error; }
-        } catch (Exception error) { if (error instanceof InterruptedException) Thread.currentThread().interrupt(); throw failure(error); }
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw failure(error);
+        } catch (Exception error) {
+            throw failure(error);
+        }
         EpgChangeNotifications.publish(notification);
     }
 
     private void replaceSource(Connection c, String sourceId, Map<String,List<EpgProgramme>> programmes,
                        Map<String,String> aliases, Map<String,String> qualityAliases,
                        Map<String,String> icons, long now, long retryAt) throws Exception {
-        deleteSourceRows(c,"epg_programme",sourceId); deleteSourceRows(c,"epg_alias",sourceId); deleteSourceRows(c,"epg_channel_icon",sourceId);
+        deleteSourceRows(c,"epg_programme",sourceId);
+        deleteSourceRows(c,"epg_alias",sourceId);
+        deleteSourceRows(c,"epg_channel_icon",sourceId);
+        insertProgrammes(c, sourceId, programmes, now);
+        insertAliases(c, sourceId, aliases, qualityAliases);
+        insertIcons(c, sourceId, icons);
+        state(c, sourceId, now, retryAt, "");
+    }
+
+    @SuppressWarnings("java:S6909")
+    private void insertProgrammes(Connection c, String sourceId, Map<String, List<EpgProgramme>> programmes,
+                                  long now) throws Exception {
         try (var insert = c.prepareStatement("INSERT INTO epg_programme VALUES(?,?,?,?,?,?)")) {
             int batch = 0;
-            for (var entry : programmes.entrySet()) for (var p : entry.getValue()) {
-                if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
-                if (p.stop() <= p.start() || p.title().isBlank() || p.stop() <= now - 6 * 3_600_000L || p.start() >= now + 7 * 86_400_000L) continue;
-                insert.setString(1, sourceId); insert.setString(2, entry.getKey()); insert.setLong(3, p.start()); insert.setLong(4, p.stop());
-                insert.setString(5, p.title()); insert.setBytes(6, compress(p.description())); insert.addBatch();
-                if (++batch % 500 == 0) insert.executeBatch();
+            for (var entry : programmes.entrySet()) {
+                for (var programme : entry.getValue()) {
+                    if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
+                    if (programme.stop() <= programme.start() || programme.title().isBlank()
+                            || programme.stop() <= now - 6 * 3_600_000L
+                            || programme.start() >= now + 7 * 86_400_000L) continue;
+                    // SQLite clears all bound values after executeBatch; bind the source on every row.
+                    insert.setString(1, sourceId);
+                    insert.setString(2, entry.getKey());
+                    insert.setLong(3, programme.start());
+                    insert.setLong(4, programme.stop());
+                    insert.setString(5, programme.title());
+                    insert.setBytes(6, compress(programme.description()));
+                    insert.addBatch();
+                    if (++batch % 500 == 0) insert.executeBatch();
+                }
             }
             insert.executeBatch();
         }
+    }
+
+    private void insertAliases(Connection c, String sourceId, Map<String, String> aliases,
+                               Map<String, String> qualityAliases) throws SQLException {
         try (var insert = c.prepareStatement("INSERT INTO epg_alias VALUES(?,?,?,?)")) {
             int batch = 0;
-            for (int kind = 0; kind < 2; kind++) for (var alias : (kind == 0 ? aliases : qualityAliases).entrySet()) {
-                insert.setString(1, sourceId); insert.setInt(2, kind); insert.setString(3, alias.getKey()); insert.setString(4, alias.getValue()); insert.addBatch();
+            for (int kind = 0; kind < 2; kind++) {
+                Map<String, String> values = kind == 0 ? aliases : qualityAliases;
+                for (var alias : values.entrySet()) {
+                    insert.setString(1, sourceId);
+                    insert.setInt(2, kind);
+                    insert.setString(3, alias.getKey());
+                    insert.setString(4, alias.getValue());
+                    insert.addBatch();
+                    if (++batch % 500 == 0) insert.executeBatch();
+                }
+            }
+            insert.executeBatch();
+        }
+    }
+
+    private void insertIcons(Connection c, String sourceId, Map<String, String> icons) throws SQLException {
+        try (var insert = c.prepareStatement("INSERT INTO epg_channel_icon VALUES(?,?,?)")) {
+            int batch = 0;
+            for (var icon : icons.entrySet()) {
+                insert.setString(1, sourceId);
+                insert.setString(2, icon.getKey());
+                insert.setString(3, icon.getValue());
+                insert.addBatch();
                 if (++batch % 500 == 0) insert.executeBatch();
             }
             insert.executeBatch();
         }
-        try(var insert=c.prepareStatement("INSERT INTO epg_channel_icon VALUES(?,?,?)")) {
-            int batch=0;
-            for(var icon:icons.entrySet()) {
-                insert.setString(1,sourceId); insert.setString(2,icon.getKey()); insert.setString(3,icon.getValue()); insert.addBatch();
-                if(++batch%500==0) insert.executeBatch();
-            }
-            insert.executeBatch();
-        }
-        state(c, sourceId, now, retryAt, "");
     }
 
     /** Publish external data and exact mappings together, below all application-owned sources.
@@ -165,6 +207,10 @@ public final class EpgCacheDb {
 
     /** Persist every matched source in priority order; quality selection happens at query time. */
     private record Link(String signature,String source,String guide,int priority,Set<String> countries) { }
+    private record Aliases(Map<String,String> display, Map<String,String> quality) { }
+    private record MappingQueries(Connection connection, PreparedStatement direct, PreparedStatement alias,
+                                  PreparedStatement existing, EpgNameRules rules,
+                                  Map<String,String> declaredCountries, Map<String,Aliases> indexes, long now) { }
     public boolean mapChannels(List<Match> matches,long now) { return mapChannels(matches,now,false); }
     public boolean mapChannels(List<Match> matches,long now,boolean preserveExistingMappings) {
         // A provider channel may be cached in multiple categories. Queue just one
@@ -187,70 +233,13 @@ public final class EpgCacheDb {
                 try (var metadata = c.createStatement(); var rows = metadata.executeQuery("SELECT source_id,countries FROM epg_shared_source")) {
                     while (rows.next()) declaredCountries.put(rows.getString(1), rows.getString(2));
                 }
-                record Aliases(Map<String,String> display, Map<String,String> quality) { }
                 Map<String,Aliases> indexes = new HashMap<>();
+                MappingQueries queries = new MappingQueries(c, direct, alias, existing, rules, declaredCountries, indexes, now);
                 for (Match match : unique.values()) {
-                    EpgTerritory.Context context = EpgTerritory.parse(match.name());
-                    Set<String> expectedCountries = context.territories();
-                    List<Link> previous=new ArrayList<>();
-                    existing.setString(1,match.identity().accountId()); existing.setString(2,match.identity().providerId());
-                    try(var rows=existing.executeQuery()) {
-                        while(rows.next()) {
-                            String source = rows.getString(2); String guide = rows.getString(3);
-                            previous.add(new Link(rows.getString(1), source, guide, rows.getInt(4),
-                                    EpgTerritory.sourceCountries(declaredCountries.get(source), source, guide)));
-                        }
-                    }
+                    List<Link> previous = readPreviousMappings(match, queries);
                     if (preserveExistingMappings && previous.stream().anyMatch(prior -> prior.signature().equals(match.identity().signature()))) continue;
-                    List<Link> links=new ArrayList<>();
-                    String lookupName = context.name();
-                    int priority=0;
-                    for (String candidate : match.sources()) {
-                        if (!match.explicit() && context.ambiguous()) { priority++; continue; }
-                        String guide="";
-                        direct.setString(1,candidate); direct.setString(2,candidate.equals(match.nativeSource()) ? match.identity().providerId() : match.guideId()); direct.setLong(3,now);
-                        try (var row = direct.executeQuery()) { if (row.next()) guide = row.getString(1); }
-                        if (guide.isBlank() && !match.explicit()) {
-                            alias.setString(1,candidate); alias.setInt(2,0); alias.setString(3,lookupName);
-                            try (var row=alias.executeQuery()) { if (row.next()) guide=row.getString(1); }
-                            if (!guide.isBlank()) {
-                                direct.setString(2,guide);
-                                try (var row=direct.executeQuery()) { if (!row.next()) guide=""; }
-                            }
-                            if (guide.isBlank()) {
-                                Aliases index=indexes.get(candidate);
-                                if (index==null) {
-                                    Map<String,String> names=new HashMap<>();
-                                    try (var query=c.prepareStatement("SELECT a.name,a.guide_channel_id FROM epg_alias a WHERE a.source_id=? AND a.kind=0 AND (EXISTS(SELECT 1 FROM epg_programme p WHERE p.source_id=a.source_id AND p.guide_channel_id=a.guide_channel_id AND p.stops_at>?) OR EXISTS(SELECT 1 FROM epg_channel_icon i WHERE i.source_id=a.source_id AND i.guide_channel_id=a.guide_channel_id))")) {
-                                        query.setString(1,candidate); query.setLong(2,now);
-                                        try (var rows=query.executeQuery()) { while(rows.next()) names.put(rows.getString(1),rows.getString(2)); }
-                                    }
-                                    index=new Aliases(rules.aliases(names,false),rules.aliases(names,true));
-                                    indexes.put(candidate,index);
-                                }
-                                guide=index.display().getOrDefault(rules.display(lookupName),"");
-                                if (guide.isBlank()) guide=index.quality().getOrDefault(rules.quality(lookupName),"");
-                            }
-                        }
-                        if (!guide.isBlank()) {
-                            Set<String> actualCountries = EpgTerritory.sourceCountries(declaredCountries.get(candidate), candidate, guide);
-                            if (match.explicit() || !EpgTerritory.conflicts(expectedCountries, actualCountries))
-                                links.add(new Link(match.identity().signature(),candidate,guide,priority,actualCountries));
-                        }
-                        priority++;
-                    }
-                    for (Link prior : previous) {
-                        if (prior.source().startsWith("builder:") && prior.signature().equals(match.identity().signature())
-                                && links.stream().noneMatch(link -> link.source().equals(prior.source()))) links.add(prior);
-                    }
-                    if (!match.explicit() && !context.ambiguous()) {
-                        if (!expectedCountries.isEmpty() && links.stream().anyMatch(link -> !link.countries().isEmpty()))
-                            links.removeIf(link -> link.countries().isEmpty());
-                        if (expectedCountries.isEmpty() && links.stream().anyMatch(left -> links.stream().anyMatch(right ->
-                                !left.guide().equals(right.guide()) && EpgTerritory.disjointKnown(left.countries(), right.countries()))))
-                            links.clear();
-                    }
-                    if(previous.equals(links)) continue;
+                    List<Link> links = resolveLinks(match, previous, queries);
+                    if (previous.equals(links)) continue;
                     changed=true;
                     changedIdentities.add(new EpgChangeNotifications.ProviderIdentity(
                             match.identity().accountId(), match.identity().providerId()));
@@ -269,6 +258,123 @@ public final class EpgCacheDb {
             } catch (Exception error) { c.rollback(); throw error; }
         } catch (Exception error) { throw failure(error); }
         return changed;
+    }
+
+    private List<Link> readPreviousMappings(Match match, MappingQueries queries) throws SQLException {
+        List<Link> previous = new ArrayList<>();
+        PreparedStatement existing = queries.existing();
+        existing.setString(1, match.identity().accountId());
+        existing.setString(2, match.identity().providerId());
+        try (var rows = existing.executeQuery()) {
+            while (rows.next()) {
+                String source = rows.getString(2);
+                String guide = rows.getString(3);
+                previous.add(new Link(rows.getString(1), source, guide, rows.getInt(4),
+                        EpgTerritory.sourceCountries(queries.declaredCountries().get(source), source, guide)));
+            }
+        }
+        return previous;
+    }
+
+    private List<Link> resolveLinks(Match match, List<Link> previous, MappingQueries queries) throws SQLException {
+        EpgTerritory.Context context = EpgTerritory.parse(match.name());
+        Set<String> expectedCountries = context.territories();
+        List<Link> links = new ArrayList<>();
+        for (int priority = 0; priority < match.sources().size(); priority++) {
+            if (!match.explicit() && context.ambiguous()) continue;
+            String candidate = match.sources().get(priority);
+            String guide = resolveGuide(match, context.name(), candidate, queries);
+            if (!guide.isBlank()) {
+                Set<String> countries = EpgTerritory.sourceCountries(
+                        queries.declaredCountries().get(candidate), candidate, guide);
+                if (match.explicit() || !EpgTerritory.conflicts(expectedCountries, countries)) {
+                    links.add(new Link(match.identity().signature(), candidate, guide, priority, countries));
+                }
+            }
+        }
+        appendBuilderLinks(match, previous, links);
+        applyCountryPolicy(match, context, links);
+        return links;
+    }
+
+    private String resolveGuide(Match match, String lookupName, String candidate, MappingQueries queries) throws SQLException {
+        PreparedStatement direct = queries.direct();
+        direct.setString(1, candidate);
+        direct.setString(2, candidate.equals(match.nativeSource()) ? match.identity().providerId() : match.guideId());
+        direct.setLong(3, queries.now());
+        String guide = firstValue(direct);
+        if (guide.isBlank() && !match.explicit()) {
+            guide = aliasGuide(lookupName, candidate, queries);
+            if (!guide.isBlank() && !hasActiveGuide(direct, candidate, guide, queries.now())) guide = "";
+            if (guide.isBlank()) guide = indexedGuide(lookupName, candidate, queries);
+        }
+        return guide;
+    }
+
+    private String aliasGuide(String lookupName, String candidate, MappingQueries queries) throws SQLException {
+        PreparedStatement alias = queries.alias();
+        alias.setString(1, candidate);
+        alias.setInt(2, 0);
+        alias.setString(3, lookupName);
+        return firstValue(alias);
+    }
+
+    private boolean hasActiveGuide(PreparedStatement direct, String candidate, String guide, long now) throws SQLException {
+        direct.setString(1, candidate);
+        direct.setString(2, guide);
+        direct.setLong(3, now);
+        return hasRow(direct);
+    }
+
+    private String indexedGuide(String lookupName, String candidate, MappingQueries queries) throws SQLException {
+        Aliases index = queries.indexes().computeIfAbsent(candidate, key -> loadAliases(key, queries));
+        String guide = index.display().getOrDefault(queries.rules().display(lookupName), "");
+        return guide.isBlank() ? index.quality().getOrDefault(queries.rules().quality(lookupName), "") : guide;
+    }
+
+    private Aliases loadAliases(String candidate, MappingQueries queries) {
+        Map<String,String> names = new HashMap<>();
+        try (var query = queries.connection().prepareStatement("SELECT a.name,a.guide_channel_id FROM epg_alias a WHERE a.source_id=? AND a.kind=0 AND (EXISTS(SELECT 1 FROM epg_programme p WHERE p.source_id=a.source_id AND p.guide_channel_id=a.guide_channel_id AND p.stops_at>?) OR EXISTS(SELECT 1 FROM epg_channel_icon i WHERE i.source_id=a.source_id AND i.guide_channel_id=a.guide_channel_id))")) {
+            query.setString(1, candidate);
+            query.setLong(2, queries.now());
+            try (var rows = query.executeQuery()) {
+                while (rows.next()) names.put(rows.getString(1), rows.getString(2));
+            }
+        } catch (SQLException error) {
+            throw new DatabaseAccessException("Unable to read EPG aliases", error);
+        }
+        return new Aliases(queries.rules().aliases(names, false), queries.rules().aliases(names, true));
+    }
+
+    private String firstValue(PreparedStatement statement) throws SQLException {
+        try (var row = statement.executeQuery()) {
+            return row.next() ? row.getString(1) : "";
+        }
+    }
+
+    private boolean hasRow(PreparedStatement statement) throws SQLException {
+        try (var row = statement.executeQuery()) { return row.next(); }
+    }
+
+    private void appendBuilderLinks(Match match, List<Link> previous, List<Link> links) {
+        for (Link prior : previous) {
+            if (prior.source().startsWith("builder:") && prior.signature().equals(match.identity().signature())
+                    && links.stream().noneMatch(link -> link.source().equals(prior.source()))) links.add(prior);
+        }
+    }
+
+    private void applyCountryPolicy(Match match, EpgTerritory.Context context, List<Link> links) {
+        if (match.explicit() || context.ambiguous()) return;
+        Set<String> expected = context.territories();
+        if (!expected.isEmpty() && links.stream().anyMatch(link -> !link.countries().isEmpty())) {
+            links.removeIf(link -> link.countries().isEmpty());
+        }
+        if (expected.isEmpty() && hasConflictingCountries(links)) links.clear();
+    }
+
+    private boolean hasConflictingCountries(List<Link> links) {
+        return links.stream().anyMatch(left -> links.stream().anyMatch(right ->
+                !left.guide().equals(right.guide()) && EpgTerritory.disjointKnown(left.countries(), right.countries())));
     }
 
     private record Selection(String source, List<EpgProgramme> programmes) { }

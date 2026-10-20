@@ -231,7 +231,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         assertNotNull(result.report());
         assertNotNull(AccountService.getInstance().getByName("remote-account"));
         Configuration configuration = ConfigurationService.getInstance().read();
-        assertTrue(configuration.resolveThemeMode() == ThemeMode.DARK);
+        assertEquals(ThemeMode.DARK, configuration.resolveThemeMode());
         assertEquals("remote-player", configuration.getPlayerPath1());
         assertEquals("session-2", httpClient.completedSessionId);
         assertTrue(httpClient.completedSuccess);
@@ -286,7 +286,7 @@ class RemoteSyncClientServiceTest extends DbBackedTest {
         assertFalse(result.report().isConfigurationRequested());
         assertNotNull(AccountService.getInstance().getByName("remote-account"));
         Configuration configuration = ConfigurationService.getInstance().read();
-        assertFalse(configuration.resolveThemeMode() == ThemeMode.DARK);
+        assertNotEquals(ThemeMode.DARK, configuration.resolveThemeMode());
         assertEquals("local-player", configuration.getPlayerPath1());
         assertEquals("session-config-excluded", httpClient.completedSessionId);
         assertTrue(httpClient.completedSuccess);

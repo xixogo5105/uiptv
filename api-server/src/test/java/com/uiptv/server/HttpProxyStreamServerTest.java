@@ -29,6 +29,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -392,7 +393,7 @@ class HttpProxyStreamServerTest {
     }
 
     private static void whenStatusOk(HttpUtil.StreamResult upstream) {
-        org.mockito.Mockito.when(upstream.statusCode()).thenReturn(200);
-        org.mockito.Mockito.when(upstream.responseHeaders()).thenReturn(Map.of());
+        when(upstream.statusCode()).thenReturn(200);
+        when(upstream.responseHeaders()).thenReturn(Map.of());
     }
 }
