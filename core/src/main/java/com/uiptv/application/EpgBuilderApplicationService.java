@@ -69,22 +69,26 @@ public class EpgBuilderApplicationService {
                 + "|" + EpgTerritory.fingerprintValue());
     }
 
-    public JSONObject exportInventory(String databasePath) throws Exception {
+    public JSONObject exportInventory(String databasePath)
+            throws java.io.IOException, java.sql.SQLException, java.security.NoSuchAlgorithmException {
         JSONArray channels = new JSONArray();
         JSONObject inventory = visitInventory(databasePath, channels::put);
         return inventory.put("channels", channels);
     }
 
     /** One JSON object per line: metadata, channels, then a completion/revision record. */
-    public void writeInventory(String databasePath, java.io.Writer output) throws Exception {
+    public void writeInventory(String databasePath, java.io.Writer output)
+            throws java.io.IOException, java.sql.SQLException, java.security.NoSuchAlgorithmException {
         writeInventory(databasePath, output, true);
     }
 
-    public void writeInventoryJson(String databasePath, java.io.Writer output) throws Exception {
+    public void writeInventoryJson(String databasePath, java.io.Writer output)
+            throws java.io.IOException, java.sql.SQLException, java.security.NoSuchAlgorithmException {
         writeInventory(databasePath, output, false);
     }
 
-    private void writeInventory(String databasePath, java.io.Writer output, boolean lines) throws Exception {
+    private void writeInventory(String databasePath, java.io.Writer output, boolean lines)
+            throws java.io.IOException, java.sql.SQLException, java.security.NoSuchAlgorithmException {
         // Metadata is small; channels are written immediately and never collected here.
         JSONObject metadata = inventoryMetadata(databasePath);
         if (lines) output.write(metadata.put(RECORD_TYPE, "header").toString() + "\n");
@@ -282,7 +286,8 @@ public class EpgBuilderApplicationService {
         if (bundle.getInt("schema_version") != 1) throw new IllegalArgumentException("Unsupported bundle schema");
     }
 
-    private TargetInventory readTargetInventory(String databasePath, JSONObject bundle, boolean sharedGuides) throws Exception {
+    private TargetInventory readTargetInventory(String databasePath, JSONObject bundle, boolean sharedGuides)
+            throws java.io.IOException, java.sql.SQLException, java.security.NoSuchAlgorithmException {
         Set<Target> wanted = new HashSet<>();
         for (Object value : bundle.getJSONArray("mappings")) {
             JSONObject mapping = (JSONObject) value;
