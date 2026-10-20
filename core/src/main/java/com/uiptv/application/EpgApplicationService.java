@@ -162,19 +162,9 @@ public class EpgApplicationService {
             synchronized (SOURCES_LOCK) { cached = SOURCES.get(playlist); }
             long now = System.currentTimeMillis();
             if (cached != null && now < cached.retryAt()) return cached.source();
-            String found = "";
-            try (InputStream input = open(playlist); BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
-                for (int i = 0; i < 20; i++) {
-                    String line = reader.readLine();
-                    if (line == null) break;
-                    line = line.replace("\uFEFF", "").strip();
-                    if (!line.startsWith("#EXTM3U")) continue;
-                    for (String attribute : List.of("x-tvg-url", "url-tvg", "tvg-url")) {
-                        found = M3uPlaylistUtils.parseAttribute(line, attribute);
-                        if (!found.isBlank()) { found = found.split(",")[0].strip(); break; }
-                    }
-                    break;
-                }
+            String found;
+            try {
+                found = readPlaylistEpgSource(playlist);
             } catch (IOException | RuntimeException e) {
                 putBounded(SOURCES, playlist, new DiscoveredSource("", now + Duration.ofMinutes(30).toMillis()));
                 throw e;
@@ -186,6 +176,27 @@ public class EpgApplicationService {
             putBounded(SOURCES, playlist, new DiscoveredSource(found, now + Duration.ofMinutes(15).toMillis()));
             return found;
         } finally { SOURCE_LOAD_LOCK.unlock(); }
+    }
+
+    private String readPlaylistEpgSource(String playlist) throws IOException {
+        try (InputStream input = open(playlist);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
+            for (int i = 0; i < 20; i++) {
+                String line = reader.readLine();
+                if (line == null) return "";
+                String header = line.replace("\uFEFF", "").strip();
+                if (header.startsWith("#EXTM3U")) return playlistAttribute(header);
+            }
+            return "";
+        }
+    }
+
+    private String playlistAttribute(String header) {
+        for (String attribute : List.of("x-tvg-url", "url-tvg", "tvg-url")) {
+            String value = M3uPlaylistUtils.parseAttribute(header, attribute);
+            if (!value.isBlank()) return value.split(",")[0].strip();
+        }
+        return "";
     }
 
     private static URI sourceUri(String source) {

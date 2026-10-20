@@ -89,49 +89,71 @@ public class LiveGuideApplicationService {
 
     public List<Row> list(String accountId, java.util.function.Consumer<List<Row>> channelsReady) throws IOException {
         if (!new EpgApplicationService().isEnabled()) return List.of();
+        if (accountId != null && !accountId.isBlank()) return listAccount(accountId, channelsReady);
+        List<Row> rows = listBookmarks();
+        channelsReady.accept(List.copyOf(rows));
+        return hydrateBookmarks(rows);
+    }
+
+    private List<Row> listAccount(String accountId, java.util.function.Consumer<List<Row>> channelsReady) throws IOException {
+        Account account = AccountService.getInstance().getById(accountId);
+        if (account == null) return List.of();
+        account.setAction(Account.AccountAction.itv);
+        List<Channel> channels = CatalogApplicationService.getInstance().listChannels(
+                new CatalogChannelsQuery(accountId, CatalogMode.ITV, CategoryType.ALL.displayName(), ""), false);
+        boolean nativeProvider = nativeProvider(account);
+        channelsReady.accept(channels.stream().map(channel -> new Row(accountId, account.getAccountName(), "", channel,
+                List.of(), false, nativeProvider)).toList());
+        Map<Channel, List<EpgProgramme>> schedules = new EpgCacheApplicationService().summaries(account, channels);
+        return channels.stream().map(channel -> new Row(accountId, account.getAccountName(), "", channel,
+                schedules.getOrDefault(channel, List.of()), true, nativeProvider)).toList();
+    }
+
+    private List<Row> listBookmarks() {
+        Set<String> seen = new HashSet<>();
         List<Row> rows = new ArrayList<>();
-        if (accountId != null && !accountId.isBlank()) {
-            Account account = AccountService.getInstance().getById(accountId);
-            if (account == null) return List.of();
-            account.setAction(Account.AccountAction.itv);
-            List<Channel> channels = CatalogApplicationService.getInstance().listChannels(
-                    new CatalogChannelsQuery(accountId, CatalogMode.ITV, CategoryType.ALL.displayName(), ""), false);
-            channelsReady.accept(channels.stream().map(channel -> new Row(accountId, account.getAccountName(), "", channel, List.of(), false, nativeProvider(account))).toList());
-            Map<Channel, List<EpgProgramme>> schedules = new EpgCacheApplicationService().summaries(account, channels);
-            for (Channel channel : channels) rows.add(new Row(accountId, account.getAccountName(), "", channel, schedules.getOrDefault(channel, List.of()), true, nativeProvider(account)));
-        } else {
-            Set<String> seen = new HashSet<>();
-            for (BookmarkResolver.ResolvedBookmark resolved : new BookmarkResolver().resolveBookmarks(BookmarkService.getInstance().read())) {
-                Account account = resolved.getAccount();
-                Bookmark bookmark = resolved.getBookmark();
-                if (account == null || bookmark == null || resolved.getAccountAction() != Account.AccountAction.itv) continue;
-                String key = account.getDbId() + "|" + bookmark.getChannelId();
-                if (!seen.add(key)) continue;
-                Channel channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId(), false);
-                if (channel == null) {
-                    channel = Channel.fromJson(bookmark.getChannelJson());
-                    if (channel == null) channel = new Channel();
-                    channel.setChannelId(bookmark.getChannelId());
-                    channel.setName(bookmark.getChannelName());
-                    channel.setCmd(bookmark.getCmd());
-                    channel.setLogo(bookmark.getLogo());
-                }
-                rows.add(new Row(account.getDbId(), account.getAccountName(), bookmark.getDbId(), channel, List.of(), true, nativeProvider(account)));
-            }
+        for (BookmarkResolver.ResolvedBookmark resolved : new BookmarkResolver().resolveBookmarks(BookmarkService.getInstance().read())) {
+            Row row = bookmarkRow(resolved, seen);
+            if (row != null) rows.add(row);
         }
-        if (accountId == null || accountId.isBlank()) {
-            channelsReady.accept(List.copyOf(rows));
-            List<Row> loaded = new ArrayList<>();
-            for (Row row : rows) {
-                if (Thread.currentThread().isInterrupted()) break;
+        return rows;
+    }
+
+    private Row bookmarkRow(BookmarkResolver.ResolvedBookmark resolved, Set<String> seen) {
+        Account account = resolved.getAccount();
+        Bookmark bookmark = resolved.getBookmark();
+        if (account == null || bookmark == null || resolved.getAccountAction() != Account.AccountAction.itv) return null;
+        String key = account.getDbId() + "|" + bookmark.getChannelId();
+        if (!seen.add(key)) return null;
+        Channel channel = ChannelService.getInstance().getChannelByChannelIdAndAccount(bookmark.getChannelId(), account.getDbId(), false);
+        if (channel == null) channel = bookmarkChannel(bookmark);
+        return new Row(account.getDbId(), account.getAccountName(), bookmark.getDbId(), channel, List.of(), true, nativeProvider(account));
+    }
+
+    private Channel bookmarkChannel(Bookmark bookmark) {
+        Channel channel = Channel.fromJson(bookmark.getChannelJson());
+        if (channel == null) channel = new Channel();
+        channel.setChannelId(bookmark.getChannelId());
+        channel.setName(bookmark.getChannelName());
+        channel.setCmd(bookmark.getCmd());
+        channel.setLogo(bookmark.getLogo());
+        return channel;
+    }
+
+    private List<Row> hydrateBookmarks(List<Row> rows) {
+        List<Row> loaded = new ArrayList<>();
+        for (Row row : rows) {
+            if (!Thread.currentThread().isInterrupted()) {
                 Account account = AccountService.getInstance().getById(row.accountId());
-                if (account == null) continue;
-                account.setAction(Account.AccountAction.itv);
-                loaded.add(new Row(row.accountId(), row.accountName(), row.bookmarkId(), row.channel(),
-                        new EpgCacheApplicationService().summaries(account,List.of(row.channel())).getOrDefault(row.channel(),List.of()), row.nativePending(), row.nativeProvider()));
+                if (account != null) {
+                    account.setAction(Account.AccountAction.itv);
+                    List<EpgProgramme> programmes = new EpgCacheApplicationService().summaries(account, List.of(row.channel()))
+                            .getOrDefault(row.channel(), List.of());
+                    loaded.add(new Row(row.accountId(), row.accountName(), row.bookmarkId(), row.channel(),
+                            programmes, row.nativePending(), row.nativeProvider()));
+                }
             }
-            return List.copyOf(loaded);
         }
-        return List.copyOf(rows);
+        return List.copyOf(loaded);
     }
 }
