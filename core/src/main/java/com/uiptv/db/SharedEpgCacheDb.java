@@ -190,18 +190,36 @@ public final class SharedEpgCacheDb {
                 for (Query query : new LinkedHashSet<>(queries)) {
                     Candidate match = resolve(query, snapshot, rules); if (match == null) continue;
                     programmes.setString(1, match.source().id()); programmes.setString(2, match.guide());
-                    programmes.setLong(3, full ? now - 6 * 3_600_000L : now); programmes.setLong(4, now + 7 * 86_400_000L);
-                    List<EpgProgramme> schedule = new ArrayList<>();
-                    try (var rows = programmes.executeQuery()) {
-                        while (rows.next()) schedule.add(new EpgProgramme(rows.getString(1), full ? expand(rows.getBytes(2)) : "", rows.getLong(3), rows.getLong(4)));
-                    }
-                    icons.setString(1, match.source().id()); icons.setString(2, match.guide()); String icon = "";
-                    try (var rows = icons.executeQuery()) { if (rows.next()) icon = rows.getString(1); }
-                    result.put(query, new Result(List.copyOf(schedule), icon));
+                    Result resolved = readResult(query, match, programmes, icons, now, full);
+                    if (resolved != null) result.put(query, resolved);
                 }
             }
         } catch (Exception error) { throw new DatabaseAccessException("Unable to read shared EPG cache", error); }
         return result;
+    }
+
+    private Result readResult(Query query, Candidate match, PreparedStatement programmes,
+                              PreparedStatement icons, long now, boolean full) throws SQLException {
+        programmes.setString(1, match.source().id());
+        programmes.setString(2, match.guide());
+        programmes.setLong(3, full ? now - 6 * 3_600_000L : now);
+        programmes.setLong(4, now + 7 * 86_400_000L);
+        List<EpgProgramme> schedule = new ArrayList<>();
+        try (var rows = programmes.executeQuery()) {
+            while (rows.next()) {
+                schedule.add(new EpgProgramme(rows.getString(1), full ? expand(rows.getBytes(2)) : "",
+                        rows.getLong(3), rows.getLong(4)));
+            }
+        } catch (java.io.IOException error) {
+            throw new SQLException("Unable to expand EPG description", error);
+        }
+        icons.setString(1, match.source().id());
+        icons.setString(2, match.guide());
+        String icon = "";
+        try (var rows = icons.executeQuery()) {
+            if (rows.next()) icon = rows.getString(1);
+        }
+        return new Result(List.copyOf(schedule), icon);
     }
 
     /** Explain an empty shared lookup without exposing provider credentials or URLs. */

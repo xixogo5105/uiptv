@@ -251,30 +251,32 @@ public class HttpProxyStreamServer implements HttpHandler {
                                                      String requestMethod) throws IOException {
         String originalAuthority = authorityOf(current);
         for (int i = 0; i < 6; i++) {
-            Map<String, String> upstreamHeaders = buildUpstreamHeaders(current, cookies, forwardHeaders);
-            String redirectHost = redirectHostHeader(originalAuthority, current);
-            if (!isBlank(redirectHost)) {
-                upstreamHeaders.put(HEADER_HOST, redirectHost);
-            }
-
-            String upstreamMethod = "HEAD".equalsIgnoreCase(requestMethod) ? "HEAD" : "GET";
-            HttpUtil.StreamResult upstream = HttpUtil.openStream(
-                    current, upstreamHeaders, upstreamMethod, null, HttpUtil.RequestOptions.streamingProxy());
-            collectCookies(upstream.responseHeaders(), cookies);
-            int status = upstream.statusCode();
-            if (status >= 300 && status <= 399) {
-                String redirected = resolveRedirect(current, upstream);
-                if (redirected == null) return null;
-                current = redirected;
-                continue;
-            }
-            if (status == HttpUtil.STATUS_NOT_ACCEPTABLE) {
-                String fallback = resolve406Fallback(current, upstream);
-                if (fallback != null) { current = fallback; continue; }
-            }
+            HttpUtil.StreamResult upstream = openUpstream(current, originalAuthority, cookies, forwardHeaders, requestMethod);
+            String retryUrl = retryUrl(current, upstream);
+            if (retryUrl == null) return null;
+            if (!retryUrl.isEmpty()) { current = retryUrl; continue; }
             return upstream;
         }
         return null;
+    }
+
+    private HttpUtil.StreamResult openUpstream(String current, String originalAuthority, List<String> cookies,
+                                               Map<String, String> forwardHeaders, String requestMethod) throws IOException {
+        Map<String, String> headers = buildUpstreamHeaders(current, cookies, forwardHeaders);
+        String redirectHost = redirectHostHeader(originalAuthority, current);
+        if (!isBlank(redirectHost)) headers.put(HEADER_HOST, redirectHost);
+        String method = METHOD_HEAD.equalsIgnoreCase(requestMethod) ? METHOD_HEAD : METHOD_GET;
+        HttpUtil.StreamResult upstream = HttpUtil.openStream(
+                current, headers, method, null, HttpUtil.RequestOptions.streamingProxy());
+        collectCookies(upstream.responseHeaders(), cookies);
+        return upstream;
+    }
+
+    private String retryUrl(String current, HttpUtil.StreamResult upstream) throws IOException {
+        int status = upstream.statusCode();
+        if (status >= 300 && status <= 399) return resolveRedirect(current, upstream);
+        if (status == HttpUtil.STATUS_NOT_ACCEPTABLE) return resolve406Fallback(current, upstream);
+        return "";
     }
 
     private String resolveRedirect(String current, HttpUtil.StreamResult upstream) throws IOException {

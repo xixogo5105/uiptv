@@ -387,22 +387,28 @@ final class CardEpgSupport {
     void addGuideMenu(ContextMenu menu, Node anchor, Supplier<LiveGuideApplicationService.Row> source) {
         if (!EpgModeUI.isFeatureEnabled()) return;
         MenuItem guide = new MenuItem(I18n.tr("epgOpenGuide"));
-        guide.setOnAction(_ -> {
-            menu.hide();
-            if (popup != null) popup.hide();
-            long request = ++popupRevision;
-            if (popupWorker != null) popupWorker.interrupt();
-            popupWorker = Thread.ofVirtual().start(() -> {
-                LiveGuideApplicationService.Row row = source.get();
-                if (row != null) row = new LiveGuideApplicationService().hydrate(row);
-                LiveGuideApplicationService.Row loaded = row;
-                Platform.runLater(() -> {
-                    if (request != popupRevision || owner.getScene() == null || !EpgModeUI.isFeatureEnabled() || loaded == null) return;
-                    popup = ChannelGuidePopup.show(anchor == null || anchor.getScene() == null ? owner : anchor, loaded);
-                });
-            });
-        });
+        guide.setOnAction(_ -> openGuide(menu, anchor, source));
         menu.getItems().add(guide);
+    }
+
+    private void openGuide(ContextMenu menu, Node anchor, Supplier<LiveGuideApplicationService.Row> source) {
+        menu.hide();
+        if (popup != null) popup.hide();
+        long request = ++popupRevision;
+        if (popupWorker != null) popupWorker.interrupt();
+        popupWorker = Thread.ofVirtual().start(() -> loadGuideRow(request, anchor, source));
+    }
+
+    private void loadGuideRow(long request, Node anchor, Supplier<LiveGuideApplicationService.Row> source) {
+        LiveGuideApplicationService.Row row = source.get();
+        if (row != null) row = new LiveGuideApplicationService().hydrate(row);
+        LiveGuideApplicationService.Row loaded = row;
+        Platform.runLater(() -> showGuidePopup(request, anchor, loaded));
+    }
+
+    private void showGuidePopup(long request, Node anchor, LiveGuideApplicationService.Row row) {
+        if (request != popupRevision || owner.getScene() == null || !EpgModeUI.isFeatureEnabled() || row == null) return;
+        popup = ChannelGuidePopup.show(anchor == null || anchor.getScene() == null ? owner : anchor, row);
     }
 
     void stop() {

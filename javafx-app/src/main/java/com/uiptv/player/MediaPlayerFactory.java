@@ -12,6 +12,7 @@ import com.uiptv.widget.AppNotificationCenter;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.Objects;
 import javafx.scene.Parent;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -144,20 +145,19 @@ public class MediaPlayerFactory {
      * Package-private for testability.
      */
     static void handleVlcInitFailure(Throwable t) {
-        String cause = t == null ? "unknown" : t.toString();
+        Throwable failure = Objects.requireNonNullElseGet(t, () -> new IllegalStateException("unknown native VLC failure"));
+        String cause = failure.toString();
         AppLog.addWarningLog(MediaPlayerFactory.class, "VLC not available. Embedded playback disabled. Cause: " + cause);
 
         // Log full stacktrace for diagnostics / analytics
         try {
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
-            if (t != null) {
-                t.printStackTrace(pw);
-            }
+            failure.printStackTrace(pw);
             pw.flush();
             AppLog.addErrorLog(MediaPlayerFactory.class, sw.toString());
         } catch (Exception ex) {
-            AppLog.addErrorLog(MediaPlayerFactory.class, "Failed to capture VLC init stacktrace: " + (ex == null ? "unknown" : ex.toString()));
+            AppLog.addErrorLog(MediaPlayerFactory.class, "Failed to capture VLC init stacktrace: " + ex);
         }
 
         // Show a user-visible notification so users understand why embedded playback is disabled.

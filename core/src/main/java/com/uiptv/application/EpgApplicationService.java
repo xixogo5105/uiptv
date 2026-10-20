@@ -241,7 +241,10 @@ public class EpgApplicationService {
         private void consumed(int count) throws IOException {
             if (Thread.currentThread().isInterrupted()) throw new InterruptedIOException("Guide loading cancelled");
             if (System.nanoTime() > deadline) throw new IOException("Guide loading deadline exceeded");
-            if (count > 0 && (remaining -= count) < 0) throw new IOException("Guide exceeds size limit");
+            if (count > 0) {
+                remaining -= count;
+                if (remaining < 0) throw new IOException("Guide exceeds size limit");
+            }
         }
         @Override public int read() throws IOException { int value = in.read(); consumed(value < 0 ? 0 : 1); return value; }
         @Override public int read(byte[] bytes, int offset, int length) throws IOException { int count = in.read(bytes, offset, length); consumed(count); return count; }

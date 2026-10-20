@@ -58,7 +58,30 @@ final class ChannelGuidePopup {
         long clock = System.currentTimeMillis();
         EpgProgramme following = row.programmes().stream().filter(p -> p.start() > clock).findFirst().orElse(null);
         programmes.setPlaceholder(new Label(I18n.tr("epgNoGuide")));
-        programmes.setCellFactory(_ -> new ListCell<>() {
+        programmes.setCellFactory(programmeCellFactory(cellWidth, clock, following));
+        Button previous = navigationButton("M10 3 L4 9 L10 15");
+        Button next = navigationButton("M4 3 L10 9 L4 15");
+        previous.setAccessibleText(I18n.tr("autoBack")); next.setAccessibleText(I18n.tr("epgNext"));
+        var position = new java.util.concurrent.atomic.AtomicInteger();
+        previous.setOnAction(_ -> { int index = Math.max(0, position.decrementAndGet()); position.set(index); programmes.scrollTo(index); });
+        next.setOnAction(_ -> { int index = Math.clamp(position.incrementAndGet(), 0, Math.max(0, row.programmes().size() - 1)); position.set(index); programmes.scrollTo(index); });
+        Button nowButton = new Button(I18n.tr("epgNow"));
+        nowButton.getStyleClass().addAll(GUIDE_ACTION_STYLE_CLASS, "epg-guide-now-button");
+        nowButton.setOnAction(_ -> {
+            int index = nowIndex(row.programmes(), System.currentTimeMillis());
+            if (index >= 0) { position.set(index); programmes.scrollTo(index); }
+        });
+        HBox navigation = new HBox(8, previous, nowButton, next); navigation.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
+        VBox body = new VBox(12, header, programmes, navigation); body.getStyleClass().addAll("root", "epg-guide-popup");
+        body.setPrefWidth(width); body.setMaxWidth(width);
+        int index = nowIndex(row.programmes(), System.currentTimeMillis());
+        if (index >= 0) { position.set(index); programmes.scrollTo(index); }
+        return body;
+    }
+
+    private static javafx.util.Callback<ListView<EpgProgramme>, ListCell<EpgProgramme>> programmeCellFactory(
+            double cellWidth, long clock, EpgProgramme following) {
+        return _ -> new ListCell<>() {
             {
                 setMinWidth(cellWidth); setPrefWidth(cellWidth); setMaxWidth(cellWidth);
                 setMinHeight(0); setPrefHeight(220); setMaxHeight(220);
@@ -91,25 +114,7 @@ final class ChannelGuidePopup {
                 Tooltip details = new Tooltip(p.title() + "\n" + p.description()); details.setWrapText(true); details.setMaxWidth(460);
                 Tooltip.install(card, details); setGraphic(card);
             }
-        });
-        Button previous = navigationButton("M10 3 L4 9 L10 15");
-        Button next = navigationButton("M4 3 L10 9 L4 15");
-        previous.setAccessibleText(I18n.tr("autoBack")); next.setAccessibleText(I18n.tr("epgNext"));
-        var position = new java.util.concurrent.atomic.AtomicInteger();
-        previous.setOnAction(_ -> { int index = Math.max(0, position.decrementAndGet()); position.set(index); programmes.scrollTo(index); });
-        next.setOnAction(_ -> { int index = Math.clamp(position.incrementAndGet(), 0, Math.max(0, row.programmes().size() - 1)); position.set(index); programmes.scrollTo(index); });
-        Button nowButton = new Button(I18n.tr("epgNow"));
-        nowButton.getStyleClass().addAll(GUIDE_ACTION_STYLE_CLASS, "epg-guide-now-button");
-        nowButton.setOnAction(_ -> {
-            int index = nowIndex(row.programmes(), System.currentTimeMillis());
-            if (index >= 0) { position.set(index); programmes.scrollTo(index); }
-        });
-        HBox navigation = new HBox(8, previous, nowButton, next); navigation.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
-        VBox body = new VBox(12, header, programmes, navigation); body.getStyleClass().addAll("root", "epg-guide-popup");
-        body.setPrefWidth(width); body.setMaxWidth(width);
-        int index = nowIndex(row.programmes(), System.currentTimeMillis());
-        if (index >= 0) { position.set(index); programmes.scrollTo(index); }
-        return body;
+        };
     }
 
     private static String programmeBadge(EpgProgramme programme, EpgProgramme following, boolean current) {

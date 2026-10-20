@@ -130,7 +130,8 @@ public class EpgBuilderApplicationService {
                 .put("generation", 1).put(CONFIG_SIGNATURE, computeConfigSignature(config)).put("accounts", accounts);
     }
 
-    private JSONObject visitInventory(String databasePath, java.util.function.Consumer<JSONObject> visitor) throws Exception {
+    private JSONObject visitInventory(String databasePath, java.util.function.Consumer<JSONObject> visitor)
+            throws java.io.IOException, java.sql.SQLException, java.security.NoSuchAlgorithmException {
         JSONObject inventory = inventoryMetadata(databasePath);
         Configuration config = ConfigurationService.getInstance().read();
         Map<String, Account> accounts = AccountService.getInstance().getAllById();
