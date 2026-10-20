@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -388,6 +389,40 @@ class M3U8ParserTest {
         } finally {
             Files.deleteIfExists(temp);
         }
+    }
+
+    @Test
+    void coversSourceAndEntryParserBoundaryBranches() throws Exception {
+        assertFalse((Boolean) invoke("isHttpUri", new Class[]{URI.class}, (Object) null));
+        assertTrue((Boolean) invoke("isHttpUri", new Class[]{URI.class}, URI.create("HTTP://example.test/list.m3u")));
+        assertFalse((Boolean) invoke("isHttpSource", new Class[]{String.class}, "  "));
+        assertTrue((Boolean) invoke("isHttpSource", new Class[]{String.class}, "HTTPS://example.test/list.m3u"));
+        assertEquals("", invoke("normalizeSource", new Class[]{String.class}, (Object) null));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> invoke("openUriReader", new Class[]{URI.class}, (Object) null));
+        assertEquals("Source URI cannot be null", exception.getMessage());
+
+        List<PlaylistEntry> entries = new ArrayList<>();
+        Class<?> parserClass = Class.forName(M3U8Parser.class.getName() + "$EntryParser");
+        var constructor = parserClass.getDeclaredConstructor(Consumer.class);
+        constructor.setAccessible(true);
+        Object parser = constructor.newInstance((Consumer<PlaylistEntry>) entries::add);
+        Method accept = parserClass.getDeclaredMethod("accept", String.class);
+        Method flush = parserClass.getDeclaredMethod("flush");
+        accept.setAccessible(true);
+        flush.setAccessible(true);
+
+        accept.invoke(parser, "comment before any entry");
+        accept.invoke(parser, "#EXTINF:-1 group-title=\"News\",Pending");
+        accept.invoke(parser, "# comment");
+        flush.invoke(parser);
+        assertTrue(entries.isEmpty());
+
+        accept.invoke(parser, "#EXTINF:-1 group-title=\"News\",Complete");
+        accept.invoke(parser, "https://example.test/complete.m3u8");
+        assertEquals(1, entries.size());
+        assertEquals("Complete", entries.getFirst().getTitle());
     }
 
     private List<PlaylistEntry> parseContent(String content) throws IOException {
