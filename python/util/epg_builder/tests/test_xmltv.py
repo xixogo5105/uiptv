@@ -35,8 +35,7 @@ def test_parse_xmltv():
     now = datetime(2024, 1, 15, 12, 30, tzinfo=timezone.utc)
     guide = parse_xmltv(SAMPLE_XMLTV, now)
 
-    assert "bbc1.uk" in guide.programmes
-    assert "bbc2.uk" in guide.programmes
+    assert sorted(guide.programmes) == ["bbc1.uk", "bbc2.uk"]
     assert len(guide.programmes["bbc1.uk"]) == 2
     assert len(guide.programmes["bbc2.uk"]) == 1
 
@@ -56,8 +55,7 @@ def test_channel_names():
     assert guide.names["bbc one"] == "bbc1.uk"
     assert guide.names["bbc two"] == "bbc2.uk"
     # quality_names uses normalized quality names
-    assert "bbc1.uk" in guide.quality_names.values()
-    assert "bbc2.uk" in guide.quality_names.values()
+    assert sorted(guide.quality_names.values()) == ["bbc1.uk", "bbc2.uk"]
 
 
 def test_channel_icons():
@@ -119,7 +117,7 @@ def test_gzip_compression():
     now = datetime(2024, 1, 15, 12, 30, tzinfo=timezone.utc)
     guide = parse_xmltv(compressed, now)
 
-    assert "bbc1.uk" in guide.programmes
+    assert sorted(guide.programmes) == ["bbc1.uk", "bbc2.uk"]
     assert len(guide.programmes["bbc1.uk"]) == 2
 
 
@@ -131,7 +129,7 @@ def test_lzma_compression():
     now = datetime(2024, 1, 15, 12, 30, tzinfo=timezone.utc)
     guide = parse_xmltv(compressed, now)
 
-    assert "bbc1.uk" in guide.programmes
+    assert sorted(guide.programmes) == ["bbc1.uk", "bbc2.uk"]
 
 
 def test_ambiguous_names():
