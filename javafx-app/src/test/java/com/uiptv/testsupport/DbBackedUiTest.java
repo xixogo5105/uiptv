@@ -121,11 +121,7 @@ public abstract class DbBackedUiTest {
     }
 
     private void sleepBeforeRetry() {
-        try {
-            Thread.onSpinWait();
-            LockSupport.parkNanos(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(DELETE_RETRY_DELAY_MS));
-        } catch (InterruptedException _) {
-            Thread.currentThread().interrupt();
-        }
+        Thread.onSpinWait();
+        LockSupport.parkNanos(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(DELETE_RETRY_DELAY_MS));
     }
 }

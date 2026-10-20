@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ThumbnailEpisodesListUITest extends DbBackedUiTest {
