@@ -167,7 +167,7 @@ public final class EpgTerritory {
         String core = normalized.replaceAll("(?:\\s|[-_/])+(?:HD|FHD|UHD|4K|8K|\\d{3,4}P|\\d{3,4}I)$", "");
         if (!strongMarker) core = core.replaceAll("(?:\\s|[-_/])+SD$", "");
         Set<String> result = new LinkedHashSet<>();
-        Set<String> exact = matchingCodes(core);
+        Set<String> exact = Objects.requireNonNullElse(matchingCodes(core), Set.of());
         if (strongMarker || core.length() != 2 || !ISO_LANGUAGE_CODES.contains(core)
                 || COMMON_TERRITORY_MARKERS.contains(core)) result.addAll(exact);
         if (exact.isEmpty() && !normalized.isBlank()) {

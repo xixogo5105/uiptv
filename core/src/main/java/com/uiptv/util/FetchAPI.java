@@ -64,9 +64,12 @@ public class FetchAPI {
         }
     }
 
+    @SuppressWarnings("java:S2095")
     private static FetchResult fetchStreaming(String requestUrl, Map<String, String> headers,
                                                String httpMethod, String payload, boolean isPost,
                                                HttpUtil.RequestOptions options) throws Exception {
+        // A successful stream is intentionally transferred to the caller in FetchResult;
+        // closing it here would make streaming catalogue reads unusable.
         HttpUtil.StreamResult stream = HttpUtil.openStream(requestUrl, headers, httpMethod,
                 isPost ? payload : null, options);
         if (stream.statusCode() == HttpUtil.STATUS_OK) {
