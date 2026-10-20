@@ -118,9 +118,10 @@ public class NativeEpgApplicationService {
     private List<EpgProgramme> fetch(Account account, Channel channel) {
         try {
             if (!ensureSession(account)) return List.of();
+            var sessionRefreshAttempted = new java.util.concurrent.atomic.AtomicBoolean();
             for (String action : actionsFor(account)) {
                 if (cancelled()) return List.of();
-                List<EpgProgramme> result = tryFetchAction(account, channel, action);
+                List<EpgProgramme> result = tryFetchAction(account, channel, action, sessionRefreshAttempted);
                 if (EpgApplicationService.usable(result)) return result;
             }
         } catch (Exception _) {
@@ -139,8 +140,9 @@ public class NativeEpgApplicationService {
         return Thread.currentThread().isInterrupted() || !new EpgApplicationService().isEnabled();
     }
 
-    private List<EpgProgramme> tryFetchAction(Account account, Channel channel, String action) {
-        try { return fetchAction(account, channel, action); }
+    private List<EpgProgramme> tryFetchAction(Account account, Channel channel, String action,
+                                               java.util.concurrent.atomic.AtomicBoolean sessionRefreshAttempted) {
+        try { return fetchAction(account, channel, action, sessionRefreshAttempted); }
         catch (Exception _) {
             AppLog.addWarningLog(NativeEpgApplicationService.class, "Provider EPG action unavailable; trying fallback.");
             return List.of();
@@ -155,18 +157,22 @@ public class NativeEpgApplicationService {
         return !account.isNotConnected();
     }
 
-    private List<EpgProgramme> fetchAction(Account account, Channel channel, String action) throws java.io.IOException {
+    private List<EpgProgramme> fetchAction(Account account, Channel channel, String action,
+                                            java.util.concurrent.atomic.AtomicBoolean sessionRefreshAttempted)
+            throws java.io.IOException {
         boolean xtreme = account.getType() == AccountType.XTREME_API;
         String body = xtreme ? XtremeApiParser.fetchEpg(account, action, channel.getChannelId())
-                : fetchStalkerAction(account, channel, action);
+                : fetchStalkerAction(account, channel, action, sessionRefreshAttempted);
         return parse(body, xtreme, "UTC", channel.getChannelId());
     }
 
-    private String fetchStalkerAction(Account account, Channel channel, String action) {
+    private String fetchStalkerAction(Account account, Channel channel, String action,
+                                      java.util.concurrent.atomic.AtomicBoolean sessionRefreshAttempted) {
         Map<String, String> params = Map.of("type", "itv", "action", action, "ch_id", channel.getChannelId(),
                 "period", "24", "size", "100", "JsHttpRequest", "1-xml");
         var response = FetchAPI.fetchWithDiagnostics(params, utcRequestAccount(account), OPTIONS);
-        if (response.statusCode() == 401 || response.statusCode() == 403) {
+        if ((response.statusCode() == 401 || response.statusCode() == 403)
+                && sessionRefreshAttempted.compareAndSet(false, true)) {
             synchronized (HANDSHAKE_LOCK) { HandshakeService.getInstance().connect(account); }
             if (account.isNotConnected()) return "";
             response = FetchAPI.fetchWithDiagnostics(params, utcRequestAccount(account), OPTIONS);
