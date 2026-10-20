@@ -109,17 +109,24 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         try {
             createNativePlayer(target);
             publishNativePlayer(target);
-        } catch (Exception | LinkageError failure) {
-            // Retirement will join any concurrent stop before releasing partially built resources.
-            target.initializationFailure = failure;
-            com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VLC native initialization failed", failure);
-            if (failure instanceof LinkageError) Platform.runLater(() -> {
+        } catch (RuntimeException failure) {
+            handleInitializationFailure(target, failure);
+            throw failure;
+        } catch (LinkageError failure) {
+            handleInitializationFailure(target, failure);
+            Platform.runLater(() -> {
                 if (session.get() == target && !isDisposed.get()) {
                     com.uiptv.player.MediaPlayerFactory.handleVlcInitFailure(failure);
                 }
             });
             throw failure;
         }
+    }
+
+    private void handleInitializationFailure(NativeSession target, Throwable failure) {
+        // Retirement will join any concurrent stop before releasing partially built resources.
+        target.initializationFailure = failure;
+        com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VLC native initialization failed", failure);
     }
 
     private void createNativePlayer(NativeSession target) {
