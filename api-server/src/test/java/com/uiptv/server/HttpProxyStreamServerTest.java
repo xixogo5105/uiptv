@@ -33,6 +33,7 @@ import static org.mockito.Mockito.when;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -371,6 +372,88 @@ class HttpProxyStreamServerTest {
         assertFalse((Boolean) invoke(handler, "hasNumericLastPathSegment", new Class[]{String.class}, "http://host/a/abc?x=1"));
         assertTrue((Boolean) invoke(handler, "isAsciiDigits", new Class[]{String.class}, "12345"));
         assertFalse((Boolean) invoke(handler, "isAsciiDigits", new Class[]{String.class}, "12a45"));
+    }
+
+    @Test
+    void handleRejectsUnsupportedMethodsAndInvalidSources() throws Exception {
+        HttpProxyStreamServer handler = new HttpProxyStreamServer(url -> true);
+
+        TestHttpExchange unsupported = new TestHttpExchange("/proxy-stream?src=http://provider.test/live", "POST");
+        handler.handle(unsupported);
+        assertEquals(405, unsupported.getResponseCode());
+        assertEquals("GET, HEAD, OPTIONS", unsupported.getResponseHeaders().getFirst("Allow"));
+
+        TestHttpExchange missingSource = new TestHttpExchange("/proxy-stream", "GET");
+        handler.handle(missingSource);
+        assertEquals(400, missingSource.getResponseCode());
+
+        TestHttpExchange rejected = new TestHttpExchange("/proxy-stream?src=http://provider.test/live", "GET");
+        HttpProxyStreamServer rejecting = new HttpProxyStreamServer(_ -> false);
+        rejecting.handle(rejected);
+        assertEquals(400, rejected.getResponseCode());
+    }
+
+    @Test
+    void validationAndHlsHelpersCoverSafeAndFallbackBranches() throws Exception {
+        HttpProxyStreamServer handler = new HttpProxyStreamServer(_ -> true);
+
+        assertFalse((Boolean) invoke(handler, "isAllowedTargetUrl", new Class[]{String.class}, ""));
+        assertFalse((Boolean) invoke(handler, "isAllowedTargetUrl", new Class[]{String.class}, "ftp://provider.test/live"));
+        assertFalse((Boolean) invoke(handler, "isAllowedTargetUrl", new Class[]{String.class}, "http://127.0.0.1/live"));
+        assertFalse((Boolean) invoke(handler, "isAllowedTargetUrl", new Class[]{String.class}, "http://[broken"));
+        assertEquals("example.test", invoke(handler, "hostOf", new Class[]{URI.class},
+                URI.create("http://user:pass@example.test:8080/live")));
+        assertEquals("[2001:db8::1]", invoke(handler, "hostOf", new Class[]{URI.class},
+                URI.create("http://[2001:db8::1]:8080/live")));
+        assertFalse((Boolean) invoke(handler, "isNumericHost", new Class[]{String.class}, "256.1.1.1"));
+        assertTrue((Boolean) invoke(handler, "isNumericHost", new Class[]{String.class}, "2001:db8::1"));
+        assertFalse((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class},
+                InetAddress.getByName("8.8.8.8")));
+        assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class},
+                InetAddress.getByName("192.0.0.1")));
+        assertTrue((Boolean) invoke(handler, "isBlockedAddress", new Class[]{InetAddress.class},
+                InetAddress.getByName("198.18.0.1")));
+
+        assertEquals("plain", new String((byte[]) invoke(handler, "rewriteHlsPlaylist",
+                new Class[]{byte[].class, String.class}, "plain".getBytes(StandardCharsets.UTF_8),
+                "http://provider.test/live"), StandardCharsets.UTF_8));
+        String playlist = "#EXTM3U\n#EXT-X-KEY:URI=\"data:text/plain,abc\"\n"
+                + "file:///tmp/segment.ts\nblob:segment\n/proxy-stream?src=already\ninvalid uri\n";
+        String rewritten = new String((byte[]) invoke(handler, "rewriteHlsPlaylist",
+                new Class[]{byte[].class, String.class}, playlist.getBytes(StandardCharsets.UTF_8),
+                "http://provider.test/live/master.m3u8"), StandardCharsets.UTF_8);
+        assertTrue(rewritten.contains("data:text/plain,abc"));
+        assertTrue(rewritten.contains("file:///tmp/segment.ts"));
+        assertTrue(rewritten.contains("blob:segment"));
+        assertTrue(rewritten.contains("invalid uri"));
+    }
+
+    @Test
+    void redirectAndFallbackHelpersValidateTargetsAndContentTypes() throws Exception {
+        HttpProxyStreamServer handler = new HttpProxyStreamServer(_ -> true);
+        HttpUtil.StreamResult redirect = mock(HttpUtil.StreamResult.class);
+        when(redirect.responseHeaders()).thenReturn(Map.of("Location", List.of("/final")));
+        assertEquals("https://provider.test/final", invoke(handler, "resolveRedirect",
+                new Class[]{String.class, HttpUtil.StreamResult.class}, "https://provider.test/start", redirect));
+
+        HttpUtil.StreamResult missingLocation = mock(HttpUtil.StreamResult.class);
+        when(missingLocation.responseHeaders()).thenReturn(Map.of());
+        assertNull(invoke(handler, "resolveRedirect",
+                new Class[]{String.class, HttpUtil.StreamResult.class}, "http://provider.test/start", missingLocation));
+
+        HttpUtil.StreamResult notAcceptable = mock(HttpUtil.StreamResult.class);
+        assertEquals("http://provider.test/user/pass/123.ts", invoke(handler, "resolve406Fallback",
+                new Class[]{String.class, HttpUtil.StreamResult.class}, "http://provider.test/user/pass/123", notAcceptable));
+
+        HttpUtil.StreamResult hls = mock(HttpUtil.StreamResult.class);
+        when(hls.statusCode()).thenReturn(200);
+        when(hls.responseHeaders()).thenReturn(Map.of("Content-Type", List.of("video/mp4")));
+        when(hls.requestUri()).thenReturn("http://provider.test/live/index.m3u8");
+        assertTrue((Boolean) invoke(handler, "shouldRewriteHlsPlaylist",
+                new Class[]{HttpUtil.StreamResult.class}, hls));
+        when(hls.statusCode()).thenReturn(404);
+        assertFalse((Boolean) invoke(handler, "shouldRewriteHlsPlaylist",
+                new Class[]{HttpUtil.StreamResult.class}, hls));
     }
 
     @SuppressWarnings("unchecked")

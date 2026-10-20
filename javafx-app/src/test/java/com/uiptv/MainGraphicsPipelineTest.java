@@ -20,7 +20,7 @@ class MainGraphicsPipelineTest {
         configuration.setLightweightModeEnabled(true);
         ConfigurationService service = mock(ConfigurationService.class);
         when(service.read()).thenReturn(configuration);
-        try (MockedStatic<EpgCacheRefreshService> refresh = mockStatic(EpgCacheRefreshService.class);
+        try (MockedStatic<EpgCacheRefreshService> _ = mockStatic(EpgCacheRefreshService.class);
              MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class);
              MockedStatic<com.uiptv.util.AppLog> appLog = mockStatic(com.uiptv.util.AppLog.class);
              MockedStatic<com.uiptv.lightweight.LightweightApp> lightweight = mockStatic(com.uiptv.lightweight.LightweightApp.class)) {
@@ -37,7 +37,7 @@ class MainGraphicsPipelineTest {
         configuration.setLightweightModeEnabled(false);
         ConfigurationService service = mock(ConfigurationService.class);
         when(service.read()).thenReturn(configuration);
-        try (MockedStatic<EpgCacheRefreshService> refresh = mockStatic(EpgCacheRefreshService.class);
+        try (MockedStatic<EpgCacheRefreshService> _ = mockStatic(EpgCacheRefreshService.class);
              MockedStatic<ConfigurationService> configurationStatic = mockStatic(ConfigurationService.class);
              MockedStatic<com.uiptv.util.AppLog> appLog = mockStatic(com.uiptv.util.AppLog.class);
              MockedStatic<com.uiptv.ui.RootApplication> root = mockStatic(com.uiptv.ui.RootApplication.class)) {

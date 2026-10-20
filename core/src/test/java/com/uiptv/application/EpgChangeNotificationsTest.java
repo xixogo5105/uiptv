@@ -5,6 +5,7 @@ import com.uiptv.service.DbBackedTest;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -46,5 +47,42 @@ class EpgChangeNotificationsTest extends DbBackedTest {
         assertEquals(EpgChangeNotifications.Kind.MAPPING, event.kind());
         assertTrue(event.affects("account-a", "provider-a"));
         assertFalse(event.affects("account-b", "provider-b"));
+    }
+
+    @Test
+    void restorationPublishesResyncEventAndGenerationMismatchRequestsResync() {
+        EpgChangeNotifications.Snapshot before = EpgChangeNotifications.snapshot();
+        var received = new CopyOnWriteArrayList<EpgChangeNotifications.Notification>();
+        try (var subscription = EpgChangeNotifications.subscribe(before.revision(), received::add)) {
+            EpgChangeNotifications.databaseRestored();
+        }
+
+        assertEquals(1, received.size());
+        assertEquals(EpgChangeNotifications.Kind.DATABASE_RESTORED, received.getFirst().kind());
+        assertEquals(EpgChangeNotifications.Kind.DATABASE_RESTORED,
+                EpgChangeNotifications.replay(before.revision(), before.databaseGeneration()).getFirst().kind());
+    }
+
+    @Test
+    void publishIsolatesListenerFailuresAndClosedSubscriptionsStopReceivingEvents() {
+        EpgChangeNotifications.Snapshot snapshot = EpgChangeNotifications.snapshot();
+        var received = new CopyOnWriteArrayList<EpgChangeNotifications.Notification>();
+        EpgChangeNotifications.Subscription throwing = EpgChangeNotifications.subscribe(snapshot.revision(), _ -> {
+            throw new IllegalStateException("subscriber failed");
+        });
+        EpgChangeNotifications.Subscription recording = EpgChangeNotifications.subscribe(snapshot.revision(), received::add);
+        EpgChangeNotifications.Notification notification = new EpgChangeNotifications.Notification(
+                snapshot.revision() + 1, snapshot.databaseGeneration(), EpgChangeNotifications.Kind.SETTINGS,
+                Set.of(), Set.of(), Set.of());
+        EpgChangeNotifications.publish(notification);
+        assertEquals(List.of(notification), received);
+
+        recording.close();
+        throwing.close();
+        EpgChangeNotifications.publish(new EpgChangeNotifications.Notification(
+                notification.revision() + 1, notification.databaseGeneration(), EpgChangeNotifications.Kind.SETTINGS,
+                Set.of(), Set.of(), Set.of()));
+        assertEquals(1, received.size());
+        assertTrue(notification.affects("any-account", "any-provider"));
     }
 }

@@ -91,7 +91,7 @@ class LightweightAppCoverageTest {
             invoke(app, "applyTheme", void.class, root);
             assertFalse(root.getStyleClass().contains("dark-theme"));
 
-            try (MockedStatic<ServerUrlUtil> server = mockStatic(ServerUrlUtil.class)) {
+            try (MockedStatic<ServerUrlUtil> _ = mockStatic(ServerUrlUtil.class)) {
                 when(ServerUrlUtil.isServerRunning()).thenReturn(false, true);
                 when(ServerUrlUtil.getConfiguredServerPort()).thenReturn("8080");
                 when(ServerUrlUtil.getConfiguredHttpsServerPort()).thenReturn("8443");
