@@ -353,38 +353,43 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         for (int page = 0; ; page++) {
             com.uiptv.util.ReloadRequestScope.checkCurrent();
             if (budget.expired()) throw new IllegalStateException("Category fetch time limit reached; keeping existing cache.");
-            FetchAPI.FetchResult result = FetchAPI.fetchWithDiagnostics(
-                    ChannelService.getChannelOrSeriesParams(categoryId, page, itv, null, null), account,
-                    HttpUtil.RequestOptions.defaults());
-            if (result.transportFailure() || isBlank(result.body())) {
-                throw new IllegalStateException("Stalker category page failed; keeping existing cache.");
-            }
-            JSONObject root = new JSONObject(result.body());
-            JSONObject payload = root.optJSONObject("js", root);
-            if (payload.has("total_items")) expected = payload.optLong("total_items", -1);
-            // Require a valid page and map each row strictly before replacing any cached data.
-            if (payload.optJSONArray("data") == null) {
-                throw new IllegalStateException("Invalid Stalker category page; keeping existing cache.");
-            }
-            List<Channel> rows = new ArrayList<>();
-            org.json.JSONArray data = payload.getJSONArray("data");
-            for (int index = 0; index < data.length(); index++) {
-                rows.add(ChannelService.getInstance().parseItvChannel(data.getJSONObject(index)));
-            }
+            CategoryPage pageData = readCategoryPage(account, categoryId, page);
+            expected = pageData.expected() >= 0 ? pageData.expected() : expected;
+            List<Channel> rows = pageData.channels();
             int before = channels.size();
             for (Channel channel : rows) channels.putIfAbsent(normalizeCaseInsensitiveKey(channel.getChannelId()), channel);
-            if (expected >= 0 && channels.size() >= expected) break;
+            if (expected >= 0 && channels.size() >= expected) return new ArrayList<>(channels.values());
             if (rows.isEmpty()) {
                 if (page == 0 && expected != 0) continue; // Some portals start at page one.
                 if (expected > channels.size()) throw new IllegalStateException("Incomplete Stalker category; keeping existing cache.");
-                break;
+                return new ArrayList<>(channels.values());
             }
             // Portals often treat p=0 as p=1. Allow that alias once, but reject an endless repeated page.
             if (channels.size() == before && page != 1) {
                 throw new IllegalStateException("Stalker pagination stopped advancing; keeping existing cache.");
             }
         }
-        return new ArrayList<>(channels.values());
+    }
+
+    private record CategoryPage(List<Channel> channels, long expected) { }
+
+    private CategoryPage readCategoryPage(Account account, String categoryId, int page) {
+        FetchAPI.FetchResult result = FetchAPI.fetchWithDiagnostics(
+                ChannelService.getChannelOrSeriesParams(categoryId, page, itv, null, null), account,
+                HttpUtil.RequestOptions.defaults());
+        if (result.transportFailure() || isBlank(result.body())) {
+            throw new IllegalStateException("Stalker category page failed; keeping existing cache.");
+        }
+        JSONObject root = new JSONObject(result.body());
+        JSONObject payload = root.optJSONObject("js", root);
+        if (payload.optJSONArray("data") == null) {
+            throw new IllegalStateException("Invalid Stalker category page; keeping existing cache.");
+        }
+        org.json.JSONArray data = payload.getJSONArray("data");
+        List<Channel> channels = java.util.stream.IntStream.range(0, data.length())
+                .mapToObj(index -> ChannelService.getInstance().parseItvChannel(data.getJSONObject(index)))
+                .toList();
+        return new CategoryPage(channels, payload.optLong("total_items", -1));
     }
 
     private boolean handleEmptyLiveChannels(Account account, List<Category> categories, List<Channel> rawChannels,
@@ -454,52 +459,51 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
                 logBudgetExhausted("get_all_channels", logger);
                 return Collections.emptyList();
             }
-            FetchAPI.FetchResult result = FetchAPI.fetchWithDiagnostics(params, account, HttpUtil.RequestOptions.streamingCatalogue());
-            if (result.transportFailure()) {
-                logTransportFailure("get_all_channels", result, logger);
-                // A failed connection cannot be repaired by changing pagination parameters.
-                // An HTTP response (including an empty 200) can be shape-specific, so retain
-                // main's bounded compatibility retries under the same request/time limits.
-                if (result.statusCode() < 0) {
-                    return Collections.emptyList();
-                }
-                continue;
-            }
-                if (result.catalogueStream() != null) {
-                var stream = result.catalogueStream();
-                boolean complete = false;
-                try {
-                    List<Channel> channels = new com.uiptv.application.StalkerCatalogueReader().read(
-                            new java.io.InputStreamReader(stream.bodyStream(), java.nio.charset.StandardCharsets.UTF_8));
-                    complete = true;
-                    if (!channels.isEmpty()) return channels;
-                } catch (Exception failure) {
-                    com.uiptv.util.ReloadRequestScope.checkCurrent();
-                    log(logger, "Unable to read bulk channel response: " + failure.getMessage());
-                } finally {
-                    // Abort before closing a rejected body; closing first may drain the entire
-                    // remaining response. This also releases the deadline after JVM errors.
-                    try { if (complete) stream.close(); else stream.abort(); }
-                    catch (java.io.IOException _) { /* The original failure is the actionable result. */ }
-                }
-                continue;
-            }
-            String json = result.body();
-            if (isBlank(json)) {
-                continue;
-            }
-            try {
-                List<Channel> channels = ChannelService.getInstance().parseItvChannels(json, false);
-                if (!channels.isEmpty()) {
-                    // Portal totals may include duplicate or filtered rows. Match the established
-                    // bulk contract: usable parsed channels are sufficient; totals are advisory.
-                    return channels;
-                }
-            } catch (Exception _) {
-                // Ignore non-usable JSON variants and keep trying the remaining fallback shapes.
-            }
+            FetchAttempt attempt = fetchStalkerAttempt(account, params, logger);
+            if (attempt.stop()) return Collections.emptyList();
+            if (attempt.channels() != null && !attempt.channels().isEmpty()) return attempt.channels();
         }
         return Collections.emptyList();
+    }
+
+    private record FetchAttempt(List<Channel> channels, boolean stop) { }
+
+    private FetchAttempt fetchStalkerAttempt(Account account, Map<String, String> params, LoggerCallback logger) {
+        FetchAPI.FetchResult result = FetchAPI.fetchWithDiagnostics(params, account, HttpUtil.RequestOptions.streamingCatalogue());
+        if (result.transportFailure()) {
+            logTransportFailure("get_all_channels", result, logger);
+            return new FetchAttempt(null, result.statusCode() < 0);
+        }
+        if (result.catalogueStream() != null) {
+            return readCatalogueStream(result.catalogueStream(), logger);
+        }
+        return parseCatalogueJson(result.body());
+    }
+
+    private FetchAttempt readCatalogueStream(HttpUtil.StreamResult stream, LoggerCallback logger) {
+        boolean complete = false;
+        try {
+            List<Channel> channels = new com.uiptv.application.StalkerCatalogueReader().read(
+                    new java.io.InputStreamReader(stream.bodyStream(), java.nio.charset.StandardCharsets.UTF_8));
+            complete = true;
+            return new FetchAttempt(channels, false);
+        } catch (Exception failure) {
+            com.uiptv.util.ReloadRequestScope.checkCurrent();
+            log(logger, "Unable to read bulk channel response: " + failure.getMessage());
+            return new FetchAttempt(null, false);
+        } finally {
+            try { if (complete) stream.close(); else stream.abort(); }
+            catch (java.io.IOException _) { /* The original failure is the actionable result. */ }
+        }
+    }
+
+    private FetchAttempt parseCatalogueJson(String json) {
+        if (isBlank(json)) return new FetchAttempt(null, false);
+        try {
+            return new FetchAttempt(ChannelService.getInstance().parseItvChannels(json, false), false);
+        } catch (Exception _) {
+            return new FetchAttempt(null, false);
+        }
     }
 
     private void logBudgetExhausted(String operation, LoggerCallback logger) {
