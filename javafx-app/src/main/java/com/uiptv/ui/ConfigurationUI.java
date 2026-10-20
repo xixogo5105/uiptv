@@ -619,10 +619,6 @@ public class ConfigurationUI extends VBox {
         applyThemePreview();
     }
 
-    private BorderPane createCollapsibleGroupPane(Label titleLabel, Node content, boolean collapsedByDefault, Hyperlink helpLink) {
-        return createCollapsibleGroupPane(titleLabel, null, content, collapsedByDefault, helpLink);
-    }
-
     private BorderPane createCollapsibleGroupPane(Label titleLabel, Node statusIcon, Node content,
                                                   boolean collapsedByDefault, Hyperlink helpLink) {
         BorderPane pane = new BorderPane(content);

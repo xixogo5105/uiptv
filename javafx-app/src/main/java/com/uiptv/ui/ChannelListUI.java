@@ -1246,10 +1246,13 @@ public class ChannelListUI extends HBox implements SearchTarget {
 
     private Label createMediaPlotLabel(ChannelItem item, WatchingNowVodResolver.VodMetadata vodMetadata) {
         Channel channel = item == null ? null : item.getChannel();
-        String plotText = listAction == vod
-                ? vodMetadata == null ? "" : vodMetadata.getPlot()
-                : channel == null ? "" : channel.getDescription();
+        String plotText = plotText(listAction == vod, vodMetadata, channel);
         return WatchingNowMediaCardFactory.createPlotLabel(plotText);
+    }
+
+    private String plotText(boolean vod, WatchingNowVodResolver.VodMetadata metadata, Channel channel) {
+        if (vod) return metadata == null ? "" : metadata.getPlot();
+        return channel == null ? "" : channel.getDescription();
     }
 
     private WatchingNowVodResolver.VodMetadata resolveVodMetadata(ChannelItem item) {

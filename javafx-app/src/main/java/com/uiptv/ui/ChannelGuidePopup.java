@@ -69,8 +69,7 @@ final class ChannelGuidePopup {
                 super.updateItem(p, empty); setText(null);
                 if (empty || p == null) { setGraphic(null); return; }
                 boolean current = p.start() <= clock && p.stop() > clock;
-                Label badge = new Label(current ? I18n.tr("epgNow") : p.equals(following) ? I18n.tr("epgNext")
-                        : DateTimeFormatter.ofPattern("EEE d MMM").format(Instant.ofEpochMilli(p.start()).atZone(ZoneId.systemDefault())));
+                Label badge = new Label(programmeBadge(p, following, current));
                 badge.getStyleClass().add("epg-programme-badge");
                 if (current) badge.getStyleClass().add("epg-now-badge");
                 Label title = new Label(p.title()); title.setWrapText(true); title.getStyleClass().add("epg-programme-title");
@@ -98,7 +97,7 @@ final class ChannelGuidePopup {
         previous.setAccessibleText(I18n.tr("autoBack")); next.setAccessibleText(I18n.tr("epgNext"));
         var position = new java.util.concurrent.atomic.AtomicInteger();
         previous.setOnAction(_ -> { int index = Math.max(0, position.decrementAndGet()); position.set(index); programmes.scrollTo(index); });
-        next.setOnAction(_ -> { int index = Math.min(Math.max(0, row.programmes().size() - 1), position.incrementAndGet()); position.set(index); programmes.scrollTo(index); });
+        next.setOnAction(_ -> { int index = Math.clamp(position.incrementAndGet(), 0, Math.max(0, row.programmes().size() - 1)); position.set(index); programmes.scrollTo(index); });
         Button nowButton = new Button(I18n.tr("epgNow"));
         nowButton.getStyleClass().addAll(GUIDE_ACTION_STYLE_CLASS, "epg-guide-now-button");
         nowButton.setOnAction(_ -> {
@@ -111,6 +110,13 @@ final class ChannelGuidePopup {
         int index = nowIndex(row.programmes(), System.currentTimeMillis());
         if (index >= 0) { position.set(index); programmes.scrollTo(index); }
         return body;
+    }
+
+    private static String programmeBadge(EpgProgramme programme, EpgProgramme following, boolean current) {
+        if (current) return I18n.tr("epgNow");
+        if (programme.equals(following)) return I18n.tr("epgNext");
+        return DateTimeFormatter.ofPattern("EEE d MMM").format(
+                Instant.ofEpochMilli(programme.start()).atZone(ZoneId.systemDefault()));
     }
 
     static int nowIndex(java.util.List<EpgProgramme> programmes, long now) {

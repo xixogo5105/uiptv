@@ -177,10 +177,6 @@ public class XtremeApiParser {
         return categoryList;
     }
 
-    private static List<Channel> doParseChannels(String json, Account account) {
-        return doParseChannels(json, account, null, null);
-    }
-
     private static List<Channel> doParseChannels(String json, Account account, Consumer<List<Channel>> callback, BooleanSupplier isCancelled) {
         List<Channel> categoryList = new ArrayList<>();
         List<Channel> callbackBatch = callback == null ? null : new ArrayList<>(CHANNEL_PARSE_BATCH_SIZE);

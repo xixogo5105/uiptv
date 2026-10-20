@@ -897,22 +897,6 @@ public class AccountListUI extends HBox implements SearchTarget {
         node.getStyleClass().remove(styleClass);
     }
 
-    private void showDetailView(Node content) {
-        if (!(content instanceof CategoryListUI)) {
-            switchHeaderSearchMode(HeaderSearchMode.ACCOUNTS, false);
-            retainActiveCategoryBrowserForDetailView();
-        }
-        detailContent.getChildren().setAll(content);
-        VBox.setVgrow(content, Priority.ALWAYS);
-        if (currentContent != null) {
-            viewStack.push(currentContent);
-        }
-        setCurrentContent(detailView);
-        updateNavButtons();
-        embeddedContainer.getChildren().setAll(navHeader, currentContent);
-        showBody(embeddedContainer);
-    }
-
     private void setCurrentContent(Node content) {
         currentContent = content;
         if (content != detailView) {

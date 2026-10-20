@@ -706,18 +706,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         playerAdjacentControls.getChildren().removeIf(node -> !(node instanceof com.uiptv.ui.PlayerEpgUI));
         setPlayerAdjacentControlsVisible(false);
     }
-    private DockedNode createDockedNode(Pane parent, int index, Node node) {
-        if (shouldInlineDockChildren(node) && node instanceof Pane sourcePane && !sourcePane.getChildren().isEmpty()) {
-            HBox dockRow = new HBox(8);
-            dockRow.getStyleClass().add("player-adjacent-inline-row");
-            dockRow.setAlignment(Pos.CENTER_LEFT);
-            dockRow.setFillHeight(false);
-            dockRow.setMinWidth(0);
-            dockRow.setMaxWidth(Double.MAX_VALUE);
-            return new DockedNode(parent, index, node, dockRow, sourcePane, new ArrayList<>(sourcePane.getChildren()));
-        }
-        return new DockedNode(parent, index, node, node, null, List.of());
-    }
     private void restoreDockNode(DockedNode dockedNode) {
         playerAdjacentControls.getChildren().remove(dockedNode.dockNode());
         if (dockedNode.childSource() != null) {
@@ -732,16 +720,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
 
     private boolean shouldInlineDockChildren(Node node) {
         return hasStyle(node, "bookmark-category-row") || hasStyle(node, "account-toolbar");
-    }
-
-    private boolean containsDockedNode(List<DockedNode> controls, Node node) {
-        for (DockedNode control : controls) {
-            if (control.originalNode() == node || isAncestor(control.originalNode(), node)
-                    || isAncestor(node, control.originalNode())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private Node firstNodeWithStyle(Node root, String styleClass) {

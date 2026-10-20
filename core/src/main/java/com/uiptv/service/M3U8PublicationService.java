@@ -304,8 +304,14 @@ public class M3U8PublicationService {
     private boolean isM3u8Manifest(String value) {
         int query = value.indexOf('?');
         int fragment = value.indexOf('#');
-        int end = query < 0 ? fragment : fragment < 0 ? query : Math.min(query, fragment);
+        int end = firstMarker(query, fragment);
         return value.substring(0, end < 0 ? value.length() : end).endsWith(".m3u8");
+    }
+
+    private int firstMarker(int query, int fragment) {
+        if (query < 0) return fragment;
+        if (fragment < 0) return query;
+        return Math.min(query, fragment);
     }
 
     private String buildProxiedMediaUrl(String url, String host) {
