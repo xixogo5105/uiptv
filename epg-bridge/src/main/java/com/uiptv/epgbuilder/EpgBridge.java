@@ -35,10 +35,11 @@ public final class EpgBridge {
                     throw new IllegalArgumentException("Expected " + BUNDLE_OPTION + " <path>; the database is resolved by UIPTV");
             }
             if (args[0].equals("export-inventory-jsonl") || args[0].equals("export-inventory")) {
-                var writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(
-                        new java.io.FileOutputStream(java.io.FileDescriptor.out), java.nio.charset.StandardCharsets.UTF_8));
+                try (var writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(
+                        new java.io.FileOutputStream(java.io.FileDescriptor.out), java.nio.charset.StandardCharsets.UTF_8))) {
                 if (args[0].equals("export-inventory-jsonl")) service.writeInventory(SQLConnection.resolveConfiguredDatabasePath(), writer);
                 else service.writeInventoryJson(SQLConnection.resolveConfiguredDatabasePath(), writer);
+                }
                 return 0;
             }
             var result = switch (args[0]) {

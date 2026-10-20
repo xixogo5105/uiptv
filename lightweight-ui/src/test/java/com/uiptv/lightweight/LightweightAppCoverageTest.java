@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LightweightAppCoverageTest {
@@ -85,7 +86,7 @@ class LightweightAppCoverageTest {
             assertFalse(root.getStyleClass().contains("dark-theme"));
 
             Hyperlink toggle = find(root, Hyperlink.class);
-            assertTrue(toggle != null);
+            assertNotNull(toggle);
             toggle.fire();
             toggle.fire();
             return null;

@@ -33,4 +33,5 @@ class EpgBridgeTest {
         assertEquals(0, EpgBridge.run(new String[]{"merge-schedules", "--bundle", "bundle.json"}, service));
         assertEquals(0, EpgBridge.run(new String[]{"parse-xmltv", "--bundle", "bundle.json"}, service));
     }
+
 }
