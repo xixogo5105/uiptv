@@ -58,13 +58,8 @@ public final class EpgCacheDb {
                               long now,long retryAt, Set<EpgChangeNotifications.ProviderIdentity> identities) {
         EpgChangeNotifications.Notification notification;
         try (Connection c = open(true)) {
-            c.setAutoCommit(false);
-            try {
-                replaceSource(c, sourceId, programmes, aliases, qualityAliases, icons, now, retryAt);
-                notification = EpgChangeNotifications.create(c, EpgChangeNotifications.Kind.SOURCE_IMPORT,
-                        Set.of(sourceId), programmes.keySet(), identities);
-                c.commit();
-            } catch (SQLException | InterruptedException | java.io.IOException error) { c.rollback(); throw error; }
+            notification = replaceSourceTransaction(c, sourceId, programmes, aliases, qualityAliases, icons,
+                    now, retryAt, identities);
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
             throw failure(error);
@@ -72,6 +67,24 @@ public final class EpgCacheDb {
             throw failure(error);
         }
         EpgChangeNotifications.publish(notification);
+    }
+
+    private EpgChangeNotifications.Notification replaceSourceTransaction(
+            Connection c, String sourceId, Map<String,List<EpgProgramme>> programmes,
+            Map<String,String> aliases, Map<String,String> qualityAliases, Map<String,String> icons,
+            long now, long retryAt, Set<EpgChangeNotifications.ProviderIdentity> identities)
+            throws SQLException, InterruptedException, java.io.IOException {
+        c.setAutoCommit(false);
+        try {
+            replaceSource(c, sourceId, programmes, aliases, qualityAliases, icons, now, retryAt);
+            EpgChangeNotifications.Notification notification = EpgChangeNotifications.create(c,
+                    EpgChangeNotifications.Kind.SOURCE_IMPORT, Set.of(sourceId), programmes.keySet(), identities);
+            c.commit();
+            return notification;
+        } catch (SQLException | InterruptedException | java.io.IOException error) {
+            c.rollback();
+            throw error;
+        }
     }
 
     @SuppressWarnings("java:S107")
@@ -158,59 +171,89 @@ public final class EpgCacheDb {
                                Map<String,SharedSource> shared, long now, Runnable validateCurrentInventory) {
         EpgChangeNotifications.Notification notification;
         try (Connection c = open(true)) {
-            c.setAutoCommit(false);
-            try {
-                // Reserve the writer before validation; no application rows are changed.
-                try (var lock = c.createStatement()) { lock.executeUpdate("UPDATE epg_source SET retry_at=retry_at WHERE 0"); }
-                validateCurrentInventory.run();
-                try (var metadataInsert = c.prepareStatement("INSERT INTO epg_shared_source VALUES(?,?,?,?) ON CONFLICT(source_id) DO UPDATE SET priority=excluded.priority,countries=excluded.countries,languages=excluded.languages")) {
-                    for (var source : sources.entrySet()) {
-                        if (!source.getKey().startsWith("builder:")) throw new IllegalArgumentException("Unowned source");
-                        SharedSource metadata = shared.get(source.getKey());
-                        replaceSource(c, source.getKey(), source.getValue(), metadata == null ? Map.of() : metadata.names(),
-                                Map.of(), metadata == null ? Map.of() : metadata.icons(), now, now + 7_200_000L);
-                        if (metadata != null) {
-                            metadataInsert.setString(1, source.getKey());
-                            metadataInsert.setInt(2, metadata.priority());
-                            metadataInsert.setString(3, metadata.countries());
-                            metadataInsert.setString(4, metadata.languages());
-                            metadataInsert.addBatch();
-                        }
-                    }
-                    metadataInsert.executeBatch();
-                }
-                try (var delete = c.prepareStatement("DELETE FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=? AND source_id=?");
-                     var insert = c.prepareStatement("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)")) {
-                    for (BuilderMatch match : matches) {
-                        String source = match.source();
-                        delete.setString(1, match.identity().accountId()); delete.setString(2, match.identity().providerId());
-                        delete.setString(3, source); delete.addBatch();
-                        insert.setString(1, match.identity().accountId()); insert.setString(2, match.identity().providerId());
-                        insert.setString(3, match.identity().signature()); insert.setString(4, source);
-                        insert.setString(5, match.guide()); insert.setInt(6, 10000 + match.priority()); insert.addBatch();
-                    }
-                    delete.executeBatch();
-                    insert.executeBatch();
-                }
-                notification = EpgChangeNotifications.create(c, EpgChangeNotifications.Kind.SOURCE_IMPORT,
-                        sources.keySet(), sources.values().stream().flatMap(value -> value.keySet().stream()).toList(), Set.of());
-                c.commit();
-                SharedEpgCacheDb.invalidate();
-            } catch (InterruptedException error) {
-                c.rollback();
-                Thread.currentThread().interrupt();
-                throw error;
-            } catch (SQLException | java.io.IOException error) { c.rollback(); throw error; }
-            catch (RuntimeException error) {
-                try { c.rollback(); } catch (SQLException rollback) { error.addSuppressed(rollback); }
-                throw error;
-            }
+            notification = publishBuilderTransaction(c, sources, matches, shared, now, validateCurrentInventory);
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
             throw failure(error);
         } catch (SQLException | java.io.IOException error) { throw failure(error); }
         catch (RuntimeException error) { throw failure(error); }
         EpgChangeNotifications.publish(notification);
+    }
+
+    private EpgChangeNotifications.Notification publishBuilderTransaction(
+            Connection c, Map<String,Map<String,List<EpgProgramme>>> sources, List<BuilderMatch> matches,
+            Map<String,SharedSource> shared, long now, Runnable validateCurrentInventory)
+            throws SQLException, InterruptedException, java.io.IOException {
+        c.setAutoCommit(false);
+        try {
+            reserveWriter(c);
+            validateCurrentInventory.run();
+            publishBuilderSources(c, sources, shared, now);
+            publishBuilderMappings(c, matches);
+            EpgChangeNotifications.Notification notification = EpgChangeNotifications.create(c,
+                    EpgChangeNotifications.Kind.SOURCE_IMPORT, sources.keySet(),
+                    sources.values().stream().flatMap(value -> value.keySet().stream()).toList(), Set.of());
+            c.commit();
+            SharedEpgCacheDb.invalidate();
+            return notification;
+        } catch (InterruptedException error) {
+            c.rollback();
+            Thread.currentThread().interrupt();
+            throw error;
+        } catch (SQLException | java.io.IOException error) {
+            c.rollback();
+            throw error;
+        } catch (RuntimeException error) {
+            rollback(c, error);
+            throw error;
+        }
+    }
+
+    private void reserveWriter(Connection c) throws SQLException {
+        try (var lock = c.createStatement()) {
+            lock.executeUpdate("UPDATE epg_source SET retry_at=retry_at WHERE 0");
+        }
+    }
+
+    private void publishBuilderSources(Connection c, Map<String,Map<String,List<EpgProgramme>>> sources,
+                                       Map<String,SharedSource> shared, long now)
+            throws SQLException, InterruptedException, java.io.IOException {
+        try (var metadataInsert = c.prepareStatement("INSERT INTO epg_shared_source VALUES(?,?,?,?) ON CONFLICT(source_id) DO UPDATE SET priority=excluded.priority,countries=excluded.countries,languages=excluded.languages")) {
+            for (var source : sources.entrySet()) {
+                if (!source.getKey().startsWith("builder:")) throw new IllegalArgumentException("Unowned source");
+                SharedSource metadata = shared.get(source.getKey());
+                replaceSource(c, source.getKey(), source.getValue(), metadata == null ? Map.of() : metadata.names(),
+                        Map.of(), metadata == null ? Map.of() : metadata.icons(), now, now + 7_200_000L);
+                if (metadata != null) {
+                    metadataInsert.setString(1, source.getKey());
+                    metadataInsert.setInt(2, metadata.priority());
+                    metadataInsert.setString(3, metadata.countries());
+                    metadataInsert.setString(4, metadata.languages());
+                    metadataInsert.addBatch();
+                }
+            }
+            metadataInsert.executeBatch();
+        }
+    }
+
+    private void publishBuilderMappings(Connection c, List<BuilderMatch> matches) throws SQLException {
+        try (var delete = c.prepareStatement("DELETE FROM epg_channel_mapping WHERE account_id=? AND provider_channel_id=? AND source_id=?");
+             var insert = c.prepareStatement("INSERT INTO epg_channel_mapping VALUES(?,?,?,?,?,?)")) {
+            for (BuilderMatch match : matches) {
+                String source = match.source();
+                delete.setString(1, match.identity().accountId()); delete.setString(2, match.identity().providerId());
+                delete.setString(3, source); delete.addBatch();
+                insert.setString(1, match.identity().accountId()); insert.setString(2, match.identity().providerId());
+                insert.setString(3, match.identity().signature()); insert.setString(4, source);
+                insert.setString(5, match.guide()); insert.setInt(6, 10000 + match.priority()); insert.addBatch();
+            }
+            delete.executeBatch();
+            insert.executeBatch();
+        }
+    }
+
+    private void rollback(Connection c, RuntimeException error) {
+        try { c.rollback(); } catch (SQLException rollback) { error.addSuppressed(rollback); }
     }
 
     private void deleteSourceRows(Connection c, String table, String source) throws SQLException {
