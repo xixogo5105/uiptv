@@ -64,8 +64,9 @@ class XtremeApiCacheReloaderTest extends DbBackedTest {
             parser.when(() -> XtremeApiParser.parseAllChannels(account)).thenReturn(List.of());
             parser.when(() -> XtremeApiParser.parseChannels("1", account)).thenReturn(List.of(channel("new", "1", "New")));
             parser.when(() -> XtremeApiParser.parseChannels("2", account)).thenThrow(new IllegalStateException("request failed"));
+            XtremeApiCacheReloader reloader = new XtremeApiCacheReloader();
             org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
-                    () -> new XtremeApiCacheReloader().reloadCache(account, null));
+                    () -> reloader.reloadCache(account, null));
         }
         assertEquals("Existing", CategoryDb.get().getCategories(account).getFirst().getTitle());
         assertEquals(1, ChannelDb.get().getChannelCountForAccount(account.getDbId()));

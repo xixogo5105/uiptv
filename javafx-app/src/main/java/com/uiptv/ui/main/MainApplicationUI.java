@@ -718,10 +718,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
         }
     }
 
-    private boolean shouldInlineDockChildren(Node node) {
-        return hasStyle(node, "bookmark-category-row") || hasStyle(node, "account-toolbar");
-    }
-
     private Node firstNodeWithStyle(Node root, String styleClass) {
         if (root == null) {
             return null;
@@ -738,17 +734,6 @@ public class MainApplicationUI extends BaseMainApplicationUI {
             }
         }
         return null;
-    }
-
-    private boolean isAncestor(Node ancestor, Node node) {
-        Parent parent = node == null ? null : node.getParent();
-        while (parent != null) {
-            if (parent == ancestor) {
-                return true;
-            }
-            parent = parent.getParent();
-        }
-        return false;
     }
 
     private boolean hasStyle(Node node, String styleClass) {

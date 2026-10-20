@@ -153,9 +153,9 @@ class EpgBuilderApplicationServiceTest extends DbBackedTest {
         assertEquals(expected.getString("database_identity"), lines.getFirst().getString("database_identity"));
         assertEquals(expected.getString("revision"), lines.getLast().getString("revision"));
         assertEquals(expected.getJSONArray("channels").length(), lines.getLast().getInt("channel_count"));
-        JSONObject record = lines.get(1);
-        assertEquals("channel", record.remove("record_type"));
-        assertTrue(expected.getJSONArray("channels").getJSONObject(0).similar(record));
+        JSONObject channelRecord = lines.get(1);
+        assertEquals("channel", channelRecord.remove("record_type"));
+        assertTrue(expected.getJSONArray("channels").getJSONObject(0).similar(channelRecord));
         assertFalse(output.toString().contains("PRIVATE_"));
         var jsonOutput = new java.io.StringWriter();
         service.writeInventoryJson(testDbFile.toString(), jsonOutput);

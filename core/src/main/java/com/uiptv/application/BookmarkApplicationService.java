@@ -40,9 +40,12 @@ public class BookmarkApplicationService {
         // bookmark catalogue for every 25-item request made the SPA startup
         // cost grow with the total number of bookmarks and repeated fallback
         // channel lookups could block the first visible cards.
-        List<Bookmark> bookmarks = limit > 0
-                ? new ArrayList<>(bookmarkService.readPage(Math.max(0, offset), limit))
-                : new ArrayList<>(bookmarkService.read());
+        List<Bookmark> bookmarks;
+        if (limit > 0) {
+            bookmarks = new ArrayList<>(bookmarkService.readPage(Math.max(0, offset), limit));
+        } else {
+            bookmarks = new ArrayList<>(bookmarkService.read());
+        }
         List<BookmarkResolver.ResolvedBookmark> resolved = new BookmarkResolver().resolveBookmarks(bookmarks);
         List<Bookmark> resolvedBookmarks = resolved.stream()
                 .map(BookmarkResolver.ResolvedBookmark::getBookmark)

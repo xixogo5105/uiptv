@@ -204,7 +204,6 @@ public class ConfigurationUI extends VBox {
     private boolean syncingFilterLockStateSwitch;
     private boolean syncingConfigurationToForm;
     private boolean savingConfiguration;
-    private boolean playerSelectionConfirmationActive;
     private boolean playerSelectionSaveDeferred;
     private boolean playerOptionSwitchesConfigured;
     private PlayerOptionCard embeddedPlayerCard;
@@ -617,45 +616,6 @@ public class ConfigurationUI extends VBox {
         }
         syncThemeModeSelector(getSelectedThemeMode().next());
         applyThemePreview();
-    }
-
-    private BorderPane createCollapsibleGroupPane(Label titleLabel, Node statusIcon, Node content,
-                                                  boolean collapsedByDefault, Hyperlink helpLink) {
-        BorderPane pane = new BorderPane(content);
-        titleLabel.getStyleClass().add("strong-label");
-        HBox titleRow = new HBox(4, titleLabel);
-        titleRow.setAlignment(Pos.CENTER_LEFT);
-        if (statusIcon != null) {
-            titleRow.getChildren().add(statusIcon);
-        }
-        if (helpLink != null) {
-            titleRow.getChildren().add(helpLink);
-        }
-        VBox titleContainer = new VBox(4, titleRow);
-        titleContainer.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(titleContainer, Priority.ALWAYS);
-
-        Hyperlink toggleLink = new Hyperlink();
-        toggleLink.setMinWidth(Region.USE_PREF_SIZE);
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox header = new HBox(8, titleContainer, spacer, toggleLink);
-
-        content.setVisible(!collapsedByDefault);
-        content.setManaged(!collapsedByDefault);
-        toggleLink.setText((content.isVisible() && content.isManaged()) ? I18n.tr("commonHide") : I18n.tr("commonShow"));
-        toggleLink.setOnAction(event -> {
-            boolean expand = !(content.isVisible() && content.isManaged());
-            content.setVisible(expand);
-            content.setManaged(expand);
-            toggleLink.setText(expand ? I18n.tr("commonHide") : I18n.tr("commonShow"));
-        });
-
-        BorderPane.setMargin(header, new Insets(0, 0, 8, 0));
-        pane.setTop(header);
-        pane.setPadding(new Insets(10));
-        pane.getStyleClass().add("uiptv-card");
-        return pane;
     }
 
     private void installDigitsOnlyFilter(TextInputControl control) {
@@ -3117,15 +3077,10 @@ public class ConfigurationUI extends VBox {
     }
 
     private void confirmPlayerSelection(Toggle oldToggle, String messageKey) {
-        playerSelectionConfirmationActive = true;
         boolean proceed = false;
-        try {
-            proceed = UIptvAlert.showConfirmationAlert(I18n.tr(messageKey));
-            if (!proceed) {
-                restorePreviousPlayerSelection(oldToggle);
-            }
-        } finally {
-            playerSelectionConfirmationActive = false;
+        proceed = UIptvAlert.showConfirmationAlert(I18n.tr(messageKey));
+        if (!proceed) {
+            restorePreviousPlayerSelection(oldToggle);
         }
 
         boolean shouldSave = proceed && playerSelectionSaveDeferred;

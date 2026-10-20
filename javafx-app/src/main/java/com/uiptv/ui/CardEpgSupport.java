@@ -36,7 +36,7 @@ final class CardEpgSupport {
     private Thread worker;
     private Thread popupWorker;
     private long popupRevision;
-    private volatile long revision;
+    private final java.util.concurrent.atomic.AtomicLong revision = new java.util.concurrent.atomic.AtomicLong();
     private int layoutRetryAttempts;
     private javafx.stage.Popup popup;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
@@ -145,7 +145,8 @@ final class CardEpgSupport {
 
     private void observeScroll(Node node) {
         for (Node parent = node.getParent(); parent != null; parent = parent.getParent()) {
-            if (parent instanceof ScrollPane scroll && !scrollListeners.containsKey(scroll)) {
+            if (parent instanceof ScrollPane scroll) {
+                if (scrollListeners.containsKey(scroll)) continue;
                 javafx.beans.value.ChangeListener<Number> listener = (_, _, _) -> queue();
                 scroll.vvalueProperty().addListener(listener); scrollListeners.put(scroll, listener);
                 javafx.beans.value.ChangeListener<Bounds> viewportListener = (_, _, _) -> queue();
@@ -180,7 +181,11 @@ final class CardEpgSupport {
 
     void queue() {
         if (owner.getScene() == null || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return;
-        revision++; if (worker != null) worker.interrupt(); pulse.playFromStart();
+        revision.incrementAndGet();
+        if (worker != null) {
+            worker.interrupt();
+        }
+        pulse.playFromStart();
     }
 
     private void retryAfterLayout() {
@@ -192,10 +197,19 @@ final class CardEpgSupport {
 
     private boolean visible(Region card) {
         if (card.getScene() == null || card.getWidth() <= 0 || card.getHeight() <= 0) return false;
+        if (!visibleInWindow(card) || !visibleInAncestors(card)) return false;
+        return true;
+    }
+
+    private boolean visibleInWindow(Region card) {
         var window = card.getScene().getWindow();
         if (window != null && (!window.isShowing() || window instanceof javafx.stage.Stage stage && stage.isIconified())) return false;
         var bounds = card.localToScene(card.getBoundsInLocal());
-        if (!bounds.intersects(0, 0, card.getScene().getWidth(), card.getScene().getHeight())) return false;
+        return bounds.intersects(0, 0, card.getScene().getWidth(), card.getScene().getHeight());
+    }
+
+    private boolean visibleInAncestors(Region card) {
+        var bounds = card.localToScene(card.getBoundsInLocal());
         for (Node node = card; node != null; node = node.getParent()) {
             if (!node.isVisible()) return false;
             if (node instanceof ScrollPane scroll) {
@@ -209,76 +223,116 @@ final class CardEpgSupport {
 
     private void refresh() {
         if (owner.getScene() == null || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) return;
-        long now = System.currentTimeMillis();
-        long request = revision;
-        var cards = attached.entrySet().stream().filter(entry -> {
+        long request = revision.get();
+        var cards = cardsToRefresh(System.currentTimeMillis());
+        if (cards.isEmpty()) {
+            retryIfLayoutPending();
+            return;
+        }
+        layoutRetryAttempts = 0;
+        layoutRetry.stop();
+        worker = Thread.ofVirtual().start(() -> refreshWorker(request, cards));
+    }
+
+    private List<Map.Entry<Region, Binding>> cardsToRefresh(long now) {
+        return attached.entrySet().stream().filter(entry -> {
                     boolean cardVisible = visible(entry.getKey());
                     if (cardVisible) removeCardBoundsListener(entry.getKey());
                     return cardVisible && now >= entry.getValue().refreshAt;
                 })
-                // IdentityHashMap is intentional for card identity, but its iteration order is
-                // deliberately unspecified. Sort by the actual rendered position so the first
-                // EPG batch follows the same top-to-bottom, left-to-right order as the cards.
                 .sorted(Comparator
                         .comparingDouble((Map.Entry<Region, Binding> entry) -> screenBounds(entry.getKey()).getMinY())
                         .thenComparingDouble(entry -> screenBounds(entry.getKey()).getMinX()))
                 .limit(EPG_BATCH_SIZE)
                 .map(entry -> Map.entry(entry.getKey(), entry.getValue())).toList();
-        if (cards.isEmpty()) {
-            boolean waitingForLayout = attached.keySet().stream().anyMatch(card ->
-                    card.getScene() != null && (card.getWidth() <= 0 || card.getHeight() <= 0));
-            if (waitingForLayout || (layoutRetryAttempts > 0
-                    && attached.keySet().stream().anyMatch(card -> card.getScene() != null))) retryAfterLayout();
-            return;
+    }
+
+    private void retryIfLayoutPending() {
+        boolean waitingForLayout = attached.keySet().stream().anyMatch(card ->
+                card.getScene() != null && (card.getWidth() <= 0 || card.getHeight() <= 0));
+        boolean attachedToScene = attached.keySet().stream().anyMatch(card -> card.getScene() != null);
+        if (waitingForLayout || (layoutRetryAttempts > 0 && attachedToScene)) retryAfterLayout();
+    }
+
+    private void refreshWorker(long request, List<Map.Entry<Region, Binding>> cards) {
+        try {
+            List<LiveGuideApplicationService.Row> sources = new ArrayList<>();
+            List<Map.Entry<Region, Binding>> permitted = new ArrayList<>();
+            collectSources(request, cards, sources, permitted);
+            var service = new LiveGuideApplicationService();
+            var summaries = service.cachedSummaries(sources);
+            publishSummaries(request, permitted, summaries, service.cachedIcons(summaries));
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+        } catch (Exception _) {
+            Platform.runLater(() -> { if (request == revision.get()) cards.forEach(entry -> entry.getValue().refreshAt = System.currentTimeMillis() + 30_000); });
+        } finally {
+            Platform.runLater(() -> { if (request == revision.get()) pulse.playFromStart(); });
         }
-        layoutRetryAttempts = 0;
-        layoutRetry.stop();
-        worker = Thread.ofVirtual().start(() -> {
-            try {
-                List<LiveGuideApplicationService.Row> sources=new ArrayList<>();
-                List<Map.Entry<Region,Binding>> permitted=new ArrayList<>();
-                for (var entry : cards) {
-                    if (Thread.currentThread().isInterrupted()) return;
-                    var allowed = new java.util.concurrent.CompletableFuture<Boolean>();
-                    Platform.runLater(() -> allowed.complete(request == revision && attached.containsKey(entry.getKey()) && visible(entry.getKey())));
-                    if (!allowed.get()) continue;
-                    LiveGuideApplicationService.Row source=entry.getValue().source.get();
-                    if(source!=null) { sources.add(source); permitted.add(entry); }
-                    else Platform.runLater(() -> {
-                        if(request==revision && attached.containsKey(entry.getKey()) && visible(entry.getKey())) {
-                            entry.getValue().refreshAt=System.currentTimeMillis()+30*60_000L;
-                            display(entry.getValue().panel,null,null);
-                        }
-                    });
-                }
-                var summaries=new LiveGuideApplicationService().cachedSummaries(sources);
-                var icons=new LiveGuideApplicationService().cachedIcons(summaries);
-                for(int i=0;i<summaries.size();i++) {
-                    var entry=permitted.get(i);
-                    LiveGuideApplicationService.Row loaded=summaries.get(i);
-                    long time = System.currentTimeMillis();
-                    EpgProgramme current = loaded == null ? null : loaded.programmes().stream().filter(p -> p.start() <= time && time < p.stop()).findFirst().orElse(null);
-                    EpgProgramme next = loaded == null ? null : loaded.programmes().stream().filter(p -> p.start() > time).findFirst().orElse(null);
-                    Platform.runLater(() -> {
-                        if (request != revision || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly() || !attached.containsKey(entry.getKey()) || !visible(entry.getKey())) return;
-                        long refreshAt = System.currentTimeMillis() + 30 * 60_000L;
-                        if (current != null) refreshAt = Math.min(refreshAt, current.stop());
-                        if (next != null) refreshAt = Math.min(refreshAt, next.start());
-                        entry.getValue().refreshAt = Math.max(System.currentTimeMillis() + 30_000, refreshAt);
-                        entry.getValue().current = current; entry.getValue().next = next;
-                        display(entry.getValue().panel,current,next);
-                        if(entry.getKey().lookup(".channel-logo-view") instanceof com.uiptv.widget.AsyncImageView image)
-                            image.setFallbackImage(icons.getOrDefault(loaded,""),"channel");
-                    });
-                }
-            } catch (InterruptedException _) {
-                Thread.currentThread().interrupt();
-            } catch (Exception _) {
-                Platform.runLater(() -> { if (request == revision) cards.forEach(entry -> entry.getValue().refreshAt = System.currentTimeMillis() + 30_000); });
-            } finally {
-                Platform.runLater(() -> { if (request == revision) pulse.playFromStart(); });
+    }
+
+    private void collectSources(long request, List<Map.Entry<Region, Binding>> cards,
+                                List<LiveGuideApplicationService.Row> sources,
+                                List<Map.Entry<Region, Binding>> permitted) throws InterruptedException, java.util.concurrent.ExecutionException {
+        for (var entry : cards) {
+            if (Thread.currentThread().isInterrupted()) return;
+            var allowed = new java.util.concurrent.CompletableFuture<Boolean>();
+            Platform.runLater(() -> allowed.complete(request == revision.get() && attached.containsKey(entry.getKey()) && visible(entry.getKey())));
+            if (!allowed.get()) continue;
+            LiveGuideApplicationService.Row source = entry.getValue().source.get();
+            if (source != null) {
+                sources.add(source);
+                permitted.add(entry);
+            } else {
+                scheduleEmptySummary(request, entry);
+            }
+        }
+    }
+
+    private void scheduleEmptySummary(long request, Map.Entry<Region, Binding> entry) {
+        Platform.runLater(() -> {
+            if (request == revision.get() && attached.containsKey(entry.getKey()) && visible(entry.getKey())) {
+                entry.getValue().refreshAt = System.currentTimeMillis() + 30 * 60_000L;
+                display(entry.getValue().panel, null, null);
             }
         });
+    }
+
+    private void publishSummaries(long request, List<Map.Entry<Region, Binding>> entries,
+                                  List<LiveGuideApplicationService.Row> summaries, Map<LiveGuideApplicationService.Row, String> icons) {
+        for (int index = 0; index < summaries.size(); index++) {
+            var entry = entries.get(index);
+            var loaded = summaries.get(index);
+            long now = System.currentTimeMillis();
+            EpgProgramme current = currentProgramme(loaded, now);
+            EpgProgramme next = nextProgramme(loaded, now);
+            Platform.runLater(() -> publishSummary(request, entry, loaded, current, next, icons));
+        }
+    }
+
+    private EpgProgramme currentProgramme(LiveGuideApplicationService.Row row, long now) {
+        return row == null ? null : row.programmes().stream().filter(p -> p.start() <= now && now < p.stop()).findFirst().orElse(null);
+    }
+
+    private EpgProgramme nextProgramme(LiveGuideApplicationService.Row row, long now) {
+        return row == null ? null : row.programmes().stream().filter(p -> p.start() > now).findFirst().orElse(null);
+    }
+
+    private void publishSummary(long request, Map.Entry<Region, Binding> entry,
+                                LiveGuideApplicationService.Row loaded, EpgProgramme current, EpgProgramme next,
+                                Map<LiveGuideApplicationService.Row, String> icons) {
+        if (request != revision.get() || !EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()
+                || !attached.containsKey(entry.getKey()) || !visible(entry.getKey())) return;
+        long refreshAt = System.currentTimeMillis() + 30 * 60_000L;
+        if (current != null) refreshAt = Math.min(refreshAt, current.stop());
+        if (next != null) refreshAt = Math.min(refreshAt, next.start());
+        entry.getValue().refreshAt = Math.max(System.currentTimeMillis() + 30_000, refreshAt);
+        entry.getValue().current = current;
+        entry.getValue().next = next;
+        display(entry.getValue().panel, current, next);
+        if (entry.getKey().lookup(".channel-logo-view") instanceof com.uiptv.widget.AsyncImageView image) {
+            image.setFallbackImage(icons.getOrDefault(loaded, ""), "channel");
+        }
     }
 
     private static Bounds screenBounds(Region card) {
@@ -307,7 +361,7 @@ final class CardEpgSupport {
         }
         panel.getChildren().clear();
         panel.getChildren().add(programme(I18n.tr("epgNow"), current));
-        double fraction = current == null || current.stop() <= current.start() ? 0
+        double fraction = current.stop() <= current.start() ? 0
                 : Math.clamp((now - current.start()) / (double) (current.stop() - current.start()), 0, 1);
         ProgressBar progress = new ProgressBar(fraction);
         progress.getStyleClass().add("epg-programme-progress");
@@ -348,7 +402,12 @@ final class CardEpgSupport {
     }
 
     void stop() {
-        revision++; popupRevision++; if (popupWorker != null) { popupWorker.interrupt(); popupWorker = null; }
+        revision.incrementAndGet();
+        popupRevision++;
+        if (popupWorker != null) {
+            popupWorker.interrupt();
+            popupWorker = null;
+        }
         pulse.stop(); layoutRetry.stop(); layoutRetryAttempts = 0;
         clock.stop(); if (worker != null) { worker.interrupt(); worker = null; }
         if (popup != null) { popup.hide(); popup = null; }

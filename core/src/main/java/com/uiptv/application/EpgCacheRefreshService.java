@@ -132,12 +132,7 @@ public class EpgCacheRefreshService {
         long epoch = EPOCH.get();
         Thread task = Thread.ofVirtual().name("epg-cache-lifecycle").unstarted(() -> {
             try {
-                if (stale(epoch)) return;
-                boolean enabled = isEnabled();
-                synchronized (EpgCacheRefreshService.class) {
-                    if (stale(epoch)) return;
-                    if (!enabled) stopTimer(); else startTimer();
-                }
+                reconcile(epoch);
             } catch (DatabaseAccessException _) {
                 // A cancelled lifecycle must not report teardown as a database failure.
                 if (lifecycleStarted && epoch == EPOCH.get() && !Thread.currentThread().isInterrupted())
@@ -151,6 +146,15 @@ public class EpgCacheRefreshService {
         });
         RECONCILER.set(task);
         task.start();
+    }
+
+    private static void reconcile(long epoch) {
+        if (stale(epoch)) return;
+        boolean enabled = isEnabled();
+        synchronized (EpgCacheRefreshService.class) {
+            if (stale(epoch)) return;
+            if (!enabled) stopTimer(); else startTimer();
+        }
     }
     private static boolean stale(long epoch) {
         return !lifecycleStarted || epoch != EPOCH.get() || Thread.currentThread().isInterrupted();
@@ -345,7 +349,10 @@ public class EpgCacheRefreshService {
             try {
                 XmltvGuide guide=loader.downloadSource(source);
                 commit(token,() -> { db.replaceSource(id,guide.programmes(),guide.names(),guide.qualityNames(),guide.icons(),now,now+refreshMillis()); db.mapChannels(EpgCacheApplicationService.matches(account,channels,sources),System.currentTimeMillis()); });
-            } catch(Exception error) {
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                return;
+            } catch (java.io.IOException | javax.xml.stream.XMLStreamException | RuntimeException error) {
                 if(!current(token)) return;
                 commit(token,() -> db.failed(id,now+FAILURE_MS,EpgApplicationService.warning(error)));
                 AppLog.addWarningLog(EpgCacheRefreshService.class,"EPG source refresh failed; retaining cached programmes.");

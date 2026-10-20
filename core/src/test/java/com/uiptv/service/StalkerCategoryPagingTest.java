@@ -51,8 +51,9 @@ class StalkerCategoryPagingTest extends DbBackedTest {
                 var service = mock(HandshakeService.class); handshake.when(HandshakeService::getInstance).thenReturn(service);
                 doAnswer(call -> { ((Account)call.getArgument(0)).setToken("fixture"); return null; }).when(service).connect(any());
                 Account target = account;
-                if (failLater) assertThrows(IllegalStateException.class, () -> new CacheServiceImpl().reloadCache(target, _ -> {}));
-                else new CacheServiceImpl().reloadCache(target, _ -> {});
+                CacheServiceImpl cacheService = new CacheServiceImpl();
+                if (failLater) assertThrows(IllegalStateException.class, () -> cacheService.reloadCache(target, _ -> {}));
+                else cacheService.reloadCache(target, _ -> {});
             }
             assertEquals(failLater ? 1 : 30, ChannelDb.get().getChannelCountForAccount(account.getDbId()));
             assertEquals(failLater ? 26 : 31, pages.get());

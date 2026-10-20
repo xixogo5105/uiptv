@@ -97,14 +97,16 @@ public class SeriesEpisodeDb extends BaseDb {
                 + " SET logo=?, description=?, releaseDate=?, rating=?"
                 + WHERE_ACCOUNT_CATEGORY_SERIES + " AND channelId=?";
         try (Connection conn = connect(); PreparedStatement statement = conn.prepareStatement(sql)) {
+            String accountId = account.getDbId();
+            String normalizedCategoryId = safeCategoryId(categoryId);
+            statement.setString(5, accountId);
+            statement.setString(6, normalizedCategoryId);
+            statement.setString(7, seriesId);
             for (Channel channel : episodes) {
                 statement.setString(1, channel.getLogo());
                 statement.setString(2, channel.getDescription());
                 statement.setString(3, channel.getReleaseDate());
                 statement.setString(4, channel.getRating());
-                statement.setString(5, account.getDbId());
-                statement.setString(6, safeCategoryId(categoryId));
-                statement.setString(7, seriesId);
                 statement.setString(8, channel.getChannelId());
                 statement.addBatch();
             }

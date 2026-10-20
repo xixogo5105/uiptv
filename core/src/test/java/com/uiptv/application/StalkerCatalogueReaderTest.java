@@ -35,7 +35,8 @@ class StalkerCatalogueReaderTest {
         String json = "{\"js\":{\"data\":[" + row("1") + ",{}]}}";
         try (var _ = new ReloadRequestScope(Duration.ofSeconds(5), Duration.ofSeconds(2), 4)) {
             StringReader reader = new StringReader(json);
-            assertThrows(JSONException.class, () -> new StalkerCatalogueReader().read(reader));
+            StalkerCatalogueReader catalogueReader = new StalkerCatalogueReader();
+            assertThrows(JSONException.class, () -> catalogueReader.read(reader));
         }
     }
 }

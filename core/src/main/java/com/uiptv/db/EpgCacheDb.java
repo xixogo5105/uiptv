@@ -60,7 +60,7 @@ public final class EpgCacheDb {
             c.setAutoCommit(false);
             try {
                 replaceSource(c, sourceId, programmes, aliases, qualityAliases, icons, now, retryAt);
-                notification = EpgChangeNotifications.record(c, EpgChangeNotifications.Kind.SOURCE_IMPORT,
+                notification = EpgChangeNotifications.create(c, EpgChangeNotifications.Kind.SOURCE_IMPORT,
                         Set.of(sourceId), programmes.keySet(), identities);
                 c.commit();
             } catch (SQLException | InterruptedException | java.io.IOException error) { c.rollback(); throw error; }
@@ -190,7 +190,7 @@ public final class EpgCacheDb {
                     delete.executeBatch();
                     insert.executeBatch();
                 }
-                notification = EpgChangeNotifications.record(c, EpgChangeNotifications.Kind.SOURCE_IMPORT,
+                notification = EpgChangeNotifications.create(c, EpgChangeNotifications.Kind.SOURCE_IMPORT,
                         sources.keySet(), sources.values().stream().flatMap(value -> value.keySet().stream()).toList(), Set.of());
                 c.commit();
                 SharedEpgCacheDb.invalidate();
@@ -271,7 +271,7 @@ public final class EpgCacheDb {
                 }
                 insert.executeBatch();
                 EpgChangeNotifications.Notification notification = changed
-                        ? EpgChangeNotifications.record(c, EpgChangeNotifications.Kind.MAPPING, Set.of(), Set.of(), changedIdentities)
+                        ? EpgChangeNotifications.create(c, EpgChangeNotifications.Kind.MAPPING, Set.of(), Set.of(), changedIdentities)
                         : null;
                 c.commit();
                 if (notification != null) EpgChangeNotifications.publish(notification);
@@ -467,7 +467,7 @@ public final class EpgCacheDb {
         try(Connection c=open(true); var statement=c.createStatement()) {
             c.setAutoCommit(false);
             for(String table:List.of("epg_channel_mapping","epg_programme","epg_alias","epg_channel_icon","epg_shared_source","epg_source")) statement.executeUpdate("DELETE FROM " + table);
-            notification = EpgChangeNotifications.record(c, EpgChangeNotifications.Kind.CACHE_CLEARED, Set.of(), Set.of(), Set.of());
+            notification = EpgChangeNotifications.create(c, EpgChangeNotifications.Kind.CACHE_CLEARED, Set.of(), Set.of(), Set.of());
             c.commit();
         } catch(Exception error) { throw failure(error); }
         EpgChangeNotifications.publish(notification);

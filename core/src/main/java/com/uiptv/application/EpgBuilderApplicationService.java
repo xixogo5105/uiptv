@@ -3,6 +3,7 @@ package com.uiptv.application;
 import com.uiptv.db.EpgCacheDb;
 import com.uiptv.db.SQLConnection;
 import com.uiptv.model.Account;
+import com.uiptv.model.Bookmark;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.AccountService;
@@ -139,41 +140,8 @@ public class EpgBuilderApplicationService {
         BookmarkResolver resolver = new BookmarkResolver();
 
         for (Account account : accounts.values()) {
-            if (account.getAction() != Account.AccountAction.itv) continue;
-
-
-            List<com.uiptv.model.Bookmark> bookmarks = BookmarkService.getInstance()
-                    .getBookmarksByAccountName(account.getAccountName());
-
-            var resolved = resolver.resolveBookmarks(bookmarks);
-
-            Set<String> seen = new HashSet<>();
-            Map<String, String> bookmarkIds = new HashMap<>();
-            for (var rb : resolved) {
-                if (rb.getAccountAction() != Account.AccountAction.itv || rb.getBookmark() == null) continue;
-                var bookmark = rb.getBookmark();
-                bookmarkIds.put(bookmark.getChannelId(), bookmark.getDbId());
-            }
-            var identity = EpgCacheApplicationService.identityFactory(account, config);
-            var overrides = EpgCacheApplicationService.overrides(config, account);
-            java.util.function.Consumer<Channel> emit = channel -> {
-                if (!seen.add(channel.getChannelId())) return;
-                JSONObject record = channelInventory(account, channel, bookmarkIds.containsKey(channel.getChannelId()),
-                        bookmarkIds.getOrDefault(channel.getChannelId(), ""), overrides.optString(channel.getChannelId(), "").strip(), identity.apply(channel).signature());
-                record.put("quality_name", nameRules.quality(channel.getName()));
-                revisions.add(record.getString(ACCOUNT_ID) + "|" + record.getString(PROVIDER_CHANNEL_ID) + "|" + record.getString(SIGNATURE));
-                visitor.accept(record);
-            };
-            com.uiptv.db.ChannelDb.get().visitCachedLiveChannels(account.getDbId(), emit);
-            for (var rb : resolved) {
-                if (rb.getAccountAction() != Account.AccountAction.itv || rb.getBookmark() == null) continue;
-                var bookmark = rb.getBookmark();
-                if (seen.contains(bookmark.getChannelId())) continue;
-                Channel channel = Channel.fromJson(bookmark.getChannelJson());
-                if (channel == null) channel = new Channel();
-                channel.setChannelId(bookmark.getChannelId());
-                channel.setName(bookmark.getChannelName());
-                emit.accept(channel);
+            if (account.getAction() == Account.AccountAction.itv) {
+                visitAccountInventory(account, config, nameRules, resolver, revisions, visitor);
             }
         }
 
@@ -185,6 +153,53 @@ public class EpgBuilderApplicationService {
         }
         inventory.put(REVISION, HexFormat.of().formatHex(digest.digest()));
         return inventory;
+    }
+
+    private void visitAccountInventory(Account account, Configuration config,
+                                       EpgNameRules nameRules, BookmarkResolver resolver,
+                                       List<String> revisions, java.util.function.Consumer<JSONObject> visitor) {
+        List<com.uiptv.model.Bookmark> bookmarks = BookmarkService.getInstance()
+                .getBookmarksByAccountName(account.getAccountName());
+        var resolved = resolver.resolveBookmarks(bookmarks);
+        Set<String> seen = new HashSet<>();
+        Map<String, String> bookmarkIds = bookmarkIds(resolved);
+        var identity = EpgCacheApplicationService.identityFactory(account, config);
+        var overrides = EpgCacheApplicationService.overrides(config, account);
+        java.util.function.Consumer<Channel> emit = channel -> {
+            if (!seen.add(channel.getChannelId())) return;
+            JSONObject channelRecord = channelInventory(account, channel, bookmarkIds.containsKey(channel.getChannelId()),
+                    bookmarkIds.getOrDefault(channel.getChannelId(), ""), overrides.optString(channel.getChannelId(), "").strip(), identity.apply(channel).signature());
+            channelRecord.put("quality_name", nameRules.quality(channel.getName()));
+            revisions.add(channelRecord.getString(ACCOUNT_ID) + "|" + channelRecord.getString(PROVIDER_CHANNEL_ID) + "|" + channelRecord.getString(SIGNATURE));
+            visitor.accept(channelRecord);
+        };
+        com.uiptv.db.ChannelDb.get().visitCachedLiveChannels(account.getDbId(), emit);
+        emitBookmarkChannels(resolved, seen, emit);
+    }
+
+    private static Map<String, String> bookmarkIds(List<BookmarkResolver.ResolvedBookmark> resolved) {
+        Map<String, String> ids = new HashMap<>();
+        for (var resolvedBookmark : resolved) {
+            var bookmark = resolvedBookmark.getBookmark();
+            if (resolvedBookmark.getAccountAction() == Account.AccountAction.itv && bookmark != null) {
+                ids.put(bookmark.getChannelId(), bookmark.getDbId());
+            }
+        }
+        return ids;
+    }
+
+    private static void emitBookmarkChannels(List<BookmarkResolver.ResolvedBookmark> resolved, Set<String> seen,
+                                             java.util.function.Consumer<Channel> emit) {
+        for (var resolvedBookmark : resolved) {
+            var bookmark = resolvedBookmark.getBookmark();
+            if (resolvedBookmark.getAccountAction() != Account.AccountAction.itv || bookmark == null
+                    || seen.contains(bookmark.getChannelId())) continue;
+            Channel channel = Channel.fromJson(bookmark.getChannelJson());
+            if (channel == null) channel = new Channel();
+            channel.setChannelId(bookmark.getChannelId());
+            channel.setName(bookmark.getChannelName());
+            emit.accept(channel);
+        }
     }
 
     private static JSONObject channelInventory(Account account, Channel channel,
@@ -237,106 +252,176 @@ public class EpgBuilderApplicationService {
     private record Prepared(Map<String,Map<String,List<com.uiptv.application.EpgProgramme>>> sources,
                             List<EpgCacheDb.BuilderMatch> matches, Map<String,EpgCacheDb.SharedSource> shared, int programmes) { }
 
+    private record Target(String account, String provider) { }
+
+    private record TargetInventory(Map<Target, JSONObject> targets, JSONObject inventory) { }
+
     private Prepared prepare(String databasePath, JSONObject bundle) throws Exception {
-        if (bundle.getInt("schema_version") != 1) throw new IllegalArgumentException("Unsupported bundle schema");
+        validateSchema(bundle);
         boolean sharedGuides = bundle.optBoolean("shared_guides", false);
-        record Target(String account, String provider) { }
+        TargetInventory targetInventory = readTargetInventory(databasePath, bundle, sharedGuides);
+        JSONObject inventory = targetInventory.inventory();
+        validateInventory(bundle, inventory, sharedGuides);
+        boolean mappingsCurrent = mappingsCurrent(bundle, inventory);
+        Map<String,Map<String,List<com.uiptv.application.EpgProgramme>>> sources = new LinkedHashMap<>();
+        long now = System.currentTimeMillis();
+        long created = bundleCreatedAt(bundle, now);
+        Map<String,Integer> declared = declaredPriorities(bundle.getJSONArray("sources"));
+        JSONArray programmes = bundle.getJSONArray("programmes");
+        validateProgrammeCount(programmes);
+        readProgrammes(programmes, declared, created, now, sources);
+        sources.values().forEach(channels -> channels.replaceAll((guide, schedule) -> com.uiptv.application.EpgSchedules.normalize(schedule)));
+        List<EpgCacheDb.BuilderMatch> matches = readMatches(bundle, mappingsCurrent, targetInventory.targets(), sources, declared, now);
+        Map<String,EpgCacheDb.SharedSource> shared = readSharedSources(bundle, sources);
+        if (matches.isEmpty() && shared.isEmpty()) throw new IllegalArgumentException("Bundle has no usable mappings or shared guides");
+        return new Prepared(sources, matches, shared, programmes.length());
+    }
+
+    private static void validateSchema(JSONObject bundle) {
+        if (bundle.getInt("schema_version") != 1) throw new IllegalArgumentException("Unsupported bundle schema");
+    }
+
+    private TargetInventory readTargetInventory(String databasePath, JSONObject bundle, boolean sharedGuides) throws Exception {
         Set<Target> wanted = new HashSet<>();
         for (Object value : bundle.getJSONArray("mappings")) {
             JSONObject mapping = (JSONObject) value;
             wanted.add(new Target(mapping.getString(ACCOUNT_ID), mapping.getString(PROVIDER_CHANNEL_ID)));
         }
-        Map<Target,JSONObject> targets = new HashMap<>();
+        Map<Target, JSONObject> targets = new HashMap<>();
         JSONObject inventory = sharedGuides && wanted.isEmpty() ? inventoryMetadata(databasePath) : visitInventory(databasePath, channel -> {
             Target target = new Target(channel.getString(ACCOUNT_ID), channel.getString(PROVIDER_CHANNEL_ID));
             if (wanted.contains(target)) targets.put(target, channel);
         });
+        return new TargetInventory(targets, inventory);
+    }
+
+    private static void validateInventory(JSONObject bundle, JSONObject inventory, boolean sharedGuides) {
         if (!bundle.getString(DATABASE_IDENTITY).equals(inventory.getString(DATABASE_IDENTITY)))
             throw new IllegalArgumentException("database_identity mismatch");
-        boolean mappingsCurrent = bundle.getString(CONFIG_SIGNATURE).equals(inventory.getString(CONFIG_SIGNATURE))
+        if (!sharedGuides && !mappingsCurrent(bundle, inventory))
+            throw new IllegalArgumentException("Stale inventory or config_signature; export and rebuild");
+    }
+
+    private static boolean mappingsCurrent(JSONObject bundle, JSONObject inventory) {
+        return bundle.getString(CONFIG_SIGNATURE).equals(inventory.getString(CONFIG_SIGNATURE))
                 && bundle.getString("inventory_revision").equals(inventory.optString(REVISION))
                 && bundle.getInt("inventory_generation") == inventory.getInt("generation");
-        if (!sharedGuides && !mappingsCurrent) throw new IllegalArgumentException("Stale inventory or config_signature; export and rebuild");
-        Map<String,Map<String,List<com.uiptv.application.EpgProgramme>>> sources = new LinkedHashMap<>();
-        long now = System.currentTimeMillis();
+    }
+
+    private static long bundleCreatedAt(JSONObject bundle, long now) {
         long created = bundle.has("created_at") ? java.time.Instant.parse(bundle.getString("created_at")).toEpochMilli() : now;
         if (created > now + 300_000L || created < now - 86_400_000L)
             throw new IllegalArgumentException("Bundle timestamp is stale or in the future; rebuild");
-        JSONArray programmes = bundle.getJSONArray("programmes");
-        if (programmes.isEmpty() || programmes.length() > 1_000_000) throw new IllegalArgumentException("Empty or oversized programmes");
-        Map<String,Integer> declared = new HashMap<>();
-        for (Object value : bundle.getJSONArray("sources")) {
-            JSONObject source = (JSONObject)value;
+        return created;
+    }
+
+    private static void validateProgrammeCount(JSONArray programmes) {
+        if (programmes.isEmpty() || programmes.length() > 1_000_000)
+            throw new IllegalArgumentException("Empty or oversized programmes");
+    }
+
+    private static Map<String, Integer> declaredPriorities(JSONArray sourceValues) {
+        Map<String, Integer> declared = new HashMap<>();
+        for (Object value : sourceValues) {
+            JSONObject source = (JSONObject) value;
             int priority = source.optInt("priority", 100);
             if (priority < 0 || priority > 1_000_000 || declared.putIfAbsent(source.getString(SOURCE_ID), priority) != null)
                 throw new IllegalArgumentException("Invalid source priority or duplicate source");
         }
+        return declared;
+    }
+
+    private static void readProgrammes(JSONArray programmes, Map<String, Integer> declared, long created, long now,
+                                       Map<String, Map<String, List<com.uiptv.application.EpgProgramme>>> sources) {
         for (Object value : programmes) {
-            JSONObject p = (JSONObject)value;
-            String source = p.getString(SOURCE_ID);
-            String guide = p.getString("guide_channel_id");
-            long start = p.getLong(START);
-            long stop = p.getLong("stop");
-            String title = p.getString(TITLE);
-            String description = p.optString(DESCRIPTION, "");
-            if (!declared.containsKey(source) || source.isBlank() || guide.isBlank())
-                throw new IllegalArgumentException("Invalid programme source or guide identity");
-            if (title.isBlank() || title.length() > 512 || description.length() > 2048)
-                throw new IllegalArgumentException("Invalid programme title or description length");
-            if (stop <= start) throw new IllegalArgumentException("Invalid programme interval: stop must follow start");
-            if (stop <= created - 6 * 3_600_000L || start >= created + 7 * 86_400_000L)
-                throw new IllegalArgumentException("Programme outside the supported time window; rebuild the bundle");
-            // A long catalogue revalidation can cross a retention boundary.
+            JSONObject programme = (JSONObject) value;
+            String source = programme.getString(SOURCE_ID);
+            String guide = programme.getString("guide_channel_id");
+            long start = programme.getLong(START);
+            long stop = programme.getLong("stop");
+            String title = programme.getString(TITLE);
+            String description = programme.optString(DESCRIPTION, "");
+            validateProgramme(source, guide, title, description, start, stop, declared, created);
             if (stop <= now - 6 * 3_600_000L || start >= now + 7 * 86_400_000L) continue;
             sources.computeIfAbsent(BUILDER_PREFIX + hash(source), _ -> new LinkedHashMap<>())
                     .computeIfAbsent(guide, _ -> new ArrayList<>())
                     .add(new com.uiptv.application.EpgProgramme(title, description, start, stop));
         }
-        sources.values().forEach(channels -> channels.replaceAll((guide, schedule) -> com.uiptv.application.EpgSchedules.normalize(schedule)));
+    }
+
+    private static void validateProgramme(String source, String guide, String title, String description,
+                                          long start, long stop, Map<String, Integer> declared, long created) {
+        if (!declared.containsKey(source) || source.isBlank() || guide.isBlank())
+            throw new IllegalArgumentException("Invalid programme source or guide identity");
+        if (title.isBlank() || title.length() > 512 || description.length() > 2048)
+            throw new IllegalArgumentException("Invalid programme title or description length");
+        if (stop <= start) throw new IllegalArgumentException("Invalid programme interval: stop must follow start");
+        if (stop <= created - 6 * 3_600_000L || start >= created + 7 * 86_400_000L)
+            throw new IllegalArgumentException("Programme outside the supported time window; rebuild the bundle");
+    }
+
+    private static List<EpgCacheDb.BuilderMatch> readMatches(JSONObject bundle, boolean mappingsCurrent,
+                                                              Map<Target, JSONObject> targets,
+                                                              Map<String, Map<String, List<com.uiptv.application.EpgProgramme>>> sources,
+                                                              Map<String, Integer> declared, long now) {
         List<EpgCacheDb.BuilderMatch> matches = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-        // Public guide data survives catalogue changes. Stale optional bindings are discarded.
-        for (Object value : mappingsCurrent ? bundle.getJSONArray("mappings") : new JSONArray()) {
-            JSONObject m = (JSONObject)value;
-            Target target = new Target(m.getString(ACCOUNT_ID), m.getString(PROVIDER_CHANNEL_ID));
+        JSONArray mappings = mappingsCurrent ? bundle.getJSONArray("mappings") : new JSONArray();
+        for (Object value : mappings) {
+            JSONObject mapping = (JSONObject) value;
+            Target target = new Target(mapping.getString(ACCOUNT_ID), mapping.getString(PROVIDER_CHANNEL_ID));
             JSONObject current = targets.get(target);
-            String source = BUILDER_PREFIX + hash(m.getString(SOURCE_ID));
-            String guide = m.getString("guide_channel_id");
-            if (current == null || !seen.add(target + "|" + source) || !current.getString(SIGNATURE).equals(m.getString(SIGNATURE))
-                    || !sources.containsKey(source) || !sources.get(source).containsKey(guide)
-                    || sources.get(source).get(guide).stream().noneMatch(p -> p.stop() > now))
+            String source = BUILDER_PREFIX + hash(mapping.getString(SOURCE_ID));
+            String guide = mapping.getString("guide_channel_id");
+            Map<String, List<com.uiptv.application.EpgProgramme>> sourceSchedules = sources.get(source);
+            if (current == null || !seen.add(target + "|" + source) || !current.getString(SIGNATURE).equals(mapping.getString(SIGNATURE))
+                    || sourceSchedules == null || !sourceSchedules.containsKey(guide)
+                    || sourceSchedules.get(guide).stream().noneMatch(p -> p.stop() > now))
                 throw new IllegalArgumentException("Unknown, duplicate, stale or empty mapping");
             if (current.getBoolean("is_manual_override") && !current.getString("manual_override").equals(guide))
                 throw new IllegalArgumentException("Cannot overwrite manual override");
-            matches.add(new EpgCacheDb.BuilderMatch(new EpgCacheDb.Identity(target.account(), target.provider(), m.getString(SIGNATURE)),
-                    source, guide, declared.get(m.getString(SOURCE_ID))));
+            matches.add(new EpgCacheDb.BuilderMatch(new EpgCacheDb.Identity(target.account(), target.provider(), mapping.getString(SIGNATURE)),
+                    source, guide, declared.get(mapping.getString(SOURCE_ID))));
         }
-        Map<String,EpgCacheDb.SharedSource> shared = new LinkedHashMap<>();
-        if (bundle.optBoolean("shared_guides", false)) for (Object value : bundle.getJSONArray("sources")) {
-            JSONObject source = (JSONObject)value;
+        return matches;
+    }
+
+    private static Map<String, EpgCacheDb.SharedSource> readSharedSources(JSONObject bundle,
+                                                                            Map<String, Map<String, List<com.uiptv.application.EpgProgramme>>> sources) {
+        Map<String, EpgCacheDb.SharedSource> shared = new LinkedHashMap<>();
+        if (!bundle.optBoolean("shared_guides", false)) return shared;
+        for (Object value : bundle.getJSONArray("sources")) {
+            JSONObject source = (JSONObject) value;
             String id = BUILDER_PREFIX + hash(source.getString(SOURCE_ID));
-            if (!sources.containsKey(id)) continue;
-            Map<String,String> names = new HashMap<>();
-            Map<String,String> icons = new HashMap<>();
-            JSONObject aliases = source.optJSONObject("names");
-            if (aliases != null) for (String name : aliases.keySet()) {
-                String guide = aliases.getString(name);
-                if (name.length() > 512) throw new IllegalArgumentException("Oversized guide alias");
-                if (sources.get(id).containsKey(guide)) names.put(XmltvGuide.normalize(name), guide);
-            }
-            // Exact XMLTV identities remain available even for feeds without display names.
-            sources.get(id).keySet().forEach(guide -> names.putIfAbsent(XmltvGuide.normalize(guide), guide));
-            JSONObject artwork = source.optJSONObject("icons");
-            if (artwork != null) for (String guide : artwork.keySet()) {
-                String icon = artwork.getString(guide);
-                if (sources.get(id).containsKey(guide) && (icon.startsWith("https://") || icon.startsWith("http://"))) icons.put(guide, icon);
-            }
+            Map<String, List<com.uiptv.application.EpgProgramme>> schedules = sources.get(id);
+            if (schedules == null) continue;
+            Map<String, String> names = sharedNames(source.optJSONObject("names"), schedules);
+            Map<String, String> icons = sharedIcons(source.optJSONObject("icons"), schedules);
             shared.put(id, new EpgCacheDb.SharedSource(source.optInt("priority", 100),
                     source.optJSONArray("countries") == null ? "" : source.getJSONArray("countries").join(",").replace("\"", ""),
                     source.optJSONArray("languages") == null ? "" : source.getJSONArray("languages").join(",").replace("\"", ""), names, icons));
         }
-        if (matches.isEmpty() && shared.isEmpty()) throw new IllegalArgumentException("Bundle has no usable mappings or shared guides");
-        return new Prepared(sources, matches, shared, programmes.length());
+        return shared;
+    }
+
+    private static Map<String, String> sharedNames(JSONObject aliases, Map<String, List<com.uiptv.application.EpgProgramme>> schedules) {
+        Map<String, String> names = new HashMap<>();
+        if (aliases != null) for (String name : aliases.keySet()) {
+            String guide = aliases.getString(name);
+            if (name.length() > 512) throw new IllegalArgumentException("Oversized guide alias");
+            if (schedules.containsKey(guide)) names.put(XmltvGuide.normalize(name), guide);
+        }
+        schedules.keySet().forEach(guide -> names.putIfAbsent(XmltvGuide.normalize(guide), guide));
+        return names;
+    }
+
+    private static Map<String, String> sharedIcons(JSONObject artwork, Map<String, List<com.uiptv.application.EpgProgramme>> schedules) {
+        Map<String, String> icons = new HashMap<>();
+        if (artwork != null) for (String guide : artwork.keySet()) {
+            String icon = artwork.getString(guide);
+            if (schedules.containsKey(guide) && (icon.startsWith("https://") || icon.startsWith("http://"))) icons.put(guide, icon);
+        }
+        return icons;
     }
 
     private static JSONObject readBundle(String bundlePath) throws java.io.IOException {
@@ -369,7 +454,7 @@ public class EpgBuilderApplicationService {
     }
 
     /** Parse with the same bounded, XXE-disabled reader as the application. */
-    public JSONObject parseGuide(String requestPath) throws Exception {
+    public JSONObject parseGuide(String requestPath) throws java.io.IOException, javax.xml.stream.XMLStreamException, InterruptedException {
         JSONObject request = readBundle(requestPath);
         Path file = Path.of(request.getString("path"));
         if (Files.size(file) > 64 * 1024 * 1024L) throw new IllegalArgumentException("XMLTV exceeds 64 MiB");
@@ -398,7 +483,7 @@ public class EpgBuilderApplicationService {
     }
 
     /** Reuse the same interval resolver as desktop/API reads; no database is opened. */
-    public JSONObject mergeSchedules(String requestPath) throws Exception {
+    public JSONObject mergeSchedules(String requestPath) throws java.io.IOException {
         JSONObject request = readBundle(requestPath);
         JSONArray result = new JSONArray();
         for (Object value : request.getJSONArray("schedules")) {
@@ -420,7 +505,7 @@ public class EpgBuilderApplicationService {
         return new JSONObject().put("schedules", result);
     }
 
-    public JSONObject showStatus(String databasePath) throws Exception {
+    public JSONObject showStatus(String databasePath) throws java.io.IOException, java.sql.SQLException {
         if (databasePath == null || databasePath.isBlank()) {
             throw new IllegalArgumentException("UIPTV database path could not be resolved");
         }

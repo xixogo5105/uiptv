@@ -105,7 +105,7 @@ public final class EpgChangeNotifications {
                 update.setString(1, UUID.randomUUID().toString());
                 update.executeUpdate();
             }
-            notification = record(connection, Kind.DATABASE_RESTORED, Set.of(), Set.of(), Set.of());
+            notification = create(connection, Kind.DATABASE_RESTORED, Set.of(), Set.of(), Set.of());
             connection.commit();
         } catch (Exception error) {
             throw new IllegalStateException("Unable to publish database restoration", error);
@@ -114,7 +114,7 @@ public final class EpgChangeNotifications {
     }
 
     /** Persist and publish one event after the caller's transaction commits. */
-    public static Notification record(Connection connection, Kind kind, Collection<String> sourceIds,
+    public static Notification create(Connection connection, Kind kind, Collection<String> sourceIds,
                                       Collection<String> guideIds, Collection<ProviderIdentity> identities)
             throws SQLException {
         Set<String> sources = clean(sourceIds);

@@ -935,16 +935,6 @@ public class AccountListUI extends HBox implements SearchTarget {
         }
     }
 
-    private void retainActiveCategoryBrowserForDetailView() {
-        if (activeCategoryListUI == null) {
-            return;
-        }
-        if (currentContent == browserLayout || currentContent == activeCategoryListUI) {
-            activeCategoryBrowserRetainedForDetailView = true;
-            syncActiveCategoryBrowserRetention();
-        }
-    }
-
     private void syncActiveCategoryBrowserRetention() {
         syncActiveCategoryBrowserRetention(leadingBodyContentExclusive && isLeadingBodyContentShowing());
     }

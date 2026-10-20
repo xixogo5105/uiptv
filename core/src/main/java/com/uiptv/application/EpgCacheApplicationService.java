@@ -35,7 +35,7 @@ public class EpgCacheApplicationService {
         try {
             var mappings=new org.json.JSONObject(config.getEpgMappingsJson()).optJSONObject(account.getDbId());
             return mappings==null ? new org.json.JSONObject() : mappings;
-        } catch(Exception ignored) { return new org.json.JSONObject(); }
+        } catch(Exception _) { return new org.json.JSONObject(); }
     }
     private static EpgCacheDb.Identity identity(Account account,Channel channel,Configuration config,org.json.JSONObject mappings, String rulesFingerprint) {
         String override=mappings.optString(channel.getChannelId(),"").strip();
@@ -138,7 +138,8 @@ public class EpgCacheApplicationService {
         return result;
     }
     public Map<Channel,String> icons(Account account,List<Channel> channels) {
-        var config=ConfigurationService.getInstance().read(); Map<Channel,String> result=new IdentityHashMap<>();
+        var config=ConfigurationService.getInstance().read();
+        Map<Channel,String> result=new IdentityHashMap<>();
         if(!config.isEpgEnabled() || account==null || account.getAction()!=Account.AccountAction.itv || channels.isEmpty()) return result;
         var mappings=overrides(config,account);
         var rules=new com.uiptv.db.EpgNameRulesDb().read();

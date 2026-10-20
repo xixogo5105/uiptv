@@ -49,7 +49,10 @@ class VlcNetworkRecoveryTest extends DbBackedUiTest {
                             try (socket) {
                                 var input = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII));
                                 String request = input.readLine();
-                                for (String line; (line = input.readLine()) != null && !line.isEmpty();) { }
+                                // Drain request headers before deciding how this test server responds.
+                                for (String line; (line = input.readLine()) != null && !line.isEmpty();) {
+                                    // Header contents are intentionally irrelevant to this fixture.
+                                }
                                 if (request.contains("/stall")) {
                                     stalledRequests.incrementAndGet();
                                     releaseStalls.await(40, TimeUnit.SECONDS);
@@ -111,7 +114,7 @@ class VlcNetworkRecoveryTest extends DbBackedUiTest {
         }
     }
 
-    private static void await(BooleanSupplier condition, long timeoutMs) throws Exception {
+    private static void await(BooleanSupplier condition, long timeoutMs) {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
         while (!condition.getAsBoolean()) {
             if (System.nanoTime() > deadline) fail("Timed out waiting for real VLC/network interaction");
