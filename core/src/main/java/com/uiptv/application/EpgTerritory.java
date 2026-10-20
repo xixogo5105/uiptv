@@ -167,7 +167,8 @@ public final class EpgTerritory {
         String core = normalized.replaceAll("(?:\\s|[-_/])+(?:HD|FHD|UHD|4K|8K|\\d{3,4}P|\\d{3,4}I)$", "");
         if (!strongMarker) core = core.replaceAll("(?:\\s|[-_/])+SD$", "");
         Set<String> result = new LinkedHashSet<>();
-        Set<String> exact = Objects.requireNonNullElse(matchingCodes(core), Set.of());
+        Set<String> exact = matchingCodes(core);
+        if (exact == null) exact = Set.of();
         if (strongMarker || core.length() != 2 || !ISO_LANGUAGE_CODES.contains(core)
                 || COMMON_TERRITORY_MARKERS.contains(core)) result.addAll(exact);
         if (exact.isEmpty() && !normalized.isBlank()) {
@@ -184,7 +185,7 @@ public final class EpgTerritory {
 
     /** Parse an explicit channel-label territory without treating language labels as countries. */
     public static Context parse(String value) {
-        String original = Objects.toString(value, "").strip();
+        String original = value == null ? "" : value.strip();
         String normalized = XmltvGuide.normalize(original);
         Set<String> found = new LinkedHashSet<>();
 
