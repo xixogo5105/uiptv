@@ -5,6 +5,7 @@ import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -36,7 +37,11 @@ public class SQLConnection {
     @SuppressWarnings("java:S1141")
     public static synchronized void init() {
         try {
-            FileUtils.touch(new File(dbPath));
+            try {
+                FileUtils.touch(new File(dbPath));
+            } catch (FileAlreadyExistsException _) {
+                // Another initializer created the database between the existence check and touch.
+            }
             for (int attempt = 1; attempt <= INIT_RETRY_ATTEMPTS; attempt++) {
                 try (Connection conn = openConnection()) {
                     applySchema(conn);
