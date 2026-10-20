@@ -174,10 +174,9 @@ public final class EpgCacheDb {
         EpgChangeNotifications.Notification notification;
         try (Connection c = open(true)) {
             notification = publishBuilderTransaction(c, sources, matches, shared, now, validateCurrentInventory);
-        } catch (InterruptedException | SQLException | java.io.IOException error) {
-            if (error instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
+        } catch (InterruptedException error) {
+            throw interruptedFailure(error);
+        } catch (SQLException | java.io.IOException error) {
             throw failure(error);
         } catch (RuntimeException error) { throw failure(error); }
         EpgChangeNotifications.publish(notification);
@@ -558,4 +557,9 @@ public final class EpgCacheDb {
         }
     }
     private DatabaseAccessException failure(Exception error) { return new DatabaseAccessException("EPG cache database operation failed",error); }
+
+    private DatabaseAccessException interruptedFailure(InterruptedException error) {
+        Thread.currentThread().interrupt();
+        return failure(error);
+    }
 }

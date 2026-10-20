@@ -32,8 +32,8 @@ public class HttpProxyStreamServer implements HttpHandler {
     private record ResponseBody(byte[] bytes, boolean rewritten) {
         @Override
         public boolean equals(Object other) {
-            return this == other || other instanceof ResponseBody body
-                    && rewritten == body.rewritten && Arrays.equals(bytes, body.bytes);
+            return this == other || other instanceof ResponseBody(byte[] otherBytes, boolean otherRewritten)
+                    && rewritten == otherRewritten && Arrays.equals(bytes, otherBytes);
         }
 
         @Override

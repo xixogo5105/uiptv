@@ -59,8 +59,8 @@ public class SeriesEpisodeService {
             partialCallback.accept(staleCache);
         }
 
-        EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId,
-                cancellationCheck(isCancelled), partialCallback);
+        BooleanSupplier cancellation = isCancelled == null ? () -> false : isCancelled::get;
+        EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, cancellation, partialCallback);
         if (hasEpisodes(fetched)) {
             return fetched;
         }
@@ -91,7 +91,8 @@ public class SeriesEpisodeService {
             return snapshot;
         }
 
-        EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, cancellationCheck(isCancelled));
+        BooleanSupplier cancellation = isCancelled == null ? () -> false : isCancelled::get;
+        EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, cancellation);
         if (hasEpisodes(fetched)) {
             return fetched;
         }
@@ -103,7 +104,8 @@ public class SeriesEpisodeService {
             return new EpisodeList();
         }
         Account seriesAccount = AccountMediaContext.from(account, Account.AccountAction.series).toAccount();
-        EpisodeList fetched = fetchEpisodesFromPortal(seriesAccount, categoryId, seriesId, cancellationCheck(isCancelled));
+        BooleanSupplier cancellation = isCancelled == null ? () -> false : isCancelled::get;
+        EpisodeList fetched = fetchEpisodesFromPortal(seriesAccount, categoryId, seriesId, cancellation);
         if (hasEpisodes(fetched)) {
             return fetched;
         }
@@ -112,10 +114,6 @@ public class SeriesEpisodeService {
             return fallback;
         }
         return new EpisodeList();
-    }
-
-    private static BooleanSupplier cancellationCheck(Supplier<Boolean> isCancelled) {
-        return isCancelled == null ? () -> false : isCancelled::get;
     }
 
     private EpisodeList fetchEpisodesFromPortal(Account account, String categoryId, String seriesId, BooleanSupplier isCancelled) {
