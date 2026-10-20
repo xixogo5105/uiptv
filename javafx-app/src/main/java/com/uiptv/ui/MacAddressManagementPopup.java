@@ -20,16 +20,16 @@ public class MacAddressManagementPopup extends MacAddressManagementInline {
                                      List<String> initialMacs,
                                      String currentDefaultMac,
                                      BiConsumer<List<String>, String> onSave) {
-        this(createStage(owner), owner, baseAccount, initialMacs, currentDefaultMac, onSave);
+        this(createStage(owner), baseAccount, initialMacs, currentDefaultMac, onSave, true);
     }
 
     private MacAddressManagementPopup(Stage stage,
-                                      Stage owner,
                                       Account baseAccount,
                                       List<String> initialMacs,
                                       String currentDefaultMac,
-                                      BiConsumer<List<String>, String> onSave) {
-        super(baseAccount, initialMacs, currentDefaultMac, onSave, stage::close);
+                                      BiConsumer<List<String>, String> onSave,
+                                      boolean ignored) {
+        super(baseAccount, initialMacs, currentDefaultMac, onSave, closeHandler(stage, ignored));
         this.stage = stage;
         stage.setTitle(I18n.tr("autoManageMACAddresses"));
         stage.setScene(createScene());
@@ -54,5 +54,9 @@ public class MacAddressManagementPopup extends MacAddressManagementInline {
         Scene scene = new Scene(this, SCENE_WIDTH, SCENE_HEIGHT);
         RootApplication.applyThemeToPopupScene(scene);
         return scene;
+    }
+
+    private static Runnable closeHandler(Stage stage, boolean managed) {
+        return managed ? stage::close : stage::hide;
     }
 }

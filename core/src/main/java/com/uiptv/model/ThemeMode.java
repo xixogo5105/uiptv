@@ -16,10 +16,14 @@ public enum ThemeMode {
     /** Always use the dark palette, regardless of the operating system setting. */
     DARK("dark"),
     /** Follow the operating system colour scheme and re-apply when the user changes it. */
-    SYSTEM("system");
+    SYSTEM(Values.SYSTEM);
 
     /** Persisted sentinel for {@link #SYSTEM} inside the legacy {@code darkTheme} column. */
-    public static final String SYSTEM_VALUE = "system";
+    public static final String SYSTEM_VALUE = Values.SYSTEM;
+
+    private interface Values {
+        String SYSTEM = "system";
+    }
 
     private final String persistedValue;
 

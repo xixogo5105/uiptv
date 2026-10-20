@@ -19,15 +19,15 @@ public class XtremeCredentialsManagementPopup extends XtremeCredentialsManagemen
                                             List<XtremeCredentialsJson.Entry> initialEntries,
                                             String currentDefaultUsername,
                                             BiConsumer<List<XtremeCredentialsJson.Entry>, String> onSave) {
-        this(createStage(owner), owner, initialEntries, currentDefaultUsername, onSave);
+        this(createStage(owner), initialEntries, currentDefaultUsername, onSave, true);
     }
 
     private XtremeCredentialsManagementPopup(Stage stage,
-                                             Stage owner,
                                              List<XtremeCredentialsJson.Entry> initialEntries,
                                              String currentDefaultUsername,
-                                             BiConsumer<List<XtremeCredentialsJson.Entry>, String> onSave) {
-        super(initialEntries, currentDefaultUsername, onSave, stage::close);
+                                             BiConsumer<List<XtremeCredentialsJson.Entry>, String> onSave,
+                                             boolean ignored) {
+        super(initialEntries, currentDefaultUsername, onSave, closeHandler(stage, ignored));
         this.stage = stage;
         stage.setTitle(I18n.tr("autoManage") + " Xtreme");
         stage.setScene(createScene());
@@ -52,5 +52,9 @@ public class XtremeCredentialsManagementPopup extends XtremeCredentialsManagemen
         Scene scene = new Scene(this, SCENE_WIDTH, SCENE_HEIGHT);
         RootApplication.applyThemeToPopupScene(scene);
         return scene;
+    }
+
+    private static Runnable closeHandler(Stage stage, boolean managed) {
+        return managed ? stage::close : stage::hide;
     }
 }

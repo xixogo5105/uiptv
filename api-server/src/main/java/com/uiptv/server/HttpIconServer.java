@@ -47,7 +47,7 @@ public class HttpIconServer implements HttpHandler {
             // Fall through to classpath.
         }
 
-        if (bytes == null && ICON_PATH.equals(requestPath)) {
+        if (ICON_PATH.equals(requestPath)) {
             try (InputStream is = HttpIconServer.class.getResourceAsStream(RESOURCE_ICON)) {
                 if (is != null) {
                     bytes = IOUtils.toByteArray(is);

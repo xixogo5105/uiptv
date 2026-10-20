@@ -189,6 +189,7 @@ public final class EpgTerritory {
     }
 
     private static boolean allowExactMatch(String core, boolean strongMarker) {
+        if (core == null) return false;
         return strongMarker || core.length() != 2 || !ISO_LANGUAGE_CODES.contains(core)
                 || COMMON_TERRITORY_MARKERS.contains(core);
     }

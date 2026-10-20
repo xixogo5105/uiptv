@@ -326,7 +326,7 @@ public final class EpgCacheDb {
         return hasRow(direct);
     }
 
-    private String indexedGuide(String lookupName, String candidate, MappingQueries queries) throws SQLException {
+    private String indexedGuide(String lookupName, String candidate, MappingQueries queries) {
         Aliases index = queries.indexes().computeIfAbsent(candidate, key -> loadAliases(key, queries));
         String guide = index.display().getOrDefault(queries.rules().display(lookupName), "");
         return guide.isBlank() ? index.quality().getOrDefault(queries.rules().quality(lookupName), "") : guide;
@@ -412,7 +412,6 @@ public final class EpgCacheDb {
     }
     public List<EpgProgramme> schedule(Identity identity, long from, long until) {
         try (Connection c=open(false)) {
-            if(c==null) return List.of();
             try(var query=c.prepareStatement("SELECT m.source_id,p.title,p.description,p.starts_at,p.stops_at FROM epg_channel_mapping m JOIN epg_programme p ON p.source_id=m.source_id AND p.guide_channel_id=m.guide_channel_id WHERE m.account_id=? AND m.provider_channel_id=? AND m.signature=? AND p.stops_at>? AND p.starts_at<? ORDER BY m.priority,m.source_id,p.starts_at LIMIT 8000")) {
                 query.setString(1,identity.accountId()); query.setString(2,identity.providerId()); query.setString(3,identity.signature()); query.setLong(4,from); query.setLong(5,until);
                 Map<String,List<EpgProgramme>> sources=new LinkedHashMap<>();

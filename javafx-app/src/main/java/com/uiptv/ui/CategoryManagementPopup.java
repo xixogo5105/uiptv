@@ -12,12 +12,8 @@ public class CategoryManagementPopup extends CategoryManagementInline {
     private final Stage stage;
 
     public CategoryManagementPopup(Stage owner, BookmarkChannelListUI parent) {
-        this(createStage(owner), owner, parent);
-    }
-
-    private CategoryManagementPopup(Stage stage, Stage owner, BookmarkChannelListUI parent) {
         super(parent);
-        this.stage = stage;
+        this.stage = createStage(owner);
         stage.setTitle(I18n.tr("autoManageCategories"));
         stage.setScene(createScene());
     }

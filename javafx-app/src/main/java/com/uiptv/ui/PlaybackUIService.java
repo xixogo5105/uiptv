@@ -21,6 +21,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -276,7 +277,7 @@ public final class PlaybackUIService {
             showErrorAlert(I18n.tr("autoEmbeddedPlayerNotEnabled"));
             return;
         }
-        var player = getPlayer();
+        var player = Objects.requireNonNull(getPlayer(), "embedded player");
         if (getPlayerType() == DUMMY) {
             showErrorAlert(I18n.tr("autoEmbeddedPlayerUnavailable"));
             return;
@@ -292,7 +293,7 @@ public final class PlaybackUIService {
             showErrorAlert(I18n.tr("autoEmbeddedPlayerUnavailable"));
             return;
         }
-        getPlayer().play(response);
+        Objects.requireNonNull(getPlayer(), "embedded player").play(response);
     }
 
     static boolean isEmbeddedPlayerPath(String playerPath) {

@@ -120,7 +120,7 @@ public class EpgApplicationService {
     }
 
     /** Stream one bounded source for the background database importer. */
-    XmltvGuide downloadSource(String source) throws Exception {
+    XmltvGuide downloadSource(String source) throws IOException, javax.xml.stream.XMLStreamException, InterruptedException {
         try (InputStream raw=open(source); BufferedInputStream buffered=new BufferedInputStream(raw)) {
             buffered.mark(2);
             int first=buffered.read();
