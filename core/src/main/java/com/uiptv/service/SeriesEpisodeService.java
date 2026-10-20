@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.BooleanSupplier;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -40,11 +39,11 @@ public class SeriesEpisodeService {
         return SingletonHelper.INSTANCE;
     }
 
-    public EpisodeList getEpisodes(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {
+    public EpisodeList getEpisodes(Account account, String categoryId, String seriesId, BooleanSupplier isCancelled) {
         return getEpisodes(account, categoryId, seriesId, isCancelled, null);
     }
 
-    public EpisodeList getEpisodes(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled,
+    public EpisodeList getEpisodes(Account account, String categoryId, String seriesId, BooleanSupplier isCancelled,
                                    Consumer<EpisodeList> partialCallback) {
         if (account == null || isBlank(seriesId)) {
             return new EpisodeList();
@@ -59,7 +58,7 @@ public class SeriesEpisodeService {
             partialCallback.accept(staleCache);
         }
 
-        BooleanSupplier cancellation = isCancelled == null ? () -> false : isCancelled::get;
+        BooleanSupplier cancellation = isCancelled == null ? () -> false : isCancelled;
         EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, cancellation, partialCallback);
         if (hasEpisodes(fetched)) {
             return fetched;
@@ -75,7 +74,7 @@ public class SeriesEpisodeService {
         return cached == null ? new EpisodeList() : cached;
     }
 
-    public EpisodeList getEpisodesForWatchingNow(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {
+    public EpisodeList getEpisodesForWatchingNow(Account account, String categoryId, String seriesId, BooleanSupplier isCancelled) {
         if (account == null || isBlank(seriesId)) {
             return new EpisodeList();
         }
@@ -91,7 +90,7 @@ public class SeriesEpisodeService {
             return snapshot;
         }
 
-        BooleanSupplier cancellation = isCancelled == null ? () -> false : isCancelled::get;
+        BooleanSupplier cancellation = isCancelled == null ? () -> false : isCancelled;
         EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, cancellation);
         if (hasEpisodes(fetched)) {
             return fetched;
@@ -99,12 +98,12 @@ public class SeriesEpisodeService {
         return new EpisodeList();
     }
 
-    public EpisodeList reloadEpisodesFromPortal(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {
+    public EpisodeList reloadEpisodesFromPortal(Account account, String categoryId, String seriesId, BooleanSupplier isCancelled) {
         if (account == null || isBlank(seriesId)) {
             return new EpisodeList();
         }
         Account seriesAccount = AccountMediaContext.from(account, Account.AccountAction.series).toAccount();
-        BooleanSupplier cancellation = isCancelled == null ? () -> false : isCancelled::get;
+        BooleanSupplier cancellation = isCancelled == null ? () -> false : isCancelled;
         EpisodeList fetched = fetchEpisodesFromPortal(seriesAccount, categoryId, seriesId, cancellation);
         if (hasEpisodes(fetched)) {
             return fetched;

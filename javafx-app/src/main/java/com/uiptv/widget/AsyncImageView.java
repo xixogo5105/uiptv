@@ -105,9 +105,9 @@ public class AsyncImageView extends StackPane {
         }
 
         if (loadDebounce == null) {
-            loadDebounce = new javafx.animation.PauseTransition(javafx.util.Duration.millis(scrollDebounceMillis()));
+            loadDebounce = new javafx.animation.PauseTransition(javafx.util.Duration.millis(scrollDebounceMillis() * 1.0d));
         } else {
-            loadDebounce.setDuration(javafx.util.Duration.millis(scrollDebounceMillis()));
+            loadDebounce.setDuration(javafx.util.Duration.millis(scrollDebounceMillis() * 1.0d));
         }
         loadDebounce.setOnFinished(_ -> scheduleLoad(url, type));
         loadDebounce.playFromStart();
@@ -135,9 +135,9 @@ public class AsyncImageView extends StackPane {
 
     private void rescheduleDebouncedLoad(String url, String type) {
         if (loadDebounce == null) {
-            loadDebounce = new javafx.animation.PauseTransition(javafx.util.Duration.millis(scrollDebounceMillis()));
+            loadDebounce = new javafx.animation.PauseTransition(javafx.util.Duration.millis(scrollDebounceMillis() * 1.0d));
         } else {
-            loadDebounce.setDuration(javafx.util.Duration.millis(scrollDebounceMillis()));
+            loadDebounce.setDuration(javafx.util.Duration.millis(scrollDebounceMillis() * 1.0d));
         }
         loadDebounce.setOnFinished(_ -> scheduleLoad(url, type));
         loadDebounce.playFromStart();

@@ -176,9 +176,9 @@ public final class EpgCacheDb {
             notification = publishBuilderTransaction(c, sources, matches, shared, now, validateCurrentInventory);
         } catch (InterruptedException error) {
             throw interruptedFailure(error);
-        } catch (SQLException | java.io.IOException error) {
+        } catch (SQLException | java.io.IOException | RuntimeException error) {
             throw failure(error);
-        } catch (RuntimeException error) { throw failure(error); }
+        }
         EpgChangeNotifications.publish(notification);
     }
 

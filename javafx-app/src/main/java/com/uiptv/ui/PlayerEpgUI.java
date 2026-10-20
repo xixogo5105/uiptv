@@ -141,8 +141,8 @@ public class PlayerEpgUI extends VBox {
         if (guideWorker != null) pendingChange = true;
         long elapsed = lastReadNanos == 0 ? CACHE_READ_INTERVAL_MS
                 : java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lastReadNanos);
-        cacheRefresh.setDuration(javafx.util.Duration.millis(Math.max(CHANGE_COALESCE_MS,
-                CACHE_READ_INTERVAL_MS - elapsed)));
+        cacheRefresh.setDuration(javafx.util.Duration.millis(
+                Math.max(CHANGE_COALESCE_MS, CACHE_READ_INTERVAL_MS - elapsed) * 1.0d));
         cacheRefresh.playFromStart();
     }
 
@@ -226,7 +226,8 @@ public class PlayerEpgUI extends VBox {
         long now = System.currentTimeMillis();
         long boundary = result.now() != null ? result.now().stop() : nextBoundary(result);
         if (boundary <= now) boundary = now + 250;
-        boundaryWake.setDuration(javafx.util.Duration.millis(Math.min(boundary - now, Integer.MAX_VALUE)));
+        boundaryWake.setDuration(javafx.util.Duration.millis(
+                Math.min(boundary - now, Integer.MAX_VALUE) * 1.0d));
         boundaryWake.playFromStart();
     }
 
