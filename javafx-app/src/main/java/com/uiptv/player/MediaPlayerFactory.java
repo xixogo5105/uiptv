@@ -59,9 +59,9 @@ public class MediaPlayerFactory {
                 instance = new VlcVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.VLC;
                 AppLog.addInfoLog(MediaPlayerFactory.class, "Using embedded VLC player; native initialization is deferred until playback");
-            } catch (Throwable t) {
-                // Catch Throwable to include LinkageError/UnsatisfiedLinkError from native lib loading
-                handleVlcInitFailure(t);
+            } catch (Exception | LinkageError failure) {
+                // Native VLC loading can fail with a linkage error on hosts without libVLC.
+                handleVlcInitFailure(failure);
                 instance = new DummyVideoPlayer();
                 playerType = VideoPlayerInterface.PlayerType.DUMMY;
             }

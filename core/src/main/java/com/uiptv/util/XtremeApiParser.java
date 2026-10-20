@@ -84,7 +84,7 @@ public class XtremeApiParser {
                 return readChannelResponse(response, account, callback, cancelled);
             } catch (ReloadRequestScope.LimitExceeded failure) {
                 throw failure;
-            } catch (Exception failure) {
+            } catch (IOException | RuntimeException failure) {
                 ReloadRequestScope.checkCurrent();
                 if (cancelled != null && cancelled.getAsBoolean()) return List.of();
                 last = new IOException("Unable to read complete Xtreme channel catalogue", failure);

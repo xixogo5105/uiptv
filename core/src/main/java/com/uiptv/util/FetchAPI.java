@@ -58,7 +58,7 @@ public class FetchAPI {
             }
             return fetchBuffered(requestUrl, headers, httpMethod, payload, isPost, options, params);
         } catch (ReloadRequestScope.LimitExceeded ex) { throw ex;
-        } catch (Exception ex) {
+        } catch (IOException | RuntimeException ex) {
             String reason = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
             AppLog.addWarningLog(FetchAPI.class, "Network Error: " + reason);
             return FetchResult.transportFailure(requestUrl, -1, reason);

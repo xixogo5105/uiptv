@@ -29,7 +29,7 @@ public final class EpgCacheDb {
             statement.execute("PRAGMA cache_size=-2048");
             if(!write) statement.execute("PRAGMA query_only=ON");
             return connection;
-        } catch(Exception error) { connection.close(); throw error; }
+        } catch (SQLException error) { connection.close(); throw error; }
     }
 
     public SourceState sourceState(String sourceId) {
@@ -63,11 +63,11 @@ public final class EpgCacheDb {
                 notification = EpgChangeNotifications.record(c, EpgChangeNotifications.Kind.SOURCE_IMPORT,
                         Set.of(sourceId), programmes.keySet(), identities);
                 c.commit();
-            } catch (Exception error) { c.rollback(); throw error; }
+            } catch (SQLException | InterruptedException | java.io.IOException error) { c.rollback(); throw error; }
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
             throw failure(error);
-        } catch (Exception error) {
+        } catch (SQLException | java.io.IOException error) {
             throw failure(error);
         }
         EpgChangeNotifications.publish(notification);
@@ -75,7 +75,8 @@ public final class EpgCacheDb {
 
     private void replaceSource(Connection c, String sourceId, Map<String,List<EpgProgramme>> programmes,
                        Map<String,String> aliases, Map<String,String> qualityAliases,
-                       Map<String,String> icons, long now, long retryAt) throws Exception {
+                       Map<String,String> icons, long now, long retryAt)
+            throws SQLException, InterruptedException, java.io.IOException {
         deleteSourceRows(c,"epg_programme",sourceId);
         deleteSourceRows(c,"epg_alias",sourceId);
         deleteSourceRows(c,"epg_channel_icon",sourceId);
@@ -87,7 +88,7 @@ public final class EpgCacheDb {
 
     @SuppressWarnings("java:S6909")
     private void insertProgrammes(Connection c, String sourceId, Map<String, List<EpgProgramme>> programmes,
-                                  long now) throws Exception {
+                                  long now) throws SQLException, InterruptedException, java.io.IOException {
         try (var insert = c.prepareStatement("INSERT INTO epg_programme VALUES(?,?,?,?,?,?)")) {
             int batch = 0;
             for (var entry : programmes.entrySet()) {

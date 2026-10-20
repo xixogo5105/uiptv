@@ -31,8 +31,6 @@ public class WatchingNowUI extends VBox {
     private final TextField searchTextField = new TextField();
     private final HBox searchRow = new HBox(8);
     private final PauseTransition searchDebounce = new PauseTransition(SEARCH_DEBOUNCE_DELAY);
-    private final HostServices hostServices;
-    private final Runnable themeToggleHandler;
     private final AppPageHeader header;
     private boolean thumbnailListenerRegistered = false;
     private String pendingSearchQuery = "";
@@ -44,8 +42,6 @@ public class WatchingNowUI extends VBox {
     }
 
     public WatchingNowUI(HostServices hostServices, Runnable themeToggleHandler) {
-        this.hostServices = hostServices;
-        this.themeToggleHandler = themeToggleHandler;
         this.header = new AppPageHeader(
                 I18n.tr("autoWatchingNow"),
                 new AppHeaderActions(hostServices, themeToggleHandler, null)
