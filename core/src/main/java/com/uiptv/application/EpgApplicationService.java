@@ -146,7 +146,7 @@ public class EpgApplicationService {
             boolean remote = "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
             boolean local = "file".equalsIgnoreCase(scheme) && "file".equalsIgnoreCase(base.getScheme());
             if (remote || local) icons.put(id, resolved.toString());
-        } catch (IllegalArgumentException ignored) {
+        } catch (IllegalArgumentException _) {
             // Ignore malformed optional artwork.
         }
     }
@@ -156,7 +156,7 @@ public class EpgApplicationService {
         String playlist = account.getM3u8Path();
         if (playlist == null || playlist.isBlank()) return "";
         try { SOURCE_LOAD_LOCK.lockInterruptibly(); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new InterruptedIOException("Playlist discovery cancelled"); }
+        catch (InterruptedException _) { Thread.currentThread().interrupt(); throw new InterruptedIOException("Playlist discovery cancelled"); }
         try {
             DiscoveredSource cached;
             synchronized (SOURCES_LOCK) { cached = SOURCES.get(playlist); }

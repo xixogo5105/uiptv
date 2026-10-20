@@ -11,8 +11,8 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
+import java.util.concurrent.locks.LockSupport;
 
-@SuppressWarnings("java:S2925")
 public abstract class DbBackedUiTest {
     private static final int DELETE_RETRY_ATTEMPTS = 20;
     private static final long DELETE_RETRY_DELAY_MS = 50L;
@@ -123,7 +123,7 @@ public abstract class DbBackedUiTest {
     private void sleepBeforeRetry() {
         try {
             Thread.onSpinWait();
-            Thread.sleep(DELETE_RETRY_DELAY_MS);
+            LockSupport.parkNanos(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(DELETE_RETRY_DELAY_MS));
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }

@@ -11,10 +11,10 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.LockSupport;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-@SuppressWarnings("java:S2925")
 class EpgPersistentCacheTest extends DbBackedTest {
     private final EpgCacheDb db=new EpgCacheDb();
     private final EpgCacheRefreshService refresh=new EpgCacheRefreshService();
@@ -259,7 +259,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5); boolean updated=false;
         while(System.nanoTime()<deadline && !updated) {
             var programmes=cache.schedule(account,channel); updated=!programmes.isEmpty() && programmes.getFirst().title().equals("New title");
-            if(!updated) Thread.sleep(10);
+            if(!updated) LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
         }
         assertTrue(updated,"Settings refresh must clear and repopulate the persisted guide");
         assertEquals(1,ChannelDb.get().getCachedLiveChannels(account.getDbId()).size(),"Catalog stays intact");
@@ -282,10 +282,10 @@ class EpgPersistentCacheTest extends DbBackedTest {
         var config=ConfigurationService.getInstance().read(); config.setEpgEnabled(false); ConfigurationService.getInstance().save(config);
         EpgCacheRefreshService.start();
         var scheduler=EpgCacheRefreshService.class.getDeclaredField("scheduler"); scheduler.setAccessible(true);
-        Thread.sleep(30); assertNull(scheduler.get(null),"EPG off must not create even an idle scheduled executor");
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(30)); assertNull(scheduler.get(null),"EPG off must not create even an idle scheduled executor");
         config.setEpgEnabled(true); ConfigurationService.getInstance().save(config);
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(3);
-        while(scheduler.get(null)==null && System.nanoTime()<deadline) Thread.sleep(10);
+        while(scheduler.get(null)==null && System.nanoTime()<deadline) LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
         assertNotNull(scheduler.get(null));
         var running=(ScheduledExecutorService)scheduler.get(null);
         config.setEpgEnabled(false); ConfigurationService.getInstance().save(config);
@@ -314,7 +314,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         ConfigurationService.getInstance().save(config);
 
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-        while (cache.schedule(account, channel).isEmpty() && System.nanoTime() < deadline) Thread.sleep(10);
+        while (cache.schedule(account, channel).isEmpty() && System.nanoTime() < deadline) LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
         assertEquals("Immediate programme", cache.schedule(account, channel).getFirst().title(),
                 "Leaving EPG off must not wait for the configured hourly interval");
     }

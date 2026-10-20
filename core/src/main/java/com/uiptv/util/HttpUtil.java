@@ -257,7 +257,7 @@ public class HttpUtil {
                 result.append('#').append(uri.getRawFragment());
             }
             return result.toString();
-        } catch (IllegalArgumentException ex) {
+        } catch (IllegalArgumentException _) {
             return "<unparseable-url>";
         }
     }
@@ -270,7 +270,7 @@ public class HttpUtil {
                     String key;
                     try {
                         key = URLDecoder.decode(rawKey, StandardCharsets.UTF_8);
-                    } catch (IllegalArgumentException ex) {
+                    } catch (IllegalArgumentException _) {
                         key = rawKey;
                     }
                     return isSensitiveQueryKey(key) ? rawKey + "=<redacted>" : part;

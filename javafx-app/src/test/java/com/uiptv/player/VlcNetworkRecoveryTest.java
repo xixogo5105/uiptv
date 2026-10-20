@@ -22,6 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
 
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
@@ -29,7 +30,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Opt-in smoke test: installed VLC 3.x plus a generated MPEG-TS fixture, no provider credentials. */
 @EnabledIfSystemProperty(named = "uiptv.vlc.fixture", matches = ".+")
-@SuppressWarnings("java:S2925")
 class VlcNetworkRecoveryTest extends DbBackedUiTest {
     @Test
     void threeStalledHttpStreamsThenGoodVideoAndHttpError() throws Exception {
@@ -59,9 +59,11 @@ class VlcNetworkRecoveryTest extends DbBackedUiTest {
                                 } else {
                                     socket.getOutputStream().write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
                                 }
-                            } catch (Exception ignored) { }
+                            } catch (Exception error) {
+                                if (error instanceof InterruptedException) Thread.currentThread().interrupt();
+                            }
                         });
-                    } catch (Exception ignored) { return; }
+                    } catch (Exception _) { return; }
                 }
             });
             String base = "http://127.0.0.1:" + server.getLocalPort();
@@ -113,7 +115,7 @@ class VlcNetworkRecoveryTest extends DbBackedUiTest {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
         while (!condition.getAsBoolean()) {
             if (System.nanoTime() > deadline) fail("Timed out waiting for real VLC/network interaction");
-            Thread.sleep(25);
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(25));
         }
     }
 }

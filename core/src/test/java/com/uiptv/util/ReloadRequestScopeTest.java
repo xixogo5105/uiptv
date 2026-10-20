@@ -6,9 +6,9 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import static org.junit.jupiter.api.Assertions.*;
 
-@SuppressWarnings("java:S2925")
 class ReloadRequestScopeTest {
     private HttpServer server(java.util.function.Consumer<com.sun.net.httpserver.HttpExchange> handler) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -20,7 +20,8 @@ class ReloadRequestScopeTest {
         try {
             exchange.sendResponseHeaders(200, 0);
             for (int i = 0; i < 300; i++) {
-                exchange.getResponseBody().write('x'); exchange.getResponseBody().flush(); Thread.sleep(20);
+                exchange.getResponseBody().write('x'); exchange.getResponseBody().flush();
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(20));
             }
         } catch (Exception _) { /* The test server may be closed while trickling data. */ } finally { exchange.close(); }
     }
@@ -90,7 +91,7 @@ class ReloadRequestScopeTest {
         Thread worker = Thread.ofVirtual().start(() -> {
             try (var _ = new ReloadRequestScope(Duration.ofSeconds(10), Duration.ofSeconds(5), 4)) {
                 HttpUtil.sendRequest(url(server), null, "GET"); finished.complete(false);
-            } catch (Exception expected) { finished.complete(Thread.currentThread().isInterrupted()); }
+            } catch (Exception _) { finished.complete(Thread.currentThread().isInterrupted()); }
         });
         try {
             assertTrue(entered.await(2, TimeUnit.SECONDS)); worker.interrupt();

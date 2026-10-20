@@ -177,7 +177,7 @@ class EpgApplicationServiceTest extends DbBackedTest {
         try {
             XmltvGuide parsed = XmltvGuide.read(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)), Instant.now());
             assertFalse(parsed.names().containsKey("must-not-appear"));
-        } catch (javax.xml.stream.XMLStreamException expected) { /* Rejecting unresolved entities is also safe. */ }
+        } catch (javax.xml.stream.XMLStreamException _) { /* Rejecting unresolved entities is also safe. */ }
     }
 
     @Test void liveGuideUsesOnlySelectedAccountOrOnlyLiveBookmarks() throws Exception {

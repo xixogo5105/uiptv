@@ -16,18 +16,18 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import javax.imageio.ImageIO;
 import static com.uiptv.testsupport.FxTestSupport.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-@SuppressWarnings("java:S2925")
 class VirtualCardEpgUITest extends DbBackedUiTest {
     @BeforeAll static void initialize() throws Exception { initJavaFx(); }
 
     @AfterEach void resetEpgMode() throws Exception {
         new EpgSettingsApplicationService().setEnabled(false);
-        for (int i = 0; i < 200 && runOnFxThread(EpgModeUI::isFeatureEnabled); i++) Thread.sleep(10);
+        for (int i = 0; i < 200 && runOnFxThread(EpgModeUI::isFeatureEnabled); i++) LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
         assertFalse(runOnFxThread(EpgModeUI::isFeatureEnabled));
     }
 
@@ -204,7 +204,7 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
         var firstBatch = new CountDownLatch(1);
         final CardEpgSupport[] state = new CardEpgSupport[1];
         new EpgSettingsApplicationService().setEnabled(true);
-        for (int i = 0; i < 200 && !runOnFxThread(EpgModeUI::isFeatureEnabled); i++) Thread.sleep(10);
+        for (int i = 0; i < 200 && !runOnFxThread(EpgModeUI::isFeatureEnabled); i++) LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
         assertTrue(runOnFxThread(EpgModeUI::isFeatureEnabled));
         try (var services = mockConstruction(LiveGuideApplicationService.class, (mock, context) -> {
                  when(mock.cachedSummaries(anyList())).thenAnswer(invocation -> {

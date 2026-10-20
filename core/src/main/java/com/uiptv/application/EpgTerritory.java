@@ -57,9 +57,7 @@ public final class EpgTerritory {
             Locale locale = new Locale("", alpha2);
             Set<String> aliases = new LinkedHashSet<>();
             add(aliases, alpha2);
-            try { add(aliases, locale.getISO3Country()); } catch (MissingResourceException _) {
-                // A few JDK locale entries do not expose an ISO-3 country code.
-            }
+            add(aliases, iso3Country(locale));
             String display = locale.getDisplayCountry(Locale.ENGLISH);
             add(aliases, display);
             addLegalVariants(aliases, display);
@@ -105,6 +103,15 @@ public final class EpgTerritory {
         addAliases(result, "MD", "MDA", "Republic of Moldova");
         addAliases(result, "MK", "MKD", "North Macedonia", "Macedonia");
         return Map.copyOf(result);
+    }
+
+    private static String iso3Country(Locale locale) {
+        try {
+            return locale.getISO3Country();
+        } catch (MissingResourceException _) {
+            // A few JDK locale entries do not expose an ISO-3 country code.
+            return "";
+        }
     }
 
     private static void addAliases(Map<String, Set<String>> result, String code, String... aliases) {

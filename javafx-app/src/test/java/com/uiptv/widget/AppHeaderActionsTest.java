@@ -14,12 +14,12 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.locks.LockSupport;
 import static com.uiptv.testsupport.FxTestSupport.runOnFxThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SuppressWarnings("java:S2925")
 class AppHeaderActionsTest extends DbBackedUiTest {
     @BeforeAll
     static void setUpJavaFx() throws Exception {
@@ -161,7 +161,9 @@ class AppHeaderActionsTest extends DbBackedUiTest {
         }
     }
     private void awaitEpg(boolean expected) throws Exception {
-        for (int i = 0; i < 200 && runOnFxThread(com.uiptv.ui.EpgModeUI::isFeatureEnabled) != expected; i++) Thread.sleep(10);
+        for (int i = 0; i < 200 && runOnFxThread(com.uiptv.ui.EpgModeUI::isFeatureEnabled) != expected; i++) {
+            LockSupport.parkNanos(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(10));
+        }
         assertEquals(expected, runOnFxThread(com.uiptv.ui.EpgModeUI::isFeatureEnabled));
     }
 

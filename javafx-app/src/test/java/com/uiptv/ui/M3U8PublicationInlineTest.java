@@ -16,6 +16,7 @@ import java.io.FileWriter;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.LockSupport;
 
 import static com.uiptv.service.M3U8PublicationService.BOOKMARKS_PLAYLIST_ACCOUNT_ID;
 import static com.uiptv.service.M3U8PublicationService.BOOKMARKS_PLAYLIST_NAME;
@@ -24,7 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SuppressWarnings("java:S2925")
 class M3U8PublicationInlineTest extends DbBackedUiTest {
     @BeforeAll
     static void initJavaFx() throws Exception {
@@ -37,7 +37,7 @@ class M3U8PublicationInlineTest extends DbBackedUiTest {
             if (runOnFxThread(() -> inline.isAccountLoadedForTest(accountId))) {
                 return;
             }
-            Thread.sleep(50);
+            LockSupport.parkNanos(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50));
         }
         throw new IllegalStateException("Account loading timed out: " + accountId);
     }

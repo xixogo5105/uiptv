@@ -37,7 +37,7 @@ class EpgMemoryBudgetTest extends DbBackedTest {
         server.createContext("/guide", exchange -> {
             entered.countDown();
             try { release.await(5, TimeUnit.SECONDS); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            catch (InterruptedException _) { Thread.currentThread().interrupt(); }
             byte[] xml = "<tv/>".getBytes(java.nio.charset.StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, xml.length);
             exchange.getResponseBody().write(xml);

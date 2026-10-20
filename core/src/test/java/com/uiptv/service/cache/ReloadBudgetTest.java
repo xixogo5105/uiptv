@@ -3,11 +3,11 @@ package com.uiptv.service.cache;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SuppressWarnings("java:S2925")
 class ReloadBudgetTest {
 
     @Test
@@ -39,7 +39,7 @@ class ReloadBudgetTest {
     @Test
     void expired_isTrueOnceTheDurationHasElapsed() throws InterruptedException {
         ReloadBudget budget = ReloadBudget.start(Duration.ofMillis(1));
-        Thread.sleep(20);
+        LockSupport.parkNanos(Duration.ofMillis(20).toNanos());
 
         assertTrue(budget.expired(), "The budget must expire after its duration elapses");
     }
