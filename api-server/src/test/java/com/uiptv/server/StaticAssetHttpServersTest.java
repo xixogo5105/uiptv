@@ -77,6 +77,23 @@ class StaticAssetHttpServersTest {
     }
 
     @Test
+    void imageServerRecognizesSupportedImageTypesAndRejectsUnsafeClasspathPaths() throws Exception {
+        assertEquals("image/svg+xml", HttpImageServer.contentTypeFor("/a.svg"));
+        assertEquals("image/png", HttpImageServer.contentTypeFor("/a.PNG"));
+        assertEquals("image/jpeg", HttpImageServer.contentTypeFor("/a.jpeg"));
+        assertEquals("image/jpeg", HttpImageServer.contentTypeFor("/a.jpg"));
+        assertEquals("image/webp", HttpImageServer.contentTypeFor("/a.webp"));
+        assertEquals("image/gif", HttpImageServer.contentTypeFor("/a.gif"));
+        assertEquals("image/x-icon", HttpImageServer.contentTypeFor("/a.ico"));
+        assertNull(HttpImageServer.contentTypeFor(null));
+        assertNull(HttpImageServer.contentTypeFor("/a.txt"));
+
+        TestHttpExchange traversal = new TestHttpExchange("/images/%2e%2e/secret.png", "GET");
+        new HttpImageServer().handle(traversal);
+        assertEquals(404, traversal.getResponseCode());
+    }
+
+    @Test
     void spaHtmlServer_rendersTemplate() throws Exception {
         HttpSpaHtmlServer handler = new HttpSpaHtmlServer();
         TestHttpExchange exchange = new TestHttpExchange("/index.html", "GET");

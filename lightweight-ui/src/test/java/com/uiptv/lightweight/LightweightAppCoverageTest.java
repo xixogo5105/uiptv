@@ -11,6 +11,11 @@ import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.layout.BorderPane;
+import javafx.stage.Stage;
+import com.uiptv.util.ServerUrlUtil;
+import org.mockito.MockedStatic;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,6 +76,7 @@ class LightweightAppCoverageTest {
 
             invoke(app, "setLogsVisible", void.class, false);
             assertFalse(logs.isVisible());
+            invoke(app, "appendLog", void.class, "background");
             invoke(app, "updateClearButtonVisibility", void.class);
             assertTrue(field(app, "clearButton", Button.class).isVisible());
 
@@ -84,6 +90,22 @@ class LightweightAppCoverageTest {
             ConfigurationService.getInstance().save(configuration);
             invoke(app, "applyTheme", void.class, root);
             assertFalse(root.getStyleClass().contains("dark-theme"));
+
+            try (MockedStatic<ServerUrlUtil> server = mockStatic(ServerUrlUtil.class)) {
+                when(ServerUrlUtil.isServerRunning()).thenReturn(false, true);
+                when(ServerUrlUtil.getConfiguredServerPort()).thenReturn("8080");
+                when(ServerUrlUtil.getConfiguredHttpsServerPort()).thenReturn("8443");
+                when(ServerUrlUtil.isHttpsServerEnabled()).thenReturn(false, true);
+                invoke(app, "refreshServerStatus", void.class);
+                invoke(app, "toggleServerAction", void.class);
+                invoke(app, "refreshServerStatus", void.class);
+                invoke(app, "toggleServerAction", void.class);
+                assertTrue(field(app, "httpsPortLabel", Label.class).isVisible());
+            }
+
+            Stage stage = new Stage();
+            invoke(app, "start", void.class, stage);
+            stage.close();
 
             Hyperlink toggle = find(root, Hyperlink.class);
             assertNotNull(toggle);
