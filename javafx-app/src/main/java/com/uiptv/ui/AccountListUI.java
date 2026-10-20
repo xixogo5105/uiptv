@@ -897,6 +897,30 @@ public class AccountListUI extends HBox implements SearchTarget {
         node.getStyleClass().remove(styleClass);
     }
 
+    @SuppressWarnings("java:S1144")
+    private void showDetailView(Node content) {
+        if (content == null) {
+            return;
+        }
+        if (!(content instanceof CategoryListUI)) {
+            switchHeaderSearchMode(HeaderSearchMode.ACCOUNTS, false);
+            if (activeCategoryListUI != null
+                    && (currentContent == browserLayout || currentContent == activeCategoryListUI)) {
+                activeCategoryBrowserRetainedForDetailView = true;
+                syncActiveCategoryBrowserRetention();
+            }
+        }
+        detailContent.getChildren().setAll(content);
+        VBox.setVgrow(content, Priority.ALWAYS);
+        if (currentContent != null) {
+            viewStack.push(currentContent);
+        }
+        setCurrentContent(detailView);
+        updateNavButtons();
+        embeddedContainer.getChildren().setAll(navHeader, currentContent);
+        showBody(embeddedContainer);
+    }
+
     private void setCurrentContent(Node content) {
         currentContent = content;
         if (content != detailView) {
