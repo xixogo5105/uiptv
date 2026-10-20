@@ -1980,16 +1980,6 @@ private fun BrowseItemRow(
             },
             headlineContent = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    FavouriteStar(
-                        selected = item.isBookmarked,
-                        contentDescription = if (item.isBookmarked) {
-                            "Remove favourite ${item.name}"
-                        } else {
-                            "Add favourite ${item.name}"
-                        },
-                        compact = true,
-                        onClick = onToggleBookmark
-                    )
                     Text(
                         item.name,
                         modifier = Modifier.weight(1f),
@@ -2003,6 +1993,16 @@ private fun BrowseItemRow(
                     if (item.hasDrmMetadata()) {
                         DrmBadge(Modifier.padding(start = 8.dp))
                     }
+                    FavouriteStar(
+                        selected = item.isBookmarked,
+                        contentDescription = if (item.isBookmarked) {
+                            "Remove favourite ${item.name}"
+                        } else {
+                            "Add favourite ${item.name}"
+                        },
+                        compact = true,
+                        onClick = onToggleBookmark
+                    )
                 }
             },
             supportingContent = {
@@ -2021,14 +2021,14 @@ private fun BrowseItemRow(
 private fun PlayingIndicator(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .size(28.dp)
+            .size(14.dp)
             .background(DeepNightSurfaceBase, CircleShape)
             .semantics { contentDescription = "Currently playing" },
         contentAlignment = Alignment.Center
     ) {
         Box(
             Modifier
-                .size(8.dp)
+                .size(4.dp)
                 .background(RecordingDotRed, CircleShape)
         )
     }
@@ -2084,7 +2084,7 @@ private fun FavouriteStar(
     compact: Boolean = false
 ) {
     val touchModifier = if (compact) {
-        Modifier.size(34.dp)
+        Modifier.size(28.dp)
     } else {
         Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
     }
@@ -2093,9 +2093,10 @@ private fun FavouriteStar(
         modifier = touchModifier
             .clickable(onClick = onClick)
             .semantics { this.contentDescription = contentDescription }
-            .padding(horizontal = if (compact) 4.dp else 10.dp, vertical = if (compact) 2.dp else 6.dp),
+            .padding(end = if (compact) 2.dp else 0.dp)
+            .padding(horizontal = if (compact) 0.dp else 10.dp, vertical = if (compact) 0.dp else 6.dp),
         color = if (selected) Color(0xFFFFD54F) else DeepNightText,
-        fontSize = if (compact) 22.sp else 28.sp,
+        fontSize = if (compact) 14.sp else 28.sp,
         fontWeight = FontWeight.Bold,
         maxLines = 1
     )

@@ -300,7 +300,7 @@ class ResponsiveCardGridTest {
     }
 
     @Test
-    void broadcastIndicatorAppearsBesideTextWithoutReorderingBookmarkActions() throws Exception {
+    void broadcastIndicatorStaysAtTheTrailingEdgeWithoutReorderingBookmarkActions() throws Exception {
         CardRowSnapshot snapshot = runOnFxThread(() -> {
             ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(_ -> {
                 Label title = new Label("Cricket Event 2");
@@ -324,8 +324,8 @@ class ResponsiveCardGridTest {
             Region card = cardAt(grid, 0);
             HBox row = (HBox) ((VBox) card).getChildren().getFirst();
             Label title = (Label) row.getChildren().getFirst();
-            PlayingCardIndicator indicator = (PlayingCardIndicator) row.getChildren().get(1);
-            Button bookmark = (Button) row.getChildren().getLast();
+            PlayingCardIndicator indicator = (PlayingCardIndicator) row.getChildren().getLast();
+            Button bookmark = (Button) row.getChildren().get(row.getChildren().size() - 2);
             new Scene(grid, 400, 100);
             grid.applyCss();
             grid.layout();
@@ -334,37 +334,37 @@ class ResponsiveCardGridTest {
             grid.layout();
             Insets margin = HBox.getMargin(indicator);
             return new CardRowSnapshot(
-                    row.getChildren().indexOf(indicator) == row.getChildren().indexOf(title) + 1,
+                    row.getChildren().indexOf(indicator) == row.getChildren().size() - 1,
                     indicator.getLayoutY() + indicator.getHeight() / 2
                             <= title.getLayoutY() + title.getHeight() / 2 + 1
                             && indicator.getLayoutY() + indicator.getHeight() / 2
                             >= title.getLayoutY() + title.getHeight() / 2 - 1,
-                    row.getChildren().indexOf(bookmark) == row.getChildren().size() - 1,
-                    margin != null && margin.getRight() == 8,
-                    Math.abs(indicator.getLayoutX() - (title.getLayoutX() + title.getWidth()) - 10) < 1,
+                    row.getChildren().indexOf(bookmark) == row.getChildren().size() - 2,
+                    margin != null && margin.getRight() == 2,
+                    Math.abs(indicator.getLayoutX() - (bookmark.getLayoutX() + bookmark.getWidth()) - 6) < 1,
                     indicator.isManaged(),
-                    Math.abs(bookmark.getLayoutX() - bookmarkXBeforeActivation) < 1);
+                    Math.abs(bookmark.getLayoutX() - bookmarkXBeforeActivation) > 1);
         });
 
-        assertTrue(snapshot.indicatorFollowsTitle());
+        assertTrue(snapshot.indicatorAtTrailingEdge());
         assertTrue(snapshot.indicatorVerticallyCenteredWithTitle());
-        assertTrue(snapshot.bookmarkActionFollowsIndicator());
+        assertTrue(snapshot.bookmarkActionBeforeIndicator());
         assertTrue(snapshot.indicatorHasRightMargin());
-        assertTrue(snapshot.indicatorHasTenPixelTitleGap());
+        assertTrue(snapshot.indicatorHasTrailingGap());
         assertTrue(snapshot.indicatorManagedWhilePlaying());
-        assertTrue(snapshot.bookmarkActionPositionPreserved());
+        assertTrue(snapshot.bookmarkActionShiftsForIndicator());
     }
 
     @Test
-    void inlineIndicatorUsesTheSameTenPixelTitleGapWithAndWithoutRowSpacing() throws Exception {
-        assertEquals(10, inlineIndicatorTitleGap(0), 1);
-        assertEquals(10, inlineIndicatorTitleGap(6), 1);
+    void inlineIndicatorUsesTheMinimumFourPixelTitleGap() throws Exception {
+        assertEquals(4, inlineIndicatorTitleGap(0), 1);
+        assertEquals(6, inlineIndicatorTitleGap(6), 1);
     }
 
     private static double inlineIndicatorTitleGap(double rowSpacing) throws Exception {
         return runOnFxThread(() -> {
             ResponsiveCardGrid<String> grid = new ResponsiveCardGrid<>(_ -> {
-                HBox row = new HBox(rowSpacing, new Label("Title"), new Region());
+                HBox row = new HBox(rowSpacing, new Label("Title"), new Button("Trailing"));
                 row.getStyleClass().add("playing-indicator-inline-row");
                 row.setAlignment(Pos.CENTER_LEFT);
                 row.setMaxWidth(Double.MAX_VALUE);
@@ -382,13 +382,13 @@ class ResponsiveCardGridTest {
             grid.applyCss();
             grid.layout();
             HBox row = (HBox) ((VBox) card).getChildren().getFirst();
-            Label title = (Label) row.getChildren().getFirst();
+            Button trailing = (Button) row.getChildren().get(row.getChildren().size() - 2);
 
             Event.fireEvent(card, mouseClick(card, 2, false, false));
             grid.layout();
 
-            PlayingCardIndicator indicator = (PlayingCardIndicator) row.getChildren().get(1);
-            return indicator.getLayoutX() - (title.getLayoutX() + title.getWidth());
+            PlayingCardIndicator indicator = (PlayingCardIndicator) row.getChildren().getLast();
+            return indicator.getLayoutX() - (trailing.getLayoutX() + trailing.getWidth());
         });
     }
 
@@ -472,25 +472,25 @@ class ResponsiveCardGridTest {
             return new CardRowSnapshot(
                     indicator.getParent() instanceof HBox row
                             && row.getStyleClass().contains("playing-indicator-inline-row")
-                            && row.getChildren().indexOf(indicator) == row.getChildren().indexOf(title) + 1,
+                            && row.getChildren().indexOf(indicator) == row.getChildren().size() - 1,
                     Math.abs(indicator.localToScene(0, 0).getY() + indicator.getHeight() / 2
                             - title.localToScene(0, 0).getY() - title.getHeight() / 2) < 1,
-                    trailingAction.localToScene(0, 0).getX() > indicator.localToScene(0, 0).getX(),
-                    indicatorMargin != null && indicatorMargin.getRight() == 8,
+                    trailingAction.localToScene(0, 0).getX() < indicator.localToScene(0, 0).getX(),
+                    indicatorMargin != null && indicatorMargin.getRight() == 2,
                     Math.abs(indicator.localToScene(indicator.getBoundsInLocal()).getMinX()
-                            - title.localToScene(title.getBoundsInLocal()).getMaxX()
-                            - 10) < 1,
+                            - trailingAction.localToScene(trailingAction.getBoundsInLocal()).getMaxX()
+                            - 6) < 1,
                     indicator.isManaged(),
-                    Math.abs(trailingAction.localToScene(0, 0).getX() - trailingActionXBeforeActivation) < 1);
+                    Math.abs(trailingAction.localToScene(0, 0).getX() - trailingActionXBeforeActivation) > 1);
         });
 
-        assertTrue(snapshot.indicatorFollowsTitle());
+        assertTrue(snapshot.indicatorAtTrailingEdge());
         assertTrue(snapshot.indicatorVerticallyCenteredWithTitle());
-        assertTrue(snapshot.bookmarkActionFollowsIndicator());
+        assertTrue(snapshot.bookmarkActionBeforeIndicator());
         assertTrue(snapshot.indicatorHasRightMargin());
-        assertTrue(snapshot.indicatorHasTenPixelTitleGap());
+        assertTrue(snapshot.indicatorHasTrailingGap());
         assertTrue(snapshot.indicatorManagedWhilePlaying());
-        assertTrue(snapshot.bookmarkActionPositionPreserved());
+        assertTrue(snapshot.bookmarkActionShiftsForIndicator());
     }
 
     @Test
@@ -1483,13 +1483,13 @@ class ResponsiveCardGridTest {
                                                    boolean visibleWhenPageReturns) {
     }
 
-    private record CardRowSnapshot(boolean indicatorFollowsTitle,
+    private record CardRowSnapshot(boolean indicatorAtTrailingEdge,
                                    boolean indicatorVerticallyCenteredWithTitle,
-                                   boolean bookmarkActionFollowsIndicator,
+                                   boolean bookmarkActionBeforeIndicator,
                                    boolean indicatorHasRightMargin,
-                                   boolean indicatorHasTenPixelTitleGap,
+                                   boolean indicatorHasTrailingGap,
                                    boolean indicatorManagedWhilePlaying,
-                                   boolean bookmarkActionPositionPreserved) {
+                                   boolean bookmarkActionShiftsForIndicator) {
     }
 
     private record CardGridIndicatorSnapshot(boolean firstVisibleInitially,

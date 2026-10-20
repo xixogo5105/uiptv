@@ -8,14 +8,14 @@ public class PlayingCardIndicator extends StackPane {
     public PlayingCardIndicator() {
         getStyleClass().add("playing-card-indicator");
         setAlignment(Pos.CENTER);
-        setMinSize(28, 28);
-        setPrefSize(28, 28);
-        setMaxSize(28, 28);
+        setMinSize(14, 14);
+        setPrefSize(14, 14);
+        setMaxSize(14, 14);
         setMouseTransparent(true);
         setManaged(false);
         setVisible(false);
 
-        Circle recordingDot = new Circle(4);
+        Circle recordingDot = new Circle(2);
         recordingDot.getStyleClass().add("playing-card-recording-dot");
         getChildren().add(recordingDot);
 

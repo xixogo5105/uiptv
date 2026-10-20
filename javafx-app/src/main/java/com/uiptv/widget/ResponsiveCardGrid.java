@@ -45,8 +45,8 @@ public class ResponsiveCardGrid<T> extends StackPane {
     private static final double DEFAULT_MAX_CARD_WIDTH = 320;
     private static final double DEFAULT_HORIZONTAL_GAP = 14;
     private static final double DEFAULT_VERTICAL_GAP = 12;
-    private static final double INLINE_INDICATOR_GAP = 10;
-    private static final double INLINE_INDICATOR_RIGHT_MARGIN = 8;
+    private static final double INLINE_INDICATOR_GAP = 4;
+    private static final double INLINE_INDICATOR_RIGHT_MARGIN = 2;
     private static WeakReference<ResponsiveCardGrid<?>> activePlayingIndicatorGrid = new WeakReference<>(null);
     private static final double SCROLL_VISIBILITY_TOLERANCE = 4.0;
     private static final int DEFAULT_VIRTUALIZATION_THRESHOLD =
@@ -1003,7 +1003,7 @@ public class ResponsiveCardGrid<T> extends StackPane {
                     INLINE_INDICATOR_RIGHT_MARGIN,
                     0,
                     Math.max(0, INLINE_INDICATOR_GAP - inlineRow.getSpacing())));
-            inlineRow.getChildren().add(Math.min(1, inlineRow.getChildren().size()), indicator);
+            inlineRow.getChildren().add(indicator);
             return;
         }
         indicator.setManaged(false);

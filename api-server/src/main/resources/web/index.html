@@ -335,11 +335,11 @@
                                         <div class="content-copy">
                                             <div class="title-line">
                                                 {{ channel.name }}
+                                                <span class="pill" v-if="channel.drmType">DRM</span>
+                                                <span class="pill" v-if="contentMode === 'series' && channel.watched">IN PROGRESS</span>
                                                 <span class="live-marker broadcast-indicator active" v-if="isActiveChannel(channel)">
                                                     <img :alt="'Broadcasting'" :src="broadcastIndicatorSrc(true)" class="broadcast-icon">
                                                 </span>
-                                                <span class="pill" v-if="channel.drmType">DRM</span>
-                                                <span class="pill" v-if="contentMode === 'series' && channel.watched">IN PROGRESS</span>
                                             </div>
 
                                             <div class="meta-line clamp" v-if="contentMode === 'vod' && getVodPlot(channel)">{{ getVodPlot(channel) }}</div>
