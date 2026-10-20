@@ -204,6 +204,42 @@ class StalkerPortalPlayerServiceTest {
                 "resolved", List.of()));
     }
 
+    @Test
+    void playbackHelpersCoverEmptyQueriesRelativeBasesAndCandidateTimeouts() throws Exception {
+        Account live = new Account();
+        live.setAction(Account.AccountAction.itv);
+        Channel channel = new Channel();
+        channel.setChannelId("");
+        assertEquals("", invoke("resolveSeriesParam", new Class[]{Account.class, Channel.class, String.class}, live, channel, null));
+        assertEquals("", invoke("resolveSeriesParam", new Class[]{Account.class, Channel.class, String.class}, null, null, null));
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> liveParams = (Map<String, String>) invokeStatic("getParams",
+                new Class[]{Account.class, String.class, String.class}, live, "cmd", "ignored");
+        assertEquals("itv", liveParams.get("type"));
+        assertEquals("", liveParams.get("series"));
+
+        assertEquals("resolved", StalkerPortalPlayerService.mergeMissingQueryParams("resolved", "original"));
+        assertEquals("http://origin/live.php?stream=7&token=x", StalkerPortalPlayerService.mergeMissingQueryParams(
+                "http://origin/live.php?stream=7", "http://origin/live.php?stream=8&token=x"));
+        assertEquals("http://origin/dir/live.php?stream=7&token=x", StalkerPortalPlayerService.mergeMissingQueryParams(
+                "live.php?stream=7", "http://origin/dir/source.php?token=x"));
+        assertEquals("http://origin/live.php", invokeStatic("normalizeResolvedBase",
+                new Class[]{String.class, String.class}, "http://origin/live.php", "http://other/source.php"));
+
+        assertEquals("http://origin/live.php?stream=.", invoke("normalizeSeriesStreamPlaceholder",
+                new Class[]{String.class, String.class}, "http://origin/live.php?stream=.", "no-digits"));
+        assertTrue((Boolean) invokeStatic("isUsableResolvedLiveUrl", new Class[]{String.class},
+                "ffmpeg http://origin/live.php?stream=7"));
+        assertFalse((Boolean) invokeStatic("isUsableResolvedLiveUrl", new Class[]{String.class},
+                "ffmpeg http://origin/live.php?stream=&token=x"));
+
+        assertNull(StalkerPortalPlayerService.resolveLiveCandidates(List.of(), _ -> "never"));
+        assertThrows(StalkerPortalPlayerService.PlaybackResolutionTimeoutException.class,
+                () -> StalkerPortalPlayerService.resolveLiveCandidates(
+                        List.of("one"), _ -> { throw new StalkerPortalPlayerService.PlaybackResolutionTimeoutException(); }));
+    }
+
     private Object invoke(String name, Class<?>[] types, Object... args) throws Exception {
         Method method = StalkerPortalPlayerService.class.getDeclaredMethod(name, types);
         method.setAccessible(true);

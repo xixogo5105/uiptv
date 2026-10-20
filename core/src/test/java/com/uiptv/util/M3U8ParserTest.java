@@ -341,6 +341,55 @@ class M3U8ParserTest {
         assertNull(invoke("buildCategoryEntry", new Class[]{String.class, String.class}, "id", ""));
     }
 
+    @Test
+    void privateParserHelpersCoverUrlFormsAndClearKeyFallbacks() throws Exception {
+        assertEquals("https://host/path?a=1&b=2",
+                invokeEntryParser("normalizePotentialUrl", new Class[]{String.class},
+                        " https\\u003a\\u002f\\u002fhost\\u002fpath\\u003fa=1\\u0026b=2 "));
+        assertTrue((Boolean) invokeEntryParser("isLikelyStreamUrl", new Class[]{String.class}, "//host/live"));
+        assertTrue((Boolean) invokeEntryParser("isLikelyStreamUrl", new Class[]{String.class}, "/live.ts"));
+        assertTrue((Boolean) invokeEntryParser("isLikelyStreamUrl", new Class[]{String.class}, "./live.ts"));
+        assertTrue((Boolean) invokeEntryParser("isLikelyStreamUrl", new Class[]{String.class}, "../live.ts"));
+        assertTrue((Boolean) invokeEntryParser("isLikelyStreamUrl", new Class[]{String.class}, "C:\\\\media\\\\live.ts"));
+        assertTrue((Boolean) invokeEntryParser("isLikelyStreamUrl", new Class[]{String.class}, "live.aac"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> legacy = (Map<String, String>) invokeEntryParser("parseClearKeys",
+                new Class[]{String.class}, "kid:key;other:value:with:colon;second:two");
+        assertEquals(Map.of("kid", "key", "second", "two"), legacy);
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> malformedJson = (Map<String, String>) invokeEntryParser("parseClearKeys",
+                new Class[]{String.class}, "{bad};kid:key");
+        assertEquals(Map.of("kid", "key"), malformedJson);
+
+        assertNull(invokeEntryParser("parseDrmType", new Class[]{String.class}, "#EXT-X-KEY:METHOD=AES-128"));
+        assertNull(invokeEntryParser("normalizeLicenseType", new Class[]{String.class, String.class}, "unknown", null));
+        assertEquals("com.widevine.alpha", invokeEntryParser("normalizeLicenseType",
+                new Class[]{String.class, String.class}, "com.widevine.alpha", null));
+        assertEquals("org.w3.clearkey", invokeEntryParser("normalizeLicenseType",
+                new Class[]{String.class, String.class}, "com.clearkey.alpha", null));
+    }
+
+    @Test
+    void uriAndConsumerEntryPointsCoverLocalAndNullConsumerBranches() throws Exception {
+        Path temp = writeTempPlaylist("""
+                #EXTM3U
+                #EXTINF:-1 group-title="Local",Local Channel
+                local/live.ts
+                """);
+        try {
+            URI uri = temp.toUri();
+            assertEquals(1, M3U8Parser.parseChannelUriM3U8(uri).size());
+            assertTrue(M3U8Parser.parseUriCategory(uri).stream()
+                    .anyMatch(entry -> "Local".equals(entry.getGroupTitle())));
+            assertDoesNotThrow(() -> M3U8Parser.forEachChannelUriM3U8(uri, null));
+            assertDoesNotThrow(() -> M3U8Parser.forEachChannelSourceM3U8(temp.toString(), null));
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+    }
+
     private List<PlaylistEntry> parseContent(String content) throws IOException {
         Path temp = writeTempPlaylist(content);
         try {

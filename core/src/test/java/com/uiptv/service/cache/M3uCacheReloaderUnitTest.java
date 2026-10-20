@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class M3uCacheReloaderUnitTest {
@@ -131,6 +132,75 @@ class M3uCacheReloaderUnitTest {
         assertEquals(CategoryType.ALL.displayName(), result.get(0).getTitle());
         // channelsMap should NOT contain All key because there were no channels to merge
         assertTrue(!channelsMap.containsKey(CategoryType.ALL.displayName()));
+    }
+
+    @Test
+    void privateM3uHelpersCoverHiddenBucketsAndSourceEligibility() throws Exception {
+        M3uCacheReloader reloader = new M3uCacheReloader();
+        Category hidden = new Category("hidden", "Hidden", "hidden", false, 0);
+        Category visible = new Category("visible", "Visible", "visible", false, 0);
+
+        @SuppressWarnings("unchecked")
+        java.util.Set<String> hiddenKeys = (java.util.Set<String>) invoke(reloader, "hiddenM3uCategoryKeys",
+                new Class[]{List.class, List.class}, List.of(hidden, visible), List.of(visible));
+        assertEquals(java.util.Set.of("hidden"), hiddenKeys);
+
+        Channel hiddenChannel = channel("shared", "Hidden");
+        Channel visibleChannel = channel("visible", "Visible");
+        Map<String, List<Channel>> buckets = new java.util.LinkedHashMap<>();
+        buckets.put("Hidden", List.of(hiddenChannel));
+        buckets.put("Visible", new ArrayList<>(List.of(hiddenChannel, visibleChannel)));
+        invoke(reloader, "removeHiddenM3uCategoryChannels", new Class[]{Map.class, List.class, List.class},
+                buckets, List.of(hidden, visible), List.of(visible));
+        assertFalse(buckets.containsKey("Hidden"));
+        assertEquals(List.of(visibleChannel), buckets.get("Visible"));
+
+        invoke(reloader, "applyM3uChannelCensoring", new Class[]{Map.class}, (Object) null);
+        assertEquals(0, invoke(reloader, "totalChannels", new Class[]{Map.class}, (Object) null));
+        invoke(reloader, "releaseList", new Class[]{List.class}, List.of("immutable"));
+
+        assertFalse((Boolean) invoke(reloader, "canReadFreshCategoriesFromSource", new Class[]{Account.class}, (Object) null));
+        Account blank = new Account();
+        blank.setM3u8Path(" ");
+        assertFalse((Boolean) invoke(reloader, "canReadFreshCategoriesFromSource", new Class[]{Account.class}, blank));
+        blank.setType(AccountType.M3U8_URL);
+        blank.setM3u8Path("https://playlist.test/list.m3u8");
+        assertTrue((Boolean) invoke(reloader, "canReadFreshCategoriesFromSource", new Class[]{Account.class}, blank));
+    }
+
+    @Test
+    void categoryFilteringDropsEmptyUncategorizedAndRetainsPopulatedGroups() throws Exception {
+        M3uCacheReloader reloader = new M3uCacheReloader();
+        Category all = new Category("all", CategoryType.ALL.displayName(), "all", false, 0);
+        Category news = new Category("news", "News", "news", false, 0);
+        Category uncategorized = new Category("uncat", CategoryType.UNCATEGORIZED.displayName(), "uncat", false, 0);
+        Category empty = new Category("empty", "Empty", "empty", false, 0);
+        Map<String, List<Channel>> buckets = new java.util.LinkedHashMap<>();
+        buckets.put(CategoryType.ALL.displayName(), new ArrayList<>(List.of(channel("all", "All"))));
+        buckets.put("News", new ArrayList<>(List.of(channel("news", "News"))));
+        buckets.put(CategoryType.UNCATEGORIZED.displayName(), new ArrayList<>());
+
+        @SuppressWarnings("unchecked")
+        List<Category> filtered = (List<Category>) invoke(reloader, "filterCategoriesForM3u",
+                new Class[]{List.class, Map.class, LoggerCallback.class},
+                List.of(all, news, uncategorized, empty), buckets, null);
+
+        assertEquals(List.of(CategoryType.ALL.displayName(), "News"), filtered.stream().map(Category::getTitle).toList());
+        assertFalse(filtered.stream().anyMatch(category -> "Empty".equals(category.getTitle())));
+    }
+
+    private static Object invoke(Object target, String name, Class<?>[] types, Object... args) throws Exception {
+        Method method = M3uCacheReloader.class.getDeclaredMethod(name, types);
+        method.setAccessible(true);
+        try {
+            return method.invoke(target, args);
+        } catch (InvocationTargetException error) {
+            Throwable cause = error.getCause();
+            if (cause instanceof Exception exception) {
+                throw exception;
+            }
+            throw error;
+        }
     }
 
     private static Channel channel(String id, String name) {
