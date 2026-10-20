@@ -89,31 +89,13 @@ public class NativeEpgApplicationService {
     }
     private List<EpgProgramme> fetch(Account account, Channel channel) {
         try {
-            if (account.getType() == AccountType.STALKER_PORTAL) {
-                synchronized (HANDSHAKE_LOCK) {
-                    if (account.isNotConnected()) HandshakeService.getInstance().connect(account);
-                }
-                if (account.isNotConnected()) return List.of();
-            }
+            if (!ensureSession(account)) return List.of();
             List<String> actions = account.getType() == AccountType.XTREME_API
                     ? List.of("get_simple_data_table", "get_short_epg") : List.of("get_short_epg", "get_epg_info");
             for (String action : actions) {
                 if (Thread.currentThread().isInterrupted() || !new EpgApplicationService().isEnabled()) return List.of();
                 try {
-                    String body;
-                    if (account.getType() == AccountType.XTREME_API) body = XtremeApiParser.fetchEpg(account, action, channel.getChannelId());
-                    else {
-                        Map<String, String> params = Map.of("type", "itv", "action", action, "ch_id", channel.getChannelId(),
-                                "period", "24", "size", "100", "JsHttpRequest", "1-xml");
-                        var response = FetchAPI.fetchWithDiagnostics(params, utcRequestAccount(account), OPTIONS);
-                        if (response.statusCode() == 401 || response.statusCode() == 403) {
-                            synchronized (HANDSHAKE_LOCK) { HandshakeService.getInstance().connect(account); }
-                            if (account.isNotConnected()) return List.of();
-                            response = FetchAPI.fetchWithDiagnostics(params, utcRequestAccount(account), OPTIONS);
-                        }
-                        body = response.body();
-                    }
-                    List<EpgProgramme> result = parse(body, account.getType() == AccountType.XTREME_API, "UTC", channel.getChannelId());
+                    List<EpgProgramme> result = fetchAction(account, channel, action);
                     if (EpgApplicationService.usable(result)) return result;
                 } catch (Exception _) {
                     AppLog.addWarningLog(NativeEpgApplicationService.class, "Provider EPG action unavailable; trying fallback.");
@@ -123,6 +105,33 @@ public class NativeEpgApplicationService {
             AppLog.addWarningLog(NativeEpgApplicationService.class, "Provider EPG session unavailable; trying XMLTV.");
         }
         return List.of();
+    }
+
+    private boolean ensureSession(Account account) {
+        if (account.getType() != AccountType.STALKER_PORTAL) return true;
+        synchronized (HANDSHAKE_LOCK) {
+            if (account.isNotConnected()) HandshakeService.getInstance().connect(account);
+        }
+        return !account.isNotConnected();
+    }
+
+    private List<EpgProgramme> fetchAction(Account account, Channel channel, String action) throws java.io.IOException {
+        boolean xtreme = account.getType() == AccountType.XTREME_API;
+        String body = xtreme ? XtremeApiParser.fetchEpg(account, action, channel.getChannelId())
+                : fetchStalkerAction(account, channel, action);
+        return parse(body, xtreme, "UTC", channel.getChannelId());
+    }
+
+    private String fetchStalkerAction(Account account, Channel channel, String action) {
+        Map<String, String> params = Map.of("type", "itv", "action", action, "ch_id", channel.getChannelId(),
+                "period", "24", "size", "100", "JsHttpRequest", "1-xml");
+        var response = FetchAPI.fetchWithDiagnostics(params, utcRequestAccount(account), OPTIONS);
+        if (response.statusCode() == 401 || response.statusCode() == 403) {
+            synchronized (HANDSHAKE_LOCK) { HandshakeService.getInstance().connect(account); }
+            if (account.isNotConnected()) return "";
+            response = FetchAPI.fetchWithDiagnostics(params, utcRequestAccount(account), OPTIONS);
+        }
+        return response.body();
     }
 
     private static Account utcRequestAccount(Account account) {
@@ -139,6 +148,9 @@ public class NativeEpgApplicationService {
         catch (DateTimeException _) { return fallback; }
     }
 
+    private record ParsedPayload(Object data, ZoneId zone) { }
+    private record ParseContext(boolean encoded, ZoneId zone, String channelId, long now) { }
+
     static List<EpgProgramme> parse(String json, boolean encoded, String sourceTimezone, String channelId) {
         if (json == null || json.isBlank() || json.length() > 10 * 1024 * 1024) return List.of();
         try {
@@ -146,36 +158,53 @@ public class NativeEpgApplicationService {
             ZoneId zone;
             try { zone = ZoneId.of(sourceTimezone == null || sourceTimezone.isBlank() ? "UTC" : sourceTimezone); }
             catch (Exception _) { zone = ZoneOffset.UTC; }
-            zone = sourceZone(data, zone);
-            for (int depth = 0; depth < 5 && data instanceof JSONObject object; depth++) {
-                zone = sourceZone(object, zone);
-                if (object.has("js")) data = object.opt("js");
-                else if (object.has("epg_listings")) data = object.opt("epg_listings");
-                else if (object.has("data")) data = object.opt("data");
-                else if (object.has(channelId)) data = object.opt(channelId);
-                else return List.of();
-            }
-            if (!(data instanceof JSONArray array)) return List.of();
-            List<EpgProgramme> result = new ArrayList<>();
-            long now = System.currentTimeMillis();
-            for (int i = 0; i < Math.min(array.length(), 2000); i++) {
-                JSONObject p = array.optJSONObject(i);
-                if (p == null) continue;
-                String associated = first(p, "ch_id", "channel_id", "stream_id");
-                if (!associated.isBlank() && !associated.equals(channelId)) continue;
-                long start = programmeTime(p, sourceZone(p, zone), "start_timestamp", "start", "time", "start_time", "start_datetime");
-                long stop = programmeTime(p, sourceZone(p, zone), "stop_timestamp", "end_timestamp", "end", "stop", "end_time", "time_to", "stop_datetime");
-                if (stop == 0 && start > 0) {
-                    long duration = p.optLong("duration", 0);
-                    if (duration > 0 && duration < 86400) stop = start + duration * 1000;
-                }
-                String title = truncate(text(first(p, "title", "name"), encoded), 512);
-                if (start > now - 86400_000L && start < now + 7 * 86400_000L && stop > start && !title.isBlank())
-                    result.add(new EpgProgramme(title, truncate(text(first(p, "description", "descr", "desc"), encoded), 2048), start, stop));
-            }
-            result.sort(Comparator.comparingLong(EpgProgramme::start));
-            return EpgSchedules.normalize(result);
+            ParsedPayload payload = unwrapPayload(data, zone, channelId);
+            if (!(payload.data() instanceof JSONArray array)) return List.of();
+            return parseEntries(array, new ParseContext(encoded, payload.zone(), channelId, System.currentTimeMillis()));
         } catch (Exception _) { return List.of(); }
+    }
+
+    private static ParsedPayload unwrapPayload(Object data, ZoneId zone, String channelId) {
+        zone = sourceZone(data, zone);
+        for (int depth = 0; depth < 5 && data instanceof JSONObject object; depth++) {
+            zone = sourceZone(object, zone);
+            if (object.has("js")) data = object.opt("js");
+            else if (object.has("epg_listings")) data = object.opt("epg_listings");
+            else if (object.has("data")) data = object.opt("data");
+            else if (object.has(channelId)) data = object.opt(channelId);
+            else return new ParsedPayload(List.of(), zone);
+        }
+        return new ParsedPayload(data, zone);
+    }
+
+    private static List<EpgProgramme> parseEntries(JSONArray array, ParseContext context) {
+        List<EpgProgramme> result = new ArrayList<>();
+        for (int i = 0; i < Math.min(array.length(), 2000); i++) {
+            JSONObject programme = array.optJSONObject(i);
+            EpgProgramme parsed = parseEntry(programme, context);
+            if (parsed != null) result.add(parsed);
+        }
+        result.sort(Comparator.comparingLong(EpgProgramme::start));
+        return EpgSchedules.normalize(result);
+    }
+
+    private static EpgProgramme parseEntry(JSONObject programme, ParseContext context) {
+        if (programme == null) return null;
+        String associated = first(programme, "ch_id", "channel_id", "stream_id");
+        if (!associated.isBlank() && !associated.equals(context.channelId())) return null;
+        ZoneId zone = sourceZone(programme, context.zone());
+        long start = programmeTime(programme, zone, "start_timestamp", "start", "time", "start_time", "start_datetime");
+        long stop = programmeTime(programme, zone, "stop_timestamp", "end_timestamp", "end", "stop", "end_time", "time_to", "stop_datetime");
+        if (stop == 0 && start > 0) stop = durationStop(programme, start);
+        String title = truncate(text(first(programme, "title", "name"), context.encoded()), 512);
+        if (start <= context.now() - 86400_000L || start >= context.now() + 7 * 86400_000L
+                || stop <= start || title.isBlank()) return null;
+        return new EpgProgramme(title, truncate(text(first(programme, "description", "descr", "desc"), context.encoded()), 2048), start, stop);
+    }
+
+    private static long durationStop(JSONObject programme, long start) {
+        long duration = programme.optLong("duration", 0);
+        return duration > 0 && duration < 86400 ? start + duration * 1000 : 0;
     }
 
     private static long programmeTime(JSONObject programme, ZoneId zone, String... fields) {
