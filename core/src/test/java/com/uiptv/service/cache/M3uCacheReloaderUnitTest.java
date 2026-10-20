@@ -159,6 +159,20 @@ class M3uCacheReloaderUnitTest {
         assertEquals(0, invoke(reloader, "totalChannels", new Class[]{Map.class}, (Object) null));
         invoke(reloader, "releaseList", new Class[]{List.class}, List.of("immutable"));
 
+        @SuppressWarnings("unchecked")
+        java.util.Set<String> noKeys = (java.util.Set<String>) invoke(reloader, "categoryTitleKeys",
+                new Class[]{List.class}, (Object) null);
+        assertTrue(noKeys.isEmpty());
+        java.util.Set<String> channelKeys = new java.util.LinkedHashSet<>();
+        invoke(reloader, "collectChannelKeys", new Class[]{List.class, java.util.Set.class},
+                java.util.Arrays.asList(null, hiddenChannel), channelKeys);
+        assertEquals(java.util.Set.of("id:shared"), channelKeys);
+        Map<String, List<Channel>> releasable = new java.util.LinkedHashMap<>();
+        releasable.put("mutable", new ArrayList<>(List.of(hiddenChannel)));
+        releasable.put("immutable", List.of(visibleChannel));
+        invoke(reloader, "releaseChannelMap", new Class[]{Map.class}, releasable);
+        assertTrue(releasable.isEmpty());
+
         assertFalse((Boolean) invoke(reloader, "canReadFreshCategoriesFromSource", new Class[]{Account.class}, (Object) null));
         Account blank = new Account();
         blank.setM3u8Path(" ");
