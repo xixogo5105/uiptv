@@ -17,7 +17,6 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CatalogApplicationServiceCoverageTest {
@@ -175,6 +174,9 @@ class CatalogApplicationServiceCoverageTest {
                 }
                 method.setAccessible(true);
                 @SuppressWarnings("unchecked") T value = (T) method.invoke(service, args);
+                if (type != void.class && value != null && !wrap(type).isInstance(value)) {
+                    throw new ClassCastException("Unexpected return type for " + name);
+                }
                 return value;
             }
         }

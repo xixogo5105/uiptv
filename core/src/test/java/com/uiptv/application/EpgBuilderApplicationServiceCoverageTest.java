@@ -26,8 +26,9 @@ class EpgBuilderApplicationServiceCoverageTest {
     void schemaAndInventoryValidationRejectIncompatibleBundles() throws Exception {
         JSONObject valid = new JSONObject().put("schema_version", 1);
         invokeStatic("validateSchema", new Class<?>[]{JSONObject.class}, valid);
+        JSONObject unsupportedSchema = new JSONObject().put("schema_version", 2);
         assertThrows(IllegalArgumentException.class, () -> invokeStatic("validateSchema",
-                new Class<?>[]{JSONObject.class}, new JSONObject().put("schema_version", 2)));
+                new Class<?>[]{JSONObject.class}, unsupportedSchema));
 
         JSONObject inventory = new JSONObject().put("database_identity", "db").put("config_signature", "config")
                 .put("revision", "revision").put("generation", 1);
@@ -37,21 +38,24 @@ class EpgBuilderApplicationServiceCoverageTest {
         assertFalse((Boolean) invokeStatic("mappingsCurrent", new Class<?>[]{JSONObject.class, JSONObject.class},
                 new JSONObject(bundle.toString()).put("inventory_revision", "changed"), inventory));
         invokeStatic("validateInventory", new Class<?>[]{JSONObject.class, JSONObject.class, boolean.class}, bundle, inventory, false);
+        JSONObject wrongIdentity = new JSONObject(bundle.toString()).put("database_identity", "other");
         assertThrows(IllegalArgumentException.class, () -> invokeStatic("validateInventory",
                 new Class<?>[]{JSONObject.class, JSONObject.class, boolean.class},
-                new JSONObject(bundle.toString()).put("database_identity", "other"), inventory, true));
+                wrongIdentity, inventory, true));
     }
 
     @Test
     void timestampAndPriorityValidationRejectUnsafeBundles() throws Exception {
         long now = System.currentTimeMillis();
         assertEquals(now, (long) invokeStatic("bundleCreatedAt", new Class<?>[]{JSONObject.class, long.class}, new JSONObject(), now));
+        JSONObject future = new JSONObject().put("created_at", java.time.Instant.ofEpochMilli(now + 301_000).toString());
         assertThrows(IllegalArgumentException.class, () -> invokeStatic("bundleCreatedAt",
                 new Class<?>[]{JSONObject.class, long.class},
-                new JSONObject().put("created_at", java.time.Instant.ofEpochMilli(now + 301_000).toString()), now));
+                future, now));
+        JSONObject stale = new JSONObject().put("created_at", java.time.Instant.ofEpochMilli(now - 86_401_000).toString());
         assertThrows(IllegalArgumentException.class, () -> invokeStatic("bundleCreatedAt",
                 new Class<?>[]{JSONObject.class, long.class},
-                new JSONObject().put("created_at", java.time.Instant.ofEpochMilli(now - 86_401_000).toString()), now));
+                stale, now));
 
         JSONArray sources = new JSONArray().put(new JSONObject().put("source_id", "one"))
                 .put(new JSONObject().put("source_id", "two").put("priority", 3));
@@ -59,13 +63,16 @@ class EpgBuilderApplicationServiceCoverageTest {
         Map<String, Integer> priorities = (Map<String, Integer>) invokeStatic("declaredPriorities",
                 new Class<?>[]{JSONArray.class}, sources);
         assertEquals(Map.of("one", 100, "two", 3), priorities);
+        JSONArray duplicateSources = new JSONArray().put(new JSONObject().put("source_id", "one"))
+                .put(new JSONObject().put("source_id", "one"));
         assertThrows(IllegalArgumentException.class, () -> invokeStatic("declaredPriorities",
-                new Class<?>[]{JSONArray.class}, new JSONArray().put(new JSONObject().put("source_id", "one"))
-                        .put(new JSONObject().put("source_id", "one"))));
+                new Class<?>[]{JSONArray.class}, duplicateSources));
+        JSONArray negativePriority = new JSONArray().put(new JSONObject().put("source_id", "one").put("priority", -1));
         assertThrows(IllegalArgumentException.class, () -> invokeStatic("declaredPriorities",
-                new Class<?>[]{JSONArray.class}, new JSONArray().put(new JSONObject().put("source_id", "one").put("priority", -1))));
+                new Class<?>[]{JSONArray.class}, negativePriority));
+        JSONArray emptyProgrammes = new JSONArray();
         assertThrows(IllegalArgumentException.class, () -> invokeStatic("validateProgrammeCount",
-                new Class<?>[]{JSONArray.class}, new JSONArray()));
+                new Class<?>[]{JSONArray.class}, emptyProgrammes));
     }
 
     @Test
@@ -86,14 +93,18 @@ class EpgBuilderApplicationServiceCoverageTest {
 
         JSONObject invalid = new JSONObject().put("source_id", "missing").put("guide_channel_id", "guide")
                 .put("start", now).put("stop", now + 1_000).put("title", "Invalid");
+        JSONArray invalidProgrammes = new JSONArray().put(invalid);
+        Map<String, Map<String, List<EpgProgramme>>> invalidSources = new LinkedHashMap<>();
         assertThrows(IllegalArgumentException.class, () -> invokeStatic("readProgrammes",
                 new Class<?>[]{JSONArray.class, Map.class, long.class, long.class, Map.class},
-                new JSONArray().put(invalid), declared, created, now, new LinkedHashMap<>()));
+                invalidProgrammes, declared, created, now, invalidSources));
         JSONObject reversed = new JSONObject().put("source_id", "public").put("guide_channel_id", "guide")
                 .put("start", now + 1_000).put("stop", now).put("title", "Invalid");
+        JSONArray reversedProgrammes = new JSONArray().put(reversed);
+        Map<String, Map<String, List<EpgProgramme>>> reversedSources = new LinkedHashMap<>();
         assertThrows(IllegalArgumentException.class, () -> invokeStatic("readProgrammes",
                 new Class<?>[]{JSONArray.class, Map.class, long.class, long.class, Map.class},
-                new JSONArray().put(reversed), declared, created, now, new LinkedHashMap<>()));
+                reversedProgrammes, declared, created, now, reversedSources));
     }
 
     @Test
@@ -113,8 +124,9 @@ class EpgBuilderApplicationServiceCoverageTest {
                 new JSONObject().put("guide", "https://img.test/logo.png")
                         .put("missing", "https://img.test/missing.png").put("bad", "file:///private"), schedules);
         assertEquals(Map.of("guide", "https://img.test/logo.png"), icons);
+        JSONObject oversizedAlias = new JSONObject().put("x".repeat(513), "guide");
         assertThrows(IllegalArgumentException.class, () -> invokeStatic("sharedNames",
-                new Class<?>[]{JSONObject.class, Map.class}, new JSONObject().put("x".repeat(513), "guide"), schedules));
+                new Class<?>[]{JSONObject.class, Map.class}, oversizedAlias, schedules));
     }
 
     @Test

@@ -144,6 +144,7 @@ class AbstractAccountCacheReloaderCoverageTest extends DbBackedTest {
     private static final class ProbeReloader extends AbstractAccountCacheReloader {
         @Override
         public void reloadCache(Account account, com.uiptv.api.LoggerCallback logger) {
+            throw new UnsupportedOperationException("The coverage probe does not perform cache reloads");
         }
 
         CategoryNormalization normalize(List<Category> categories) { return normalizeCategoriesByTitle(categories); }

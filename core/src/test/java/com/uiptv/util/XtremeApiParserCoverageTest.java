@@ -22,7 +22,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
 class XtremeApiParserCoverageTest {
@@ -42,10 +41,12 @@ class XtremeApiParserCoverageTest {
         assertEquals("news", channels.getFirst().getCategoryId());
 
         assertTrue(XtremeApiParser.readChannelCatalogue(new StringReader("[]"), account, null, null).isEmpty());
+        StringReader cancelledReader = new StringReader(json);
         assertThrows(CancellationException.class,
-                () -> XtremeApiParser.readChannelCatalogue(new StringReader(json), account, null, () -> true));
+                () -> XtremeApiParser.readChannelCatalogue(cancelledReader, account, null, () -> true));
+        StringReader invalidReader = new StringReader("{}");
         assertThrows(org.json.JSONException.class,
-                () -> XtremeApiParser.readChannelCatalogue(new StringReader("{}"), account, null, null));
+                () -> XtremeApiParser.readChannelCatalogue(invalidReader, account, null, null));
     }
 
     @Test
@@ -79,8 +80,9 @@ class XtremeApiParserCoverageTest {
         Account empty = account(Account.AccountAction.itv);
         empty.setUrl("");
         empty.setM3u8Path("");
-        try (MockedStatic<HttpUtil> ignored = mockStatic(HttpUtil.class)) {
+        try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
             assertThrows(java.io.UncheckedIOException.class, () -> XtremeApiParser.parseAllChannels(empty));
+            httpUtil.reset();
         }
     }
 

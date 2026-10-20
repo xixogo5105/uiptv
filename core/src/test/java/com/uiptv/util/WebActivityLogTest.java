@@ -118,6 +118,10 @@ class WebActivityLogTest {
                 WebActivityLog.describeRequest("GET", "/proxy-stream", "src=https%3A%2F%2Fmedia.test"));
         assertEquals("Streamed media through the web player from not-a-uri",
                 WebActivityLog.describeRequest("GET", "/proxy-stream", "src=not-a-uri"));
+    }
+
+    @Test
+    void describeRequest_coversRemoteAndCatalogRoutes() {
         assertEquals("Downloaded a remote sync database snapshot",
                 WebActivityLog.describeRequest("GET", "/remote-sync/download", ""));
         assertEquals("Uploaded a remote sync database snapshot",
