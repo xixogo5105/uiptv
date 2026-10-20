@@ -17,6 +17,7 @@ public class BookmarkCard extends HBox {
     private final Label subtitleLabel = new Label();
     private final Label drmBadge = new Label(I18n.tr("autoDrm"));
 
+    @SuppressWarnings("java:S107")
     public BookmarkCard(String title,
                         String subtitle,
                         String logoUrl,
@@ -36,6 +37,7 @@ public class BookmarkCard extends HBox {
         this(title, "", subtitle, logoUrl, loadImage, imageCacheName, drmProtected, trailingAction);
     }
 
+    @SuppressWarnings("java:S107")
     public BookmarkCard(String title,
                         String titleSuffix,
                         String subtitle,

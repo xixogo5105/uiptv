@@ -159,6 +159,7 @@ public class ChannelService {
                 progressCallback, streamingCallback);
     }
 
+    @SuppressWarnings("java:S107")
     private List<Channel> loadFreshVodSeriesCache(String categoryId, Account account, String dbId, LoggerCallback logger,
                                                    Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
                                                    Consumer<PageProgress> progressCallback, boolean streamCache) {
@@ -170,6 +171,7 @@ public class ChannelService {
         return streamCache ? resolved : publishChannels(resolved, callback);
     }
 
+    @SuppressWarnings("java:S107")
     private List<Channel> fetchAndCacheVodSeries(String categoryId, Account account, String dbId, LoggerCallback logger,
                                                  Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
                                                  Consumer<PageProgress> progressCallback, boolean streamingCallback) {

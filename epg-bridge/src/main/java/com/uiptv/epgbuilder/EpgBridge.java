@@ -41,6 +41,10 @@ public final class EpgBridge {
                 default -> throw new IllegalArgumentException("Unknown command");
             };
             LOG.info("{}", result);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            LOG.error("EPG bridge interrupted: {}", error.getMessage());
+            System.exit(1);
         } catch (Exception error) {
             // Do not dump provider URLs, metadata or credentials in stack traces.
             LOG.error("EPG bridge failed: {}: {}", error.getClass().getSimpleName(), error.getMessage());

@@ -146,12 +146,16 @@ final class CardEpgSupport {
     private void observeScroll(Node node) {
         for (Node parent = node.getParent(); parent != null; parent = parent.getParent()) {
             if (parent instanceof ScrollPane scroll) {
-                if (scrollListeners.containsKey(scroll)) continue;
-                javafx.beans.value.ChangeListener<Number> listener = (_, _, _) -> queue();
-                scroll.vvalueProperty().addListener(listener); scrollListeners.put(scroll, listener);
-                javafx.beans.value.ChangeListener<Bounds> viewportListener = (_, _, _) -> queue();
-                scroll.viewportBoundsProperty().addListener(viewportListener);
-                viewportBoundsListeners.put(scroll, viewportListener);
+                scrollListeners.computeIfAbsent(scroll, ignored -> {
+                    javafx.beans.value.ChangeListener<Number> listener = (_, _, _) -> queue();
+                    scroll.vvalueProperty().addListener(listener);
+                    return listener;
+                });
+                viewportBoundsListeners.computeIfAbsent(scroll, ignored -> {
+                    javafx.beans.value.ChangeListener<Bounds> listener = (_, _, _) -> queue();
+                    scroll.viewportBoundsProperty().addListener(listener);
+                    return listener;
+                });
             }
         }
     }

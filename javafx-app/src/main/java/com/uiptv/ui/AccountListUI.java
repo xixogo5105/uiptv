@@ -1752,12 +1752,14 @@ public class AccountListUI extends HBox implements SearchTarget {
         private String expiryText;
         private AccountInfoUiUtil.ExpiryState expiryState;
 
+        @SuppressWarnings("java:S107")
         public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId, SimpleStringProperty accountType,
                            boolean pinToTop, int originalOrder, int categoryCount, int channelCount) {
             this(accountName, accountId, accountType, pinToTop, originalOrder, categoryCount, channelCount, "",
                     AccountInfoUiUtil.ExpiryState.UNKNOWN);
         }
 
+        @SuppressWarnings("java:S107")
         public AccountItem(SimpleStringProperty accountName, SimpleStringProperty accountId, SimpleStringProperty accountType,
                            boolean pinToTop, int originalOrder, int categoryCount, int channelCount,
                            String expiryText, AccountInfoUiUtil.ExpiryState expiryState) {

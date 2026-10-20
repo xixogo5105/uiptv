@@ -89,7 +89,8 @@ class ProviderIdentityContractTest extends DbBackedTest {
         List<Map<String, String>> requests = new ArrayList<>();
         try (MockedStatic<HandshakeService> handshakeStatic = mockStatic(HandshakeService.class);
              MockedStatic<FetchAPI> fetchStatic = mockStatic(FetchAPI.class)) {
-            handshakeStatic.when(HandshakeService::getInstance).thenReturn(mock(HandshakeService.class));
+            HandshakeService handshakeService = mock(HandshakeService.class);
+            handshakeStatic.when(HandshakeService::getInstance).thenReturn(handshakeService);
             fetchStatic.when(() -> FetchAPI.fetch(anyMap(), any(Account.class))).thenAnswer(invocation -> {
                 Map<String, String> params = invocation.getArgument(0);
                 requests.add(new LinkedHashMap<>(params));

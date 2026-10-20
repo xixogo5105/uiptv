@@ -87,8 +87,9 @@ class CacheReloadNetworkTest extends DbBackedTest {
                 var service = mock(HandshakeService.class); handshake.when(HandshakeService::getInstance).thenReturn(service);
                 doAnswer(call -> { ((Account) call.getArgument(0)).setToken("fixture"); return null; }).when(service).connect(any());
                 Account target = account;
-                if (successfulBulk) new CacheServiceImpl().reloadCache(target, logs::add);
-                else assertThrows(IllegalStateException.class, () -> new CacheServiceImpl().reloadCache(target, logs::add));
+                CacheServiceImpl cacheService = new CacheServiceImpl();
+                if (successfulBulk) cacheService.reloadCache(target, logs::add);
+                else assertThrows(IllegalStateException.class, () -> cacheService.reloadCache(target, logs::add));
             }
             assertEquals(!successfulBulk || rejectDefaultShape ? 5 : 4, calls.get(), "Bulk refresh must use a fixed number of calls, never one per category/channel");
             assertFalse(logs.stream().anyMatch(line -> line.startsWith("Catalogue request ")

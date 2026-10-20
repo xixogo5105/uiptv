@@ -449,7 +449,8 @@ class CacheServiceImplTest extends DbBackedTest {
                         return "";
                     });
 
-            org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new CacheServiceImpl().reloadCache(account, logs::add));
+            CacheServiceImpl cacheService = new CacheServiceImpl();
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> cacheService.reloadCache(account, logs::add));
         }
 
         assertEquals(1, getAllChannelsCalls.get(),
@@ -641,11 +642,6 @@ class CacheServiceImplTest extends DbBackedTest {
         }
     }
 
-    /**
-     * Stubs both {@link FetchAPI#fetch} and {@link FetchAPI#fetchWithDiagnostics} for the given
-     * account. The reloader uses the diagnostics variant so it can log why a request produced no
-     * payload; keeping both stubs in one place stops the two call sites from drifting.
-     */
     /**
      * {@link FetchAPI} is mocked statically in these tests, which also stubs
      * {@code FetchAPI.nullSafeString} - the helper {@code ChannelService.parseItvChannels} uses to

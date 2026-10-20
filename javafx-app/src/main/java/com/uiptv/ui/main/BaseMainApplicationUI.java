@@ -166,6 +166,7 @@ public abstract class BaseMainApplicationUI {
         return scene;
     }
 
+    @SuppressWarnings("java:S107")
     private void configureAppNavigation(TabPane tabPane,
                                         Tab configurationTab,
                                         Tab manageAccountTab,

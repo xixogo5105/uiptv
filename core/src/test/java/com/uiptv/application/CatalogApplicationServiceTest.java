@@ -180,7 +180,8 @@ class CatalogApplicationServiceTest extends DbBackedTest {
              MockedStatic<HandshakeService> handshakeStatic = mockStatic(HandshakeService.class)) {
             channelStatic.when(ChannelService::getInstance).thenReturn(channelService);
             imdbStatic.when(ImdbMetadataService::getInstance).thenReturn(imdbMetadataService);
-            handshakeStatic.when(HandshakeService::getInstance).thenReturn(mock(HandshakeService.class));
+            HandshakeService handshakeService = mock(HandshakeService.class);
+            handshakeStatic.when(HandshakeService::getInstance).thenReturn(handshakeService);
 
             when(channelService.getSeries(eq(savedCategory.getCategoryId()), eq("series-1"), eq(saved), any(), any()))
                     .thenReturn(providerEpisodes);
@@ -248,7 +249,8 @@ class CatalogApplicationServiceTest extends DbBackedTest {
         try (MockedStatic<ImdbMetadataService> imdbStatic = mockStatic(ImdbMetadataService.class);
              MockedStatic<HandshakeService> handshakeStatic = mockStatic(HandshakeService.class)) {
             imdbStatic.when(ImdbMetadataService::getInstance).thenReturn(metadataService);
-            handshakeStatic.when(HandshakeService::getInstance).thenReturn(mock(HandshakeService.class));
+            HandshakeService handshakeService = mock(HandshakeService.class);
+            handshakeStatic.when(HandshakeService::getInstance).thenReturn(handshakeService);
             when(metadataService.findBestEffortDetails(anyString(), anyString(), anyList())).thenReturn(metadata);
             CatalogSeriesDetailsResult details = CatalogApplicationService.getInstance().getSeriesDetails(
                     new CatalogSeriesDetailsQuery(saved.getDbId(), savedCategory.getDbId(), "series-1", "Test Show"));

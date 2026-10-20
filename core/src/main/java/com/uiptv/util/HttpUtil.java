@@ -547,12 +547,14 @@ public class HttpUtil {
             this(followRedirects, readBody, connectTimeoutSeconds, connectionRequestTimeoutSeconds, responseTimeoutSeconds, false);
         }
 
+        @SuppressWarnings("java:S107")
         private RequestOptions(boolean followRedirects, boolean readBody, Integer connectTimeoutSeconds,
                                Integer connectionRequestTimeoutSeconds, Integer responseTimeoutSeconds, boolean streamBody) {
             this(followRedirects, readBody, connectTimeoutSeconds, connectionRequestTimeoutSeconds,
                     responseTimeoutSeconds, streamBody, false, 0);
         }
 
+        @SuppressWarnings("java:S107")
         private RequestOptions(boolean followRedirects, boolean readBody, Integer connectTimeoutSeconds,
                                Integer connectionRequestTimeoutSeconds, Integer responseTimeoutSeconds,
                                boolean streamBody, boolean responseTimeoutDisabled, int maxBodyChars) {
