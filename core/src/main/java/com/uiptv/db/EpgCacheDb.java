@@ -114,18 +114,19 @@ public final class EpgCacheDb {
 
     private void insertAliases(Connection c, String sourceId, Map<String, String> aliases,
                                Map<String, String> qualityAliases) throws SQLException {
+        insertAliasKind(c, sourceId, aliases, 0);
+        insertAliasKind(c, sourceId, qualityAliases, 1);
+    }
+
+    private void insertAliasKind(Connection c, String sourceId, Map<String, String> aliases, int kind)
+            throws SQLException {
         try (var insert = c.prepareStatement("INSERT INTO epg_alias VALUES(?,?,?,?)")) {
-            int batch = 0;
-            for (int kind = 0; kind < 2; kind++) {
-                Map<String, String> values = kind == 0 ? aliases : qualityAliases;
-                for (var alias : values.entrySet()) {
-                    insert.setString(1, sourceId);
-                    insert.setInt(2, kind);
-                    insert.setString(3, alias.getKey());
-                    insert.setString(4, alias.getValue());
-                    insert.addBatch();
-                    if (++batch % 500 == 0) insert.executeBatch();
-                }
+            insert.setString(1, sourceId);
+            insert.setInt(2, kind);
+            for (var alias : aliases.entrySet()) {
+                insert.setString(3, alias.getKey());
+                insert.setString(4, alias.getValue());
+                insert.addBatch();
             }
             insert.executeBatch();
         }
@@ -133,13 +134,11 @@ public final class EpgCacheDb {
 
     private void insertIcons(Connection c, String sourceId, Map<String, String> icons) throws SQLException {
         try (var insert = c.prepareStatement("INSERT INTO epg_channel_icon VALUES(?,?,?)")) {
-            int batch = 0;
+            insert.setString(1, sourceId);
             for (var icon : icons.entrySet()) {
-                insert.setString(1, sourceId);
                 insert.setString(2, icon.getKey());
                 insert.setString(3, icon.getValue());
                 insert.addBatch();
-                if (++batch % 500 == 0) insert.executeBatch();
             }
             insert.executeBatch();
         }
