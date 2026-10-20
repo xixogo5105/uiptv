@@ -2274,9 +2274,10 @@ public class ReloadCacheInline extends VBox {
     }
 
     private String globalFailurePromptMessage(Account account, String reason, boolean canIgnoreDomain) {
-        return canIgnoreDomain
-                ? I18n.tr("reloadGlobalFailurePromptWithIgnoreDomain", account.getAccountName(), reason)
-                : I18n.tr("reloadGlobalFailurePrompt", account.getAccountName(), reason);
+        if (canIgnoreDomain) {
+            return I18n.tr("reloadGlobalFailurePromptWithIgnoreDomain", account.getAccountName(), reason);
+        }
+        return I18n.tr("reloadGlobalFailurePrompt", account.getAccountName(), reason);
     }
 
     private void applyDialogThemeAndOrientation(Dialog<?> dialog) {
@@ -2410,14 +2411,16 @@ public class ReloadCacheInline extends VBox {
     private String translateModeFallbackLog(Account account, String trimmed) {
         String mode = modeLabel(account);
         if (isNoCategoriesFoundLog(trimmed)) {
-            return mode == null
-                    ? I18n.tr("reloadNoCategoriesFoundCacheKept")
-                    : I18n.tr("reloadModeCategoriesNoneFound", mode);
+            if (mode == null) {
+                return I18n.tr("reloadNoCategoriesFoundCacheKept");
+            }
+            return I18n.tr("reloadModeCategoriesNoneFound", mode);
         }
         if (LOG_NO_CHANNELS_FOUND.equals(trimmed)) {
-            return mode == null
-                    ? I18n.tr("reloadModeChannelsNoneFound", I18n.tr(TR_CATEGORY_TAB_LIVE_TV))
-                    : I18n.tr("reloadModeChannelsNoneFound", mode);
+            if (mode == null) {
+                return I18n.tr("reloadModeChannelsNoneFound", I18n.tr(TR_CATEGORY_TAB_LIVE_TV));
+            }
+            return I18n.tr("reloadModeChannelsNoneFound", mode);
         }
         if (isLastResortFetchSucceededLog(trimmed)) {
             Integer count = extractFirstNumber(trimmed);

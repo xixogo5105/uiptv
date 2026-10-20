@@ -28,18 +28,7 @@ import static com.uiptv.util.StringUtils.isBlank;
 
 @SuppressWarnings({"java:S1075", "java:S135"})
 public class HttpProxyStreamServer implements HttpHandler {
-    private static final class ResponseBody {
-        private final byte[] bytes;
-        private final boolean rewritten;
-
-        private ResponseBody(byte[] bytes, boolean rewritten) {
-            this.bytes = bytes;
-            this.rewritten = rewritten;
-        }
-
-        byte[] bytes() { return bytes; }
-        boolean rewritten() { return rewritten; }
-    }
+    private record ResponseBody(byte[] bytes, boolean rewritten) { }
     private static final String PATH_LIVE_PLAY = "/live/play/";
     private static final String PATH_PLAY_LIVE = "/play/live.php";
     private static final String PATH_PLAY_MOVIE = "/play/movie.php";
@@ -194,7 +183,7 @@ public class HttpProxyStreamServer implements HttpHandler {
                 }
             }
             return true;
-        } catch (IllegalArgumentException | UnknownHostException ex) {
+        } catch (IllegalArgumentException | UnknownHostException _) {
             return false;
         }
     }

@@ -34,7 +34,7 @@ class EpgIncrementalRefreshTest extends DbBackedTest {
         var server=com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1",0),0);
         server.createContext("/slow",exchange -> {
             entered.countDown();
-            try { release.await(5,TimeUnit.SECONDS); } catch(InterruptedException error) { Thread.currentThread().interrupt(); }
+            try { release.await(5,TimeUnit.SECONDS); } catch(InterruptedException _) { Thread.currentThread().interrupt(); }
             byte[] data="<tv/>".getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200,data.length); exchange.getResponseBody().write(data); exchange.close();
         }); server.start();

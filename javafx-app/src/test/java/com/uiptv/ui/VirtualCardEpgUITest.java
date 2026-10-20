@@ -206,11 +206,8 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
         new EpgSettingsApplicationService().setEnabled(true);
         for (int i = 0; i < 200 && !runOnFxThread(EpgModeUI::isFeatureEnabled); i++) LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
         assertTrue(runOnFxThread(EpgModeUI::isFeatureEnabled));
-        try (var services = mockConstruction(LiveGuideApplicationService.class, (mock, context) -> {
-                 when(mock.cachedSummaries(anyList())).thenAnswer(invocation -> {
-                     List<LiveGuideApplicationService.Row> rows = invocation.getArgument(0);
-                     return rows;
-                 });
+            try (var construction = mockConstruction(LiveGuideApplicationService.class, (mock, context) -> {
+                 when(mock.cachedSummaries(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
                  when(mock.cachedIcons(anyList())).thenReturn(new IdentityHashMap<>());
              })) {
             state[0] = runOnFxThread(() -> {
@@ -243,6 +240,7 @@ class VirtualCardEpgUITest extends DbBackedUiTest {
             synchronized (resolvedOrder) {
                 assertEquals(List.of("Channel 0", "Channel 1", "Channel 2"), resolvedOrder);
             }
+            construction.constructed();
         } finally {
             if (state[0] != null) runOnFxThread(() -> {
                 state[0].stop();

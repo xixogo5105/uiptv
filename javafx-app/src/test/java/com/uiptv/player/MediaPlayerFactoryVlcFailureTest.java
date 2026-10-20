@@ -21,7 +21,7 @@ class MediaPlayerFactoryVlcFailureTest {
 
     @Test
     void handleVlcInitFailure_showsNotificationAndLogsStacktrace() throws Exception {
-        javafx.scene.layout.VBox host = runOnFxThread(() -> AppNotificationCenter.createHost());
+        javafx.scene.layout.VBox host = runOnFxThread(AppNotificationCenter::createHost);
         runOnFxThread(() -> { AppNotificationCenter.install(host); return null; });
 
         CopyOnWriteArrayList<String> captured = new CopyOnWriteArrayList<>();

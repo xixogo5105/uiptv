@@ -415,7 +415,7 @@ class CacheServiceImplTest extends DbBackedTest {
     }
 
     @Test
-    void reloadCache_stalkerPortal_stopsRetryingAfterOneTransportFailure() throws IOException {
+    void reloadCache_stalkerPortal_stopsRetryingAfterOneTransportFailure() {
         Account account = createStalkerAccount("acc-transport-failure");
         account.setAction(Account.AccountAction.itv);
         List<String> logs = new ArrayList<>();

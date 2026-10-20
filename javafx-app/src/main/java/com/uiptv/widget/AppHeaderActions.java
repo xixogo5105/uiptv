@@ -214,9 +214,10 @@ public class AppHeaderActions extends HBox {
     private String plainTextModeMenuText() {
         Configuration configuration = ConfigurationService.getInstance().read();
         boolean plainTextMode = configuration != null && !configuration.isEnableThumbnails();
-        return plainTextMode
-                ? I18n.tr("autoDisablePlainTextMode")
-                : I18n.tr("autoEnablePlainTextMode");
+        if (plainTextMode) {
+            return I18n.tr("autoDisablePlainTextMode");
+        }
+        return I18n.tr("autoEnablePlainTextMode");
     }
 
     private Node createMenuIcon(String iconPath) {

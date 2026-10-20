@@ -4,7 +4,6 @@ import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.application.PlaybackResolutionException;
-import com.uiptv.util.FetchAPI;
 import com.uiptv.util.PlayerUrlUtils;
 import org.json.JSONObject;
 
@@ -16,7 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static com.uiptv.util.AccountType.STALKER_PORTAL;
@@ -124,7 +123,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
 
     static String resolveLiveCandidatesWithTokenRefresh(
             List<String> candidates,
-            Function<String, String> resolver,
+                UnaryOperator<String> resolver,
             Runnable tokenRefresh,
             String fallbackCmd,
             String channelCmd
@@ -152,7 +151,7 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
 
     static String resolveLiveCandidates(
             List<String> candidates,
-            Function<String, String> resolver
+            UnaryOperator<String> resolver
     ) {
         boolean candidateTimedOut = false;
         for (String cmd : candidates) {

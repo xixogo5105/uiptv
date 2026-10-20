@@ -1487,9 +1487,7 @@ public class ThumbnailEpisodesListUI extends BaseEpisodesListUI {
             return;
         }
         imdbLoading = true;
-        Platform.runLater(() -> {
-            applySeriesHeader();
-        });
+            Platform.runLater(this::applySeriesHeader);
         long generation = lifecycleGeneration.get();
         String title = firstNonBlank(seasonInfo.optString("name", ""), categoryTitle);
         String tmdb = seasonInfo.optString("tmdb", "");

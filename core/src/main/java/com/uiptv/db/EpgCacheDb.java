@@ -288,7 +288,14 @@ public final class EpgCacheDb {
         for (Match match:matches) unique.putIfAbsent(new ChannelKey(match.identity().accountId(),match.identity().providerId()),match);
         try (Connection c = open(true)) {
             return mapChannelsTransaction(c, unique.values(), now, preserveExistingMappings);
-        } catch (Exception error) { throw failure(error); }
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw failure(error);
+        } catch (SQLException | java.io.IOException error) {
+            throw failure(error);
+        } catch (RuntimeException error) {
+            throw failure(error);
+        }
     }
 
     private boolean mapChannelsTransaction(Connection c, Collection<Match> matches, long now,
@@ -307,16 +314,27 @@ public final class EpgCacheDb {
                     readDeclaredCountries(c), new HashMap<>(), now);
             for (Match match : matches) {
                 List<Link> previous = readPreviousMappings(match, queries);
-                if (preserveExistingMappings && previous.stream().anyMatch(prior -> prior.signature().equals(match.identity().signature()))) continue;
-                List<Link> links = resolveLinks(match, previous, queries);
-                if (previous.equals(links)) continue;
-                changed = true;
-                changedIdentities.add(new EpgChangeNotifications.ProviderIdentity(
-                        match.identity().accountId(), match.identity().providerId()));
-                delete.setString(1, match.identity().accountId()); delete.setString(2, match.identity().providerId()); delete.addBatch();
-                for (Link link : links) {
-                    insert.setString(1, match.identity().accountId()); insert.setString(2, match.identity().providerId()); insert.setString(3, link.signature());
-                    insert.setString(4, link.source()); insert.setString(5, link.guide()); insert.setInt(6, link.priority()); insert.addBatch();
+                boolean sameSignature = preserveExistingMappings
+                        && previous.stream().anyMatch(prior -> prior.signature().equals(match.identity().signature()));
+                if (!sameSignature) {
+                    List<Link> links = resolveLinks(match, previous, queries);
+                    if (!previous.equals(links)) {
+                        changed = true;
+                        changedIdentities.add(new EpgChangeNotifications.ProviderIdentity(
+                                match.identity().accountId(), match.identity().providerId()));
+                        delete.setString(1, match.identity().accountId());
+                        delete.setString(2, match.identity().providerId());
+                        delete.addBatch();
+                        for (Link link : links) {
+                            insert.setString(1, match.identity().accountId());
+                            insert.setString(2, match.identity().providerId());
+                            insert.setString(3, link.signature());
+                            insert.setString(4, link.source());
+                            insert.setString(5, link.guide());
+                            insert.setInt(6, link.priority());
+                            insert.addBatch();
+                        }
+                    }
                 }
             }
             delete.executeBatch();

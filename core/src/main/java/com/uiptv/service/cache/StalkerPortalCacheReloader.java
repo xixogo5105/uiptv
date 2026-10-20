@@ -156,18 +156,17 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
         List<Category> kept = new ArrayList<>();
         int removed = 0;
         for (Category category : categories) {
-            if (category == null) {
-                continue;
+            if (category != null) {
+                String categoryId = canonicalCategoryId(category.getCategoryId(),
+                        normalization.canonicalCategoryIdByOriginalId());
+                boolean hadChannels = categoryIdsBefore.contains(categoryId);
+                boolean hasChannels = categoryIdsAfter.contains(categoryId);
+                if (hadChannels && !hasChannels) {
+                    removed++;
+                } else {
+                    kept.add(category);
+                }
             }
-            String categoryId = canonicalCategoryId(category.getCategoryId(),
-                    normalization.canonicalCategoryIdByOriginalId());
-            boolean hadChannels = categoryIdsBefore.contains(categoryId);
-            boolean hasChannels = categoryIdsAfter.contains(categoryId);
-            if (hadChannels && !hasChannels) {
-                removed++;
-                continue;
-            }
-            kept.add(category);
         }
         return new DerivedCategoryCascade(kept, removed);
     }

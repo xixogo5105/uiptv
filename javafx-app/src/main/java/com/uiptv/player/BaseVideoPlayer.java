@@ -1027,7 +1027,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
                 }
             });
             try {
-                latch.await(10, TimeUnit.SECONDS);
+                if (!latch.await(10, TimeUnit.SECONDS)) {
+                    com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class,
+                            "Timed out waiting for JavaFX player cleanup during reload");
+                }
             } catch (InterruptedException _) {
                 // Preserve interruption while waiting for JavaFX to finish PiP cleanup.
                 Thread.currentThread().interrupt();

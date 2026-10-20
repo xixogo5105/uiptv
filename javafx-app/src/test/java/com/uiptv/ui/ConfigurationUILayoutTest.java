@@ -149,7 +149,7 @@ class ConfigurationUILayoutTest extends DbBackedUiTest {
 
     private static void collectRowsWithLabelAndPill(Node node, List<Node> found) {
         if (node instanceof Parent parent) {
-            boolean hasLabel = parent.getChildrenUnmodifiable().stream().anyMatch(c -> c instanceof Labeled);
+            boolean hasLabel = parent.getChildrenUnmodifiable().stream().anyMatch(Labeled.class::isInstance);
             boolean hasPill = parent.getChildrenUnmodifiable().stream()
                     .anyMatch(c -> c.getStyleClass().contains("uiptv-pill-bar"));
             if (hasLabel && hasPill) {

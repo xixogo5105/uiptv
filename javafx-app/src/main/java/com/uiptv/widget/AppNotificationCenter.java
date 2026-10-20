@@ -19,6 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class AppNotificationCenter {
+    private static final Object DISMISS_ACTION_KEY = new Object();
+    private static final Object CLOSE_BUTTON_KEY = new Object();
     private static final Duration DISPLAY_DURATION = Duration.seconds(18);
     private static final Duration FADE_IN_DURATION = Duration.millis(180);
     private static final Duration FADE_OUT_DURATION = Duration.millis(260);
@@ -101,9 +103,9 @@ public final class AppNotificationCenter {
             timer.stop();
             fadeOutAndRemove(card, onDismiss);
         };
-        card.getProperties().put(DismissAction.class, dismissAction);
+        card.getProperties().put(DISMISS_ACTION_KEY, dismissAction);
 
-        Button closeButton = (Button) card.getProperties().get(CloseButton.class);
+        Button closeButton = (Button) card.getProperties().get(CLOSE_BUTTON_KEY);
         if (closeButton != null) {
             closeButton.setOnAction(event -> dismissAction.run());
         }
@@ -154,12 +156,12 @@ public final class AppNotificationCenter {
         StackPane card = new StackPane(content);
         card.getStyleClass().addAll("uiptv-notification-card", type.styleClass);
         card.setMaxWidth(Double.MAX_VALUE);
-        card.getProperties().put(CloseButton.class, closeButton);
+        card.getProperties().put(CLOSE_BUTTON_KEY, closeButton);
         return card;
     }
 
     private static void dismiss(Node node) {
-        Object action = node == null ? null : node.getProperties().get(DismissAction.class);
+        Object action = node == null ? null : node.getProperties().get(DISMISS_ACTION_KEY);
         if (action instanceof Runnable runnable) {
             runnable.run();
         }
@@ -213,9 +215,4 @@ public final class AppNotificationCenter {
         }
     }
 
-    private static final class DismissAction {
-    }
-
-    private static final class CloseButton {
-    }
 }

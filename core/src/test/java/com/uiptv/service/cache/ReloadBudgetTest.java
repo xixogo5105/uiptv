@@ -37,7 +37,7 @@ class ReloadBudgetTest {
     }
 
     @Test
-    void expired_isTrueOnceTheDurationHasElapsed() throws InterruptedException {
+    void expired_isTrueOnceTheDurationHasElapsed() {
         ReloadBudget budget = ReloadBudget.start(Duration.ofMillis(1));
         LockSupport.parkNanos(Duration.ofMillis(20).toNanos());
 

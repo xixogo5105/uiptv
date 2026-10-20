@@ -89,7 +89,7 @@ class Slf4jBackendLevelTest {
     }
 
     @Test
-    void systemPropertyOverridesTheConfigurationFile() throws IOException {
+    void systemPropertyOverridesTheConfigurationFile() {
         // This is the whole mechanism: the file cannot raise the level for --show-logs, only a
         // system property can, because SimpleLoggerConfiguration.getStringProperty checks
         // System.getProperty first and only then the loaded file.

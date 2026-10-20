@@ -349,7 +349,7 @@ public class EpgCacheRefreshService {
             try {
                 XmltvGuide guide=loader.downloadSource(source);
                 commit(token,() -> { db.replaceSource(id,guide.programmes(),guide.names(),guide.qualityNames(),guide.icons(),now,now+refreshMillis()); db.mapChannels(EpgCacheApplicationService.matches(account,channels,sources),System.currentTimeMillis()); });
-            } catch (InterruptedException error) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
                 return;
             } catch (java.io.IOException | javax.xml.stream.XMLStreamException | RuntimeException error) {

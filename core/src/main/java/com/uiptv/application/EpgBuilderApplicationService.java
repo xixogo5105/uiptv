@@ -261,7 +261,8 @@ public class EpgBuilderApplicationService {
 
     private record TargetInventory(Map<Target, JSONObject> targets, JSONObject inventory) { }
 
-    private Prepared prepare(String databasePath, JSONObject bundle) throws Exception {
+    private Prepared prepare(String databasePath, JSONObject bundle)
+            throws java.io.IOException, java.sql.SQLException, java.security.NoSuchAlgorithmException {
         validateSchema(bundle);
         boolean sharedGuides = bundle.optBoolean("shared_guides", false);
         TargetInventory targetInventory = readTargetInventory(databasePath, bundle, sharedGuides);
@@ -437,7 +438,8 @@ public class EpgBuilderApplicationService {
         return new JSONObject(Files.readString(Path.of(bundlePath)));
     }
 
-    public JSONObject importBundle(String databasePath, String bundlePath) throws Exception {
+    public JSONObject importBundle(String databasePath, String bundlePath)
+            throws java.io.IOException, java.sql.SQLException, java.security.NoSuchAlgorithmException {
         selectDatabase(databasePath);
         JSONObject bundle = readBundle(bundlePath);
         Prepared prepared = prepare(databasePath, bundle);
@@ -448,13 +450,16 @@ public class EpgBuilderApplicationService {
                 // Publish that decision, rather than retaining the pre-lock binding list.
                 prepared.matches().clear();
                 prepared.matches().addAll(current.matches());
-            } catch (Exception error) { throw new IllegalArgumentException("Inventory changed before publication", error); }
+            } catch (java.io.IOException | java.sql.SQLException | java.security.NoSuchAlgorithmException error) {
+                throw new IllegalArgumentException("Inventory changed before publication", error);
+            }
         });
         return new JSONObject().put("success", true).put("sources_imported", prepared.sources().size())
                 .put("mappings_applied", prepared.matches().size()).put("programmes_imported", prepared.programmes());
     }
 
-    public JSONObject validateBundle(String databasePath, String bundlePath) throws Exception {
+    public JSONObject validateBundle(String databasePath, String bundlePath)
+            throws java.io.IOException, java.sql.SQLException, java.security.NoSuchAlgorithmException {
         selectDatabase(databasePath);
         prepare(databasePath, readBundle(bundlePath));
         return new JSONObject().put("valid", true).put("warnings", new JSONArray());

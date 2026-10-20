@@ -85,8 +85,7 @@ public class StalkerPortalParser implements AccountParser {
             case SERIAL_CUT:
                 account.setSerialNumber(value);
                 break;
-            case DEVICE_ID:
-            case DEVICE_ID_1:
+            case DEVICE_ID, DEVICE_ID_1:
                 account.setDeviceId1(value);
                 break;
             case DEVICE_ID_2:

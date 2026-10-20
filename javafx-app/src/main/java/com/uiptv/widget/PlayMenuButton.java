@@ -1,5 +1,6 @@
 package com.uiptv.widget;
 
+import javafx.event.Event;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Tooltip;
@@ -37,7 +38,7 @@ public class PlayMenuButton extends Button implements HoverRevealAction {
         setFocusTraversable(true);
         setAccessibleText(accessibleText);
         setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
-        addEventHandler(MouseEvent.MOUSE_CLICKED, event -> event.consume());
+        addEventHandler(MouseEvent.MOUSE_CLICKED, Event::consume);
 
         // Hidden until revealed, but still hit-testable so the reveal triggers reliably and a
         // click that lands before the hover is processed still opens the menu.

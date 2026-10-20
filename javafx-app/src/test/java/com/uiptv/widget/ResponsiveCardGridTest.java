@@ -797,13 +797,12 @@ class ResponsiveCardGridTest {
                 Label label = new Label(item);
                 label.setMinWidth(0);
                 label.setMaxWidth(Double.MAX_VALUE);
-                VBox card = new VBox(label) {
+                return new VBox(label) {
                     @Override
                     protected double computePrefWidth(double height) {
                         return 1400;
                     }
                 };
-                return card;
             });
             cardGrid.setItems(FXCollections.observableArrayList("a", "b"));
             cardGrid.setCardWidthRange(200, 300);

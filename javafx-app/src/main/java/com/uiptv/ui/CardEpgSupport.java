@@ -82,7 +82,7 @@ final class CardEpgSupport {
         EpgModeUI.observeCache(owner, () -> {
             if (!EpgModeUI.isFeatureEnabled() || EpgModeUI.isPlaybackOnly()) stop();
             else { clock.play(); retryAfterLayout(); queue(); }
-            attached.values().forEach(binding -> { binding.refreshAt = 0; });
+                attached.values().forEach(binding -> binding.refreshAt = 0);
         });
     }
 
@@ -200,9 +200,8 @@ final class CardEpgSupport {
     }
 
     private boolean visible(Region card) {
-        if (card.getScene() == null || card.getWidth() <= 0 || card.getHeight() <= 0) return false;
-        if (!visibleInWindow(card) || !visibleInAncestors(card)) return false;
-        return true;
+        return card.getScene() != null && card.getWidth() > 0 && card.getHeight() > 0
+                && visibleInWindow(card) && visibleInAncestors(card);
     }
 
     private boolean visibleInWindow(Region card) {
@@ -282,13 +281,14 @@ final class CardEpgSupport {
             if (Thread.currentThread().isInterrupted()) return;
             var allowed = new java.util.concurrent.CompletableFuture<Boolean>();
             Platform.runLater(() -> allowed.complete(request == revision.get() && attached.containsKey(entry.getKey()) && visible(entry.getKey())));
-            if (!allowed.get()) continue;
-            LiveGuideApplicationService.Row source = entry.getValue().source.get();
-            if (source != null) {
-                sources.add(source);
-                permitted.add(entry);
-            } else {
-                scheduleEmptySummary(request, entry);
+            if (Boolean.TRUE.equals(allowed.get())) {
+                LiveGuideApplicationService.Row source = entry.getValue().source.get();
+                if (source != null) {
+                    sources.add(source);
+                    permitted.add(entry);
+                } else {
+                    scheduleEmptySummary(request, entry);
+                }
             }
         }
     }

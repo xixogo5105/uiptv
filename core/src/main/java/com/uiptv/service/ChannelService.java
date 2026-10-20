@@ -164,7 +164,8 @@ public class ChannelService {
                                                    Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
                                                    Consumer<PageProgress> progressCallback, boolean streamCache) {
         List<Channel> cachedChannels = streamCache
-                ? getVodSeriesFromDbCachePaged(account, dbId, callback, isCancelled, progressCallback)
+                ? getVodSeriesFromDbCachePaged(account, dbId, callback,
+                isCancelled == null ? () -> false : isCancelled::get, progressCallback)
                 : getVodSeriesFromDbCache(account, dbId);
         log(logger, "Loaded channels from local cache for category " + categoryId + ".");
         List<Channel> resolved = maybeFilterChannels(dedupeChannels(cachedChannels), true, account);
@@ -194,7 +195,7 @@ public class ChannelService {
     }
 
     private List<Channel> getVodSeriesFromDbCachePaged(Account account, String dbCategoryId,
-                                                        Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                                        Consumer<List<Channel>> callback, BooleanSupplier isCancelled,
                                                         Consumer<PageProgress> progressCallback) {
         int total = account.getAction() == vod
                 ? VodChannelDb.get().getChannelCount(account, dbCategoryId)
@@ -202,7 +203,7 @@ public class ChannelService {
         int pageCount = Math.max(1, (int) Math.ceil((double) total / VOD_SERIES_DB_PAGE_SIZE));
         List<Channel> channels = new ArrayList<>(total);
         for (int page = 0; page < pageCount; page++) {
-            if (Thread.currentThread().isInterrupted() || isCancelled != null && isCancelled.get()) {
+            if (Thread.currentThread().isInterrupted() || isCancelled != null && isCancelled.getAsBoolean()) {
                 break;
             }
             int offset = page * VOD_SERIES_DB_PAGE_SIZE;

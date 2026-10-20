@@ -57,7 +57,7 @@ class EpgResolutionTest extends DbBackedTest {
         assertEquals(List.of(godzilla, new EpgProgramme("Movie", "", 3000, 4000)), normalized);
         assertEquals(1, EpgSchedules.normalize(List.of(godzilla, new EpgProgramme("Movie", "", 1500, 2000))).size());
     }
-    @Test void nativeCatalogueDoesNotDownloadXmlBeforeChannelNativeResolution() throws Exception {
+    @Test void nativeCatalogueDoesNotDownloadXmlBeforeChannelNativeResolution() {
         account.setType(AccountType.XTREME_API); account.setEpg("https://example.invalid/account.xml");
         config.setGlobalEpgSource("https://example.invalid/global.xml"); ConfigurationService.getInstance().save(config);
         try (var http = mockStatic(HttpUtil.class)) {

@@ -76,7 +76,7 @@ public record XmltvGuide(Map<String, List<EpgProgramme>> programmes, Map<String,
     }
 
     private static void handleStartElement(XMLStreamReader reader, ParseContext context)
-            throws XMLStreamException, java.io.IOException {
+            throws XMLStreamException {
         switch (reader.getLocalName()) {
             case CHANNEL_ELEMENT -> context.id = reader.getAttributeValue(null, "id");
             case "display-name" -> readDisplayName(reader, context);

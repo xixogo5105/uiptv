@@ -665,7 +665,7 @@ public class ManageAccountUI extends VBox {
         parentalLockSwitch.selectedProperty().addListener((observable, oldVal, newVal) -> {
             // If disabling parental lock (newVal == false) and a password is configured,
             // require the parental password before allowing the change.
-            if (oldVal && !newVal) {
+            if (oldVal.booleanValue() && !newVal.booleanValue()) {
                 boolean allowed = FilterLockDialogs.ensureUnlocked(this, "filterLockUnlockManageFiltersReason");
                 if (!allowed) {
                     // revert switch

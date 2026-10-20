@@ -1,5 +1,6 @@
 package com.uiptv.ui;
 
+import javafx.event.Event;
 import com.uiptv.model.Account;
 import com.uiptv.model.AccountMediaContext;
 import com.uiptv.model.Channel;
@@ -1522,21 +1523,19 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
         String normalizedSeason = normalizeNumber(firstNonBlank(season, "1"));
         List<Channel> channels = new ArrayList<>();
         for (WatchingEpisode episode : data.episodes) {
-            if (episode == null || episode.channel == null) {
-                continue;
+            if (episode != null && episode.channel != null) {
+                String episodeSeason = normalizeNumber(firstNonBlank(episode.season, "1"));
+                if (normalizedSeason.equals(episodeSeason) && !isBlank(episode.channel.getChannelId())) {
+                    Channel channel = new Channel();
+                    channel.setChannelId(episode.channel.getChannelId());
+                    channel.setName(firstNonBlank(episode.title, episode.channel.getName()));
+                    channel.setCmd(episode.channel.getCmd());
+                    channel.setSeason(episode.season);
+                    channel.setEpisodeNum(episode.episodeNum);
+                    channel.setLogo(firstNonBlank(episode.imageUrl, episode.channel.getLogo()));
+                    channels.add(channel);
+                }
             }
-            String episodeSeason = normalizeNumber(firstNonBlank(episode.season, "1"));
-            if (!normalizedSeason.equals(episodeSeason) || isBlank(episode.channel.getChannelId())) {
-                continue;
-            }
-            Channel channel = new Channel();
-            channel.setChannelId(episode.channel.getChannelId());
-            channel.setName(firstNonBlank(episode.title, episode.channel.getName()));
-            channel.setCmd(episode.channel.getCmd());
-            channel.setSeason(episode.season);
-            channel.setEpisodeNum(episode.episodeNum);
-            channel.setLogo(firstNonBlank(episode.imageUrl, episode.channel.getLogo()));
-            channels.add(channel);
         }
         return channels;
     }
@@ -1589,9 +1588,7 @@ public abstract class BaseWatchingNowUI extends VBox implements SearchTarget {
 
         Button play = new PlayMenuButton(I18n.tr("autoPlay2"));
         play.getStyleClass().add("episode-play-button");
-        play.setOnAction(event -> {
-            event.consume();
-        });
+        play.setOnAction(Event::consume);
         badges.getChildren().add(play);
         return badges;
     }

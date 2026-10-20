@@ -641,7 +641,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         channelGrid.setDetachedCardCachingEnabled(true);
         channelGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_CHANNELS_FOR, categoryTitle)));
         channelGrid.setOnItemActivated(this::playOrShowSeries);
-        channelGrid.setContextMenuFactory((item, selectedItems, owner) -> createChannelContextMenu(item, selectedItems, owner));
+        channelGrid.setContextMenuFactory(this::createChannelContextMenu);
         channelGrid.setCardDisposer(card -> {
             if (card instanceof BookmarkCard bookmarkCard) {
                 bookmarkCard.dispose();

@@ -1291,7 +1291,11 @@ public class ConfigurationUI extends VBox {
         } else {
             startServerButton.getStyleClass().remove(STYLE_CLASS_DANGEROUS);
         }
-        startServerButton.setText(running ? I18n.tr("configStopServer") : I18n.tr("configStartServer"));
+        if (running) {
+            startServerButton.setText(I18n.tr("configStopServer"));
+        } else {
+            startServerButton.setText(I18n.tr("configStartServer"));
+        }
         openServerLink.setVisible(running);
         openServerLink.setManaged(running);
         openSecureServerLink.setVisible(running && isHttpsServerConfigured());

@@ -219,26 +219,27 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             List<BookmarkItem> allLoadedItems = new ArrayList<>();
             Map<String, Account> accountByName = AccountService.getInstance().getAll();
 
-            while (true) {
+            boolean finished = false;
+            while (!finished) {
                 if (generation != reloadGeneration.get()) {
                     return;
                 }
 
                 List<Bookmark> batch = BookmarkService.getInstance().readPage(offset, BOOKMARK_DB_FETCH_BATCH_SIZE);
                 if (batch.isEmpty()) {
-                    break;
+                    finished = true;
+                } else {
+                    BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(batch, accountByName);
+                    List<BookmarkItem> batchItems = buildLoadedBookmarkItems(generation, batch, context, allLoadedItems);
+                    if (generation != reloadGeneration.get()) {
+                        return;
+                    }
+                    if (batchItems.isEmpty()) {
+                        finished = true;
+                    } else {
+                        offset += BOOKMARK_DB_FETCH_BATCH_SIZE;
+                    }
                 }
-
-                BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(batch, accountByName);
-                List<BookmarkItem> batchItems = buildLoadedBookmarkItems(generation, batch, context, allLoadedItems);
-                if (generation != reloadGeneration.get()) {
-                    return;
-                }
-                if (batchItems.isEmpty()) {
-                    break;
-                }
-
-                offset += BOOKMARK_DB_FETCH_BATCH_SIZE;
             }
 
             long revisionAfterRead = BookmarkService.getInstance().getChangeRevision();

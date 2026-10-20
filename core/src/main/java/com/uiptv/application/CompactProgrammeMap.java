@@ -19,6 +19,10 @@ final class CompactProgrammeMap extends AbstractMap<String, List<EpgProgramme>> 
     long estimatedBytes() { return bytes + channels.size() * 192L + 512 * 1024; }
     @Override public boolean containsKey(Object key) { return channels.containsKey(key); }
     @Override public int size() { return channels.size(); }
+    @Override public boolean equals(Object other) {
+        return this == other || other instanceof Map<?, ?> map && entrySet().equals(map.entrySet());
+    }
+    @Override public int hashCode() { return entrySet().hashCode(); }
 
     @Override public synchronized List<EpgProgramme> get(Object key) {
         List<byte[]> chunks = channels.get(key);

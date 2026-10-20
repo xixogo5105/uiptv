@@ -87,7 +87,7 @@ public class WatchingNowUI extends VBox {
         vodDelegate = new VodWatchingNowUI();
 
         modePillBar = new PillBar<>(
-                item -> SERIES_TAB.equals(item) ? I18n.tr("autoSeries") : I18n.tr("autoVod"),
+                item -> modeLabel(item),
                 item -> item
         );
         modePillBar.setItems(List.of(SERIES_TAB, VOD_TAB));
@@ -124,6 +124,13 @@ public class WatchingNowUI extends VBox {
         VBox.setVgrow(contentPane, Priority.ALWAYS);
         modePillBar.setSelectedItem(SERIES_TAB);
         showSelectedMode(SERIES_TAB);
+    }
+
+    private String modeLabel(String item) {
+        if (SERIES_TAB.equals(item)) {
+            return I18n.tr("autoSeries");
+        }
+        return I18n.tr("autoVod");
     }
 
     private void scheduleSearchQuery(String query) {

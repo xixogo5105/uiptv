@@ -69,7 +69,7 @@ class StalkerPortalPlayerServiceTest {
     }
 
     @Test
-    void createLinkTimeout_cancelsHttpAndThrowsTerminalTimeout() throws Exception {
+    void createLinkTimeout_cancelsHttpAndThrowsTerminalTimeout() {
         CompletableFuture<com.uiptv.util.HttpUtil.HttpResult> httpFuture = new CompletableFuture<>();
 
         java.lang.reflect.InvocationTargetException invocation = assertThrows(

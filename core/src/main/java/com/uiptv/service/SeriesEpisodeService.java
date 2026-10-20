@@ -12,6 +12,7 @@ import com.uiptv.util.XtremeApiParser;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -124,7 +125,8 @@ public class SeriesEpisodeService {
         }
 
         if (account.getType() == STALKER_PORTAL) {
-            return fetchStalkerEpisodes(account, categoryId, seriesId, isCancelled, partialCallback);
+            return fetchStalkerEpisodes(account, categoryId, seriesId,
+                    isCancelled == null ? () -> false : isCancelled::get, partialCallback);
         }
 
         return new EpisodeList();
@@ -147,15 +149,15 @@ public class SeriesEpisodeService {
     }
 
     private EpisodeList fetchStalkerEpisodes(Account account, String categoryId, String seriesId,
-                                              Supplier<Boolean> isCancelled, Consumer<EpisodeList> partialCallback) {
-        Supplier<Boolean> cancellationCheck = isCancelled != null ? isCancelled : () -> false;
+                                              BooleanSupplier isCancelled, Consumer<EpisodeList> partialCallback) {
+        BooleanSupplier cancellationCheck = isCancelled != null ? isCancelled : () -> false;
         List<Channel> seriesChannels = new ArrayList<>();
         try {
             List<Channel> fetchedChannels = ChannelService.getInstance().getSeries(categoryId, seriesId, account, page -> {
                 if (page == null || page.isEmpty()) return;
                 seriesChannels.addAll(page);
                 publishPartial(partialCallback, toEpisodeList(seriesChannels));
-            }, cancellationCheck);
+            }, cancellationCheck::getAsBoolean);
             if (fetchedChannels != null && !fetchedChannels.isEmpty()) {
                 seriesChannels.clear();
                 seriesChannels.addAll(fetchedChannels);
