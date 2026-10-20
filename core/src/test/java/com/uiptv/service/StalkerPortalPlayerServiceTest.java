@@ -1,6 +1,8 @@
 package com.uiptv.service;
 
+import com.uiptv.model.Account;
 import com.uiptv.model.Channel;
+import com.uiptv.util.AccountType;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -157,6 +159,49 @@ class StalkerPortalPlayerServiceTest {
                 ));
 
         assertEquals(1, attemptedCandidates.get());
+    }
+
+    @Test
+    void privateParameterAndPlaceholderHelpersCoverSeriesAndLiveFallbackBranches() throws Exception {
+        Account account = new Account();
+        account.setType(AccountType.STALKER_PORTAL);
+        account.setAction(Account.AccountAction.series);
+        Channel episode = new Channel();
+        episode.setEpisodeNum("episode-7");
+        episode.setChannelId("provider-7");
+
+        assertEquals("series-value", invoke("resolveSeriesParam", new Class[]{Account.class, Channel.class, String.class},
+                account, episode, "series-value"));
+        assertEquals("episode-7", invoke("resolveSeriesParam", new Class[]{Account.class, Channel.class, String.class},
+                account, episode, ""));
+        episode.setEpisodeNum("");
+        assertEquals("provider-7", invoke("resolveSeriesParam", new Class[]{Account.class, Channel.class, String.class},
+                account, episode, ""));
+        assertEquals("", invoke("resolveSeriesParam", new Class[]{Account.class, Channel.class, String.class},
+                account, null, ""));
+        assertFalse((Boolean) invoke("shouldTryLiveCmdFallback", new Class[]{Account.class, Channel.class}, account, episode));
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> params = (Map<String, String>) invokeStatic("getParams",
+                new Class[]{Account.class, String.class, String.class}, account, "cmd", "7:extra");
+        assertEquals("vod", params.get("type"));
+        assertEquals("7:extra", params.get("series"));
+        assertEquals("cmd", params.get("cmd"));
+
+        assertEquals("http://origin/live.php?stream=77&x=1", invoke("normalizeSeriesStreamPlaceholder",
+                new Class[]{String.class, String.class}, "http://origin/live.php?stream=.&x=1", "77"));
+        assertEquals("http://origin/live.php?stream=77", invoke("normalizeSeriesStreamPlaceholder",
+                new Class[]{String.class, String.class}, "http://origin/live.php?stream=.", "77"));
+        assertEquals("http://origin/live.php?stream=77&x=1", invoke("normalizeSeriesStreamPlaceholder",
+                new Class[]{String.class, String.class}, "http://origin/live.php?stream=&x=1", "77"));
+        assertEquals("http://origin/live.php?stream=77", invoke("normalizeSeriesStreamPlaceholder",
+                new Class[]{String.class, String.class}, "http://origin/live.php?stream=", "77"));
+        assertEquals("original", invokeStatic("normalizeResolvedBase", new Class[]{String.class, String.class}, "original", "not a uri"));
+        assertEquals("", invokeStatic("normalizeResolvedBase", new Class[]{String.class, String.class}, "", "http://origin/base"));
+        assertEquals("", invoke("extractStreamToken", new Class[]{String.class}, "letters"));
+        assertFalse((Boolean) invokeStatic("isUsableResolvedLiveUrl", new Class[]{String.class}, " "));
+        assertEquals("resolved", invokeStatic("rescueResolvedLiveUrlWithCandidates", new Class[]{String.class, List.class},
+                "resolved", List.of()));
     }
 
     private Object invoke(String name, Class<?>[] types, Object... args) throws Exception {

@@ -417,8 +417,14 @@ class HttpProxyStreamServerTest {
         assertEquals("plain", new String((byte[]) invoke(handler, "rewriteHlsPlaylist",
                 new Class[]{byte[].class, String.class}, "plain".getBytes(StandardCharsets.UTF_8),
                 "http://provider.test/live"), StandardCharsets.UTF_8));
-        String playlist = "#EXTM3U\n#EXT-X-KEY:URI=\"data:text/plain,abc\"\n"
-                + "file:///tmp/segment.ts\nblob:segment\n/proxy-stream?src=already\ninvalid uri\n";
+        String playlist = """
+                #EXTM3U
+                #EXT-X-KEY:URI="data:text/plain,abc"
+                file:///tmp/segment.ts
+                blob:segment
+                /proxy-stream?src=already
+                invalid uri
+                """;
         String rewritten = new String((byte[]) invoke(handler, "rewriteHlsPlaylist",
                 new Class[]{byte[].class, String.class}, playlist.getBytes(StandardCharsets.UTF_8),
                 "http://provider.test/live/master.m3u8"), StandardCharsets.UTF_8);

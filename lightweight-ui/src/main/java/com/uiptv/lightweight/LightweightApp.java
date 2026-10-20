@@ -23,6 +23,8 @@ import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import java.util.function.Consumer;
+
 public class LightweightApp {
     private ConfigurationService configurationService;
     private ConfigurationApplicationService configurationApplicationService;
@@ -36,6 +38,9 @@ public class LightweightApp {
     private Button clearButton;
     private final ObservableList<String> logEntries = FXCollections.observableArrayList();
     private boolean logsVisible = false;
+    private Timeline serverStatusMonitor;
+    private ConfigurationChangeListener configurationChangeListener;
+    private Consumer<String> logListener;
 
     public static void launch() {
         Platform.startup(() -> {
@@ -48,6 +53,8 @@ public class LightweightApp {
     private void start(Stage primaryStage) {
         configurationService = ConfigurationService.getInstance();
         configurationApplicationService = ConfigurationApplicationService.getInstance();
+
+        primaryStage.setOnHidden(_ -> dispose());
 
 primaryStage.setTitle("UIPTV - Lightweight Mode");
         BorderPane root = buildRoot();
@@ -70,7 +77,7 @@ primaryStage.setTitle("UIPTV - Lightweight Mode");
             });
         }
 
-        ConfigurationChangeListener configurationChangeListener = _ -> Platform.runLater(() -> {
+        configurationChangeListener = _ -> Platform.runLater(() -> {
             refreshServerStatus();
             applyTheme(root);
             updateClearButtonVisibility();
@@ -79,16 +86,32 @@ primaryStage.setTitle("UIPTV - Lightweight Mode");
 
         applyTheme(root);
 
-        AppLog.registerListener(this::appendLog);
+        logListener = this::appendLog;
+        AppLog.registerListener(logListener);
 
         // Start server status monitor
         startServerStatusMonitor();
     }
 
     private void startServerStatusMonitor() {
-        Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(1), _ -> refreshServerStatus()));
-        timeline.setCycleCount(Animation.INDEFINITE);
-        timeline.play();
+        serverStatusMonitor = new Timeline(new KeyFrame(Duration.seconds(1), _ -> refreshServerStatus()));
+        serverStatusMonitor.setCycleCount(Animation.INDEFINITE);
+        serverStatusMonitor.play();
+    }
+
+    private void dispose() {
+        if (serverStatusMonitor != null) {
+            serverStatusMonitor.stop();
+            serverStatusMonitor = null;
+        }
+        if (configurationService != null && configurationChangeListener != null) {
+            configurationService.removeChangeListener(configurationChangeListener);
+            configurationChangeListener = null;
+        }
+        if (logListener != null) {
+            AppLog.unregisterListener(logListener);
+            logListener = null;
+        }
     }
 
     private BorderPane buildRoot() {

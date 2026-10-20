@@ -1,10 +1,12 @@
 package com.uiptv.application;
 
+import com.uiptv.db.EpgCacheDb;
 import com.uiptv.db.SQLConnection;
 import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DbBackedTest;
 import org.junit.jupiter.api.*;
 import java.nio.file.Files;
+import java.lang.reflect.Method;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
@@ -41,5 +43,25 @@ class EpgRefreshLifecycleTest extends DbBackedTest {
             EpgCacheRefreshService.stop();
             Thread.setDefaultUncaughtExceptionHandler(previous);
         }
+    }
+
+    @Test void lifecyclePauseListenersAndDueChecksAreIdempotent() throws Exception {
+        EpgCacheRefreshService.CataloguePause pause = EpgCacheRefreshService.pauseForCatalogueReload();
+        pause.close();
+        pause.close();
+
+        Runnable listener = () -> { };
+        EpgCacheRefreshService.addListener(listener);
+        EpgCacheRefreshService.removeListener(listener);
+        EpgCacheRefreshService.removeListener(listener);
+        EpgCacheRefreshService.requestRefresh();
+        EpgCacheRefreshService.stopForApplicationExit();
+        EpgCacheRefreshService.stopServer();
+
+        Method due = EpgCacheRefreshService.class.getDeclaredMethod("due", EpgCacheDb.SourceState.class, long.class);
+        due.setAccessible(true);
+        long now = System.currentTimeMillis();
+        assertTrue((Boolean) due.invoke(null, new EpgCacheDb.SourceState(0, 0, ""), now));
+        assertFalse((Boolean) due.invoke(null, new EpgCacheDb.SourceState(now, now + 60_000, "warning"), now));
     }
 }

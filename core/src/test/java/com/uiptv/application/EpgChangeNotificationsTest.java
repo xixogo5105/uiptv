@@ -53,7 +53,7 @@ class EpgChangeNotificationsTest extends DbBackedTest {
     void restorationPublishesResyncEventAndGenerationMismatchRequestsResync() {
         EpgChangeNotifications.Snapshot before = EpgChangeNotifications.snapshot();
         var received = new CopyOnWriteArrayList<EpgChangeNotifications.Notification>();
-        try (var subscription = EpgChangeNotifications.subscribe(before.revision(), received::add)) {
+        try (var _ = EpgChangeNotifications.subscribe(before.revision(), received::add)) {
             EpgChangeNotifications.databaseRestored();
         }
 

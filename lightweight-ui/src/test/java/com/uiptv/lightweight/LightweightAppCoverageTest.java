@@ -10,11 +10,13 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
+import javafx.scene.control.ListCell;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
 import com.uiptv.util.ServerUrlUtil;
-import org.mockito.MockedStatic;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -32,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LightweightAppCoverageTest {
@@ -91,7 +94,12 @@ class LightweightAppCoverageTest {
             invoke(app, "applyTheme", void.class, root);
             assertFalse(root.getStyleClass().contains("dark-theme"));
 
-            try (MockedStatic<ServerUrlUtil> _ = mockStatic(ServerUrlUtil.class)) {
+            configuration.applyThemeMode(com.uiptv.model.ThemeMode.SYSTEM);
+            ConfigurationService.getInstance().save(configuration);
+            invoke(app, "applyTheme", void.class, root);
+            invoke(app, "isDarkSystemScheme", Boolean.class);
+
+            try (var _ = mockStatic(ServerUrlUtil.class)) {
                 when(ServerUrlUtil.isServerRunning()).thenReturn(false, true);
                 when(ServerUrlUtil.getConfiguredServerPort()).thenReturn("8080");
                 when(ServerUrlUtil.getConfiguredHttpsServerPort()).thenReturn("8443");
@@ -102,6 +110,25 @@ class LightweightAppCoverageTest {
                 invoke(app, "toggleServerAction", void.class);
                 assertTrue(field(app, "httpsPortLabel", Label.class).isVisible());
             }
+
+            ConfigurationApplicationService failingService = mock(ConfigurationApplicationService.class);
+            setField(app, "configurationApplicationService", failingService);
+            try (var _ = mockStatic(ServerUrlUtil.class)) {
+                when(ServerUrlUtil.isServerRunning()).thenReturn(false);
+                doThrow(new IllegalStateException("start failed")).when(failingService).startServer();
+                invoke(app, "toggleServerAction", void.class);
+            }
+
+            Class<?> logCellType = Class.forName("com.uiptv.lightweight.LightweightApp$LogCell");
+            var constructor = logCellType.getDeclaredConstructor();
+            constructor.setAccessible(true);
+            ListCell<?> logCell = (ListCell<?>) constructor.newInstance();
+            Method updateItem = logCellType.getDeclaredMethod("updateItem", String.class, boolean.class);
+            updateItem.setAccessible(true);
+            updateItem.invoke(logCell, "entry", false);
+            assertEquals("entry", logCell.getText());
+            updateItem.invoke(logCell, null, true);
+            assertNull(logCell.getText());
 
             Stage stage = new Stage();
             invoke(app, "start", void.class, stage);

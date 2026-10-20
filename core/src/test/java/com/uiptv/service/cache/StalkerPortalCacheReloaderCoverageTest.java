@@ -91,12 +91,13 @@ class StalkerPortalCacheReloaderCoverageTest {
                 1, 1, List.of(), channels, 1);
         assertTrue((Boolean) recordField(finalEmpty, "complete"));
 
+        Class<?>[] paginationTypes = new Class[]{int.class, long.class, List.class, Map.class, int.class};
+        List<Channel> emptyRows = List.of();
+        List<Channel> repeatedRows = List.of(channel("one", "{}"));
         assertThrows(IllegalStateException.class, () -> invoke("categoryPageResult",
-                new Class[]{int.class, long.class, List.class, Map.class, int.class},
-                1, 3, List.of(), channels, 1));
+                paginationTypes, 1, 3, emptyRows, channels, 1));
         assertThrows(IllegalStateException.class, () -> invoke("categoryPageResult",
-                new Class[]{int.class, long.class, List.class, Map.class, int.class},
-                2, -1, List.of(channel("one", "{}")), channels, 1));
+                paginationTypes, 2, -1, repeatedRows, channels, 1));
         Object continuing = invoke("categoryPageResult",
                 new Class[]{int.class, long.class, List.class, Map.class, int.class},
                 1, -1, List.of(channel("two", "{}")), channels, 1);
@@ -138,10 +139,10 @@ class StalkerPortalCacheReloaderCoverageTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> T recordField(Object record, String name) throws Exception {
-        assertNotNull(record);
-        Method accessor = record.getClass().getDeclaredMethod(name);
+    private static <T> T recordField(Object recordValue, String name) throws Exception {
+        assertNotNull(recordValue);
+        Method accessor = recordValue.getClass().getDeclaredMethod(name);
         accessor.setAccessible(true);
-        return (T) accessor.invoke(record);
+        return (T) accessor.invoke(recordValue);
     }
 }

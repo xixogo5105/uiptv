@@ -3,6 +3,7 @@ package com.uiptv.server;
 import com.uiptv.server.html.HttpSpaHtmlServer;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -91,6 +92,16 @@ class StaticAssetHttpServersTest {
         TestHttpExchange traversal = new TestHttpExchange("/images/%2e%2e/secret.png", "GET");
         new HttpImageServer().handle(traversal);
         assertEquals(404, traversal.getResponseCode());
+
+        Method sanitize = HttpImageServer.class.getDeclaredMethod("sanitizeClasspathPath", String.class);
+        sanitize.setAccessible(true);
+        assertEquals("images/icon.svg", sanitize.invoke(null, "images\\icon.svg"));
+        assertNull(sanitize.invoke(null, (Object) null));
+        assertNull(sanitize.invoke(null, ""));
+        assertNull(sanitize.invoke(null, "/absolute.svg"));
+        assertNull(sanitize.invoke(null, "images//icon.svg"));
+        assertNull(sanitize.invoke(null, "images/../secret.svg"));
+        assertNull(sanitize.invoke(null, "images/icon?.svg"));
     }
 
     @Test

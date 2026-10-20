@@ -235,4 +235,22 @@ class EpgBuilderApplicationServiceTest extends DbBackedTest {
         assertThrows(IllegalArgumentException.class, () -> service.exportInventory(missingPath));
         assertFalse(Files.exists(missing));
     }
+
+    @Test void mergeSchedulesCombinesOverlappingSourcesFromRequestFile() throws Exception {
+        long start = now - 60_000;
+        Path request = tempDir.resolve("merge-schedules.json");
+        JSONObject first = new JSONObject().put("title", "First").put("description", "").put("start", start)
+                .put("stop", start + 1_800_000);
+        JSONObject second = new JSONObject().put("title", "Second").put("description", "details").put("start", start + 1_200_000)
+                .put("stop", start + 3_600_000);
+        JSONArray sourceOne = new JSONArray().put(first);
+        JSONArray sourceTwo = new JSONArray().put(second);
+        Files.writeString(request, new JSONObject().put("schedules", new JSONArray()
+                .put(new JSONArray().put(sourceOne).put(sourceTwo))).toString());
+
+        JSONArray schedules = service.mergeSchedules(request.toString()).getJSONArray("schedules");
+        assertEquals(1, schedules.length());
+        assertFalse(schedules.getJSONArray(0).isEmpty());
+        assertEquals("First", schedules.getJSONArray(0).getJSONObject(0).getString("title"));
+    }
 }

@@ -77,19 +77,19 @@ class XtremeApiCacheReloaderCoverageTest {
 
     @Test
     void emptyFetchResultsRespectCensoringAndReturnHandledState() throws Exception {
-        Object emptyResult = record("CategoryFetchResult", Map.of(), 0, 0);
+        Object emptyResult = newNestedRecord("CategoryFetchResult", Map.of(), 0, 0);
         Object handled = invoke("handleEmptyCategoryFetchResult",
                 new Class[]{Account.class, List.class, emptyResult.getClass(), boolean.class, com.uiptv.api.LoggerCallback.class},
                 new Account(), List.of(), emptyResult, false, null);
         assertTrue((Boolean) recordField(handled, "handled"));
 
-        Object removedResult = record("CategoryFetchResult", Map.of(), 0, 2);
+        Object removedResult = newNestedRecord("CategoryFetchResult", Map.of(), 0, 2);
         Object censored = invoke("handleEmptyCategoryFetchResult",
                 new Class[]{Account.class, List.class, removedResult.getClass(), boolean.class, com.uiptv.api.LoggerCallback.class},
                 new Account(), List.of(), removedResult, true, null);
         assertTrue((Boolean) recordField(censored, "handled"));
 
-        Object nonEmptyResult = record("CategoryFetchResult", Map.of(), 1, 1);
+        Object nonEmptyResult = newNestedRecord("CategoryFetchResult", Map.of(), 1, 1);
         Object notHandled = invoke("handleEmptyCategoryFetchResult",
                 new Class[]{Account.class, List.class, nonEmptyResult.getClass(), boolean.class, com.uiptv.api.LoggerCallback.class},
                 new Account(), List.of(), nonEmptyResult, false, null);
@@ -104,7 +104,7 @@ class XtremeApiCacheReloaderCoverageTest {
         return channel;
     }
 
-    private Object record(String name, Object... values) throws Exception {
+    private Object newNestedRecord(String name, Object... values) throws Exception {
         for (Class<?> nested : XtremeApiCacheReloader.class.getDeclaredClasses()) {
             if (nested.getSimpleName().equals(name)) {
                 var constructor = nested.getDeclaredConstructors()[0];
@@ -130,9 +130,9 @@ class XtremeApiCacheReloaderCoverageTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> T recordField(Object record, String name) throws Exception {
-        Method accessor = record.getClass().getDeclaredMethod(name);
+    private static <T> T recordField(Object recordValue, String name) throws Exception {
+        Method accessor = recordValue.getClass().getDeclaredMethod(name);
         accessor.setAccessible(true);
-        return (T) accessor.invoke(record);
+        return (T) accessor.invoke(recordValue);
     }
 }
