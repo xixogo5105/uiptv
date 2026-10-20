@@ -67,7 +67,7 @@ final class CardEpgSupport {
             }
         });
         owner.visibleProperty().addListener((_, _, visible) -> {
-            if (!visible) stop();
+            if (!visible.booleanValue()) stop();
             else if (EpgModeUI.isFeatureEnabled() && !EpgModeUI.isPlaybackOnly()) {
                 attached.keySet().forEach(card -> { observeScroll(card); observeCardBounds(card); });
                 restoreSummaries(); clock.play(); retryAfterLayout(); queue();

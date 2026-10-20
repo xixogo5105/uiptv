@@ -87,7 +87,7 @@ public class WatchingNowUI extends VBox {
         vodDelegate = new VodWatchingNowUI();
 
         modePillBar = new PillBar<>(
-                item -> modeLabel(item),
+                this::modeLabel,
                 item -> item
         );
         modePillBar.setItems(List.of(SERIES_TAB, VOD_TAB));

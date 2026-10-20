@@ -59,7 +59,8 @@ public class SeriesEpisodeService {
             partialCallback.accept(staleCache);
         }
 
-        EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled, partialCallback);
+        EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId,
+                cancellationCheck(isCancelled), partialCallback);
         if (hasEpisodes(fetched)) {
             return fetched;
         }
@@ -90,7 +91,7 @@ public class SeriesEpisodeService {
             return snapshot;
         }
 
-        EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled);
+        EpisodeList fetched = fetchEpisodesFromPortal(account, categoryId, seriesId, cancellationCheck(isCancelled));
         if (hasEpisodes(fetched)) {
             return fetched;
         }
@@ -102,7 +103,7 @@ public class SeriesEpisodeService {
             return new EpisodeList();
         }
         Account seriesAccount = AccountMediaContext.from(account, Account.AccountAction.series).toAccount();
-        EpisodeList fetched = fetchEpisodesFromPortal(seriesAccount, categoryId, seriesId, isCancelled);
+        EpisodeList fetched = fetchEpisodesFromPortal(seriesAccount, categoryId, seriesId, cancellationCheck(isCancelled));
         if (hasEpisodes(fetched)) {
             return fetched;
         }
@@ -113,20 +114,22 @@ public class SeriesEpisodeService {
         return new EpisodeList();
     }
 
-    @SuppressWarnings("java:S4276")
-    private EpisodeList fetchEpisodesFromPortal(Account account, String categoryId, String seriesId, Supplier<Boolean> isCancelled) {
+    private static BooleanSupplier cancellationCheck(Supplier<Boolean> isCancelled) {
+        return isCancelled == null ? () -> false : isCancelled::get;
+    }
+
+    private EpisodeList fetchEpisodesFromPortal(Account account, String categoryId, String seriesId, BooleanSupplier isCancelled) {
         return fetchEpisodesFromPortal(account, categoryId, seriesId, isCancelled, null);
     }
 
     private EpisodeList fetchEpisodesFromPortal(Account account, String categoryId, String seriesId,
-                                                Supplier<Boolean> isCancelled, Consumer<EpisodeList> partialCallback) {
+                                                BooleanSupplier isCancelled, Consumer<EpisodeList> partialCallback) {
         if (account.getType() == XTREME_API) {
             return fetchXtremeEpisodes(account, categoryId, seriesId, partialCallback);
         }
 
         if (account.getType() == STALKER_PORTAL) {
-            return fetchStalkerEpisodes(account, categoryId, seriesId,
-                    isCancelled == null ? () -> false : isCancelled::get, partialCallback);
+            return fetchStalkerEpisodes(account, categoryId, seriesId, isCancelled, partialCallback);
         }
 
         return new EpisodeList();

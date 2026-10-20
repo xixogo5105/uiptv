@@ -3,7 +3,6 @@ package com.uiptv.application;
 import com.uiptv.db.EpgCacheDb;
 import com.uiptv.db.SQLConnection;
 import com.uiptv.model.Account;
-import com.uiptv.model.Bookmark;
 import com.uiptv.model.Channel;
 import com.uiptv.model.Configuration;
 import com.uiptv.service.AccountService;

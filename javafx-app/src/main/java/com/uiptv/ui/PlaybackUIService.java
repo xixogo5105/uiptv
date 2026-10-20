@@ -118,7 +118,7 @@ public final class PlaybackUIService {
             Thread.currentThread().interrupt();
         } catch (PlaybackResolutionException _) {
             showResolutionFailure(request, context, requestSequence, null);
-        } catch (Exception error) {
+        } catch (java.util.concurrent.ExecutionException | IOException error) {
             showResolutionFailure(request, context, requestSequence, error);
         } finally {
             clearPlaybackState(source, requestSequence);
@@ -128,7 +128,7 @@ public final class PlaybackUIService {
     private static void resolveAndLaunch(PlaybackRequest request, Account playbackAccount,
                                          PlaybackModeContext context, long requestSequence,
                                          java.util.concurrent.CompletionStage<Void> ready)
-            throws Exception {
+            throws InterruptedException, java.util.concurrent.ExecutionException, IOException {
         if (!isPlaybackCurrent(requestSequence)) return;
         ready.toCompletableFuture().get();
         if (!isPlaybackCurrent(requestSequence)) return;

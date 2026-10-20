@@ -152,7 +152,8 @@ public class ChannelService {
         boolean streamingCallback = callback != null && (account.getType() == STALKER_PORTAL || account.getType() == XTREME_API);
         boolean streamCache = streamingCallback || progressCallback != null;
         if (isVodSeriesChannelsFresh(account, dbId)) {
-            return loadFreshVodSeriesCache(categoryId, account, dbId, logger, callback, isCancelled,
+            BooleanSupplier cancellationCheck = isCancelled == null ? () -> false : isCancelled::get;
+            return loadFreshVodSeriesCache(categoryId, account, dbId, logger, callback, cancellationCheck,
                     progressCallback, streamCache);
         }
         return fetchAndCacheVodSeries(categoryId, account, dbId, logger, callback, isCancelled,
@@ -161,11 +162,10 @@ public class ChannelService {
 
     @SuppressWarnings("java:S107")
     private List<Channel> loadFreshVodSeriesCache(String categoryId, Account account, String dbId, LoggerCallback logger,
-                                                   Consumer<List<Channel>> callback, Supplier<Boolean> isCancelled,
+                                                   Consumer<List<Channel>> callback, BooleanSupplier isCancelled,
                                                    Consumer<PageProgress> progressCallback, boolean streamCache) {
         List<Channel> cachedChannels = streamCache
-                ? getVodSeriesFromDbCachePaged(account, dbId, callback,
-                isCancelled == null ? () -> false : isCancelled::get, progressCallback)
+                ? getVodSeriesFromDbCachePaged(account, dbId, callback, isCancelled, progressCallback)
                 : getVodSeriesFromDbCache(account, dbId);
         log(logger, "Loaded channels from local cache for category " + categoryId + ".");
         List<Channel> resolved = maybeFilterChannels(dedupeChannels(cachedChannels), true, account);

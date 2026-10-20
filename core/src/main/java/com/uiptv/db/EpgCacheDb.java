@@ -174,11 +174,12 @@ public final class EpgCacheDb {
         EpgChangeNotifications.Notification notification;
         try (Connection c = open(true)) {
             notification = publishBuilderTransaction(c, sources, matches, shared, now, validateCurrentInventory);
-        } catch (InterruptedException error) {
-            Thread.currentThread().interrupt();
+        } catch (InterruptedException | SQLException | java.io.IOException error) {
+            if (error instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             throw failure(error);
-        } catch (SQLException | java.io.IOException error) { throw failure(error); }
-        catch (RuntimeException error) { throw failure(error); }
+        } catch (RuntimeException error) { throw failure(error); }
         EpgChangeNotifications.publish(notification);
     }
 
@@ -288,19 +289,12 @@ public final class EpgCacheDb {
         for (Match match:matches) unique.putIfAbsent(new ChannelKey(match.identity().accountId(),match.identity().providerId()),match);
         try (Connection c = open(true)) {
             return mapChannelsTransaction(c, unique.values(), now, preserveExistingMappings);
-        } catch (InterruptedException error) {
-            Thread.currentThread().interrupt();
-            throw failure(error);
-        } catch (SQLException | java.io.IOException error) {
-            throw failure(error);
-        } catch (RuntimeException error) {
-            throw failure(error);
-        }
+        } catch (SQLException error) { throw failure(error); }
     }
 
     private boolean mapChannelsTransaction(Connection c, Collection<Match> matches, long now,
                                            boolean preserveExistingMappings)
-            throws SQLException, InterruptedException, java.io.IOException {
+            throws SQLException {
         c.setAutoCommit(false);
         boolean changed = false;
         Set<EpgChangeNotifications.ProviderIdentity> changedIdentities = new LinkedHashSet<>();

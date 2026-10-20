@@ -560,7 +560,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             String playUri = preparePlaybackUri(uri, requestVersion);
             if (playbackCancelled(requestVersion)) return;
             target.commands.submit(() -> startMedia(target, playUri, requestVersion));
-        } catch (InterruptedException failure) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         } catch (Exception | LinkageError failure) {
             reportPlaybackFailure(requestVersion, failure);

@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Arrays;
 import java.util.function.Predicate;
 
 import static com.uiptv.util.ServerUtils.getParam;
@@ -28,7 +29,23 @@ import static com.uiptv.util.StringUtils.isBlank;
 
 @SuppressWarnings({"java:S1075", "java:S135"})
 public class HttpProxyStreamServer implements HttpHandler {
-    private record ResponseBody(byte[] bytes, boolean rewritten) { }
+    private record ResponseBody(byte[] bytes, boolean rewritten) {
+        @Override
+        public boolean equals(Object other) {
+            return this == other || other instanceof ResponseBody body
+                    && rewritten == body.rewritten && Arrays.equals(bytes, body.bytes);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * Arrays.hashCode(bytes) + Boolean.hashCode(rewritten);
+        }
+
+        @Override
+        public String toString() {
+            return "ResponseBody[bytes=" + Arrays.toString(bytes) + ", rewritten=" + rewritten + "]";
+        }
+    }
     private static final String PATH_LIVE_PLAY = "/live/play/";
     private static final String PATH_PLAY_LIVE = "/play/live.php";
     private static final String PATH_PLAY_MOVIE = "/play/movie.php";
