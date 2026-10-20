@@ -185,16 +185,23 @@ public final class SharedEpgCacheDb {
             Snapshot snapshot = index(c,now);
             if (snapshot.sources().isEmpty()) return result;
             var rules = new EpgNameRulesDb().read(c);
-            try (var programmes = c.prepareStatement("SELECT title,description,starts_at,stops_at FROM epg_programme WHERE source_id=? AND guide_channel_id=? AND stops_at>? AND starts_at<? ORDER BY starts_at LIMIT " + (full ? 2000 : 2));
-                 var icons = c.prepareStatement("SELECT icon_url FROM epg_channel_icon WHERE source_id=? AND guide_channel_id=?")) {
-                for (Query query : new LinkedHashSet<>(queries)) {
-                    Candidate match = resolve(query, snapshot, rules); if (match == null) continue;
-                    programmes.setString(1, match.source().id()); programmes.setString(2, match.guide());
-                    Result resolved = readResult(query, match, programmes, icons, now, full);
-                    if (resolved != null) result.put(query, resolved);
-                }
-            }
+            result.putAll(readQueries(c, queries, snapshot, rules, now, full));
         } catch (Exception error) { throw new DatabaseAccessException("Unable to read shared EPG cache", error); }
+        return result;
+    }
+
+    private Map<Query, Result> readQueries(Connection c, List<Query> queries, Snapshot snapshot,
+                                           EpgNameRules rules, long now, boolean full) throws SQLException {
+        Map<Query, Result> result = new HashMap<>();
+        try (var programmes = c.prepareStatement("SELECT title,description,starts_at,stops_at FROM epg_programme WHERE source_id=? AND guide_channel_id=? AND stops_at>? AND starts_at<? ORDER BY starts_at LIMIT " + (full ? 2000 : 2));
+             var icons = c.prepareStatement("SELECT icon_url FROM epg_channel_icon WHERE source_id=? AND guide_channel_id=?")) {
+            for (Query query : new LinkedHashSet<>(queries)) {
+                Candidate match = resolve(query, snapshot, rules);
+                if (match == null) continue;
+                Result resolved = readResult(query, match, programmes, icons, now, full);
+                if (resolved != null) result.put(query, resolved);
+            }
+        }
         return result;
     }
 

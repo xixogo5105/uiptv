@@ -97,28 +97,45 @@ public final class PlaybackUIService {
     private static Future<?> submitPlaybackResolution(Node source, PlaybackRequest request, Account playbackAccount,
                                                       PlaybackModeContext context, long requestSequence) {
         java.util.concurrent.CompletionStage<Void> ready = prepareEmbeddedPlayer(request, playbackAccount, context);
-        return PLAYBACK_EXECUTOR.submit(() -> {
-            try {
-                if (Thread.currentThread().isInterrupted()) return;
-                ready.toCompletableFuture().get();
-                if (Thread.currentThread().isInterrupted() || requestSequence != PLAYBACK_REQUEST_SEQUENCE.get()) return;
-                PlayerResponse response = resolvePlayerResponse(request, playbackAccount);
-                if (Thread.currentThread().isInterrupted()) return;
-                response.setFromChannel(request.channel, playbackAccount);
-                runLater(() -> {
-                    if (requestSequence != PLAYBACK_REQUEST_SEQUENCE.get()) return;
-                    launchResolvedPlayback(context, request, response);
-                });
-            } catch (InterruptedException _) {
-                Thread.currentThread().interrupt();
-            } catch (PlaybackResolutionException _) {
-                showResolutionFailure(request, context, requestSequence, null);
-            } catch (Exception error) {
-                showResolutionFailure(request, context, requestSequence, error);
-            } finally {
-                clearPlaybackState(source, requestSequence);
-            }
-        });
+        return PLAYBACK_EXECUTOR.submit(() -> resolvePlayback(source, request, playbackAccount, context, requestSequence, ready));
+    }
+
+    private static void resolvePlayback(Node source, PlaybackRequest request, Account playbackAccount,
+                                        PlaybackModeContext context, long requestSequence,
+                                        java.util.concurrent.CompletionStage<Void> ready) {
+        try {
+            resolveAndLaunch(request, playbackAccount, context, requestSequence, ready);
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+        } catch (PlaybackResolutionException _) {
+            showResolutionFailure(request, context, requestSequence, null);
+        } catch (Exception error) {
+            showResolutionFailure(request, context, requestSequence, error);
+        } finally {
+            clearPlaybackState(source, requestSequence);
+        }
+    }
+
+    private static void resolveAndLaunch(PlaybackRequest request, Account playbackAccount,
+                                         PlaybackModeContext context, long requestSequence,
+                                         java.util.concurrent.CompletionStage<Void> ready)
+            throws Exception {
+        if (!isPlaybackCurrent(requestSequence)) return;
+        ready.toCompletableFuture().get();
+        if (!isPlaybackCurrent(requestSequence)) return;
+        PlayerResponse response = resolvePlayerResponse(request, playbackAccount);
+        if (!isPlaybackCurrent(requestSequence)) return;
+        response.setFromChannel(request.channel, playbackAccount);
+        runLater(() -> launchIfCurrent(context, request, response, requestSequence));
+    }
+
+    private static boolean isPlaybackCurrent(long requestSequence) {
+        return !Thread.currentThread().isInterrupted() && requestSequence == PLAYBACK_REQUEST_SEQUENCE.get();
+    }
+
+    private static void launchIfCurrent(PlaybackModeContext context, PlaybackRequest request,
+                                        PlayerResponse response, long requestSequence) {
+        if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) launchResolvedPlayback(context, request, response);
     }
 
     private static java.util.concurrent.CompletionStage<Void> prepareEmbeddedPlayer(PlaybackRequest request,
