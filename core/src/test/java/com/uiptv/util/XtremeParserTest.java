@@ -217,9 +217,9 @@ class XtremeParserTest extends DbBackedTest {
      */
     private List<Account> parseWithoutDatabase(String text) {
         List<Account> accounts = new ArrayList<>();
-        Pattern urlPattern = Pattern.compile("(https?://\\S+)");
-        Pattern userPattern = Pattern.compile("(?i)\\b(user|username|u|name|id)\\b\\s*[:=]?\\s*(\\S+)");
-        Pattern passPattern = Pattern.compile("(?i)\\b(pass(word)?|p|pw)\\b\\s*[:=]?\\s*(\\S+)");
+        Pattern urlPattern = Pattern.compile("(https?://[^\\s\\])>]+)");
+        Pattern userPattern = Pattern.compile("(?i)\\b(user|username|u|name|id)\\b\\s*+[:=]?+\\s*+(\\S++)");
+        Pattern passPattern = Pattern.compile("(?i)\\b(pass(word)?|p|pw)\\b\\s*+[:=]?+\\s*+(\\S++)");
 
         List<String> lines = java.util.Arrays.asList(text.split("\\R"));
         List<String> currentBlock = new ArrayList<>();

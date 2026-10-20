@@ -758,7 +758,9 @@ public abstract class BaseEpisodesListUI extends HBox {
         if (before.isEmpty()) {
             return title;
         }
-        before = before.replaceAll("[-:|]++\\s*$", "").trim();
+        int end = before.length();
+        while (end > 0 && "-:|".indexOf(before.charAt(end - 1)) >= 0) end--;
+        before = before.substring(0, end).trim();
         return before.isEmpty() ? title : before;
     }
 

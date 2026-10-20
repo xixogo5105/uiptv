@@ -23,7 +23,7 @@ public final class EpgTerritory {
         public String territory() { return territories.size() == 1 ? territories.iterator().next() : ""; }
     }
 
-    private static final Pattern GROUP = Pattern.compile("^\\s*[┃│|]?\\s*([^┃│|]*+)\\s*[┃│|]\\s*");
+    private static final Pattern GROUP = Pattern.compile("^\\s*+[┃│|]?+\\s*+([^┃│|]*+)\\s*+[┃│|]\\s*+");
     private static final Pattern BRACKET = Pattern.compile("[\\(\\[\\{]([^\\)\\]\\}]{1,160}+)[\\)\\]\\}]");
     private static final Pattern SEPARATORS = Pattern.compile("[^\\p{L}\\p{N}+ ]++", Pattern.UNICODE_CHARACTER_CLASS);
     private static final Pattern QUALITY_SUFFIX = Pattern.compile("[\\s/_-]++(?:sd|hd|fhd|uhd|4k|8k|\\d{3,4}p|\\d{3,4}i)$", Pattern.CASE_INSENSITIVE);

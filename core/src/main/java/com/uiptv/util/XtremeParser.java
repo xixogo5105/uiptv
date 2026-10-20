@@ -26,8 +26,8 @@ public class XtremeParser implements AccountParser {
     // Stop at Markdown link delimiters as well as whitespace. Otherwise a pasted
     // [http://portal](http://portal) is saved with the trailing ](http://portal).
     private static final Pattern URL_PATTERN = Pattern.compile("(?i)(https?://[^\\s\\])>]+)");
-    private static final Pattern LABELED_USER = Pattern.compile("(?i)\\b(?:user|username|u|name|id)\\b\\s*[:=]?\\s*(\\S+)");
-    private static final Pattern LABELED_PASS = Pattern.compile("(?i)\\b(?:pass(?:word)?|p|pw)\\b\\s*[:=]?\\s*(\\S+)");
+    private static final Pattern LABELED_USER = Pattern.compile("(?i)\\b(?:user|username|u|name|id)\\b\\s*+[:=]?+\\s*+(\\S++)");
+    private static final Pattern LABELED_PASS = Pattern.compile("(?i)\\b(?:pass(?:word)?|p|pw)\\b\\s*+[:=]?+\\s*+(\\S++)");
 
     private final Function<String, Account> accountProvider;
     private final Consumer<Account> accountSaver;

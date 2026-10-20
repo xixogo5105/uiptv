@@ -1015,7 +1015,7 @@ public class ImdbMetadataService {
 
     private String extractJsonLd(String html) {
         Matcher m = Pattern.compile(
-                "<script[^>]*type=\"application/ld\\+json\"[^>]*>(.*?)</script>",
+                "<script[^>]*+type=\"application/ld\\+json\"[^>]*+>([^<]*+)</script>",
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL
         ).matcher(html);
         if (m.find()) {

@@ -1981,11 +1981,11 @@ public class ReloadCacheInline extends VBox {
     }
 
     private String translatePageFetchLog(String trimmed) {
-        Matcher fetching = Pattern.compile("Fetching page\\s+(\\d+)\\s+for category\\s+([^.]+)\\.\\.\\.").matcher(trimmed);
+        Matcher fetching = Pattern.compile("Fetching page\\s++(\\d++)\\s++for category\\s++([^.]+)\\.\\.\\.").matcher(trimmed);
         if (fetching.matches()) {
             return I18n.tr("reloadPageCategory", I18n.formatNumber(fetching.group(1)), fetching.group(2).trim());
         }
-        Matcher fetched = Pattern.compile("Fetched\\s+(\\d+)\\s+channels from page\\s+(\\d+)\\.?").matcher(trimmed);
+        Matcher fetched = Pattern.compile("Fetched\\s++(\\d++)\\s++channels from page\\s++(\\d++)\\.?+").matcher(trimmed);
         if (fetched.matches()) {
             return I18n.tr("reloadChannelsPage", I18n.formatNumber(fetched.group(1)), I18n.formatNumber(fetched.group(2)));
         }
