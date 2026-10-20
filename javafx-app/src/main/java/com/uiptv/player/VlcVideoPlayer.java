@@ -536,69 +536,76 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         loadingSpinner.setVisible(true);
         long playbackRequestVersion = mediaRequestVersion.incrementAndGet();
         NativeSession target = currentSession;
-        Future<?> previousTask = playbackTask.get();
-        if (previousTask != null) {
-            previousTask.cancel(true);
+        cancelPreviousPlaybackTask();
+        playbackTask.set(playExecutor.submit(() -> prepareAndQueuePlayback(uri, target, playbackRequestVersion)));
+    }
+
+    private void cancelPreviousPlaybackTask() {
+        Future<?> previousTask = playbackTask.getAndSet(null);
+        if (previousTask != null) previousTask.cancel(true);
+    }
+
+    private void prepareAndQueuePlayback(String uri, NativeSession target, long requestVersion) {
+        try {
+            if (playbackCancelled(requestVersion)) return;
+            java.util.concurrent.CompletableFuture.runAsync(() -> ensurePlayerInitialized(target), target.commands).get();
+            if (playbackCancelled(requestVersion)) return;
+            resetPlaybackMetadata();
+            String playUri = preparePlaybackUri(uri, requestVersion);
+            if (playbackCancelled(requestVersion)) return;
+            target.commands.submit(() -> startMedia(target, playUri, requestVersion));
+        } catch (Exception | LinkageError failure) {
+            if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
+            else reportPlaybackFailure(requestVersion, failure);
         }
-        playbackTask.set(playExecutor.submit(() -> {
-            try {
-                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) {
-                    return;
-                }
-                java.util.concurrent.CompletableFuture.runAsync(() -> ensurePlayerInitialized(target), target.commands).get();
-                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) return;
-                videoSourceWidth = 0;
-                videoSourceHeight = 0;
-                lastStreamInfoLabel = "";
-                long prepared = System.nanoTime();
-                String playUri = resolveHlsPlaylistChain(uri);
-                com.uiptv.util.AppLog.addInfoLog(VlcVideoPlayer.class,
-                        "VLC playlist preparation request=" + playbackRequestVersion
-                                + " elapsed=" + (System.nanoTime() - prepared) / 1_000_000 + "ms");
-                // Sanitize URL for libvlc: encode raw braces and other problematic characters that some CDNs reject
-                playUri = sanitizeUriForLibVlc(playUri);
-                if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) {
-                    return;
-                }
-                String resolvedUri = playUri;
-                target.commands.submit(() -> {
-                    if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) return;
-                    long started = System.nanoTime();
-                    try {
-                        ensurePlayerInitialized(target);
-                        EmbeddedMediaPlayer player = target.player.get();
-                        if (player == null || isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) return;
-                        long audioRequestVersion = markAudioStateSyncRequested();
-                        applyDesiredAudioState(player);
-                        boolean accepted;
-                        if (ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
-                            accepted = player.media().play(resolvedUri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
-                        } else {
-                            accepted = player.media().play(resolvedUri);
-                        }
-                        com.uiptv.util.AppLog.addInfoLog(VlcVideoPlayer.class,
-                                "VLC start request=" + playbackRequestVersion + " accepted=" + accepted
-                                        + " elapsed=" + (System.nanoTime() - started) / 1_000_000 + "ms");
-                        if (!accepted) throw new IllegalStateException("libVLC rejected media startup");
-                        // A retired session owns a final stop/release queued behind this call.
-                        if (playbackRequestVersion == mediaRequestVersion.get()
-                                && !isDisposed.get() && mediaPlayer.get() == player) {
-                            scheduleAudioStateStartupSync(audioRequestVersion);
-                        }
-                    } catch (Exception | LinkageError failure) {
-                        reportPlaybackFailure(playbackRequestVersion, failure);
-                    }
-                });
-            } catch (Exception | LinkageError t) {
-                // submit() captures the failure in a Future nobody reads, so without this the task
-                // dies silently: no libVLC error event ever arrives (the URL never reached the
-                // player), so handleError cannot run, and the spinner shown above stays up forever
-                // with no message. Catch Throwable because libVLC init failures surface as
-                // UnsatisfiedLinkError, which is an Error, not an Exception.
-                if (t instanceof InterruptedException) { Thread.currentThread().interrupt(); return; }
-                reportPlaybackFailure(playbackRequestVersion, t);
+    }
+
+    private boolean playbackCancelled(long requestVersion) {
+        return isDisposed.get() || requestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted();
+    }
+
+    private void resetPlaybackMetadata() {
+        videoSourceWidth = 0;
+        videoSourceHeight = 0;
+        lastStreamInfoLabel = "";
+    }
+
+    private String preparePlaybackUri(String uri, long requestVersion) {
+        long started = System.nanoTime();
+        String playUri = sanitizeUriForLibVlc(resolveHlsPlaylistChain(uri));
+        com.uiptv.util.AppLog.addInfoLog(VlcVideoPlayer.class,
+                "VLC playlist preparation request=" + requestVersion
+                        + " elapsed=" + (System.nanoTime() - started) / 1_000_000 + "ms");
+        return playUri;
+    }
+
+    private void startMedia(NativeSession target, String resolvedUri, long requestVersion) {
+        if (isDisposed.get() || requestVersion != mediaRequestVersion.get()) return;
+        long started = System.nanoTime();
+        try {
+            ensurePlayerInitialized(target);
+            EmbeddedMediaPlayer player = target.player.get();
+            if (player == null || isDisposed.get() || requestVersion != mediaRequestVersion.get()) return;
+            long audioRequestVersion = markAudioStateSyncRequested();
+            applyDesiredAudioState(player);
+            boolean accepted = playResolvedMedia(player, resolvedUri);
+            com.uiptv.util.AppLog.addInfoLog(VlcVideoPlayer.class,
+                    "VLC start request=" + requestVersion + " accepted=" + accepted
+                            + " elapsed=" + (System.nanoTime() - started) / 1_000_000 + "ms");
+            if (!accepted) throw new IllegalStateException("libVLC rejected media startup");
+            if (requestVersion == mediaRequestVersion.get() && !isDisposed.get() && mediaPlayer.get() == player) {
+                scheduleAudioStateStartupSync(audioRequestVersion);
             }
-        }));
+        } catch (Exception | LinkageError failure) {
+            reportPlaybackFailure(requestVersion, failure);
+        }
+    }
+
+    private boolean playResolvedMedia(EmbeddedMediaPlayer player, String uri) {
+        if (ConfigurationService.getInstance().isVlcHttpUserAgentEnabled()) {
+            return player.media().play(uri, ":http-user-agent=" + VLC_HTTP_USER_AGENT);
+        }
+        return player.media().play(uri);
     }
 
     /**
