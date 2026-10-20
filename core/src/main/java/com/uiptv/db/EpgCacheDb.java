@@ -53,6 +53,7 @@ public final class EpgCacheDb {
                               Map<String,String> aliases,Map<String,String> qualityAliases,Map<String,String> icons,long now,long retryAt) {
         replaceSource(sourceId, programmes, aliases, qualityAliases, icons, now, retryAt, Set.of());
     }
+    @SuppressWarnings("java:S107")
     public void replaceSource(String sourceId,Map<String,List<EpgProgramme>> programmes,
                               Map<String,String> aliases,Map<String,String> qualityAliases,Map<String,String> icons,
                               long now,long retryAt, Set<EpgChangeNotifications.ProviderIdentity> identities) {

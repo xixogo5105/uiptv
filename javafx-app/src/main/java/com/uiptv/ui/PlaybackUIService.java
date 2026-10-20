@@ -40,6 +40,7 @@ public final class PlaybackUIService {
     static final String WEB_BROWSER_PLAYER_PATH = "__web_browser_player__";
     static final String EMBEDDED_PLAYER_PATH = "__embedded_player__";
     private static final String PLAYLIST_RESOLUTION_FAILURE = "Playback failed: unable to resolve playlist URL.";
+    private static final String EMBEDDED_PLAYER = "embedded player";
     private static final String DEFAULT_MODE = "series";
     /** Prevent out-of-order URL resolution from repeatedly resetting the embedded player. */
     private static final AtomicLong PLAYBACK_REQUEST_SEQUENCE = new AtomicLong();
@@ -124,7 +125,7 @@ public final class PlaybackUIService {
                                                                                      Account playbackAccount,
                                                                                      PlaybackModeContext context) {
         if (!isEmbeddedPlayback(request, context)) return java.util.concurrent.CompletableFuture.completedFuture(null);
-        var player = Objects.requireNonNull(getPlayer(), "embedded player");
+        var player = Objects.requireNonNull(getPlayer(), EMBEDDED_PLAYER);
         player.stopForReload();
         java.util.concurrent.CompletionStage<Void> ready = player.playbackReady();
         player.updateChannelInfo(request.channel, playbackAccount);
@@ -277,7 +278,7 @@ public final class PlaybackUIService {
             showErrorAlert(I18n.tr("autoEmbeddedPlayerNotEnabled"));
             return;
         }
-        var player = Objects.requireNonNull(getPlayer(), "embedded player");
+        var player = Objects.requireNonNull(getPlayer(), EMBEDDED_PLAYER);
         if (getPlayerType() == DUMMY) {
             showErrorAlert(I18n.tr("autoEmbeddedPlayerUnavailable"));
             return;
@@ -293,7 +294,7 @@ public final class PlaybackUIService {
             showErrorAlert(I18n.tr("autoEmbeddedPlayerUnavailable"));
             return;
         }
-        Objects.requireNonNull(getPlayer(), "embedded player").play(response);
+        Objects.requireNonNull(getPlayer(), EMBEDDED_PLAYER).play(response);
     }
 
     static boolean isEmbeddedPlayerPath(String playerPath) {

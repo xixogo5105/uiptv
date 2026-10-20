@@ -39,6 +39,7 @@ import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -60,9 +61,6 @@ public class ReloadCacheInline extends VBox {
     private static final double MAIN_CONTENT_COLUMN_GAP = 14;
     private static final double STACKED_LAYOUT_WIDTH = ACCOUNT_COLUMN_MIN_WIDTH + LOG_COLUMN_MIN_WIDTH + MAIN_CONTENT_COLUMN_GAP;
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d+)");
-    private static final Pattern DISPLAY_CENSORED_COUNT_PATTERN =
-            Pattern.compile("^(.{0,4096}\\bcensored\\s+(?:categories|channels):\\s*)([\\p{Nd},.]+)(.*)$",
-                    Pattern.CASE_INSENSITIVE);
     private static final String GLOBAL_SERIES_CATEGORY_LIST_FAILED = "Global SERIES category list failed:";
     private static final String GLOBAL_STALKER_GET_ALL_CHANNELS_FAILED = "Global Stalker get_all_channels failed";
     private static final String GLOBAL_VOD_CATEGORY_LIST_FAILED = "Global VOD category list failed:";
@@ -1550,16 +1548,28 @@ public class ReloadCacheInline extends VBox {
         if (line == null) {
             return null;
         }
-        Matcher matcher = DISPLAY_CENSORED_COUNT_PATTERN.matcher(line);
-        if (!matcher.matches()) {
+        String lower = line.toLowerCase(Locale.ROOT);
+        int marker = lower.indexOf("censored categories:");
+        if (marker < 0) marker = lower.indexOf("censored channels:");
+        if (marker < 0) {
             return null;
         }
-        Text prefix = createNormalDisplayText(matcher.group(1), logLine);
-        Text count = new Text(matcher.group(2));
+        int countStart = marker + "censored ".length();
+        countStart = lower.indexOf(':', countStart) + 1;
+        while (countStart < line.length() && Character.isWhitespace(line.charAt(countStart))) countStart++;
+        int countEnd = countStart;
+        while (countEnd < line.length()) {
+            char character = line.charAt(countEnd);
+            if (!Character.isDigit(character) && character != ',' && character != '.') break;
+            countEnd++;
+        }
+        if (countEnd == countStart) return null;
+        Text prefix = createNormalDisplayText(line.substring(0, countStart), logLine);
+        Text count = new Text(line.substring(countStart, countEnd));
         count.getStyleClass().add(STYLE_CLASS_CENSORED_COUNT);
 
         TextFlow flow = new TextFlow(prefix, count);
-        String suffix = matcher.group(3);
+        String suffix = line.substring(countEnd);
         if (!suffix.isEmpty()) {
             flow.getChildren().add(createNormalDisplayText(suffix, logLine));
         }

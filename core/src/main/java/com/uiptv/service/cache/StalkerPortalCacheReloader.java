@@ -358,24 +358,26 @@ public class StalkerPortalCacheReloader extends AbstractAccountCacheReloader {
             List<Channel> rows = pageData.channels();
             int before = channels.size();
             for (Channel channel : rows) channels.putIfAbsent(normalizeCaseInsensitiveKey(channel.getChannelId()), channel);
-            List<Channel> completed = categoryPageResult(page, expected, rows, channels, before);
-            if (completed != null) return completed;
+            CategoryPageResult completed = categoryPageResult(page, expected, rows, channels, before);
+            if (completed.complete()) return completed.channels();
         }
     }
 
-    private List<Channel> categoryPageResult(int page, long expected, List<Channel> rows,
-                                             Map<String, Channel> channels, int before) {
-        if (expected >= 0 && channels.size() >= expected) return new ArrayList<>(channels.values());
+    private record CategoryPageResult(List<Channel> channels, boolean complete) { }
+
+    private CategoryPageResult categoryPageResult(int page, long expected, List<Channel> rows,
+                                                  Map<String, Channel> channels, int before) {
+        if (expected >= 0 && channels.size() >= expected) return new CategoryPageResult(new ArrayList<>(channels.values()), true);
         if (rows.isEmpty()) {
-            if (page == 0 && expected != 0) return null; // Some portals start at page one.
+            if (page == 0 && expected != 0) return new CategoryPageResult(List.of(), false); // Some portals start at page one.
             if (expected > channels.size()) throw new IllegalStateException("Incomplete Stalker category; keeping existing cache.");
-            return new ArrayList<>(channels.values());
+            return new CategoryPageResult(new ArrayList<>(channels.values()), true);
         }
         // Portals often treat p=0 as p=1. Allow that alias once, but reject an endless repeated page.
         if (channels.size() == before && page != 1) {
             throw new IllegalStateException("Stalker pagination stopped advancing; keeping existing cache.");
         }
-        return null;
+        return new CategoryPageResult(List.of(), false);
     }
 
     private record CategoryPage(List<Channel> channels, long expected) { }
