@@ -78,83 +78,83 @@ public final class PlaybackUIService {
         if (source == null || request == null || playbackAccount == null || request.channel == null) {
             return;
         }
-
         cancelPendingPlayback();
         long requestSequence = PLAYBACK_REQUEST_SEQUENCE.incrementAndGet();
         currentPlaybackSource.set(source);
         Configuration configuration = ConfigurationService.getInstance().read();
         PlaybackModeContext context = buildPlaybackModeContext(configuration, request, playbackAccount);
-
-        // Set this on the originating view, rather than only on its Scene. A
-        // hovered card can otherwise resolve its cursor before the scene-level
-        // value is painted, making a double-click appear to have done nothing.
         source.setCursor(Cursor.WAIT);
         if (handleBrowserPlayback(context, request, playbackAccount)
                 || handleDrmBrowserFallback(context, request, playbackAccount)) {
             source.setCursor(null);
             return;
         }
+        Future<?> resolution = submitPlaybackResolution(source, request, playbackAccount, context, requestSequence);
+        currentPlaybackResolution.set(resolution);
+    }
 
-        java.util.concurrent.CompletionStage<Void> playerReady = java.util.concurrent.CompletableFuture.completedFuture(null);
-        if (context.playerPathIsEmbedded() || (isBlank(request.playerPath) && context.useEmbeddedPlayerConfig())) {
-            var player = getPlayer();
-            player.stopForReload();
-            playerReady = player.playbackReady();
-            player.updateChannelInfo(request.channel, playbackAccount);
-            player.showLoading();
-        }
-        java.util.concurrent.CompletionStage<Void> ready = playerReady;
-        Future<?> resolution = PLAYBACK_EXECUTOR.submit(() -> {
+    private static Future<?> submitPlaybackResolution(Node source, PlaybackRequest request, Account playbackAccount,
+                                                      PlaybackModeContext context, long requestSequence) {
+        java.util.concurrent.CompletionStage<Void> ready = prepareEmbeddedPlayer(request, playbackAccount, context);
+        return PLAYBACK_EXECUTOR.submit(() -> {
             try {
-                if (Thread.currentThread().isInterrupted()) {
-                    return;
-                }
-                // Prepare the fresh session before creating a short-lived provider token.
+                if (Thread.currentThread().isInterrupted()) return;
                 ready.toCompletableFuture().get();
                 if (Thread.currentThread().isInterrupted() || requestSequence != PLAYBACK_REQUEST_SEQUENCE.get()) return;
                 PlayerResponse response = resolvePlayerResponse(request, playbackAccount);
-                if (Thread.currentThread().isInterrupted()) {
-                    return;
-                }
+                if (Thread.currentThread().isInterrupted()) return;
                 response.setFromChannel(request.channel, playbackAccount);
                 runLater(() -> {
-                    if (requestSequence != PLAYBACK_REQUEST_SEQUENCE.get()) {
-                        return;
-                    }
+                    if (requestSequence != PLAYBACK_REQUEST_SEQUENCE.get()) return;
                     launchResolvedPlayback(context, request, response);
                 });
             } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
             } catch (PlaybackResolutionException _) {
-                runLater(() -> {
-                    if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()
-                            && (context.playerPathIsEmbedded() || (isBlank(request.playerPath) && context.useEmbeddedPlayerConfig()))) {
-                        getPlayer().showPlaybackError();
-                    }
-                });
-            } catch (Exception e) {
-                runLater(() -> {
-                    if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) {
-                        if (context.playerPathIsEmbedded() || (isBlank(request.playerPath) && context.useEmbeddedPlayerConfig())) {
-                            getPlayer().showPlaybackError();
-                        } else {
-                            showErrorAlert(request.errorPrefix + e.getMessage());
-                        }
-                    }
-                });
+                showResolutionFailure(request, context, requestSequence, null);
+            } catch (Exception error) {
+                showResolutionFailure(request, context, requestSequence, error);
             } finally {
-                runLater(() -> {
-                    if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get() || currentPlaybackResolution.get() == null) {
-                        source.setCursor(null);
-                        if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) {
-                            currentPlaybackSource.compareAndSet(source, null);
-                            currentPlaybackResolution.set(null);
-                        }
-                    }
-                });
+                clearPlaybackState(source, requestSequence);
             }
         });
-        currentPlaybackResolution.set(resolution);
+    }
+
+    private static java.util.concurrent.CompletionStage<Void> prepareEmbeddedPlayer(PlaybackRequest request,
+                                                                                     Account playbackAccount,
+                                                                                     PlaybackModeContext context) {
+        if (!isEmbeddedPlayback(request, context)) return java.util.concurrent.CompletableFuture.completedFuture(null);
+        var player = getPlayer();
+        player.stopForReload();
+        java.util.concurrent.CompletionStage<Void> ready = player.playbackReady();
+        player.updateChannelInfo(request.channel, playbackAccount);
+        player.showLoading();
+        return ready;
+    }
+
+    private static boolean isEmbeddedPlayback(PlaybackRequest request, PlaybackModeContext context) {
+        return context.playerPathIsEmbedded() || (isBlank(request.playerPath) && context.useEmbeddedPlayerConfig());
+    }
+
+    private static void showResolutionFailure(PlaybackRequest request, PlaybackModeContext context,
+                                               long requestSequence, Exception error) {
+        runLater(() -> {
+            if (requestSequence != PLAYBACK_REQUEST_SEQUENCE.get()) return;
+            if (isEmbeddedPlayback(request, context)) getPlayer().showPlaybackError();
+            else showErrorAlert(request.errorPrefix + (error == null ? "" : error.getMessage()));
+        });
+    }
+
+    private static void clearPlaybackState(Node source, long requestSequence) {
+        runLater(() -> {
+            if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get() || currentPlaybackResolution.get() == null) {
+                source.setCursor(null);
+                if (requestSequence == PLAYBACK_REQUEST_SEQUENCE.get()) {
+                    currentPlaybackSource.compareAndSet(source, null);
+                    currentPlaybackResolution.set(null);
+                }
+            }
+        });
     }
 
     public static void playDirectUrl(String playerPath, String url, String errorPrefix) {

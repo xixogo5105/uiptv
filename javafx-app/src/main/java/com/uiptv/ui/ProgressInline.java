@@ -240,68 +240,58 @@ public class ProgressInline extends BorderPane {
     private void refreshVerificationCards() {
         Platform.runLater(() -> {
             for (Node node : messageContainer.getChildren()) {
-                String cardMac = (String) node.getProperties().get(MAC_ADDRESS_PROPERTY);
-                if (cardMac == null || cardMac.isBlank()) continue;
-
-                // The node is either a VBox (for default MAC) or StackPane wrapper (for non-default)
-                VBox card = (node instanceof StackPane wrapper) ? (VBox) wrapper.getChildren().get(0) : (VBox) node;
-                
-                // Check if this card is the new default
-                boolean isNewDefault = isDefaultMac(cardMac);
-                
-                // Update the title row - add/remove default badge
-                HBox titleRow = (HBox) card.getChildren().get(0);
-                Label existingBadge = null;
-                for (Node child : titleRow.getChildren()) {
-                    if (child instanceof Label label && label.getStyleClass().contains(DEFAULT_BADGE_STYLE_CLASS)) {
-                        existingBadge = label;
-                        break;
-                    }
-                }
-
-                if (isNewDefault && existingBadge == null) {
-                    Label defaultBadge = new Label(I18n.tr(DEFAULT_BADGE_I18N_KEY));
-                    defaultBadge.getStyleClass().addAll(DEFAULT_MAC_STYLE_CLASS, DEFAULT_BADGE_STYLE_CLASS);
-                    titleRow.getChildren().add(defaultBadge);
-                } else if (!isNewDefault && existingBadge != null) {
-                    titleRow.getChildren().remove(existingBadge);
-                }
-
-                // Update hover actions - remove if now default, add if no longer default
-                if (node instanceof StackPane wrapper) {
-                    HBox actions = null;
-                    for (Node child : wrapper.getChildren()) {
-                        if (child instanceof HBox hbox && hbox.getStyleClass().contains("verification-mac-card-actions")) {
-                            actions = hbox;
-                            break;
-                        }
-                    }
-
-                    if (isNewDefault) {
-                        // Now default - remove action buttons
-                        if (actions != null) {
-                            wrapper.getChildren().remove(actions);
-                        }
-                    } else {
-                        // No longer default - add action buttons if not present
-                        if (actions == null) {
-                            HBox newActions = createMacCardActions(cardMac);
-                            StackPane.setAlignment(newActions, Pos.TOP_RIGHT);
-                            StackPane.setMargin(newActions, new Insets(8, 8, 0, 0));
-                            wrapper.getChildren().add(newActions);
-                        } else {
-                            // Update the set default button state
-                            for (Node btn : actions.getChildren()) {
-                                if (btn instanceof Button button && button.getTooltip() != null 
-                                        && button.getTooltip().getText().equals(I18n.tr("macHoverSetDefault"))) {
-                                    button.setDisable(false);
-                                }
-                            }
-                        }
-                    }
-                }
+                refreshVerificationCard(node);
             }
         });
+    }
+
+    private void refreshVerificationCard(Node node) {
+        String cardMac = (String) node.getProperties().get(MAC_ADDRESS_PROPERTY);
+        if (cardMac == null || cardMac.isBlank()) return;
+        VBox card = node instanceof StackPane wrapper ? (VBox) wrapper.getChildren().get(0) : (VBox) node;
+        boolean isNewDefault = isDefaultMac(cardMac);
+        refreshDefaultBadge((HBox) card.getChildren().get(0), isNewDefault);
+        if (node instanceof StackPane wrapper) updateMacCardActions(wrapper, cardMac, isNewDefault);
+    }
+
+    private void refreshDefaultBadge(HBox titleRow, boolean isNewDefault) {
+        Label existingBadge = titleRow.getChildren().stream()
+                .filter(Label.class::isInstance)
+                .map(Label.class::cast)
+                .filter(label -> label.getStyleClass().contains(DEFAULT_BADGE_STYLE_CLASS))
+                .findFirst().orElse(null);
+        if (isNewDefault && existingBadge == null) {
+            Label defaultBadge = new Label(I18n.tr(DEFAULT_BADGE_I18N_KEY));
+            defaultBadge.getStyleClass().addAll(DEFAULT_MAC_STYLE_CLASS, DEFAULT_BADGE_STYLE_CLASS);
+            titleRow.getChildren().add(defaultBadge);
+        } else if (!isNewDefault && existingBadge != null) {
+            titleRow.getChildren().remove(existingBadge);
+        }
+    }
+
+    private void updateMacCardActions(StackPane wrapper, String cardMac, boolean isNewDefault) {
+        HBox actions = wrapper.getChildren().stream()
+                .filter(HBox.class::isInstance)
+                .map(HBox.class::cast)
+                .filter(hbox -> hbox.getStyleClass().contains("verification-mac-card-actions"))
+                .findFirst().orElse(null);
+        if (isNewDefault) {
+            if (actions != null) wrapper.getChildren().remove(actions);
+            return;
+        }
+        if (actions == null) {
+            HBox newActions = createMacCardActions(cardMac);
+            StackPane.setAlignment(newActions, Pos.TOP_RIGHT);
+            StackPane.setMargin(newActions, new Insets(8, 8, 0, 0));
+            wrapper.getChildren().add(newActions);
+            return;
+        }
+        actions.getChildren().stream()
+                .filter(Button.class::isInstance)
+                .map(Button.class::cast)
+                .filter(button -> button.getTooltip() != null
+                        && button.getTooltip().getText().equals(I18n.tr("macHoverSetDefault")))
+                .forEach(button -> button.setDisable(false));
     }
 
     public void setTotal(int total) {
