@@ -767,12 +767,9 @@ public class HttpProxyStreamServer implements HttpHandler {
                 return originalUrl;
             }
             String[] parts = path.split("/");
-            List<String> segments = new ArrayList<>();
-            for (String part : parts) {
-                if (!isBlank(part)) {
-                    segments.add(part);
-                }
-            }
+            List<String> segments = java.util.Arrays.stream(parts)
+                    .filter(part -> !isBlank(part))
+                    .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
             if (segments.size() < 3) {
                 return originalUrl;
             }

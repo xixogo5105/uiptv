@@ -170,12 +170,9 @@ public class M3U8PublicationService {
                                                PublishedCategoryMode categoryMode,
                                                String host) {
         try {
-            List<PlaylistChannelEntry> selectedEntries = new ArrayList<>();
-            for (PlaylistChannelEntry entry : parsePlaylistEntries(account)) {
-                if (isChannelSelected(account.getDbId(), entry.categoryName(), entry.channelId(), selections)) {
-                    selectedEntries.add(entry);
-                }
-            }
+            List<PlaylistChannelEntry> selectedEntries = parsePlaylistEntries(account).stream()
+                    .filter(entry -> isChannelSelected(account.getDbId(), entry.categoryName(), entry.channelId(), selections))
+                    .toList();
             boolean singleCategorySource = hasSingleEffectiveCategory(
                     selectedEntries.stream().flatMap(entry -> entry.lines().stream()).toList(),
                     null
@@ -500,11 +497,10 @@ public class M3U8PublicationService {
         }
 
         String channelId = buildChannelId(parseQuotedAttribute(extinfLine, "tvg-id"), title, sourceUrl);
-        List<PlaylistChannelEntry> channelEntries = new ArrayList<>();
         boolean splitFromMultiCategory = categoryNames.size() > 1;
-        for (String categoryName : categoryNames) {
-            channelEntries.add(new PlaylistChannelEntry(categoryName, channelId, title, entryLines, splitFromMultiCategory));
-        }
+        List<PlaylistChannelEntry> channelEntries = categoryNames.stream()
+                .map(categoryName -> new PlaylistChannelEntry(categoryName, channelId, title, entryLines, splitFromMultiCategory))
+                .toList();
         return new ParsedPlaylistEntry(channelEntries, Math.max(index, startIndex + 1));
     }
 

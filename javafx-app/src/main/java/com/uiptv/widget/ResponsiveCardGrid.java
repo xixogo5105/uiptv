@@ -752,12 +752,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
         for (int index = safeFirst; index < safeLast; index++) {
             retainedItems.add(items.get(index));
         }
-        List<Map.Entry<T, Region>> cardsToCache = new ArrayList<>();
-        for (Map.Entry<T, Region> entry : cardsByItem.entrySet()) {
-            if (!retainedItems.contains(entry.getKey())) {
-                cardsToCache.add(entry);
-            }
-        }
+        List<Map.Entry<T, Region>> cardsToCache = cardsByItem.entrySet().stream()
+                .filter(entry -> !retainedItems.contains(entry.getKey()))
+                .toList();
         cardsByItem.entrySet().removeIf(entry -> !retainedItems.contains(entry.getKey()));
         for (Map.Entry<T, Region> entry : cardsToCache) {
             // A card scrolled out from under the pointer never gets MOUSE_EXITED, so hide its

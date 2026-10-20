@@ -361,10 +361,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     private void refreshNativeMetadata(MediaPlayer mp) {
         withCurrentPlayer(player -> {
-            List<TrackOption> tracks = new ArrayList<>();
-            for (TrackDescription track : player.audio().trackDescriptions()) {
-                tracks.add(new TrackOption(track.id(), normalizeTrackLabel(track.description(), "Audio")));
-            }
+            List<TrackOption> tracks = player.audio().trackDescriptions().stream()
+                    .map(track -> new TrackOption(track.id(), normalizeTrackLabel(track.description(), "Audio")))
+                    .toList();
             int selected = player.audio().track();
             List<VideoTrackInfo> video = player.media().info() == null ? List.of() : player.media().info().videoTracks();
             String codec = video == null || video.isEmpty() ? "" : video.getFirst().codecName();

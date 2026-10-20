@@ -507,14 +507,10 @@ public class StalkerPortalPlayerService implements AccountPlayerService {
     }
 
     private static List<String> getLiveCmdCandidates(Channel channel) {
-        List<String> candidates = new ArrayList<>();
-        String[] values = new String[]{channel.getCmd(), channel.getCmd_1(), channel.getCmd_2(), channel.getCmd_3()};
-        for (String value : values) {
-            if (!isBlank(value) && !candidates.contains(value)) {
-                candidates.add(value);
-            }
-        }
-        return candidates;
+        return java.util.stream.Stream.of(channel.getCmd(), channel.getCmd_1(), channel.getCmd_2(), channel.getCmd_3())
+                .filter(value -> !isBlank(value))
+                .distinct()
+                .toList();
     }
 
     private static boolean isUsableResolvedLiveUrl(String url) {

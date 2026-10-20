@@ -336,16 +336,14 @@ abstract class AbstractAccountCacheReloader implements AccountCacheReloader {
     }
 
     protected List<Channel> m3u8Channels(String category, Account account) {
-        Set<Channel> channels = new LinkedHashSet<>();
         Set<PlaylistEntry> m3uCategories = loadM3uCategories(account);
         boolean hasOtherCategories = m3uCategories.size() >= 2;
-        for (PlaylistEntry entry : loadM3uEntries(account)) {
-            if (matchesM3uCategory(entry, category, hasOtherCategories)) {
-                channels.add(toChannel(entry));
-            }
-        }
-
-        return channels.stream().toList();
+        return loadM3uEntries(account).stream()
+                .filter(entry -> matchesM3uCategory(entry, category, hasOtherCategories))
+                .map(this::toChannel)
+                .collect(java.util.stream.Collectors.collectingAndThen(
+                        java.util.stream.Collectors.toCollection(LinkedHashSet::new), Set::stream))
+                .toList();
     }
 
     protected Set<PlaylistEntry> loadM3uCategories(Account account) {
