@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -280,6 +281,56 @@ class ChannelServiceBatchLookupTest extends DbBackedTest {
         assertEquals(2, progress.totalItems());
         assertEquals(3, progress.pageNumber());
         assertEquals(4, progress.pageCount());
+    }
+
+    @Test
+    void privateHelpersCoverPaginationFilteringAndPortalAddressBranches() throws Exception {
+        ChannelService service = ChannelService.getInstance();
+        assertEquals("2", ChannelService.getChannelOrSeriesParams("cat", 2, Account.AccountAction.vod, null, null).get("p"));
+        assertEquals("cat", ChannelService.getChannelOrSeriesParams("cat", 2, Account.AccountAction.itv, null, null).get("genre"));
+
+        assertEquals("movie", invoke(service, "preferredVodLogo", new Class[]{org.json.JSONObject.class},
+                new org.json.JSONObject().put("movie_image", "movie")));
+        assertEquals("cover", invoke(service, "preferredVodLogo", new Class[]{org.json.JSONObject.class},
+                new org.json.JSONObject().put("cover", "cover")));
+        assertEquals("", invoke(service, "preferredVodLogo", new Class[]{org.json.JSONObject.class}, (Object) null));
+
+        Account account = saveAccount("channel-filter-branches", Account.AccountAction.itv);
+        account.setParentalLock(false);
+        List<Channel> channels = List.of(channel("id", "Name", "cmd"));
+        assertEquals(channels, invoke(service, "maybeFilterChannels", new Class[]{List.class, boolean.class, Account.class},
+                channels, true, account));
+
+        assertFalse((Boolean) invoke(service, "isPageFetchCancelled", new Class[]{java.util.function.Supplier.class}, (Object) null));
+        assertTrue((Boolean) invoke(service, "isPageFetchCancelled", new Class[]{java.util.function.Supplier.class}, (java.util.function.Supplier<Boolean>) () -> true));
+        assertFalse((Boolean) invoke(service, "isLogoResolutionCancelled", new Class[]{java.util.function.BooleanSupplier.class}, (java.util.function.BooleanSupplier) () -> false));
+        assertTrue((Boolean) invoke(service, "isLogoResolutionCancelled", new Class[]{java.util.function.BooleanSupplier.class}, (java.util.function.BooleanSupplier) () -> true));
+
+        Class<?> pageType = Class.forName("com.uiptv.service.ChannelService$PageFetchResult");
+        var constructor = pageType.getDeclaredConstructor(List.class, Pagination.class);
+        constructor.setAccessible(true);
+        Object emptyPage = constructor.newInstance(List.of(), null);
+        Object populatedPage = constructor.newInstance(channels, new Pagination(25, 5));
+        assertTrue((Boolean) invoke(service, "isEmptyChannelPage", new Class[]{pageType}, emptyPage));
+        assertFalse((Boolean) invoke(service, "isEmptyChannelPage", new Class[]{pageType}, populatedPage));
+        assertEquals(200, ((Integer) invoke(service, "resolveMaxAdditionalPages", new Class[]{pageType}, emptyPage)).intValue());
+        assertEquals(6, ((Integer) invoke(service, "resolveMaxAdditionalPages", new Class[]{pageType}, populatedPage)).intValue());
+
+        List<ChannelService.PageProgress> progress = new ArrayList<>();
+        invoke(service, "emitProgress", new Class[]{java.util.function.Consumer.class, int.class, int.class, int.class, int.class},
+                (java.util.function.Consumer<ChannelService.PageProgress>) progress::add, -2, -3, 0, -4);
+        assertEquals(new ChannelService.PageProgress(0, 0, 1, 0), progress.getFirst());
+        invoke(service, "emitProgress", new Class[]{java.util.function.Consumer.class, int.class, int.class, int.class, int.class},
+                null, 1, 1, 1, 1);
+
+        Object address = invoke(service, "resolvePortalAddress", new Class[]{Account.class}, (Object) null);
+        assertEquals("https://", invoke(address, "origin", new Class[]{}));
+        account.setServerPortalUrl("http://portal.test:8080/stalker");
+        address = invoke(service, "resolvePortalAddress", new Class[]{Account.class}, account);
+        assertEquals("http://portal.test:8080", invoke(address, "origin", new Class[]{}));
+        account.setServerPortalUrl("not a uri");
+        address = invoke(service, "resolvePortalAddress", new Class[]{Account.class}, account);
+        assertEquals("https://", invoke(address, "origin", new Class[]{}));
     }
 
     private Account saveAccount(String name, Account.AccountAction action) {

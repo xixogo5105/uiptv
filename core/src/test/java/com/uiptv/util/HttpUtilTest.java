@@ -1,9 +1,15 @@
 package com.uiptv.util;
 
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HttpUtilTest {
@@ -107,6 +114,62 @@ class HttpUtilTest {
 
         assertTrue(cancelledAfterAssignment.cancel(true));
         assertTrue(earlyDelegate.isCancelled());
+    }
+
+    @Test
+    void requestAndResponseHelpers_coverBodiesHeadersAndFallbackUris() throws Exception {
+        HttpUriRequestBase withoutContentType = (HttpUriRequestBase) invoke(
+                "buildRequest",
+                new Class[]{String.class, Map.class, String.class, String.class, HttpUtil.RequestOptions.class},
+                "http://example.test/path", Map.of("X-Test", "value"), "post", "a=1", HttpUtil.RequestOptions.defaults());
+        assertEquals("POST", withoutContentType.getMethod());
+        assertEquals("application/x-www-form-urlencoded", withoutContentType.getFirstHeader("Content-Type").getValue());
+        assertEquals("value", withoutContentType.getFirstHeader("X-Test").getValue());
+
+        HttpUriRequestBase withContentType = (HttpUriRequestBase) invoke(
+                "buildRequest",
+                new Class[]{String.class, Map.class, String.class, String.class, HttpUtil.RequestOptions.class},
+                "http://example.test/path", Map.of("content-type", "application/json"), null, "{}", null);
+        assertEquals("GET", withContentType.getMethod());
+        assertEquals("application/json", withContentType.getFirstHeader("Content-Type").getValue());
+
+        assertEquals("http://example.test/path?a=b%7Cc", invoke("toSafeUri", new Class[]{String.class}, "http://example.test/path?a=b|c").toString());
+        assertEquals("http://example.test/path", invoke("toSafeUri", new Class[]{String.class}, " http://example.test/path ").toString());
+        assertEquals("GET", invoke("safeMethod", new Class[]{String.class}, (Object) null));
+        assertEquals(9, invoke("resolveTimeoutSeconds", new Class[]{Integer.class, int.class}, 9, 2));
+        assertEquals(2, invoke("resolveTimeoutSeconds", new Class[]{Integer.class, int.class}, 0, 2));
+
+        HttpEntity entity = new StringEntity("small body");
+        assertEquals("small body", invoke("readBoundedResponseBody", new Class[]{HttpEntity.class, int.class}, entity, 100));
+        InvocationTargetException limitFailure = assertThrows(InvocationTargetException.class,
+                () -> invoke("readBoundedResponseBody", new Class[]{HttpEntity.class, int.class}, new StringEntity("too long"), 3));
+        assertTrue(limitFailure.getCause() instanceof ReloadRequestScope.LimitExceeded);
+
+        org.apache.hc.core5.http.ClassicHttpResponse response = Mockito.mock(org.apache.hc.core5.http.ClassicHttpResponse.class);
+        Mockito.when(response.getEntity()).thenReturn(null);
+        assertEquals("", invoke("readResponseBody", new Class[]{org.apache.hc.core5.http.ClassicHttpResponse.class, HttpUtil.RequestOptions.class}, response, HttpUtil.RequestOptions.defaults()));
+        assertEquals("", invoke("readResponseBody", new Class[]{org.apache.hc.core5.http.ClassicHttpResponse.class, HttpUtil.RequestOptions.class}, response, new HttpUtil.RequestOptions(true, false)));
+
+        @SuppressWarnings("unchecked")
+        Map<String, List<String>> headers = (Map<String, List<String>>) invoke(
+                "headersToMap", new Class[]{Header[].class}, (Object) new Header[]{
+                        new org.apache.hc.core5.http.message.BasicHeader("X-Test", "one"),
+                        new org.apache.hc.core5.http.message.BasicHeader("X-Test", "two")
+                });
+        assertEquals(List.of("one", "two"), headers.get("X-Test"));
+    }
+
+    @Test
+    void urlAndBodyFormatting_handlesMalformedInputsAndEmptyValues() throws Exception {
+        assertEquals("<unparseable-url>", HttpUtil.sanitizeUrlForLog("http://[broken"));
+        assertEquals("<empty>", invoke("abbreviateBody", new Class[]{String.class}, " "));
+        assertEquals("<empty>", invoke("abbreviateBody", new Class[]{String.class}, (Object) null));
+        assertEquals("\"\"", invoke("quote", new Class[]{String.class}, (Object) null));
+        assertEquals("fallback", invoke("nonBlank", new Class[]{String.class, String.class}, (Object) null, "fallback"));
+        assertFalse((Boolean) invoke("isSensitiveHeader", new Class[]{String.class}, (Object) null));
+        assertTrue((Boolean) invoke("isSensitiveHeader", new Class[]{String.class}, "COOKIE"));
+        assertFalse((Boolean) invoke("isSensitiveQueryKey", new Class[]{String.class}, (Object) null));
+        assertTrue((Boolean) invoke("isSensitiveQueryKey", new Class[]{String.class}, "play-token"));
     }
 
     private Object invoke(String name, Class<?>[] parameterTypes, Object... args) throws Exception {
