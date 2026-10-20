@@ -25,6 +25,16 @@
             <artifactId>uiptv-api-server</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.spc</groupId>
+            <artifactId>uiptv-lightweight-ui</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.spc</groupId>
+            <artifactId>epg-bridge</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

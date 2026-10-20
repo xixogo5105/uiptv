@@ -15,6 +15,16 @@ public final class EpgBridge {
 
     private EpgBridge() { }
     public static void main(String[] args) {
+        if (run(args) != 0) {
+            System.exit(1);
+        }
+    }
+
+    static int run(String[] args) {
+        return run(args, new EpgBuilderApplicationService());
+    }
+
+    static int run(String[] args, EpgBuilderApplicationService service) {
         System.setProperty("uiptv.sql.external", "true");
         try {
             if (args.length == 0) throw new IllegalArgumentException("Expected export-inventory, validate-bundle, import-bundle, status or merge-schedules");
@@ -24,13 +34,12 @@ public final class EpgBridge {
                         || options.putIfAbsent(args[i], args[i + 1]) != null)
                     throw new IllegalArgumentException("Expected " + BUNDLE_OPTION + " <path>; the database is resolved by UIPTV");
             }
-            var service = new EpgBuilderApplicationService();
             if (args[0].equals("export-inventory-jsonl") || args[0].equals("export-inventory")) {
                 var writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(
                         new java.io.FileOutputStream(java.io.FileDescriptor.out), java.nio.charset.StandardCharsets.UTF_8));
                 if (args[0].equals("export-inventory-jsonl")) service.writeInventory(SQLConnection.resolveConfiguredDatabasePath(), writer);
                 else service.writeInventoryJson(SQLConnection.resolveConfiguredDatabasePath(), writer);
-                return;
+                return 0;
             }
             var result = switch (args[0]) {
                 case "validate-bundle" -> service.validateBundle(SQLConnection.resolveConfiguredDatabasePath(), options.get(BUNDLE_OPTION));
@@ -41,14 +50,15 @@ public final class EpgBridge {
                 default -> throw new IllegalArgumentException("Unknown command");
             };
             LOG.info("{}", result);
+            return 0;
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
             LOG.error("EPG bridge interrupted: {}", error.getMessage());
-            System.exit(1);
+            return 1;
         } catch (Exception error) {
             // Do not dump provider URLs, metadata or credentials in stack traces.
             LOG.error("EPG bridge failed: {}: {}", error.getClass().getSimpleName(), error.getMessage());
-            System.exit(1);
+            return 1;
         }
     }
 }
