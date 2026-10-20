@@ -38,6 +38,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class VlcVideoPlayer extends BaseVideoPlayer {
     static final String VLC_HTTP_USER_AGENT = CHROME_USER_AGENT;
@@ -52,7 +53,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             return thread;
         });
         MediaPlayerFactory factory;
-        volatile EmbeddedMediaPlayer player;
+        final AtomicReference<EmbeddedMediaPlayer> player = new AtomicReference<>();
         MediaPlayerEventAdapter events;
         VlcImageViewVideoSurface surface;
         boolean admitted;
@@ -63,11 +64,11 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     // A broken native plugin cannot be forcibly interrupted safely. Bound abandoned sessions
     // rather than accumulating native players/threads indefinitely during repeated clicks.
     private final java.util.concurrent.Semaphore sessionSlots = new java.util.concurrent.Semaphore(4);
-    private volatile NativeSession session = new NativeSession();
+    private final AtomicReference<NativeSession> session = new AtomicReference<>(new NativeSession());
     private final ExecutorService nativeStopExecutor = Executors.newVirtualThreadPerTaskExecutor();
     private final java.util.function.Supplier<MediaPlayerFactory> nativeFactory;
-    private volatile EmbeddedMediaPlayer mediaPlayer;
-    private volatile Future<?> playbackTask;
+    private final AtomicReference<EmbeddedMediaPlayer> mediaPlayer = new AtomicReference<>();
+    private final AtomicReference<Future<?>> playbackTask = new AtomicReference<>();
     private volatile boolean playing;
     private volatile double desiredVolume = 50;
     private List<TrackOption> audioTracks = List.of();
@@ -99,9 +100,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     /** Runs only on this session's command thread. Never hold playerLock across native code. */
     private void ensurePlayerInitialized(NativeSession target) {
-        if (isDisposed.get() || session != target) return;
+        if (isDisposed.get() || session.get() != target) return;
         if (target.initializationFailure != null) throw new IllegalStateException("VLC initialization failed", target.initializationFailure);
-        if (target.player != null) return;
+        if (target.player.get() != null) return;
         if (!sessionSlots.tryAcquire()) {
             throw new IllegalStateException("Previous VLC sessions are still closing; retry playback shortly");
         }
@@ -114,7 +115,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             target.initializationFailure = failure;
             com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VLC native initialization failed", failure);
             if (failure instanceof LinkageError) Platform.runLater(() -> {
-                if (session == target && !isDisposed.get()) {
+                if (session.get() == target && !isDisposed.get()) {
                     com.uiptv.player.MediaPlayerFactory.handleVlcInitFailure(failure);
                 }
             });
@@ -125,18 +126,18 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     private void createNativePlayer(NativeSession target) {
         target.factory = nativeFactory == null
                 ? new MediaPlayerFactory(createVlcArgs().toArray(new String[0])) : nativeFactory.get();
-        target.player = target.factory.mediaPlayers().newEmbeddedMediaPlayer();
+        target.player.set(target.factory.mediaPlayers().newEmbeddedMediaPlayer());
         target.surface = new VlcImageViewVideoSurface(videoImageView);
-        target.player.videoSurface().set(target.surface);
-        target.player.controls().setRepeat(false);
+        target.player.get().videoSurface().set(target.surface);
+        target.player.get().controls().setRepeat(false);
         target.events = createMediaPlayerEvents();
-        target.player.events().addMediaPlayerEventListener(target.events);
+        target.player.get().events().addMediaPlayerEventListener(target.events);
     }
 
     private void publishNativePlayer(NativeSession target) {
         synchronized (playerLock) {
-            if (session == target && !isDisposed.get()) {
-                mediaPlayer = target.player;
+            if (session.get() == target && !isDisposed.get()) {
+                mediaPlayer.set(target.player.get());
             } else {
                 target.surface.disable();
             }
@@ -228,12 +229,12 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private void withCurrentPlayer(java.util.function.Consumer<EmbeddedMediaPlayer> action) {
-        NativeSession target = session;
+        NativeSession target = session.get();
         try {
             target.commands.submit(() -> {
-                if (session != target || isDisposed.get() || target.player == null) return;
+                if (session.get() != target || isDisposed.get() || target.player.get() == null) return;
                 try {
-                    action.accept(target.player);
+                    action.accept(target.player.get());
                 } catch (Exception failure) {
                     com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VLC session command failed", failure);
                 }
@@ -286,7 +287,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     }
 
     private boolean isCurrentPlayer(MediaPlayer player) {
-        return !isDisposed.get() && player != null && mediaPlayer == player;
+        return !isDisposed.get() && player != null && mediaPlayer.get() == player;
     }
 
     private MediaPlayerEventAdapter createMediaPlayerEvents() {
@@ -383,7 +384,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             return;
         }
         long requestVersion = audioStateRequestVersion.get();
-        EmbeddedMediaPlayer currentPlayer = mediaPlayer;
+        EmbeddedMediaPlayer currentPlayer = mediaPlayer.get();
         if (currentPlayer == null || currentPlayer != mp) {
             return;
         }
@@ -503,7 +504,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             return;
         }
         long requestVersion = audioStateRequestVersion.get();
-        EmbeddedMediaPlayer currentPlayer = mediaPlayer;
+        EmbeddedMediaPlayer currentPlayer = mediaPlayer.get();
         if (currentPlayer == null || currentPlayer != mp) {
             return;
         }
@@ -529,16 +530,18 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     protected void playMedia(String uri) {
-        if (session.playbackRequested.get()) disposeMedia();
-        session.playbackRequested.set(true);
+        NativeSession currentSession = session.get();
+        if (currentSession.playbackRequested.get()) disposeMedia();
+        currentSession = session.get();
+        currentSession.playbackRequested.set(true);
         loadingSpinner.setVisible(true);
         long playbackRequestVersion = mediaRequestVersion.incrementAndGet();
-        NativeSession target = session;
-        Future<?> previousTask = playbackTask;
+        NativeSession target = currentSession;
+        Future<?> previousTask = playbackTask.get();
         if (previousTask != null) {
             previousTask.cancel(true);
         }
-        playbackTask = playExecutor.submit(() -> {
+        playbackTask.set(playExecutor.submit(() -> {
             try {
                 if (isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get() || Thread.currentThread().isInterrupted()) {
                     return;
@@ -564,7 +567,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                     long started = System.nanoTime();
                     try {
                         ensurePlayerInitialized(target);
-                        EmbeddedMediaPlayer player = target.player;
+                        EmbeddedMediaPlayer player = target.player.get();
                         if (player == null || isDisposed.get() || playbackRequestVersion != mediaRequestVersion.get()) return;
                         long audioRequestVersion = markAudioStateSyncRequested();
                         applyDesiredAudioState(player);
@@ -580,7 +583,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                         if (!accepted) throw new IllegalStateException("libVLC rejected media startup");
                         // A retired session owns a final stop/release queued behind this call.
                         if (playbackRequestVersion == mediaRequestVersion.get()
-                                && !isDisposed.get() && mediaPlayer == player) {
+                                && !isDisposed.get() && mediaPlayer.get() == player) {
                             scheduleAudioStateStartupSync(audioRequestVersion);
                         }
                     } catch (Exception | LinkageError failure) {
@@ -596,7 +599,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 if (t instanceof InterruptedException) { Thread.currentThread().interrupt(); return; }
                 reportPlaybackFailure(playbackRequestVersion, t);
             }
-        });
+        }));
     }
 
     /**
@@ -642,8 +645,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
     protected void disposeMedia() {
         mediaRequestVersion.incrementAndGet();
         audioStateRequestVersion.incrementAndGet();
-        Future<?> task = playbackTask;
-        playbackTask = null;
+        Future<?> task = playbackTask.getAndSet(null);
         if (task != null) {
             task.cancel(true);
         }
@@ -654,19 +656,18 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         videoCodec = "";
         NativeSession retired;
         synchronized (playerLock) {
-            retired = session;
-            session = new NativeSession();
+            retired = session.getAndSet(new NativeSession());
             if (retired.surface != null) retired.surface.disable();
-            mediaPlayer = null;
+            mediaPlayer.set(null);
         }
         // Signal stop independently of a blocked start, but join it OFF JavaFX before release.
         // The queued final stop covers stop arriving before media.play attaches its media.
         java.util.concurrent.CompletableFuture<Void> stop = java.util.concurrent.CompletableFuture.runAsync(
-                () -> stopNativePlayback(retired.player), nativeStopExecutor);
+                () -> stopNativePlayback(retired.player.get()), nativeStopExecutor);
         retired.commands.submit(() -> {
             try {
                 stop.join();
-                detachNativeRendering(retired.player, retired.events);
+                detachNativeRendering(retired.player.get(), retired.events);
                 releaseSession(retired);
             } finally {
                 retired.commands.shutdown();
@@ -732,7 +733,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                         return;
                     }
                     Platform.runLater(() -> {
-                        if (gate.enabled.get() && gate.image == next) {
+                        if (gate.enabled.get() && gate.image.get() == next) {
                             imageView.setImage(next);
                         }
                     });
@@ -773,8 +774,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             private final AtomicBoolean enabled = new AtomicBoolean(true);
             private final AtomicBoolean updateQueued = new AtomicBoolean();
             private final Object frameLock = new Object();
-            private volatile byte[] latestFrame;
-            private volatile WritableImage image;
+            private final AtomicReference<byte[]> latestFrame = new AtomicReference<>();
+            private final AtomicReference<WritableImage> image = new AtomicReference<>();
             private volatile int sourceWidth;
             private volatile int sourceHeight;
 
@@ -785,8 +786,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 int frameBytes = Math.multiplyExact(Math.multiplyExact(width, height), 4);
                 WritableImage next = new WritableImage(width, height);
                 synchronized (frameLock) {
-                    latestFrame = new byte[frameBytes];
-                    image = next;
+                    latestFrame.set(new byte[frameBytes]);
+                    image.set(next);
                     sourceWidth = width;
                     sourceHeight = height;
                 }
@@ -801,7 +802,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 int width = sourceWidth;
                 int height = sourceHeight;
                 int rowBytes = width * 4;
-                byte[] target = latestFrame;
+                byte[] target = latestFrame.get();
                 int[] pitches = bufferFormat.getPitches();
                 if (target == null || width <= 0 || height <= 0 || pitches == null || pitches.length == 0
                         || target.length < rowBytes * height || pitches[0] < rowBytes) {
@@ -811,7 +812,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 source.clear();
                 int pitch = pitches[0];
                 synchronized (frameLock) {
-                    if (!enabled.get() || target != latestFrame) {
+                    if (!enabled.get() || target != latestFrame.get()) {
                         return false;
                     }
                     for (int row = 0; row < height; row++) {
@@ -832,13 +833,13 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
                 if (!enabled.get()) {
                     return;
                 }
-                WritableImage currentImage = image;
-                byte[] frame = latestFrame;
+                WritableImage currentImage = image.get();
+                byte[] frame = latestFrame.get();
                 if (currentImage == null || frame == null) {
                     return;
                 }
                 synchronized (frameLock) {
-                    if (enabled.get() && currentImage == image && frame == latestFrame) {
+                    if (enabled.get() && currentImage == image.get() && frame == latestFrame.get()) {
                         currentImage.getPixelWriter().setPixels(0, 0, sourceWidth, sourceHeight,
                                 PixelFormat.getByteBgraPreInstance(), frame, 0, sourceWidth * 4);
                     }
@@ -848,8 +849,8 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             private void disable() {
                 enabled.set(false);
                 synchronized (frameLock) {
-                    latestFrame = null;
-                    image = null;
+                    latestFrame.set(null);
+                    image.set(null);
                 }
                 updateQueued.set(false);
             }
@@ -869,14 +870,14 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
 
     @Override
     public java.util.concurrent.CompletionStage<Void> playbackReady() {
-        NativeSession target = session;
+        NativeSession target = session.get();
         return java.util.concurrent.CompletableFuture.runAsync(() -> ensurePlayerInitialized(target), target.commands);
     }
 
     private void releaseSession(NativeSession target) {
         if (target.surface != null) target.surface.disable();
-        releaseNativePlayer(target.player, target.factory);
-        target.player = null;
+        releaseNativePlayer(target.player.get(), target.factory);
+        target.player.set(null);
         target.factory = null;
         if (target.admitted) {
             target.admitted = false;
@@ -922,7 +923,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
         } finally {
             playExecutor.shutdownNow();
             nativeStopExecutor.shutdown();
-            session.commands.shutdown(); // Retired sessions drain their own cleanup queues.
+            session.get().commands.shutdown(); // Retired sessions drain their own cleanup queues.
         }
     }
 
