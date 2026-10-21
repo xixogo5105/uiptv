@@ -90,8 +90,9 @@ class UIptvServerTest extends DbBackedTest {
             UIptvServer.start();
             assertTrue(UIptvServer.isRunning());
             assertEquals(200, httpsStatus(httpsPort));
-            assertOwnerOnly(tempDir.resolve("uiptv").resolve(HTTPS_KEYSTORE_FILENAME));
-            assertOwnerOnly(tempDir.resolve("uiptv").resolve(HTTPS_KEYSTORE_PROTECTION_FILENAME));
+            Path certificateDirectory = Path.of(Platform.getUserHomeDirPath());
+            assertOwnerOnly(certificateDirectory.resolve(HTTPS_KEYSTORE_FILENAME));
+            assertOwnerOnly(certificateDirectory.resolve(HTTPS_KEYSTORE_PROTECTION_FILENAME));
         } finally {
             UIptvServer.stop();
             System.setProperty("user.home", originalUserHome);
