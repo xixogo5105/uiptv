@@ -13,6 +13,8 @@ import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 
 public class BookmarkCard extends HBox {
+    private static final String BOOKMARK_CARD_TITLE_TRAILING_STYLE_CLASS = "bookmark-card-title-trailing";
+    private static final String CHANNEL_CARD_TITLE_ACTIONS_STYLE_CLASS = "channel-card-title-actions";
     private final AsyncImageView imageView = new AsyncImageView();
     private final Label subtitleLabel = new Label();
     private final Label drmBadge = new Label(I18n.tr("autoDrm"));
@@ -140,7 +142,7 @@ public class BookmarkCard extends HBox {
             return null;
         }
         HBox trailing = new HBox(6);
-        trailing.getStyleClass().add("bookmark-card-title-trailing");
+        trailing.getStyleClass().add(BOOKMARK_CARD_TITLE_TRAILING_STYLE_CLASS);
         UiRenderQuality.optimizeLayout(trailing);
         // The title row is taller than the 24px action cells once programme details are attached.
         // Keep every trailing affordance on the same top edge; centering the trailing HBox makes
@@ -154,7 +156,7 @@ public class BookmarkCard extends HBox {
         }
         if (trailingAction != null) {
             trailingAction.getStyleClass().add("bookmark-card-title-action");
-            if (!trailingAction.getStyleClass().contains("channel-card-title-actions")) {
+            if (!trailingAction.getStyleClass().contains(CHANNEL_CARD_TITLE_ACTIONS_STYLE_CLASS)) {
                 pinToPreferredWidth(trailingAction);
             }
             trailing.getChildren().add(trailingAction);

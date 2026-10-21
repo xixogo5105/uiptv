@@ -65,7 +65,7 @@ UIPTV now builds as a Maven reactor with separated runtime modules:
 
 Build from the repository root. Maven resolves the module graph automatically.
 
-<img width="1920" height="1010" alt="Screenshot From 2025-12-17 18-56-05" src="https://github.com/user-attachments/assets/53c56841-0fb0-4c72-af15-7b2160b3eb37" />
+<img width="1920" alt="UIPTV application showing the channel library and embedded player" src="website/uiptv-screenshot.png" />
 
 ## What's New
 - **Parental lock**: Keyword filtering can now be password-protected, and Stalker censored categories/channels can require a local parental lock password before opening.

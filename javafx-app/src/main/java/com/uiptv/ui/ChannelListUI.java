@@ -72,6 +72,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private static final String BOOKMARK_ICON_PATH = "M3 0 V14 L8 10 L13 14 V0 H3 Z";
     private static final String BOOKMARK_ICON_STYLE_CLASS = "channel-bookmark-icon";
     private static final String BOOKMARK_GLYPH_STYLE_CLASS = "channel-bookmark-glyph";
+    private static final String CHANNEL_CARD_TITLE_ACTIONS_STYLE_CLASS = "channel-card-title-actions";
     private static final double ACTION_ICON_SIZE = 24;
     private static final double BOOKMARK_ICON_WIDTH = 16;
     private static final String COMPLETE = "complete";
@@ -997,7 +998,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         // persistent badges so it becomes the first trailing icon without reserving space.
         Button actionButton = createActionButton(item);
         HBox trailingActions = new HBox(5, actionButton);
-        trailingActions.getStyleClass().add("channel-card-title-actions");
+        trailingActions.getStyleClass().add(CHANNEL_CARD_TITLE_ACTIONS_STYLE_CLASS);
         trailingActions.setAlignment(Pos.CENTER_RIGHT);
         trailingActions.setMinWidth(0);
         trailingActions.setMaxWidth(Double.MAX_VALUE);
@@ -1049,7 +1050,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         HBox.setHgrow(text, Priority.ALWAYS);
 
         HBox badges = new HBox(5, createActionButton(item));
-        badges.getStyleClass().add("channel-card-title-actions");
+        badges.getStyleClass().add(CHANNEL_CARD_TITLE_ACTIONS_STYLE_CLASS);
         badges.setAlignment(Pos.CENTER_RIGHT);
         badges.setMinWidth(0);
         badges.setMaxHeight(Region.USE_PREF_SIZE);
@@ -1127,7 +1128,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
         // The hover-only ellipsis is the first action; the bookmark remains beside it without
         // reserving a hidden-menu slot in the title row.
         HBox actions = new HBox(5, action, bookmarkIcon);
-        actions.getStyleClass().add("channel-card-title-actions");
+        actions.getStyleClass().add(CHANNEL_CARD_TITLE_ACTIONS_STYLE_CLASS);
         actions.setAlignment(Pos.CENTER_RIGHT);
         // The action is unmanaged until hover. Do not freeze this group's width at the
         // bookmark-only preferred width; it must expand when the ellipsis is revealed.
