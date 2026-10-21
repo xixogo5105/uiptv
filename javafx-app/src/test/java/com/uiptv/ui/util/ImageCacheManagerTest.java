@@ -19,11 +19,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,6 +35,7 @@ class ImageCacheManagerTest {
 
     @AfterEach
     void tearDown() {
+        ImageCacheManager.setImageDecoderForTesting(null);
         ImageCacheManager.clearCache();
     }
 
@@ -115,6 +118,7 @@ class ImageCacheManagerTest {
 
     @Test
     void inlineDataImagesAreLoadedOffCallerThread() throws Exception {
+        useImmediateImageDecoder();
         LoaderBlock loaderBlock = blockImageLoader();
         String url = "data:image/png;base64," + PNG_1X1_BASE64;
         String cacheKey = "channel:" + url;
@@ -130,12 +134,13 @@ class ImageCacheManagerTest {
             loaderBlock.release();
         }
         if (future != null) {
-            future.get(3, TimeUnit.SECONDS);
+            assertNotNull(future.get(3, TimeUnit.SECONDS));
         }
     }
 
     @Test
     void diskCachedImagesAreLoadedOffCallerThread() throws Exception {
+        useImmediateImageDecoder();
         String url = "http://image.test/logo.png";
         String normalizedCaller = "channel";
         String cacheKey = normalizedCaller + ":" + url;
@@ -155,12 +160,13 @@ class ImageCacheManagerTest {
             loaderBlock.release();
         }
         if (future != null) {
-            future.get(3, TimeUnit.SECONDS);
+            assertNotNull(future.get(3, TimeUnit.SECONDS));
         }
     }
 
     @Test
     void localFileImagesAreAcceptedByLoader() throws Exception {
+        useImmediateImageDecoder();
         Path imageFile = Files.createTempFile("uiptv-image-cache-manager", ".png");
         Files.write(imageFile, PNG_1X1_BYTES);
 
@@ -170,7 +176,8 @@ class ImageCacheManagerTest {
             assertDoesNotThrow(() -> {
                 Image image = ImageCacheManager.loadImageAsync(imageFile.toUri().toString(), "Channel")
                         .get(3, TimeUnit.SECONDS);
-                assertTrue(image == null || !image.isError());
+                assertNotNull(image);
+                assertFalse(image.isError());
             });
         } finally {
             Files.deleteIfExists(imageFile);
@@ -179,6 +186,11 @@ class ImageCacheManagerTest {
 
     @Test
     void rapidRepeatedLoadsOfSameUrlAreDeduplicated() throws Exception {
+        AtomicInteger decodeCount = new AtomicInteger();
+        ImageCacheManager.setImageDecoderForTesting((bytes, profile) -> {
+            decodeCount.incrementAndGet();
+            return mock(Image.class);
+        });
         Path imageFile = Files.createTempFile("uiptv-image-cache-manager", ".png");
         Files.write(imageFile, PNG_1X1_BYTES);
         String url = imageFile.toUri().toString();
@@ -193,6 +205,7 @@ class ImageCacheManagerTest {
             }
 
             CompletableFuture.allOf(futures).get(3, TimeUnit.SECONDS);
+            assertEquals(1, decodeCount.get());
 
             String normalizedUrl = ImageCacheManager.normalizeLoadUrl(url);
             String actualCacheKey = "stress:" + normalizedUrl;
@@ -276,6 +289,10 @@ class ImageCacheManagerTest {
         long timeoutSec = Long.getLong("uiptv.test.thread.start.timeout.sec", 30L);
         assertTrue(started.await(timeoutSec, TimeUnit.SECONDS));
         return new LoaderBlock(release);
+    }
+
+    private void useImmediateImageDecoder() {
+        ImageCacheManager.setImageDecoderForTesting((bytes, profile) -> mock(Image.class));
     }
 
     private record LoaderBlock(CountDownLatch releaseLatch) {
