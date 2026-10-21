@@ -38,6 +38,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.SVGPath;
 import javafx.util.Callback;
@@ -70,6 +71,9 @@ public class ChannelListUI extends HBox implements SearchTarget {
     private static final String DRM_BADGE_STYLE_CLASS = "drm-badge";
     private static final String BOOKMARK_ICON_PATH = "M3 0 V14 L8 10 L13 14 V0 H3 Z";
     private static final String BOOKMARK_ICON_STYLE_CLASS = "channel-bookmark-icon";
+    private static final String BOOKMARK_GLYPH_STYLE_CLASS = "channel-bookmark-glyph";
+    private static final double ACTION_ICON_SIZE = 24;
+    private static final double BOOKMARK_ICON_WIDTH = 16;
     private static final String COMPLETE = "complete";
     private static final String STYLE_CLASS_DANGER_MENU_ITEM = "danger-menu-item";
     private static final String I18N_AUTO_WATCHING_NOW = "autoWatchingNow";
@@ -989,11 +993,20 @@ public class ChannelListUI extends HBox implements SearchTarget {
         Region titleRowSpacer = new Region();
         HBox.setHgrow(titleRowSpacer, Priority.ALWAYS);
         card.getChildren().add(titleRowSpacer);
+        // The ellipsis is hover-only and unmanaged until revealed. Keep it before the
+        // persistent badges so it becomes the first trailing icon without reserving space.
+        Button actionButton = createActionButton(item);
+        HBox trailingActions = new HBox(5, actionButton);
+        trailingActions.getStyleClass().add("channel-card-title-actions");
+        trailingActions.setAlignment(Pos.CENTER_RIGHT);
+        trailingActions.setMinWidth(0);
+        trailingActions.setMaxWidth(Double.MAX_VALUE);
+        card.getChildren().add(trailingActions);
         if (item != null && item.getChannel() != null && PlayerService.getInstance().isDrmProtected(item.getChannel())) {
             card.getChildren().add(createDrawerBadge(I18n.tr(I18N_AUTO_DRM)));
         }
         if (item != null && item.isBookmarked()) {
-            card.getChildren().add(createBookmarkIcon());
+            trailingActions.getChildren().add(createBookmarkIcon());
         }
         // Show watching badge for series
         if (item != null && item.getChannel() != null && listAction == series && item.getChannel().isWatched()) {
@@ -1002,9 +1015,6 @@ public class ChannelListUI extends HBox implements SearchTarget {
         // Plain-text rows get the same "..." affordance as the thumbnail cards. It is created here
         // but stays hollow until the row is hovered, so adding it here does not reintroduce the
         // per-row cost this avoids in the catalogue.
-        Button actionButton = createActionButton(item);
-        HBox.setMargin(actionButton, new Insets(0, 0, 0, 6));
-        card.getChildren().add(actionButton);
         return card;
     }
 
@@ -1038,9 +1048,14 @@ public class ChannelListUI extends HBox implements SearchTarget {
         text.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(text, Priority.ALWAYS);
 
-        HBox badges = new HBox(4);
+        HBox badges = new HBox(5, createActionButton(item));
+        badges.getStyleClass().add("channel-card-title-actions");
         badges.setAlignment(Pos.CENTER_RIGHT);
+        badges.setMinWidth(0);
+        badges.setMaxHeight(Region.USE_PREF_SIZE);
         populateDrawerChannelBadges(item, badges);
+        titleRow.getChildren().add(badges);
+        titleRow.setAlignment(Pos.TOP_LEFT);
 
         HBox row = new HBox(8);
         row.getStyleClass().addAll("account-drawer-channel-row", "watching-now-episode-card", "watching-now-episode-card-compact");
@@ -1056,7 +1071,9 @@ public class ChannelListUI extends HBox implements SearchTarget {
             thumbnail.loadImage(item == null ? "" : item.getLogo(), IMAGE_CACHE_KEY_CHANNEL);
             row.getChildren().add(thumbnail);
         }
-        row.getChildren().addAll(text, badges, createActionButton(item));
+        // Keep the hover-only ellipsis before the persistent badges. It is unmanaged while
+        // hidden, so the badges remain at the trailing edge without reserving its space.
+        row.getChildren().add(text);
         return row;
     }
 
@@ -1103,22 +1120,36 @@ public class ChannelListUI extends HBox implements SearchTarget {
         if (item == null || !item.isBookmarked()) {
             return action;
         }
-        SVGPath bookmarkIcon = createBookmarkIcon();
+        StackPane bookmarkIcon = createBookmarkIcon();
         if (action == null) {
             return bookmarkIcon;
         }
-        HBox actions = new HBox(7, bookmarkIcon, action);
+        // The hover-only ellipsis is the first action; the bookmark remains beside it without
+        // reserving a hidden-menu slot in the title row.
+        HBox actions = new HBox(5, action, bookmarkIcon);
         actions.getStyleClass().add("channel-card-title-actions");
         actions.setAlignment(Pos.CENTER_RIGHT);
-        actions.setMinWidth(Region.USE_PREF_SIZE);
-        actions.setMaxWidth(Region.USE_PREF_SIZE);
+        // The action is unmanaged until hover. Do not freeze this group's width at the
+        // bookmark-only preferred width; it must expand when the ellipsis is revealed.
+        actions.setMinWidth(0);
+        actions.setMaxWidth(Double.MAX_VALUE);
         return actions;
     }
 
-    private SVGPath createBookmarkIcon() {
-        SVGPath bookmarkIcon = new SVGPath();
-        bookmarkIcon.setContent(BOOKMARK_ICON_PATH);
+    private StackPane createBookmarkIcon() {
+        SVGPath bookmarkGlyph = new SVGPath();
+        bookmarkGlyph.setContent(BOOKMARK_ICON_PATH);
+        bookmarkGlyph.getStyleClass().add(BOOKMARK_GLYPH_STYLE_CLASS);
+        bookmarkGlyph.setMouseTransparent(true);
+
+        StackPane bookmarkIcon = new StackPane(bookmarkGlyph);
         bookmarkIcon.getStyleClass().add(BOOKMARK_ICON_STYLE_CLASS);
+        bookmarkIcon.setAlignment(Pos.CENTER);
+        // Match the menu ring's roughly 3px side inset, so the visible gaps either
+        // side of the recording dot are equal with the shared 5px action spacing.
+        bookmarkIcon.setMinSize(BOOKMARK_ICON_WIDTH, ACTION_ICON_SIZE);
+        bookmarkIcon.setPrefSize(BOOKMARK_ICON_WIDTH, ACTION_ICON_SIZE);
+        bookmarkIcon.setMaxSize(BOOKMARK_ICON_WIDTH, ACTION_ICON_SIZE);
         bookmarkIcon.setMouseTransparent(true);
         return bookmarkIcon;
     }
@@ -1383,7 +1414,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             private final Label drmBadge = new Label(I18n.tr(I18N_AUTO_DRM));
             private final Label progressBadge = new Label(I18n.tr(I18N_AUTO_IN_PROGRESS));
             private final Pane spacer = new Pane();
-            private final SVGPath bookmarkIcon = createBookmarkIcon();
+            private final StackPane bookmarkIcon = createBookmarkIcon();
             private final AsyncImageView imageView = new AsyncImageView();
 
             {
@@ -1443,7 +1474,7 @@ public class ChannelListUI extends HBox implements SearchTarget {
             private final Label drmBadge = new Label(I18n.tr(I18N_AUTO_DRM));
             private final Label progressBadge = new Label(I18n.tr(I18N_AUTO_IN_PROGRESS));
             private final Pane spacer = new Pane();
-            private final SVGPath bookmarkIcon = createBookmarkIcon();
+            private final StackPane bookmarkIcon = createBookmarkIcon();
 
             {
                 drmBadge.getStyleClass().add(DRM_BADGE_STYLE_CLASS);

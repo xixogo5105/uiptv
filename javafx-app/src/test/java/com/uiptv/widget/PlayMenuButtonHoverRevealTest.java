@@ -51,6 +51,7 @@ class PlayMenuButtonHoverRevealTest {
             assertNull(button.getTooltip(), "no Tooltip should exist yet - that is the expensive part");
             assertFalse(button.isRevealed());
             assertEquals(0.0, button.getOpacity(), 0.0001, "hidden until revealed");
+            assertFalse(button.isManaged(), "concealed action must not reserve layout space");
         });
     }
 
@@ -65,6 +66,7 @@ class PlayMenuButtonHoverRevealTest {
             assertNotNull(button.getTooltip(), "tooltip should be built on first reveal");
             assertTrue(button.isRevealed());
             assertEquals(1.0, button.getOpacity(), 0.0001);
+            assertTrue(button.isManaged(), "revealed action must participate in layout");
 
             Node graphic = button.getGraphic();
             button.reveal();
@@ -82,6 +84,7 @@ class PlayMenuButtonHoverRevealTest {
             button.conceal();
             assertFalse(button.isRevealed());
             assertEquals(0.0, button.getOpacity(), 0.0001);
+            assertFalse(button.isManaged(), "concealed action must release layout space");
             assertEquals(graphic, button.getGraphic(), "conceal must not throw content away");
 
             button.conceal();

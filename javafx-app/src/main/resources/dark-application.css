@@ -2842,7 +2842,11 @@
     -fx-border-radius: 10;
 }
 
-.account-drawer-channel-title,
+.account-drawer-channel-title {
+    -fx-font-size: 0.93em;
+    -fx-font-weight: normal;
+}
+
 .watching-now-episode-drawer-title {
     -fx-font-size: 0.93em;
     -fx-font-weight: 700;
@@ -2971,7 +2975,7 @@
 
 .bookmark-channel-title {
     -fx-font-size: 0.98em;
-    -fx-font-weight: bold;
+    -fx-font-weight: normal;
     -fx-text-fill: -uiptv-text-primary;
 }
 
@@ -2981,7 +2985,7 @@
 
 .bookmark-channel-title-text {
     -fx-font-size: 0.98em;
-    -fx-font-weight: bold;
+    -fx-font-weight: normal;
     -fx-fill: -uiptv-text-primary;
 }
 
@@ -5144,8 +5148,8 @@
 .epg-player-heading { -fx-font-size: 12; -fx-text-fill: -uiptv-text-secondary; }
 .epg-programme-card { -fx-padding: 12 14; -fx-background-color: -uiptv-card-bg; -fx-background-radius: 10; -fx-border-color: -uiptv-card-border; -fx-border-radius: 10; -fx-border-width: 1; }
 .epg-current-card { -fx-border-color: #32b8dd; }
-.epg-programme-title { -fx-font-size: 16; -fx-font-weight: bold; -fx-text-fill: -uiptv-text-primary; }
-.epg-programme-time, .epg-programme-description { -fx-font-size: 12; -fx-text-fill: -uiptv-text-secondary; }
+.epg-programme-title { -fx-font-size: 16; -fx-font-weight: normal; -fx-text-fill: -uiptv-text-primary; }
+.epg-programme-time, .epg-programme-description { -fx-font-size: 12; -fx-font-weight: normal; -fx-text-fill: -uiptv-text-secondary; }
 .epg-programme-badge { -fx-background-color: -uiptv-surface-muted; -fx-background-radius: 5; -fx-padding: 3 8; -fx-font-size: 11; -fx-font-weight: bold; -fx-text-fill: -uiptv-text-secondary; }
 .epg-now-badge { -fx-background-color: #32b8dd; -fx-text-fill: #07151e; }
 .epg-programme-progress { -fx-min-height: 4; -fx-pref-height: 4; -fx-max-height: 4; -fx-accent: #32b8dd; }
@@ -5204,7 +5208,7 @@
 .epg-guide-popup-programme.current-programme { -fx-border-color: #32b8dd; }
 
 .virtual-card-epg { -fx-padding: 8 0 0 0; -fx-border-color: -uiptv-card-border; -fx-border-width: 1 0 0 0; }
-.virtual-card-epg-title { -fx-font-weight: bold; -fx-text-fill: -uiptv-text-primary; -fx-font-size: 12; }
+.virtual-card-epg-title { -fx-font-weight: normal; -fx-text-fill: -uiptv-text-primary; -fx-font-size: 12; }
 .epg-guide-popup .epg-guide-popup-programme { -fx-padding: 14; -fx-background-radius: 10; -fx-border-radius: 10; }
 .epg-guide-popup .list-cell { -fx-alignment: top-left; }
 

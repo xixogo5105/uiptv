@@ -383,7 +383,10 @@
                                         <exec executable="hdiutil" dir="${project.build.directory}">
                                             <arg value="create"/><arg value="-volname"/><arg value="UIPTV"/><arg value="-srcfolder"/><arg value="${app.path}"/><arg value="-ov"/><arg value="-format"/><arg value="UDZO"/><arg value="${dmg.path}"/>
                                         </exec>
-                                        <exec executable="rm"><arg value="-rf"/><arg value="${app.path}"/></exec>
+                                        <exec executable="/bin/sh">
+                                            <arg value="-c"/>
+                                            <arg value="test &quot;${uiptv.keep.app.image}&quot; = &quot;true&quot; || rm -rf &quot;${app.path}&quot;"/>
+                                        </exec>
                                     </target>
                                 </configuration>
                             </execution>

@@ -1003,7 +1003,27 @@ public class ResponsiveCardGrid<T> extends StackPane {
                     INLINE_INDICATOR_RIGHT_MARGIN,
                     0,
                     Math.max(0, INLINE_INDICATOR_GAP - inlineRow.getSpacing())));
-            inlineRow.getChildren().add(indicator);
+            // Keep the hover-only action at the leading edge of the trailing icons. Bookmarked
+            // cards nest the action and bookmark in a title-action group, so the playing marker
+            // must be inserted between them: left-to-right ..., recording, bookmark.
+            if (insertIndicatorBetweenTrailingActions(inlineRow, indicator)) {
+                if (indicator.getParent().getStyleClass().contains("channel-card-title-actions")) {
+                    HBox.setMargin(indicator, Insets.EMPTY);
+                }
+                debugCardActions("inserted", card, indicator, inlineRow);
+                return;
+            }
+            int insertionIndex = inlineRow.getChildren().size();
+            for (int index = 0; index < inlineRow.getChildren().size(); index++) {
+                Node child = inlineRow.getChildren().get(index);
+                if (child instanceof PlayMenuButton
+                        || child.getStyleClass().contains("bookmark-play-menu-button")) {
+                    insertionIndex = index + 1;
+                    break;
+                }
+            }
+            inlineRow.getChildren().add(insertionIndex, indicator);
+            debugCardActions("fallback-inserted", card, indicator, inlineRow);
             return;
         }
         indicator.setManaged(false);
@@ -1012,6 +1032,118 @@ public class ResponsiveCardGrid<T> extends StackPane {
         indicator.translateYProperty().bind(card.heightProperty().subtract(indicator.heightProperty()).divide(2)
                 .subtract(indicator.layoutYProperty()));
         pane.getChildren().add(indicator);
+    }
+
+    private boolean insertIndicatorBetweenTrailingActions(HBox inlineRow, PlayingCardIndicator indicator) {
+        // The bookmark is the persistent rightmost action. Insert the recording dot
+        // immediately before it, regardless of which trailing HBox owns the actions.
+        if (insertBeforeBookmark(inlineRow, indicator)) {
+            return true;
+        }
+        for (Node child : inlineRow.getChildren()) {
+            if (!(child instanceof HBox group)) {
+                continue;
+            }
+            if (group.getStyleClass().contains("channel-card-title-actions")) {
+                group.getChildren().add(Math.min(1, group.getChildren().size()), indicator);
+                return true;
+            }
+            if (group.getStyleClass().contains("bookmark-card-title-trailing")) {
+                for (int index = 0; index < group.getChildren().size(); index++) {
+                    Node trailing = group.getChildren().get(index);
+                    if (trailing instanceof HBox nested
+                            && nested.getStyleClass().contains("channel-card-title-actions")) {
+                        nested.getChildren().add(Math.min(1, nested.getChildren().size()), indicator);
+                        return true;
+                    }
+                    if (trailing instanceof PlayMenuButton
+                            || trailing.getStyleClass().contains("bookmark-play-menu-button")) {
+                        group.getChildren().add(index + 1, indicator);
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean insertBeforeBookmark(Node node, PlayingCardIndicator indicator) {
+        if (!(node instanceof Parent parent)) {
+            return false;
+        }
+        List<Node> children = parent.getChildrenUnmodifiable();
+        for (int index = 0; index < children.size(); index++) {
+            Node child = children.get(index);
+            if (child.getStyleClass().contains("channel-bookmark-icon")
+                    && parent instanceof Pane pane
+                    && (parent.getStyleClass().contains("channel-card-title-actions")
+                    || parent.getStyleClass().contains("bookmark-card-title-trailing"))) {
+                pane.getChildren().add(index, indicator);
+                return true;
+            }
+            if (insertBeforeBookmark(child, indicator)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Keep the indicator in the same trailing action group as the bookmark. This is deliberately
+     * re-applied when the card becomes active because the hover action changes from unmanaged to
+     * managed and JavaFX can otherwise lay out the indicator in the outer title row.
+     */
+    private boolean normalizeInlineIndicatorActions(Region card, PlayingCardIndicator indicator) {
+        HBox actionGroup = findNodeByStyle(card, "channel-card-title-actions", HBox.class);
+        Node bookmark = findNodeByStyle(card, "channel-bookmark-icon", Node.class);
+        if (actionGroup == null || bookmark == null || bookmark.getParent() != actionGroup) {
+            return false;
+        }
+        if (indicator.getParent() != actionGroup) {
+            if (indicator.getParent() instanceof Pane oldParent) {
+                oldParent.getChildren().remove(indicator);
+            }
+            int bookmarkIndex = actionGroup.getChildren().indexOf(bookmark);
+            if (bookmarkIndex < 0) {
+                return false;
+            }
+            actionGroup.getChildren().add(bookmarkIndex, indicator);
+        } else {
+            actionGroup.getChildren().remove(indicator);
+            int bookmarkIndex = actionGroup.getChildren().indexOf(bookmark);
+            actionGroup.getChildren().add(Math.max(0, bookmarkIndex), indicator);
+        }
+        debugCardActions("normalized", card, indicator, actionGroup);
+        return true;
+    }
+
+    private <N extends Node> N findNodeByStyle(Node node, String styleClass, Class<N> type) {
+        if (type.isInstance(node) && node.getStyleClass().contains(styleClass)) {
+            return type.cast(node);
+        }
+        if (node instanceof Parent parent) {
+            for (Node child : parent.getChildrenUnmodifiable()) {
+                N found = findNodeByStyle(child, styleClass, type);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void debugCardActions(String event, Region card, PlayingCardIndicator indicator, HBox row) {
+        if (!Boolean.getBoolean("uiptv.debug.cardActions")) {
+            return;
+        }
+        System.err.println("[card-actions] " + event
+                + " card=" + card.getClass().getSimpleName()
+                + " row=" + row.getStyleClass()
+                + " indicatorParent=" + (indicator.getParent() == null
+                ? "null" : indicator.getParent().getStyleClass())
+                + " children=" + row.getChildren().stream()
+                .map(child -> child.getClass().getSimpleName() + child.getStyleClass())
+                .toList());
     }
 
     private HBox findInlineIndicatorRow(Node node) {
@@ -1037,6 +1169,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
         if (indicator == null) {
             return;
         }
+        if (activated) {
+            normalizeInlineIndicatorActions(card, indicator);
+        }
         boolean visible = activated
                 && isDisplayable()
                 && card.isVisible()
@@ -1047,7 +1182,9 @@ public class ResponsiveCardGrid<T> extends StackPane {
 
     private boolean isInlineIndicator(PlayingCardIndicator indicator) {
         return indicator.getParent() instanceof HBox row
-                && row.getStyleClass().contains("playing-indicator-inline-row");
+                && (row.getStyleClass().contains("playing-indicator-inline-row")
+                || row.getStyleClass().contains("channel-card-title-actions")
+                || row.getStyleClass().contains("bookmark-card-title-trailing"));
     }
 
     private PlayingCardIndicator findPlayingCardIndicator(Node node) {

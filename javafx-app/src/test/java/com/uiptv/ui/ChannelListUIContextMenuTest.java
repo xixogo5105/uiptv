@@ -162,6 +162,55 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     @Test
+    void hoverMenuPrecedesBookmarkInEveryChannelCardLayout() throws Exception {
+        boolean correctlyOrdered = runOnFxThread(() -> {
+            ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
+            ChannelListUI.ChannelItem item = channelItem(true);
+
+            Region thumbnailCard = createChannelCard(ui, item);
+            Node thumbnailAction = findNodeByType(thumbnailCard, PlayMenuButton.class);
+            Node thumbnailBookmark = findNodeByStyle(thumbnailCard, "channel-bookmark-icon");
+            HBox titleActions = thumbnailAction == null || !(thumbnailAction.getParent() instanceof HBox parent)
+                    ? null : parent;
+            ResponsiveCardGrid<ChannelListUI.ChannelItem> grid = new ResponsiveCardGrid<>(ignored -> thumbnailCard, true);
+            grid.setItems(FXCollections.observableArrayList(item));
+            Scene scene = new Scene(grid, 420, 180);
+            ((PlayMenuButton) thumbnailAction).reveal();
+            scene.getRoot().applyCss();
+            scene.getRoot().layout();
+            Node recordIndicator = findNodeByStyle(thumbnailCard, "playing-card-indicator");
+            if (recordIndicator != null) {
+                recordIndicator.setManaged(true);
+                recordIndicator.setVisible(true);
+            }
+            scene.getRoot().layout();
+
+            HBox plainCard = (HBox) createPlainTextChannelCard(ui, item);
+            Node plainAction = findNodeByType(plainCard, PlayMenuButton.class);
+            Node plainBookmark = findNodeByStyle(plainCard, "channel-bookmark-icon");
+
+            HBox drawerRow = (HBox) createDrawerChannelRow(ui, item);
+            Node drawerAction = findNodeByType(drawerRow, PlayMenuButton.class);
+            Node drawerBookmark = findNodeByStyle(drawerRow, "channel-bookmark-icon");
+            HBox drawerBadges = drawerBookmark == null ? null : (HBox) drawerBookmark.getParent();
+            return titleActions != null
+                    && titleActions.getChildren().indexOf(thumbnailAction) < titleActions.getChildren().indexOf(thumbnailBookmark)
+                    && recordIndicator != null
+                    && titleActions.getChildren().indexOf(thumbnailAction) < titleActions.getChildren().indexOf(recordIndicator)
+                    && titleActions.getChildren().indexOf(recordIndicator) < titleActions.getChildren().indexOf(thumbnailBookmark)
+                    && horizontallyOrdered(thumbnailAction, recordIndicator, thumbnailBookmark)
+                    && verticallyCentered(thumbnailAction, recordIndicator, thumbnailBookmark)
+                    && plainAction.getParent() instanceof HBox plainActions
+                    && plainActions.getStyleClass().contains("channel-card-title-actions")
+                    && plainActions.getChildren().indexOf(plainAction) < plainActions.getChildren().indexOf(plainBookmark)
+                    && drawerBadges != null
+                    && drawerBadges.getChildren().indexOf(drawerAction) < drawerBadges.getChildren().indexOf(drawerBookmark);
+        });
+
+        assertTrue(correctlyOrdered);
+    }
+
+    @Test
     void channelCardHidesRepeatedSubtitle() throws Exception {
         LabelSnapshot subtitle = runOnFxThread(() -> {
             Account account = new Account();
@@ -211,10 +260,11 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
             return row.getStyleClass().contains("playing-indicator-inline-row")
                     && title != null
                     && indicator != null
-                    && row.getChildren().indexOf(indicator) > row.getChildren().indexOf(title)
+                    && row.getChildren().indexOf(findNodeByStyle(card, "channel-card-title-actions")) > row.getChildren().indexOf(title)
+                    && findNodeByStyle(card, "channel-card-title-actions") instanceof HBox trailingActions
+                    && trailingActions.getChildren().indexOf(indicator) < trailingActions.getChildren().indexOf(bookmark)
                     && bookmark != null
-                    && row.getChildren().indexOf(bookmark) < row.getChildren().indexOf(indicator)
-                    && row.getChildren().getLast() == indicator;
+                    && trailingActions.getChildren().indexOf(indicator) < trailingActions.getChildren().indexOf(bookmark);
         });
 
         assertTrue(correctlyPlaced);
@@ -222,16 +272,15 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
 
     @Test
     void plainTextChannelCardSpacesBookmarkFromHoverMenuAction() throws Exception {
-        double leftMargin = runOnFxThread(() -> {
+        double spacing = runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
             Region card = createPlainTextChannelCard(ui, channelItem(true));
             Node action = findNodeByType(card, PlayMenuButton.class);
             assertNotNull(action);
-            Insets margin = HBox.getMargin(action);
-            return margin == null ? 0 : margin.getLeft();
+            return action.getParent() instanceof HBox actions ? actions.getSpacing() : 0.0;
         });
 
-        assertTrue(leftMargin > 0);
+        assertEquals(5, spacing, 0.01);
     }
 
     @Test
@@ -261,13 +310,21 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
     }
 
     @Test
-    void thumbnailDrawerChannelRowKeepsBroadcastAtTheTrailingEdgeOfTheTitleRow() throws Exception {
+    void thumbnailDrawerChannelRowOrdersActionsBeforeBroadcastAndBookmark() throws Exception {
         boolean correctlyPlaced = runOnFxThread(() -> {
             ChannelListUI ui = new ChannelListUI(new Account(), "Sports", "sports", Account.AccountAction.itv);
             setBooleanField(ui, "thumbnailsEnabled", true);
             ui.setMediaDrawerMode(true);
             ChannelListUI.ChannelItem item = channelItem(true);
             ResponsiveCardGrid<ChannelListUI.ChannelItem> grid = channelGrid(ui);
+            // Reproduce the real card decoration: programme details wrap the original header
+            // before the grid inserts its playing indicator.
+            Region decoratedCard = createDrawerChannelRow(ui, item);
+            CardEpgSupport support = new CardEpgSupport(ui);
+            Method attach = CardEpgSupport.class.getDeclaredMethod("attach", Region.class, java.util.function.Supplier.class);
+            attach.setAccessible(true);
+            attach.invoke(support, decoratedCard, (java.util.function.Supplier<com.uiptv.application.LiveGuideApplicationService.Row>) () -> null);
+            grid = new ResponsiveCardGrid<>(ignored -> decoratedCard, true);
             grid.setItems(FXCollections.observableArrayList(item));
             Scene scene = new Scene(grid, 420, 180);
             scene.getRoot().applyCss();
@@ -279,15 +336,25 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
                     ? found
                     : null;
             Node bookmark = findNodeByStyle(card, "channel-bookmark-icon");
+            PlayMenuButton action = (PlayMenuButton) findNodeByType(card, PlayMenuButton.class);
+            action.reveal();
+            indicator.setManaged(true);
+            indicator.setVisible(true);
+            scene.getRoot().applyCss();
+            scene.getRoot().layout();
             return title != null
-                    && title.getParent() instanceof HBox titleRow
-                    && titleRow.getStyleClass().contains("playing-indicator-inline-row")
                     && indicator != null
-                    && titleRow.getChildren().indexOf(indicator) > titleRow.getChildren().indexOf(title)
-                    && titleRow.getChildren().getLast() == indicator
                     && bookmark != null
                     && bookmark.getParent() instanceof HBox badges
-                    && badges.getChildren().indexOf(bookmark) >= 0;
+                    && badges.getChildren().indexOf(bookmark) >= 0
+                    && indicator.getParent() == badges
+                    && badges.getChildren().indexOf(action) < badges.getChildren().indexOf(indicator)
+                    && badges.getChildren().indexOf(indicator) < badges.getChildren().indexOf(bookmark)
+                    && horizontallyOrdered(action, indicator, bookmark)
+                    && verticallyCentered(action, indicator, bookmark)
+                    && Math.abs(bookmark.localToScene(bookmark.getBoundsInLocal()).getMaxX()
+                            - decoratedCard.localToScene(decoratedCard.getBoundsInLocal()).getMaxX()
+                            + decoratedCard.getInsets().getRight()) < 1;
         });
 
         assertTrue(correctlyPlaced);
@@ -308,7 +375,8 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
 
             Node card = findNodeByStyle(grid, "account-drawer-channel-row");
             Node actionNode = findNodeByType(card, PlayMenuButton.class);
-            if (!(actionNode instanceof PlayMenuButton action) || action.getParent() != card) {
+            if (!(actionNode instanceof PlayMenuButton action)
+                    || !action.getParent().getStyleClass().contains("channel-card-title-actions")) {
                 return false;
             }
             assertFalse(action.isMaterialised());
@@ -593,6 +661,35 @@ class ChannelListUIContextMenuTest extends DbBackedUiTest {
             }
         }
         return null;
+    }
+
+    private static boolean verticallyCentered(Node... nodes) {
+        if (nodes.length == 0 || nodes[0] == null || nodes[0].getParent() == null) {
+            return false;
+        }
+        double top = nodes[0].getBoundsInParent().getCenterY();
+        for (int i = 1; i < nodes.length; i++) {
+            if (nodes[i] == null || nodes[i].getParent() != nodes[0].getParent()
+                    || Math.abs(nodes[i].getBoundsInParent().getCenterY() - top) > 0.5) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean horizontallyOrdered(Node... nodes) {
+        if (nodes.length == 0 || nodes[0] == null || nodes[0].getParent() == null) {
+            return false;
+        }
+        double rightEdge = nodes[0].getBoundsInParent().getMaxX();
+        for (int i = 1; i < nodes.length; i++) {
+            if (nodes[i] == null || nodes[i].getParent() != nodes[0].getParent()
+                    || nodes[i].getBoundsInParent().getMinX() < rightEdge - 0.5) {
+                return false;
+            }
+            rightEdge = nodes[i].getBoundsInParent().getMaxX();
+        }
+        return true;
     }
 
     private static void dispatchMouseEvent(Node target, EventType<MouseEvent> type) {

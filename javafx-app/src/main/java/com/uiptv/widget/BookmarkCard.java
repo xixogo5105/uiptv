@@ -142,6 +142,9 @@ public class BookmarkCard extends HBox {
         HBox trailing = new HBox(6);
         trailing.getStyleClass().add("bookmark-card-title-trailing");
         UiRenderQuality.optimizeLayout(trailing);
+        // The title row is taller than the 24px action cells once programme details are attached.
+        // Keep every trailing affordance on the same top edge; centering the trailing HBox makes
+        // the bookmark visibly lower than the recording/menu icons in the selected card.
         trailing.setAlignment(Pos.TOP_RIGHT);
         trailing.setMinWidth(Region.USE_PREF_SIZE);
         trailing.setMaxWidth(Region.USE_PREF_SIZE);
@@ -151,7 +154,9 @@ public class BookmarkCard extends HBox {
         }
         if (trailingAction != null) {
             trailingAction.getStyleClass().add("bookmark-card-title-action");
-            pinToPreferredWidth(trailingAction);
+            if (!trailingAction.getStyleClass().contains("channel-card-title-actions")) {
+                pinToPreferredWidth(trailingAction);
+            }
             trailing.getChildren().add(trailingAction);
         }
         return trailing;

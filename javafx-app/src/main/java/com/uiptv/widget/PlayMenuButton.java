@@ -17,9 +17,9 @@ import javafx.util.Duration;
  * {@code uiptv.cardGrid.detachedCardCache} off-screen cards, so the whole cost is held in memory
  * for cards the user is not even looking at.
  * <p>
- * The button therefore starts hollow. It keeps its slot in the card's layout - the stylesheet pins
- * it to 24x24 - so nothing reflows when it appears, but the graphic and tooltip are only built on
- * the first {@link #reveal()}. That is driven by card hover from
+ * The button therefore starts hollow and unmanaged, so concealed cards do not reserve space for
+ * an action that is not visible. The graphic and tooltip are only built on the first
+ * {@link #reveal()}. That is driven by card hover from
  * {@link ResponsiveCardGrid#configureCard}, so exactly one button is ever materialised: the one on
  * the card under the pointer. Direct hover or focus on the button also reveals it, which keeps the
  * control usable when it is used outside a grid.
@@ -40,9 +40,11 @@ public class PlayMenuButton extends Button implements HoverRevealAction {
         setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
         addEventHandler(MouseEvent.MOUSE_CLICKED, Event::consume);
 
-        // Hidden until revealed, but still hit-testable so the reveal triggers reliably and a
-        // click that lands before the hover is processed still opens the menu.
+        // The card-level hover handler reveals this control. It is unmanaged while concealed so
+        // the title can use the full card width; once revealed it becomes hit-testable and can
+        // receive focus/clicks normally.
         setOpacity(0.0);
+        setManaged(false);
 
         // Self-reveal only. Concealing is deliberately left to ResponsiveCardGrid: if this button
         // concealed itself on MOUSE_EXITED it would disappear the moment the pointer moved off it
@@ -61,6 +63,7 @@ public class PlayMenuButton extends Button implements HoverRevealAction {
         if (!materialised) {
             materialise();
         }
+        setManaged(true);
         setOpacity(1.0);
     }
 
@@ -71,6 +74,7 @@ public class PlayMenuButton extends Button implements HoverRevealAction {
         }
         revealed = false;
         setOpacity(0.0);
+        setManaged(false);
     }
 
     @Override
