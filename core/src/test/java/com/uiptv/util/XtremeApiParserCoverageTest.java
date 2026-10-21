@@ -1,6 +1,7 @@
 package com.uiptv.util;
 
 import com.uiptv.model.Account;
+import com.uiptv.model.Category;
 import com.uiptv.model.Channel;
 import com.uiptv.shared.EpisodeList;
 import org.junit.jupiter.api.Test;
@@ -55,7 +56,10 @@ class XtremeApiParserCoverageTest {
         account.setM3u8Path("provider.test/path");
         account.setUrl("http://fallback.test/root/player_api.php");
         HttpUtil.HttpResult notFound = new HttpUtil.HttpResult(404, "not found", Map.of(), Map.of());
-        HttpUtil.HttpResult categories = new HttpUtil.HttpResult(200, "[{\"category_id\":\"1\",\"category_name\":\"News\"}]", Map.of(), Map.of());
+        HttpUtil.HttpResult categories = new HttpUtil.HttpResult(200,
+                "[{\"category_id\":\"1\",\"category_name\":\"News\"},"
+                        + "{\"category_id\":\"2\",\"category_name\":\"LIVE | &#127875; Halloween Movies\"}]",
+                Map.of(), Map.of());
         HttpUtil.HttpResult channels = new HttpUtil.HttpResult(200, "[{\"stream_id\":\"7\",\"name\":\"News\",\"category_id\":\"1\"}]", Map.of(), Map.of());
         HttpUtil.HttpResult epg = new HttpUtil.HttpResult(200, "ok", Map.of(), Map.of());
 
@@ -68,7 +72,9 @@ class XtremeApiParserCoverageTest {
                         if (url.contains("get_live_categories")) return categories;
                         return channels;
                     });
-            assertEquals("News", XtremeApiParser.parseCategories(account).getFirst().getTitle());
+            List<Category> parsedCategories = XtremeApiParser.parseCategories(account);
+            assertEquals("News", parsedCategories.getFirst().getTitle());
+            assertEquals("LIVE | 🎃 Halloween Movies", parsedCategories.get(1).getTitle());
             List<Channel> parsed = XtremeApiParser.parseChannels("1", account, null, () -> false);
             assertEquals("7", parsed.getFirst().getChannelId());
             assertEquals("News", parsed.getFirst().getName());
