@@ -207,6 +207,8 @@ createApp({
         const dragOverBookmarkId = ref('');
         const suppressNextBookmarkClick = ref(false);
         const recentBookmarkHistory = ref([]);
+        const settingsMenuOpen = ref(false);
+        const clearRecentConfirmOpen = ref(false);
         const bingeWatchLoading = ref(false);
         const activeBingeWatch = ref({token: '', currentEpisodeId: '', items: []});
 
@@ -1048,6 +1050,26 @@ createApp({
         };
 
         const clearRecentlyPlayedBookmarks = () => saveRecentBookmarkHistory([]);
+
+        const toggleSettingsMenu = () => {
+            settingsMenuOpen.value = !settingsMenuOpen.value;
+        };
+
+        const closeClearRecentConfirm = () => {
+            clearRecentConfirmOpen.value = false;
+        };
+
+        const requestClearRecent = () => {
+            settingsMenuOpen.value = false;
+            if (recentBookmarkHistory.value.length > 0) {
+                clearRecentConfirmOpen.value = true;
+            }
+        };
+
+        const confirmClearRecent = () => {
+            clearRecentlyPlayedBookmarks();
+            closeClearRecentConfirm();
+        };
 
         const recentBookmarkEntryMap = computed(() => {
             const map = new Map();
@@ -2319,6 +2341,10 @@ createApp({
                 nextTick(() => focusSearch());
             } else if (event.key === 'Escape' && searchFieldVisible.value) {
                 clearSearch();
+            } else if (event.key === 'Escape' && clearRecentConfirmOpen.value) {
+                closeClearRecentConfirm();
+            } else if (event.key === 'Escape' && settingsMenuOpen.value) {
+                settingsMenuOpen.value = false;
             }
         };
         onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown));
@@ -5173,6 +5199,9 @@ createApp({
             watchingNowVodLoading,
             canReorderBookmarks,
             isRecentlyPlayedBookmarksSelected,
+            recentBookmarkHistory,
+            settingsMenuOpen,
+            clearRecentConfirmOpen,
             draggedBookmarkId,
             dragOverBookmarkId,
             videoPlayer,
@@ -5237,6 +5266,10 @@ createApp({
             seekPlayback,
             removeRecentlyPlayedBookmark,
             clearRecentlyPlayedBookmarks,
+            toggleSettingsMenu,
+            requestClearRecent,
+            closeClearRecentConfirm,
+            confirmClearRecent,
             onBookmarkCardClick,
             onBookmarkDragStart,
             onBookmarkDragOver,

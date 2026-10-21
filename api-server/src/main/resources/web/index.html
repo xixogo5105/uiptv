@@ -85,6 +85,18 @@
                 <a class="soft-button icon-only" download href="/iptv.m3u8" title="Download Published Playlist">
                     <i class="bi bi-cloud-arrow-down"></i>
                 </a>
+                <div class="settings-menu-wrap">
+                    <button :aria-expanded="settingsMenuOpen ? 'true' : 'false'" @click.stop="toggleSettingsMenu" class="soft-button icon-only" title="Settings" type="button">
+                        <i class="bi bi-gear"></i>
+                    </button>
+                    <div @click.stop class="settings-menu" v-if="settingsMenuOpen">
+                        <div class="settings-menu-title">Settings</div>
+                        <button @click="requestClearRecent" class="settings-menu-item" :disabled="recentBookmarkHistory.length === 0" type="button">
+                            <i class="bi bi-trash3"></i>
+                            <span>Clear Recent</span>
+                        </button>
+                    </div>
+                </div>
                 <button :title="'Theme: ' + theme" @click="toggleTheme" class="theme-toggle icon-only" type="button">
                     <i :class="themeIcon" class="bi"></i>
                 </button>
@@ -100,14 +112,6 @@
                             <p>Favorite channels grouped for quick playback.</p>
                         </div>
                         <div aria-label="Bookmark categories" class="chip-row bookmark-tabs" role="tablist">
-                            <button
-                                    @click="clearRecentlyPlayedBookmarks"
-                                    class="filter-chip"
-                                    :disabled="recentBookmarkHistory.length === 0"
-                                    type="button"
-                                    v-if="isRecentlyPlayedBookmarksSelected">
-                                Clear Recent
-                            </button>
                             <button
                                     :class="{ active: String(selectedBookmarkCategoryId || '') === String(category.id || '') }"
                                     :key="'bookmark-category-' + (category.id || 'all')"
@@ -772,6 +776,24 @@
                 </section>
             </aside>
 
+        </div>
+
+        <div @click.self="closeClearRecentConfirm" class="confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="clear-recent-title" v-if="clearRecentConfirmOpen">
+            <div class="confirmation-panel">
+                <header>
+                    <strong id="clear-recent-title">Confirm</strong>
+                    <button @click="closeClearRecentConfirm" aria-label="Close confirmation" class="close-btn" type="button">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </header>
+                <div class="confirmation-body">
+                    <p>Are you sure you want to clear recently played items?</p>
+                    <div class="confirmation-actions">
+                        <button @click="closeClearRecentConfirm" class="soft-button" type="button">Close</button>
+                        <button @click="confirmClearRecent" class="primary-button" type="button">OK</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 </div>

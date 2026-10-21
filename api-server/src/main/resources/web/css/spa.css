@@ -408,6 +408,100 @@ a[href] {
     gap: 6px;
 }
 
+.settings-menu-wrap {
+    position: relative;
+}
+
+.settings-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 30;
+    min-width: 190px;
+    padding: 6px;
+    border: 1px solid color-mix(in srgb, var(--outline) 38%, transparent);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: 0 14px 34px var(--shadow);
+}
+
+.settings-menu-title {
+    padding: 7px 10px 6px;
+    color: var(--muted);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.settings-menu-item {
+    width: 100%;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+}
+
+.settings-menu-item:hover:not(:disabled) {
+    background: var(--surface-high);
+}
+
+.confirmation-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+
+.confirmation-panel {
+    width: min(92vw, 440px);
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--outline) 28%, transparent);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: 0 24px 64px var(--shadow);
+}
+
+.confirmation-panel header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--outline) 24%, transparent);
+}
+
+.confirmation-panel header strong {
+    font-size: 1.05rem;
+}
+
+.confirmation-body {
+    padding: 18px 20px 20px;
+}
+
+.confirmation-body p {
+    margin: 0;
+    color: var(--text);
+    line-height: 1.5;
+}
+
+.confirmation-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 22px;
+}
+
 .primary-button {
     align-self: flex-start;
     border-color: transparent;

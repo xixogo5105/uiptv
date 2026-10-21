@@ -1,4 +1,4 @@
-name: Build, Package and Release
+name: Build
 env:
   ARTIFACT_RETENTION_DAYS: 1
 
