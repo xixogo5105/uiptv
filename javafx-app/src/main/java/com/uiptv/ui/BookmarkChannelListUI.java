@@ -1025,9 +1025,23 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
     private void populateCategoryPills(List<BookmarkCategory> categories) {
         boolean hadSelection = categoryPillBar.getSelectedItem() != null;
-        categoryPillBar.setItems(categories);
-        if (!hadSelection) {
+        List<BookmarkCategory> orderedCategories = new ArrayList<>();
+        if (categories != null) {
             categories.stream()
+                    .filter(category -> RECENT_CATEGORY_ID.equals(category.getId()))
+                    .findFirst()
+                    .ifPresent(orderedCategories::add);
+            categories.stream()
+                    .filter(category -> !RECENT_CATEGORY_ID.equals(category.getId()) && category.getId() != null)
+                    .forEach(orderedCategories::add);
+            categories.stream()
+                    .filter(category -> category.getId() == null)
+                    .findFirst()
+                    .ifPresent(orderedCategories::add);
+        }
+        categoryPillBar.setItems(orderedCategories);
+        if (!hadSelection) {
+            orderedCategories.stream()
                     .filter(category -> RECENT_CATEGORY_ID.equals(category.getId()))
                     .findFirst()
                     .ifPresent(categoryPillBar::setSelectedItem);

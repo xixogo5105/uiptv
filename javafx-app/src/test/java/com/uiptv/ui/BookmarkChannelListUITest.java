@@ -71,6 +71,26 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     }
 
     @Test
+    void favoriteCategoryTabsKeepRecentFirstAndAllLast() throws Exception {
+        List<String> labels = runOnFxThread(() -> {
+            BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
+            populateCategoryPills(ui, List.of(
+                    new BookmarkCategory(null, "All"),
+                    new BookmarkCategory("cricket", "Cricket"),
+                    new BookmarkCategory("__recently_played_bookmarks__", "Recent"),
+                    new BookmarkCategory("movies", "Movies")
+            ));
+
+            Parent content = (Parent) findByStyle(findByStyle(ui, "uiptv-pill-bar"), "uiptv-pill-bar-content");
+            return content.getChildrenUnmodifiable().stream()
+                    .map(node -> ((ToggleButton) node).getText())
+                    .toList();
+        });
+
+        assertEquals(List.of("Recent", "Cricket", "Movies", "All"), labels);
+    }
+
+    @Test
     void favoritePillBarReservesDynamicRowsFromFiveItemNarrowAllocation() throws Exception {
         List<Double> heights = runOnFxThread(() -> {
             BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
