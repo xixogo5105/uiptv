@@ -50,6 +50,10 @@ public final class EpgBridge {
                 case "parse-xmltv" -> service.parseGuide(options.get(BUNDLE_OPTION));
                 default -> throw new IllegalArgumentException("Unknown command");
             };
+            // The Python builder consumes these commands as a machine-readable
+            // subprocess protocol. Keep diagnostics on stderr and reserve stdout
+            // for the single JSON response.
+            System.out.println(result);
             LOG.info("{}", result);
             return 0;
         } catch (InterruptedException error) {

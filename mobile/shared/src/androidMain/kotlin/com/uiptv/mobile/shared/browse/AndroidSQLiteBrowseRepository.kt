@@ -427,9 +427,26 @@ class AndroidSQLiteBrowseRepository(
 
     override suspend fun removeBookmark(bookmarkId: Long): Unit = withContext(Dispatchers.IO) {
         val db = databaseHelper.writableDatabase
+        val bookmark = loadBookmarkCache(db).bookmarks.firstOrNull { it.rowId == bookmarkId }
         db.delete("Bookmark", "id = ?", arrayOf(bookmarkId.toString()))
         db.delete("BookmarkOrder", "bookmark_db_id = ?", arrayOf(bookmarkId.toString()))
+        if (bookmark != null && !hasBookmarkIdentity(db, bookmark)) {
+            AndroidBookmarkPlayHistoryStore(db).remove(bookmark)
+        }
         invalidateBookmarkCache()
+    }
+
+    private fun hasBookmarkIdentity(db: SQLiteDatabase, bookmark: MobileBookmark): Boolean {
+        val action = when (bookmark.mode) {
+            BrowseMode.LIVE -> "itv"
+            BrowseMode.VOD -> "vod"
+            BrowseMode.SERIES -> "series"
+        }
+        return db.rawQuery(
+            "SELECT 1 FROM Bookmark WHERE accountName = ? AND channelId = ? " +
+                "AND COALESCE(NULLIF(accountAction, ''), 'itv') = ? LIMIT 1",
+            arrayOf(bookmark.accountName, bookmark.channelId, action)
+        ).use { cursor -> cursor.moveToFirst() }
     }
 
     override suspend fun clearRecentlyPlayedBookmarks(): Unit = withContext(Dispatchers.IO) {
@@ -2006,9 +2023,8 @@ class AndroidSQLiteBrowseRepository(
             return listOf(recentCategory)
         }
         return buildList {
-            add(baseCategories.first())
             add(recentCategory)
-            addAll(baseCategories.drop(1))
+            addAll(baseCategories)
         }
     }
 

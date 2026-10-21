@@ -8,7 +8,6 @@ import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
 import com.uiptv.widget.BookmarkCard;
-import com.uiptv.widget.LoadingStateView;
 import com.uiptv.widget.PillBar;
 import com.uiptv.widget.PlayMenuButton;
 import com.uiptv.widget.ResponsiveCardGrid;
@@ -45,9 +44,9 @@ import static javafx.application.Platform.runLater;
 
 public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final String BOOKMARK_CACHE = "bookmark";
-    private static final String I18N_AUTO_LOADING_BOOKMARKS = "autoLoadingBookmarks";
     private static final String I18N_AUTO_NO_BOOKMARKS_FOUND = "autoNoBookmarksFound";
     private static final String I18N_SEARCHABLE_TABLE_MANAGE_TABS = "searchableTableManageTabs";
+    private static final String RECENT_CATEGORY_ID = "__recently_played_bookmarks__";
     private static final double GRID_NORMAL_VERTICAL_GAP = 14;
     private static final double GRID_PLAIN_TEXT_VERTICAL_GAP = 6;
     private static final double GRID_NORMAL_CARD_MIN_HEIGHT = 76;
@@ -70,13 +69,13 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private final ResponsiveCardGrid<BookmarkItem> bookmarkGrid = new ResponsiveCardGrid<>(this::createBookmarkCard, true);
     private final StackPane bookmarkGridFrame = new StackPane();
     private final ScrollPane bookmarkPageScroll = new ScrollPane();
-    private final LoadingStateView bookmarkLoadingOverlay = new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS));
     private final PillBar<BookmarkCategory> categoryPillBar =
             new PillBar<>(BookmarkCategory::getName, BookmarkCategory::getId);
     private final CardEpgSupport cardEpg = new CardEpgSupport(this);
     private final VBox listPanel = new VBox(8);
     private final ObservableList<BookmarkItem> filteredItems = FXCollections.observableArrayList();
     private final List<BookmarkItem> allBookmarkItems = new ArrayList<>();
+    private final List<BookmarkItem> recentBookmarkItems = new ArrayList<>();
     private final AtomicLong reloadGeneration = new AtomicLong(0);
     private final ConcurrentLinkedQueue<BookmarkSnapshot> pendingBookmarkSnapshots = new ConcurrentLinkedQueue<>();
     private final PauseTransition bookmarkSnapshotPulse = new PauseTransition(javafx.util.Duration.millis(16));
@@ -96,12 +95,14 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private volatile long lastKnownBookmarkRevision = 0;
     private volatile boolean reloadInProgress = false;
     private volatile boolean loadedOnce = false;
+    private volatile boolean recentItemsLoaded = false;
     private volatile boolean reloadRequestedWhileReloading = false;
     private boolean changeListenerRegistered = false;
     private boolean accountChangeListenerRegistered = false;
     private boolean thumbnailListenerRegistered = false;
     private BookmarkSortMode bookmarkSortMode = BookmarkSortMode.DEFAULT;
     private MenuButton bookmarkSortButton;
+    private Button clearRecentButton;
     private volatile boolean suppressAutoReloadOnBookmarkChange = false;
     private final BookmarkChangeListener bookmarkChangeListener = (revision, updatedEpochMs) -> runLater(() -> {
         if (!changeListenerRegistered || suppressAutoReloadOnBookmarkChange) {
@@ -161,8 +162,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         long generation = reloadGeneration.incrementAndGet();
         reloadInProgress = true;
         pendingBookmarkSnapshots.clear();
-        setBookmarkScrollingEnabled(false);
-        showLoadingState(generation);
+        bookmarkGrid.setPlaceholderText("");
         startReloadThread(generation);
     }
 
@@ -176,30 +176,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         runLater(() -> runLater(this::forceReload));
     }
 
-    /**
-     * Shows the "Loading bookmarks..." state while the reload is running. The grid
-     * placeholder covers the empty case, and the floating overlay covers the case where
-     * previously loaded cards are still on screen (e.g. a background refresh) so the
-     * user never sees a bare empty pane and assumes they have no bookmarks.
-     */
-    private void showLoadingState(long generation) {
-        Runnable update = () -> {
-            if (generation != reloadGeneration.get()) {
-                return;
-            }
-            boolean hasVisibleCards = !filteredItems.isEmpty();
-            if (!hasVisibleCards) {
-                bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS)));
-            }
-            setBookmarkLoadingOverlayVisible(hasVisibleCards);
-        };
-        if (Platform.isFxApplicationThread()) {
-            update.run();
-        } else {
-            runLater(update);
-        }
-    }
-
     private void startReloadThread(long generation) {
         Thread thread = new Thread(() -> reloadBookmarks(generation), "bookmark-reload");
         thread.setDaemon(true);
@@ -210,14 +186,28 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         try {
             long revisionBeforeRead = BookmarkService.getInstance().getChangeRevision();
 
-            List<BookmarkCategory> categories = new ArrayList<>();
-            categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
+            Map<String, Account> accountByName = AccountService.getInstance().getAll();
+
+            List<Bookmark> recentBookmarks = BookmarkService.getInstance().readRecentBookmarks();
+            BookmarkResolver.ResolutionContext recentContext = bookmarkResolver.prepareFast(recentBookmarks, accountByName);
+            List<BookmarkItem> recentItems = recentBookmarks.stream()
+                    .map(bookmark -> createBookmarkItem(bookmarkResolver.resolveBookmark(bookmark, recentContext)))
+                    .toList();
+            runLater(() -> {
+                if (generation == reloadGeneration.get()) {
+                    recentBookmarkItems.clear();
+                    recentBookmarkItems.addAll(recentItems);
+                    recentItemsLoaded = true;
+                    filterView();
+                }
+            });
+
+            List<BookmarkCategory> categories = defaultBookmarkCategories();
             categories.addAll(BookmarkService.getInstance().getAllCategories());
             runLater(() -> populateCategoryPills(categories));
 
             int offset = 0;
             List<BookmarkItem> allLoadedItems = new ArrayList<>();
-            Map<String, Account> accountByName = AccountService.getInstance().getAll();
 
             boolean finished = false;
             while (!finished) {
@@ -250,7 +240,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             pendingBookmarkSnapshots.add(new BookmarkSnapshot(generation, allLoadedItems, categories, revisionAfterRead, false));
             scheduleBookmarkSnapshotDrain();
         } catch (Exception _) {
-            // Keep the bookmark pane usable and show the existing placeholder on reload failure.
+            // Keep the bookmark pane usable and show an error state on reload failure.
             pendingBookmarkSnapshots.add(new BookmarkSnapshot(generation, List.of(), null, 0, true));
             scheduleBookmarkSnapshotDrain();
         }
@@ -324,8 +314,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             return;
         }
         reloadInProgress = false;
-        setBookmarkLoadingOverlayVisible(false);
-        setBookmarkScrollingEnabled(true);
         bookmarkGrid.setPlaceholderText(I18n.tr("autoUnableToLoadBookmarks"));
         triggerDeferredReloadIfNeeded();
     }
@@ -349,8 +337,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         }
         lastKnownBookmarkRevision = revision;
         reloadInProgress = false;
-        setBookmarkLoadingOverlayVisible(false);
-        setBookmarkScrollingEnabled(true);
         requestContentFocus();
         triggerDeferredReloadIfNeeded();
     }
@@ -375,12 +361,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                 filterView();
             }
         });
-        // The first streamed batch means content is on screen, so the loading state has
-        // served its purpose. Keep the overlay up for a background refresh so the user
-        // still sees progress while the remaining batches stream in.
-        if (!filteredItems.isEmpty()) {
-            setBookmarkLoadingOverlayVisible(reloadInProgress);
-        }
     }
 
     /**
@@ -501,8 +481,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         bookmarkSnapshotDrainScheduled.set(false);
         allBookmarkItems.clear();
         filteredItems.clear();
-        setBookmarkLoadingOverlayVisible(false);
-        setBookmarkScrollingEnabled(true);
     }
 
     private void triggerDeferredReloadIfNeeded() {
@@ -547,6 +525,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         VBox.setVgrow(pageScroll, Priority.ALWAYS);
 
         configureListPanel(pageScroll);
+        populateCategoryPills(defaultBookmarkCategories());
         page.getChildren().setAll(createHeaderArea(), listPanel);
 
         getChildren().setAll(page);
@@ -623,17 +602,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         return row;
     }
 
-    private void setBookmarkScrollingEnabled(boolean enabled) {
-        Runnable update = () -> bookmarkPageScroll.setVbarPolicy(enabled
-                ? ScrollPane.ScrollBarPolicy.AS_NEEDED
-                : ScrollPane.ScrollBarPolicy.NEVER);
-        if (Platform.isFxApplicationThread()) {
-            update.run();
-        } else {
-            runLater(update);
-        }
-    }
-
     private HBox createInlineFilterToolbarRow(PillBar<?> pillBar, HBox actions) {
         HBox row = new HBox(FILTER_TOOLBAR_GAP, pillBar, actions);
         row.setAlignment(Pos.CENTER_LEFT);
@@ -674,13 +642,48 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private HBox createBookmarkToolbarActions() {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox actions = new HBox(8, spacer, createBookmarkSortButton(), createManageTabsToolbarButton());
+        clearRecentButton = new Button(I18n.tr("autoClear"));
+        clearRecentButton.getStyleClass().add("list-toolbar-action-button");
+        clearRecentButton.setAccessibleText("Clear Recent");
+        clearRecentButton.setTooltip(new Tooltip("Clear Recent"));
+        clearRecentButton.setOnAction(_ -> clearRecentHistory());
+        HBox actions = new HBox(8, spacer, clearRecentButton, createBookmarkSortButton(), createManageTabsToolbarButton());
         actions.getStyleClass().add("list-toolbar-actions");
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.setFillHeight(false);
         actions.setMinWidth(Region.USE_PREF_SIZE);
         actions.setMaxWidth(Double.MAX_VALUE);
+        updateRecentActions();
         return actions;
+    }
+
+    private void updateRecentActions() {
+        boolean showingRecent = RECENT_CATEGORY_ID.equals(selectedCategoryId());
+        if (clearRecentButton != null) {
+            clearRecentButton.setVisible(showingRecent);
+            clearRecentButton.setManaged(showingRecent);
+        }
+        if (bookmarkSortButton != null) {
+            bookmarkSortButton.setVisible(!showingRecent);
+            bookmarkSortButton.setManaged(!showingRecent);
+        }
+        bookmarkGrid.setReorderEnabled(!showingRecent && bookmarkSortMode == BookmarkSortMode.DEFAULT);
+    }
+
+    private void clearRecentHistory() {
+        Thread thread = new Thread(() -> {
+            try {
+                BookmarkService.getInstance().clearRecentBookmarks();
+                runLater(() -> {
+                    recentBookmarkItems.clear();
+                    filterView();
+                });
+            } catch (Exception _) {
+                runLater(() -> showErrorAlert(I18n.tr("autoUnableToLoadBookmarks")));
+            }
+        }, "bookmark-recent-clear");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private void setupBookmarkGrid() {
@@ -690,7 +693,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         bookmarkGrid.setGaps(16, 14);
         bookmarkGrid.setReorderEnabled(true);
         bookmarkGrid.setVirtualizationThreshold(BOOKMARK_INITIAL_STREAM_SIZE);
-        bookmarkGrid.setPlaceholderNode(new LoadingStateView(I18n.tr(I18N_AUTO_LOADING_BOOKMARKS)));
+        bookmarkGrid.setPlaceholderText("");
         bookmarkGrid.setCardDisposer(card -> {
             if (card instanceof BookmarkCard bookmarkCard) {
                 bookmarkCard.dispose();
@@ -702,12 +705,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         UiRenderQuality.optimizeLayout(bookmarkGridFrame);
         bookmarkGridFrame.setMinSize(0, 0);
         bookmarkGridFrame.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        bookmarkLoadingOverlay.getStyleClass().add("bookmark-loading-overlay");
-        bookmarkLoadingOverlay.setMouseTransparent(true);
-        setBookmarkLoadingOverlayVisible(false);
-        StackPane.setAlignment(bookmarkLoadingOverlay, Pos.TOP_CENTER);
-        StackPane.setMargin(bookmarkLoadingOverlay, new Insets(10, 0, 0, 0));
-        bookmarkGridFrame.getChildren().setAll(bookmarkGrid, bookmarkLoadingOverlay);
+        bookmarkGridFrame.getChildren().setAll(bookmarkGrid);
     }
 
     private MenuButton createBookmarkSortButton() {
@@ -752,7 +750,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
 
     private void setBookmarkSortMode(BookmarkSortMode sortMode) {
         bookmarkSortMode = sortMode == null ? BookmarkSortMode.DEFAULT : sortMode;
-        bookmarkGrid.setReorderEnabled(bookmarkSortMode == BookmarkSortMode.DEFAULT);
+        bookmarkGrid.setReorderEnabled(bookmarkSortMode == BookmarkSortMode.DEFAULT
+                && !RECENT_CATEGORY_ID.equals(selectedCategoryId()));
         filterView();
         updateBookmarkSortButton();
     }
@@ -790,14 +789,6 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             }
         } else {
             node.getStyleClass().remove(styleClass);
-        }
-    }
-
-    private void setBookmarkLoadingOverlayVisible(boolean visible) {
-        bookmarkLoadingOverlay.setVisible(visible);
-        bookmarkLoadingOverlay.setManaged(visible);
-        if (visible) {
-            bookmarkLoadingOverlay.toFront();
         }
     }
 
@@ -994,7 +985,10 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private void setupCategoryPillListener() {
-        categoryPillBar.selectedItemProperty().addListener((_, _, _) -> filterView());
+        categoryPillBar.selectedItemProperty().addListener((_, _, _) -> {
+            filterView();
+            updateRecentActions();
+        });
     }
 
     private void setupSearchTextFieldListener() {
@@ -1010,33 +1004,51 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     void populateCategoryTabPane() {
-        List<BookmarkCategory> categories = new ArrayList<>();
-        categories.add(new BookmarkCategory(null, I18n.tr("commonAll")));
+        List<BookmarkCategory> categories = defaultBookmarkCategories();
         categories.addAll(BookmarkService.getInstance().getAllCategories());
         populateCategoryPills(categories);
     }
 
+    private List<BookmarkCategory> defaultBookmarkCategories() {
+        return new ArrayList<>(List.of(
+                new BookmarkCategory(RECENT_CATEGORY_ID, "Recent"),
+                new BookmarkCategory(null, I18n.tr("commonAll"))
+        ));
+    }
+
     private void populateCategoryPills(List<BookmarkCategory> categories) {
+        boolean hadSelection = categoryPillBar.getSelectedItem() != null;
         categoryPillBar.setItems(categories);
+        if (!hadSelection) {
+            categories.stream()
+                    .filter(category -> RECENT_CATEGORY_ID.equals(category.getId()))
+                    .findFirst()
+                    .ifPresent(categoryPillBar::setSelectedItem);
+        }
+        updateRecentActions();
     }
 
     private void filterView() {
         String categoryId = selectedCategoryId();
+        boolean showingRecent = RECENT_CATEGORY_ID.equals(categoryId);
 
         String rawSearchText = searchTextField.getText();
         String searchText = rawSearchText == null ? "" : rawSearchText.toLowerCase();
         final String finalCategoryId = categoryId;
 
-        List<BookmarkItem> filteredList = allBookmarkItems.stream()
+        List<BookmarkItem> sourceItems = showingRecent ? recentBookmarkItems : allBookmarkItems;
+        List<BookmarkItem> filteredList = sourceItems.stream()
                 .filter(item -> {
-                    boolean categoryMatch = (finalCategoryId == null) || finalCategoryId.equals(item.getCategoryId());
+                    boolean categoryMatch = showingRecent || (finalCategoryId == null) || finalCategoryId.equals(item.getCategoryId());
                     boolean searchMatch = searchText.isEmpty()
                             || item.getChannelName().toLowerCase().contains(searchText)
                             || item.getAccountName().toLowerCase().contains(searchText);
                     return categoryMatch && searchMatch;
                 })
                 .collect(Collectors.toCollection(ArrayList::new));
-        applyBookmarkSort(filteredList);
+        if (!showingRecent) {
+            applyBookmarkSort(filteredList);
+        }
 
 
         if (!sameFilteredItems(filteredList)) {
@@ -1044,13 +1056,15 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             applyBookmarkGridDisplayMode(thumbnailsEnabled);
         }
         if (filteredList.isEmpty()) {
-            if (reloadInProgress && allBookmarkItems.isEmpty()) {
-                // Still loading and nothing has arrived yet: keep the "Loading bookmarks..."
-                // placeholder so the empty pane is not mistaken for "no bookmarks".
+            if ((showingRecent && !recentItemsLoaded)
+                    || (reloadInProgress && !showingRecent && allBookmarkItems.isEmpty())) {
+                // Initial reads happen quietly in the background; keep the grid clear
+                // until the selected category has a result or a final empty state.
+                bookmarkGrid.setPlaceholderText("");
                 return;
             }
             bookmarkGrid.setPlaceholderText(searchText.isBlank()
-                    ? I18n.tr(I18N_AUTO_NO_BOOKMARKS_FOUND)
+                    ? I18n.tr(showingRecent ? "commonNoResults" : I18N_AUTO_NO_BOOKMARKS_FOUND)
                     : I18n.tr("autoNothingFoundFor", rawSearchText));
         } else {
             bookmarkGrid.setPlaceholderText("");
@@ -1167,7 +1181,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     }
 
     private void applyDraggedBookmarkOrder() {
-        if (bookmarkSortMode != BookmarkSortMode.DEFAULT) {
+        if (bookmarkSortMode != BookmarkSortMode.DEFAULT || RECENT_CATEGORY_ID.equals(selectedCategoryId())) {
             return;
         }
         List<String> orderedDbIds = bookmarkGrid.getItems().stream()
@@ -1295,7 +1309,34 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         rowMenu.getItems().add(editItem);
         if (item != null && item.getAccountAction() == Account.AccountAction.itv && selectedItems.size() == 1)
             cardEpg.addGuideMenu(rowMenu, owner, () -> guideRow(item));
+        if (RECENT_CATEGORY_ID.equals(selectedCategoryId()) && !selectedItems.isEmpty()) {
+            MenuItem removeFromRecent = new MenuItem("Remove from Recent");
+            removeFromRecent.setOnAction(_ -> removeFromRecent(selectedItems));
+            rowMenu.getItems().add(new SeparatorMenuItem());
+            rowMenu.getItems().add(removeFromRecent);
+        }
         return rowMenu;
+    }
+
+    private void removeFromRecent(List<BookmarkItem> items) {
+        Thread thread = new Thread(() -> {
+            try {
+                for (BookmarkItem item : items) {
+                    Bookmark bookmark = BookmarkService.getInstance().getBookmark(item.getBookmarkId());
+                    BookmarkService.getInstance().removeRecentBookmark(bookmark);
+                }
+                List<BookmarkItem> recentItems = resolveRecentBookmarkItems();
+                runLater(() -> {
+                    recentBookmarkItems.clear();
+                    recentBookmarkItems.addAll(recentItems);
+                    filterView();
+                });
+            } catch (Exception _) {
+                runLater(() -> showErrorAlert(I18n.tr("autoUnableToLoadBookmarks")));
+            }
+        }, "bookmark-recent-remove");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private void handleDeleteMultipleBookmarks() {
@@ -1366,10 +1407,41 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             showErrorAlert(I18n.tr("autoUnableToLoadAccountChannelForThisBookmark"));
             return;
         }
+        recordRecentPlayback(item);
         PlaybackUIService.play(this, new PlaybackUIService.PlaybackRequest(playbackContext.mediaContext, playbackContext.channel, playerPath)
                 .categoryId(playbackContext.sourceCategoryDbId)
                 .channelId(item.getChannelId())
                 .errorPrefix(I18n.tr("autoErrorPlayingBookmarkPrefix")));
+    }
+
+    private void recordRecentPlayback(BookmarkItem item) {
+        Thread thread = new Thread(() -> {
+            try {
+                Bookmark bookmark = BookmarkService.getInstance().getBookmark(item.getBookmarkId());
+                BookmarkService.getInstance().recordRecentPlayback(bookmark);
+                List<BookmarkItem> recentItems = resolveRecentBookmarkItems();
+                runLater(() -> {
+                    recentBookmarkItems.clear();
+                    recentBookmarkItems.addAll(recentItems);
+                    if (RECENT_CATEGORY_ID.equals(selectedCategoryId())) {
+                        filterView();
+                    }
+                });
+            } catch (Exception _) {
+                // Playback should proceed even if local history cannot be updated.
+            }
+        }, "bookmark-recent-record");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private List<BookmarkItem> resolveRecentBookmarkItems() {
+        List<Bookmark> bookmarks = BookmarkService.getInstance().readRecentBookmarks();
+        Map<String, Account> accounts = AccountService.getInstance().getAll();
+        BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(bookmarks, accounts);
+        return bookmarks.stream()
+                .map(bookmark -> createBookmarkItem(bookmarkResolver.resolveBookmark(bookmark, context)))
+                .toList();
     }
 
     private PlaybackContext resolvePlaybackContext(BookmarkItem item) {

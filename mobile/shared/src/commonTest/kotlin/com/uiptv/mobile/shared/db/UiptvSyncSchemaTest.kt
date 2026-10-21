@@ -52,6 +52,13 @@ class UiptvSyncSchemaTest {
     }
 
     @Test
+    fun recentPlaybackHistoryIsDeviceLocal() {
+        assertEquals(listOf("BookmarkPlayHistory"), UiptvSyncSchema.deviceLocalTables)
+        assertFalse("BookmarkPlayHistory" in UiptvSyncSchema.syncableTables)
+        assertFalse("BookmarkPlayHistory" in UiptvSyncSchema.androidRequiredTables)
+    }
+
+    @Test
     fun portableConfigurationColumnsExcludeMobileIgnoredColumns() {
         assertEquals(
             listOf(

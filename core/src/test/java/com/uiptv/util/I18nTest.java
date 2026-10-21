@@ -76,6 +76,45 @@ class I18nTest {
     }
 
     @Test
+    void everySupportedLocaleContainsAllEnglishTranslationKeys() throws IOException {
+        Set<String> englishKeys = loadBundle("messages_en_US.properties").stringPropertyNames();
+        for (I18n.SupportedLanguage language : I18n.getSupportedLanguages()) {
+            String bundleFile = "messages_" + language.languageTag().replace('-', '_') + ".properties";
+            Set<String> localeKeys = loadBundle(bundleFile).stringPropertyNames();
+            Set<String> missingKeys = englishKeys.stream()
+                    .filter(key -> !localeKeys.contains(key))
+                    .collect(Collectors.toCollection(TreeSet::new));
+            assertTrue(missingKeys.isEmpty(),
+                    "Missing translations in " + bundleFile + ": " + missingKeys);
+        }
+    }
+
+    @Test
+    void recentlyAddedTranslationsAreNotEnglishPlaceholders() throws IOException {
+        List<String> recentlyAddedKeys = List.of(
+                "autoGroupAccountSByMACAddress",
+                "autoVlcNativeMissing",
+                "configEpgPlaybackOnly",
+                "configWebPlaybackProxyEnabled",
+                "epgDisablePlaybackOnly",
+                "epgEnablePlaybackOnly",
+                "manageWebPlaybackProxy"
+        );
+        Properties english = loadBundle("messages_en_US.properties");
+        for (I18n.SupportedLanguage language : I18n.getSupportedLanguages()) {
+            if (language.languageTag().startsWith("en-")) {
+                continue;
+            }
+            String bundleFile = "messages_" + language.languageTag().replace('-', '_') + ".properties";
+            Properties localized = loadBundle(bundleFile);
+            for (String key : recentlyAddedKeys) {
+                assertFalse(english.getProperty(key).equals(localized.getProperty(key)),
+                        "English placeholder for " + key + " in " + bundleFile);
+            }
+        }
+    }
+
+    @Test
     void everyTranslationKeyUsedInCodeExistsInTheBundles() throws IOException {
         // allMessageBundlesHaveSameKeysAsBaseBundle only proves the bundles agree with each other.
         // A key that every bundle spells the same wrong way still passes that check while rendering
@@ -94,6 +133,7 @@ class I18nTest {
 
         Set<String> unresolved = new TreeSet<>();
         Set<String> caseMismatches = new TreeSet<>();
+        Set<String> untranslatedNotificationKeys = new TreeSet<>();
         for (Path javaFile : productionSourceFiles()) {
             String source = Files.readString(javaFile, StandardCharsets.UTF_8);
             // Resolve string constants declared in the same file, so I18n.tr(SOME_CONST) is
@@ -121,6 +161,10 @@ class I18nTest {
                     unresolved.add(key + "  (" + javaFile + ")");
                 }
             }
+            Matcher notificationMatcher = RAW_NOTIFICATION_KEY_PATTERN.matcher(source);
+            while (notificationMatcher.find()) {
+                untranslatedNotificationKeys.add(notificationMatcher.group(1) + "  (" + javaFile + ")");
+            }
         }
 
         assertTrue(caseMismatches.isEmpty(),
@@ -129,12 +173,17 @@ class I18nTest {
         assertTrue(unresolved.isEmpty(),
                 "Translation keys used in code are missing from every bundle, so I18n.tr renders "
                         + "the raw key name: " + unresolved);
+        assertTrue(untranslatedNotificationKeys.isEmpty(),
+                "Notification methods received raw translation keys instead of translated text: "
+                        + untranslatedNotificationKeys);
     }
 
     private static final Pattern CONSTANT_PATTERN =
             Pattern.compile("String\\s+([A-Z][A-Z0-9_]+)\\s*=\\s*\"([^\"]+)\"");
     private static final Pattern TR_CALL_PATTERN = Pattern.compile(
             "\\b(?:I18n|UiI18n)\\.tr(?:English)?\\(\\s*(?:\"([^\"]+)\"|([A-Z][A-Z0-9_]+))\\s*[,)]");
+    private static final Pattern RAW_NOTIFICATION_KEY_PATTERN = Pattern.compile(
+            "\\.show(?:Info|Error)\\(\\s*\"([a-z][A-Za-z0-9]+)\"\\s*\\)");
 
     /**
      * Java sources of every module that resolves translations through {@link I18n}. Paths are

@@ -1,6 +1,7 @@
 package com.uiptv.service;
 
 import com.uiptv.db.BookmarkDb;
+import com.uiptv.db.BookmarkPlayHistoryDb;
 import com.uiptv.model.Bookmark;
 import com.uiptv.model.BookmarkCategory;
 import com.uiptv.util.AppLog;
@@ -68,9 +69,29 @@ public class BookmarkService {
         return BookmarkDb.get().getBookmarksByAccountName(accountName);
     }
 
+    public List<Bookmark> readRecentBookmarks() {
+        return BookmarkPlayHistoryDb.readRecentBookmarks();
+    }
+
+    public void recordRecentPlayback(Bookmark bookmark) {
+        BookmarkPlayHistoryDb.record(bookmark);
+    }
+
+    public void removeRecentBookmark(Bookmark bookmark) {
+        BookmarkPlayHistoryDb.remove(bookmark);
+    }
+
+    public void clearRecentBookmarks() {
+        BookmarkPlayHistoryDb.clear();
+    }
+
     public void remove(String id) {
         try {
+            Bookmark bookmark = BookmarkDb.get().getById(id);
             BookmarkDb.get().delete(id);
+            if (!BookmarkDb.get().hasBookmarkIdentity(bookmark)) {
+                BookmarkPlayHistoryDb.remove(bookmark);
+            }
             touchChange();
         } catch (Exception _) {
             AppLog.addErrorLog(BookmarkService.class, "Error while removing the bookmark");
@@ -80,6 +101,7 @@ public class BookmarkService {
     public void removeByAccountName(String accountName) {
         try {
             BookmarkDb.get().deleteByAccountName(accountName);
+            BookmarkPlayHistoryDb.removeByAccountName(accountName);
             touchChange();
         } catch (Exception _) {
             AppLog.addErrorLog(BookmarkService.class, "Error while removing bookmarks for account");

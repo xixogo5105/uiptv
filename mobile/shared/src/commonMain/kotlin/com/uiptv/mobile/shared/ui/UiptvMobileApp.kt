@@ -2116,7 +2116,7 @@ private fun BookmarksScreen(
 ) {
     val scope = rememberCoroutineScope()
     var categories by remember { mutableStateOf<List<MobileBookmarkCategory>>(emptyList()) }
-    var selectedCategoryId by remember { mutableStateOf<String?>(null) }
+    var selectedCategoryId by remember { mutableStateOf<String?>(RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID) }
     var bookmarks by remember { mutableStateOf<List<MobileBookmark>>(emptyList()) }
     var query by remember { mutableStateOf("") }
     var searchVisible by rememberSaveable { mutableStateOf(false) }
@@ -2396,14 +2396,14 @@ private fun BookmarksScreen(
 private fun bookmarkEmptyTitle(query: String, selectedCategoryId: String?): String =
     when {
         query.isNotBlank() -> "No bookmark matches"
-        selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID -> "No recently played channels"
+        selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID -> "No recent bookmarks"
         else -> "No bookmarks"
     }
 
 private fun bookmarkEmptyDetail(query: String, selectedCategoryId: String?): String =
     when {
         query.isNotBlank() -> "Try a shorter search term."
-        selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID -> "Play bookmarks to build this list."
+        selectedCategoryId == RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID -> "Play a bookmark to build this list."
         else -> "Save channels from the Channels screen."
     }
 
@@ -2457,12 +2457,28 @@ private fun BookmarkRow(
                             )
                         }
                     } else {
-                        FavouriteStar(
-                            selected = true,
-                            contentDescription = "Remove favourite ${bookmark.channelName}",
-                            compact = true,
-                            onClick = onRemove
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .combinedClickable(
+                                    enabled = bookmark.command.isNotBlank(),
+                                    onClick = onPlay,
+                                    onLongClick = onRemove
+                                )
+                                .semantics {
+                                    contentDescription =
+                                        "Play ${bookmark.channelName}; long press to remove favourite"
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "★",
+                                color = Color(0xFFFFD54F),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
                     }
                     Text(
                         bookmark.channelName,
@@ -4523,7 +4539,7 @@ private fun RemoteSyncScreen(
         scope.launch {
             running = true
             runCatching { browseActions.clearRecentlyPlayedBookmarks() }
-                .onSuccess { statusText = "Recently played channels cleared" }
+                .onSuccess { statusText = "Recent cleared" }
                 .onFailure { statusText = it.message ?: "Unable to clear recently played channels" }
             running = false
         }
@@ -4830,7 +4846,7 @@ private fun RemoteSyncScreen(
             enabled = !running,
             onClick = ::clearRecentlyPlayedBookmarks
         ) {
-            Text("Clear Recently Played")
+            Text("Clear Recent")
         }
         Text("Filters", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Text(
@@ -5247,7 +5263,7 @@ private fun WideRemoteSyncContent(
                     enabled = !running,
                     onClick = onClearRecentlyPlayedBookmarks
                 ) {
-                    Text("Clear Recently Played")
+                    Text("Clear Recent")
                 }
                 Text("Reset", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Button(

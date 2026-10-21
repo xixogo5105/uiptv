@@ -136,7 +136,8 @@ class AndroidUiptvDatabaseCompatibilityTest {
             val report = AndroidSQLiteSnapshotSyncApplier(helper, context.cacheDir).apply(snapshot)
             val target = helper.writableDatabase
 
-            assertEquals(8, report.totalRowsSynced)
+            val seededNameExclusionRows = target.countRows("epg_name_exclusion", "1=1")
+            assertEquals(8 + seededNameExclusionRows, report.totalRowsSynced)
             assertNull(com.uiptv.mobile.shared.epg.MobileEpgCache.peek(7, "live-one", System.currentTimeMillis()))
             assertEquals(1, target.countRows("epg_programme", "title='Synced film'"))
             assertEquals(1, target.countRows("epg_channel_mapping", "account_id='7' AND provider_channel_id='live-one'"))

@@ -163,6 +163,14 @@ public class DatabaseUtils {
                 new DataColumn("vodJson", "TEXT"),
                 new DataColumn("seriesJson", "TEXT")
         )));
+        dbStructure.put(DbTable.BOOKMARK_PLAY_HISTORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
+                new DataColumn("id", INTEGER_PRIMARY_KEY),
+                new DataColumn("accountName", TEXT_NOT_NULL),
+                new DataColumn("accountAction", TEXT_NOT_NULL),
+                new DataColumn(COLUMN_CHANNEL_ID, TEXT_NOT_NULL),
+                new DataColumn("playCount", "INTEGER NOT NULL DEFAULT 0"),
+                new DataColumn("lastPlayedAt", "INTEGER NOT NULL DEFAULT 0")
+        )));
         dbStructure.put(DbTable.CATEGORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
                 new DataColumn(COLUMN_CATEGORY_ID, TEXT_NOT_NULL),
@@ -483,6 +491,7 @@ public class DatabaseUtils {
         ACCOUNT_TABLE("Account"),
         ACCOUNT_INFO_TABLE("AccountInfo"),
         BOOKMARK_TABLE("Bookmark"),
+        BOOKMARK_PLAY_HISTORY_TABLE("BookmarkPlayHistory"),
         CATEGORY_TABLE("Category"),
         CHANNEL_TABLE("Channel"),
         VOD_CATEGORY_TABLE("VodCategory"),

@@ -14,6 +14,26 @@ class MpvEmbeddedPlayerActivityControlTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private var activity: Activity? = null
 
+    @Test
+    fun audioTrackSelectionNeverTurnsAudioOffAndWrapsAvailableTracks() {
+        org.junit.Assert.assertEquals(4, MpvTrackSelection.nextAudioTrack(listOf(4, 9), null))
+        org.junit.Assert.assertEquals(9, MpvTrackSelection.nextAudioTrack(listOf(4, 9), 4))
+        org.junit.Assert.assertEquals(4, MpvTrackSelection.nextAudioTrack(listOf(4, 9), 9))
+        org.junit.Assert.assertEquals(4, MpvTrackSelection.nextAudioTrack(listOf(4, 9), 99))
+        org.junit.Assert.assertNull(MpvTrackSelection.nextAudioTrack(emptyList(), null))
+    }
+
+    @Test
+    fun subtitleTrackSelectionCyclesEveryTrackThenOffAndBackOn() {
+        val tracks = listOf(2, 7, 12)
+        org.junit.Assert.assertEquals(2, MpvTrackSelection.nextSubtitleTrack(tracks, null))
+        org.junit.Assert.assertEquals(7, MpvTrackSelection.nextSubtitleTrack(tracks, 2))
+        org.junit.Assert.assertEquals(12, MpvTrackSelection.nextSubtitleTrack(tracks, 7))
+        org.junit.Assert.assertNull(MpvTrackSelection.nextSubtitleTrack(tracks, 12))
+        org.junit.Assert.assertEquals(2, MpvTrackSelection.nextSubtitleTrack(tracks, null))
+        org.junit.Assert.assertNull(MpvTrackSelection.nextSubtitleTrack(emptyList(), null))
+    }
+
     @After
     fun tearDown() {
         activity?.finish()
@@ -146,12 +166,28 @@ class MpvEmbeddedPlayerActivityControlTest {
         clickControl(player, "Lock")
 
         val centreLock = waitForControl(player, "Unlock") as android.widget.ImageButton
+        val cornerMute = player.javaClass.getDeclaredField("lockedMuteButton").apply { isAccessible = true }
+            .get(player) as android.widget.ImageButton
+        val lockOverlay = player.javaClass.getDeclaredField("lockOverlay").apply { isAccessible = true }
+            .get(player) as View
         val help = waitForControl(player, "Lock help") as android.widget.TextView
         org.junit.Assert.assertEquals(R.drawable.lock_icon, centreLock.tag)
+        org.junit.Assert.assertEquals(View.VISIBLE, cornerMute.visibility)
         org.junit.Assert.assertEquals(android.graphics.Color.WHITE, centreLock.imageTintList?.defaultColor)
         org.junit.Assert.assertTrue(help.text.toString().contains("Double-tap to unlock"))
         org.junit.Assert.assertTrue("Help text must render below the measured icon", help.top >= centreLock.bottom)
-        tapTwice(player, centreLock)
+        Thread.sleep(3_400)
+        waitForVisibility(cornerMute, View.GONE)
+        waitForVisibility(lockOverlay, View.GONE)
+        org.junit.Assert.assertEquals("Corner mute control should hide with the lock overlay", View.GONE, cornerMute.visibility)
+        org.junit.Assert.assertEquals("Center lock overlay should hide with the corner mute control", View.GONE, lockOverlay.visibility)
+        val root = player.window.decorView
+        tap(player, root.width * 0.8f, root.height * 0.15f)
+        val shownLock = waitForControl(player, "Unlock") as android.widget.ImageButton
+        val shownMute = cornerMute
+        org.junit.Assert.assertEquals(View.VISIBLE, shownLock.visibility)
+        org.junit.Assert.assertEquals(View.VISIBLE, shownMute.visibility)
+        tapTwice(player, shownLock)
 
         val unlocked = waitForControl(player, "Unlocked") as android.widget.ImageButton
         org.junit.Assert.assertEquals(R.drawable.unlock_icon, unlocked.tag)
@@ -202,6 +238,15 @@ class MpvEmbeddedPlayerActivityControlTest {
         val found = collectTexts(activity.window.decorView).joinToString()
         assertNotNull("Text '$text' not found. Visible texts: $found", null)
         error("unreachable")
+    }
+
+    private fun waitForVisibility(view: View, visibility: Int) {
+        val deadline = System.currentTimeMillis() + ControlWaitMs
+        do {
+            instrumentation.waitForIdleSync()
+            if (view.visibility == visibility) return
+            Thread.sleep(ControlPollIntervalMs)
+        } while (System.currentTimeMillis() < deadline)
     }
 
     private fun findViewByText(view: View, text: String): View? {

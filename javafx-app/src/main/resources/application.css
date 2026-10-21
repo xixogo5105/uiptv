@@ -2595,6 +2595,36 @@
     -fx-max-width: Infinity;
 }
 
+.settings-clear-menu-button {
+    -fx-background-color: -uiptv-surface;
+    -fx-border-color: -uiptv-border-subtle;
+    -fx-border-width: 1;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+    -fx-padding: 8 14 8 14;
+    -fx-text-fill: -uiptv-text-primary;
+    -fx-mark-color: -uiptv-text-primary;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.settings-clear-menu-button:hover,
+.settings-clear-menu-button:focused,
+.settings-clear-menu-button:showing {
+    -fx-background-color: -uiptv-surface-hover;
+    -fx-border-color: #d4d4d4;
+    -fx-effect: dropshadow(gaussian, rgba(16, 24, 40, 0.10), 12, 0.12, 0, 2);
+}
+
+.settings-clear-menu-button:pressed {
+    -fx-background-color: #eeeeee;
+    -fx-effect: none;
+}
+
+.settings-clear-menu-button:disabled {
+    -fx-opacity: 0.48;
+}
+
 .settings-filter-text-area {
     -fx-background-color: #ffffff;
     -fx-border-color: rgba(17, 24, 39, 0.06);

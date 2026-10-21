@@ -54,6 +54,9 @@ object UiptvSyncSchema {
         "epg_change_state", "epg_change_history"
     )
 
+    /** Recent playback belongs to this installation and is deliberately excluded from cross-device table sync. */
+    val deviceLocalTables: List<String> = listOf("BookmarkPlayHistory")
+
     /**
      * Configuration columns that never travel between a desktop and an Android device.
      *

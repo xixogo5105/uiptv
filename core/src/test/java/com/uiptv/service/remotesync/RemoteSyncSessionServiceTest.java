@@ -8,6 +8,7 @@ import com.uiptv.service.ConfigurationService;
 import com.uiptv.service.DatabaseSyncService;
 import com.uiptv.service.DbBackedTest;
 import com.uiptv.util.AccountType;
+import com.uiptv.util.I18n;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -106,7 +107,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         });
 
         assertEquals(RemoteSyncStatus.COMPLETED, service.getSessionState(sessionId).status());
-        assertTrue(notifier.infoMessages.contains("remoteSyncRemoteCompletedMessage"));
+        assertTrue(notifier.infoMessages.contains(I18n.tr("remoteSyncRemoteCompletedMessage")));
     }
 
     @Test
@@ -166,7 +167,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         });
 
         assertEquals(RemoteSyncStatus.COMPLETED, service.getSessionState(sessionId).status());
-        assertTrue(notifier.infoMessages.contains("remoteSyncRemoteCompletedMessage"));
+        assertTrue(notifier.infoMessages.contains(I18n.tr("remoteSyncRemoteCompletedMessage")));
     }
 
     @Test
@@ -210,7 +211,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         assertEquals(RemoteSyncStatus.FAILED, failed.status());
         assertEquals("Remote database sync failed.", failed.message());
         assertNotEquals(failure.getMessage(), failed.message());
-        assertTrue(notifier.infoMessages.contains("remoteSyncRemoteFailedMessage"));
+        assertTrue(notifier.infoMessages.contains(I18n.tr("remoteSyncRemoteFailedMessage")));
     }
 
     @Test
@@ -246,7 +247,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         RemoteSyncSessionState failed = service.getSessionState(sessionId);
         assertEquals(RemoteSyncStatus.FAILED, failed.status());
         assertEquals("Remote database sync failed.", failed.message());
-        assertTrue(notifier.infoMessages.contains("remoteSyncRemoteFailedMessage"));
+        assertTrue(notifier.infoMessages.contains(I18n.tr("remoteSyncRemoteFailedMessage")));
     }
 
     @Test
@@ -312,7 +313,7 @@ class RemoteSyncSessionServiceTest extends DbBackedTest {
         service.completeImport(sessionId, true, "done");
         assertEquals(RemoteSyncStatus.COMPLETED, service.getSessionState(sessionId).status());
         assertFalse(Files.exists(encryptedDownload));
-        assertTrue(notifier.infoMessages.contains("remoteSyncRemoteCompletedMessage"));
+        assertTrue(notifier.infoMessages.contains(I18n.tr("remoteSyncRemoteCompletedMessage")));
     }
 
     @Test

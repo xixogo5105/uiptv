@@ -4,6 +4,7 @@ import com.uiptv.db.SQLConnection;
 import com.uiptv.service.AppDataRefreshService;
 import com.uiptv.service.DatabaseSyncService;
 import com.uiptv.util.AppLog;
+import com.uiptv.util.I18n;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -99,7 +100,7 @@ public class RemoteSyncSessionService {
                 copyBounded(inputStream, uploadedTransfer, MAX_TRANSFER_BYTES);
             } catch (IOException ex) {
                 session.fail(REMOTE_SYNC_FAILED_MESSAGE);
-                notifier.get().showError(I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE);
+                notifier.get().showError(I18n.tr(I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE));
                 deleteIfExists(uploadedTransfer);
                 throw ex;
             }
@@ -119,7 +120,7 @@ public class RemoteSyncSessionService {
             synchronized (session.monitor) {
                 session.complete(REMOTE_SYNC_COMPLETED_MESSAGE);
             }
-            notifier.get().showInfo("remoteSyncRemoteCompletedMessage");
+            notifier.get().showInfo(I18n.tr("remoteSyncRemoteCompletedMessage"));
             return new RemoteSyncExecutionResult(report, REMOTE_SYNC_COMPLETED_MESSAGE);
         } catch (IOException | SQLException ex) {
             AppLog.addErrorLog(
@@ -129,7 +130,7 @@ public class RemoteSyncSessionService {
             synchronized (session.monitor) {
                 session.fail(REMOTE_SYNC_FAILED_MESSAGE);
             }
-            notifier.get().showError(I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE);
+            notifier.get().showError(I18n.tr(I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE));
             throw ex;
         } finally {
             deleteIfExists(uploadedTransfer);
@@ -181,10 +182,10 @@ public class RemoteSyncSessionService {
             if (success) {
                 AppDataRefreshService.getInstance().refreshAfterDatabaseChange();
                 session.complete(blankToFallback(message, REMOTE_SYNC_COMPLETED_MESSAGE));
-                notifier.get().showInfo("remoteSyncRemoteCompletedMessage");
+                notifier.get().showInfo(I18n.tr("remoteSyncRemoteCompletedMessage"));
             } else {
                 session.fail(blankToFallback(message, REMOTE_SYNC_FAILED_MESSAGE));
-                notifier.get().showError(I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE);
+                notifier.get().showError(I18n.tr(I18N_REMOTE_SYNC_REMOTE_FAILED_MESSAGE));
             }
             cleanupSnapshot(session);
         }

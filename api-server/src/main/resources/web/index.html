@@ -101,6 +101,14 @@
                         </div>
                         <div aria-label="Bookmark categories" class="chip-row bookmark-tabs" role="tablist">
                             <button
+                                    @click="clearRecentlyPlayedBookmarks"
+                                    class="filter-chip"
+                                    :disabled="recentBookmarkHistory.length === 0"
+                                    type="button"
+                                    v-if="isRecentlyPlayedBookmarksSelected">
+                                Clear Recent
+                            </button>
+                            <button
                                     :class="{ active: String(selectedBookmarkCategoryId || '') === String(category.id || '') }"
                                     :key="'bookmark-category-' + (category.id || 'all')"
                                     @click="selectBookmarkCategory(category.id)"

@@ -162,6 +162,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private lateinit var lockButton: ImageButton
     private lateinit var lockOverlay: LinearLayout
     private lateinit var unlockButton: ImageButton
+    private lateinit var lockedMuteButton: ImageButton
     private lateinit var lockHelpText: TextView
     private var unlockTapTime = 0L
     private var unlockHideRunnable: Runnable? = null
@@ -366,6 +367,25 @@ class MpvEmbeddedPlayerActivity : Activity() {
         rootLayout.addView(lockOverlay, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             gravity = Gravity.CENTER
         })
+        lockedMuteButton = ImageButton(this).apply {
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = roundedBackground(Color.argb(190, 12, 16, 20), dp(22))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            imageTintList = ColorStateList.valueOf(Color.WHITE)
+            visibility = View.GONE
+            setOnClickListener {
+                toggleMute()
+                if (locked) showUnlockButton() else showUnlockedConfirmation()
+            }
+        }
+        updateLockedMuteButton()
+        rootLayout.addView(
+            lockedMuteButton,
+            FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.END).apply {
+                topMargin = dp(12)
+                marginEnd = dp(12)
+            }
+        )
         enterImmersiveMode()
 
         val createdMpv = MPVLib.create(this)
@@ -450,6 +470,10 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (locked && ::unlockButton.isInitialized) {
+            if (::lockedMuteButton.isInitialized && lockedMuteButton.visibility == View.VISIBLE &&
+                event.isInsideVisibleOverlay(lockedMuteButton)) {
+                return super.dispatchTouchEvent(event)
+            }
             if (unlockButton.visibility == View.VISIBLE &&
                 event.isInsideVisibleOverlay(unlockButton)) {
                 return super.dispatchTouchEvent(event)
@@ -1130,6 +1154,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         }
         applyDesiredAudioState()
         updateMuteButton()
+        updateLockedMuteButton()
         saveEmbeddedPlayerPreference()
         showFeedback(if (muted) "Muted" else "Unmuted")
     }
@@ -1143,9 +1168,24 @@ class MpvEmbeddedPlayerActivity : Activity() {
         muteButton.background = controlButtonBackground(active = muted)
     }
 
+    private fun updateLockedMuteButton() {
+        if (!::lockedMuteButton.isInitialized) {
+            return
+        }
+        setButtonIcon(lockedMuteButton, if (muted) R.drawable.mute_on else R.drawable.mute_off)
+        lockedMuteButton.contentDescription = if (muted) "Unmute" else "Mute"
+        lockedMuteButton.background = controlButtonBackground(active = muted)
+    }
+
     private fun cycleAudioTrack() {
         val player = mpv ?: return
-        player.runCatchingCommand("cycle", "aid")
+        val nextId = MpvTrackSelection.nextAudioTrack(player.trackIds("audio"), player.intPropertyOrNull("aid"))
+        if (nextId == null) {
+            showFeedback("Audio off")
+            return
+        }
+        runCatching { player.setPropertyInt("aid", nextId) }
+            .onFailure { Log.w(LogTag, "Unable to select audio track $nextId", it) }
         overlayHandler.postDelayed({
             updateTrackButtons()
             showFeedback(currentTrackFeedback("audio", "aid", "Audio"))
@@ -1154,7 +1194,16 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun cycleSubtitleTrack() {
         val player = mpv ?: return
-        player.runCatchingCommand("cycle", "sid")
+        val trackIds = player.trackIds("sub")
+        if (trackIds.isEmpty()) {
+            showFeedback("Subtitles off")
+            return
+        }
+        val nextId = MpvTrackSelection.nextSubtitleTrack(trackIds, player.intPropertyOrNull("sid"))
+        runCatching {
+            if (nextId == null) player.setPropertyString("sid", "no")
+            else player.setPropertyInt("sid", nextId)
+        }.onFailure { Log.w(LogTag, "Unable to select subtitle track $nextId", it) }
         overlayHandler.postDelayed({
             updateTrackButtons()
             showFeedback(currentTrackFeedback("sub", "sid", "Subtitles"))
@@ -1172,7 +1221,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
 
     private fun currentTrackFeedback(trackType: String, idProperty: String, label: String): String {
         val player = mpv ?: return label
-        if (!currentTrackIsEnabled(idProperty)) {
+        val id = player.intPropertyOrNull(idProperty)
+        if (id == null) {
             return "$label off"
         }
         val trackLabel = player.firstNonBlankString(
@@ -1180,10 +1230,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             "current-tracks/$trackType/lang",
             "current-tracks/$trackType/codec"
         )
-        val id = player.firstString(idProperty)
-            .takeIf { it.isNotBlank() && !it.equals("no", ignoreCase = true) }
-            ?.let { "#$it" }
-        return listOf(trackLabel, id)
+        return listOf(trackLabel, "#$id")
             .filterNot { it.isNullOrBlank() }
             .joinToString(" ")
             .ifBlank { "selected" }
@@ -1191,9 +1238,20 @@ class MpvEmbeddedPlayerActivity : Activity() {
     }
 
     private fun currentTrackIsEnabled(idProperty: String): Boolean {
-        val value = mpv?.firstString(idProperty).orEmpty()
-        return value.isNotBlank() && !value.equals("no", ignoreCase = true)
+        return mpv?.intPropertyOrNull(idProperty) != null
     }
+
+    private fun MPVLib.trackIds(type: String): List<Int> = buildList {
+        for (index in 0 until MaxMpvTrackCount) {
+            val prefix = "track-list/$index"
+            val trackType = runCatching { getPropertyString("$prefix/type") }.getOrNull() ?: break
+            if (!trackType.equals(type, ignoreCase = true)) continue
+            runCatching { getPropertyInt("$prefix/id") }.getOrNull()?.let(::add)
+        }
+    }
+
+    private fun MPVLib.intPropertyOrNull(property: String): Int? =
+        runCatching { getPropertyInt(property) }.getOrNull()?.takeIf { it > 0 }
 
     private fun toggleRepeat() {
         repeatEnabled = !repeatEnabled
@@ -1244,6 +1302,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
             showUnlockButton()
             enterImmersiveMode()
         } else {
+            lockedMuteButton.visibility = View.GONE
             showUnlockedConfirmation()
             showControlsTemporarily()
         }
@@ -1253,8 +1312,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private fun showUnlockButton() {
         if (!::lockOverlay.isInitialized) return
         setCenterLockState(R.drawable.lock_icon, "Unlock", "Screen locked · Double-tap to unlock")
-        lockOverlay.visibility = View.VISIBLE
-        lockOverlay.bringToFront()
+        showLockControls()
         unlockTapTime = 0L
         unlockHideRunnable?.let(overlayHandler::removeCallbacks)
         unlockHideRunnable = Runnable { hideUnlockButton() }
@@ -1264,8 +1322,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private fun showUnlockedConfirmation() {
         if (!::lockOverlay.isInitialized) return
         setCenterLockState(R.drawable.unlock_icon, "Unlocked", "Screen unlocked")
-        lockOverlay.visibility = View.VISIBLE
-        lockOverlay.bringToFront()
+        showLockControls()
         unlockHideRunnable?.let(overlayHandler::removeCallbacks)
         unlockHideRunnable = Runnable { hideUnlockButton() }
         overlayHandler.postDelayed(unlockHideRunnable!!, 1200)
@@ -1284,9 +1341,21 @@ class MpvEmbeddedPlayerActivity : Activity() {
     private fun hideUnlockButton() {
         if (!::lockOverlay.isInitialized) return
         lockOverlay.visibility = View.GONE
+        lockedMuteButton.visibility = View.GONE
+        lockOverlay.alpha = 1f
+        lockedMuteButton.alpha = 1f
         unlockTapTime = 0L
         unlockHideRunnable?.let(overlayHandler::removeCallbacks)
         unlockHideRunnable = null
+    }
+
+    private fun showLockControls() {
+        lockOverlay.alpha = 1f
+        lockedMuteButton.alpha = 1f
+        lockOverlay.visibility = View.VISIBLE
+        lockedMuteButton.visibility = View.VISIBLE
+        lockedMuteButton.bringToFront()
+        lockOverlay.bringToFront()
     }
 
     private fun handleUnlockTap() {
@@ -2105,8 +2174,8 @@ class MpvEmbeddedPlayerActivity : Activity() {
         player.observe("video-codec", MPVLib.MpvFormat.MPV_FORMAT_STRING)
         player.observe("hwdec-current", MPVLib.MpvFormat.MPV_FORMAT_STRING)
         player.observe("current-vo", MPVLib.MpvFormat.MPV_FORMAT_STRING)
-        player.observe("aid", MPVLib.MpvFormat.MPV_FORMAT_STRING)
-        player.observe("sid", MPVLib.MpvFormat.MPV_FORMAT_STRING)
+        player.observe("aid", MPVLib.MpvFormat.MPV_FORMAT_INT64)
+        player.observe("sid", MPVLib.MpvFormat.MPV_FORMAT_INT64)
     }
 
     private fun attachMpvSurface(surface: Surface) {
@@ -2352,6 +2421,7 @@ class MpvEmbeddedPlayerActivity : Activity() {
         private const val StreamInfoRefreshMediumDelayMs = 1_000L
         private const val StreamInfoRefreshLongDelayMs = 2_500L
         private const val TrackFeedbackDelayMs = 120L
+        private const val MaxMpvTrackCount = 256
         private const val ProgressBarMax = 1_000
         private const val MpvAudibleVolume = 100.0
         private const val SeekStepSeconds = 15

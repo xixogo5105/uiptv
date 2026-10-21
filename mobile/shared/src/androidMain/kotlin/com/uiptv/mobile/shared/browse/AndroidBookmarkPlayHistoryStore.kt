@@ -98,7 +98,7 @@ class AndroidBookmarkPlayHistoryStore(
             """
             SELECT accountName, accountAction, channelId, playCount, lastPlayedAt
             FROM $TABLE
-            ORDER BY lastPlayedAt DESC
+                ORDER BY lastPlayedAt DESC, playCount DESC
             LIMIT $RECENT_BOOKMARK_LIMIT
             """.trimIndent(),
             null
@@ -129,7 +129,7 @@ class AndroidBookmarkPlayHistoryStore(
             WHERE rowid NOT IN (
                 SELECT rowid
                 FROM $TABLE
-                ORDER BY lastPlayedAt DESC, rowid DESC
+                ORDER BY playCount DESC, lastPlayedAt DESC, rowid DESC
                 LIMIT $RECENT_BOOKMARK_LIMIT
             )
             """.trimIndent()
@@ -137,25 +137,25 @@ class AndroidBookmarkPlayHistoryStore(
     }
 
     private fun ensureTable() {
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS $TABLE (
-                accountName TEXT NOT NULL,
-                accountAction TEXT NOT NULL,
-                channelId TEXT NOT NULL,
-                playCount INTEGER NOT NULL DEFAULT 0,
-                lastPlayedAt INTEGER NOT NULL DEFAULT 0,
-                PRIMARY KEY(accountName, accountAction, channelId)
-            )
-            """.trimIndent()
-        )
-        db.execSQL(
-            """
-            CREATE INDEX IF NOT EXISTS idx_android_bookmark_play_history_rank
-            ON $TABLE(lastPlayedAt DESC, playCount DESC)
-            """.trimIndent()
-        )
+        migrateLegacyTableIfNeeded()
     }
+
+    private fun migrateLegacyTableIfNeeded() {
+        if (tableExists(LEGACY_TABLE)) {
+            db.execSQL(
+                """
+                INSERT OR REPLACE INTO $TABLE(accountName, accountAction, channelId, playCount, lastPlayedAt)
+                SELECT accountName, accountAction, channelId, playCount, lastPlayedAt FROM $LEGACY_TABLE
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE $LEGACY_TABLE")
+        }
+    }
+
+    private fun tableExists(tableName: String): Boolean =
+        db.rawQuery("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(tableName)).use { cursor ->
+            cursor.moveToFirst()
+        }
 
     private fun MobileBookmark.historyKey(): BookmarkHistoryKey? {
         val accountName = accountName.trim()
@@ -205,8 +205,9 @@ class AndroidBookmarkPlayHistoryStore(
     )
 
     private companion object {
-        private const val TABLE = "AndroidBookmarkPlayHistory"
+        private const val TABLE = "BookmarkPlayHistory"
+        private const val LEGACY_TABLE = "AndroidBookmarkPlayHistory"
         private const val KEY_WHERE = "accountName = ? AND accountAction = ? AND channelId = ?"
-        private const val RECENT_BOOKMARK_LIMIT = 15
+        private const val RECENT_BOOKMARK_LIMIT = 25
     }
 }

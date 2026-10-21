@@ -91,7 +91,7 @@ data class MobileBookmarkCategory(
 )
 
 const val RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID = "__recently_played_bookmarks__"
-const val RECENTLY_PLAYED_BOOKMARKS_CATEGORY_NAME = "Recently Played Channels"
+const val RECENTLY_PLAYED_BOOKMARKS_CATEGORY_NAME = "Recent"
 
 data class MobileWatchingNowItem(
     val rowId: Long,

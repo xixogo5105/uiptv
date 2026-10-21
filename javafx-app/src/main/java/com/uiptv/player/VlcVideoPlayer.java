@@ -401,7 +401,7 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             playbackStarted();
             refreshNativeMetadata(mp);
             errorLabel.setVisible(false);
-            retryCount = 0;
+            playbackRecovered();
             applyDesiredAudioState();
             scheduleAudioStateStartupSync(requestVersion);
             loadingSpinner.setVisible(false);
@@ -460,6 +460,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             if (!isCurrentPlayer(mp)) {
                 return;
             }
+            if (scheduleLivePlaybackRecovery()) {
+                return;
+            }
             btnPlayPause.setGraphic(playIcon);
             if (isRepeating && isRetrying.get()) {
                 handleRepeat();
@@ -497,6 +500,9 @@ public class VlcVideoPlayer extends BaseVideoPlayer {
             }
             playbackStarted();
             com.uiptv.util.AppLog.addErrorLog(VlcVideoPlayer.class, "VLC media error request=" + mediaRequestVersion.get());
+            if (scheduleLivePlaybackRecovery()) {
+                return;
+            }
             showPlaybackError();
             if (isRepeating && isRetrying.get()) {
                 handleRepeat();

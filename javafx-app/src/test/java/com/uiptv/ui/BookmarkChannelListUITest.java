@@ -2,6 +2,7 @@ package com.uiptv.ui;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.BookmarkCategory;
+import com.uiptv.model.BookmarkCategory;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;
@@ -192,6 +193,7 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     void favoriteSortModesKeepDefaultOrderAndSortNameOrAccountName() throws Exception {
         List<List<String>> orders = runOnFxThread(() -> {
             BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
+            populateCategoryPills(ui, List.of(new BookmarkCategory(null, "All")));
             allBookmarkItems(ui).addAll(List.of(
                     bookmarkItem("3", "Zulu", "Account B"),
                     bookmarkItem("1", "Alpha", "Account C"),
@@ -465,19 +467,21 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     }
 
     @Test
-    void loadingStateIsPresentBeforeAnyBookmarksAreLoaded() throws Exception {
-        boolean[] hasLoadingIndicator = runOnFxThread(() -> {
+    void initialBookmarkViewSelectsRecentWithoutShowingBookmarkLoadingPopup() throws Exception {
+        Object[] initialState = runOnFxThread(() -> {
             BookmarkChannelListUI ui = new BookmarkChannelListUI(null, () -> {
             });
-            // Before any data arrives the grid must carry a loading placeholder, so the user
-            // does not read the empty grid as "you have no bookmarks".
-            return new boolean[]{
+            Field categoryField = BookmarkChannelListUI.class.getDeclaredField("categoryPillBar");
+            categoryField.setAccessible(true);
+            PillBar<BookmarkCategory> categoryPillBar = (PillBar<BookmarkCategory>) categoryField.get(ui);
+            return new Object[]{
+                    categoryPillBar.getSelectedItem().getId(),
                     findByType(bookmarkGridOf(ui), LoadingStateView.class) != null
             };
         });
 
-        assertTrue(hasLoadingIndicator[0],
-                "A loading indicator must be present so users do not read an empty pane as 'no bookmarks'");
+        assertEquals("__recently_played_bookmarks__", initialState[0]);
+        assertFalse((boolean) initialState[1], "The initial bookmark view should not show a loading popup");
     }
 
     @SuppressWarnings("unchecked")

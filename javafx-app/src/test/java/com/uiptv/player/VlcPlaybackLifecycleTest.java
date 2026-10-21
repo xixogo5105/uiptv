@@ -1,13 +1,18 @@
 package com.uiptv.player;
 
+import com.uiptv.model.Account;
+import com.uiptv.model.Channel;
 import com.uiptv.model.PlayerResponse;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
+import uk.co.caprica.vlcj.player.base.MediaPlayer;
+import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter;
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer;
 
+import java.lang.reflect.Method;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -192,6 +197,102 @@ class VlcPlaybackLifecycleTest extends DbBackedUiTest {
                 return null;
             });
         } finally { runOnFxThread(() -> { player.disposePlayer(); return null; }); }
+    }
+
+    @Test
+    void unexpectedLiveFinishedEventSchedulesFreshPlaybackRecovery() throws Exception {
+        var factory = mock(MediaPlayerFactory.class, RETURNS_DEEP_STUBS);
+        var nativePlayer = mock(EmbeddedMediaPlayer.class, RETURNS_DEEP_STUBS);
+        when(factory.mediaPlayers().newEmbeddedMediaPlayer()).thenReturn(nativePlayer);
+        var player = runOnFxThread(() -> new VlcVideoPlayer(() -> factory));
+        try {
+            player.playbackReady().toCompletableFuture().get(5, TimeUnit.SECONDS);
+            runOnFxThread(() -> {
+                player.currentAccount = liveAccount();
+                player.currentChannel = liveChannel();
+                player.isRetrying.set(true);
+                invokeVlcEvent(player, "finished", nativePlayer);
+                return null;
+            });
+            FxTestSupport.waitForFxEvents();
+            assertEquals(1, player.retryCount);
+            assertTrue(player.loadingSpinner.isVisible());
+            assertFalse(player.errorLabel.isVisible());
+        } finally {
+            runOnFxThread(() -> { player.disposePlayer(); return null; });
+        }
+    }
+
+    @Test
+    void unexpectedLiveErrorEventSchedulesFreshPlaybackRecovery() throws Exception {
+        var factory = mock(MediaPlayerFactory.class, RETURNS_DEEP_STUBS);
+        var nativePlayer = mock(EmbeddedMediaPlayer.class, RETURNS_DEEP_STUBS);
+        when(factory.mediaPlayers().newEmbeddedMediaPlayer()).thenReturn(nativePlayer);
+        var player = runOnFxThread(() -> new VlcVideoPlayer(() -> factory));
+        try {
+            player.playbackReady().toCompletableFuture().get(5, TimeUnit.SECONDS);
+            runOnFxThread(() -> {
+                player.currentAccount = liveAccount();
+                player.currentChannel = liveChannel();
+                player.isRetrying.set(true);
+                invokeVlcEvent(player, "error", nativePlayer);
+                return null;
+            });
+            FxTestSupport.waitForFxEvents();
+            assertEquals(1, player.retryCount);
+            assertTrue(player.loadingSpinner.isVisible());
+            assertFalse(player.errorLabel.isVisible());
+        } finally {
+            runOnFxThread(() -> { player.disposePlayer(); return null; });
+        }
+    }
+
+    @Test
+    void onDemandFinishedEventDoesNotScheduleLiveRecovery() throws Exception {
+        var factory = mock(MediaPlayerFactory.class, RETURNS_DEEP_STUBS);
+        var nativePlayer = mock(EmbeddedMediaPlayer.class, RETURNS_DEEP_STUBS);
+        when(factory.mediaPlayers().newEmbeddedMediaPlayer()).thenReturn(nativePlayer);
+        var player = runOnFxThread(() -> new VlcVideoPlayer(() -> factory));
+        try {
+            player.playbackReady().toCompletableFuture().get(5, TimeUnit.SECONDS);
+            runOnFxThread(() -> {
+                Account account = liveAccount();
+                account.setAction(Account.AccountAction.vod);
+                player.currentAccount = account;
+                player.currentChannel = liveChannel();
+                player.isRetrying.set(true);
+                invokeVlcEvent(player, "finished", nativePlayer);
+                return null;
+            });
+            FxTestSupport.waitForFxEvents();
+            assertEquals(0, player.retryCount);
+            assertFalse(player.loadingSpinner.isVisible());
+        } finally {
+            runOnFxThread(() -> { player.disposePlayer(); return null; });
+        }
+    }
+
+    private static Account liveAccount() {
+        Account account = new Account();
+        account.setAction(Account.AccountAction.itv);
+        return account;
+    }
+
+    private static Channel liveChannel() {
+        Channel channel = new Channel();
+        channel.setChannelId("live-channel");
+        return channel;
+    }
+
+    private static void invokeVlcEvent(VlcVideoPlayer player, String event, MediaPlayer nativePlayer) throws Exception {
+        Method method = VlcVideoPlayer.class.getDeclaredMethod("createMediaPlayerEvents");
+        method.setAccessible(true);
+        MediaPlayerEventAdapter listener = (MediaPlayerEventAdapter) method.invoke(player);
+        if ("finished".equals(event)) {
+            listener.finished(nativePlayer);
+        } else {
+            listener.error(nativePlayer);
+        }
     }
 
     @Test

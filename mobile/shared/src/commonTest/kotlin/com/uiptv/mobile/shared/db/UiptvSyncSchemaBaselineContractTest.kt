@@ -49,17 +49,30 @@ class UiptvSyncSchemaBaselineContractTest {
 
     @Test
     fun requiredAndSyncedTablesCoverTheWholeBaseline() {
-        // Every baseline table is either synced, or explicitly recorded as preserved-but-hidden. A table that
-        // is neither would be created by the baseline but never carried across a restore.
+        // Every baseline table is either synced, preserved-but-hidden, or deliberately device-local. A table
+        // that is not declared in one of these groups has no explicit restore/sync policy.
         val baselineTables = baselineTableNames().toSet()
         val declared = UiptvSyncSchema.syncableTables.toSet() +
-            UiptvSyncSchema.desktopTablesPreservedButHiddenInV1.toSet()
+            UiptvSyncSchema.desktopTablesPreservedButHiddenInV1.toSet() +
+            UiptvSyncSchema.deviceLocalTables.toSet()
 
         assertEquals(
             emptySet(),
             baselineTables - declared,
             "Baseline tables are neither synced nor declared as preserved-but-hidden: " +
                 (baselineTables - declared).sorted()
+        )
+    }
+
+    @Test
+    fun deviceLocalTablesAreNotDeclaredForCrossDeviceSync() {
+        assertTrue(
+            UiptvSyncSchema.deviceLocalTables.none { it in UiptvSyncSchema.syncableTables },
+            "Device-local tables must not be in the cross-device sync table list"
+        )
+        assertTrue(
+            UiptvSyncSchema.deviceLocalTables.none { it in UiptvSyncSchema.androidRequiredTables },
+            "Device-local tables must not be required from a remote snapshot"
         )
     }
 

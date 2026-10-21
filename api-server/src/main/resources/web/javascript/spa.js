@@ -326,7 +326,7 @@ createApp({
         const SUPPORTED_MULTI_MODE_TYPES = new Set(['STALKER_PORTAL', 'XTREME_API']);
         const RECENTLY_PLAYED_BOOKMARKS_CATEGORY_ID = '__recently_played_bookmarks__';
         const RECENTLY_PLAYED_BOOKMARKS_CATEGORY_NAME = 'Recent';
-        const RECENT_BOOKMARK_LIMIT = 15;
+        const RECENT_BOOKMARK_LIMIT = 25;
         const RECENT_BOOKMARK_STORAGE_KEY = 'uiptv_recently_played_bookmarks_v1';
 
         const createModeState = () => ({
@@ -944,14 +944,26 @@ createApp({
         });
 
         const getRecentBookmarkKey = (bookmark = {}) => {
-            const bookmarkId = String(bookmark.dbId || bookmark.bookmarkId || '').trim();
-            if (bookmarkId) return bookmarkId;
-            return [
+            const channelId = String(bookmark.channelId || bookmark.id || '').trim();
+            const channelKey = channelId || normalizePlaybackName(bookmark.channelName || bookmark.name || '');
+            if (!channelKey) return '';
+            const identity = [
                 String(bookmark.accountName || '').trim(),
                 normalizePlaybackMode(bookmark.accountAction || bookmark.mode || 'itv'),
-                String(bookmark.channelId || bookmark.id || '').trim(),
-                normalizePlaybackName(bookmark.channelName || bookmark.name || '')
-            ].join('|');
+                channelKey
+            ];
+            return JSON.stringify(identity);
+        };
+
+        const getLegacyRecentBookmarkNameKey = (bookmark = {}) => {
+            const accountName = String(bookmark.accountName || '').trim();
+            const channelName = normalizePlaybackName(bookmark.channelName || bookmark.name || '');
+            if (!accountName || !channelName) return '';
+            return `legacy:${JSON.stringify([
+                accountName,
+                normalizePlaybackMode(bookmark.accountAction || bookmark.mode || 'itv'),
+                channelName
+            ])}`;
         };
 
         const sanitizeRecentBookmarkEntry = (entry = {}) => {
@@ -1021,31 +1033,50 @@ createApp({
             };
             saveRecentBookmarkHistory([
                 nextEntry,
-                ...recentBookmarkHistory.value.filter(entry => String(entry.key || '') !== key)
+                ...recentBookmarkHistory.value.filter(entry =>
+                    String(entry.key || '') !== key
+                    && String(entry.key || '') !== String(bookmark?.dbId || bookmark?.bookmarkId || '').trim())
             ]);
         };
 
         const removeRecentlyPlayedBookmark = (bookmark) => {
             const key = getRecentBookmarkKey(bookmark);
             if (!key) return;
-            saveRecentBookmarkHistory(recentBookmarkHistory.value.filter(entry => String(entry.key || '') !== key));
+            const legacyKey = String(bookmark?.dbId || bookmark?.bookmarkId || '').trim();
+            saveRecentBookmarkHistory(recentBookmarkHistory.value.filter(entry =>
+                String(entry.key || '') !== key && String(entry.key || '') !== legacyKey));
         };
+
+        const clearRecentlyPlayedBookmarks = () => saveRecentBookmarkHistory([]);
 
         const recentBookmarkEntryMap = computed(() => {
             const map = new Map();
             for (const entry of recentBookmarkHistory.value || []) {
                 map.set(String(entry.key || ''), entry);
+                if (!String(entry.key || '').startsWith('[')) {
+                    const legacyNameKey = getLegacyRecentBookmarkNameKey(entry);
+                    if (legacyNameKey) map.set(legacyNameKey, entry);
+                }
             }
             return map;
         });
 
         const recentlyPlayedBookmarks = computed(() => {
+            const seen = new Set();
             return (bookmarks.value || [])
                 .map(bookmark => {
-                    const entry = recentBookmarkEntryMap.value.get(getRecentBookmarkKey(bookmark));
+                    const entry = recentBookmarkEntryMap.value.get(getRecentBookmarkKey(bookmark))
+                        || recentBookmarkEntryMap.value.get(getLegacyRecentBookmarkNameKey(bookmark))
+                        || recentBookmarkEntryMap.value.get(String(bookmark.dbId || bookmark.bookmarkId || '').trim());
                     return entry ? {...bookmark, recentPlayCount: entry.playCount, recentLastPlayedAt: entry.lastPlayedAt} : null;
                 })
-                .filter(Boolean)
+                .filter(bookmark => {
+                    if (!bookmark) return false;
+                    const key = getRecentBookmarkKey(bookmark);
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                })
                 .sort((a, b) => {
                     const byCount = Number(b.recentPlayCount || 0) - Number(a.recentPlayCount || 0);
                     if (byCount !== 0) return byCount;
@@ -4527,9 +4558,10 @@ createApp({
             const existing = findBookmarkForChannel(currentChannel.value);
             try {
                 if (existing?.dbId) {
-                    await fetch(`${window.location.origin}/bookmarks?bookmarkId=${encodeURIComponent(existing.dbId)}`, {
+                    const response = await fetch(`${window.location.origin}/bookmarks?bookmarkId=${encodeURIComponent(existing.dbId)}`, {
                         method: 'DELETE'
                     });
+                    if (response.ok) removeRecentlyPlayedBookmark(existing);
                 } else {
                     await fetch(`${window.location.origin}/bookmarks`, {
                         method: 'POST',
@@ -5093,6 +5125,7 @@ createApp({
             watchingNowLoadingMessage,
             watchingNowVodRows,
             bookmarkCategoryTabs,
+            recentBookmarkHistory,
             seriesSeasonTabs,
             selectedSeriesSeason,
             selectedBookmarkCategoryId,
@@ -5203,6 +5236,7 @@ createApp({
             formatPlaybackTime,
             seekPlayback,
             removeRecentlyPlayedBookmark,
+            clearRecentlyPlayedBookmarks,
             onBookmarkCardClick,
             onBookmarkDragStart,
             onBookmarkDragOver,

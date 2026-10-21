@@ -124,6 +124,9 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     private final java.util.concurrent.atomic.AtomicLong refreshVersion = new java.util.concurrent.atomic.AtomicLong();
     private java.util.concurrent.FutureTask<Void> refreshTask;
     private final PauseTransition startupTimeout = new PauseTransition(Duration.seconds(45));
+    private static final int MAX_AUTOMATIC_LIVE_RECOVERY_ATTEMPTS = 5;
+    private static final int[] LIVE_RECOVERY_DELAY_SECONDS = {1, 2, 5, 10, 20};
+    private PauseTransition liveRecoveryTimer;
     protected Label errorLabel;
     protected TextFlow nowShowingFlow;
     protected Text streamInfoText;
@@ -947,6 +950,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     @Override
     public void stop() {
         cancelStreamRefresh();
+        cancelLiveRecovery();
         com.uiptv.ui.PlaybackUIService.cancelPendingPlayback();
         startupTimeout.stop();
         if (pipStage != null) {
@@ -992,6 +996,70 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
         startupTimeout.stop();
     }
 
+    /**
+     * A live provider can end or corrupt a transport connection without the user
+     * asking to stop playback. Clear any pending recovery once a new stream has
+     * actually reached the playing state.
+     */
+    protected void playbackRecovered() {
+        cancelLiveRecovery();
+        // Keep the live recovery budget across short-lived "playing" sessions;
+        // a provider that fails every 20-30 seconds must not retry forever.
+        if (isOnDemandContent()) {
+            retryCount = 0;
+        }
+    }
+
+    /**
+     * Schedules a fresh provider URL after an unexpected live-stream failure.
+     * Returns true when the event was handled, including when the retry budget is
+     * exhausted and the terminal playback error is shown.
+     */
+    protected boolean scheduleLivePlaybackRecovery() {
+        if (isDisposed.get() || !isRetrying.get() || isOnDemandContent()
+                || !isLiveLikeContent || currentAccount == null || currentChannel == null) {
+            return false;
+        }
+        if (liveRecoveryTimer != null) {
+            return true;
+        }
+        if (retryCount >= MAX_AUTOMATIC_LIVE_RECOVERY_ATTEMPTS) {
+            isRetrying.set(false);
+            stopForReload();
+            showLoading();
+            showPlaybackError();
+            errorLabel.setText(I18n.tr("autoFailedToReconnectAfter5Attempts"));
+            return true;
+        }
+
+        int attempt = ++retryCount;
+        int delaySeconds = LIVE_RECOVERY_DELAY_SECONDS[attempt - 1];
+        com.uiptv.util.AppLog.addWarningLog(BaseVideoPlayer.class,
+                "Scheduling automatic live playback recovery attempt=" + attempt
+                        + " delaySeconds=" + delaySeconds);
+        showLoading();
+        PauseTransition recovery = new PauseTransition(Duration.seconds(delaySeconds));
+        liveRecoveryTimer = recovery;
+        recovery.setOnFinished(_ -> {
+            if (liveRecoveryTimer != recovery) {
+                return;
+            }
+            liveRecoveryTimer = null;
+            if (isRetrying.get() && !isDisposed.get()) {
+                refreshAndPlay();
+            }
+        });
+        recovery.playFromStart();
+        return true;
+    }
+
+    private void cancelLiveRecovery() {
+        if (liveRecoveryTimer != null) {
+            liveRecoveryTimer.stop();
+            liveRecoveryTimer = null;
+        }
+    }
+
     @Override
     public void showPlaybackError() {
         startupTimeout.stop();
@@ -1013,6 +1081,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     @Override
     public void stopForReload() {
         cancelStreamRefresh();
+        cancelLiveRecovery();
         startupTimeout.stop();
         removeBingeWatchWatchStateListener();
         if (Platform.isFxApplicationThread()) {

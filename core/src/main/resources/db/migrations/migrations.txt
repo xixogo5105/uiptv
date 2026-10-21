@@ -96,3 +96,4 @@
 0216_add_web_playback_proxy_settings.sql
 0217_add_configuration_epg_playback_only.sql
 0218_add_configuration_epg_scheduler_interval.sql
+0219_add_bookmark_play_history.sql
