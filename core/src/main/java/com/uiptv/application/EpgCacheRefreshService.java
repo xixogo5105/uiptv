@@ -18,6 +18,7 @@ public class EpgCacheRefreshService {
     }
     private static final long FAILURE_MS=TimeUnit.MINUTES.toMillis(5);
     private static final Object COMMIT_LOCK=new Object();
+    private static final java.util.concurrent.ConcurrentMap<String, java.util.concurrent.locks.ReentrantLock> NATIVE_REQUEST_LOCKS = new ConcurrentHashMap<>();
     private static final AtomicLong EPOCH=new AtomicLong();
     private static final Map<Runnable,EpgChangeNotifications.Subscription> LEGACY_LISTENERS=new ConcurrentHashMap<>();
     private static ScheduledExecutorService scheduler;
@@ -93,7 +94,9 @@ public class EpgCacheRefreshService {
             Account account = AccountService.getInstance().getById(entry.getKey());
             if (account == null) continue;
             account.setAction(Account.AccountAction.itv);
-            refreshAccount(account, entry.getValue(), token, entry.getValue().size());
+            // Visible catalogue channels may publish already cached XMLTV data, but a
+            // background visibility update must never fan out Stalker channel requests.
+            refreshAccount(account, entry.getValue(), token, entry.getValue().size(), List.of());
         }
     }
     private static final Map<String,Integer> CURSORS=new HashMap<>();
@@ -294,11 +297,9 @@ public class EpgCacheRefreshService {
     }
 
     private void refreshAccounts(List<Account> accounts, Map<String,List<Channel>> bookmarked, Token token) {
-        // Publish shared XMLTV to every cached channel while native requests stay
-        // demand-driven. A background crawl of dozens of native provider
-        // endpoints per account made an otherwise idle player consume CPU and
-        // network continuously. Visible channels are queued separately and
-        // bookmarks remain the useful persistent priority set.
+        // Publish shared XMLTV to every cached channel. Native provider EPG is
+        // requested only by the player after a stream link resolves; polling
+        // bookmarks or visible catalogue rows creates large repeated HTTP bursts.
         for(Account account:accounts) {
             refreshVisible(token);
             if(!current(token) || !new EpgApplicationService().isEnabled()) return;
@@ -308,8 +309,7 @@ public class EpgCacheRefreshService {
             favourites.forEach(c -> channels.put(c.getChannelId(),c));
             ChannelDb.get().getCachedLiveChannels(account.getDbId()).forEach(c -> channels.put(c.getChannelId(),c));
             List<Channel> all = new ArrayList<>(channels.values());
-            List<Channel> nativeChannels = favourites.stream().map(c -> channels.get(c.getChannelId())).toList();
-            refreshAccount(account,all,token,16,nativeChannels);
+            refreshAccount(account,all,token,16,List.of());
         }
     }
     private static boolean due(EpgCacheDb.SourceState state,long now) {
@@ -318,10 +318,12 @@ public class EpgCacheRefreshService {
     }
     /** Explicit refresh boundary, also usable by import/contract tests without starting timers. */
     public void refreshAccount(Account account,List<Channel> channels) {
-        refreshAccount(account,channels,token(),64);
+        refreshAccount(account,channels,token(),64,List.of());
     }
-    private void refreshAccount(Account account,List<Channel> input,Token token,int nativeBudget) {
-        refreshAccount(account,input,token,nativeBudget,input);
+    /** Native provider EPG is reserved for the currently playing channel. */
+    public void refreshPlaybackChannel(Account account, Channel channel) {
+        if (channel == null) return;
+        refreshAccount(account,List.of(channel),token(),1,List.of(channel));
     }
     private void refreshAccount(Account account,List<Channel> input,Token token,int nativeBudget,List<Channel> nativeChannels) {
         Map<String,Channel> unique=new LinkedHashMap<>();
@@ -372,27 +374,33 @@ public class EpgCacheRefreshService {
             if(!current(token) || !loader.isEnabled()) return;
             Channel channel=channels.get((start+visited)%channels.size());
             String id=EpgCacheApplicationService.nativeSource(account,channel);
-            long now=System.currentTimeMillis();
-            if(!due(db.sourceState(id),now)) continue;
-            attempted++;
-            var nativeService=new NativeEpgApplicationService();
-            nativeService.expire(account,channel);
-            List<EpgProgramme> programmes=nativeService.schedule(account,channel);
-            if(!current(token)) return;
-            if(EpgApplicationService.usable(programmes)) {
-                long coverage=programmes.stream().mapToLong(EpgProgramme::stop).max().orElse(now);
-                // A short guide can end before the normal failure back-off window. In that case
-                // the upper clamp bound would be below its lower bound and Math.clamp throws.
-                long minimumRetry = now + FAILURE_MS;
-                long coverageRetry = coverage - FAILURE_MS;
-                long retry = coverageRetry < minimumRetry
-                        ? minimumRetry
-                        : Math.clamp(now + refreshMillis(), minimumRetry, coverageRetry);
-                commit(token,() -> db.replaceSource(id,Map.of(channel.getChannelId(),programmes),Map.of(),Map.of(),Map.of(),now,retry,
-                        Set.of(new EpgChangeNotifications.ProviderIdentity(account.getDbId(), channel.getChannelId()))));
+            var requestLock=NATIVE_REQUEST_LOCKS.computeIfAbsent(id,_ -> new java.util.concurrent.locks.ReentrantLock());
+            if(!requestLock.tryLock()) continue;
+            try {
+                long now=System.currentTimeMillis();
+                if(!due(db.sourceState(id),now)) continue;
+                attempted++;
+                var nativeService=new NativeEpgApplicationService();
+                nativeService.expire(account,channel);
+                List<EpgProgramme> programmes=nativeService.schedule(account,channel);
+                if(!current(token)) return;
+                if(EpgApplicationService.usable(programmes)) {
+                    long coverage=programmes.stream().mapToLong(EpgProgramme::stop).max().orElse(now);
+                    // A short guide can end before the normal failure back-off window. In that case
+                    // the upper clamp bound would be below its lower bound and Math.clamp throws.
+                    long minimumRetry = now + FAILURE_MS;
+                    long coverageRetry = coverage - FAILURE_MS;
+                    long retry = coverageRetry < minimumRetry
+                            ? minimumRetry
+                            : Math.clamp(now + refreshMillis(), minimumRetry, coverageRetry);
+                    commit(token,() -> db.replaceSource(id,Map.of(channel.getChannelId(),programmes),Map.of(),Map.of(),Map.of(),now,retry,
+                            Set.of(new EpgChangeNotifications.ProviderIdentity(account.getDbId(), channel.getChannelId()))));
+                }
+                else commit(token,() -> db.failed(id,now+FAILURE_MS,"epgNoGuide"));
+                commit(token,() -> db.mapChannels(EpgCacheApplicationService.matches(account,List.of(channel),sources),System.currentTimeMillis()));
+            } finally {
+                requestLock.unlock();
             }
-            else commit(token,() -> db.failed(id,now+FAILURE_MS,"epgNoGuide"));
-            commit(token,() -> db.mapChannels(EpgCacheApplicationService.matches(account,List.of(channel),sources),System.currentTimeMillis()));
         }
         synchronized(CURSORS) { CURSORS.put(account.getDbId()+"|"+nativeBudget,(start+visited)%channels.size()); }
     }

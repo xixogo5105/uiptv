@@ -4,6 +4,7 @@ import com.uiptv.model.*;
 import com.uiptv.service.*;
 import com.uiptv.shared.Episode;
 import com.uiptv.ui.util.UiI18n;
+import com.uiptv.util.HtmlEntityDecoder;
 import com.uiptv.util.I18n;
 import com.uiptv.widget.AppHeaderActions;
 import com.uiptv.widget.AppPageHeader;
@@ -828,8 +829,8 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         }
 
         return trackBookmarkEpg(new BookmarkCard(
-                item == null ? "" : item.getChannelName(),
-                bookmarkAccountName(item),
+                item == null ? "" : HtmlEntityDecoder.decode(item.getChannelName()),
+                HtmlEntityDecoder.decode(bookmarkAccountName(item)),
                 item == null ? "" : item.getLogo(),
                 thumbnailsEnabled,
                 BOOKMARK_CACHE,
@@ -871,7 +872,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         card.setMinWidth(0);
         card.setMaxWidth(Double.MAX_VALUE);
 
-        Label title = new Label(item == null || item.getChannelName() == null ? "" : item.getChannelName());
+        Label title = new Label(item == null || item.getChannelName() == null ? "" : HtmlEntityDecoder.decode(item.getChannelName()));
         title.getStyleClass().add("bookmark-channel-title");
         title.setAlignment(Pos.CENTER_LEFT);
         title.setWrapText(true);
@@ -898,7 +899,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         card.getChildren().add(titleRow);
         String accountName = bookmarkAccountName(item);
         if (!accountName.isBlank()) {
-            Label account = new Label(accountName);
+            Label account = new Label(HtmlEntityDecoder.decode(accountName));
             account.getStyleClass().add("bookmark-channel-account");
             account.setWrapText(true);
             account.setMinWidth(0);

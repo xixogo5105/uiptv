@@ -901,12 +901,14 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             if (response.getChannel() != null) {
                 this.currentChannel = response.getChannel();
             }
-            MediaPlayerFactory.updateGuideContext(currentAccount, currentChannel);
         } else {
             uri = null;
         }
 
         if (isNotBlank(uri)) {
+            // Only request native provider EPG after link resolution produced a
+            // playable URI. updateChannelInfo runs before that network work.
+            MediaPlayerFactory.updateGuideContext(currentAccount, currentChannel);
             this.currentMediaUri = uri;
             updateBingeWatchContext(uri);
             syncBingeWatchEpisodeFromWatchState();
@@ -921,6 +923,7 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
             armStartupTimeout();
             playMedia(uri);
         } else {
+            MediaPlayerFactory.updateGuideContext(null, null);
             showLoading();
             showPlaybackError();
         }
@@ -1073,7 +1076,10 @@ public abstract class BaseVideoPlayer implements VideoPlayerInterface {
     public void updateChannelInfo(Channel channel, Account account) {
         this.currentChannel = channel;
         this.currentAccount = account;
-        MediaPlayerFactory.updateGuideContext(account, channel);
+        // This is called before playback resolves a provider link. Clear any
+        // old guide context without triggering a fetch for a stream that may
+        // never be opened.
+        MediaPlayerFactory.updateGuideContext(null, null);
         streamInfoText.setText("");
         refreshNowShowingHeader();
     }

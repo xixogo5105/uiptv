@@ -18,16 +18,28 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 
 public class MediaPlayerFactory {
-    public record GuideContext(com.uiptv.model.AccountMediaContext account, com.uiptv.model.Channel channel) { }
+    public record GuideContext(com.uiptv.model.AccountMediaContext account, com.uiptv.model.Channel channel, long playbackIntentId) { }
     private static final javafx.beans.property.ReadOnlyObjectWrapper<com.uiptv.application.PlayerEpgApplicationService.Result> guideSummary = new javafx.beans.property.ReadOnlyObjectWrapper<>();
     public static javafx.beans.property.ReadOnlyObjectProperty<com.uiptv.application.PlayerEpgApplicationService.Result> guideSummaryProperty() { return guideSummary.getReadOnlyProperty(); }
     public static void publishGuideSummary(com.uiptv.application.PlayerEpgApplicationService.Result value) { guideSummary.set(value); }
     private static final javafx.beans.property.ReadOnlyObjectWrapper<GuideContext> guideContext = new javafx.beans.property.ReadOnlyObjectWrapper<>();
+    private static final java.util.concurrent.atomic.AtomicLong GUIDE_CONTEXT_SEQUENCE = new java.util.concurrent.atomic.AtomicLong();
+    private static final java.util.concurrent.atomic.AtomicLong NATIVE_EPG_REQUESTED_INTENT = new java.util.concurrent.atomic.AtomicLong();
     public static javafx.beans.property.ReadOnlyObjectProperty<GuideContext> guideContextProperty() { return guideContext.getReadOnlyProperty(); }
+    /** Claims the single native EPG request permitted for this resolved play intent. */
+    public static boolean claimNativeEpgRequest(GuideContext context) {
+        if (context == null || context.playbackIntentId() <= 0) return false;
+        while (true) {
+            long last = NATIVE_EPG_REQUESTED_INTENT.get();
+            if (last >= context.playbackIntentId()) return false;
+            if (NATIVE_EPG_REQUESTED_INTENT.compareAndSet(last, context.playbackIntentId())) return true;
+        }
+    }
     public static void updateGuideContext(com.uiptv.model.Account account, com.uiptv.model.Channel channel) {
         com.uiptv.model.Channel lookup = new com.uiptv.model.Channel();
         if (channel != null) { lookup.setChannelId(channel.getChannelId()); lookup.setName(channel.getName()); lookup.setExtraJson(channel.getExtraJson()); }
-        GuideContext context = account == null || channel == null ? null : new GuideContext(com.uiptv.model.AccountMediaContext.from(account), lookup);
+        GuideContext context = account == null || channel == null ? null : new GuideContext(
+                com.uiptv.model.AccountMediaContext.from(account), lookup, GUIDE_CONTEXT_SEQUENCE.incrementAndGet());
         Runnable publish = () -> { guideSummary.set(null); guideContext.set(context); };
         if (javafx.application.Platform.isFxApplicationThread()) publish.run(); else javafx.application.Platform.runLater(publish);
     }

@@ -5,9 +5,12 @@ import javafx.event.Event;
 import javafx.event.EventType;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Label;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.PickResult;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -51,7 +54,8 @@ class PlayMenuButtonHoverRevealTest {
             assertNull(button.getTooltip(), "no Tooltip should exist yet - that is the expensive part");
             assertFalse(button.isRevealed());
             assertEquals(0.0, button.getOpacity(), 0.0001, "hidden until revealed");
-            assertFalse(button.isManaged(), "concealed action must not reserve layout space");
+            assertTrue(button.isManaged(), "concealed action must reserve a stable layout slot");
+            assertTrue(button.isMouseTransparent(), "concealed action must not intercept pointer input");
         });
     }
 
@@ -66,7 +70,8 @@ class PlayMenuButtonHoverRevealTest {
             assertNotNull(button.getTooltip(), "tooltip should be built on first reveal");
             assertTrue(button.isRevealed());
             assertEquals(1.0, button.getOpacity(), 0.0001);
-            assertTrue(button.isManaged(), "revealed action must participate in layout");
+            assertTrue(button.isManaged(), "revealed action must keep its layout slot");
+            assertFalse(button.isMouseTransparent(), "revealed action must receive pointer input");
 
             Node graphic = button.getGraphic();
             button.reveal();
@@ -84,11 +89,34 @@ class PlayMenuButtonHoverRevealTest {
             button.conceal();
             assertFalse(button.isRevealed());
             assertEquals(0.0, button.getOpacity(), 0.0001);
-            assertFalse(button.isManaged(), "concealed action must release layout space");
+            assertTrue(button.isManaged(), "concealing must preserve the stable layout slot");
+            assertTrue(button.isMouseTransparent(), "concealed action must not intercept pointer input");
             assertEquals(graphic, button.getGraphic(), "conceal must not throw content away");
 
             button.conceal();
             assertFalse(button.isRevealed(), "concealing an already hidden button is a no-op");
+        });
+    }
+
+    @Test
+    void revealingActionDoesNotReflowItsTitleRow() throws Exception {
+        runOnFx(() -> {
+            Label title = new Label("A long channel title that can wrap");
+            title.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(title, Priority.ALWAYS);
+            PlayMenuButton button = new PlayMenuButton("More options");
+            HBox row = new HBox(5, title, button);
+            new Scene(new StackPane(row), 180, 60);
+            row.getScene().getRoot().applyCss();
+            row.getScene().getRoot().layout();
+
+            double titleWidth = title.getWidth();
+            double buttonX = button.getLayoutX();
+            button.reveal();
+            row.getScene().getRoot().layout();
+
+            assertEquals(titleWidth, title.getWidth(), 0.01, "revealing must not shrink the title");
+            assertEquals(buttonX, button.getLayoutX(), 0.01, "revealing must not move the action slot");
         });
     }
 

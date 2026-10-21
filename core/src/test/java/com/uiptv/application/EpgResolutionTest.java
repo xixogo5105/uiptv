@@ -28,7 +28,10 @@ class EpgResolutionTest extends DbBackedTest {
         return path.toString();
     }
     private List<EpgProgramme> schedule(Account account, Channel channel) {
-        new EpgCacheRefreshService().refreshAccount(account, List.of(channel));
+        var refresh = new EpgCacheRefreshService();
+        // Native provider EPG is available only through the active-playback path.
+        if (EpgCacheApplicationService.nativeProvider(account)) refresh.refreshPlaybackChannel(account, channel);
+        else refresh.refreshAccount(account, List.of(channel));
         return new EpgCacheApplicationService().summaries(account, List.of(channel)).getOrDefault(channel, List.of());
     }
     @Test void globalGuideMatchesPlaylistResolutionLabelsWithoutLosingHdSdIdentity() throws Exception {

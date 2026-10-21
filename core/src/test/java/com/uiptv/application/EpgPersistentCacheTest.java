@@ -87,6 +87,55 @@ class EpgPersistentCacheTest extends DbBackedTest {
         assertEquals("Visible programme", cache.schedule(account, channel).getFirst().title());
     }
 
+    @Test void scheduledRefreshDoesNotFanOutNativeStalkerEpgRequests() {
+        var account = account("scheduled-stalker");
+        account.setType(AccountType.STALKER_PORTAL);
+        AccountDb.get().save(account);
+        account = AccountService.getInstance().getByName("scheduled-stalker");
+        var category = new Category("stalker-live", "Live", "Live", false, 0);
+        CategoryDb.get().saveAll(List.of(category), account);
+        category = CategoryDb.get().getCategories(account).getFirst();
+        ChannelDb.get().saveAll(List.of(channel("provider-channel", "Station")), category.getDbId(), account);
+
+        try (var nativeService = mockConstruction(NativeEpgApplicationService.class)) {
+            refresh.refreshDue();
+            assertTrue(nativeService.constructed().isEmpty(),
+                    "The scheduled account refresh must not call Stalker EPG per channel");
+        }
+    }
+
+    @Test void ordinaryAccountRefreshDoesNotFetchNativeStalkerEpgRegardlessOfPlaybackFlag() {
+        var account = account("ordinary-stalker");
+        account.setType(AccountType.STALKER_PORTAL);
+        var channel = channel("provider-channel", "Station");
+        try (var nativeService = mockConstruction(NativeEpgApplicationService.class)) {
+            var config = ConfigurationService.getInstance().read();
+            for (boolean playbackOnly : List.of(false, true)) {
+                config.setEpgPlaybackOnly(playbackOnly);
+                ConfigurationService.getInstance().save(config);
+                refresh.refreshAccount(account, List.of(channel));
+            }
+            assertTrue(nativeService.constructed().isEmpty(),
+                    "General account refreshes must not perform native portal EPG calls under either playback flag");
+        }
+    }
+
+    @Test void activePlaybackFetchesOnlyItsStalkerChannelEvenWhenFullGuideModeIsEnabled() {
+        var account = account("playing-stalker");
+        account.setType(AccountType.STALKER_PORTAL);
+        var channel = channel("playing-channel", "Playing station");
+        var config = ConfigurationService.getInstance().read();
+        config.setEpgPlaybackOnly(false);
+        ConfigurationService.getInstance().save(config);
+
+        try (var nativeService = mockConstruction(NativeEpgApplicationService.class)) {
+            new PlayerEpgApplicationService().currentForPlayback(account, channel);
+            var constructed = nativeService.constructed();
+            assertEquals(1, constructed.size());
+            verify(constructed.getFirst()).schedule(account, channel);
+        }
+    }
+
     @Test void androidSyncedCacheSignatureGoldenMatchesDesktop() {
         Account account = account("987654321");
         account.setUrl(""); account.setUsername(""); account.setPassword(""); account.setMacAddress("");
@@ -164,7 +213,7 @@ class EpgPersistentCacheTest extends DbBackedTest {
         var channel=channel("provider-123","Station"); channel.setExtraJson("{\"epg_channel_id\":\"station\"}"); account.setEpg(xml("guide.xml","Account programme").toString());
         long now=System.currentTimeMillis();
         try(var nativeService=mockConstruction(NativeEpgApplicationService.class,(service,context) -> when(service.schedule(any(),any())).thenReturn(List.of(p("Native programme",now-1000,now+100_000))))) {
-            refresh.refreshAccount(account,List.of(channel)); assertEquals("Native programme",cache.summaries(account,List.of(channel)).get(channel).getFirst().title());
+            refresh.refreshPlaybackChannel(account,channel); assertEquals("Native programme",cache.summaries(account,List.of(channel)).get(channel).getFirst().title());
             verify(nativeService.constructed().getFirst()).schedule(account,channel);
         }
     }

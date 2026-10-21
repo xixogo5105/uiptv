@@ -23,8 +23,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static com.uiptv.model.Account.AccountAction.series;
 import static com.uiptv.util.StringUtils.isBlank;
@@ -33,7 +31,6 @@ import static com.uiptv.util.StringUtils.safeGetString;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class XtremeApiParser {
-    private static final Pattern NUMERIC_HTML_ENTITY = Pattern.compile("&#(?:(\\d+)|[xX]([0-9a-fA-F]+));");
     private static final String STREAM_ID = "stream_id";
     private static final String PARAM_CATEGORY_ID = "category_id";
     private static final String XTREME_ERROR_PROCESSING_RESPONSE_DATA = "xtremeErrorProcessingResponseData: ";
@@ -170,7 +167,7 @@ public class XtremeApiParser {
             JSONArray list = new JSONArray(json);
             for (int i = 0; i < list.length(); i++) {
                 JSONObject jsonCategory = list.getJSONObject(i);
-                String categoryName = decodeNumericHtmlEntities(jsonCategory.getString("category_name"));
+                String categoryName = HtmlEntityDecoder.decode(jsonCategory.getString("category_name"));
                 Category category = new Category(safeGetString(jsonCategory, PARAM_CATEGORY_ID), categoryName, categoryName, true, 0);
                 category.setExtraJson(jsonCategory.toString());
                 categoryList.add(category);
@@ -179,30 +176,6 @@ public class XtremeApiParser {
             AppLog.addErrorLog(XtremeApiParser.class, XTREME_ERROR_PROCESSING_RESPONSE_DATA + e.getMessage());
         }
         return categoryList;
-    }
-
-    private static String decodeNumericHtmlEntities(String value) {
-        Matcher matcher = NUMERIC_HTML_ENTITY.matcher(value);
-        StringBuilder decoded = new StringBuilder(value.length());
-        int lastEnd = 0;
-        while (matcher.find()) {
-            decoded.append(value, lastEnd, matcher.start());
-            try {
-                int codePoint = matcher.group(1) != null
-                        ? Integer.parseInt(matcher.group(1))
-                        : Integer.parseInt(matcher.group(2), 16);
-                if (Character.isValidCodePoint(codePoint)
-                        && (codePoint < Character.MIN_SURROGATE || codePoint > Character.MAX_SURROGATE)) {
-                    decoded.appendCodePoint(codePoint);
-                } else {
-                    decoded.append(matcher.group());
-                }
-            } catch (NumberFormatException _) {
-                decoded.append(matcher.group());
-            }
-            lastEnd = matcher.end();
-        }
-        return decoded.append(value, lastEnd, value.length()).toString();
     }
 
     private static List<Channel> doParseChannels(String json, Account account, Consumer<List<Channel>> callback, BooleanSupplier isCancelled) {
@@ -237,7 +210,7 @@ public class XtremeApiParser {
     private static Channel parseXtremeChannel(JSONObject jsonCategory, Account account) {
         Channel channel = new Channel(
                 safeGetString(jsonCategory, account.getAction() == series ? "series_id" : STREAM_ID),
-                safeGetString(jsonCategory, "name"),
+                HtmlEntityDecoder.decode(safeGetString(jsonCategory, "name")),
                 null,
                 buildXtremeStreamUrl(account, safeGetString(jsonCategory, STREAM_ID), safeGetString(jsonCategory, "container_extension")),
                 null,

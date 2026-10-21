@@ -60,7 +60,7 @@ class XtremeApiParserCoverageTest {
                 "[{\"category_id\":\"1\",\"category_name\":\"News\"},"
                         + "{\"category_id\":\"2\",\"category_name\":\"LIVE | &#127875; Halloween Movies\"}]",
                 Map.of(), Map.of());
-        HttpUtil.HttpResult channels = new HttpUtil.HttpResult(200, "[{\"stream_id\":\"7\",\"name\":\"News\",\"category_id\":\"1\"}]", Map.of(), Map.of());
+        HttpUtil.HttpResult channels = new HttpUtil.HttpResult(200, "[{\"stream_id\":\"7\",\"name\":\"News&#039;s\",\"category_id\":\"1\"}]", Map.of(), Map.of());
         HttpUtil.HttpResult epg = new HttpUtil.HttpResult(200, "ok", Map.of(), Map.of());
 
         try (MockedStatic<HttpUtil> httpUtil = mockStatic(HttpUtil.class)) {
@@ -77,7 +77,7 @@ class XtremeApiParserCoverageTest {
             assertEquals("LIVE | 🎃 Halloween Movies", parsedCategories.get(1).getTitle());
             List<Channel> parsed = XtremeApiParser.parseChannels("1", account, null, () -> false);
             assertEquals("7", parsed.getFirst().getChannelId());
-            assertEquals("News", parsed.getFirst().getName());
+            assertEquals("News's", parsed.getFirst().getName());
             assertEquals("http://provider.test/path/user/pass/7", parsed.getFirst().getCmd());
             assertEquals("ok", XtremeApiParser.fetchEpg(account, "get_short_epg", "7"));
         }

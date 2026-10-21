@@ -26,6 +26,42 @@ class VlcPlaybackLifecycleTest extends DbBackedUiTest {
     @BeforeAll static void init() throws Exception { FxTestSupport.initJavaFx(); }
 
     @Test
+    void guideContextWaitsUntilPlaybackLinkHasResolved() throws Exception {
+        var factory = mock(MediaPlayerFactory.class, RETURNS_DEEP_STUBS);
+        VlcVideoPlayer player = runOnFxThread(() -> new VlcVideoPlayer(() -> factory));
+        var account = new Account();
+        account.setDbId("playback-epg-account");
+        account.setType(com.uiptv.util.AccountType.STALKER_PORTAL);
+        var channel = new Channel();
+        channel.setChannelId("provider-channel");
+        channel.setName("Station");
+        try {
+            player.playbackReady().toCompletableFuture().get(5, TimeUnit.SECONDS);
+            runOnFxThread(() -> {
+                com.uiptv.player.MediaPlayerFactory.updateGuideContext(null, null);
+                player.updateChannelInfo(channel, account);
+                assertNull(com.uiptv.player.MediaPlayerFactory.guideContextProperty().get(),
+                        "Preparing the embedded player must not trigger a channel EPG fetch");
+                player.play(new PlayerResponse("file:///resolved-stream.ts"));
+                assertNotNull(com.uiptv.player.MediaPlayerFactory.guideContextProperty().get(),
+                        "A resolved playback link may trigger the current channel EPG lookup");
+                var context = com.uiptv.player.MediaPlayerFactory.guideContextProperty().get();
+                assertEquals("provider-channel", context.channel().getChannelId());
+                assertTrue(com.uiptv.player.MediaPlayerFactory.claimNativeEpgRequest(context));
+                assertFalse(com.uiptv.player.MediaPlayerFactory.claimNativeEpgRequest(context),
+                        "The same play intent must never initiate a second native EPG request");
+                return null;
+            });
+        } finally {
+            runOnFxThread(() -> {
+                com.uiptv.player.MediaPlayerFactory.updateGuideContext(null, null);
+                player.disposePlayer();
+                return null;
+            });
+        }
+    }
+
+    @Test
     void freshSessionStartsWhileOldStopIsBlockedAndReleaseWaitsForStop() throws Exception {
         var firstFactory = mock(MediaPlayerFactory.class, RETURNS_DEEP_STUBS);
         var secondFactory = mock(MediaPlayerFactory.class, RETURNS_DEEP_STUBS);

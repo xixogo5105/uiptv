@@ -17,8 +17,8 @@ import javafx.util.Duration;
  * {@code uiptv.cardGrid.detachedCardCache} off-screen cards, so the whole cost is held in memory
  * for cards the user is not even looking at.
  * <p>
- * The button therefore starts hollow and unmanaged, so concealed cards do not reserve space for
- * an action that is not visible. The graphic and tooltip are only built on the first
+ * The button therefore starts hollow, hidden and mouse-transparent while reserving a fixed-size
+ * layout slot. The graphic and tooltip are only built on the first
  * {@link #reveal()}. That is driven by card hover from
  * {@link ResponsiveCardGrid#configureCard}, so exactly one button is ever materialised: the one on
  * the card under the pointer. Direct hover or focus on the button also reveals it, which keeps the
@@ -38,13 +38,18 @@ public class PlayMenuButton extends Button implements HoverRevealAction {
         setFocusTraversable(true);
         setAccessibleText(accessibleText);
         setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+        setMinSize(ICON_SIZE, ICON_SIZE);
+        setPrefSize(ICON_SIZE, ICON_SIZE);
+        setMaxSize(ICON_SIZE, ICON_SIZE);
         addEventHandler(MouseEvent.MOUSE_CLICKED, Event::consume);
 
-        // The card-level hover handler reveals this control. It is unmanaged while concealed so
-        // the title can use the full card width; once revealed it becomes hit-testable and can
-        // receive focus/clicks normally.
+        // Keep a stable 24px layout slot while concealed. Toggling managed on hover changes the
+        // title row's measured width and can move the card out from under the pointer, causing
+        // hover enter/exit flicker. Opacity and mouse transparency hide the control without
+        // changing layout or intercepting input.
         setOpacity(0.0);
-        setManaged(false);
+        setManaged(true);
+        setMouseTransparent(true);
 
         // Self-reveal only. Concealing is deliberately left to ResponsiveCardGrid: if this button
         // concealed itself on MOUSE_EXITED it would disappear the moment the pointer moved off it
@@ -64,6 +69,7 @@ public class PlayMenuButton extends Button implements HoverRevealAction {
             materialise();
         }
         setManaged(true);
+        setMouseTransparent(false);
         setOpacity(1.0);
     }
 
@@ -74,7 +80,7 @@ public class PlayMenuButton extends Button implements HoverRevealAction {
         }
         revealed = false;
         setOpacity(0.0);
-        setManaged(false);
+        setMouseTransparent(true);
     }
 
     @Override

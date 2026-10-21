@@ -173,7 +173,12 @@ public class PlayerEpgUI extends VBox {
         int request = generation.incrementAndGet();
         guideWorker = Thread.ofVirtual().start(() -> {
             try {
-                var result = new PlayerEpgApplicationService().current(context.account().toAccount(), context.channel());
+                var service = new PlayerEpgApplicationService();
+                // The resolved-playback context event is the one permitted native
+                // Stalker EPG trigger. Timers and cache notifications are cache-only.
+                var result = contextEvent && MediaPlayerFactory.claimNativeEpgRequest(context)
+                        ? service.currentForPlayback(context.account().toAccount(), context.channel())
+                        : service.current(context.account().toAccount(), context.channel());
                 Platform.runLater(() -> completeRefresh(request, result, true));
             } catch (Exception _) {
                 Platform.runLater(() -> completeRefresh(request, null, false));

@@ -242,6 +242,23 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     }
 
     @Test
+    void plainTextFavoriteCardDecodesSavedHtmlEntitiesWhenRendered() throws Exception {
+        BookmarkCardSnapshot snapshot = runOnFxThread(() -> {
+            BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
+            BookmarkChannelListUI.BookmarkItem item = drmBookmarkItem();
+            item.setChannelName("Women and &#039;s T20 Cricket Highlights");
+            item.setAccountName("Provider &amp; Sports");
+            Region card = createPlainTextBookmarkCard(ui, item);
+            Node title = findByStyle(card, "bookmark-channel-title");
+            Node account = findByStyle(card, "bookmark-channel-account");
+            return new BookmarkCardSnapshot(((Labeled) title).getText(), ((Labeled) account).getText());
+        });
+
+        assertEquals("Women and 's T20 Cricket Highlights", snapshot.title());
+        assertEquals("Provider & Sports", snapshot.accountName());
+    }
+
+    @Test
     void favoriteRegistersAccountChangeListenerForImmediateAccountUpdates() throws Exception {
         ListenerSnapshot snapshot = runOnFxThread(() -> {
             BookmarkChannelListUI ui = new BookmarkChannelListUI(null, null);
@@ -463,6 +480,9 @@ class BookmarkChannelListUITest extends DbBackedUiTest {
     }
 
     private record BadgeSnapshot(String text, boolean visible, boolean managed) {
+    }
+
+    private record BookmarkCardSnapshot(String title, String accountName) {
     }
 
     @Test

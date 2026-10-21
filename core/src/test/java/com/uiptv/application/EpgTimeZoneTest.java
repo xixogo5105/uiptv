@@ -51,12 +51,12 @@ class EpgTimeZoneTest extends DbBackedTest {
         long now=System.currentTimeMillis();
         try(var nativeService=mockConstruction(NativeEpgApplicationService.class,(service,context) -> when(service.schedule(any(),any())).thenReturn(List.of(new EpgProgramme("Current movie","",now-1000,now+3_600_000))))) {
             var cache=new EpgCacheApplicationService(); var refresh=new EpgCacheRefreshService();
-            refresh.refreshAccount(account,List.of(channel)); assertFalse(cache.schedule(account,channel).isEmpty());
+            refresh.refreshPlaybackChannel(account,channel); assertFalse(cache.schedule(account,channel).isEmpty());
             String first=EpgCacheApplicationService.nativeSource(account,channel);
             account.setTimezone("Asia/Kolkata");
             assertEquals(first,EpgCacheApplicationService.nativeSource(account,channel));
             assertFalse(cache.schedule(account,channel).isEmpty(),"Account timezone must not change source timestamps");
-            refresh.refreshAccount(account,List.of(channel)); assertFalse(cache.schedule(account,channel).isEmpty());
+            refresh.refreshPlaybackChannel(account,channel); assertFalse(cache.schedule(account,channel).isEmpty());
             assertEquals(1,nativeService.constructed().size());
         } finally { EpgCacheRefreshService.stop(); }
     }
