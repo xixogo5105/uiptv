@@ -25,6 +25,7 @@ public class DatabaseUtils {
     private static final String TEXT_NOT_NULL_UNIQUE = "TEXT NOT NULL UNIQUE";
     private static final String WHERE_ID_EQUALS = " where id=?";
     private static final String COLUMN_ACCOUNT_ID = "accountId";
+    private static final String COLUMN_ACCOUNT_NAME = "accountName";
     private static final String COLUMN_ACCOUNT_TYPE = "accountType";
     private static final String COLUMN_ACTIVE_SUB = "activeSub";
     private static final String COLUMN_ALIAS = "alias";
@@ -101,7 +102,7 @@ public class DatabaseUtils {
         )));
         dbStructure.put(DbTable.ACCOUNT_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
-                new DataColumn("accountName", TEXT_NOT_NULL_UNIQUE),
+                new DataColumn(COLUMN_ACCOUNT_NAME, TEXT_NOT_NULL_UNIQUE),
                 new DataColumn("username", "TEXT"),
                 new DataColumn("password", "TEXT"),
                 new DataColumn("xtremeCredentialsJson", "TEXT"),
@@ -144,7 +145,7 @@ public class DatabaseUtils {
         )));
         dbStructure.put(DbTable.BOOKMARK_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
-                new DataColumn("accountName", "TEXT"),
+                new DataColumn(COLUMN_ACCOUNT_NAME, "TEXT"),
                 new DataColumn("categoryTitle", "TEXT"),
                 new DataColumn(COLUMN_CHANNEL_ID, "TEXT"),
                 new DataColumn("channelName", "TEXT"),
@@ -165,7 +166,7 @@ public class DatabaseUtils {
         )));
         dbStructure.put(DbTable.BOOKMARK_PLAY_HISTORY_TABLE.getTableName(), new ArrayList<>(Arrays.asList(
                 new DataColumn("id", INTEGER_PRIMARY_KEY),
-                new DataColumn("accountName", TEXT_NOT_NULL),
+                new DataColumn(COLUMN_ACCOUNT_NAME, TEXT_NOT_NULL),
                 new DataColumn("accountAction", TEXT_NOT_NULL),
                 new DataColumn(COLUMN_CHANNEL_ID, TEXT_NOT_NULL),
                 new DataColumn("playCount", "INTEGER NOT NULL DEFAULT 0"),

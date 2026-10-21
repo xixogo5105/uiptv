@@ -45,8 +45,8 @@ class EpgBridgeTest {
                 .thenReturn(new JSONObject().put("status", "ok"));
         PrintStream original = System.out;
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        try {
-            System.setOut(new PrintStream(output, true, StandardCharsets.UTF_8));
+        try (PrintStream capture = new PrintStream(output, true, StandardCharsets.UTF_8)) {
+            System.setOut(capture);
             assertEquals(0, EpgBridge.run(new String[]{"status"}, service));
         } finally {
             System.setOut(original);

@@ -53,7 +53,7 @@ public final class EpgBridge {
             // The Python builder consumes these commands as a machine-readable
             // subprocess protocol. Keep diagnostics on stderr and reserve stdout
             // for the single JSON response.
-            System.out.println(result);
+            writeJsonResult(result.toString());
             LOG.info("{}", result);
             return 0;
         } catch (InterruptedException error) {
@@ -65,5 +65,11 @@ public final class EpgBridge {
             LOG.error("EPG bridge failed: {}: {}", error.getClass().getSimpleName(), error.getMessage());
             return 1;
         }
+    }
+
+    @SuppressWarnings("java:S106")
+    private static void writeJsonResult(String result) {
+        // Standard output is the machine-readable protocol consumed by the Python bridge.
+        System.out.println(result);
     }
 }

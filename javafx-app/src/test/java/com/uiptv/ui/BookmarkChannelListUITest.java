@@ -2,7 +2,6 @@ package com.uiptv.ui;
 
 import com.uiptv.model.Account;
 import com.uiptv.model.BookmarkCategory;
-import com.uiptv.model.BookmarkCategory;
 import com.uiptv.testsupport.DbBackedUiTest;
 import com.uiptv.testsupport.FxTestSupport;
 import com.uiptv.util.I18n;

@@ -74,7 +74,7 @@ public class BookmarkService {
     }
 
     public void recordRecentPlayback(Bookmark bookmark) {
-        BookmarkPlayHistoryDb.record(bookmark);
+        BookmarkPlayHistoryDb.recordPlayback(bookmark);
     }
 
     public void removeRecentBookmark(Bookmark bookmark) {

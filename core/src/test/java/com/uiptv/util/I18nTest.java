@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -108,7 +109,7 @@ class I18nTest {
             String bundleFile = "messages_" + language.languageTag().replace('-', '_') + ".properties";
             Properties localized = loadBundle(bundleFile);
             for (String key : recentlyAddedKeys) {
-                assertFalse(english.getProperty(key).equals(localized.getProperty(key)),
+                assertNotEquals(english.getProperty(key), localized.getProperty(key),
                         "English placeholder for " + key + " in " + bundleFile);
             }
         }

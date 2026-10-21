@@ -185,51 +185,12 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private void reloadBookmarks(long generation) {
         try {
             long revisionBeforeRead = BookmarkService.getInstance().getChangeRevision();
-
             Map<String, Account> accountByName = AccountService.getInstance().getAll();
-
-            List<Bookmark> recentBookmarks = BookmarkService.getInstance().readRecentBookmarks();
-            BookmarkResolver.ResolutionContext recentContext = bookmarkResolver.prepareFast(recentBookmarks, accountByName);
-            List<BookmarkItem> recentItems = recentBookmarks.stream()
-                    .map(bookmark -> createBookmarkItem(bookmarkResolver.resolveBookmark(bookmark, recentContext)))
-                    .toList();
-            runLater(() -> {
-                if (generation == reloadGeneration.get()) {
-                    recentBookmarkItems.clear();
-                    recentBookmarkItems.addAll(recentItems);
-                    recentItemsLoaded = true;
-                    filterView();
-                }
-            });
-
-            List<BookmarkCategory> categories = defaultBookmarkCategories();
-            categories.addAll(BookmarkService.getInstance().getAllCategories());
-            runLater(() -> populateCategoryPills(categories));
-
-            int offset = 0;
-            List<BookmarkItem> allLoadedItems = new ArrayList<>();
-
-            boolean finished = false;
-            while (!finished) {
-                if (generation != reloadGeneration.get()) {
-                    return;
-                }
-
-                List<Bookmark> batch = BookmarkService.getInstance().readPage(offset, BOOKMARK_DB_FETCH_BATCH_SIZE);
-                if (batch.isEmpty()) {
-                    finished = true;
-                } else {
-                    BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(batch, accountByName);
-                    List<BookmarkItem> batchItems = buildLoadedBookmarkItems(generation, batch, context, allLoadedItems);
-                    if (generation != reloadGeneration.get()) {
-                        return;
-                    }
-                    if (batchItems.isEmpty()) {
-                        finished = true;
-                    } else {
-                        offset += BOOKMARK_DB_FETCH_BATCH_SIZE;
-                    }
-                }
+            publishRecentBookmarks(generation, accountByName);
+            List<BookmarkCategory> categories = loadBookmarkCategories();
+            List<BookmarkItem> allLoadedItems = loadAllBookmarkItems(generation, accountByName);
+            if (allLoadedItems == null) {
+                return;
             }
 
             long revisionAfterRead = BookmarkService.getInstance().getChangeRevision();
@@ -244,6 +205,50 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             pendingBookmarkSnapshots.add(new BookmarkSnapshot(generation, List.of(), null, 0, true));
             scheduleBookmarkSnapshotDrain();
         }
+    }
+
+    private void publishRecentBookmarks(long generation, Map<String, Account> accountByName) {
+        List<Bookmark> bookmarks = BookmarkService.getInstance().readRecentBookmarks();
+        BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(bookmarks, accountByName);
+        List<BookmarkItem> items = bookmarks.stream()
+                .map(bookmark -> createBookmarkItem(bookmarkResolver.resolveBookmark(bookmark, context)))
+                .toList();
+        runLater(() -> {
+            if (generation == reloadGeneration.get()) {
+                recentBookmarkItems.clear();
+                recentBookmarkItems.addAll(items);
+                recentItemsLoaded = true;
+                filterView();
+            }
+        });
+    }
+
+    private List<BookmarkCategory> loadBookmarkCategories() {
+        List<BookmarkCategory> categories = defaultBookmarkCategories();
+        categories.addAll(BookmarkService.getInstance().getAllCategories());
+        runLater(() -> populateCategoryPills(categories));
+        return categories;
+    }
+
+    private List<BookmarkItem> loadAllBookmarkItems(long generation, Map<String, Account> accountByName) {
+        int offset = 0;
+        List<BookmarkItem> items = new ArrayList<>();
+        while (generation == reloadGeneration.get()) {
+            List<Bookmark> batch = BookmarkService.getInstance().readPage(offset, BOOKMARK_DB_FETCH_BATCH_SIZE);
+            if (batch.isEmpty()) {
+                return items;
+            }
+            BookmarkResolver.ResolutionContext context = bookmarkResolver.prepareFast(batch, accountByName);
+            List<BookmarkItem> batchItems = buildLoadedBookmarkItems(generation, batch, context, items);
+            if (generation != reloadGeneration.get()) {
+                return null;
+            }
+            if (batchItems.isEmpty()) {
+                return items;
+            }
+            offset += BOOKMARK_DB_FETCH_BATCH_SIZE;
+        }
+        return null;
     }
 
     private List<BookmarkItem> buildLoadedBookmarkItems(long generation,
@@ -1031,44 +1036,47 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private void filterView() {
         String categoryId = selectedCategoryId();
         boolean showingRecent = RECENT_CATEGORY_ID.equals(categoryId);
-
         String rawSearchText = searchTextField.getText();
         String searchText = rawSearchText == null ? "" : rawSearchText.toLowerCase();
-        final String finalCategoryId = categoryId;
-
         List<BookmarkItem> sourceItems = showingRecent ? recentBookmarkItems : allBookmarkItems;
         List<BookmarkItem> filteredList = sourceItems.stream()
-                .filter(item -> {
-                    boolean categoryMatch = showingRecent || (finalCategoryId == null) || finalCategoryId.equals(item.getCategoryId());
-                    boolean searchMatch = searchText.isEmpty()
-                            || item.getChannelName().toLowerCase().contains(searchText)
-                            || item.getAccountName().toLowerCase().contains(searchText);
-                    return categoryMatch && searchMatch;
-                })
+                .filter(item -> matchesBookmarkFilter(item, showingRecent, categoryId, searchText))
                 .collect(Collectors.toCollection(ArrayList::new));
         if (!showingRecent) {
             applyBookmarkSort(filteredList);
         }
-
-
         if (!sameFilteredItems(filteredList)) {
             filteredItems.setAll(filteredList);
             applyBookmarkGridDisplayMode(thumbnailsEnabled);
         }
         if (filteredList.isEmpty()) {
-            if ((showingRecent && !recentItemsLoaded)
-                    || (reloadInProgress && !showingRecent && allBookmarkItems.isEmpty())) {
-                // Initial reads happen quietly in the background; keep the grid clear
-                // until the selected category has a result or a final empty state.
-                bookmarkGrid.setPlaceholderText("");
-                return;
-            }
-            bookmarkGrid.setPlaceholderText(searchText.isBlank()
-                    ? I18n.tr(showingRecent ? "commonNoResults" : I18N_AUTO_NO_BOOKMARKS_FOUND)
-                    : I18n.tr("autoNothingFoundFor", rawSearchText));
+            updateEmptyBookmarkPlaceholder(showingRecent, searchText, rawSearchText);
         } else {
             bookmarkGrid.setPlaceholderText("");
         }
+    }
+
+    private boolean matchesBookmarkFilter(BookmarkItem item, boolean showingRecent, String categoryId, String searchText) {
+        if (!showingRecent && categoryId != null && !categoryId.equals(item.getCategoryId())) {
+            return false;
+        }
+        return searchText.isEmpty()
+                || item.getChannelName().toLowerCase().contains(searchText)
+                || item.getAccountName().toLowerCase().contains(searchText);
+    }
+
+    private void updateEmptyBookmarkPlaceholder(boolean showingRecent, String searchText, String rawSearchText) {
+        if ((showingRecent && !recentItemsLoaded)
+                || (reloadInProgress && !showingRecent && allBookmarkItems.isEmpty())) {
+            // Initial reads happen quietly in the background; keep the grid clear until a result is available.
+            bookmarkGrid.setPlaceholderText("");
+            return;
+        }
+        if (searchText.isBlank()) {
+            bookmarkGrid.setPlaceholderText(I18n.tr(showingRecent ? "commonNoResults" : I18N_AUTO_NO_BOOKMARKS_FOUND));
+            return;
+        }
+        bookmarkGrid.setPlaceholderText(I18n.tr("autoNothingFoundFor", rawSearchText));
     }
 
     private boolean sameFilteredItems(List<BookmarkItem> filteredList) {
@@ -1268,54 +1276,70 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
         rowMenu.getStyleClass().add("bookmark-context-menu");
         rowMenu.setHideOnEscape(true);
         rowMenu.setAutoHide(true);
-
         for (PlaybackUIService.PlayerOption option : PlaybackUIService.getConfiguredPlayerOptions()) {
-            MenuItem playerItem = new MenuItem(option.label());
-            playerItem.setOnAction(_ -> {
-                if (selectedItems.size() > 1) {
-                    showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
-                } else {
-                    rowMenu.hide();
-                    play(item, option.playerPath());
-                }
-            });
-            rowMenu.getItems().add(playerItem);
+            rowMenu.getItems().add(createPlayerMenuItem(option, item, selectedItems, rowMenu));
         }
-
         Menu addToMenu = new Menu(I18n.tr("autoAddTo"));
-        List<BookmarkCategory> categories = BookmarkService.getInstance().getAllCategories();
-        for (BookmarkCategory category : categories) {
-            MenuItem categoryItem = new MenuItem(category.getName());
-            categoryItem.setOnAction(_ -> {
-                for (BookmarkItem selectedItem : selectedItems) {
-                    selectedItem.setCategoryTitle(category.getName());
-                    Bookmark b = BookmarkService.getInstance().getBookmark(selectedItem.getBookmarkId());
-                    if (b != null) {
-                        b.setCategoryId(category.getId());
-                        BookmarkService.getInstance().save(b);
-                    }
-                }
-                forceReload();
-            });
-            addToMenu.getItems().add(categoryItem);
-        }
-
+        addCategoryMenuItems(addToMenu, selectedItems);
         MenuItem editItem = new MenuItem(I18n.tr("autoRemoveFromFavorite"));
         editItem.getStyleClass().add("danger-menu-item");
         editItem.setOnAction(_ -> handleDeleteMultipleBookmarks());
-
         rowMenu.getItems().add(addToMenu);
         rowMenu.getItems().add(new SeparatorMenuItem());
         rowMenu.getItems().add(editItem);
-        if (item != null && item.getAccountAction() == Account.AccountAction.itv && selectedItems.size() == 1)
-            cardEpg.addGuideMenu(rowMenu, owner, () -> guideRow(item));
-        if (RECENT_CATEGORY_ID.equals(selectedCategoryId()) && !selectedItems.isEmpty()) {
-            MenuItem removeFromRecent = new MenuItem("Remove from Recent");
-            removeFromRecent.setOnAction(_ -> removeFromRecent(selectedItems));
-            rowMenu.getItems().add(new SeparatorMenuItem());
-            rowMenu.getItems().add(removeFromRecent);
-        }
+        addGuideMenu(rowMenu, item, selectedItems, owner);
+        addRemoveFromRecentMenu(rowMenu, selectedItems);
         return rowMenu;
+    }
+
+    private MenuItem createPlayerMenuItem(PlaybackUIService.PlayerOption option, BookmarkItem item,
+                                          List<BookmarkItem> selectedItems, ContextMenu rowMenu) {
+        MenuItem playerItem = new MenuItem(option.label());
+        playerItem.setOnAction(_ -> {
+            if (selectedItems.size() > 1) {
+                showErrorAlert(I18n.tr("autoThisActionIsDisabledForMultipleSelections"));
+                return;
+            }
+            rowMenu.hide();
+            play(item, option.playerPath());
+        });
+        return playerItem;
+    }
+
+    private void addCategoryMenuItems(Menu menu, List<BookmarkItem> selectedItems) {
+        for (BookmarkCategory category : BookmarkService.getInstance().getAllCategories()) {
+            MenuItem categoryItem = new MenuItem(category.getName());
+            categoryItem.setOnAction(_ -> moveSelectedBookmarksToCategory(category, selectedItems));
+            menu.getItems().add(categoryItem);
+        }
+    }
+
+    private void moveSelectedBookmarksToCategory(BookmarkCategory category, List<BookmarkItem> selectedItems) {
+        for (BookmarkItem selectedItem : selectedItems) {
+            selectedItem.setCategoryTitle(category.getName());
+            Bookmark bookmark = BookmarkService.getInstance().getBookmark(selectedItem.getBookmarkId());
+            if (bookmark != null) {
+                bookmark.setCategoryId(category.getId());
+                BookmarkService.getInstance().save(bookmark);
+            }
+        }
+        forceReload();
+    }
+
+    private void addGuideMenu(ContextMenu menu, BookmarkItem item, List<BookmarkItem> selectedItems, Node owner) {
+        if (item != null && item.getAccountAction() == Account.AccountAction.itv && selectedItems.size() == 1) {
+            cardEpg.addGuideMenu(menu, owner, () -> guideRow(item));
+        }
+    }
+
+    private void addRemoveFromRecentMenu(ContextMenu menu, List<BookmarkItem> selectedItems) {
+        if (!RECENT_CATEGORY_ID.equals(selectedCategoryId()) || selectedItems.isEmpty()) {
+            return;
+        }
+        MenuItem removeFromRecent = new MenuItem("Remove from Recent");
+        removeFromRecent.setOnAction(_ -> removeFromRecent(selectedItems));
+        menu.getItems().add(new SeparatorMenuItem());
+        menu.getItems().add(removeFromRecent);
     }
 
     private void removeFromRecent(List<BookmarkItem> items) {
