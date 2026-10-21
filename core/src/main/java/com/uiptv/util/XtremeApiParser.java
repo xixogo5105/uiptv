@@ -33,7 +33,7 @@ import static com.uiptv.util.StringUtils.safeGetString;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class XtremeApiParser {
-    private static final Pattern NUMERIC_HTML_ENTITY = Pattern.compile("&#(?:([0-9]+)|[xX]([0-9a-fA-F]+));");
+    private static final Pattern NUMERIC_HTML_ENTITY = Pattern.compile("&#(?:(\\d+)|[xX]([0-9a-fA-F]+));");
     private static final String STREAM_ID = "stream_id";
     private static final String PARAM_CATEGORY_ID = "category_id";
     private static final String XTREME_ERROR_PROCESSING_RESPONSE_DATA = "xtremeErrorProcessingResponseData: ";
@@ -197,7 +197,7 @@ public class XtremeApiParser {
                 } else {
                     decoded.append(matcher.group());
                 }
-            } catch (NumberFormatException invalidEntity) {
+            } catch (NumberFormatException _) {
                 decoded.append(matcher.group());
             }
             lastEnd = matcher.end();
