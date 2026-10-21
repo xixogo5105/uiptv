@@ -672,7 +672,10 @@ public class ImageCacheManager {
                 ? MAX_MEDIA_IMAGE_DECODE_WIDTH : MAX_IMAGE_DECODE_WIDTH;
         int maxHeight = effectiveProfile == ImageProfile.MEDIA_ARTWORK
                 ? MAX_MEDIA_IMAGE_DECODE_HEIGHT : MAX_IMAGE_DECODE_HEIGHT;
-        return new Image(new ByteArrayInputStream(bytes), maxWidth, maxHeight, true, true);
+        // ImageCacheManager already performs decoding on IMAGE_LOADER. A second
+        // JavaFX background decode can depend on toolkit startup and leave the
+        // cache future complete before the image itself is ready.
+        return new Image(new ByteArrayInputStream(bytes), maxWidth, maxHeight, true, false);
     }
 
     private static long thumbnailDiskTtlMs() {
