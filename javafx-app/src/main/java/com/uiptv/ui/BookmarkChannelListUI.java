@@ -45,6 +45,7 @@ import static javafx.application.Platform.runLater;
 public class BookmarkChannelListUI extends HBox implements SearchTarget {
     private static final String BOOKMARK_CACHE = "bookmark";
     private static final String I18N_AUTO_NO_BOOKMARKS_FOUND = "autoNoBookmarksFound";
+    private static final String I18N_AUTO_UNABLE_TO_LOAD_BOOKMARKS = "autoUnableToLoadBookmarks";
     private static final String I18N_SEARCHABLE_TABLE_MANAGE_TABS = "searchableTableManageTabs";
     private static final String RECENT_CATEGORY_ID = "__recently_played_bookmarks__";
     private static final double GRID_NORMAL_VERTICAL_GAP = 14;
@@ -319,7 +320,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
             return;
         }
         reloadInProgress = false;
-        bookmarkGrid.setPlaceholderText(I18n.tr("autoUnableToLoadBookmarks"));
+        bookmarkGrid.setPlaceholderText(I18n.tr(I18N_AUTO_UNABLE_TO_LOAD_BOOKMARKS));
         triggerDeferredReloadIfNeeded();
     }
 
@@ -684,7 +685,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                     filterView();
                 });
             } catch (Exception _) {
-                runLater(() -> showErrorAlert(I18n.tr("autoUnableToLoadBookmarks")));
+                runLater(() -> showErrorAlert(I18n.tr(I18N_AUTO_UNABLE_TO_LOAD_BOOKMARKS)));
             }
         }, "bookmark-recent-clear");
         thread.setDaemon(true);
@@ -1356,7 +1357,7 @@ public class BookmarkChannelListUI extends HBox implements SearchTarget {
                     filterView();
                 });
             } catch (Exception _) {
-                runLater(() -> showErrorAlert(I18n.tr("autoUnableToLoadBookmarks")));
+                runLater(() -> showErrorAlert(I18n.tr(I18N_AUTO_UNABLE_TO_LOAD_BOOKMARKS)));
             }
         }, "bookmark-recent-remove");
         thread.setDaemon(true);
